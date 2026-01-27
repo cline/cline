@@ -115,6 +115,7 @@
 							},
 							"features/auto-approve",
 							"features/auto-compact",
+							"features/background-edit",
 							"features/checkpoints",
 							"features/cline-rules",
 							{
@@ -147,8 +148,10 @@
 									"features/hooks/samples"
 								]
 							},
+							"features/jupyter-notebooks",
 							"features/multiroot-workspace",
 							"features/plan-and-act",
+							"features/skills",
 							{
 								"group": "Slash Commands",
 								"pages": [
@@ -175,6 +178,7 @@
 									"features/tasks/task-management"
 								]
 							},
+							"features/worktrees",
 							"features/yolo-mode"
 						]
 					},
@@ -195,6 +199,7 @@
 									"provider-config/anthropic",
 									"provider-config/claude-code",
 									"provider-config/openai",
+									"provider-config/openai-codex",
 									"provider-config/openrouter",
 									"provider-config/cerebras",
 									"provider-config/deepseek",
@@ -278,6 +283,7 @@
 						"pages": [
 							"enterprise-solutions/overview",
 							"enterprise-solutions/onboarding",
+							"enterprise-solutions/sso-setup",
 							"enterprise-solutions/team-management/managing-members",
 							{
 								"group": "SaaS Provider Configuration",
@@ -317,7 +323,8 @@
 								"pages": [
 									"enterprise-solutions/monitoring/overview",
 									"enterprise-solutions/monitoring/telemetry",
-									"enterprise-solutions/monitoring/opentelemetry"
+									"enterprise-solutions/monitoring/opentelemetry",
+									"enterprise-solutions/monitoring/opentelemetry_override"
 								]
 							}
 						]

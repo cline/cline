@@ -108,6 +108,9 @@ function convertOcaModelInfoToProtoOcaModelInfo(info: OcaModelInfo | undefined):
 		surveyId: info.surveyId,
 		banner: info.banner,
 		modelName: info.modelName,
+		apiFormat: info.apiFormat,
+		supportsReasoning: info.supportsReasoning,
+		reasoningEffortOptions: info.reasoningEffortOptions,
 	}
 }
 
@@ -131,6 +134,9 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		surveyId: info.surveyId,
 		banner: info.banner,
 		modelName: info.modelName,
+		apiFormat: info.apiFormat,
+		supportsReasoning: info.supportsReasoning,
+		reasoningEffortOptions: info.reasoningEffortOptions,
 	}
 }
 
@@ -315,6 +321,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "openai-codex":
+			return ProtoApiProvider.OPENAI_CODEX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -403,6 +411,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.OPENAI_CODEX:
+			return "openai-codex"
 		default:
 			return "anthropic"
 	}
@@ -459,6 +469,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		doubaoApiKey: config.doubaoApiKey,
 		mistralApiKey: config.mistralApiKey,
 		azureApiVersion: config.azureApiVersion,
+		azureIdentity: config.azureIdentity,
 		qwenApiLine: config.qwenApiLine,
 		moonshotApiLine: config.moonshotApiLine,
 		moonshotApiKey: config.moonshotApiKey,
@@ -528,11 +539,14 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeSapAiCoreDeploymentId: config.planModeSapAiCoreDeploymentId,
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
+		planModeOcaReasoningEffort: config.planModeOcaReasoningEffort,
 		planModeAihubmixModelId: config.planModeAihubmixModelId,
 		planModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeAihubmixModelInfo),
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
+		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -567,11 +581,14 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeSapAiCoreDeploymentId: config.actModeSapAiCoreDeploymentId,
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
+		actModeOcaReasoningEffort: config.actModeOcaReasoningEffort,
 		actModeAihubmixModelId: config.actModeAihubmixModelId,
 		actModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeAihubmixModelInfo),
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
+		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 	}
 }
 
@@ -626,6 +643,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		doubaoApiKey: protoConfig.doubaoApiKey,
 		mistralApiKey: protoConfig.mistralApiKey,
 		azureApiVersion: protoConfig.azureApiVersion,
+		azureIdentity: protoConfig.azureIdentity,
 		qwenApiLine: protoConfig.qwenApiLine,
 		moonshotApiLine: protoConfig.moonshotApiLine,
 		moonshotApiKey: protoConfig.moonshotApiKey,
@@ -698,11 +716,14 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeSapAiCoreDeploymentId: protoConfig.planModeSapAiCoreDeploymentId,
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
+		planModeOcaReasoningEffort: protoConfig.planModeOcaReasoningEffort,
 		planModeAihubmixModelId: protoConfig.planModeAihubmixModelId,
 		planModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeAihubmixModelInfo),
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
+		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -738,10 +759,13 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeSapAiCoreDeploymentId: protoConfig.actModeSapAiCoreDeploymentId,
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
+		actModeOcaReasoningEffort: protoConfig.actModeOcaReasoningEffort,
 		actModeAihubmixModelId: protoConfig.actModeAihubmixModelId,
 		actModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeAihubmixModelInfo),
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
+		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 	}
 }

@@ -1,7 +1,19 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
-import { RemoteConfigFields } from "@shared/storage/state-keys"
+import { GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
+import { AuthService } from "@/services/auth/AuthService"
+import { getDistinctId } from "@/services/logging/distinctId"
+import { getTelemetryService, telemetryService } from "@/services/telemetry"
+import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
+import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
+import { type TelemetryService } from "@/services/telemetry/TelemetryService"
+import { ApiProvider } from "@/shared/api"
+import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { Logger } from "@/shared/services/Logger"
+import { syncWorker } from "@/shared/services/worker/sync"
+import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
+import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
 /**
  * Transforms RemoteConfig schema to RemoteConfigFields shape
@@ -20,6 +32,12 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	}
 	if (remoteConfig.allowedMCPServers !== undefined) {
 		transformed.allowedMCPServers = remoteConfig.allowedMCPServers
+	}
+	if (remoteConfig.blockPersonalRemoteMCPServers !== undefined) {
+		transformed.blockPersonalRemoteMCPServers = remoteConfig.blockPersonalRemoteMCPServers
+	}
+	if (remoteConfig.remoteMCPServers !== undefined) {
+		transformed.remoteMCPServers = remoteConfig.remoteMCPServers
 	}
 	if (remoteConfig.yoloModeAllowed !== undefined) {
 		// only set the yoloModeToggled field if yolo mode is not allowed. Otherwise, we let the user toggle it.
@@ -71,10 +89,12 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.openTelemetryLogMaxQueueSize !== undefined) {
 		transformed.openTelemetryLogMaxQueueSize = remoteConfig.openTelemetryLogMaxQueueSize
 	}
+	if (remoteConfig.openTelemetryOtlpHeaders !== undefined) {
+		transformed.openTelemetryOtlpHeaders = remoteConfig.openTelemetryOtlpHeaders
+	}
 
 	// Map provider settings
-
-	const providers: string[] = []
+	const providers: ApiProvider[] = []
 
 	// Map OpenAiCompatible provider settings
 	const openAiSettings = remoteConfig.providerSettings?.OpenAiCompatible
@@ -91,6 +111,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 		if (openAiSettings.azureApiVersion !== undefined) {
 			transformed.azureApiVersion = openAiSettings.azureApiVersion
+		}
+		if (openAiSettings.azureIdentity !== undefined) {
+			transformed.azureIdentity = openAiSettings.azureIdentity
 		}
 	}
 
@@ -165,26 +188,107 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.remoteGlobalWorkflows = remoteConfig.globalWorkflows
 	}
 
+	if (remoteConfig.enterpriseTelemetry?.promptUploading) {
+		const promptUplaoding = remoteConfig.enterpriseTelemetry.promptUploading
+		if (promptUplaoding.type === "s3_access_keys" && promptUplaoding.s3AccessSettings) {
+			transformed.blobStoreConfig = {
+				adapterType: "s3",
+				accessKeyId: promptUplaoding.s3AccessSettings.accessKeyId,
+				secretAccessKey: promptUplaoding.s3AccessSettings.secretAccessKey,
+				region: promptUplaoding.s3AccessSettings.region,
+				bucket: promptUplaoding.s3AccessSettings.bucket,
+				endpoint: promptUplaoding.s3AccessSettings.endpoint,
+				accountId: promptUplaoding.s3AccessSettings.accountId,
+				intervalMs: promptUplaoding.s3AccessSettings.intervalMs,
+				maxRetries: promptUplaoding.s3AccessSettings.maxRetries,
+				batchSize: promptUplaoding.s3AccessSettings.batchSize,
+				maxQueueSize: promptUplaoding.s3AccessSettings.maxQueueSize,
+				maxFailedAgeMs: promptUplaoding.s3AccessSettings.maxFailedAgeMs,
+				backfillEnabled: promptUplaoding.s3AccessSettings.backfillEnabled,
+			}
+		}
+	}
+
 	return transformed
+}
+
+const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
+async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, telemetryService: TelemetryService) {
+	try {
+		const otelConfig = remoteConfigToOtelConfig(transformed)
+		if (isOpenTelemetryConfigValid(otelConfig)) {
+			const client = new OpenTelemetryClientProvider(otelConfig)
+
+			if (client.meterProvider || client.loggerProvider) {
+				telemetryService.addProvider(
+					await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+						bypassUserSettings: true,
+					}).initialize(),
+				)
+			}
+		}
+	} catch (err) {
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+	}
+}
+
+async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigFields>) {
+	try {
+		const blobStoreConfig = transformed.blobStoreConfig
+		if (!blobStoreConfig) {
+			return
+		}
+
+		syncWorker().init({ ...blobStoreConfig, userDistinctId: getDistinctId() })
+	} catch (err) {
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote sync queue config", err)
+	}
+}
+
+export function clearRemoteConfig() {
+	try {
+		const stateManager = StateManager.get()
+
+		stateManager.clearRemoteConfig()
+		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+		// the remote config cline rules toggle state is stored in global state
+		stateManager.setGlobalState("remoteRulesToggles", {})
+		stateManager.setGlobalState("remoteWorkflowToggles", {})
+
+		// clear secrets
+		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
+	} catch (err) {
+		Logger.error("[REMOTE CONFIG] Failed to clear remote config", err)
+	}
 }
 
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
+ * @param settingsDirectoryPath Path to the settings directory
+ * @param mcpHub Optional McpHub instance to prevent watcher triggers during sync
  */
-export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
+export async function applyRemoteConfig(
+	remoteConfig?: RemoteConfig,
+	settingsDirectoryPath?: string,
+	mcpHub?: any,
+): Promise<void> {
 	const stateManager = StateManager.get()
+	const telemetryService = await getTelemetryService()
 
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
-		stateManager.clearRemoteConfig()
-		// the remote config cline rules toggle state is stored in global state
-		stateManager.setGlobalState("remoteRulesToggles", {})
-		stateManager.setGlobalState("remoteWorkflowToggles", {})
+		clearRemoteConfig()
 		return
 	}
 
+	// Save previousRemoteMCPServers before clearing cache, this is needed for next sync to detect removals)
+	const previousRemoteMCPServers = stateManager.getRemoteConfigSettings().previousRemoteMCPServers
+
 	// Transform remote config to state shape
+	// These are then set to the remote config cache in the StateManager
+	// We need to ensure the cache is checked for new fields
 	const transformed = transformRemoteConfigToStateShape(remoteConfig)
 
 	// Synchronize toggle state
@@ -199,9 +303,94 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 
 	// Clear existing remote config cache
 	stateManager.clearRemoteConfig()
+	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+
+	// If the existing configured provider is valid, don't update it
+	const apiConfiguration = stateManager.getApiConfiguration()
+	if (isProviderValid(apiConfiguration.actModeApiProvider, transformed)) {
+		transformed.actModeApiProvider = apiConfiguration.actModeApiProvider
+	}
+	if (isProviderValid(apiConfiguration.planModeApiProvider, transformed)) {
+		transformed.planModeApiProvider = apiConfiguration.planModeApiProvider
+	}
 
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
+
+	// Restore previousRemoteMCPServers across cache clears
+	if (previousRemoteMCPServers !== undefined) {
+		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
+	}
+
+	applyRemoteSyncQueueConfig(transformed)
+
+	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
+	if (remoteConfig.remoteMCPServers !== undefined) {
+		try {
+			// Get settings directory path - use provided path or get it from disk helper
+			const settingsPath = settingsDirectoryPath || (await ensureSettingsDirectoryExists())
+			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath, mcpHub)
+			// Store current remote servers list for next sync to detect removals
+			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
+		} catch (error) {
+			Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			// Continue with other config application even if MCP sync fails
+		}
+	}
+	await applyRemoteOTELConfig(transformed, telemetryService)
+}
+
+const isProviderValid = (provider?: ApiProvider, remoteConfig?: Partial<RemoteConfigFields>) => {
+	const remoteConfiguredProviders =
+		remoteConfig?.remoteConfiguredProviders ?? StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
+	if (!remoteConfiguredProviders || !remoteConfiguredProviders.length) {
+		return true
+	}
+
+	return provider && remoteConfiguredProviders.includes(provider)
+}
+
+/**
+ * Receives a config and returns the subset of fields that can be overriden in the cache
+ */
+export function filterAllowedRemoteConfigFields(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
+	const updatedFields: Partial<GlobalStateAndSettings> = {}
+
+	const actModeApiProvider = config.actModeApiProvider
+	if (isProviderValid(actModeApiProvider)) {
+		updatedFields.actModeApiProvider = actModeApiProvider
+	}
+
+	const planModeApiProvider = config.planModeApiProvider
+	if (isProviderValid(planModeApiProvider)) {
+		updatedFields.planModeApiProvider = planModeApiProvider
+	}
+
+	return updatedFields
+}
+
+const canDisableRemoteConfig = (orgId: string) => {
+	// Check if they're an admin/owner
+	const authService = AuthService.getInstance()
+	const userOrgs = authService.getUserOrganizations()
+
+	if (!userOrgs) {
+		return false
+	}
+
+	const org = userOrgs.find((org) => org.organizationId === orgId)
+	const isAdminOrOwner = org?.roles?.some((role) => role === "admin" || role === "owner")
+
+	return isAdminOrOwner
+}
+
+export const isRemoteConfigEnabled = (orgId: string) => {
+	const stateManager = StateManager.get()
+	const hasOptedOut = stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+
+	const isDisabled = hasOptedOut && canDisableRemoteConfig(orgId)
+
+	return !isDisabled
 }

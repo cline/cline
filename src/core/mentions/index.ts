@@ -1,7 +1,6 @@
 import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
-import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { telemetryService } from "@services/telemetry"
 import { mentionRegexGlobal } from "@shared/context-mentions"
@@ -12,8 +11,10 @@ import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
@@ -319,7 +320,7 @@ export async function parseMentions(
 		try {
 			await urlContentFetcher.closeBrowser()
 		} catch (error) {
-			console.error(`Error closing browser: ${error.message}`)
+			Logger.error(`Error closing browser: ${error.message}`)
 		}
 	}
 

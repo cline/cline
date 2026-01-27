@@ -1,5 +1,6 @@
 import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
@@ -26,13 +27,13 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		const providerInfo = context.providerInfo
 		const modelId = providerInfo.model.id
 
-		// Codex variants will use GPT-5 variant instead for less strict rules.
-		// Chat variants do not support native tool use.
-		if (modelId.includes("codex") && !modelId.includes("chat")) {
+		// Chat variants do not support native tool use
+		if (modelId.includes("chat")) {
 			return false
 		}
 
-		// gpt-5.1 and gpt-5.2 chat models do not support native tool use
+		// GPT-5.1 and GPT-5.2 models (including codex variants) use extended reasoning
+		// and require reasoning blocks before function calls
 		return (isGPT51Model(modelId) || isGPT52Model(modelId)) && isNextGenModelProvider(providerInfo)
 	})
 	.template(GPT_5_1_TEMPLATE_OVERRIDES.BASE)
@@ -48,14 +49,13 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		// Should disable FILE_NEW and FILE_EDIT when enabled
-		// ClineDefaultTool.APPLY_PATCH,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.APPLY_PATCH,
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,
@@ -71,6 +71,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5_1,
@@ -88,12 +89,12 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_GPT_5_1 }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("GPT-5-1 variant configuration validation failed:", validationResult.errors)
+	Logger.error("GPT-5-1 variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GPT-5-1 variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("GPT-5-1 variant configuration warnings:", validationResult.warnings)
+	Logger.warn("GPT-5-1 variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

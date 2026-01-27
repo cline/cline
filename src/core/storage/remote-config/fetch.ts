@@ -1,13 +1,14 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
-import { StateManager } from "../StateManager"
-import { applyRemoteConfig } from "./utils"
+import { applyRemoteConfig, clearRemoteConfig, isRemoteConfigEnabled } from "./utils"
 
 /**
  * Parses API keys from a JSON string response
@@ -21,7 +22,7 @@ function parseApiKeys(value: string): APIKeySettings {
 		}
 		return APIKeySchema.parse(JSON.parse(value))
 	} catch (err) {
-		console.error(`Failed to parse providers api keys`, err)
+		Logger.error(`Failed to parse providers api keys`, err)
 		return {}
 	}
 }
@@ -51,6 +52,7 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 		headers: {
 			Authorization: `Bearer ${authToken}`,
 			"Content-Type": "application/json",
+			...(await buildBasicClineHeaders()),
 		},
 		...getAxiosSettings(),
 	}
@@ -115,7 +117,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 
 		return validatedConfig
 	} catch (error) {
-		console.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
+		Logger.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
 
 		// Try to fall back to cached config
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
@@ -126,7 +128,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 				return validatedCachedConfig
 			} catch (validationError) {
 				// Cache validation failed - log and continue
-				console.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
+				Logger.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
 			}
 		}
 
@@ -143,12 +145,12 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 async function fetchApiKeysForOrganization(organizationId: string): Promise<APIKeySettings> {
 	try {
 		// Fetch API keys string using helper
-		const apiKeysString = await makeAuthenticatedRequest<string>(CLINE_API_ENDPOINT.API_KEYS, organizationId)
+		const response = await makeAuthenticatedRequest<{ providerApiKeys: string }>(CLINE_API_ENDPOINT.API_KEYS, organizationId)
 
 		// Parse and return API keys
-		return parseApiKeys(apiKeysString)
+		return parseApiKeys(response?.providerApiKeys)
 	} catch (error) {
-		console.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
+		Logger.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
 		return {}
 	}
 }
@@ -170,6 +172,10 @@ async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: str
 
 	// Scan each organization for remote config
 	for (const org of userOrganizations) {
+		if (!isRemoteConfigEnabled(org.organizationId)) {
+			continue
+		}
+
 		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
 
 		if (remoteConfig) {
@@ -198,7 +204,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		const result = await findOrganizationWithRemoteConfig()
 
 		if (!result) {
-			StateManager.get().clearRemoteConfig()
+			clearRemoteConfig()
 			controller.postStateToWebview()
 			return undefined
 		}
@@ -230,12 +236,16 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
-		applyRemoteConfig(config)
+		if (isRemoteConfigEnabled(organizationId)) {
+			await applyRemoteConfig(config, undefined, controller.mcpHub)
+		} else {
+			clearRemoteConfig()
+		}
 		controller.postStateToWebview()
 
 		return config
 	} catch (error) {
-		console.error("Failed to ensure user in organization with remote config:", error)
+		Logger.error("Failed to ensure user in organization with remote config:", error)
 		return undefined
 	}
 }
@@ -256,6 +266,6 @@ export async function fetchRemoteConfig(controller: Controller) {
 	try {
 		await ensureUserInOrgWithRemoteConfig(controller)
 	} catch (error) {
-		console.error("Failed to fetch remote config", error)
+		Logger.error("Failed to fetch remote config", error)
 	}
 }

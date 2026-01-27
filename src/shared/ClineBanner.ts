@@ -9,11 +9,22 @@ export interface Banner {
 	id: string
 	titleMd: string
 	bodyMd: string
-	severity: BannerSeverity
-	placement: BannerPlacement
+	icon?: string
+	actions?: BannerAction[]
+
 	rulesJson: string
 	activeFrom?: string
 	activeTo?: string
+
+	// Severity and placement are not used in the extension
+	severity?: BannerSeverity
+	placement?: BannerPlacement
+}
+
+export interface BannerAction {
+	action?: string
+	arg?: string
+	title?: string
 }
 
 export interface BannersResponse {
@@ -43,6 +54,10 @@ export interface BannerRules {
 	providers?: string[]
 	/** Target specific audience segment */
 	audience?: BannerAudience[]
+	/**  Target team vs enterprise organizations */
+	org_type?: "all" | "team_only" | "enterprise_only" | ""
+	/** Minimum extension version required (e.g., "3.39.2") */
+	min_extension_version?: string
 }
 
 /**

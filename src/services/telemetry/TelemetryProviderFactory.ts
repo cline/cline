@@ -1,6 +1,11 @@
-import { getValidOpenTelemetryConfig } from "@/shared/services/config/otel-config"
+import { ClineEndpoint } from "@/config"
+import {
+	getValidOpenTelemetryConfig,
+	getValidRuntimeOpenTelemetryConfig,
+	OpenTelemetryClientValidConfig,
+} from "@/shared/services/config/otel-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./providers/ITelemetryProvider"
 import { OpenTelemetryClientProvider } from "./providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "./providers/opentelemetry/OpenTelemetryTelemetryProvider"
@@ -17,7 +22,14 @@ export type TelemetryProviderType = "posthog" | "no-op" | "opentelemetry"
  */
 export type TelemetryProviderConfig =
 	| { type: "posthog"; apiKey?: string; host?: string }
-	| { type: "opentelemetry"; enabled?: boolean }
+	/** OpenTelemetry collector
+	 * @param config - Config for this specific collector
+	 * @param bypassUserSettings - When true, telemetry is sent regardless of the user's Cline telemetry opt-in/opt-out settings.
+	 * This is used for:
+	 * 	- User-controlled collectors configured via environment variables (e.g., CLINE_OTEL_TELEMETRY_ENABLED).
+	 * 	- Organization-controlled collectors configured via remote config.
+	 */
+	| { type: "opentelemetry"; config: OpenTelemetryClientValidConfig; bypassUserSettings: boolean }
 	| { type: "no-op" }
 
 /**
@@ -47,7 +59,7 @@ export class TelemetryProviderFactory {
 			providers.push(new NoOpTelemetryProvider())
 		}
 
-		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name()).join(", "))
+		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name).join(", "))
 		return providers
 	}
 
@@ -66,10 +78,15 @@ export class TelemetryProviderFactory {
 				return new NoOpTelemetryProvider()
 			}
 			case "opentelemetry": {
-				const meterProvider = OpenTelemetryClientProvider.getMeterProvider()
-				const loggerProvider = OpenTelemetryClientProvider.getLoggerProvider()
-				if (meterProvider || loggerProvider) {
-					return await new OpenTelemetryTelemetryProvider().initialize()
+				const otelConfig = config.config
+				if (!otelConfig) {
+					return new NoOpTelemetryProvider()
+				}
+				const client = new OpenTelemetryClientProvider(otelConfig)
+				if (client.meterProvider || client.loggerProvider) {
+					return await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+						bypassUserSettings: config.bypassUserSettings,
+					}).initialize()
 				}
 				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
 				return new NoOpTelemetryProvider()
@@ -89,13 +106,31 @@ export class TelemetryProviderFactory {
 	public static getDefaultConfigs(): TelemetryProviderConfig[] {
 		const configs: TelemetryProviderConfig[] = []
 
-		if (isPostHogConfigValid(posthogConfig)) {
+		// Skip PostHog in selfHosted mode - enterprise customers should not send telemetry to PostHog
+		if (!ClineEndpoint.isSelfHosted() && isPostHogConfigValid(posthogConfig)) {
 			configs.push({ type: "posthog", ...posthogConfig })
 		}
 
+		// Skip build-time OTEL in selfHosted mode - enterprise customers should not send telemetry to Cline's collector
+		// Note: Runtime env OTEL and remote config OTEL are still allowed (user/org explicitly configured them)
 		const otelConfig = getValidOpenTelemetryConfig()
-		if (otelConfig) {
-			configs.push({ type: "opentelemetry", ...otelConfig })
+		if (!ClineEndpoint.isSelfHosted() && otelConfig) {
+			configs.push({
+				type: "opentelemetry",
+				config: otelConfig,
+				bypassUserSettings: false,
+			})
+		}
+
+		const runtimeOtelConfig = getValidRuntimeOpenTelemetryConfig()
+		if (runtimeOtelConfig) {
+			configs.push({
+				type: "opentelemetry",
+				config: runtimeOtelConfig,
+				// If the user has `CLINE_OTEL_TELEMETRY_ENABLED` in his environment, enable
+				// OTEL regardless of his Cline telemetry settings
+				bypassUserSettings: true,
+			})
 		}
 
 		return configs.length > 0 ? configs : [{ type: "no-op" }]
@@ -107,9 +142,7 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 export class NoOpTelemetryProvider implements ITelemetryProvider {
-	name(): string {
-		return "NoOpTelemetryProvider"
-	}
+	readonly name = "NoOpTelemetryProvider"
 	private isOptIn = true
 
 	log(_event: string, _properties?: TelemetryProperties): void {

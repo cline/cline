@@ -1,3 +1,4 @@
+import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -14,6 +15,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
 	openAiBaseUrl?: string
 	azureApiVersion?: string
+	azureIdentity?: boolean
 	openAiHeaders?: Record<string, string>
 	openAiModelId?: string
 	openAiModelInfo?: OpenAiCompatibleModelInfo
@@ -28,33 +30,52 @@ export class OpenAiHandler implements ApiHandler {
 		this.options = options
 	}
 
+	private getAzureAudienceScope(baseUrl?: string): string {
+		const url = baseUrl?.toLowerCase() ?? ""
+		if (url.includes("azure.us")) return "https://cognitiveservices.azure.us/.default"
+		if (url.includes("azure.com")) return "https://cognitiveservices.azure.com/.default"
+		return "https://cognitiveservices.azure.com/.default"
+	}
+
 	private ensureClient(): OpenAI {
 		if (!this.client) {
-			if (!this.options.openAiApiKey) {
-				throw new Error("OpenAI API key is required")
+			if (!this.options.openAiApiKey && !this.options.azureIdentity) {
+				throw new Error("OpenAI API key or Azure Identity Authentication is required")
 			}
 			try {
-				// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-				// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
+				const baseUrl = this.options.openAiBaseUrl?.toLowerCase() ?? ""
+				const isAzureDomain = baseUrl.includes("azure.com") || baseUrl.includes("azure.us")
+				// Azure API shape slightly differs from the core API shape...
 				if (
 					this.options.azureApiVersion ||
-					((this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") ||
-						this.options.openAiBaseUrl?.toLowerCase().includes("azure.us")) &&
-						!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
+					(isAzureDomain && !this.options.openAiModelId?.toLowerCase().includes("deepseek"))
 				) {
-					this.client = new AzureOpenAI({
-						baseURL: this.options.openAiBaseUrl,
-						apiKey: this.options.openAiApiKey,
-						apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-						defaultHeaders: this.options.openAiHeaders,
-						fetch, // Use configured fetch with proxy support
-					})
+					if (this.options.azureIdentity) {
+						this.client = new AzureOpenAI({
+							baseURL: this.options.openAiBaseUrl,
+							azureADTokenProvider: getBearerTokenProvider(
+								new DefaultAzureCredential(),
+								this.getAzureAudienceScope(this.options.openAiBaseUrl),
+							),
+							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+							defaultHeaders: this.options.openAiHeaders,
+							fetch,
+						})
+					} else {
+						this.client = new AzureOpenAI({
+							baseURL: this.options.openAiBaseUrl,
+							apiKey: this.options.openAiApiKey,
+							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+							defaultHeaders: this.options.openAiHeaders,
+							fetch,
+						})
+					}
 				} else {
 					this.client = new OpenAI({
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
 						defaultHeaders: this.options.openAiHeaders,
-						fetch, // Use configured fetch with proxy support
+						fetch,
 					})
 				}
 			} catch (error: any) {
@@ -117,7 +138,7 @@ export class OpenAiHandler implements ApiHandler {
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",

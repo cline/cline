@@ -72,8 +72,16 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "cline":
 				break
+			case "openai-codex":
+				// Authentication is handled via OAuth, not API key
+				// Validation happens at runtime in the handler
+				break
 			case "openai":
-				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !openAiModelId) {
+				if (
+					!apiConfiguration.openAiBaseUrl ||
+					(!apiConfiguration.openAiApiKey && !apiConfiguration.azureIdentity) ||
+					!openAiModelId
+				) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break

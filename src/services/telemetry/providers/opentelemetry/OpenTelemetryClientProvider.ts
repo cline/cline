@@ -5,7 +5,8 @@ import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getValidOpenTelemetryConfig, OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import { Logger } from "@/shared/services/Logger"
 import {
 	createConsoleLogExporter,
 	createConsoleMetricReader,
@@ -14,29 +15,12 @@ import {
 } from "./OpenTelemetryExporterFactory"
 
 /**
- * Singleton provider for OpenTelemetry client instances.
+ * OpenTelemetry client provider.
  * Manages meter and logger providers for telemetry collection.
  */
 export class OpenTelemetryClientProvider {
-	private static _instance: OpenTelemetryClientProvider | null = null
-
-	public static getInstance(): OpenTelemetryClientProvider {
-		if (!OpenTelemetryClientProvider._instance) {
-			OpenTelemetryClientProvider._instance = new OpenTelemetryClientProvider()
-		}
-		return OpenTelemetryClientProvider._instance
-	}
-
-	public static getMeterProvider(): MeterProvider | null {
-		return OpenTelemetryClientProvider.getInstance().meterProvider
-	}
-
-	public static getLoggerProvider(): LoggerProvider | null {
-		return OpenTelemetryClientProvider.getInstance().loggerProvider
-	}
-
-	private readonly meterProvider: MeterProvider | null = null
-	private readonly loggerProvider: LoggerProvider | null = null
+	readonly meterProvider: MeterProvider | null = null
+	readonly loggerProvider: LoggerProvider | null = null
 	private readonly config: OpenTelemetryClientValidConfig | null
 
 	/**
@@ -47,36 +31,34 @@ export class OpenTelemetryClientProvider {
 		return process.env.TEL_DEBUG_DIAGNOSTICS === "true" || process.env.IS_DEV === "true"
 	}
 
-	private constructor() {
-		this.config = getValidOpenTelemetryConfig()
-
-		if (!this.config) {
-			console.log("[OTEL DEBUG] OpenTelemetry is disabled or not configured")
-			return
-		}
-
+	constructor(config: OpenTelemetryClientValidConfig) {
+		this.config = config
 		const isDebugMode = this.isDebugEnabled()
 
 		// Only log endpoint in debug mode (security: avoid exposing infrastructure details)
 		if (isDebugMode) {
-			console.log("[OTEL DEBUG] ========== OpenTelemetry Initialization ==========")
-			console.log(`[OTEL DEBUG] Configuration:`)
-			console.log(`[OTEL DEBUG]   - Metrics Exporter: ${this.config.metricsExporter || "none"}`)
-			console.log(`[OTEL DEBUG]   - Logs Exporter: ${this.config.logsExporter || "none"}`)
-			console.log(`[OTEL DEBUG]   - OTLP Protocol: ${this.config.otlpProtocol || "grpc (default)"}`)
+			Logger.log("[OTEL DEBUG] ========== OpenTelemetry Initialization ==========")
+			Logger.log(`[OTEL DEBUG] Configuration:`)
+			Logger.log(`[OTEL DEBUG]   - Metrics Exporter: ${this.config.metricsExporter || "none"}`)
+			Logger.log(`[OTEL DEBUG]   - Logs Exporter: ${this.config.logsExporter || "none"}`)
+			Logger.log(`[OTEL DEBUG]   - OTLP Protocol: ${this.config.otlpProtocol || "grpc (default)"}`)
 
-			console.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint || "not set"}`)
-			console.log(`[OTEL DEBUG]   - OTLP Insecure: ${this.config.otlpInsecure || false}`)
-			console.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
+			Logger.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint || "not set"}`)
+			Logger.log(`[OTEL DEBUG]   - OTLP Insecure: ${this.config.otlpInsecure || false}`)
+			Logger.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
 		}
 
-		// Check for headers configuration (via environment variable)
-		const hasHeaders = !!process.env.OTEL_EXPORTER_OTLP_HEADERS
-		if (isDebugMode && hasHeaders) {
+		// Check for headers configuration
+		// This is only used for printing, only the config value should be passed down
+		// so that the library can read and parse the env variable correclty if the config value is undefined
+		const headers = config?.otlpHeaders || process.env.OTEL_EXPORTER_OTLP_HEADERS
+		if (isDebugMode && headers) {
+			const headerCount = config?.otlpHeaders
+				? Object.keys(config.otlpHeaders).length
+				: process.env.OTEL_EXPORTER_OTLP_HEADERS?.length
 			// In debug mode, show that headers are configured and their total length
-			const headerLength = process.env.OTEL_EXPORTER_OTLP_HEADERS!.length
-			console.log(`[OTEL DEBUG]   - OTLP Headers: configured (length: ${headerLength})`)
-			console.log("[OTEL DEBUG] ================================================")
+			Logger.log(`[OTEL DEBUG]   - OTLP Headers: ${headerCount} headers configured`)
+			Logger.log("[OTEL DEBUG] ================================================")
 		}
 
 		// Create resource with service information
@@ -95,7 +77,7 @@ export class OpenTelemetryClientProvider {
 			this.loggerProvider = this.createLoggerProvider(resource)
 		}
 
-		console.log("[OTEL DEBUG] OpenTelemetry initialization complete")
+		Logger.log("[OTEL DEBUG] OpenTelemetry initialization complete")
 	}
 
 	private createMeterProvider(resource: Resource): MeterProvider {
@@ -104,7 +86,7 @@ export class OpenTelemetryClientProvider {
 		const interval = this.config!.metricExportInterval || 60000
 		const timeout = Math.min(Math.floor(interval * 0.8), 30000)
 
-		console.log(`[OTEL] Creating MeterProvider with exporters: ${exporters.join(", ")}`)
+		Logger.log(`[OTEL] Creating MeterProvider with exporters: ${exporters.join(", ")}`)
 
 		for (const exporterType of exporters) {
 			try {
@@ -112,35 +94,36 @@ export class OpenTelemetryClientProvider {
 					case "console": {
 						const reader = createConsoleMetricReader(interval, timeout)
 						readers.push(reader)
-						console.log(`[OTEL] Console metrics reader created (interval: ${interval}ms)`)
+						Logger.log(`[OTEL] Console metrics reader created (interval: ${interval}ms)`)
 						break
 					}
 					case "otlp": {
 						const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
 						const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
 						const insecure = this.config!.otlpInsecure || false
+						const headers = this.config!.otlpHeaders
 
 						if (endpoint) {
-							const reader = createOTLPMetricReader(protocol, endpoint, insecure, interval, timeout)
+							const reader = createOTLPMetricReader(protocol, endpoint, insecure, interval, timeout, headers)
 							if (reader) {
 								readers.push(reader)
-								console.log(`[OTEL] OTLP metrics reader created (${protocol}, interval: ${interval}ms)`)
+								Logger.log(`[OTEL] OTLP metrics reader created (${protocol}, interval: ${interval}ms)`)
 							}
 						} else {
-							console.warn("[OTEL] OTLP metrics exporter requires an endpoint")
+							Logger.warn("[OTEL] OTLP metrics exporter requires an endpoint")
 						}
 						break
 					}
 					default:
-						console.warn(`[OTEL] Unknown metrics exporter type: ${exporterType}`)
+						Logger.warn(`[OTEL] Unknown metrics exporter type: ${exporterType}`)
 				}
 			} catch (error) {
-				console.error(`[OTEL] Failed to create metrics exporter '${exporterType}':`, error)
+				Logger.error(`[OTEL] Failed to create metrics exporter '${exporterType}':`, error)
 			}
 		}
 
 		if (readers.length === 0) {
-			console.warn("[OTEL] No metric readers were successfully created")
+			Logger.warn("[OTEL] No metric readers were successfully created")
 		}
 
 		const meterProvider = new MeterProvider({
@@ -150,7 +133,7 @@ export class OpenTelemetryClientProvider {
 
 		// Set as global meter provider
 		metrics.setGlobalMeterProvider(meterProvider)
-		console.log(`[OTEL] MeterProvider initialized with ${readers.length} reader(s)`)
+		Logger.log(`[OTEL] MeterProvider initialized with ${readers.length} reader(s)`)
 
 		return meterProvider
 	}
@@ -159,7 +142,7 @@ export class OpenTelemetryClientProvider {
 		const exporters = this.config!.logsExporter!.split(",").map((type) => type.trim())
 		const loggerProvider = new LoggerProvider({ resource })
 
-		console.log(`[OTEL] Creating LoggerProvider with exporters: ${exporters.join(", ")}`)
+		Logger.log(`[OTEL] Creating LoggerProvider with exporters: ${exporters.join(", ")}`)
 
 		for (const exporterType of exporters) {
 			try {
@@ -168,25 +151,26 @@ export class OpenTelemetryClientProvider {
 				switch (exporterType) {
 					case "console":
 						exporter = createConsoleLogExporter()
-						console.log("[OTEL] Console logs exporter created")
+						Logger.log("[OTEL] Console logs exporter created")
 						break
 					case "otlp": {
 						const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
 						const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
 						const insecure = this.config!.otlpInsecure || false
+						const headers = this.config!.otlpHeaders
 
 						if (endpoint) {
-							exporter = createOTLPLogExporter(protocol, endpoint, insecure)
+							exporter = createOTLPLogExporter(protocol, endpoint, insecure, headers)
 							if (exporter) {
-								console.log(`[OTEL] OTLP logs exporter created (${protocol})`)
+								Logger.log(`[OTEL] OTLP logs exporter created (${protocol})`)
 							}
 						} else {
-							console.warn("[OTEL] OTLP logs exporter requires an endpoint")
+							Logger.warn("[OTEL] OTLP logs exporter requires an endpoint")
 						}
 						break
 					}
 					default:
-						console.warn(`[OTEL] Unknown logs exporter type: ${exporterType}`)
+						Logger.warn(`[OTEL] Unknown logs exporter type: ${exporterType}`)
 				}
 
 				if (exporter) {
@@ -198,18 +182,18 @@ export class OpenTelemetryClientProvider {
 
 					loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(exporter, batchConfig))
 
-					console.log(
+					Logger.log(
 						`[OTEL] Log batch processor configured: maxQueue=${batchConfig.maxQueueSize}, batchSize=${batchConfig.maxExportBatchSize}, timeout=${batchConfig.scheduledDelayMillis}ms`,
 					)
 				}
 			} catch (error) {
-				console.error(`[OTEL] Failed to create logs exporter '${exporterType}':`, error)
+				Logger.error(`[OTEL] Failed to create logs exporter '${exporterType}':`, error)
 			}
 		}
 
 		// Set as global logger provider
 		logs.setGlobalLoggerProvider(loggerProvider)
-		console.log("[OTEL] LoggerProvider initialized")
+		Logger.log("[OTEL] LoggerProvider initialized")
 
 		return loggerProvider
 	}
@@ -220,7 +204,7 @@ export class OpenTelemetryClientProvider {
 		if (this.meterProvider) {
 			promises.push(
 				this.meterProvider.shutdown().catch((error) => {
-					console.error("Error shutting down MeterProvider:", error)
+					Logger.error("Error shutting down MeterProvider:", error)
 				}),
 			)
 		}
@@ -228,7 +212,7 @@ export class OpenTelemetryClientProvider {
 		if (this.loggerProvider) {
 			promises.push(
 				this.loggerProvider.shutdown().catch((error) => {
-					console.error("Error shutting down LoggerProvider:", error)
+					Logger.error("Error shutting down LoggerProvider:", error)
 				}),
 			)
 		}

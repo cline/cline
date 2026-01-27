@@ -5,11 +5,14 @@ import {
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
 import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
+import { HttpDestination, transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
+import JSON5 from "json5"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -142,7 +145,7 @@ namespace Bedrock {
 						}
 
 						// Log unsupported content types for debugging
-						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
+						Logger.warn(`Unsupported content type: ${(item as ContentItem).type}`)
 						return null
 					})
 					.filter((item): item is BedrockContentBlock => item !== null)
@@ -211,7 +214,7 @@ namespace Bedrock {
 				},
 			}
 		} catch (error) {
-			console.error("Failed to process image content:", error)
+			Logger.error("Failed to process image content:", error)
 			// Return a text content indicating the error instead of null
 			// This ensures users are aware of the issue
 			return {
@@ -354,7 +357,8 @@ export class SapAiCoreHandler implements ApiHandler {
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]
-	private isAiCoreEnvSetup: boolean = false
+	private aiCoreDestination?: HttpDestination
+	private destinationExpiresAt?: number
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
@@ -383,6 +387,34 @@ export class SapAiCoreHandler implements ApiHandler {
 			!this.options.sapAiCoreBaseUrl
 		) {
 			throw new Error("Missing required SAP AI Core credentials. Please check your configuration.")
+		}
+	}
+
+	private async createAiCoreDestination(): Promise<HttpDestination> {
+		try {
+			const aiCoreServiceCredentials = {
+				clientid: this.options.sapAiCoreClientId!,
+				clientsecret: this.options.sapAiCoreClientSecret!,
+				url: this.options.sapAiCoreTokenUrl!,
+				serviceurls: {
+					AI_API_URL: this.options.sapAiCoreBaseUrl!,
+				},
+			}
+
+			const destination = await transformServiceBindingToDestination({
+				credentials: aiCoreServiceCredentials,
+				name: "aicore",
+				label: "aicore",
+				tags: ["aicore"],
+			})
+
+			return {
+				...destination,
+				url: destination.url || this.options.sapAiCoreBaseUrl!,
+			}
+		} catch (error) {
+			Logger.error("Failed to create AI Core destination:", error)
+			throw new Error(`Unable to create AI Core destination: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
 
@@ -442,7 +474,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				})
 				.filter((deployment: any) => deployment !== null)
 		} catch (error) {
-			console.error("Error fetching deployments:", error)
+			Logger.error("Error fetching deployments:", error)
 			throw new Error("Failed to fetch deployments")
 		}
 	}
@@ -480,33 +512,23 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	// TODO: support credentials changes after initial setup
-	private ensureAiCoreEnvSetup(): void {
-		// Only set up once to avoid redundant operations
-		if (this.isAiCoreEnvSetup) {
-			return
+	private async ensureAiCoreEnvSetup() {
+		if (!this.aiCoreDestination || !this.destinationExpiresAt || this.destinationExpiresAt < Date.now()) {
+			this.validateCredentials()
+			this.aiCoreDestination = await this.createAiCoreDestination()
+
+			// Extract expiration from the destination's auth token
+			const expiresIn = this.aiCoreDestination.authTokens?.[0]?.expiresIn
+			if (!expiresIn) {
+				throw new Error("Destination is missing required authTokens with expiresIn")
+			}
+			this.destinationExpiresAt = Date.now() + parseInt(expiresIn, 10) * 1000
 		}
-
-		// Validate required credentials
-		this.validateCredentials()
-
-		const aiCoreServiceCredentials = {
-			clientid: this.options.sapAiCoreClientId!,
-			clientsecret: this.options.sapAiCoreClientSecret!,
-			url: this.options.sapAiCoreTokenUrl!,
-			serviceurls: {
-				AI_API_URL: this.options.sapAiCoreBaseUrl!,
-			},
-		}
-		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
-
-		// Mark as set up to avoid redundant calls
-		this.isAiCoreEnvSetup = true
 	}
 
 	private async *createMessageWithOrchestration(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		try {
-			// Ensure AI Core environment variable is set up (only runs once)
-			this.ensureAiCoreEnvSetup()
+			await this.ensureAiCoreEnvSetup()
 			const model = this.getModel()
 
 			const orchestrationConfig: OrchestrationModuleConfig = {
@@ -525,14 +547,22 @@ export class SapAiCoreHandler implements ApiHandler {
 				},
 			}
 
-			const orchestrationClient = new OrchestrationClient(orchestrationConfig, {
-				resourceGroup: this.options.sapAiResourceGroup || "default",
-			})
+			const orchestrationClient = new OrchestrationClient(
+				orchestrationConfig,
+				{
+					resourceGroup: this.options.sapAiResourceGroup || "default",
+				},
+				this.aiCoreDestination,
+			)
 
 			const sapMessages = this.convertMessageParamToSAPMessages(messages)
 
+			// messagesHistory: Contains the conversation context (user/assistant messages).
+			// Unlike the `messages` field that validates input, this does not validate
+			// template placeholders such as {{?userResponse}}, allowing content to be
+			// sent directly to the LLM with the Cline system prompt without validation errors.
 			const response = await orchestrationClient.stream({
-				messages: sapMessages,
+				messagesHistory: sapMessages,
 			})
 
 			for await (const chunk of response.stream.toContentStream()) {
@@ -548,7 +578,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error in SAP orchestration mode:", error)
+			Logger.error("Error in SAP orchestration mode:", error)
 			throw error
 		}
 	}
@@ -567,11 +597,13 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		if (!deploymentId) {
 			// Fallback to runtime deployment id fetching for users who haven't opened the SAP provider UI
-			console.log(`No pre-configured deployment ID found for model ${model.id}, falling back to runtime fetching`)
+			Logger.log(`No pre-configured deployment ID found for model ${model.id}, falling back to runtime fetching`)
 			deploymentId = await this.getDeploymentForModel(model.id)
 		}
 
 		const anthropicModels = [
+			"anthropic--claude-4.5-haiku",
+			"anthropic--claude-4.5-opus",
 			"anthropic--claude-4.5-sonnet",
 			"anthropic--claude-4-sonnet",
 			"anthropic--claude-4-opus",
@@ -620,7 +652,9 @@ export class SapAiCoreHandler implements ApiHandler {
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
 			if (
+				model.id === "anthropic--claude-4.5-opus" ||
 				model.id === "anthropic--claude-4.5-sonnet" ||
+				model.id === "anthropic--claude-4.5-haiku" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
@@ -750,7 +784,9 @@ export class SapAiCoreHandler implements ApiHandler {
 			} else if (openAIModels.includes(model.id) || perplexityModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
 			} else if (
+				model.id === "anthropic--claude-4.5-opus" ||
 				model.id === "anthropic--claude-4.5-sonnet" ||
+				model.id === "anthropic--claude-4.5-haiku" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
@@ -765,8 +801,8 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (error.response) {
 				// The request was made and the server responded with a status code
 				// that falls out of the range of 2xx
-				console.error("Error status:", error.response.status)
-				console.error("Error headers:", error.response.headers)
+				Logger.error("Error status:", error.response.status)
+				Logger.error("Error headers:", error.response.headers)
 
 				// Handle error data - need to read stream if responseType was 'stream'
 				let errorMessage = "Unknown error"
@@ -795,10 +831,10 @@ export class SapAiCoreHandler implements ApiHandler {
 						} else if (typeof error.response.data === "object") {
 							errorMessage = JSON.stringify(error.response.data, null, 2)
 						}
-						console.error("Error data:", errorMessage)
+						Logger.error("Error data:", errorMessage)
 					} catch (e) {
-						console.error("Failed to read error data:", e)
-						console.error("Raw error data:", error.response.data)
+						Logger.error("Failed to read error data:", e)
+						Logger.error("Raw error data:", error.response.data)
 					}
 				}
 
@@ -811,11 +847,11 @@ export class SapAiCoreHandler implements ApiHandler {
 				throw new Error(`HTTP ${error.response.status}: ${errorMessage}`)
 			} else if (error.request) {
 				// The request was made but no response was received
-				console.error("Error request:", error.request)
+				Logger.error("Error request:", error.request)
 				throw new Error("No response received from server")
 			} else {
 				// Something happened in setting up the request that triggered an Error
-				console.error("Error message:", error.message)
+				Logger.error("Error message:", error.message)
 				throw new Error(`Error setting up request: ${error.message}`)
 			}
 		}
@@ -863,13 +899,13 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 						} catch (error) {
-							console.error("Failed to parse JSON data:", error)
+							Logger.error("Failed to parse JSON data:", error)
 						}
 					}
 				}
 			}
 		} catch (error) {
-			console.error("Error streaming completion:", error)
+			Logger.error("Error streaming completion:", error)
 			throw error
 		}
 	}
@@ -878,12 +914,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		stream: any,
 		_model: { id: SapAiCoreModelId; info: ModelInfo },
 	): AsyncGenerator<any, void, unknown> {
-		function toStrictJson(str: string): string {
-			// Wrap it in parentheses so JS will treat it as an expression
-			const obj = new Function("return " + str)()
-			return JSON.stringify(obj)
-		}
-
 		const _usage = { input_tokens: 0, output_tokens: 0 }
 
 		try {
@@ -898,7 +928,8 @@ export class SapAiCoreHandler implements ApiHandler {
 
 						try {
 							// Parse the incoming JSON data from the stream
-							const data = JSON.parse(toStrictJson(jsonData))
+							// Using JSON5 to handle relaxed JSON syntax (e.g., single quotes)
+							const data = JSON5.parse(jsonData)
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
@@ -935,7 +966,7 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 						} catch (error) {
-							console.error("Failed to parse JSON data:", error)
+							Logger.error("Failed to parse JSON data:", error)
 							yield {
 								type: "text",
 								text: `[ERROR] Failed to parse response data: ${error instanceof Error ? error.message : String(error)}`,
@@ -945,7 +976,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error streaming completion:", error)
+			Logger.error("Error streaming completion:", error)
 			yield {
 				type: "text",
 				text: `[ERROR] Failed to process stream: ${error instanceof Error ? error.message : String(error)}`,
@@ -1014,13 +1045,13 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 						} catch (error) {
-							console.error("Failed to parse GPT JSON data:", error)
+							Logger.error("Failed to parse GPT JSON data:", error)
 						}
 					}
 				}
 			}
 		} catch (error) {
-			console.error("Error streaming GPT completion:", error)
+			Logger.error("Error streaming GPT completion:", error)
 			throw error
 		}
 	}
@@ -1079,13 +1110,13 @@ export class SapAiCoreHandler implements ApiHandler {
 								}
 							}
 						} catch (error) {
-							console.error("Failed to parse Gemini JSON data:", error)
+							Logger.error("Failed to parse Gemini JSON data:", error)
 						}
 					}
 				}
 			}
 		} catch (error) {
-			console.error("Error streaming Gemini completion:", error)
+			Logger.error("Error streaming Gemini completion:", error)
 			throw error
 		}
 	}

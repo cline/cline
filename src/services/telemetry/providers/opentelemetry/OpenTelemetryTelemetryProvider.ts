@@ -1,12 +1,14 @@
 import { Meter } from "@opentelemetry/api"
 import type { Logger as OTELLogger } from "@opentelemetry/api-logs"
-import * as vscode from "vscode"
+import { LoggerProvider } from "@opentelemetry/sdk-logs"
+import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { HostProvider } from "@/hosts/host-provider"
+import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
-import { OpenTelemetryClientProvider } from "./OpenTelemetryClientProvider"
 
 /**
  * OpenTelemetry implementation of the telemetry provider interface.
@@ -23,17 +25,23 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
 	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
-	constructor() {
+	readonly name: string
+	private bypassUserSettings: boolean
+
+	constructor(
+		meterProvider: MeterProvider | null,
+		loggerProvider: LoggerProvider | null,
+		{ name, bypassUserSettings }: { name?: string; bypassUserSettings: boolean },
+	) {
+		this.name = name || "OpenTelemetryProvider"
+		this.bypassUserSettings = bypassUserSettings
+
 		// Initialize telemetry settings
 		this.telemetrySettings = {
 			extensionEnabled: true,
 			hostEnabled: true,
 			level: "all",
 		}
-
-		// Get meter and logger from the shared client provider
-		const meterProvider = OpenTelemetryClientProvider.getMeterProvider()
-		const loggerProvider = OpenTelemetryClientProvider.getLoggerProvider()
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
@@ -47,14 +55,15 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		const loggerReady = !!this.logger
 		const meterReady = !!this.meter
 		if (loggerReady || meterReady) {
-			console.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
+			Logger.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
 		}
-	}
-	name(): string {
-		return "OpenTelemetryProvider"
 	}
 
 	public async initialize(): Promise<OpenTelemetryTelemetryProvider> {
+		if (this.bypassUserSettings) {
+			return this
+		}
+
 		// Listen for host telemetry changes
 		HostProvider.env.subscribeToTelemetrySettings(
 			{},
@@ -152,7 +161,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		return this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled
+		return this.bypassUserSettings || (this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled)
 	}
 
 	public getSettings(): TelemetrySettings {
@@ -179,7 +188,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const options = description ? { description } : undefined
 			counter = this.meter.createCounter(name, options)
 			this.counters.set(name, counter)
-			console.log(`[OTEL] Created counter: ${name}`)
+			Logger.log(`[OTEL] Created counter: ${name}`)
 		}
 
 		counter.add(value, this.flattenProperties(attributes))
@@ -205,7 +214,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const options = description ? { description } : undefined
 			histogram = this.meter.createHistogram(name, options)
 			this.histograms.set(name, histogram)
-			console.log(`[OTEL] Created histogram: ${name}`)
+			Logger.log(`[OTEL] Created histogram: ${name}`)
 		}
 
 		histogram.record(value, this.flattenProperties(attributes))
@@ -262,7 +271,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			})
 
 			this.gauges.set(name, gauge)
-			console.log(`[OTEL] Created gauge: ${name}`)
+			Logger.log(`[OTEL] Created gauge: ${name}`)
 		}
 
 		series.set(attrKey, { value, attributes })
@@ -296,8 +305,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"
 		}
-		const config = vscode.workspace.getConfiguration("telemetry")
-		return config?.get<TelemetrySettings["level"]>("telemetryLevel") || "all"
+		return getErrorLevelFromString(hostSettings.errorLevel)
 	}
 
 	/**

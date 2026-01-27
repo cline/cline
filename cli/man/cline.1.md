@@ -70,6 +70,10 @@ When using the instant task syntax **cline "prompt"** the following options are 
 
 :   Starting mode. Options: **act** (default), **plan**
 
+**-w**, **\--workspace** *path*
+
+:   Additional workspace paths. Can be specified multiple times to include multiple directories. The current working directory is always included as the first workspace. Example: cline -w /path/to/other/project "refactor shared code"
+
 # GLOBAL OPTIONS
 
 These options apply to all subcommands:
@@ -77,6 +81,28 @@ These options apply to all subcommands:
 **-F**, **\--output-format** *format*
 
 :   Output format. Options: **rich** (default), **json**, **plain**
+
+    When you use **-F json**, the CLI prints each client message as JSON.
+
+    Each message is a **ClineMessage** object.
+
+    Required fields:
+
+    - **type**: "ask" or "say"
+    - **text**: message text
+    - **ts**: Unix epoch timestamp in milliseconds
+
+    Optional fields (omitted when empty):
+
+    - **reasoning**: reasoning text
+    - **say**: say subtype (present when type is "say")
+    - **ask**: ask subtype (present when type is "ask")
+    - **partial**: streaming flag
+    - **images**: list of image URIs
+    - **files**: list of file paths
+    - **lastCheckpointHash**: git checkpoint hash
+    - **isCheckpointCheckedOut**: checkpoint checkout flag
+    - **isOperationOutsideWorkspace**: workspace safety flag
 
 **-h**, **\--help**
 
@@ -296,6 +322,42 @@ cline task view
 # Start interactive chat with this task
 cline task chat
 ```
+
+# ENVIRONMENT
+
+**CLINE_COMMAND_PERMISSIONS**
+
+:   JSON configuration for restricting which shell commands Cline can execute. When set, commands are validated against allow/deny patterns before execution. When not set, all commands are allowed.
+
+    Format: `{"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirects": true}`
+
+    **Fields:**
+
+    - **allow** (array of strings): Glob patterns for allowed commands. If specified, only matching commands are permitted. Uses `*` to match any characters and `?` to match a single character. Setting allow on anything will deny all others.
+    - **deny** (array of strings): Glob patterns for denied commands. Deny rules take precedence over allow rules.
+    - **allowRedirects** (boolean): Whether to allow shell redirects (`>`, `>>`, `<`, etc.). Defaults to false.
+
+    **Rule evaluation:**
+
+    1. Check for dangerous characters (backticks outside single quotes, unquoted newlines)
+    2. Parse command into segments split by operators (`&&`, `||`, `|`, `;`)
+    3. If redirects detected and `allowRedirects` is not true, command is denied
+    4. Each segment is validated against deny rules first, then allow rules
+    5. Subshell contents (`$(...)` and `(...)`) are recursively validated
+    6. All segments must pass for the command to be allowed
+
+    **Examples:**
+
+    ```bash
+    # Allow only npm and git commands.
+    export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"]}'
+
+    # Allow development commands but deny dangerous ones. Deny not strictly required here since allow is set.
+    export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *", "node *"], "deny": ["rm -rf *", "sudo *"]}'
+
+    # Allow file operations with redirects
+    export CLINE_COMMAND_PERMISSIONS='{"allow": ["cat *", "echo *"], "allowRedirects": true}'
+    ```
 
 # ARCHITECTURE
 

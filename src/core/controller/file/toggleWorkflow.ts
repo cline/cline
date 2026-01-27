@@ -1,4 +1,5 @@
 import { ClineRulesToggles, RuleScope, ToggleWorkflowRequest } from "@shared/proto/cline/file"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -11,7 +12,7 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 	const { workflowPath, enabled, scope } = request
 
 	if (!workflowPath || typeof enabled !== "boolean" || scope === undefined) {
-		console.error("toggleWorkflow: Missing or invalid parameters", {
+		Logger.error("toggleWorkflow: Missing or invalid parameters", {
 			workflowPath,
 			scope,
 			enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,

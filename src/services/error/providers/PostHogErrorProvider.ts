@@ -1,11 +1,12 @@
 import { PostHog } from "posthog-node"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import * as pkg from "../../../../package.json"
 import { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
+import { getErrorLevelFromString } from ".."
 import { ClineError } from "../ClineError"
 import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
 
@@ -53,13 +54,8 @@ export class PostHogErrorProvider implements IErrorProvider {
 			this.errorSettings.hostEnabled = false
 		}
 
-		// Check extension-specific telemetry setting
-		const config = vscode.workspace.getConfiguration("cline")
-		if (config.get("telemetrySetting") === "disabled") {
-			this.errorSettings.enabled = false
-		}
+		this.errorSettings.level = getErrorLevelFromString(hostSettings.errorLevel)
 
-		this.errorSettings.level = await this.getErrorLevel()
 		return this
 	}
 
@@ -95,7 +91,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 			},
 		})
 
-		console.error("[PostHogErrorProvider] Logging exception", error)
+		Logger.error("[PostHogErrorProvider] Logging exception", error)
 	}
 
 	public logMessage(
@@ -134,15 +130,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 		return { ...this.errorSettings }
 	}
 
-	private async getErrorLevel(): Promise<ErrorSettings["level"]> {
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			return "off"
-		}
-		const config = vscode.workspace.getConfiguration("telemetry")
-		return config?.get<ErrorSettings["level"]>("telemetryLevel") || "all"
-	}
-
 	private get distinctId(): string {
 		return getDistinctId()
 	}
@@ -150,7 +137,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 	public async dispose(): Promise<void> {
 		// Only shut down the client if it's not shared (we own it)
 		if (!this.isSharedClient) {
-			await this.client.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
+			await this.client.shutdown().catch((error) => Logger.error("Error shutting down PostHog client:", error))
 		}
 	}
 }

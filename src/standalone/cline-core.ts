@@ -11,6 +11,7 @@ import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
+import { Logger } from "@/shared/services/Logger"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
 import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
@@ -271,7 +272,7 @@ function parseArgs(): CliArgs {
 }
 
 function showHelp() {
-	console.log(`
+	Logger.log(`
 Cline Core - Standalone Server
 
 Usage: node cline-core.js [options]

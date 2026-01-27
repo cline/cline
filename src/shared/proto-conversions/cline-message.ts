@@ -1,5 +1,4 @@
 import { ClineAsk as AppClineAsk, ClineMessage as AppClineMessage, ClineSay as AppClineSay } from "@shared/ExtensionMessage"
-
 import { ClineAsk, ClineMessageType, ClineSay, ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
 
 // Helper function to convert ClineAsk string to enum
@@ -30,7 +29,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 
 	const result = mapping[ask]
 	if (result === undefined) {
-		console.warn(`Unknown ClineAsk value: ${ask}`)
 	}
 	return result
 }
@@ -38,7 +36,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 // Helper function to convert ClineAsk enum to string
 function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 	if (ask === ClineAsk.UNRECOGNIZED) {
-		console.warn("Received UNRECOGNIZED ClineAsk enum value")
 		return undefined
 	}
 
@@ -97,27 +94,26 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		diff_error: ClineSay.DIFF_ERROR,
 		deleted_api_reqs: ClineSay.DELETED_API_REQS,
 		clineignore_error: ClineSay.CLINEIGNORE_ERROR,
+		command_permission_denied: ClineSay.COMMAND_PERMISSION_DENIED,
 		checkpoint_created: ClineSay.CHECKPOINT_CREATED,
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
-		hook: ClineSay.INFO,
-		hook_output: ClineSay.COMMAND_OUTPUT_SAY,
+		hook_status: ClineSay.HOOK_STATUS,
+		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
+		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
 	const result = mapping[say]
-	if (result === undefined) {
-		console.warn(`Unknown ClineSay value: ${say}`)
-	}
+
 	return result
 }
 
 // Helper function to convert ClineSay enum to string
 function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 	if (say === ClineSay.UNRECOGNIZED) {
-		console.warn("Received UNRECOGNIZED ClineSay enum value")
 		return undefined
 	}
 
@@ -146,12 +142,16 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.DIFF_ERROR]: "diff_error",
 		[ClineSay.DELETED_API_REQS]: "deleted_api_reqs",
 		[ClineSay.CLINEIGNORE_ERROR]: "clineignore_error",
+		[ClineSay.COMMAND_PERMISSION_DENIED]: "command_permission_denied",
 		[ClineSay.CHECKPOINT_CREATED]: "checkpoint_created",
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
 		[ClineSay.ERROR_RETRY]: "error_retry",
 		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
+		[ClineSay.HOOK_STATUS]: "hook_status",
+		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
+		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
 	}
 
 	return mapping[say]

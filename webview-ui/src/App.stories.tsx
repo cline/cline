@@ -2,10 +2,10 @@ import { HeroUIProvider } from "@heroui/react"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { type ApiConfiguration, bedrockModels } from "@shared/api"
 import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { Meta, StoryObj } from "@storybook/react-vite"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { expect, userEvent, within } from "storybook/test"
 import { ExtensionStateContext, useExtensionState } from "@/context/ExtensionStateContext"
 import ChatView from "./components/chat/ChatView"
@@ -14,7 +14,7 @@ import WelcomeView from "./components/welcome/WelcomeView"
 
 // Mock component that mimics App behavior but works in Storybook
 const MockApp = () => {
-	const { showWelcome, onboardingModels } = useExtensionState()
+	const { showWelcome, onboardingModels, showAnnouncement } = useExtensionState()
 
 	return (
 		<HeroUIProvider>
@@ -25,7 +25,12 @@ const MockApp = () => {
 					<WelcomeView />
 				)
 			) : (
-				<ChatView hideAnnouncement={() => {}} isHidden={false} showAnnouncement={false} showHistoryView={() => {}} />
+				<ChatView
+					hideAnnouncement={() => {}}
+					isHidden={false}
+					showAnnouncement={showAnnouncement}
+					showHistoryView={() => {}}
+				/>
 			)}
 		</HeroUIProvider>
 	)
@@ -67,7 +72,7 @@ The ChatView component is the main interface for interacting with Cline. It prov
 - Learning and exploration
 
 **Note**: In Storybook, some features like file operations, command execution, and API calls are mocked for demonstration purposes.
-        `,
+		`,
 			},
 		},
 	},
@@ -152,6 +157,21 @@ const createMessage = (
 	...overrides,
 })
 
+const createSayToolMessage = (
+	minutesAgo: number,
+	sayTool: ClineSayTool,
+	overrides: Partial<ClineMessage> = {},
+): ClineMessage => ({
+	ts: Date.now() - minutesAgo * 60000,
+	type: "say",
+	say: "tool",
+	text: JSON.stringify({
+		operationIsLocatedInWorkspace: true,
+		...sayTool,
+	}),
+	...overrides,
+})
+
 const createApiReqMessage = (minutesAgo: number, request: string, metrics: any = {}) =>
 	createMessage(
 		minutesAgo,
@@ -221,6 +241,7 @@ const createMockState = (overrides: any = {}) => ({
 	...useExtensionState(),
 	useAutoCondense: true,
 	autoCondenseThreshold: 0.5,
+	version: "0.0.1-stories",
 	welcomeViewCompleted: true,
 	showWelcome: false,
 	clineMessages: mockActiveMessages,
@@ -228,6 +249,8 @@ const createMockState = (overrides: any = {}) => ({
 	apiConfiguration: mockApiConfiguration,
 	onboardingModels: undefined,
 	openRouterModels: bedrockModels,
+	showAnnouncement: false,
+	backgroundEditEnabled: false,
 	...overrides,
 })
 
@@ -360,6 +383,30 @@ export const Onboarding: Story = {
 	},
 }
 
+export const EmptyState: Story = {
+	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: [], isNewUser: true, showAnnouncement: true })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
+			},
+		},
+	},
+}
+
+export const ReturnUser: Story = {
+	decorators: [
+		createStoryDecorator({ clineMessages: [], taskHistory: mockTaskHistory, isNewUser: true, showAnnouncement: false }),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the home screen populated with conversation history for returning users.",
+			},
+		},
+	},
+}
+
 export const ActiveConversation: Story = {
 	decorators: [createStoryDecorator({ task: mockTaskHistory[0], currentTaskItem: mockTaskHistory[0] })],
 	parameters: {
@@ -464,7 +511,8 @@ const createErrorMessages = () => [
 		"text",
 		"I can see there are TypeScript errors in your code. Let me examine the files and fix these issues.",
 	),
-	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile.tsx" })),
+	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile_1.tsx" })),
+	createMessage(3.3, "say", "tool", JSON.stringify({ tool: "readFile", path: "src/components/UserProfile_2.tsx" })),
 	createMessage(
 		3,
 		"say",
@@ -522,7 +570,7 @@ const createPlanModeMessages = () => [
 	createApiReqMessage(4.5, "Detailed planning request", { tokensIn: 20002, tokensOut: 12500, cost: 0.095 }),
 	createAskMessage(
 		"plan_mode_respond",
-		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.",
+		"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
 	),
 ]
 
@@ -538,17 +586,6 @@ export const PlanMode: Story = {
 		docs: {
 			description: {
 				story: "Shows Cline in Plan mode, where it focuses on creating detailed plans and discussing approaches before implementation.",
-			},
-		},
-	},
-}
-
-export const EmptyState: Story = {
-	decorators: [createStoryDecorator({ clineMessages: [], taskHistory: [], isNewUser: true })],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows the empty state for first-time users with no conversation history or active tasks.",
 			},
 		},
 	},
@@ -594,7 +631,7 @@ export const BrowserAutomation: Story = {
 const createToolApprovalMessages = () => [
 	createMessage(5, "say", "task", "Help me read the configuration file"),
 	createMessage(4.7, "say", "text", "I need to read a file to understand your configuration."),
-	createAskMessage("tool", JSON.stringify({ tool: "read_file", path: "config.json" })),
+	createAskMessage("tool", JSON.stringify({ tool: "readFile", path: "config.json" })),
 ]
 
 export const ToolApproval: Story = {
@@ -640,6 +677,7 @@ const quickStory = (
 			clineMessages: [
 				...createLongMessages(),
 				createMessage(6, "say", "task", `Help with ${name.toLowerCase()}`),
+				createMessage(5, "say", "reasoning", `Thinking about helping user with ${name.toLowerCase()}`),
 				createMessage(4.7, "say", "text", `I'll help you with ${name.toLowerCase()}.`),
 				createAskMessage(askType, text, streamingFailedMessage),
 			],
@@ -689,7 +727,7 @@ export const MistakeLimitReached = quickStory(
 export const CompletionResult = quickStory(
 	"Task Completion",
 	"completion_result",
-	"Task completed successfully! I've implemented all the requested features.",
+	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- View Changes\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
 	"Shows task completion state with Start New Task button.",
 )
 export const BrowserActionLaunch = quickStory(
@@ -736,7 +774,7 @@ export const ApiRequestActive: Story = {
 export const PlanModeResponse = quickStory(
 	"Plan Mode Response",
 	"plan_mode_respond",
-	"Here's my detailed plan for creating a comprehensive testing strategy.",
+	"Here's my comprehensive plan for refactoring your React application with TypeScript migration and performance optimization phases.\n\n\n\n\nPhase 1: TypeScript Migration\n1. Set up TypeScript in the project\n2. Rename .js files to .tsx/.ts\n3. Add type definitions for components and props\n4. Fix type errors and ensure type safety\n\nPhase 2: Performance Optimization\n1. Analyze current performance bottlenecks\n2. Implement code-splitting and lazy loading\n3. Optimize rendering with React.memo and useCallback\n4. Minimize bundle size with tree-shaking and minification\n5. Test performance improvements using profiling tools",
 	"Shows plan mode response where Cline presents a detailed plan for user approval.",
 )
 export const CondenseConversation = quickStory(
@@ -748,7 +786,10 @@ export const CondenseConversation = quickStory(
 export const ReportBug = quickStory(
 	"Report Bug",
 	"report_bug",
-	"Would you like to report this issue to help improve Cline?",
+	JSON.stringify({
+		steps_to_reproduce: "1. Open Cline\n2. Start a new task\n3. Observe the error",
+		what_happened: "Cline crashes unexpectedly",
+	}),
 	"Shows utility action to report bugs to the GitHub repository.",
 )
 export const ResumeCompletedTask = quickStory(
@@ -757,3 +798,561 @@ export const ResumeCompletedTask = quickStory(
 	"The previous task has been completed. Would you like to start a new task?",
 	"Shows Start New Task option for resume completed task.",
 )
+
+export const ShellIntegrationWarningWithSuggestion: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "integrated",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning with suggestion to enable Background Terminal mode.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarningBackgroundEnabled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
+			],
+			vscodeTerminalExecutionMode: "backgroundExec",
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration warning when Background Terminal mode is already enabled.",
+			},
+		},
+	},
+}
+
+export const ShellIntegrationWarning: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Run a command"),
+				createMessage(4.7, "say", "text", "I'll run the command for you."),
+				createMessage(4.5, "say", "shell_integration_warning", ""),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows shell integration unavailable warning with instructions to update VSCode and select a supported shell.",
+			},
+		},
+	},
+}
+
+export const ErrorRetryInProgress: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Process a request"),
+				createMessage(4.7, "say", "text", "Attempting to process your request."),
+				createMessage(
+					4.5,
+					"say",
+					"error_retry",
+					JSON.stringify({ attempt: 2, maxAttempts: 5, delaySeconds: 10, failed: false }),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows auto-retry in progress with attempt count and delay.",
+			},
+		},
+	},
+}
+
+export const ErrorRetryFailed: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Process a request"),
+				createMessage(4.7, "say", "text", "Attempting to process your request."),
+				createMessage(
+					4.5,
+					"say",
+					"error_retry",
+					JSON.stringify({ attempt: 5, maxAttempts: 5, delaySeconds: 0, failed: true }),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows auto-retry failed after max attempts with manual intervention required.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationInProgress: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "working directory",
+						status: "generating",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation in progress with spinner.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationComplete: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "xyz789ghi",
+						status: "complete",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows successfully generated explanation with git refs.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationError: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "",
+						status: "error",
+						error: "Failed to generate explanation: Git repository not found",
+					}),
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation error with error message.",
+			},
+		},
+	},
+}
+
+export const GenerateExplanationCancelled: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Explain my recent changes"),
+				createMessage(4.7, "say", "text", "I'll generate an explanation of your changes."),
+				createMessage(
+					4.5,
+					"say",
+					"generate_explanation",
+					JSON.stringify({
+						title: "Authentication refactor",
+						fromRef: "abc123def",
+						toRef: "",
+						status: "generating",
+					}),
+				),
+				createMessage(4.3, "ask", undefined, "Task was cancelled", { ask: "resume_task" }),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows explanation generation cancelled state (detected via resume_task message).",
+			},
+		},
+	},
+}
+
+// Diff Edit Stories - New Format
+const createNewFormatMultiFileMessages = () => [
+	createMessage(5, "say", "task", "Help me refactor the authentication module"),
+	createMessage(4.7, "say", "text", "I'll help you refactor the authentication module. Let me make the necessary changes."),
+	createSayToolMessage(4.3, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `*** Begin Patch
+*** Add File: src/auth/types.ts
++export interface User {
++  id: string
++  email: string
++  role: 'admin' | 'user'
++}
++
++export interface AuthState {
++  user: User | null
++  isAuthenticated: boolean
++}
+
+*** Update File: src/auth/login.ts
+@@
+-function login(email, password) {
+-  return fetch('/api/login', {
++function login(email: string, password: string): Promise<AuthState> {
++  return fetch('/api/login', {
+	 method: 'POST',
+-    body: { email, password }
++    body: JSON.stringify({ email, password }),
++    headers: { 'Content-Type': 'application/json' }
+   })
+ }
+@@
+-export default login
++export { login }
+
+*** Delete File: src/auth/old-utils.js
+-function deprecatedHelper() {
+-  console.log('This is deprecated')
+-}
+-
+-module.exports = { deprecatedHelper }
+*** End Patch`,
+	}),
+	{ partial: false },
+]
+
+export const DiffEditNewFormat: Story = {
+	decorators: [createStoryDecorator({ backgroundEditEnabled: true, clineMessages: createNewFormatMultiFileMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the new diff edit format with multiple file operations (Add, Update, Delete) displayed in an organized, expandable view.",
+			},
+		},
+	},
+}
+
+export const DiffEditNewFormatStreaming: Story = {
+	decorators: [
+		(Story) => {
+			const [messages, setMessages] = useState<ClineMessage[]>([
+				createMessage(5, "say", "task", "Add TypeScript types to the user module"),
+				createMessage(4.7, "say", "text", "I'll add TypeScript types to improve type safety."),
+			])
+			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, clineMessages: messages }), [messages])
+
+			useEffect(() => {
+				// Simulate streaming: progressively add more content
+				const partialPatch = `*** Begin Patch
+*** Update File: src/user/profile.ts
+@@
+-interface UserProfile {
+-  name: string
++interface UserProfile {
++  id: string
++  name: string`
+
+				const morePatch =
+					partialPatch +
+					`
++  email: string
++  createdAt: Date`
+
+				const completePatch =
+					morePatch +
+					`
++}
+*** End Patch`
+
+				// Add initial partial message
+				const timer1 = setTimeout(() => {
+					setMessages((prev: ClineMessage[]) => [
+						...prev,
+						createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/user/profile.ts",
+								content: partialPatch,
+							},
+							{ partial: true },
+						),
+					])
+				}, 500)
+
+				// Add more content
+				const timer2 = setTimeout(() => {
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/user/profile.ts",
+								content: morePatch,
+							},
+							{ partial: true },
+						)
+						return updated
+					})
+				}, 1500)
+
+				// Complete the patch
+				const timer3 = setTimeout(() => {
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/user/profile.ts",
+								content: completePatch,
+							},
+							{ partial: false },
+						)
+						return updated
+					})
+				}, 2500)
+
+				return () => {
+					clearTimeout(timer1)
+					clearTimeout(timer2)
+					clearTimeout(timer3)
+				}
+			}, [])
+
+			return (
+				<ExtensionStateProviderMock value={mockState}>
+					<div className="w-full h-full flex justify-center items-center overflow-hidden">
+						<div className={SIDEBAR_CLASS}>
+							<Story />
+						</div>
+					</div>
+				</ExtensionStateProviderMock>
+			)
+		},
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the new diff edit format while streaming (incomplete patch without End Patch marker).",
+			},
+		},
+	},
+}
+
+// Diff Edit Stories - Replace Diff Edit Format
+const createReplaceDiffFormatPatchMessages = () => [
+	createMessage(5, "say", "task", "Fix the validation logic in the form"),
+	createMessage(4.7, "say", "text", "I'll fix the validation logic using the updated pattern."),
+	createSayToolMessage(4.3, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `------- SEARCH
+function validateEmail(email) {
+  return email.includes('@')
+}
+=======
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/
+  return emailRegex.test(email)
+}
++++++++ REPLACE`,
+	}),
+]
+
+export const DiffEditReplaceDiffFormat: Story = {
+	decorators: [createStoryDecorator({ backgroundEditEnabled: true, clineMessages: createReplaceDiffFormatPatchMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the old SEARCH/REPLACE diff format (backward compatibility) with complete markers, automatically converted to the new format display.",
+			},
+		},
+	},
+}
+
+export const DiffEditReplaceDiffFormatStreaming: Story = {
+	decorators: [
+		(Story) => {
+			const [messages, setMessages] = useState<ClineMessage[]>([
+				createMessage(5, "say", "task", "Update error handling"),
+				createMessage(4.7, "say", "text", "I'll improve the error handling in the API client."),
+			])
+			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, clineMessages: messages }), [messages])
+
+			useEffect(() => {
+				const completePatch = `------- SEARCH
+try {
+  const response = await fetch(url)
+  return response.json()
+} catch (error) {
+  console.error(error)
+}
+=======
+try {
+  const response = await fetch(url)
+  if (!response.ok) {
+	throw new Error(\`HTTP error! status: \${response.status}\`)
+  }
+  return response.json()
+} catch (error) {
+  console.error('API request failed:', error)
+  throw error
+}
++++++++ REPLACE`
+
+				const patchChunks = completePatch.split("\n")
+				let currentIndex = 0
+
+				const intervalId = setInterval(() => {
+					if (currentIndex >= patchChunks.length) {
+						clearInterval(intervalId)
+						return
+					}
+
+					setMessages((prev: ClineMessage[]) => {
+						const updated = [...prev]
+						updated[updated.length - 1] = createSayToolMessage(
+							4.3,
+							{
+								tool: "editedExistingFile",
+								path: "src/auth/types.ts",
+								content: patchChunks.slice(0, currentIndex + 1).join("\n"),
+							},
+							{ partial: currentIndex !== patchChunks.length - 1 },
+						)
+						return updated
+					})
+
+					currentIndex++
+				}, 500)
+
+				return () => clearInterval(intervalId)
+			}, [])
+
+			return (
+				<ExtensionStateProviderMock value={mockState}>
+					<div className="w-full h-full flex justify-center items-center overflow-hidden">
+						<div className={SIDEBAR_CLASS}>
+							<Story />
+						</div>
+					</div>
+				</ExtensionStateProviderMock>
+			)
+		},
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows the old SEARCH/REPLACE diff format while streaming (incomplete, missing REPLACE marker), demonstrating graceful handling of partial content.",
+			},
+		},
+	},
+}
+
+// Combined example showing both formats in one conversation
+const createMixedFormatMessages = () => [
+	createMessage(5, "say", "task", "Refactor the entire authentication system"),
+	createMessage(4.7, "say", "text", "I'll refactor the authentication system. Starting with the login function."),
+	createSayToolMessage(4.5, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `------- SEARCH
+function login(username, password) {
+  return authenticateUser(username, password)
+}
+=======
+async function login(username: string, password: string): Promise<AuthResult> {
+  return await authenticateUser(username, password)
+}
++++++++ REPLACE`,
+	}),
+	createMessage(4.3, "say", "text", "Great! Now let me add the type definitions and update the authentication module."),
+	createSayToolMessage(4.0, {
+		tool: "editedExistingFile",
+		path: "src/auth/types.ts",
+		content: `*** Begin Patch
+*** Add File: src/auth/types.ts
++export interface AuthResult {
++  success: boolean
++  token?: string
++  error?: string
++}
++
++export interface LoginCredentials {
++  username: string
++  password: string
++}
+
+*** Update File: src/auth/authenticate.ts
+@@
+-function authenticateUser(username, password) {
++async function authenticateUser(username: string, password: string): Promise<AuthResult> {
+   // Authentication logic
++  return { success: true, token: 'mock-token' }
+ }
+*** End Patch`,
+	}),
+]
+
+export const DiffEditMixedFormats: Story = {
+	decorators: [createStoryDecorator({ clineMessages: createMixedFormatMessages() })],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows a conversation using both search / replace and apply patch diff formats, demonstrating seamless backward compatibility and format detection.",
+			},
+		},
+	},
+}

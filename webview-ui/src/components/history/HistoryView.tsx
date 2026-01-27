@@ -1,14 +1,17 @@
-import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
 import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
-import { VSCodeButton, VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
+import { FunnelIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { Virtuoso } from "react-virtuoso"
-import DangerButton from "@/components/common/DangerButton"
+import { GroupedVirtuoso } from "react-virtuoso"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
-import { formatLargeNumber, formatSize } from "@/utils/format"
+import { formatSize } from "@/utils/format"
+import HistoryViewItem from "./HistoryViewItem"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -16,33 +19,20 @@ type HistoryViewProps = {
 
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
-// Tailwind-styled radio with custom icon support - works independently of VSCodeRadioGroup but looks the same
-// Used for workspace and favorites filters
-
-interface CustomFilterRadioProps {
-	checked: boolean
-	onChange: () => void
-	icon: string
-	label: string
+const isToday = (timestamp: number): boolean => {
+	const date = new Date(timestamp)
+	const today = new Date()
+	return today.toDateString() === date.toDateString()
 }
 
-const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadioProps) => {
-	return (
-		<div
-			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-(--vscode-font-size) select-none"
-			onClick={onChange}>
-			<div
-				className={`w-[14px] h-[14px] rounded-full border border-(--vscode-checkbox-border) relative flex justify-center items-center mr-[6px] ${
-					checked ? "bg-(--vscode-checkbox-background)" : "bg-transparent"
-				}`}>
-				{checked && <div className="w-[6px] h-[6px] rounded-full bg-(--vscode-checkbox-foreground)" />}
-			</div>
-			<span className="flex items-center gap-[3px]">
-				<div className={`codicon codicon-${icon} text-(--vscode-button-background) text-base`} />
-				{label}
-			</span>
-		</div>
-	)
+const HISTORY_FILTERS = {
+	newest: "Newest",
+	oldest: "Oldest",
+	mostExpensive: "Most Expensive",
+	mostTokens: "Most Tokens",
+	mostRelevant: "Most Relevant",
+	workspaceOnly: "Workspace Only",
+	favoritesOnly: "Favorites Only",
 }
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
@@ -163,12 +153,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
-	}, [])
-
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
 		setSelectedItems((prev) => {
 			if (checked) {
@@ -200,21 +184,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		[fetchTotalTasksSize],
 	)
 
-	const formatDate = useCallback((timestamp: number) => {
-		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
-	}, [])
-
 	const fuse = useMemo(() => {
 		return new Fuse(tasks, {
 			keys: ["task"],
@@ -228,7 +197,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [tasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
+		const results = searchQuery
+			? fuse
+					.search(searchQuery)
+					?.filter(({ matches }) => matches && matches.length)
+					.map(({ item }) => item)
+			: tasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {
@@ -256,6 +230,45 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		return results
 	}, [tasks, searchQuery, fuse, sortOption])
 
+	// Group tasks into "Today" and "Older" (only for date-based sorts)
+	const { groupedTasks, groupCounts, groupLabels } = useMemo(() => {
+		const isDateSort = sortOption === "newest" || sortOption === "oldest"
+
+		if (!isDateSort) {
+			// No grouping for non-date sorts
+			return {
+				groupedTasks: taskHistorySearchResults,
+				groupCounts: [taskHistorySearchResults.length],
+				groupLabels: [] as string[],
+			}
+		}
+
+		const todayTasks: any[] = []
+		const olderTasks: any[] = []
+
+		taskHistorySearchResults.forEach((task) => {
+			if (isToday(task.ts)) {
+				todayTasks.push(task)
+			} else {
+				olderTasks.push(task)
+			}
+		})
+
+		const groups: { tasks: any[]; label: string }[] = []
+		if (todayTasks.length > 0) {
+			groups.push({ tasks: todayTasks, label: "Today" })
+		}
+		if (olderTasks.length > 0) {
+			groups.push({ tasks: olderTasks, label: "Older" })
+		}
+
+		return {
+			groupedTasks: groups.flatMap((g) => g.tasks),
+			groupCounts: groups.map((g) => g.tasks.length),
+			groupLabels: groups.map((g) => g.label),
+		}
+	}, [taskHistorySearchResults, sortOption])
+
 	// Calculate total size of selected items
 	const selectedItemsSize = useMemo(() => {
 		if (selectedItems.length === 0) {
@@ -277,450 +290,183 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	)
 
 	return (
-		<>
-			<style>
-				{`
-					.history-item:hover {
-						background-color: var(--vscode-list-hoverBackground);
-					}
-					.delete-button, .export-button {
-						opacity: 0;
-						pointer-events: none;
-					}
-					.history-item:hover .delete-button,
-					.history-item:hover .export-button {
-						opacity: 1;
-						pointer-events: auto;
-					}
-					.history-item-highlight {
-						background-color: var(--vscode-editor-findMatchHighlightBackground);
-						color: inherit;
-					}
-				`}
-			</style>
-			<div className="fixed overflow-hidden inset-0 flex flex-col">
-				<div
+		<div className="fixed overflow-hidden inset-0 flex flex-col w-full">
+			{/* HEADER */}
+			<div className="flex justify-between items-center py-2.5 px-5">
+				<h3
+					className="m-0"
 					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						padding: "10px 17px 10px 20px",
+						color: getEnvironmentColor(environment),
 					}}>
-					<h3
-						style={{
-							color: getEnvironmentColor(environment),
-							margin: 0,
-						}}>
-						History
-					</h3>
-					<VSCodeButton onClick={() => onDone()}>Done</VSCodeButton>
-				</div>
-				<div style={{ padding: "5px 17px 6px 17px" }}>
-					<div className="flex flex-col gap-3">
-						<VSCodeTextField
-							onInput={(e) => {
-								const newValue = (e.target as HTMLInputElement)?.value
-								setSearchQuery(newValue)
-								if (newValue && !searchQuery && sortOption !== "mostRelevant") {
-									setLastNonRelevantSort(sortOption)
-									setSortOption("mostRelevant")
-								}
-							}}
-							placeholder="Fuzzy search history..."
-							style={{ width: "100%" }}
-							value={searchQuery}>
-							<div
-								className="codicon codicon-search"
-								slot="start"
-								style={{
-									fontSize: 13,
-									marginTop: 2.5,
-									opacity: 0.8,
-								}}></div>
-							{searchQuery && (
-								<div
-									aria-label="Clear search"
-									className="input-icon-button codicon codicon-close"
-									onClick={() => setSearchQuery("")}
-									slot="end"
-									style={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										height: "100%",
-									}}
-								/>
-							)}
-						</VSCodeTextField>
-						<VSCodeRadioGroup
-							className="flex flex-wrap"
-							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
-							value={sortOption}>
-							<VSCodeRadio value="newest">Newest</VSCodeRadio>
-							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
-							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
-							<VSCodeRadio disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }} value="mostRelevant">
-								Most Relevant
-							</VSCodeRadio>
-							<CustomFilterRadio
-								checked={showCurrentWorkspaceOnly}
-								icon="workspace"
-								label="Workspace"
-								onChange={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}
-							/>
-							<CustomFilterRadio
-								checked={showFavoritesOnly}
-								icon="star-full"
-								label="Favorites"
-								onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
-							/>
-						</VSCodeRadioGroup>
+					History
+				</h3>
+				<Button onClick={() => onDone()}>Done</Button>
+			</div>
 
-						<div className="flex justify-end gap-2.5">
-							<VSCodeButton onClick={() => handleBatchHistorySelect(true)}>Select All</VSCodeButton>
-							<VSCodeButton onClick={() => handleBatchHistorySelect(false)}>Select None</VSCodeButton>
-						</div>
-					</div>
-				</div>
-				<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
-					<Virtuoso
-						data={taskHistorySearchResults}
-						itemContent={(index, item) => (
-							<div
-								className="history-item"
-								key={item.id}
-								style={{
-									cursor: "pointer",
-									borderBottom:
-										index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-									display: "flex",
-								}}>
-								<VSCodeCheckbox
-									checked={selectedItems.includes(item.id)}
-									className="pl-3 pr-1 py-auto"
-									onClick={(e) => {
-										const checked = (e.target as HTMLInputElement).checked
-										handleHistorySelect(item.id, checked)
-										e.stopPropagation()
-									}}
-								/>
-								<div
-									onClick={() => handleShowTaskWithId(item.id)}
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: "8px",
-										padding: "12px 20px",
-										paddingLeft: "16px",
-										position: "relative",
-										flexGrow: 1,
-									}}>
-									<div
-										style={{
-											display: "flex",
-											justifyContent: "space-between",
-											alignItems: "center",
-										}}>
-										<span
-											style={{
-												color: "var(--vscode-descriptionForeground)",
-												fontWeight: 500,
-												fontSize: "0.85em",
-												textTransform: "uppercase",
-											}}>
-											{formatDate(item.ts)}
-										</span>
-										<div style={{ display: "flex", gap: "4px" }}>
-											{/* only show delete button if task not favorited */}
-											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (
-												<VSCodeButton
-													appearance="icon"
-													aria-label="Delete"
-													className="delete-button"
-													onClick={(e) => {
-														e.stopPropagation()
-														handleDeleteHistoryItem(item.id)
-													}}
-													style={{ padding: "0px 0px" }}>
-													<div
-														style={{
-															display: "flex",
-															alignItems: "center",
-															gap: "3px",
-															fontSize: "11px",
-														}}>
-														<span className="codicon codicon-trash"></span>
-														{formatSize(item.size)}
-													</div>
-												</VSCodeButton>
-											)}
-											<VSCodeButton
-												appearance="icon"
-												aria-label={item.isFavorited ? "Remove from favorites" : "Add to favorites"}
-												onClick={(e) => {
-													e.stopPropagation()
-													toggleFavorite(item.id, item.isFavorited || false)
-												}}
-												style={{ padding: "0px" }}>
-												<div
-													className={`codicon ${
-														pendingFavoriteToggles[item.id] !== undefined
-															? pendingFavoriteToggles[item.id]
-																? "codicon-star-full"
-																: "codicon-star-empty"
-															: item.isFavorited
-																? "codicon-star-full"
-																: "codicon-star-empty"
-													}`}
-													style={{
-														color:
-															(pendingFavoriteToggles[item.id] ?? item.isFavorited)
-																? "var(--vscode-button-background)"
-																: "inherit",
-														opacity: (pendingFavoriteToggles[item.id] ?? item.isFavorited) ? 1 : 0.7,
-														display:
-															(pendingFavoriteToggles[item.id] ?? item.isFavorited)
-																? "block"
-																: undefined,
-													}}
-												/>
-											</VSCodeButton>
-										</div>
-									</div>
-
-									<div style={{ marginBottom: "8px", position: "relative" }}>
-										<div
-											style={{
-												fontSize: "var(--vscode-font-size)",
-												color: "var(--vscode-foreground)",
-												display: "-webkit-box",
-												WebkitLineClamp: 3,
-												WebkitBoxOrient: "vertical",
-												overflow: "hidden",
-												whiteSpace: "pre-wrap",
-												wordBreak: "break-word",
-												overflowWrap: "anywhere",
-											}}>
-											<span
-												className="ph-no-capture"
-												dangerouslySetInnerHTML={{
-													__html: item.task,
-												}}
-											/>
-										</div>
-									</div>
-									<div
-										style={{
-											display: "flex",
-											flexDirection: "column",
-											gap: "4px",
-										}}>
-										<div
-											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "center",
-											}}>
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "4px",
-													flexWrap: "wrap",
-												}}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													Tokens:
-												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													<i
-														className="codicon codicon-arrow-up"
-														style={{
-															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: "-2px",
-														}}
-													/>
-													{formatLargeNumber(item.tokensIn || 0)}
-												</span>
-												<span
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "3px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													<i
-														className="codicon codicon-arrow-down"
-														style={{
-															fontSize: "12px",
-															fontWeight: "bold",
-															marginBottom: "-2px",
-														}}
-													/>
-													{formatLargeNumber(item.tokensOut || 0)}
-												</span>
-											</div>
-											{!item.totalCost && <ExportButton itemId={item.id} />}
-										</div>
-
-										{!!(item.cacheWrites || item.cacheReads) && (
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													gap: "4px",
-													flexWrap: "wrap",
-												}}>
-												<span
-													style={{
-														fontWeight: 500,
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													Cache:
-												</span>
-												{item.cacheWrites > 0 && (
-													<span
-														style={{
-															display: "flex",
-															alignItems: "center",
-															gap: "3px",
-															color: "var(--vscode-descriptionForeground)",
-														}}>
-														<i
-															className="codicon codicon-arrow-right"
-															style={{
-																fontSize: "12px",
-																fontWeight: "bold",
-																marginBottom: "-1px",
-															}}
-														/>
-														{formatLargeNumber(item.cacheWrites)}
-													</span>
-												)}
-												{item.cacheReads > 0 && (
-													<span
-														style={{
-															display: "flex",
-															alignItems: "center",
-															gap: "3px",
-															color: "var(--vscode-descriptionForeground)",
-														}}>
-														<i
-															className="codicon codicon-arrow-left"
-															style={{
-																fontSize: "12px",
-																fontWeight: "bold",
-																marginBottom: 0,
-															}}
-														/>
-														{formatLargeNumber(item.cacheReads)}
-													</span>
-												)}
-											</div>
-										)}
-										{item.modelId && <div className="text-description">Model: {item.modelId}</div>}
-										{!!item.totalCost && (
-											<div
-												style={{
-													display: "flex",
-													justifyContent: "space-between",
-													alignItems: "center",
-													marginTop: -2,
-												}}>
-												<div
-													style={{
-														display: "flex",
-														alignItems: "center",
-														gap: "4px",
-													}}>
-													<span
-														style={{
-															fontWeight: 500,
-															color: "var(--vscode-descriptionForeground)",
-														}}>
-														API Cost:
-													</span>
-													<span
-														style={{
-															color: "var(--vscode-descriptionForeground)",
-														}}>
-														${item.totalCost?.toFixed(4)}
-													</span>
-												</div>
-												<ExportButton itemId={item.id} />
-											</div>
-										)}
-									</div>
-								</div>
-							</div>
-						)}
-						style={{
-							flexGrow: 1,
-							overflowY: "scroll",
+			{/* FILTERS */}
+			<div className="flex flex-col gap-3 px-3">
+				{/* REPLACE VSCODE RADIO GROUP */}
+				<div className="flex justify-between items-center">
+					{/* SEARCH BOX */}
+					<VSCodeTextField
+						className="w-full"
+						onInput={(e) => {
+							const newValue = (e.target as HTMLInputElement)?.value
+							setSearchQuery(newValue)
+							if (newValue && !searchQuery && sortOption !== "mostRelevant") {
+								setLastNonRelevantSort(sortOption)
+								setSortOption("mostRelevant")
+							}
 						}}
-					/>
-				</div>
-				<div
-					style={{
-						padding: "10px 10px",
-						borderTop: "1px solid var(--vscode-panel-border)",
-					}}>
-					{selectedItems.length > 0 ? (
-						<DangerButton
-							aria-label="Delete selected items"
-							onClick={() => {
-								handleDeleteSelectedHistoryItems(selectedItems)
-							}}
-							style={{ width: "100%" }}>
-							Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
-							{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
-						</DangerButton>
-					) : (
-						<DangerButton
-							aria-label="Delete all history"
-							disabled={deleteAllDisabled || taskHistory.length === 0}
-							onClick={() => {
-								setDeleteAllDisabled(true)
-								TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({}))
-									.then(() => fetchTotalTasksSize())
-									.catch((error) => console.error("Error deleting task history:", error))
-									.finally(() => setDeleteAllDisabled(false))
-							}}
-							style={{ width: "100%" }}>
-							Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
-						</DangerButton>
-					)}
+						placeholder="Fuzzy search history..."
+						value={searchQuery}>
+						<div className="codicon codicon-search opacity-80 mt-0.5 !text-sm" slot="start" />
+						{searchQuery && (
+							<div
+								aria-label="Clear search"
+								className="input-icon-button codicon codicon-close flex justify-center items-center h-full"
+								onClick={() => setSearchQuery("")}
+								slot="end"
+							/>
+						)}
+					</VSCodeTextField>
+					<Select
+						onValueChange={(value) => {
+							// Handle sort options
+							if (
+								value === "newest" ||
+								value === "oldest" ||
+								value === "mostExpensive" ||
+								value === "mostTokens" ||
+								value === "mostRelevant"
+							) {
+								if (value === "mostRelevant" && !searchQuery) {
+									// Don't allow selecting mostRelevant without a search query
+									return
+								}
+								setSortOption(value as SortOption)
+								if (value !== "mostRelevant") {
+									setLastNonRelevantSort(value as SortOption)
+								}
+							}
+							// Handle filter toggles
+							else if (value === "workspaceOnly") {
+								setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
+							} else if (value === "favoritesOnly") {
+								setShowFavoritesOnly(!showFavoritesOnly)
+							}
+						}}
+						value={sortOption}>
+						<SelectTrigger className="border-0 cursor-pointer" showIcon={false}>
+							<FunnelIcon className="!size-2 text-foreground" />
+						</SelectTrigger>
+						<SelectContent position="popper">
+							{Object.entries(HISTORY_FILTERS).map(([key, value]) => {
+								const isSortOption = ["newest", "oldest", "mostExpensive", "mostTokens", "mostRelevant"].includes(
+									key,
+								)
+								const isFilterOption = ["workspaceOnly", "favoritesOnly"].includes(key)
+								const isSelected = isSortOption
+									? sortOption === key
+									: key === "workspaceOnly"
+										? showCurrentWorkspaceOnly
+										: key === "favoritesOnly"
+											? showFavoritesOnly
+											: false
+								const isDisabled = key === "mostRelevant" && !searchQuery
+
+								return (
+									<SelectItem
+										className={isSelected ? "bg-button-background/30" : ""}
+										disabled={isDisabled}
+										key={key}
+										value={key}>
+										<span className="flex items-center gap-2">
+											{isFilterOption && (
+												<span
+													className={`codicon ${
+														key === "workspaceOnly" ? "codicon-folder" : "codicon-star-full"
+													} ${isSelected ? "text-button-background" : ""}`}
+												/>
+											)}
+											{value}
+										</span>
+									</SelectItem>
+								)
+							})}
+						</SelectContent>
+					</Select>
 				</div>
 			</div>
-		</>
+
+			{/* HISTORY ITEMS */}
+			<div className="flex-grow overflow-y-auto m-0 w-full py-2">
+				<GroupedVirtuoso
+					className="flex-grow overflow-y-scroll"
+					groupContent={(index) => (
+						<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
+							{groupLabels[index]}
+						</div>
+					)}
+					groupCounts={groupCounts}
+					itemContent={(index) => {
+						const item = groupedTasks[index]
+						return (
+							<HistoryViewItem
+								handleDeleteHistoryItem={handleDeleteHistoryItem}
+								handleHistorySelect={handleHistorySelect}
+								index={index}
+								item={item}
+								pendingFavoriteToggles={pendingFavoriteToggles}
+								selectedItems={selectedItems}
+								toggleFavorite={toggleFavorite}
+							/>
+						)
+					}}
+				/>
+			</div>
+
+			{/* FOOTER */}
+			<div className="p-2.5 border-t border-t-border-panel">
+				<div className="flex gap-2.5 mb-2.5">
+					<Button className="flex-1" onClick={() => handleBatchHistorySelect(true)} variant="secondary">
+						Select All
+					</Button>
+					<Button className="flex-1" onClick={() => handleBatchHistorySelect(false)} variant="secondary">
+						Select None
+					</Button>
+				</div>
+				{selectedItems.length > 0 ? (
+					<Button
+						aria-label="Delete selected items"
+						className="w-full"
+						onClick={() => {
+							handleDeleteSelectedHistoryItems(selectedItems)
+						}}
+						variant="danger">
+						Delete {selectedItems.length > 1 ? selectedItems.length : ""} Selected
+						{selectedItemsSize > 0 ? ` (${formatSize(selectedItemsSize)})` : ""}
+					</Button>
+				) : (
+					<Button
+						aria-label="Delete all history"
+						className="w-full"
+						disabled={deleteAllDisabled || taskHistory.length === 0}
+						onClick={() => {
+							setDeleteAllDisabled(true)
+							TaskServiceClient.deleteAllTaskHistory(BooleanRequest.create({}))
+								.then(() => fetchTotalTasksSize())
+								.catch((error) => console.error("Error deleting task history:", error))
+								.finally(() => setDeleteAllDisabled(false))
+						}}
+						variant="danger">
+						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
+					</Button>
+				)}
+			</div>
+		</div>
 	)
 }
-
-const ExportButton = ({ itemId }: { itemId: string }) => (
-	<VSCodeButton
-		appearance="icon"
-		aria-label="Export"
-		className="export-button"
-		onClick={(e) => {
-			e.stopPropagation()
-			TaskServiceClient.exportTaskWithId(StringRequest.create({ value: itemId })).catch((err) =>
-				console.error("Failed to export task:", err),
-			)
-		}}>
-		<div style={{ fontSize: "11px", fontWeight: 500, opacity: 1 }}>EXPORT</div>
-	</VSCodeButton>
-)
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
 export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {

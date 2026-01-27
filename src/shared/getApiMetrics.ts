@@ -55,8 +55,8 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 				if (typeof cost === "number") {
 					result.totalCost += cost
 				}
-			} catch (error) {
-				console.error("Error parsing JSON:", error)
+			} catch {
+				// Ignore JSON parse errors
 			}
 		}
 	})

@@ -13,38 +13,41 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/slash"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
 // InputHandler manages interactive user input during follow mode
 type InputHandler struct {
-	manager          *Manager
-	coordinator      *StreamCoordinator
-	cancelFunc       context.CancelFunc
-	mu               sync.RWMutex
-	isRunning        bool
-	pollTicker       *time.Ticker
-	program          *tea.Program
-	programRunning   bool
-	programDoneChan  chan struct{} // Signals when program actually exits
-	resultChan       chan output.InputSubmitMsg
-	cancelChan       chan struct{}
-	feedbackApproval bool                // Track if we're in feedback after approval
-	feedbackApproved bool                // Track the approval decision
-	approvalMessage  *types.ClineMessage // Store the approval message for determining action
-	ctx              context.Context     // Context for restart callback
+	manager              *Manager
+	coordinator          *StreamCoordinator
+	cancelFunc           context.CancelFunc
+	mu                   sync.RWMutex
+	isRunning            bool
+	pollTicker           *time.Ticker
+	program              *tea.Program
+	programRunning       bool
+	programDoneChan      chan struct{} // Signals when program actually exits
+	resultChan           chan output.InputSubmitMsg
+	cancelChan           chan struct{}
+	feedbackApproval     bool                // Track if we're in feedback after approval
+	feedbackApproved     bool                // Track the approval decision
+	approvalMessage      *types.ClineMessage // Store the approval message for determining action
+	slashCommandRegistry *slash.Registry     // Slash command registry for autocomplete
+	ctx                  context.Context     // Context for restart callback
 }
 
 // NewInputHandler creates a new input handler
 func NewInputHandler(manager *Manager, coordinator *StreamCoordinator, cancelFunc context.CancelFunc) *InputHandler {
 	return &InputHandler{
-		manager:      manager,
-		coordinator:  coordinator,
-		cancelFunc:   cancelFunc,
-		isRunning:    false,
-		pollTicker:   time.NewTicker(500 * time.Millisecond),
-		resultChan:   make(chan output.InputSubmitMsg, 1),
-		cancelChan:   make(chan struct{}, 1),
+		manager:              manager,
+		coordinator:          coordinator,
+		cancelFunc:           cancelFunc,
+		isRunning:            false,
+		pollTicker:           time.NewTicker(500 * time.Millisecond),
+		resultChan:           make(chan output.InputSubmitMsg, 1),
+		slashCommandRegistry: slash.NewRegistry(context.Background()),
+		cancelChan:           make(chan struct{}, 1),
 	}
 }
 
@@ -163,7 +166,7 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 
 			if shouldSend {
 				// Check for mode switch commands first
-				newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
+				newMode, remainingMessage, isModeSwitch := slash.ParseModeSwitch(message)
 				if isModeSwitch {
 					// Create styles for mode switch messages (respect global color profile)
 					actStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
@@ -281,11 +284,12 @@ func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
 func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error) {
 	currentMode := ih.manager.GetCurrentMode()
 
-	model := output.NewInputModel(
+	model := output.NewInputModelWithRegistry(
 		output.InputTypeMessage,
 		"Cline is ready for your message...",
-		"/plan or /act to switch modes\nctrl+e to open editor",
+		"/plan or /act to switch modes\ntab to autocomplete commands\nctrl+e to open editor\nctrl+c to exit",
 		currentMode,
+		ih.slashCommandRegistry,
 	)
 
 	return ih.runInputProgram(ctx, model)
@@ -295,12 +299,13 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
 	// Store the approval message for later use in determining auto-approval action
 	ih.approvalMessage = msg
-	
-	model := output.NewInputModel(
+
+	model := output.NewInputModelWithRegistry(
 		output.InputTypeApproval,
 		"Let Cline use this tool?",
 		"",
 		ih.manager.GetCurrentMode(),
+		ih.slashCommandRegistry,
 	)
 
 	message, shouldSend, err := ih.runInputProgram(ctx, model)
@@ -395,7 +400,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 				// Need to collect feedback - will be handled by model state change
 				return "", false, nil
 			}
-			
+
 			// Check if NoAskAgain was selected
 			if result.NoAskAgain && result.Approved && ih.approvalMessage != nil {
 				// Determine which auto-approval action to enable
@@ -411,7 +416,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 					}
 				}
 			}
-			
+
 			// Store approval state for when feedback comes back
 			ih.feedbackApproval = false
 			ih.feedbackApproved = result.Approved
@@ -441,6 +446,7 @@ func (w *inputProgramWrapper) Init() tea.Cmd {
 }
 
 func (w *inputProgramWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
 	switch msg := msg.(type) {
 	case output.InputSubmitMsg:
 		// Handle input submission - clear the screen before quitting
@@ -473,24 +479,6 @@ func (w *inputProgramWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (w *inputProgramWrapper) View() string {
 	return w.model.View()
-}
-
-// parseModeSwitch checks if message starts with /act or /plan and extracts the mode and remaining message
-func (ih *InputHandler) parseModeSwitch(message string) (string, string, bool) {
-	trimmed := strings.TrimSpace(message)
-	lower := strings.ToLower(trimmed)
-
-	if strings.HasPrefix(lower, "/plan") {
-		remaining := strings.TrimSpace(trimmed[5:])
-		return "plan", remaining, true
-	}
-
-	if strings.HasPrefix(lower, "/act") {
-		remaining := strings.TrimSpace(trimmed[4:])
-		return "act", remaining, true
-	}
-
-	return "", message, false
 }
 
 // handleSpecialCommand processes special commands like /cancel, /exit

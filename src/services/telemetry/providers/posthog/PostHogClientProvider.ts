@@ -1,5 +1,7 @@
 import { EventMessage, PostHog } from "posthog-node"
+import { ClineEndpoint } from "@/config"
 import { posthogConfig } from "@/shared/services/config/posthog-config"
+import { Logger } from "@/shared/services/Logger"
 
 export class PostHogClientProvider {
 	private static _instance: PostHogClientProvider | null = null
@@ -18,6 +20,12 @@ export class PostHogClientProvider {
 	private readonly client: PostHog | null
 
 	private constructor() {
+		// Skip PostHog client initialization in self-hosted mode
+		if (ClineEndpoint.isSelfHosted()) {
+			this.client = null
+			return
+		}
+
 		// Initialize PostHog client
 		this.client = posthogConfig.apiKey
 			? new PostHog(posthogConfig.apiKey, {
@@ -26,6 +34,10 @@ export class PostHogClientProvider {
 					before_send: (event) => PostHogClientProvider.eventFilter(event),
 				})
 			: null
+
+		if (this.client) {
+			Logger.log("PostHog client initialized")
+		}
 	}
 
 	/**
@@ -62,6 +74,6 @@ export class PostHogClientProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		await this.client?.shutdown().catch((error) => console.error("Error shutting down PostHog client:", error))
+		await this.client?.shutdown().catch((error) => Logger.error("Error shutting down PostHog client:", error))
 	}
 }

@@ -8,10 +8,10 @@ import {
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -23,6 +23,7 @@ import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-p
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	openAiNativeApiKey?: string
 	reasoningEffort?: string
+	thinkingBudgetTokens?: number
 	apiModelId?: string
 }
 
@@ -105,25 +106,24 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 
 		const systemRole = model.info.systemRole ?? "system"
-		const includeReasoning = model.info.supportsReasoningEffort ?? false
+		const includeReasoning = this.options.thinkingBudgetTokens && model.info.supportsReasoningEffort
 		const includeTools = model.info.supportsTools ?? true
+		const reasoningEffort = includeReasoning
+			? (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
+			: undefined
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
-			...(includeReasoning
-				? {
-						reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
-					}
-				: {}),
+			reasoning_effort: reasoningEffort,
 			...(model.info.temperature !== undefined ? { temperature: model.info.temperature } : {}),
 			...(includeTools ? getOpenAIToolParams(tools, isGPT5ModelFamily(model.id)) : {}),
 		})
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -135,7 +135,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				try {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				} catch (error) {
-					console.error("Error processing tool call delta:", error, delta.tool_calls)
+					Logger.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
 			}
 
@@ -159,7 +159,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
-			?.filter((tool) => tool.type === "function")
+			?.filter((tool) => tool?.type === "function")
 			.map((tool: any) => ({
 				type: "function" as const,
 				name: tool.function.name,
@@ -316,11 +316,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 				chunk.response?.status === "incomplete" &&
 				chunk.response?.incomplete_details?.reason === "max_output_tokens"
 			) {
-				console.log("Ran out of tokens")
+				Logger.log("Ran out of tokens")
 				if (chunk.response?.output_text?.length > 0) {
-					console.log("Partial output:", chunk.response.output_text)
+					Logger.log("Partial output:", chunk.response.output_text)
 				} else {
-					console.log("Ran out of tokens during reasoning")
+					Logger.log("Ran out of tokens during reasoning")
 				}
 			}
 

@@ -1,6 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
-import { GlobalFileNames } from "@core/storage/disk"
+import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
+import { StateManager } from "@core/storage/StateManager"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
@@ -24,18 +25,18 @@ import {
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { fileExistsAtPath } from "@utils/fs"
 import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import { nanoid } from "nanoid"
-import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
+import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
@@ -53,6 +54,24 @@ export class McpHub {
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
+	/**
+	 * Flag to skip file watcher processing when we're updating Cline-specific settings
+	 * (autoApprove, timeout) that don't require an MCP server restart.
+	 *
+	 * The file watcher has a 100ms stabilityThreshold before firing "change" events.
+	 * When we update settings, we set this flag to true, write the file, then clear
+	 * the flag after 300ms. This ensures the flag is still true when the delayed
+	 * file watcher event fires, so we can skip redundant processing.
+	 *
+	 * Timeline:
+	 *   0ms:    flag = true, write file
+	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
+	 *   300ms:  flag = false (ready for external file changes)
+	 */
+	private isUpdatingClineSettings: boolean = false
+
+	// Track when remote config is updating to prevent unnecessary watcher triggers
+	private isUpdatingFromRemoteConfig: boolean = false
 
 	/**
 	 * Map of unique keys to each connected server names
@@ -118,25 +137,32 @@ export class McpHub {
 		return uid
 	}
 
+	/**
+	 * Gets the path to the MCP settings file
+	 * @returns Path to the MCP settings file
+	 */
 	async getMcpSettingsFilePath(): Promise<string> {
-		const mcpSettingsFilePath = path.join(await this.getSettingsDirectoryPath(), GlobalFileNames.mcpSettings)
-		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
-		if (!fileExists) {
-			await fs.writeFile(
-				mcpSettingsFilePath,
-				`{
-  "mcpServers": {
-    
-  }
-}`,
-			)
-		}
-		return mcpSettingsFilePath
+		return getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+	}
+
+	/**
+	 * Sets the flag to indicate remote config is updating
+	 * Used to prevent watcher from triggering on remote config writes
+	 */
+	setIsUpdatingFromRemoteConfig(value: boolean): void {
+		this.isUpdatingFromRemoteConfig = value
+	}
+
+	/**
+	 * Gets whether remote config is currently updating
+	 */
+	getIsUpdatingFromRemoteConfig(): boolean {
+		return this.isUpdatingFromRemoteConfig
 	}
 
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 
 			let config: any
@@ -152,6 +178,10 @@ export class McpHub {
 				return undefined
 			}
 
+			// Expand environment variables before validation
+			// This allows ${env:VAR_NAME} syntax in URLs, headers, env vars, etc.
+			config = expandEnvironmentVariables(config)
+
 			// Validate against schema
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
@@ -164,13 +194,13 @@ export class McpHub {
 
 			return result.data
 		} catch (error) {
-			console.error("Failed to read MCP settings:", error)
+			Logger.error("Failed to read MCP settings:", error)
 			return undefined
 		}
 	}
 
 	private async watchMcpSettingsFile(): Promise<void> {
-		const settingsPath = await this.getMcpSettingsFilePath()
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 
 		this.settingsWatcher = chokidar.watch(settingsPath, {
 			persistent: true, // Keep the process running as long as files are being watched
@@ -184,18 +214,27 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
+			// Skip if remote config is currently updating to prevent unnecessary reconnections
+			if (this.isUpdatingFromRemoteConfig) {
+				return
+			}
+			// Skip processing if we're updating Cline-specific settings (autoApprove, timeout)
+			if (this.isUpdatingClineSettings) {
+				return
+			}
+
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				try {
 					await this.updateServerConnections(settings.mcpServers)
 				} catch (error) {
-					console.error("Failed to process MCP settings change:", error)
+					Logger.error("Failed to process MCP settings change:", error)
 				}
 			}
 		})
 
 		this.settingsWatcher.on("error", (error) => {
-			console.error("Error watching MCP settings file:", error)
+			Logger.error("Error watching MCP settings file:", error)
 		})
 	}
 
@@ -218,8 +257,53 @@ export class McpHub {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
+		// Validate remote MCP server URL against remote config if blockPersonalRemoteMCPServers is enabled
+		if (config.type !== "stdio" && "url" in config && config.url) {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			if (remoteConfig.blockPersonalRemoteMCPServers === true) {
+				const remoteMCPServers = remoteConfig.remoteMCPServers || []
+				const allowedUrls = remoteMCPServers.map((server) => server.url)
+
+				if (!allowedUrls.includes(config.url)) {
+					return
+				}
+			}
+		}
+
+		// Validate local MCP servers based on remote config (enterprise feature)
+		if (config.type === "stdio") {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			// Early exit for non-enterprise users: if no remote config is set, allow all local servers
+			if (Object.keys(remoteConfig).length === 0) {
+				// No remote config restrictions - proceed with connection (default behavior for non-enterprise users)
+				// This ensures backwards compatibility and that regular users are not affected
+			} else {
+				// Enterprise restrictions apply
+
+				// If marketplace is explicitly disabled by enterprise config, block all local servers
+				if (remoteConfig.mcpMarketplaceEnabled === false) {
+					return
+				}
+
+				// If allowlist exists, only servers on the allowlist are allowed
+				const hasAllowlist = remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0
+				if (hasAllowlist) {
+					const allowedIds = remoteConfig.allowedMCPServers!.map((server: { id: string }) => server.id)
+					if (!allowedIds.includes(name)) {
+						return
+					}
+				}
+
+				// If marketplace is enabled with no allowlist, all local servers are allowed
+			}
+		}
+
 		if (config.disabled) {
-			//console.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
+			//Logger.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
 			// Create a connection object for disabled server so it appears in UI
 			const disabledConnection: McpConnection = {
 				server: {
@@ -236,6 +320,12 @@ export class McpHub {
 		}
 
 		try {
+			// Store unexpanded config for display/comparison (keeps credentials out of stored config)
+			const configForStorage = JSON.stringify(config)
+
+			// Expand environment variables in config before using it
+			const expandedConfig = expandEnvironmentVariables(config)
+
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
 			const client = new Client(
 				{
@@ -251,26 +341,25 @@ export class McpHub {
 
 			// Create OAuth provider for remote transports (SSE and HTTP)
 			const authProvider =
-				config.type === "sse" || config.type === "streamableHttp"
-					? await this.mcpOAuthManager.getOrCreateProvider(name, config.url)
+				expandedConfig.type === "sse" || expandedConfig.type === "streamableHttp"
+					? await this.mcpOAuthManager.getOrCreateProvider(name, expandedConfig.url)
 					: undefined
 
-			switch (config.type) {
+			switch (expandedConfig.type) {
 				case "stdio": {
 					transport = new StdioClientTransport({
-						command: config.command,
-						args: config.args,
-						cwd: config.cwd,
+						command: expandedConfig.command,
+						args: expandedConfig.args,
+						cwd: expandedConfig.cwd,
 						env: {
-							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
 							...getDefaultEnvironment(),
-							...(config.env || {}), // Use config.env directly or an empty object
+							...(expandedConfig.env || {}), // Now has expanded environment variables
 						},
 						stderr: "pipe",
 					})
 
 					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
+						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
@@ -297,9 +386,9 @@ export class McpHub {
 							const isInfoLog = !/\berror\b/i.test(output)
 
 							if (isInfoLog) {
-								console.log(`Server "${name}" info:`, output)
+								Logger.log(`Server "${name}" info:`, output)
 							} else {
-								console.error(`Server "${name}" stderr:`, output)
+								Logger.error(`Server "${name}" stderr:`, output)
 								const connection = this.findConnection(name, source)
 								if (connection) {
 									this.appendErrorMessage(connection, output)
@@ -310,7 +399,7 @@ export class McpHub {
 							}
 						})
 					} else {
-						console.error(`No stderr stream for ${name}`)
+						Logger.error(`No stderr stream for ${name}`)
 					}
 					transport.start = async () => {}
 					break
@@ -319,12 +408,12 @@ export class McpHub {
 					const sseOptions = {
 						authProvider,
 						requestInit: {
-							headers: config.headers,
+							headers: expandedConfig.headers,
 						},
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: !!config.headers?.["Authorization"],
+						withCredentials: !!expandedConfig.headers?.["Authorization"],
 						// IMPORTANT: Custom fetch function is required for SSE with OAuth
 						// When we provide eventSourceInit, we override the SDK's default fetch
 						// The SDK's default would call _commonHeaders() for auth, but since we're
@@ -346,13 +435,13 @@ export class McpHub {
 					}
 					// Use ReconnectingEventSource for auto-reconnection on connection drops
 					global.EventSource = ReconnectingEventSource
-					transport = new SSEClientTransport(new URL(config.url), {
+					transport = new SSEClientTransport(new URL(expandedConfig.url), {
 						...sseOptions,
 						eventSourceInit: reconnectingEventSourceOptions,
 					})
 
 					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
+						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
@@ -364,14 +453,36 @@ export class McpHub {
 					break
 				}
 				case "streamableHttp": {
-					transport = new StreamableHTTPClientTransport(new URL(config.url), {
+					// Use ReconnectingEventSource for auto-reconnection on connection drops
+					global.EventSource = ReconnectingEventSource
+
+					// Custom fetch wrapper that treats 404 as 405 for GET requests.
+					// The MCP SDK sends a GET request to check for SSE stream support.
+					// Per MCP spec, servers should return 405 if they don't support SSE,
+					// but many servers (incorrectly) return 404. The SDK only handles 405
+					// gracefully, so we normalize 404 -> 405 to fix compatibility.
+					// See: https://github.com/modelcontextprotocol/typescript-sdk/issues/1150
+					const streamableHttpFetch: typeof fetch = async (url, init) => {
+						const response = await fetch(url, init)
+						if (init?.method === "GET" && response.status === 404) {
+							return new Response(response.body, {
+								status: 405,
+								statusText: "Method Not Allowed",
+								headers: response.headers,
+							})
+						}
+						return response
+					}
+
+					transport = new StreamableHTTPClientTransport(new URL(expandedConfig.url), {
 						authProvider,
 						requestInit: {
-							headers: config.headers ?? undefined,
+							headers: expandedConfig.headers ?? undefined,
 						},
+						fetch: streamableHttpFetch,
 					})
 					transport.onerror = async (error) => {
-						console.error(`Transport error for "${name}":`, error)
+						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
@@ -389,7 +500,7 @@ export class McpHub {
 			const connection: McpConnection = {
 				server: {
 					name,
-					config: JSON.stringify(config),
+					config: configForStorage,
 					status: "connecting",
 					disabled: config.disabled,
 					uid: this.getMcpServerKey(name),
@@ -408,7 +519,7 @@ export class McpHub {
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
-					console.log(`Server "${name}" requires OAuth authentication`)
+					Logger.log(`Server "${name}" requires OAuth authentication`)
 					const unauthConnection: McpConnection = {
 						server: {
 							name,
@@ -438,9 +549,9 @@ export class McpHub {
 			connection.server.error = ""
 
 			// Register notification handler for real-time messages
-			//console.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
-			//console.log(`[MCP Debug] Client instance:`, connection.client)
-			//console.log(`[MCP Debug] Transport type:`, config.type)
+			//Logger.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			//Logger.log(`[MCP Debug] Client instance:`, connection.client)
+			//Logger.log(`[MCP Debug] Transport type:`, config.type)
 
 			// Try to set notification handler using the client's method
 			try {
@@ -462,25 +573,25 @@ export class McpHub {
 
 				// Set the notification handler
 				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
-					//console.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+					//Logger.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					const params = notification.params || {}
 					const level = params.level || "info"
 					const data = params.data || params.message || ""
 					const logger = params.logger || ""
 
-					//console.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+					//Logger.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
 
 					// Format the message
 					const message = logger ? `[${logger}] ${data}` : data
 
 					// Send notification directly to active task if callback is set
 					if (this.notificationCallback) {
-						//console.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						//Logger.log(`[MCP Debug] Sending notification to active task: ${message}`)
 						this.notificationCallback(name, level, message)
 					} else {
 						// Fallback: store for later retrieval
-						//console.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						//Logger.log(`[MCP Debug] No active task, storing notification: ${message}`)
 						this.pendingNotifications.push({
 							serverName: name,
 							level,
@@ -489,11 +600,11 @@ export class McpHub {
 						})
 					}
 				})
-				//console.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+				//Logger.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
 
 				// Also set a fallback handler for any other notification types
 				connection.client.fallbackNotificationHandler = async (notification: any) => {
-					//console.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
+					//Logger.log(`[MCP Fallback Notification] ${name}:`, JSON.stringify(notification, null, 2))
 
 					// Show in VS Code for visibility
 					HostProvider.window.showMessage({
@@ -501,9 +612,9 @@ export class McpHub {
 						message: `MCP ${name}: ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
 					})
 				}
-				//console.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
+				//Logger.log(`[MCP Debug] Successfully set fallback notification handler for ${name}`)
 			} catch (error) {
-				console.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
 			// Initial fetch of tools and resources
@@ -544,7 +655,7 @@ export class McpHub {
 			})
 
 			// Get autoApprove settings
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
@@ -557,7 +668,7 @@ export class McpHub {
 
 			return tools
 		} catch (error) {
-			console.error(`Failed to fetch tools for ${serverName}:`, error)
+			Logger.error(`Failed to fetch tools for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -576,7 +687,7 @@ export class McpHub {
 			})
 			return response?.resources || []
 		} catch (_error) {
-			// console.error(`Failed to fetch resources for ${serverName}:`, error)
+			// Logger.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -600,7 +711,7 @@ export class McpHub {
 
 			return response?.resourceTemplates || []
 		} catch (_error) {
-			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			// Logger.error(`Failed to fetch resource templates for ${serverName}:`, error)
 			return []
 		}
 	}
@@ -617,7 +728,7 @@ export class McpHub {
 					await connection.client.close()
 				}
 			} catch (error) {
-				console.error(`Failed to close transport for ${name}:`, error)
+				Logger.error(`Failed to close transport for ${name}:`, error)
 			}
 			this.connections = this.connections.filter((conn) => conn.server.name !== name)
 		}
@@ -632,7 +743,7 @@ export class McpHub {
 					await this.mcpOAuthManager.clearServerAuth(name, config.url)
 				}
 			} catch (error) {
-				console.error(`Failed to clear OAuth data for ${name}:`, error)
+				Logger.error(`Failed to clear OAuth data for ${name}:`, error)
 			}
 		}
 	}
@@ -647,7 +758,7 @@ export class McpHub {
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
 				await this.deleteConnection(name)
-				console.log(`Deleted MCP server: ${name}`)
+				Logger.log(`Deleted MCP server: ${name}`)
 			}
 		}
 
@@ -663,22 +774,38 @@ export class McpHub {
 					}
 					await this.connectToServer(name, config, "rpc")
 				} catch (error) {
-					console.error(`Failed to connect to new MCP server ${name}:`, error)
+					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config
+			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
+				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
 					await this.deleteConnection(name) // Don't clear OAuth - just reconnecting with new config
 					await this.connectToServer(name, config, "rpc")
-					console.log(`Reconnected MCP server with updated config: ${name}`)
+					Logger.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
-					console.error(`Failed to reconnect MCP server ${name}:`, error)
+					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
+			} else {
+				// Only Cline-specific settings changed - update in-memory state without restart
+				const autoApprove = config.autoApprove || []
+				if (currentConnection.server.tools) {
+					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+				// Also update Cline-specific settings in the stored config.
+				// This handles the case where someone manually edits the MCP settings file -
+				// the file watcher triggers this code path, and we need to sync the in-memory
+				// config with the file without restarting the server.
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
-			// If server exists with same config, do nothing
 		}
 
 		this.isConnecting = false
@@ -690,12 +817,16 @@ export class McpHub {
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
+		// Track if any connection-level changes occurred (excludes Cline-specific settings)
+		let connectionChangesOccurred = false
+
 		// Delete removed servers
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
 				await this.clearOAuthForConnection(name) // Clear OAuth data first
 				await this.deleteConnection(name) // Then delete connection
-				console.log(`Deleted MCP server: ${name}`)
+				Logger.log(`Deleted MCP server: ${name}`)
+				connectionChangesOccurred = true
 			}
 		}
 
@@ -710,26 +841,78 @@ export class McpHub {
 						this.setupFileWatcher(name, config)
 					}
 					await this.connectToServer(name, config, "internal")
+					connectionChangesOccurred = true
 				} catch (error) {
-					console.error(`Failed to connect to new MCP server ${name}:`, error)
+					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config
+			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
+				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
+					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
+					currentConnection.server.status = "connecting"
+					currentConnection.server.error = ""
+					await this.notifyWebviewOfServerChanges()
+
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config, "internal")
-					console.log(`Reconnected MCP server with updated config: ${name}`)
+					Logger.log(`Reconnected MCP server with updated config: ${name}`)
+					connectionChangesOccurred = true
 				} catch (error) {
-					console.error(`Failed to reconnect MCP server ${name}:`, error)
+					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
+			} else {
+				// Only Cline-specific settings changed - update in-memory state without restart
+				// Don't set connectionChangesOccurred since the RPC already returned the updated state
+				const autoApprove = config.autoApprove || []
+				if (currentConnection.server.tools) {
+					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+				// Also update Cline-specific settings in the stored config
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
 			}
-			// If server exists with same config, do nothing
 		}
-		await this.notifyWebviewOfServerChanges()
+
+		// Only notify webview if actual connection changes occurred.
+		// For Cline-specific settings changes, the RPC response already updated the webview,
+		// so we skip notification to avoid race conditions.
+		if (connectionChangesOccurred) {
+			await this.notifyWebviewOfServerChanges()
+		}
 		this.isConnecting = false
+	}
+
+	/**
+	 * Compares two MCP server configs to determine if a restart is required.
+	 * Excludes Cline-specific settings since they don't affect the MCP server transport connection.
+	 *
+	 * ## Cline-specific settings (don't require restart):
+	 * - `autoApprove`: tool approval list (UI setting)
+	 * - `timeout`: request timeout (read at request time, not connection time)
+	 *
+	 * ## MCP SDK connection settings (require restart):
+	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`
+	 *
+	 * ## Adding new Cline-specific settings:
+	 * When adding a new setting that doesn't require server restart:
+	 * 1. Add it to the destructuring below to exclude from comparison
+	 * 2. Add it to `isUpdatingClineSettings` flag usage in the update function
+	 * 3. Update in-memory state (e.g., `connection.server.config`) in the update function
+	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
+	 */
+	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
+		// Exclude Cline-specific settings from comparison (add new ones here)
+		const { autoApprove: _oldAutoApprove, timeout: _oldTimeout, ...oldConnectionConfig } = oldConfig
+		const { autoApprove: _newAutoApprove, timeout: _newTimeout, ...newConnectionConfig } = newConfig
+		return !deepEqual(oldConnectionConfig, newConnectionConfig)
 	}
 
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
@@ -743,7 +926,7 @@ export class McpHub {
 			})
 
 			watcher.on("change", () => {
-				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
+				Logger.log(`Detected change in ${filePath}. Restarting server ${name}...`)
 				this.restartConnection(name)
 			})
 
@@ -771,7 +954,7 @@ export class McpHub {
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(inMemoryConfig), "rpc")
 			} catch (error) {
-				console.error(`Failed to restart connection for ${serverName}:`, error)
+				Logger.error(`Failed to restart connection for ${serverName}:`, error)
 			}
 		}
 
@@ -810,7 +993,7 @@ export class McpHub {
 					message: `${serverName} MCP server connected`,
 				})
 			} catch (error) {
-				console.error(`Failed to restart connection for ${serverName}:`, error)
+				Logger.error(`Failed to restart connection for ${serverName}:`, error)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: `Failed to connect to ${serverName} MCP server`,
@@ -839,7 +1022,7 @@ export class McpHub {
 
 	private async notifyWebviewOfServerChanges(): Promise<void> {
 		// servers should always be sorted in the order they are defined in the settings file
-		const settingsPath = await this.getMcpSettingsFilePath()
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
@@ -882,23 +1065,28 @@ export class McpHub {
 			if (config.mcpServers[serverName]) {
 				config.mcpServers[serverName].disabled = disabled
 
-				const settingsPath = await this.getMcpSettingsFilePath()
+				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					connection.server.disabled = disabled
+					// When enabling a server, set status to "connecting" so UI shows yellow indicator
+					if (!disabled) {
+						connection.server.status = "connecting"
+						connection.server.error = ""
+					}
 				}
 
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
 			}
-			console.error(`Server "${serverName}" not found in MCP configuration`)
+			Logger.error(`Server "${serverName}" not found in MCP configuration`)
 			throw new Error(`Server "${serverName}" not found in MCP configuration`)
 		} catch (error) {
-			console.error("Failed to update server disabled state:", error)
+			Logger.error("Failed to update server disabled state:", error)
 			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
+				Logger.error("Error details:", error.message, error.stack)
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
@@ -952,7 +1140,7 @@ export class McpHub {
 			const parsedConfig = ServerConfigSchema.parse(config)
 			timeout = secondsToMs(parsedConfig.timeout)
 		} catch (error) {
-			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
 		this.telemetryService.captureMcpToolCall(
@@ -1013,8 +1201,10 @@ export class McpHub {
 	 * @returns Array of updated MCP servers
 	 */
 	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1052,14 +1242,22 @@ export class McpHub {
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
-			console.error("Failed to update autoApprove settings:", error)
+			Logger.error("Failed to update autoApprove settings:", error)
 			throw error // Re-throw to ensure the error is properly handled
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			// The file watcher has a 100ms stabilityThreshold, so we wait a bit longer
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1094,12 +1292,17 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
-			console.error("Failed to update autoApprove settings:", error)
+			Logger.error("Failed to update autoApprove settings:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to update autoApprove settings",
 			})
 			throw error // Re-throw to ensure the error is properly handled
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
@@ -1118,11 +1321,6 @@ export class McpHub {
 				throw new Error(`An MCP server with the name "${serverName}" already exists`)
 			}
 
-			const urlValidation = z.string().url().safeParse(serverUrl)
-			if (!urlValidation.success) {
-				throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
-			}
-
 			const serverConfig = {
 				url: serverUrl,
 				type: transportType,
@@ -1130,10 +1328,18 @@ export class McpHub {
 				autoApprove: [],
 			}
 
-			const parsedConfig = ServerConfigSchema.parse(serverConfig)
+			// Expand environment variables for validation
+			const expandedConfig = expandEnvironmentVariables(serverConfig)
+
+			const urlValidation = z.string().url().safeParse(expandedConfig.url)
+			if (!urlValidation.success) {
+				throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+			}
+
+			const parsedConfig = ServerConfigSchema.parse(expandedConfig)
 
 			settings.mcpServers[serverName] = parsedConfig
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 
 			// We don't write the zod-transformed version to the file.
 			// The above parse() call adds the transportType field to the server config
@@ -1150,7 +1356,7 @@ export class McpHub {
 			const serverOrder = Object.keys(settings.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
-			console.error("Failed to add remote MCP server:", error)
+			Logger.error("Failed to add remote MCP server:", error)
 			throw error
 		}
 	}
@@ -1165,7 +1371,7 @@ export class McpHub {
 			// Clear OAuth data BEFORE removing from config (while we still have the connection/URL)
 			await this.clearOAuthForConnection(serverName)
 
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			if (!config.mcpServers || typeof config.mcpServers !== "object") {
@@ -1187,12 +1393,14 @@ export class McpHub {
 				throw new Error(`${serverName} not found in MCP configuration`)
 			}
 		} catch (error) {
-			console.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
 		}
 	}
 
 	public async updateServerTimeoutRPC(serverName: string, timeout: number): Promise<McpServer[]> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
 			// Validate timeout against schema
 			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
@@ -1200,7 +1408,7 @@ export class McpHub {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
 			}
 
-			const settingsPath = await this.getMcpSettingsFilePath()
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
@@ -1215,20 +1423,31 @@ export class McpHub {
 
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
-			await this.updateServerConnectionsRPC(config.mcpServers)
+			// Update in-memory config to reflect the new timeout
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection) {
+				const currentConfig = JSON.parse(connection.server.config)
+				currentConfig.timeout = timeout
+				connection.server.config = JSON.stringify(currentConfig)
+			}
 
 			const serverOrder = Object.keys(config.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
-			console.error("Failed to update server timeout:", error)
+			Logger.error("Failed to update server timeout:", error)
 			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
+				Logger.error("Error details:", error.message, error.stack)
 			}
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			throw error
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
@@ -1253,7 +1472,7 @@ export class McpHub {
 	 */
 	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
 		this.notificationCallback = callback
-		//console.log("[MCP Debug] Notification callback set")
+		//Logger.log("[MCP Debug] Notification callback set")
 	}
 
 	/**
@@ -1261,7 +1480,7 @@ export class McpHub {
 	 */
 	clearNotificationCallback(): void {
 		this.notificationCallback = undefined
-		//console.log("[MCP Debug] Notification callback cleared")
+		//Logger.log("[MCP Debug] Notification callback cleared")
 	}
 
 	/**
@@ -1317,7 +1536,7 @@ export class McpHub {
 			throw new Error("OAuth is only supported for SSE and HTTP transports")
 		}
 
-		console.log(`[McpOAuth] Authentication completed for ${connection.server.name}`)
+		Logger.log(`[McpOAuth] Authentication completed for ${connection.server.name}`)
 
 		// Update server status
 		connection.server.oauthAuthStatus = "authenticated"
@@ -1334,7 +1553,7 @@ export class McpHub {
 			try {
 				await this.deleteConnection(connection.server.name)
 			} catch (error) {
-				console.error(`Failed to close connection for ${connection.server.name}:`, error)
+				Logger.error(`Failed to close connection for ${connection.server.name}:`, error)
 			}
 		}
 		this.connections = []

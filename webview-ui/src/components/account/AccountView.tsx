@@ -18,6 +18,7 @@ import { AccountWelcomeView } from "./AccountWelcomeView"
 import { CreditBalance } from "./CreditBalance"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
+import { RemoteConfigToggle } from "./RemoteConfigToggle"
 
 type AccountViewProps = {
 	clineUser: ClineUser | null
@@ -75,11 +76,10 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 
 export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
-	const { remoteConfigSettings } = useExtensionState()
+	const { remoteConfigSettings, environment } = useExtensionState()
 
 	// Determine if dropdown should be locked by remote config
 	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
-	console.log("isLockedByRemoteConfig", isLockedByRemoteConfig)
 
 	// Source of truth: Dedicated state for dropdown value that persists through failures
 	// and represents that user's current selection.
@@ -313,8 +313,8 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	return (
 		<div className="h-full flex flex-col">
 			<div className="flex flex-col pr-3 h-full">
-				<div className="flex flex-col w-full">
-					<div className="flex items-center mb-6 flex-wrap gap-y-4">
+				<div className="flex flex-col w-full gap-1 mb-6">
+					<div className="flex items-center flex-wrap gap-y-4">
 						{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
 							) : ( */}
@@ -358,6 +358,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 							</div>
 						</div>
 					</div>
+					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
+						<RemoteConfigToggle activeOrganization={activeOrganization} />
+					</div>
 				</div>
 
 				<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
@@ -392,7 +395,8 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 					/>
 				</div>
 
-				{isClineTester && (
+				{/* Hide environment switching UI when in self-hosted mode */}
+				{isClineTester && environment !== "selfHosted" && (
 					<div className="w-full gap-1 items-end">
 						<VSCodeDivider className="w-full my-3" />
 						<div className="text-sm font-semibold">Cline Environment</div>

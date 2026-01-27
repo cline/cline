@@ -11,13 +11,11 @@ import {
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
-
-// Define a default TTL for the cache (e.g., 15 minutes in seconds)
-const _DEFAULT_CACHE_TTL_SECONDS = 900
 
 const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
 
@@ -335,7 +333,7 @@ export class GeminiHandler implements ApiHandler {
 					throughputTokensPerSec: throughputTokensPerSecSdk,
 				})
 			} else {
-				console.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
+				Logger.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
 			}
 		}
 	}
@@ -411,7 +409,7 @@ export class GeminiHandler implements ApiHandler {
 			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
 
-		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
+		// Logger.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
 		return totalCost
 	}
 
@@ -453,13 +451,13 @@ export class GeminiHandler implements ApiHandler {
 			})
 
 			if (response.totalTokens === undefined) {
-				console.warn("Gemini token counting returned undefined, using fallback")
+				Logger.warn("Gemini token counting returned undefined, using fallback")
 				return this.estimateTokens(content)
 			}
 
 			return response.totalTokens
 		} catch (error) {
-			console.warn("Gemini token counting failed, using fallback", error)
+			Logger.warn("Gemini token counting failed, using fallback", error)
 			return this.estimateTokens(content)
 		}
 	}
@@ -478,7 +476,7 @@ export class GeminiHandler implements ApiHandler {
 					const jsonStr = JSON.stringify(block)
 					return total + jsonStr.length
 				} catch (e) {
-					console.warn("Failed to stringify block for token estimation", e)
+					Logger.warn("Failed to stringify block for token estimation", e)
 					return total
 				}
 			}

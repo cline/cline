@@ -9,23 +9,34 @@
 	--color-code: var(--vscode-editor-background);
 	--color-code-foreground: var(--vscode-editor-foreground);
 	--color-code-border: var(--vscode-editor-border);
-	--color-code-block-background: var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30));
+	--color-code-block-background: var(
+		--vscode-textCodeBlock-background,
+		--vscode-editor-background,
+		--vscode-sideBar-background,
+		rgb(30 30 30)
+	);
+	--color-quote: var(--vscode-textBlockQuote-background);
+	--color-quote-foreground: var(--vscode-textBlockQuote-foreground);
 	--color-text-block-background: var(--vscode-textCodeBlock-background);
 	--color-editor-group-border: var(--vscode-editorGroup-border);
+	--color-editor-widget-border: var(--vscode-editorWidget-border, #cccccc);
+	--color-editor-warning-foreground: var(--vscode-editorWarning-foreground);
 	--color-sidebar-background: var(--vscode-sideBar-background);
 	--color-sidebar-foreground: var(--vscode-sideBar-foreground);
 	--color-input-foreground: var(--vscode-input-foreground);
 	--color-input-background: var(--vscode-input-background);
 	--color-input-border: var(--vscode-input-border);
 	--color-input-placeholder: var(--vscode-input-placeholderForeground);
-	--color-input-error-background: var(--vscode-inputValidation-errorBackground);
-	--color-input-error-foreground: var(--vscode-inputValidation-errorForeground);
+	--color-input-error-background: var(--vscode-inputValidation-errorBackground, #a82424);
+	--color-input-error-foreground: var(--vscode-inputValidation-errorForeground, #8f1f1f);
 	--color-selection: var(--vscode-list-activeSelectionBackground);
 	--color-selection-foreground: var(--vscode-list-activeSelectionForeground);
+	--color-selection-inactive: var(--vscode-editor-inactiveSelectionBackground);
 	--color-button-background: var(--vscode-button-background);
 	--color-button-hover: var(--vscode-button-hoverBackground);
 	--color-button-foreground: var(--vscode-button-foreground);
 	--color-button-separator: var(--vscode-button-separator);
+	--color-text-separator: var(--vscode-textSeparator-foreground, #424242);
 	--color-button-secondary-background: var(--vscode-button-secondaryBackground);
 	--color-button-secondary-background-hover: var(--vscode-button-secondaryHoverBackground);
 	--color-button-secondary-foreground: var(--vscode-button-secondaryForeground);
@@ -35,6 +46,7 @@
 	--color-menu-foreground: var(--vscode-menu-foreground);
 	--color-menu-border: var(--vscode-menu-border);
 	--color-menu-shadow: var(--vscode-menu-shadow);
+	--color-preformat: var(--vscode-textPreformat-foreground, #f78383);
 	--color-link: var(--vscode-textLink-foreground);
 	--color-link-hover: var(--vscode-textLink-activeForeground);
 	--color-list-hover: var(--vscode-list-hoverBackground);
@@ -43,27 +55,98 @@
 	--color-banner-background: var(--vscode-banner-background);
 	--color-banner-foreground: var(--vscode-banner-foreground);
 	--color-banner-icon: var(--vscode-banner-iconForeground);
+	--color-editor-match-highlight: var(--vscode-editor-findMatchHighlightBackground);
 	--color-icon-foreground: var(--vscode-icon-foreground);
+	--color-notification-foreground: var(--vscode-notificationsInfoIcon-foreground);
 	--color-toolbar-default: var(--vscode-toolbar-background);
 	--color-toolbar-hover: var(--vscode-toolbar-hoverBackground);
+	--color-diff-added: var(--vscode-diffEditor-insertedTextBackground);
+	--color-diff-removed: var(--vscode-diffEditor-removedTextBackground);
 	--color-error: var(--vscode-errorForeground);
 	--color-error-icon: var(--vscode-problemsErrorIcon-foreground);
+	--color-failed-icon: var(--vscode-testing-iconFailed);
+	--color-error: var(--vscode-errorForeground, #c42b2b);
+	--color-error-icon: var(--vscode-problemsErrorIcon-foreground, #c42b2b);
 	--color-description: var(--vscode-descriptionForeground);
 	--color-success: var(--vscode-charts-green);
 	--color-warning: var(--vscode-charts-yellow);
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+	--font-base:
+		var(--vscode-font-family), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
+		"Open Sans", "Helvetica Neue", sans-serif;
+	--font-mono:
+		var(--vscode-editor-font-family), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+		monospace;
 	--font-azeret-mono: Azeret Mono, monospace;
+	--font-editor: var(--vscode-editor-font-family);
+	--text-editor-size: var(--vscode-editor-font-size);
 	--text-2xl: calc(2.25 * var(--vscode-font-size));
 	--text-xl: calc(2 * var(--vscode-font-size));
 	--text-lg: calc(1.5 * var(--vscode-font-size));
 	--text-md: calc(1.25 * var(--vscode-font-size));
-	--text-base: var(--vscode-font-size);
+	--text-base: var(--vscode-font-size, 14px);
 	--text-sm: calc(0.95 * var(--vscode-font-size));
 	--text-xs: calc(0.85 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
 	--breakpoint-xs: 400px;
-	--radius-xs: 4px;
+	--radius-half: 50%;
+	--radius-xs: 2px;
 	--breakpoint-xxs: 180px;
+
+	--animate-fade-in: fadeIn 0.4s ease-out forwards;
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+			transform: scale(0.98);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	--animate-cursor-blink: cursorBlink 1s ease-in-out infinite;
+	@keyframes cursorBlink {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
+		}
+	}
+
+	--animate-icon-pulse: iconPulse 1s ease-in-out infinite;
+	@keyframes iconPulse {
+		0%,
+		100% {
+			opacity: 0.5;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	--animate-shimmer: shimmer 5s infinite linear;
+	@keyframes shimmer {
+		0% {
+			background-position: 200% 0;
+		}
+		100% {
+			background-position: -200% 0;
+		}
+	}
+
+	--animate-fade-slide-in: fadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	@keyframes fadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
 }
 
 @theme inline {
@@ -100,10 +183,11 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
-	--size-1: calc(0.5 * var(--vscode-font-size));
+	--size-1: calc(0.85 * var(--vscode-font-size));
 	--size-2: calc(1 * var(--vscode-font-size));
 	--size-3: calc(1.25 * var(--vscode-font-size));
 	--size-4: calc(1.5 * var(--vscode-font-size));
+	--size-5: calc(2 * var(--vscode-font-size));
 }
 
 :root {
@@ -203,5 +287,57 @@
 
 	.animate-flash {
 		animation: flash 1.5s ease-in-out infinite;
+	}
+
+	.inline-markdown-block {
+		@apply text-base text-foreground font-base;
+
+		pre {
+			@apply bg-code rounded-xs overflow-x-auto overflow-y-hidden;
+			margin: 13px 0;
+			padding: 10px 10px;
+			max-width: calc(100vw - 20px);
+			padding-right: 70px;
+		}
+
+		pre > code .hljs-deletion {
+			@apply inline-block w-full bg-diff-removed;
+		}
+
+		pre > code .hljs-addition {
+			@apply inline-block w-full bg-diff-added;
+		}
+
+		code span.line:empty {
+			@apply hidden;
+		}
+		code {
+			@apply break-words rounded-xs;
+		}
+		p,
+		li,
+		ol,
+		ul {
+			@apply leading-tight;
+		}
+		hr,
+		ul,
+		ol {
+			@apply my-3 ml-5;
+		}
+		li > ul,
+		li > ol {
+			@apply my-1 ml-2;
+		}
+
+		code:not(pre > code) {
+			@apply font-mono text-preformat bg-code-block-background border border-text-separator rounded-xs py-0.5 whitespace-pre-line break-words text-editor-size;
+		}
+
+		/* Inline cursor container - adds blinking cursor after last child */
+		.inline-cursor-container > :last-child::after {
+			content: "";
+			@apply inline-block w-0.5 h-[1em] ml-0.5 bg-foreground align-text-bottom animate-cursor-blink;
+		}
 	}
 }

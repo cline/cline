@@ -39,6 +39,18 @@ export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler
 			)
 		}
 
+		// Block consecutive act_mode_respond calls to prevent narration loops
+		// Note: We intentionally do NOT increment consecutiveMistakeCount here to avoid
+		// breaking the conversation flow - we just guide the model to use proper tools
+		if (config.taskState.lastToolName === ClineDefaultTool.ACT_MODE) {
+			return formatResponse.toolResult(
+				`[BLOCKED] You cannot call act_mode_respond consecutively. ` +
+					`Your next action MUST be a different tool that performs actual work: ` +
+					`read_file, replace_in_file, write_to_file, execute_command, list_files, search_files, etc. ` +
+					`Stop explaining and start doing.`,
+			)
+		}
+
 		// Validate required parameters
 		if (!response) {
 			config.taskState.consecutiveMistakeCount++
@@ -56,8 +68,15 @@ export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler
 			await config.callbacks.updateFCListFromToolResponse(taskProgress)
 		}
 
+		// Note: lastToolName is tracked centrally by ToolExecutor after tool execution
+
 		// Return success immediately to allow LLM to continue execution
 		// The key difference from plan_mode_respond: no blocking for user input
-		return formatResponse.toolResult(`[Message displayed to user. You may now proceed with the next steps.]`)
+		// NOTE: We explicitly tell the model to use a different tool next to prevent narration loops
+		return formatResponse.toolResult(
+			`[Message displayed. Now proceed with your next tool call - ` +
+				`it must be a different tool (read_file, replace_in_file, execute_command, etc.), ` +
+				`not act_mode_respond again.]`,
+		)
 	}
 }
