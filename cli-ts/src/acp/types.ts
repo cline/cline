@@ -96,8 +96,6 @@ export interface ClineAcpSession {
 	lastActivityAt: number
 	/** Whether this session was loaded from history (needs resume on first prompt) */
 	isLoadedFromHistory?: boolean
-
-	// Session Resources
 	/** Controller instance for this session (manages task execution) */
 	controller?: Controller
 }
@@ -154,6 +152,8 @@ export interface TranslatedMessage {
 	requiresPermission?: boolean
 	/** Permission request details if required */
 	permissionRequest?: Omit<acp.RequestPermissionRequest, "sessionId">
+	/** The toolCallId that was created/used (for tracking across streaming updates) */
+	toolCallId?: string
 }
 
 /**

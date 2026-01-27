@@ -9,7 +9,8 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk"
-import type { ClineAsk, ClineAskResponse } from "@shared/ExtensionMessage"
+import type { ClineAsk } from "@shared/ExtensionMessage"
+import type { ClineAskResponse } from "@shared/WebviewMessage"
 import type { AcpSessionState, ClinePermissionOption } from "./types.js"
 
 /**
