@@ -226,6 +226,19 @@ function centerText(text: string, terminalWidth?: number): string {
 	return " ".repeat(padding) + text
 }
 
+/** Ask types that need user interaction even in yolo mode */
+const YOLO_INTERACTIVE_ASKS = new Set<ClineAsk>([
+	"completion_result",
+	"followup",
+	"plan_mode_respond",
+	"resume_task",
+	"resume_completed_task",
+])
+
+function isYoloSuppressed(yolo: boolean, ask: ClineAsk | undefined): boolean {
+	return yolo && (!ask || !YOLO_INTERACTIVE_ASKS.has(ask))
+}
+
 /**
  * Get the type of prompt needed for an ask message
  */
@@ -313,6 +326,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	})
 
 	const [yolo, setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
+
+	// Sync mode from core state updates (e.g. yolo auto-switching plan to act)
+	useEffect(() => {
+		if (taskState.mode && taskState.mode !== mode) {
+			setMode(taskState.mode as Mode)
+		}
+	}, [taskState.mode])
 
 	const toggleYolo = useCallback(() => {
 		const newValue = !yolo
@@ -833,7 +853,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		// Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
-		if (buttonConfig.enableButtons && !isSpinnerActive && textInput === "" && !yolo) {
+		if (
+			buttonConfig.enableButtons &&
+			!isSpinnerActive &&
+			textInput === "" &&
+			!isYoloSuppressed(yolo, pendingAsk?.ask as ClineAsk | undefined)
+		) {
 			if (input === "1" && buttonConfig.primaryAction) {
 				handleButtonAction(buttonConfig.primaryAction, true)
 				return
@@ -845,7 +870,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		// Handle ask responses for options and text input
-		if (pendingAsk && !yolo) {
+		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as ClineAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
 			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
 				sendAskResponse("messageResponse", textInput.trim())
@@ -975,7 +1000,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				)}
 
 				{/* Action buttons for tool approvals and other asks (not during streaming) */}
-				{buttonConfig.enableButtons && !isSpinnerActive && !yolo && <ActionButtons config={buttonConfig} mode={mode} />}
+				{buttonConfig.enableButtons &&
+					!isSpinnerActive &&
+					!isYoloSuppressed(yolo, pendingAsk?.ask as ClineAsk | undefined) && (
+						<ActionButtons config={buttonConfig} mode={mode} />
+					)}
 
 				{/* Thinking indicator when processing */}
 				{isSpinnerActive && <ThinkingIndicator mode={mode} onCancel={handleCancel} startTime={spinnerStartTime} />}
