@@ -241,17 +241,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				)
 			}
 
-			// Only show result content for completed tools (say), not for pending asks
-			const resultLines = isToolSay && toolInfo.result?.trim() ? formatToolResult(toolInfo.result, 5) : []
+			// Show result content for completed tools, or file path for pending asks
+			const contentLines =
+				isToolSay && toolInfo.result?.trim()
+					? formatToolResult(toolInfo.result, 5)
+					: isToolAsk && filePath
+						? [filePath as string]
+						: []
 
 			return (
 				<Box flexDirection="column" marginBottom={1} width="100%">
 					<DotRow color={toolColor}>
 						<ToolCallText args={toolInfo.args} isAsk={isToolAsk} mode={mode} toolName={toolInfo.toolName} />
 					</DotRow>
-					{resultLines.length > 0 && (
+					{contentLines.length > 0 && (
 						<Box flexDirection="column" marginLeft={2} width="100%">
-							{resultLines.map((line, idx) => (
+							{contentLines.map((line, idx) => (
 								<ResultRow isFirst={idx === 0} key={idx}>
 									<Text dimColor>{line}</Text>
 								</ResultRow>
