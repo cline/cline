@@ -42,15 +42,15 @@ export class OcaHandler implements ApiHandler {
 		this.options = options
 	}
 
-	protected async ensureExternalHeaders(): Promise<Record<string, string>> {
+	protected ensureExternalHeaders(): Record<string, string> {
 		if (Object.keys(this.externalHeaders).length === 0) {
-			this.externalHeaders = await buildExternalBasicHeaders()
+			this.externalHeaders = buildExternalBasicHeaders()
 		}
 		return this.externalHeaders
 	}
 
-	protected async initializeClient(options: OcaHandlerOptions): Promise<OpenAI> {
-		const externalHeaders = await this.ensureExternalHeaders()
+	protected initializeClient(options: OcaHandlerOptions): OpenAI {
+		const externalHeaders = this.ensureExternalHeaders()
 		return new (class OCIOpenAI extends OpenAI {
 			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
@@ -101,13 +101,13 @@ export class OcaHandler implements ApiHandler {
 		})
 	}
 
-	protected async ensureClient(): Promise<OpenAI> {
+	protected ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.ocaModelId) {
 				throw new Error("Oracle Code Assist (OCA) model is not selected")
 			}
 			try {
-				this.client = await this.initializeClient(this.options)
+				this.client = this.initializeClient(this.options)
 			} catch (error) {
 				throw new Error(`Error creating Oracle Code Assist (OCA) client: ${error.message}`)
 			}
@@ -117,13 +117,13 @@ export class OcaHandler implements ApiHandler {
 
 	async getApiCosts(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
 		const token = await OcaAuthService.getInstance().getAuthToken()
 		if (!token) {
 			throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
 		}
-		const externalHeaders = await this.ensureExternalHeaders()
+		const externalHeaders = this.ensureExternalHeaders()
 		const ociHeaders = await createOcaHeaders(token, this.options.taskId!)
 		Logger.log(`Making calculate cost request with customer opc-request-id: ${ociHeaders["opc-request-id"]}`)
 		try {
@@ -177,7 +177,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageChatApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 			role: "system",
@@ -314,7 +314,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 
 		// Convert messages to Responses API input format
 		const input: OpenAI.Responses.ResponseInputItem[] = [

@@ -28,13 +28,13 @@ export class VercelAIGatewayHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.vercelAiGatewayApiKey) {
 				throw new Error("Vercel AI Gateway API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: "https://ai-gateway.vercel.sh/v1",
 					apiKey: this.options.vercelAiGatewayApiKey,
 					defaultHeaders: {
@@ -51,7 +51,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const modelId = this.getModel().id
 		const modelInfo = this.getModel().info
 

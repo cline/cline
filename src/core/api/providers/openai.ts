@@ -38,7 +38,7 @@ export class OpenAiHandler implements ApiHandler {
 		return "https://cognitiveservices.azure.com/.default"
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.openAiApiKey && !this.options.azureIdentity) {
 				throw new Error("OpenAI API key or Azure Identity Authentication is required")
@@ -46,7 +46,7 @@ export class OpenAiHandler implements ApiHandler {
 			try {
 				const baseUrl = this.options.openAiBaseUrl?.toLowerCase() ?? ""
 				const isAzureDomain = baseUrl.includes("azure.com") || baseUrl.includes("azure.us")
-				const externalHeaders = await buildExternalBasicHeaders()
+				const externalHeaders = buildExternalBasicHeaders()
 				// Azure API shape slightly differs from the core API shape...
 				if (
 					this.options.azureApiVersion ||
@@ -79,7 +79,7 @@ export class OpenAiHandler implements ApiHandler {
 						})
 					}
 				} else {
-					this.client = await createOpenAIClient({
+					this.client = createOpenAIClient({
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
 						defaultHeaders: this.options.openAiHeaders,
@@ -94,7 +94,7 @@ export class OpenAiHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false

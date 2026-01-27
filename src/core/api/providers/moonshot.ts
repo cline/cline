@@ -20,13 +20,13 @@ export class MoonshotHandler implements ApiHandler {
 
 	constructor(private readonly options: MoonshotHandlerOptions) {}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.moonshotApiKey) {
 				throw new Error("Moonshot API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL:
 						this.options.moonshotApiLine === "china" ? "https://api.moonshot.cn/v1" : "https://api.moonshot.ai/v1",
 					apiKey: this.options.moonshotApiKey,
@@ -40,7 +40,7 @@ export class MoonshotHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

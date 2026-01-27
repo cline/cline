@@ -34,13 +34,13 @@ export class OpenRouterHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.openRouterApiKey) {
 				throw new Error("OpenRouter API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: "https://openrouter.ai/api/v1",
 					apiKey: this.options.openRouterApiKey,
 					defaultHeaders: {
@@ -57,7 +57,7 @@ export class OpenRouterHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
 		const stream = await createOpenRouterStream(

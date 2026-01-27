@@ -21,7 +21,7 @@ export class HicapHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.hicapApiKey) {
 				throw new Error("Hicap API key is required")
@@ -30,7 +30,7 @@ export class HicapHandler implements ApiHandler {
 				throw new Error("Model ID is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: "https://api.hicap.ai/v2/openai",
 					apiKey: this.options.hicapApiKey,
 					defaultHeaders: {
@@ -46,7 +46,7 @@ export class HicapHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const modelId = this.options.hicapModelId ?? ""
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

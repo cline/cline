@@ -35,13 +35,13 @@ export class OpenAiNativeHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.openAiNativeApiKey) {
 				throw new Error("OpenAI API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					apiKey: this.options.openAiNativeApiKey,
 				})
 			} catch (error: any) {
@@ -86,7 +86,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools?: ChatCompletionTool[],
 	): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 		const toolCallProcessor = new ToolCallProcessor()
 
@@ -150,7 +150,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools: ChatCompletionTool[],
 	): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		// Convert messages to Responses API input format

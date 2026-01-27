@@ -26,7 +26,7 @@ export class CerebrasHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<Cerebras> {
+	private ensureClient(): Cerebras {
 		if (!this.client) {
 			// Clean and validate the API key
 			const cleanApiKey = this.options.cerebrasApiKey?.trim()
@@ -36,7 +36,7 @@ export class CerebrasHandler implements ApiHandler {
 			}
 
 			try {
-				const externalHeaders = await buildExternalBasicHeaders()
+				const externalHeaders = buildExternalBasicHeaders()
 				this.client = new Cerebras({
 					apiKey: cleanApiKey,
 					timeout: 30000, // 30 second timeout
@@ -59,7 +59,7 @@ export class CerebrasHandler implements ApiHandler {
 		maxDelay: 60000, // Allow up to 60 second delays to respect rate limits
 	})
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 
 		// Convert Anthropic messages to Cerebras format
 		const cerebrasMessages: Array<{

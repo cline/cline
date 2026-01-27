@@ -26,7 +26,7 @@ export class BasetenHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.basetenApiKey) {
 				throw new Error("Baseten API key is required")
@@ -35,7 +35,7 @@ export class BasetenHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://inference.baseten.co/v1",
 					apiKey: this.options.basetenApiKey,
-					defaultHeaders: await buildExternalBasicHeaders(),
+					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
@@ -103,7 +103,7 @@ export class BasetenHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 		const maxTokens = this.getOptimalMaxTokens(model)
 		const toolCallProcessor = new ToolCallProcessor()

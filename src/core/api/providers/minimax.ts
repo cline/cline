@@ -25,13 +25,13 @@ export class MinimaxHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<Anthropic> {
+	private ensureClient(): Anthropic {
 		if (!this.client) {
 			if (!this.options.minimaxApiKey) {
 				throw new Error("MiniMax API key is required")
 			}
 			try {
-				const externalHeaders = await buildExternalBasicHeaders()
+				const externalHeaders = buildExternalBasicHeaders()
 				this.client = new Anthropic({
 					apiKey: this.options.minimaxApiKey,
 					baseURL:
@@ -50,7 +50,7 @@ export class MinimaxHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		// Tools are available only when native tools are enabled

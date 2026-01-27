@@ -61,10 +61,10 @@ export class GeminiHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<GoogleGenAI> {
+	private ensureClient(): GoogleGenAI {
 		if (!this.client) {
 			const options = this.options as GeminiHandlerOptions
-			const externalHeaders = await buildExternalBasicHeaders()
+			const externalHeaders = buildExternalBasicHeaders()
 
 			if (options.isVertex) {
 				// Initialize with Vertex AI configuration
@@ -120,7 +120,7 @@ export class GeminiHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
@@ -443,7 +443,7 @@ export class GeminiHandler implements ApiHandler {
 	 */
 	async countTokens(content: Array<any>): Promise<number> {
 		try {
-			const client = await this.ensureClient()
+			const client = this.ensureClient()
 			const { id: model } = this.getModel()
 
 			// Convert content to Gemini format

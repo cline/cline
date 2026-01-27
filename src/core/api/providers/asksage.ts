@@ -97,7 +97,7 @@ export class AskSageHandler implements ApiHandler {
 			// Make request to AskSage API
 			const response = await fetch(`${this.apiUrl}/query`, {
 				method: "POST",
-				headers: await this.headers(),
+				headers: this.headers(),
 				body: JSON.stringify(request),
 			})
 
@@ -155,7 +155,7 @@ export class AskSageHandler implements ApiHandler {
 		try {
 			const response = await fetch(`${this.apiUrl}/count-monthly-tokens`, {
 				method: "POST",
-				headers: await this.headers(),
+				headers: this.headers(),
 				body: JSON.stringify({ app_name: "asksage" }),
 			})
 
@@ -190,11 +190,11 @@ export class AskSageHandler implements ApiHandler {
 		}
 	}
 
-	private async headers() {
+	private headers() {
 		return {
 			"Content-Type": "application/json",
 			"x-access-tokens": this.apiKey,
-			...(await buildExternalBasicHeaders()),
+			...buildExternalBasicHeaders(),
 		}
 	}
 }

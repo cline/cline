@@ -22,13 +22,13 @@ export class FireworksHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.fireworksApiKey) {
 				throw new Error("Fireworks API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: "https://api.fireworks.ai/inference/v1",
 					apiKey: this.options.fireworksApiKey,
 				})
@@ -41,7 +41,7 @@ export class FireworksHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const modelId = this.options.fireworksModelId ?? ""
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

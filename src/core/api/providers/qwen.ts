@@ -43,13 +43,13 @@ export class QwenHandler implements ApiHandler {
 		return this.options.qwenApiLine === QwenApiRegions.CHINA
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.qwenApiKey) {
 				throw new Error("Alibaba API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: this.useChinaApi()
 						? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 						: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
@@ -82,7 +82,7 @@ export class QwenHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 		const isDeepseekReasoner = model.id.includes("deepseek-r1")
 		const isReasoningModelFamily = model.id.includes("qwen3") || ["qwen-plus-latest", "qwen-turbo-latest"].includes(model.id)

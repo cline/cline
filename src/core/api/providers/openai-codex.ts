@@ -185,7 +185,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 				session_id: this.sessionId,
 				"User-Agent": `cline/${process.env.npm_package_version || "1.0.0"} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
 				...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
-				...(await buildExternalBasicHeaders()),
+				...buildExternalBasicHeaders(),
 			}
 
 			// Try using OpenAI SDK first

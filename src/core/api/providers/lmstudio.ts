@@ -23,10 +23,10 @@ export class LmStudioHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					// Docs on the new v0 api endpoint: https://lmstudio.ai/docs/app/api/endpoints/rest
 					baseURL: new URL("api/v0", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
 					apiKey: "noop",
@@ -40,7 +40,7 @@ export class LmStudioHandler implements ApiHandler {
 
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),

@@ -60,11 +60,11 @@ export class QwenCodeHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			// Create the client instance with dummy key initially
 			// The API key will be updated dynamically via ensureAuthenticated
-			const externalHeaders = await buildExternalBasicHeaders()
+			const externalHeaders = buildExternalBasicHeaders()
 			this.client = new OpenAI({
 				apiKey: "dummy-key-will-be-replaced",
 				baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -151,7 +151,7 @@ export class QwenCodeHandler implements ApiHandler {
 		}
 
 		// After authentication, update the apiKey and baseURL on the existing client
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		client.apiKey = this.credentials.access_token
 		client.baseURL = this.getBaseUrl(this.credentials)
 	}
@@ -171,7 +171,7 @@ export class QwenCodeHandler implements ApiHandler {
 			if (error.status === 401) {
 				// Token expired, refresh and retry
 				this.credentials = await this.refreshAccessToken(this.credentials!)
-				const client = await this.ensureClient()
+				const client = this.ensureClient()
 				client.apiKey = this.credentials.access_token
 				client.baseURL = this.getBaseUrl(this.credentials)
 				return await apiCall()
@@ -184,7 +184,7 @@ export class QwenCodeHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		await this.ensureAuthenticated()
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const model = this.getModel()
 
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {

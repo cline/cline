@@ -24,13 +24,13 @@ export class MistralHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<Mistral> {
+	private ensureClient(): Mistral {
 		if (!this.client) {
 			if (!this.options.mistralApiKey) {
 				throw new Error("Mistral API key is required")
 			}
 			try {
-				const externalHeaders = await buildExternalBasicHeaders()
+				const externalHeaders = buildExternalBasicHeaders()
 				// Create HTTP client with custom fetch for proxy support
 				// The Mistral SDK's HTTPClient passes a Request object to the fetcher,
 				// but we need to extract the URL and init options to pass to our fetch wrapper
@@ -81,7 +81,7 @@ export class MistralHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const stream = await client.chat
 			.stream({
 				model: this.getModel().id,

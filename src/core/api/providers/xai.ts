@@ -25,13 +25,13 @@ export class XAIHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.xaiApiKey) {
 				throw new Error("xAI API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: "https://api.x.ai/v1",
 					apiKey: this.options.xaiApiKey,
 				})
@@ -44,7 +44,7 @@ export class XAIHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const modelId = this.getModel().id
 		// ensure reasoning effort is either "low" or "high" for grok-3-mini
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined

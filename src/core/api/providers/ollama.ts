@@ -30,10 +30,10 @@ export class OllamaHandler implements ApiHandler {
 		this.options = { ...options, ollamaApiOptionsCtxNum }
 	}
 
-	private async ensureClient(): Promise<Ollama> {
+	private ensureClient(): Ollama {
 		if (!this.client) {
 			try {
-				const externalHeaders = await buildExternalBasicHeaders()
+				const externalHeaders = buildExternalBasicHeaders()
 				const clientOptions: Partial<Config> = {
 					host: this.options.ollamaBaseUrl,
 					fetch,
@@ -58,7 +58,7 @@ export class OllamaHandler implements ApiHandler {
 
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
 		try {

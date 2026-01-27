@@ -360,17 +360,9 @@ export class SapAiCoreHandler implements ApiHandler {
 	private deployments?: Deployment[]
 	private aiCoreDestination?: HttpDestination
 	private destinationExpiresAt?: number
-	private externalHeaders: Record<string, string> = {}
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
-	}
-
-	private async ensureExternalHeaders(): Promise<Record<string, string>> {
-		if (Object.keys(this.externalHeaders).length === 0) {
-			this.externalHeaders = await buildExternalBasicHeaders()
-		}
-		return this.externalHeaders
 	}
 
 	/**
@@ -436,7 +428,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
-		const externalHeaders = await this.ensureExternalHeaders()
+		const externalHeaders = buildExternalBasicHeaders()
 		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { ...externalHeaders, "Content-Type": "application/x-www-form-urlencoded" },
@@ -457,7 +449,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	// TODO: these fallback fetching deployment id methods can be removed in future version if decided that users migration to fetching deployment id in design-time (open SAP AI Core provider UI) considered as completed.
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
 		const token = await this.getToken()
-		const externalHeaders = await this.ensureExternalHeaders()
+		const externalHeaders = buildExternalBasicHeaders()
 		const headers = {
 			...externalHeaders,
 			Authorization: `Bearer ${token}`,
@@ -597,7 +589,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *createMessageWithDeployments(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const token = await this.getToken()
-		const externalHeaders = await this.ensureExternalHeaders()
+		const externalHeaders = buildExternalBasicHeaders()
 		const headers = {
 			...externalHeaders,
 			Authorization: `Bearer ${token}`,

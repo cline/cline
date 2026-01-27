@@ -46,7 +46,7 @@ export class VertexHandler implements ApiHandler {
 		return this.geminiHandler
 	}
 
-	private async ensureAnthropicClient(): Promise<AnthropicVertex> {
+	private ensureAnthropicClient(): AnthropicVertex {
 		if (!this.clientAnthropic) {
 			if (!this.options.vertexProjectId) {
 				throw new Error("Vertex AI project ID is required")
@@ -55,7 +55,7 @@ export class VertexHandler implements ApiHandler {
 				throw new Error("Vertex AI region is required")
 			}
 			try {
-				const externalHeaders = await buildExternalBasicHeaders()
+				const externalHeaders = buildExternalBasicHeaders()
 				// Initialize Anthropic client for Claude models
 				this.clientAnthropic = new AnthropicVertex({
 					projectId: this.options.vertexProjectId,
@@ -82,7 +82,7 @@ export class VertexHandler implements ApiHandler {
 			return
 		}
 
-		const clientAnthropic = await this.ensureAnthropicClient()
+		const clientAnthropic = this.ensureAnthropicClient()
 
 		// Claude implementation
 		const budget_tokens = this.options.thinkingBudgetTokens || 0

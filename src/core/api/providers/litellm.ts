@@ -65,7 +65,7 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 			headers: {
 				accept: "application/json",
 				"x-litellm-api-key": apiKey,
-				...(await buildExternalBasicHeaders()),
+				...buildExternalBasicHeaders(),
 			},
 		})
 
@@ -80,7 +80,7 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 				headers: {
 					accept: "application/json",
 					Authorization: `Bearer ${apiKey}`,
-					...(await buildExternalBasicHeaders()),
+					...buildExternalBasicHeaders(),
 				},
 			})
 
@@ -109,13 +109,13 @@ export class LiteLlmHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private async ensureClient(): Promise<OpenAI> {
+	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.liteLlmApiKey) {
 				throw new Error("LiteLLM API key is required")
 			}
 			try {
-				this.client = await createOpenAIClient({
+				this.client = createOpenAIClient({
 					baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
 					apiKey: this.options.liteLlmApiKey || "noop",
 				})
@@ -143,7 +143,7 @@ export class LiteLlmHandler implements ApiHandler {
 			return this.modelInfoCache
 		}
 
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 		const data = await fetchLiteLlmModelsInfo(client.baseURL, this.options.liteLlmApiKey || "")
 
 		if (data) {
@@ -210,7 +210,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		const client = await this.ensureClient()
+		const client = this.ensureClient()
 
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam | Anthropic.Messages.TextBlockParam = {

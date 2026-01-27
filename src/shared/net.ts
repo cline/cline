@@ -183,8 +183,8 @@ export function getAxiosSettings(): { adapter?: any; fetch?: typeof globalThis.f
  * Use this instead of creating OpenAI clients directly to ensure consistent
  * configuration across all providers.
  */
-export async function createOpenAIClient(options: OpenAIClientOptions): Promise<OpenAI> {
-	const externalHeaders = await buildExternalBasicHeaders()
+export function createOpenAIClient(options: OpenAIClientOptions): OpenAI {
+	const externalHeaders = buildExternalBasicHeaders()
 	return new OpenAI({
 		...options,
 		defaultHeaders: {
