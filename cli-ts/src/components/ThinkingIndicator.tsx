@@ -120,12 +120,7 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "ac
 	return (
 		<Box paddingLeft={1}>
 			<ShimmerText color={color} shimmerPos={shimmerPos} text={fullText} />
-			{elapsedStr && (
-				<Text color="gray">
-					{" "}
-					({elapsedStr} · <Text dimColor>esc to interrupt</Text>)
-				</Text>
-			)}
+			{elapsedStr && <Text color="gray"> ({elapsedStr} · esc to interrupt)</Text>}
 		</Box>
 	)
 }

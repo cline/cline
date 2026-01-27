@@ -1048,31 +1048,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 							<Box flexShrink={1} flexWrap="wrap">
-								<Text color="gray" dimColor>
-									@ for files · / for commands
-								</Text>
+								<Text color="gray">@ for files · / for commands</Text>
 							</Box>
 							<Box flexShrink={0} gap={1}>
 								<Box>
-									<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : "gray"}>
+									<Text bold={mode === "plan"} color={mode === "plan" ? "yellow" : undefined}>
 										{mode === "plan" ? "●" : "○"} Plan
 									</Text>
 								</Box>
 								<Box>
-									<Text bold={mode === "act"} color={mode === "act" ? COLORS.primaryBlue : "gray"}>
+									<Text bold={mode === "act"} color={mode === "act" ? COLORS.primaryBlue : undefined}>
 										{mode === "act" ? "●" : "○"} Act
 									</Text>
 								</Box>
-								<Text color="gray" dimColor>
-									(Tab)
-								</Text>
+								<Text color="gray">(Tab)</Text>
 							</Box>
 						</Box>
 
 						{/* Row 2: Model/context/tokens/cost */}
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text>
-								<Text color="gray">{modelId}</Text> {(() => {
+								{modelId} {(() => {
 									const bar = createContextBar(
 										metrics.totalTokensIn + metrics.totalTokensOut,
 										DEFAULT_CONTEXT_WINDOW,
@@ -1080,23 +1076,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 									return (
 										<Text>
 											<Text color="gray">{bar.filled}</Text>
-											<Text color="gray" dimColor>
-												{bar.empty}
-											</Text>
+											<Text color="gray">{bar.empty}</Text>
 										</Text>
 									)
-								})()}
-								<Text color="gray"> ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()})</Text>
-								<Text color="gray"> | </Text>
-								<Text color="gray">${metrics.totalCost.toFixed(3)}</Text>
+								})()}({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
+								{metrics.totalCost.toFixed(3)}
 							</Text>
 						</Box>
 
 						{/* Row 3: Repo/branch/diff stats */}
 						<Box paddingLeft={1} paddingRight={1}>
-							<Text color="gray">
+							<Text>
 								{workspacePath.split("/").pop() || workspacePath}
-								{gitBranch && <Text color="gray"> ({gitBranch})</Text>}
+								{gitBranch && ` (${gitBranch})`}
 								{gitDiffStats && gitDiffStats.files > 0 && (
 									<Text>
 										{" "}
@@ -1113,9 +1105,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							{yolo ? (
 								<Text color="green">⏵⏵ Auto-approve all enabled (Shift+Tab)</Text>
 							) : (
-								<Text color="gray" dimColor>
-									Auto-approve all disabled (Shift+Tab)
-								</Text>
+								<Text color="gray">Auto-approve all disabled (Shift+Tab)</Text>
 							)}
 						</Box>
 					</>

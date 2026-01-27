@@ -99,9 +99,7 @@ const Select: React.FC<{
 					</Text>
 				</Box>
 			))}
-			<Text color="gray" dimColor>
-				(Use arrow keys to navigate, Enter to select)
-			</Text>
+			<Text color="gray">(Use arrow keys to navigate, Enter to select)</Text>
 		</Box>
 	)
 }
@@ -660,11 +658,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							<Text inverse> </Text>
 						</Box>
 						<Text> </Text>
-						{showProviderTopIndicator && (
-							<Text color="gray" dimColor>
-								... {providerVisibleStart} more above
-							</Text>
-						)}
+						{showProviderTopIndicator && <Text color="gray">... {providerVisibleStart} more above</Text>}
 						{visibleProviderItems.map((item, i) => {
 							const actualIndex = providerVisibleStart + i
 							return (
@@ -677,19 +671,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							)
 						})}
 						{showProviderBottomIndicator && (
-							<Text color="gray" dimColor>
+							<Text color="gray">
 								... {providerItems.length - providerVisibleStart - providerVisibleCount} more below
 							</Text>
 						)}
-						{providerItems.length === 0 && (
-							<Text color="gray" dimColor>
-								No providers match "{providerSearch}"
-							</Text>
-						)}
+						{providerItems.length === 0 && <Text color="gray">No providers match "{providerSearch}"</Text>}
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Type to search, arrows to navigate, Enter to select, Esc to go back
-						</Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 					</Box>
 				)
 			}
@@ -720,9 +708,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 								provider={selectedProvider}
 							/>
 							<Text> </Text>
-							<Text color="gray" dimColor>
-								Type to search, arrows to navigate, Enter to select, Esc to go back
-							</Text>
+							<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 						</Box>
 					)
 				}
@@ -735,9 +721,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text> </Text>
 						<TextInput onChange={setModelId} onSubmit={handleModelIdSubmit} placeholder="model-id" value={modelId} />
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Enter to continue, Esc to go back
-						</Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
 					</Box>
 				)
 
@@ -755,9 +739,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							value={baseUrl}
 						/>
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Enter to skip or continue, Esc to go back
-						</Text>
+						<Text color="gray">Enter to skip or continue, Esc to go back</Text>
 					</Box>
 				)
 
@@ -783,9 +765,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text> </Text>
 						<Text color="gray">Complete sign-in in your browser, then return here.</Text>
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Esc to cancel
-						</Text>
+						<Text color="gray">Esc to cancel</Text>
 					</Box>
 				)
 
@@ -793,7 +773,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return (
 					<Box flexDirection="column">
 						<Box>
-							<Text color="blueBright">
+							<Text color={COLORS.primaryBlue}>
 								<Spinner type="dots" />
 							</Text>
 							<Text color="white"> Waiting for ChatGPT sign-in...</Text>
@@ -802,9 +782,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text color="gray">Sign in with your ChatGPT account in the browser.</Text>
 						<Text color="gray">Requires ChatGPT Plus, Pro, or Team subscription.</Text>
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Esc to cancel
-						</Text>
+						<Text color="gray">Esc to cancel</Text>
 					</Box>
 				)
 
@@ -852,9 +830,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						</Box>
 
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Arrows to navigate, Enter to select
-						</Text>
+						<Text color="gray">Arrows to navigate, Enter to select</Text>
 					</Box>
 				)
 			}
@@ -978,9 +954,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							</Box>
 						))}
 						<Text> </Text>
-						<Text color="gray" dimColor>
-							Use arrow keys, Enter to select
-						</Text>
+						<Text color="gray">Use arrow keys, Enter to select</Text>
 					</Box>
 				) : (
 					renderAuthContent()

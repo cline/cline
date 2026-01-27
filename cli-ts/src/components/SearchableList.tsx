@@ -99,11 +99,7 @@ export function SearchableList<T extends SearchableListItem>({
 				<Text inverse> </Text>
 			</Box>
 			<Text> </Text>
-			{showTopIndicator && (
-				<Text color="gray" dimColor>
-					... {visibleStart} more above
-				</Text>
-			)}
+			{showTopIndicator && <Text color="gray">... {visibleStart} more above</Text>}
 			{visibleItems.map((item, i) => {
 				const actualIndex = visibleStart + i
 				const isSelected = actualIndex === index
@@ -117,16 +113,8 @@ export function SearchableList<T extends SearchableListItem>({
 					</Box>
 				)
 			})}
-			{showBottomIndicator && (
-				<Text color="gray" dimColor>
-					... {filteredItems.length - visibleStart - visibleCount} more below
-				</Text>
-			)}
-			{filteredItems.length === 0 && (
-				<Text color="gray" dimColor>
-					No matches for "{search}"
-				</Text>
-			)}
+			{showBottomIndicator && <Text color="gray">... {filteredItems.length - visibleStart - visibleCount} more below</Text>}
+			{filteredItems.length === 0 && <Text color="gray">No matches for "{search}"</Text>}
 		</Box>
 	)
 }
