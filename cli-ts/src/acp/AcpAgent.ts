@@ -10,9 +10,31 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
 import type { ClineMessageChange } from "@core/task/message-state"
+import type { ApiProvider } from "@shared/api"
+import {
+	anthropicDefaultModelId,
+	anthropicModels,
+	bedrockDefaultModelId,
+	bedrockModels,
+	deepSeekDefaultModelId,
+	deepSeekModels,
+	geminiDefaultModelId,
+	geminiModels,
+	groqDefaultModelId,
+	groqModels,
+	mistralDefaultModelId,
+	mistralModels,
+	openAiNativeDefaultModelId,
+	openAiNativeModels,
+	xaiDefaultModelId,
+	xaiModels,
+} from "@shared/api"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
+import { BASE_SLASH_COMMANDS, CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
+import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
+import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
@@ -21,6 +43,7 @@ import { HostProvider } from "@/hosts/host-provider.js"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { Logger } from "@/shared/services/Logger.js"
 import type { Mode } from "@/shared/storage/types"
+import { fetchOpenRouterModels, usesOpenRouterModels } from "../utils/openrouter-models"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ACPDiffViewProvider } from "./ACPDiffViewProvider.js"
 import { ACPHostBridgeClientProvider } from "./ACPHostBridgeClientProvider.js"
@@ -28,6 +51,27 @@ import { AcpTerminalManager } from "./AcpTerminalManager.js"
 import { translateMessage } from "./messageTranslator.js"
 import { handlePermissionResponse } from "./permissionHandler.js"
 import type { AcpAgentOptions, AcpSessionState, ClineAcpSession } from "./types.js"
+
+// Map providers to their static model lists and defaults (copied from ModelPicker.tsx)
+const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
+	anthropic: { models: anthropicModels, defaultId: anthropicDefaultModelId },
+	"openai-native": { models: openAiNativeModels, defaultId: openAiNativeDefaultModelId },
+	gemini: { models: geminiModels, defaultId: geminiDefaultModelId },
+	bedrock: { models: bedrockModels, defaultId: bedrockDefaultModelId },
+	deepseek: { models: deepSeekModels, defaultId: deepSeekDefaultModelId },
+	mistral: { models: mistralModels, defaultId: mistralDefaultModelId },
+	groq: { models: groqModels, defaultId: groqDefaultModelId },
+	xai: { models: xaiModels, defaultId: xaiDefaultModelId },
+}
+
+function hasStaticModels(provider: string): boolean {
+	return provider in providerModels
+}
+
+function getModelList(provider: string): string[] {
+	if (!hasStaticModels(provider)) return []
+	return Object.keys(providerModels[provider].models)
+}
 
 /**
  * Cline's implementation of the ACP Agent interface.
@@ -74,9 +118,7 @@ export class AcpAgent implements acp.Agent {
 	 */
 	async initialize(params: acp.InitializeRequest): Promise<acp.InitializeResponse> {
 		this.clientCapabilities = params.clientCapabilities
-
 		this.initializeHostProvider(this.clientCapabilities)
-
 		await ClineEndpoint.initialize()
 		await StateManager.initialize(this.ctx.extensionContext)
 
@@ -188,6 +230,17 @@ export class AcpAgent implements acp.Agent {
 
 		this.sessionStates.set(sessionId, sessionState)
 
+		// Send available slash commands to the client
+		// This is done asynchronously after session creation per ACP spec
+		await this.sendAvailableCommands(sessionId, controller).catch((error) => {
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Failed to send available commands:", error)
+			}
+		})
+
+		// Get current model configuration for the response
+		const modelState = await this.getSessionModelState(session.mode)
+
 		return {
 			sessionId,
 			modes: {
@@ -197,7 +250,112 @@ export class AcpAgent implements acp.Agent {
 				],
 				currentModeId: session.mode,
 			},
+			models: modelState,
 		}
+	}
+
+	/**
+	 * Get the current model state for ACP responses.
+	 * Returns available models and the current model ID based on the session mode.
+	 */
+	private async getSessionModelState(mode: Mode): Promise<acp.SessionModelState> {
+		const stateManager = StateManager.get()
+
+		// Get current provider and model for the mode
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+
+		const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as ApiProvider | undefined
+		const currentModelId = stateManager.getGlobalSettingsKey(modelKey) as string | undefined
+
+		// Build the current model ID in provider/model format
+		const currentFullModelId =
+			currentProvider && currentModelId ? `${currentProvider}/${currentModelId}` : currentProvider || "anthropic"
+
+		// Get available models based on provider
+		let modelIds: string[] = []
+
+		if (currentProvider) {
+			if (usesOpenRouterModels(currentProvider)) {
+				// Fetch OpenRouter models (async)
+				modelIds = await fetchOpenRouterModels()
+			} else if (hasStaticModels(currentProvider)) {
+				// Use static model list
+				modelIds = getModelList(currentProvider)
+			}
+		}
+
+		// Convert to ACP ModelInfo format with provider prefix
+		const availableModels: acp.ModelInfo[] = modelIds.map((modelId) => ({
+			modelId: currentProvider ? `${currentProvider}/${modelId}` : modelId,
+			name: modelId,
+		}))
+
+		return {
+			currentModelId: currentFullModelId,
+			availableModels,
+		}
+	}
+
+	/**
+	 * Set the model for a session.
+	 *
+	 * This method allows changing the model for either plan or act mode.
+	 * The modelId format is "provider/modelId" (e.g., "anthropic/claude-3-5-sonnet-20241022").
+	 *
+	 * @experimental This is an unstable API that may change.
+	 */
+	async unstable_setSessionModel(params: acp.SetSessionModelRequest): Promise<acp.SetSessionModelResponse> {
+		const session = this.sessions.get(params.sessionId)
+
+		if (!session) {
+			throw new Error(`Session not found: ${params.sessionId}`)
+		}
+
+		if (this.options.debug) {
+			Logger.debug("[AcpAgent] unstable_setSessionModel called:", {
+				sessionId: params.sessionId,
+				modelId: params.modelId,
+			})
+		}
+
+		// Parse the modelId format: "provider/modelId"
+		const slashIndex = params.modelId.indexOf("/")
+		if (slashIndex === -1) {
+			throw new Error(`Invalid modelId format: ${params.modelId}. Expected "provider/modelId".`)
+		}
+
+		const provider = params.modelId.substring(0, slashIndex) as ApiProvider
+		const modelId = params.modelId.substring(slashIndex + 1)
+
+		const stateManager = StateManager.get()
+
+		// Update model for both plan and act modes (use the same model for both)
+		stateManager.setGlobalState("actModeApiProvider", provider)
+		stateManager.setGlobalState("actModeApiModelId", modelId)
+		stateManager.setGlobalState("planModeApiProvider", provider)
+		stateManager.setGlobalState("planModeApiModelId", modelId)
+
+		// Also update the provider-specific model ID keys for both modes
+		const actProviderModelKey = getProviderModelIdKey(provider, "act")
+		if (actProviderModelKey) {
+			stateManager.setGlobalState(actProviderModelKey, modelId)
+		}
+		const planProviderModelKey = getProviderModelIdKey(provider, "plan")
+		if (planProviderModelKey) {
+			stateManager.setGlobalState(planProviderModelKey, modelId)
+		}
+
+		// Store the model override in the session for both modes
+		session.actModeModelId = params.modelId
+		session.planModeModelId = params.modelId
+
+		session.lastActivityAt = Date.now()
+
+		// Flush state changes
+		await stateManager.flushPendingState()
+
+		return {}
 	}
 
 	/**
@@ -278,14 +436,6 @@ export class AcpAgent implements acp.Agent {
 			const fileResources = params.prompt
 				.filter((block): block is acp.EmbeddedResource & { type: "resource" } => block.type === "resource")
 				.map((block) => block.resource.uri)
-
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Processing prompt:", {
-					textLength: textContent.length,
-					imageCount: imageContent.length,
-					fileCount: fileResources.length,
-				})
-			}
 
 			// Determine if this is a new task, continuation, or loaded session resume
 			const hasActiveTask = controller.task !== undefined
@@ -820,5 +970,69 @@ export class AcpAgent implements acp.Agent {
 			this.sessions.delete(sessionId)
 			this.sessionStates.delete(sessionId)
 		}
+	}
+
+	/**
+	 * Get available slash commands and send them to the client.
+	 *
+	 * This fetches commands from Cline's slash command system, filters out
+	 * CLI-only and VS Code-only commands, and converts them to ACP format.
+	 */
+	private async sendAvailableCommands(sessionId: string, controller: Controller): Promise<void> {
+		try {
+			// Get all available commands from Cline
+			const response = await getAvailableSlashCommands(controller, {})
+
+			// Filter out CLI-only and VS Code-only commands
+			const cliOnlyNames = new Set(CLI_ONLY_COMMANDS.map((c) => c.name))
+			const vscodeOnlyNames = new Set(VSCODE_ONLY_COMMANDS.map((c) => c.name))
+
+			const filteredCommands = response.commands.filter(
+				(cmd) => cmd.cliCompatible && !cliOnlyNames.has(cmd.name) && !vscodeOnlyNames.has(cmd.name),
+			)
+
+			// Convert to ACP AvailableCommand format
+			const availableCommands: acp.AvailableCommand[] = filteredCommands.map((cmd) => ({
+				name: cmd.name,
+				description: cmd.description,
+				input: {
+					hint: cmd.description,
+				},
+			}))
+
+			// Send the available_commands_update notification
+			await this.sendSessionUpdate(sessionId, {
+				sessionUpdate: "available_commands_update",
+				availableCommands,
+			})
+
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Sent available commands:", {
+					sessionId,
+					commandCount: availableCommands.length,
+					commands: availableCommands.map((c) => c.name),
+				})
+			}
+		} catch (error) {
+			if (this.options.debug) {
+				Logger.debug("[AcpAgent] Error sending available commands:", error)
+			}
+		}
+	}
+
+	/**
+	 * Get the list of supported slash commands.
+	 *
+	 * This includes built-in commands and any enabled workflow commands.
+	 */
+	private getSupportedSlashCommands(): string[] {
+		// Built-in commands that are always available
+		const builtInCommands = BASE_SLASH_COMMANDS.filter((cmd) => cmd.cliCompatible).map((cmd) => cmd.name)
+
+		// Filter out CLI-only and VSCode-only commands
+		const cliOnlyNames = new Set(CLI_ONLY_COMMANDS.map((c) => c.name))
+		const vscodeOnlyNames = new Set(VSCODE_ONLY_COMMANDS.map((c) => c.name))
+
+		return builtInCommands.filter((name) => !cliOnlyNames.has(name) && !vscodeOnlyNames.has(name))
 	}
 }
