@@ -8,8 +8,6 @@
  */
 
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
-import { writeFileSync } from "fs"
-import { Logger } from "@/shared/services/Logger"
 import { version as CLI_VERSION } from "../../../package.json"
 import { AcpAgent } from "./AcpAgent.js"
 import { nodeToWebReadable, nodeToWebWritable } from "./streamUtils.js"
@@ -71,14 +69,6 @@ export interface AcpModeOptions {
  */
 export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
 	redirectConsoleToStderr()
-
-	const fPath = "/tmp/cline-acp.log"
-	Logger.subscribe((msg: string) => {
-		if (!msg.includes("AcpAgent")) {
-			return
-		}
-		writeFileSync(fPath, msg + "\n", { flag: "a" })
-	})
 
 	const outputStream = nodeToWebWritable(process.stdout)
 	const inputStream = nodeToWebReadable(process.stdin)
