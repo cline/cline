@@ -54,10 +54,7 @@
 			"@utils/*": [
 				"src/utils/*"
 			]
-		},
-		"composite": true,
-		"declaration": true,
-		"declarationMap": true
+		}
 	},
 	"include": [
 		"src/**/*"
@@ -67,6 +64,7 @@
 		".vscode-test",
 		"webview-ui",
 		"src/test/e2e/**/*",
-		"cli-ts"
+		"cli-ts",
+		"src/test/scenarios/**/*"
 	]
 }
