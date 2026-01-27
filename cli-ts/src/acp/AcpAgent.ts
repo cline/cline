@@ -549,6 +549,7 @@ export class AcpAgent implements acp.Agent {
 		resolvePrompt: (response: acp.PromptResponse) => void,
 		promptResolved: { value: boolean },
 	): Promise<void> {
+		Logger.debug("[AcpAgent] handleClineMessagesChanged:", change)
 		try {
 			switch (change.type) {
 				case "add":
@@ -731,9 +732,13 @@ export class AcpAgent implements acp.Agent {
 
 		// Determine if this is a text-streaming message type that needs delta handling
 		const isTextStreamingMessage =
-			(message.type === "say" && (message.say === "text" || message.say === "reasoning")) ||
+			(message.type === "say" &&
+				(message.say === "text" || message.say === "reasoning" || message.say === "completion_result")) ||
 			(message.type === "ask" &&
-				(message.ask === "followup" || message.ask === "plan_mode_respond" || message.ask === "act_mode_respond"))
+				(message.ask === "followup" ||
+					message.ask === "plan_mode_respond" ||
+					message.ask === "act_mode_respond" ||
+					message.ask === "completion_result"))
 
 		if (isTextStreamingMessage && message.text) {
 			// Extract the actual text content for JSON-wrapped messages
