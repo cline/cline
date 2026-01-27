@@ -288,6 +288,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
+	const [userScrolled, setUserScrolled] = useState(false)
 
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -518,8 +519,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return { completedMessages: completed, currentMessage: current }
 	}, [displayMessages])
 
-	// Determine if we're in welcome state (no messages yet)
-	const isWelcomeState = displayMessages.length === 0
+	// Determine if we're in welcome state (no messages yet and user hasn't scrolled)
+	const isWelcomeState = displayMessages.length === 0 && !userScrolled
 
 	// Build Static items - each item is rendered once and stays above dynamic content
 	// We pass ALL completed messages to Static and let Ink handle deduplication by key.
@@ -529,9 +530,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			{ key: string; type: "header" } | { key: string; type: "message"; message: (typeof displayMessages)[0] }
 		> = []
 
-		// Add header as first item ONLY after messages start (so animated robot shows first)
-		// Once messages exist, add header to static so it scrolls up with history
-		if (displayMessages.length > 0) {
+		// Add header as first item ONLY after messages start or user scrolls (so animated robot shows first)
+		// Once messages exist or user scrolls, add header to static so it scrolls up with history
+		if (displayMessages.length > 0 || userScrolled) {
 			items.push({ key: "header", type: "header" })
 		}
 
@@ -541,7 +542,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 
 		return items
-	}, [completedMessages, displayMessages.length])
+	}, [completedMessages, displayMessages.length, userScrolled])
 
 	// Check for pending ask message
 	const lastMessage = messages[messages.length - 1]
@@ -947,10 +948,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			{/* Dynamic region - only current streaming message + input */}
 			<Box flexDirection="column" width="100%">
-				{/* Animated robot and welcome text - only shown before messages start */}
+				{/* Animated robot and welcome text - only shown before messages start and user hasn't scrolled */}
 				{isWelcomeState && (
 					<Box flexDirection="column" marginBottom={1}>
-						<AsciiMotionCli robotTopRow={robotTopRow} />
+						<AsciiMotionCli onScroll={() => setUserScrolled(true)} robotTopRow={robotTopRow} />
 						<Text> </Text>
 						<Text bold color="white">
 							{centerText("What can I do for you?")}
