@@ -186,8 +186,7 @@ export function getAxiosSettings(): { adapter?: any; fetch?: typeof globalThis.f
 export async function createOpenAIClient(options: OpenAIClientOptions): Promise<OpenAI> {
 	const externalHeaders = await buildExternalBasicHeaders()
 	return new OpenAI({
-		baseURL: options.baseURL,
-		apiKey: options.apiKey,
+		...options,
 		defaultHeaders: {
 			...externalHeaders,
 			...options.defaultHeaders,
