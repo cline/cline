@@ -23,6 +23,19 @@ Rules are loaded when Cline starts a task. Here's what happens:
 
 **Context management**: Rules count toward your context window. Keep them focused and use [conditional rules](/features/cline-rules/conditional-rules) to load only what's relevant.
 
+## Supported Rule Files
+
+Cline reads rules from multiple file formats in your workspace root, letting you share rules across different AI coding tools:
+
+| File/Folder | Source | Notes |
+|-------------|--------|-------|
+| `.clinerules/` | Cline | Folder with `.md` files (recommended) |
+| `.cursor/rules/` | Cursor | Folder with `.mdc` files |
+| `.windsurf/rules` | Windsurf | Folder with multiple `md` files |
+| `AGENTS.md` | Universal | Follows [agents.md](https://agents.md/) standard, searched recursively |
+
+Cline prioritizes `.clinerules` when present. Other formats load only if no `.clinerules` exists (except `AGENTS.md`, which always searches subdirectories). All rules appear in the Rules popover where you can toggle them.
+
 ## Creating Rules
 
 Click the `+` button in the Rules tab to create a new rule. This opens a file in your editor where you write your guidance.
@@ -172,12 +185,6 @@ Use functional components with hooks. Extract reusable logic into custom hooks.
 ```
 
 This rule activates only when working with files matching those patterns. Read the [Conditional Rules guide](/features/cline-rules/conditional-rules) for pattern syntax, behavior details, and more examples.
-
-## AGENTS.md Support
-
-<Note>
-Cline supports the [AGENTS.md](https://agents.md/) standard as a fallback. If no `.clinerules` file or folder exists, Cline reads `AGENTS.md` from your workspace root. This lets you use the same rules across multiple AI coding tools.
-</Note>
 
 ## Tips for Effective Rules
 
