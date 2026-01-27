@@ -12,13 +12,11 @@ import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import ModelPickerModal from "@/components/chat/ModelPickerModal"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -38,6 +36,7 @@ import {
 	shouldShowContextMenu,
 } from "@/utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
+import { createIconButtonProps, createModalTriggerButtonProps } from "@/utils/interactiveProps"
 import { isSafari } from "@/utils/platformUtils"
 import {
 	getMatchingSlashCommands,
@@ -103,7 +102,7 @@ interface GitCommit {
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
-const SwitchContainer = styled.div<{ disabled: boolean }>`
+const SwitchContainer = styled.button<{ disabled: boolean }>`
 	display: flex;
 	align-items: center;
 	background-color: transparent;
@@ -116,6 +115,10 @@ const SwitchContainer = styled.div<{ disabled: boolean }>`
 	transform-origin: right center;
 	margin-left: 0;
 	user-select: none; // Prevent text selection
+	padding: 0;
+	position: relative;
+	width: auto;
+	height: auto;
 `
 
 const Slider = styled.div.withConfig({
@@ -147,46 +150,6 @@ const ButtonContainer = styled.div`
 	width: 100%;
 `
 
-const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
-	position: fixed;
-	bottom: calc(100% + 9px);
-	left: 15px;
-	right: 15px;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 12px 12px 18px 12px;
-	border-radius: 3px;
-	z-index: 1000;
-	max-height: calc(100vh - 100px);
-	overflow-y: auto;
-	overscroll-behavior: contain;
-
-	// Add invisible padding for hover zone
-	&::before {
-		content: "";
-		position: fixed;
-		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px - 2px)`};
-		left: 0;
-		right: 0;
-		height: 8px;
-	}
-
-	// Arrow pointing down
-	&::after {
-		content: "";
-		position: fixed;
-		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px)`};
-		right: ${(props) => props.arrowPosition}px;
-		width: 10px;
-		height: 10px;
-		background: ${CODE_BLOCK_BG_COLOR};
-		border-right: 1px solid var(--vscode-editorGroup-border);
-		border-bottom: 1px solid var(--vscode-editorGroup-border);
-		transform: rotate(45deg);
-		z-index: -1;
-	}
-`
-
 const ModelContainer = styled.div`
 	position: relative;
 	display: flex;
@@ -200,7 +163,7 @@ const ModelButtonWrapper = styled.div`
 	max-width: 100%; // Don't overflow parent
 `
 
-const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
+const ModelDisplayButton = styled.button<{ isActive?: boolean; disabled?: boolean }>`
 	padding: 0px 0px;
 	height: 20px;
 	width: 100%;
@@ -211,13 +174,15 @@ const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
 	display: flex;
 	align-items: center;
 	font-size: 10px;
-	outline: none;
 	user-select: none;
 	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
 	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+	background: none;
+	border: none;
+	font-family: inherit;
 
 	&:hover,
-	&:focus {
+	&:focus:not(:focus-visible) {
 		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
 		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
 		outline: none;
@@ -226,11 +191,11 @@ const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
 	&:active {
 		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
 		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
-		outline: none;
 	}
 
 	&:focus-visible {
-		outline: none;
+		outline: 2px solid var(--vscode-focusBorder);
+		outline-offset: 2px;
 	}
 `
 
@@ -300,13 +265,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
-		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
-		const [arrowPosition, setArrowPosition] = useState(0)
-		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
+
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
-		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
@@ -315,9 +277,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-
-		// Add a ref to track previous menu state
-		const prevShowModelSelector = useRef(showModelSelector)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -1189,20 +1148,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [apiConfiguration, mode])
 
-		// Calculate arrow position and menu position based on button location
-		useEffect(() => {
-			if (showModelSelector && buttonRef.current) {
-				const buttonRect = buttonRef.current.getBoundingClientRect()
-				const buttonCenter = buttonRect.left + buttonRect.width / 2
-
-				// Calculate distance from right edge of viewport using viewport coordinates
-				const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
-
-				setArrowPosition(rightPosition)
-				setMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
-			}
-		}, [showModelSelector, viewportWidth, viewportHeight])
-
 		useEffect(() => {
 			if (!showModelSelector) {
 				// Attempt to save if possible
@@ -1452,7 +1397,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		return (
 			<div>
-				<div
+				<section
+					aria-label="Chat input area"
 					className="relative flex transition-colors ease-in-out duration-100 px-3.5 py-2.5"
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}
@@ -1693,38 +1639,42 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								/>
 							)}
 							{!isVoiceRecording && (
-								<div
+								<button
+									{...createIconButtonProps("Send message", () => {
+										if (!sendingDisabled) {
+											setIsTextAreaFocused(false)
+											onSend()
+										}
+									})}
 									className={cn(
 										"input-icon-button",
 										{ disabled: sendingDisabled },
 										"codicon codicon-send text-sm",
 									)}
 									data-testid="send-button"
-									onClick={() => {
-										if (!sendingDisabled) {
-											setIsTextAreaFocused(false)
-											onSend()
-										}
-									}}
+									disabled={sendingDisabled}
 								/>
 							)}
 						</div>
 					</div>
-				</div>
+				</section>
 				<div className="flex justify-between items-center -mt-[2px] px-3 pb-2">
 					{/* Always render both components, but control visibility with CSS */}
 					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
-						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
+						<ButtonGroup
+							aria-label="Chat actions"
+							className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip>
 								<TooltipContent>Add Context</TooltipContent>
-								<TooltipTrigger>
+								<TooltipTrigger asChild>
 									<VSCodeButton
 										appearance="icon"
 										aria-label="Add Context"
 										className="p-0 m-0 flex items-center"
 										data-testid="context-button"
-										onClick={handleContextButtonClick}>
+										onClick={handleContextButtonClick}
+										tabIndex={0}>
 										<ButtonContainer>
 											<AtSignIcon size={12} />
 										</ButtonContainer>
@@ -1734,7 +1684,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 							<Tooltip>
 								<TooltipContent>Add Files & Images</TooltipContent>
-								<TooltipTrigger>
+								<TooltipTrigger asChild>
 									<VSCodeButton
 										appearance="icon"
 										aria-label="Add Files & Images"
@@ -1745,7 +1695,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											if (!shouldDisableFilesAndImages) {
 												onSelectFilesAndImages()
 											}
-										}}>
+										}}
+										tabIndex={0}>
 										<ButtonContainer>
 											<PlusIcon size={13} />
 										</ButtonContainer>
@@ -1753,9 +1704,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</TooltipTrigger>
 							</Tooltip>
 
-							<ServersToggleModal />
+							<ServersToggleModal tabIndex={0} />
 
-							<ClineRulesToggleModal />
+							<ClineRulesToggleModal tabIndex={0} />
 
 							<ModelContainer ref={modelSelectorRef}>
 								<ModelPickerModal
@@ -1764,12 +1715,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									onOpenChange={setShowModelSelector}>
 									<ModelButtonWrapper ref={buttonRef}>
 										<ModelDisplayButton
+											{...createModalTriggerButtonProps(
+												"Select Model / API Provider",
+												handleModelButtonClick,
+											)}
 											disabled={false}
 											isActive={showModelSelector}
-											onClick={handleModelButtonClick}
-											role="button"
-											tabIndex={0}
-											title="Select Model / API Provider">
+											tabIndex={0}>
 											<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
 										</ModelDisplayButton>
 									</ModelButtonWrapper>
@@ -1788,8 +1740,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
-						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+						<TooltipTrigger asChild>
+							<SwitchContainer
+								aria-label={`Toggle between Plan and Act modes. Currently in ${mode} mode.`}
+								data-testid="mode-switch"
+								disabled={false}
+								onClick={onModeToggle}
+								role="group"
+								type="button">
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
@@ -1798,6 +1756,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
 										)}
+										key={m}
 										onMouseLeave={() => setShownTooltipMode(null)}
 										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
 										role="switch">
@@ -1812,11 +1771,5 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 	},
 )
-
-// Update TypeScript interface for styled-component props
-interface ModelSelectorTooltipProps {
-	arrowPosition: number
-	menuPosition: number
-}
 
 export default ChatTextArea

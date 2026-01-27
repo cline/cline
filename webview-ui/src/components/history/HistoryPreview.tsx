@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { createBaseButtonProps } from "@/utils/interactiveProps"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -38,6 +39,10 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						display: flex;
 						align-items: flex-start;
 						gap: 12px;
+						border: none;
+						width: 100%;
+						text-align: left;
+						font: inherit;
 					}
 					.history-preview-item:hover {
 						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
@@ -130,10 +135,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				</div>
 				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
 					<button
-						aria-label="View all history"
-						className="history-view-all-btn"
-						onClick={() => showHistoryView()}
-						type="button">
+						{...createBaseButtonProps("View all history", () => showHistoryView())}
+						className="history-view-all-btn">
 						View All
 						<span className="codicon codicon-chevron-right" />
 					</button>
@@ -147,16 +150,20 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							.filter((item) => item.ts && item.task)
 							.slice(0, 3)
 							.map((item) => (
-								<div className="history-preview-item" key={item.id} onClick={() => handleHistorySelect(item.id)}>
+								<button
+									{...createBaseButtonProps(`View task: ${item.task}`, () => handleHistorySelect(item.id))}
+									className="history-preview-item"
+									key={item.id}>
 									<div className="history-task-content">
 										{item.isFavorited && (
 											<span
-												aria-label="Favorited"
+												aria-hidden="true"
 												className="codicon codicon-star-full"
 												style={{
 													color: "var(--vscode-button-background)",
 													flexShrink: 0,
 												}}
+												title="Favorited"
 											/>
 										)}
 										<div className="history-task-description ph-no-capture">{item.task}</div>
@@ -167,7 +174,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
 										)}
 									</div>
-								</div>
+								</button>
 							))
 					) : (
 						<div

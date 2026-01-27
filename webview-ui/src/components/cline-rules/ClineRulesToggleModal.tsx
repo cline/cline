@@ -11,21 +11,35 @@ import {
 	ToggleWindsurfRuleRequest,
 	ToggleWorkflowRequest,
 } from "@shared/proto/cline/file"
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useRef, useState } from "react"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
 import PopupModalContainer from "@/components/common/PopupModalContainer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
+import { createButtonStyle, createModalTriggerButtonProps } from "@/utils/interactiveProps"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import HookRow from "./HookRow"
 import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
 import RulesToggleList from "./RulesToggleList"
 
-const ClineRulesToggleModal: React.FC = () => {
+export interface ClineRulesToggleModalHandle {
+	focus: () => void
+}
+
+interface ClineRulesToggleModalProps {
+	onKeyDown?: React.KeyboardEventHandler<HTMLElement>
+	tabIndex?: number
+	onFocus?: () => void
+}
+
+function ClineRulesToggleModalInner(
+	{ onKeyDown, tabIndex, onFocus }: ClineRulesToggleModalProps,
+	ref: React.ForwardedRef<ClineRulesToggleModalHandle>,
+) {
 	const {
 		globalClineRulesToggles = {},
 		localClineRulesToggles = {},
@@ -34,8 +48,8 @@ const ClineRulesToggleModal: React.FC = () => {
 		localAgentsRulesToggles = {},
 		localWorkflowToggles = {},
 		globalWorkflowToggles = {},
-		globalSkillsToggles = {},
-		localSkillsToggles = {},
+		globalSkillsToggles: _globalSkillsToggles = {},
+		localSkillsToggles: _localSkillsToggles = {},
 		remoteRulesToggles = {},
 		remoteWorkflowToggles = {},
 		remoteConfigSettings = {},
@@ -62,12 +76,19 @@ const ClineRulesToggleModal: React.FC = () => {
 
 	const isWindows = !isMacOSOrLinux()
 	const [isVisible, setIsVisible] = useState(false)
-	const buttonRef = useRef<HTMLDivElement>(null)
-	const modalRef = useRef<HTMLDivElement>(null)
+	const wrapperRef = useRef<HTMLDivElement>(null)
+	const triggerWrapperRef = useRef<HTMLButtonElement>(null)
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
 	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks" | "skills">("rules")
+
+	const buttonRef = useRef<HTMLDivElement>(null)
+	const popupContainerRef = useRef<HTMLDivElement>(null)
+
+	useImperativeHandle(ref, () => ({
+		focus: () => triggerWrapperRef.current?.focus(),
+	}))
 
 	// Auto-switch to rules tab if hooks become disabled while viewing hooks tab
 	useEffect(() => {
@@ -134,7 +155,9 @@ const ClineRulesToggleModal: React.FC = () => {
 
 		// Initial refresh when tab opens
 		const refreshHooks = () => {
-			if (abortController.signal.aborted) return
+			if (abortController.signal.aborted) {
+				return
+			}
 
 			FileServiceClient.refreshHooks({} as EmptyRequest)
 				.then((response) => {
@@ -171,7 +194,9 @@ const ClineRulesToggleModal: React.FC = () => {
 		let isCancelled = false
 
 		const refreshSkills = () => {
-			if (isCancelled) return
+			if (isCancelled) {
+				return
+			}
 
 			FileServiceClient.refreshSkills({} as EmptyRequest)
 				.then((response) => {
@@ -423,7 +448,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	// Close modal when clicking outside
-	useClickAway(modalRef, () => {
+	useClickAway(wrapperRef, () => {
 		setIsVisible(false)
 	})
 
@@ -440,24 +465,31 @@ const ClineRulesToggleModal: React.FC = () => {
 	}, [isVisible, viewportWidth, viewportHeight])
 
 	return (
-		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
+		<div className="inline-flex min-w-0 max-w-full items-center" ref={wrapperRef}>
 			<div className="inline-flex w-full items-center" ref={buttonRef}>
 				<Tooltip>
 					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
-					<TooltipTrigger>
-						<VSCodeButton
-							appearance="icon"
-							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							className="p-0 m-0 flex items-center"
-							onClick={() => setIsVisible(!isVisible)}>
+					<TooltipTrigger asChild>
+						<button
+							{...createModalTriggerButtonProps(
+								isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows",
+								() => setIsVisible(!isVisible),
+								{ popupType: "dialog" },
+							)}
+							aria-expanded={isVisible}
+							onFocus={onFocus}
+							onKeyDown={onKeyDown}
+							ref={triggerWrapperRef}
+							style={createButtonStyle.flexReset()}
+							tabIndex={tabIndex}>
 							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
-						</VSCodeButton>
+						</button>
 					</TooltipTrigger>
 				</Tooltip>
 			</div>
 
 			{isVisible && (
-				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition}>
+				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition} ref={popupContainerRef}>
 					{/* Fixed header section - tabs and description */}
 					<div className="flex-shrink-0 px-2 pt-0">
 						{/* Tabs container */}
@@ -832,6 +864,10 @@ const ClineRulesToggleModal: React.FC = () => {
 		</div>
 	)
 }
+
+const ClineRulesToggleModal = forwardRef(ClineRulesToggleModalInner)
+
+ClineRulesToggleModal.displayName = "ClineRulesToggleModal"
 
 const StyledTabButton = styled.button<{ isActive: boolean }>`
 	background: none;

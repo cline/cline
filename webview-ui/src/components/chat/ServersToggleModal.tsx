@@ -2,22 +2,43 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useRef, useState } from "react"
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import PopupModalContainer from "@/components/common/PopupModalContainer"
 import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
+import { createButtonStyle, createModalTriggerButtonProps } from "@/utils/interactiveProps"
 
-const ServersToggleModal: React.FC = () => {
+export interface ServersToggleModalHandle {
+	focus: () => void
+}
+
+interface ServersToggleModalProps {
+	onKeyDown?: React.KeyboardEventHandler<HTMLElement>
+	tabIndex?: number
+	onFocus?: () => void
+}
+
+function ServersToggleModalInner(
+	{ onKeyDown, tabIndex, onFocus }: ServersToggleModalProps,
+	ref: React.ForwardedRef<ServersToggleModalHandle>,
+) {
 	const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
-	const buttonRef = useRef<HTMLDivElement>(null)
-	const modalRef = useRef<HTMLDivElement>(null)
+	const wrapperRef = useRef<HTMLDivElement>(null)
+	const triggerWrapperRef = useRef<HTMLButtonElement>(null)
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
+
+	const buttonRef = useRef<HTMLDivElement>(null)
+	const popupContainerRef = useRef<HTMLDivElement>(null)
+
+	useImperativeHandle(ref, () => ({
+		focus: () => triggerWrapperRef.current?.focus(),
+	}))
 
 	useEffect(() => {
 		if (isVisible) {
@@ -35,7 +56,7 @@ const ServersToggleModal: React.FC = () => {
 	}, [isVisible, setMcpServers])
 
 	// Close modal when clicking outside
-	useClickAway(modalRef, () => {
+	useClickAway(wrapperRef, () => {
 		setIsVisible(false)
 	})
 
@@ -52,24 +73,31 @@ const ServersToggleModal: React.FC = () => {
 	}, [isVisible, viewportWidth, viewportHeight])
 
 	return (
-		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
+		<div className="inline-flex min-w-0 max-w-full items-center" ref={wrapperRef}>
 			<div className="inline-flex w-full items-center" ref={buttonRef}>
 				<Tooltip>
 					{!isVisible && <TooltipContent>Manage MCP Servers</TooltipContent>}
-					<TooltipTrigger>
-						<VSCodeButton
-							appearance="icon"
-							aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
-							className="p-0 m-0 flex items-center"
-							onClick={() => setIsVisible(!isVisible)}>
+					<TooltipTrigger asChild>
+						<button
+							{...createModalTriggerButtonProps(
+								isVisible ? "Hide MCP Servers" : "Show MCP Servers",
+								() => setIsVisible(!isVisible),
+								{ popupType: "dialog" },
+							)}
+							aria-expanded={isVisible}
+							onFocus={onFocus}
+							onKeyDown={onKeyDown}
+							ref={triggerWrapperRef}
+							style={createButtonStyle.flexReset()}
+							tabIndex={tabIndex}>
 							<i className="codicon codicon-server" style={{ fontSize: "12.5px" }} />
-						</VSCodeButton>
+						</button>
 					</TooltipTrigger>
 				</Tooltip>
 			</div>
 
 			{isVisible && (
-				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition}>
+				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition} ref={popupContainerRef}>
 					<div className="flex-shrink-0 px-3 pt-2">
 						<div className="flex justify-between items-center mb-2.5">
 							<div className="m-0 text-sm font-medium">MCP Servers</div>
@@ -93,5 +121,9 @@ const ServersToggleModal: React.FC = () => {
 		</div>
 	)
 }
+
+const ServersToggleModal = forwardRef(ServersToggleModalInner)
+
+ServersToggleModal.displayName = "ServersToggleModal"
 
 export default ServersToggleModal

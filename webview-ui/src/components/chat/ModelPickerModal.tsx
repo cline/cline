@@ -10,6 +10,7 @@ import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import PopupModalContainer from "@/components/common/PopupModalContainer"
+import { createButtonStyle, createIconButtonProps } from "@/utils/interactiveProps"
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
@@ -65,23 +66,16 @@ interface ModelItem {
 
 // Star icon for favorites (only for openrouter/vercel-ai-gateway providers)
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
-	return (
-		<div
-			onClick={onClick}
-			style={{
-				cursor: "pointer",
-				color: isFavorite ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)",
-				marginLeft: "8px",
-				fontSize: "14px",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				userSelect: "none",
-				WebkitUserSelect: "none",
-			}}>
-			{isFavorite ? "★" : "☆"}
-		</div>
-	)
+	const buttonProps = {
+		...createIconButtonProps(isFavorite ? "Remove from favorites" : "Add to favorites", onClick),
+		style: createButtonStyle.icon({
+			color: isFavorite ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)",
+			marginLeft: "8px",
+			fontSize: "14px",
+		}),
+	}
+
+	return <button {...buttonProps}>{isFavorite ? "★" : "☆"}</button>
 }
 
 const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChange, currentMode, children }) => {
@@ -108,14 +102,14 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [isProviderExpanded, setIsProviderExpanded] = useState(false)
 	const [providerDropdownPosition, setProviderDropdownPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 200 })
-	const [selectedIndex, setSelectedIndex] = useState(-1) // For keyboard navigation
 	const searchInputRef = useRef<HTMLInputElement>(null)
-	const triggerRef = useRef<HTMLDivElement>(null)
-	const modalRef = useRef<HTMLDivElement>(null)
 	const providerRowRef = useRef<HTMLDivElement>(null)
 	const providerDropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([]) // For scrollIntoView
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
+
+	const triggerRef = useRef<HTMLDivElement>(null)
+	const popupContainerRef = useRef<HTMLDivElement>(null)
 
 	// Get current provider from config - use activeEditMode when in split mode
 	const effectiveMode = planActSeparateModelsSetting ? activeEditMode : currentMode
@@ -400,34 +394,49 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	)
 
 	// Keyboard navigation handler
-	const handleKeyDown = useCallback(
-		(e: React.KeyboardEvent<HTMLInputElement>) => {
-			const totalItems = filteredModels.length + featuredModels.length
-			if (totalItems === 0) {
-				return
+	const totalItems = filteredModels.length + featuredModels.length
+
+	const handleListboxSelect = useCallback(
+		(index: number) => {
+			if (index >= 0) {
+				if (index < featuredModels.length) {
+					const model = featuredModels[index]
+					handleSelectModel(model.id, openRouterModels[model.id])
+				} else {
+					const model = filteredModels[index - featuredModels.length]
+					handleSelectModel(model.id, model.info)
+				}
 			}
+		},
+		[featuredModels, filteredModels, handleSelectModel, openRouterModels],
+	)
+
+	const [selectedIndex, setSelectedIndex] = useState(-1)
+
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLElement>) => {
+			if (!isOpen || totalItems === 0) return
 
 			switch (e.key) {
 				case "ArrowDown":
 					e.preventDefault()
-					setSelectedIndex((prev) => (prev < totalItems - 1 ? prev + 1 : prev))
+					setSelectedIndex((prev) => Math.min(prev + 1, totalItems - 1))
 					break
 				case "ArrowUp":
 					e.preventDefault()
-					setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+					setSelectedIndex((prev) => Math.max(prev - 1, 0))
+					break
+				case "Home":
+					e.preventDefault()
+					setSelectedIndex(0)
+					break
+				case "End":
+					e.preventDefault()
+					setSelectedIndex(totalItems - 1)
 					break
 				case "Enter":
 					e.preventDefault()
-					if (selectedIndex >= 0) {
-						// Determine which list the index falls into
-						if (selectedIndex < featuredModels.length) {
-							const model = featuredModels[selectedIndex]
-							handleSelectModel(model.id, openRouterModels[model.id])
-						} else {
-							const model = filteredModels[selectedIndex - featuredModels.length]
-							handleSelectModel(model.id, model.info)
-						}
-					}
+					if (selectedIndex >= 0) handleListboxSelect(selectedIndex)
 					break
 				case "Escape":
 					e.preventDefault()
@@ -435,7 +444,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					break
 			}
 		},
-		[filteredModels, featuredModels, selectedIndex, handleSelectModel, openRouterModels, onOpenChange],
+		[isOpen, totalItems, selectedIndex, handleListboxSelect, onOpenChange],
 	)
 
 	// Reset selectedIndex and clear refs when search/provider changes
@@ -483,7 +492,6 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 	}, [isOpen, viewportWidth, viewportHeight])
 
-	// Handle click outside to close
 	useEffect(() => {
 		if (!isOpen) {
 			return
@@ -492,8 +500,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		const handleClickOutside = (e: MouseEvent) => {
 			// Don't close if clicking inside modal, trigger, or provider dropdown portal
 			if (
-				modalRef.current &&
-				!modalRef.current.contains(e.target as Node) &&
+				popupContainerRef.current &&
+				!popupContainerRef.current.contains(e.target as Node) &&
 				triggerRef.current &&
 				!triggerRef.current.contains(e.target as Node) &&
 				(!providerDropdownRef.current || !providerDropdownRef.current.contains(e.target as Node))
@@ -511,23 +519,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 			clearTimeout(timeoutId)
 			document.removeEventListener("mousedown", handleClickOutside)
 		}
-	}, [isOpen, onOpenChange])
-
-	// Handle escape key
-	useEffect(() => {
-		if (!isOpen) {
-			return
-		}
-
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				onOpenChange(false)
-			}
-		}
-
-		document.addEventListener("keydown", handleEscape)
-		return () => document.removeEventListener("keydown", handleEscape)
-	}, [isOpen, onOpenChange])
+	}, [isOpen, onOpenChange, popupContainerRef, triggerRef])
 
 	// Close modal when navigating to other views (settings, MCP, history, account)
 	useEffect(() => {
@@ -555,7 +547,21 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	return (
 		<>
 			{/* Trigger wrapper */}
-			<div onClick={handleTriggerClick} ref={triggerRef} style={{ cursor: "pointer", display: "inline", minWidth: 0 }}>
+			<div
+				aria-expanded={isOpen}
+				aria-haspopup="dialog"
+				aria-label="Open model picker"
+				onClick={handleTriggerClick}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						handleTriggerClick()
+					}
+				}}
+				ref={triggerRef}
+				role="button"
+				style={{ cursor: "pointer", display: "inline", minWidth: 0 }}
+				tabIndex={0}>
 				{children}
 			</div>
 
@@ -567,7 +573,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 						$bottomOffset={5}
 						$maxHeight="18em"
 						$menuPosition={menuPosition}
-						ref={modalRef}>
+						ref={popupContainerRef}>
 						{/* Search */}
 						<SearchContainer>
 							<Search size={14} style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }} />
@@ -605,7 +611,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 													setProviderDropdownPosition({
 														top: shouldFlipUp ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
 														left: rect.left,
-														width: modalRef.current?.getBoundingClientRect().width || rect.width,
+														width:
+															popupContainerRef.current?.getBoundingClientRect().width ||
+															rect.width,
 														maxHeight: shouldFlipUp ? rect.top - 10 : spaceBelow - 10,
 													})
 												}
