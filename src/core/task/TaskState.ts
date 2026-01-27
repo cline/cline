@@ -69,4 +69,7 @@ export class TaskState {
 	// Auto-context summarization
 	currentlySummarizing: boolean = false
 	lastAutoCompactTriggerIndex?: number
+
+	// Zoro integration - stop after single step execution
+	zoroStepMode: boolean = false
 }

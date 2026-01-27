@@ -2996,6 +2996,12 @@ export class Task {
 				return true
 			}
 
+			// Check if this was a Zoro step that should stop the loop
+			if (this.taskState.zoroStepMode) {
+				this.taskState.zoroStepMode = false
+				return true // Stop the task loop after this step
+			}
+
 			return didEndLoop // will always be false for now
 		} catch (_error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)

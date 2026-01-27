@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+import "cline/state.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service ZoroService {
+  rpc executeStep(ExecuteStepRequest) returns (ExecuteStepResponse);
+  rpc executeRule(ExecuteRuleRequest) returns (ExecuteStepResponse);
+  rpc executeSubstep(ExecuteSubstepRequest) returns (ExecuteStepResponse);
+  rpc getPlanStatus(GetPlanStatusRequest) returns (GetPlanStatusResponse);
+}
+
+message ExecuteStepRequest {
+  Metadata metadata = 1;
+  string chat_id = 2;
+  string step_id = 3;
+}
+
+message ExecuteRuleRequest {
+  Metadata metadata = 1;
+  string chat_id = 2;
+  string step_id = 3;
+  string rule_id = 4;
+}
+
+message ExecuteSubstepRequest {
+  Metadata metadata = 1;
+  string chat_id = 2;
+  string step_id = 3;
+  string substep_id = 4;
+}
+
+message ExecuteStepResponse {
+  string verdict = 1;
+  string message = 2;
+  repeated string tracking_commands = 3;
+  string action_text = 4;
+}
+
+message GetPlanStatusRequest {
+  Metadata metadata = 1;
+  string chat_id = 2;
+}
+
+message GetPlanStatusResponse {
+  bool success = 1;
+  string current_step = 2;
+  int32 total_steps = 3;
+  int32 completed_steps = 4;
+}

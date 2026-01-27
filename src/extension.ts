@@ -14,7 +14,7 @@ import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
+import "./utils/path"; // necessary to have access to String.prototype.toPosix
 
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
@@ -61,6 +61,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
+	console.log("🚀🚀🚀 RUNNING LOCAL CLINE FORK - ZORO INTEGRATION VERSION 🚀🚀🚀")
 	setupHostProvider(context)
 
 	// Initialize hook discovery cache for performance optimization
@@ -89,7 +90,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
-	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
+	const { startEnforcementServer } = await import("./integrations/zoro/enforcement-server")
+	startEnforcementServer(webview.controller)
+
 	ClineTempManager.startPeriodicCleanup()
 
 	Logger.log("Cline extension activated")
@@ -648,7 +651,6 @@ async function getBinaryLocation(name: string): Promise<string> {
 export async function deactivate() {
 	Logger.log("Cline extension deactivating, cleaning up resources...")
 
-	// Stop periodic temp file cleanup
 	ClineTempManager.stopPeriodicCleanup()
 
 	tearDown()

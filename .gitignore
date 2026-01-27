@@ -46,3 +46,7 @@ test-results
 /pkg
 .secrets
 
+
+# Zoro learning system - user-specific data
+.zoro/
+.clinerules/
