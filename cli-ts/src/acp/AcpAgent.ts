@@ -202,141 +202,6 @@ export class AcpAgent implements acp.Agent {
 	}
 
 	/**
-	 * Load an existing session from disk.
-	 *
-	 * This allows resuming a previous conversation. The agent will
-	 * replay the conversation history via session updates.
-	 */
-	async loadSession(params: acp.LoadSessionRequest): Promise<acp.LoadSessionResponse> {
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] loadSession called:", {
-				sessionId: params.sessionId,
-				cwd: params.cwd,
-			})
-		}
-
-		// Check if session exists in our active sessions
-		let session = this.sessions.get(params.sessionId)
-
-		if (!session) {
-			// Try to load from task history
-			const historyItem = await this.findTaskInHistory(params.sessionId)
-
-			if (!historyItem) {
-				throw new Error(`Session not found: ${params.sessionId}`)
-			}
-
-			// Create Controller for this session
-			const controller = new Controller(this.ctx.extensionContext)
-
-			// Recreate session from history with all resources
-			session = {
-				sessionId: params.sessionId,
-				cwd: params.cwd,
-				mode: "act", // Will be updated from task settings if available
-				mcpServers: params.mcpServers ?? [],
-				createdAt: historyItem.ts,
-				lastActivityAt: Date.now(),
-				isLoadedFromHistory: true, // Mark session as loaded from history so prompt() knows to resume
-				controller,
-			}
-
-			this.sessions.set(params.sessionId, session)
-
-			// Initialize session state
-			const sessionState: AcpSessionState = {
-				sessionId: params.sessionId,
-				isProcessing: false,
-				cancelled: false,
-				pendingToolCalls: new Map(),
-			}
-
-			this.sessionStates.set(params.sessionId, sessionState)
-
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Session loaded with resources:", {
-					sessionId: params.sessionId,
-					hasController: !!controller,
-				})
-			}
-
-			// Replay conversation history via session updates
-			// 	await this.replayConversationHistory(params.sessionId, sessionState)
-		}
-
-		return {
-			modes: {
-				availableModes: [
-					{ id: "plan", name: "Plan", description: "Gather information and create a detailed plan" },
-					{ id: "act", name: "Act", description: "Execute actions to accomplish the task" },
-				],
-				currentModeId: session.mode,
-			},
-		}
-	}
-
-	/**
-	 * Replay conversation history from disk via session updates.
-	 *
-	 * This loads saved ClineMessages from the task directory and
-	 * translates them to ACP SessionUpdates, sending each to the client
-	 * to reconstruct the conversation state in the UI.
-	 */
-	// private async replayConversationHistory(sessionId: string): Promise<void> {
-	// 	try {
-	// 		// Dynamically import disk utilities to avoid circular dependencies
-	// 		const { getSavedClineMessages } = await import("@core/storage/disk")
-	//
-	// 		// Load saved UI messages from disk
-	// 		const uiMessages = await getSavedClineMessages(sessionId)
-	//
-	// 		if (uiMessages.length === 0) {
-	// 			if (this.options.debug) {
-	// 				Logger.debug("[AcpAgent] No saved messages found for session:", sessionId)
-	// 			}
-	// 			return
-	// 		}
-	//
-	// 		if (this.options.debug) {
-	// 			Logger.debug("[AcpAgent] Replaying conversation history:", {
-	// 				sessionId,
-	// 				messageCount: uiMessages.length,
-	// 			})
-	// 		}
-	//
-	// 		// Create a temporary session state for translation to avoid polluting the real state
-	// 		const replayState = createSessionState(sessionId)
-	//
-	// 		// Translate all messages to ACP updates
-	// 		const updates = translateMessages(uiMessages, replayState)
-	//
-	// 		if (this.options.debug) {
-	// 			Logger.debug("[AcpAgent] Generated updates for replay:", {
-	// 				sessionId,
-	// 				updateCount: updates.length,
-	// 			})
-	// 		}
-	//
-	// 		// Send all updates to the client to reconstruct conversation state
-	// 		for (const update of updates) {
-	// 			await this.sendSessionUpdate(sessionId, update)
-	// 		}
-	//
-	// 		if (this.options.debug) {
-	// 			Logger.debug("[AcpAgent] Conversation history replay complete:", sessionId)
-	// 		}
-	// 	} catch (error) {
-	// 		// Log error but don't fail the session load - client will still have a valid session
-	// 		if (this.options.debug) {
-	// 			Logger.debug("[AcpAgent] Error replaying conversation history:", {
-	// 				sessionId,
-	// 				error: error instanceof Error ? error.message : String(error),
-	// 			})
-	// 		}
-	// 	}
-	// }
-
-	/**
 	 * Handle a user prompt.
 	 *
 	 * This is the main entry point for user interaction. The agent
@@ -626,12 +491,28 @@ export class AcpAgent implements acp.Agent {
 	/**
 	 * Handle a partial message update (streaming content).
 	 * Computes deltas and sends only the new content as chunks.
+	 *
+	 * Only streams text for appropriate message types:
+	 * - say="text" → stream as agent_message_chunk
+	 * - say="reasoning" or reasoning field → stream as agent_thought_chunk
+	 * - say="tool" and other types → skip (handled by translateMessage via handleStateUpdate)
 	 */
 	private async handlePartialMessage(
 		sessionId: string,
 		_sessionState: AcpSessionState,
 		message: ClineMessageType,
 	): Promise<void> {
+		// Only stream text content for actual text messages
+		// Tool messages (say="tool") contain JSON that should be translated to tool_call updates,
+		// not emitted as raw agent text. Let handleStateUpdate/translateMessage handle those.
+		const isTextMessage = message.type === "say" && message.say === "text"
+		const isReasoningMessage = message.type === "say" && message.say === "reasoning"
+
+		// Skip non-streamable message types
+		if (!isTextMessage && !isReasoningMessage && !message.reasoning) {
+			return
+		}
+
 		const messageKey = message.ts
 		const lastContent = this.partialMessageLastContent.get(messageKey) ?? { text: "", reasoning: "" }
 
@@ -653,7 +534,7 @@ export class AcpAgent implements acp.Agent {
 			reasoning: currentReasoning,
 		})
 
-		// Send delta chunks directly
+		// Send reasoning delta as thought chunk
 		if (reasoningDelta) {
 			await this.sendSessionUpdate(sessionId, {
 				sessionUpdate: "agent_thought_chunk",
@@ -661,7 +542,8 @@ export class AcpAgent implements acp.Agent {
 			})
 		}
 
-		if (textDelta) {
+		// Only send text delta for actual text messages (not tool JSON)
+		if (textDelta && isTextMessage) {
 			await this.sendSessionUpdate(sessionId, {
 				sessionUpdate: "agent_message_chunk",
 				content: { type: "text", text: textDelta },
@@ -818,37 +700,6 @@ export class AcpAgent implements acp.Agent {
 				Logger.debug("[AcpAgent] Error sending session update:", error)
 			}
 		}
-	}
-
-	/**
-	 * Request permission from the client for a tool operation.
-	 */
-	async requestPermission(
-		sessionId: string,
-		toolCall: acp.ToolCall,
-		options: acp.PermissionOption[],
-	): Promise<acp.RequestPermissionResponse> {
-		return this.connection.requestPermission({
-			sessionId,
-			toolCall,
-			options,
-		})
-	}
-
-	/**
-	 * Find a task in the task history by ID.
-	 * Uses the global StateManager singleton to access task history.
-	 */
-	private async findTaskInHistory(taskId: string): Promise<
-		| {
-				id: string
-				ts: number
-				task: string
-		  }
-		| undefined
-	> {
-		const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") ?? []
-		return taskHistory.find((item: { id: string }) => item.id === taskId)
 	}
 
 	async shutdown(): Promise<void> {
