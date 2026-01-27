@@ -1,5 +1,6 @@
 import type { ApiProviderInfo } from "@core/api"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { McpPromptResponse } from "@shared/mcp"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
@@ -14,6 +15,11 @@ import {
 	subagentToolResponse,
 } from "../prompts/commands"
 import { StateManager } from "../storage/StateManager"
+
+/**
+ * Callback type for fetching MCP prompts
+ */
+export type McpPromptFetcher = (serverName: string, promptName: string) => Promise<McpPromptResponse | null>
 
 type FileBasedWorkflow = {
 	fullPath: string
@@ -42,6 +48,7 @@ export async function parseSlashCommands(
 	focusChainSettings?: { enabled: boolean },
 	enableNativeToolCalls?: boolean,
 	providerInfo?: ApiProviderInfo,
+	mcpPromptFetcher?: McpPromptFetcher,
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = [
 		"newtask",
@@ -79,10 +86,10 @@ export async function parseSlashCommands(
 	// Regex to find slash commands anywhere in text (not just at the beginning).
 	// This mirrors how @ mentions work - they can appear anywhere in a message.
 	//
-	// Pattern breakdown: /(^|\s)\/([a-zA-Z0-9_.-]+)(?=\s|$)/
+	// Pattern breakdown: /(^|\s)\/([a-zA-Z0-9_.:@-]+)(?=\s|$)/
 	//   - (^|\s)  : Must be at start of string OR preceded by whitespace
 	//   - \/      : The literal slash character
-	//   - ([a-zA-Z0-9_.-]+) : The command name (letters, numbers, underscore, dot, hyphen)
+	//   - ([a-zA-Z0-9_.:@-]+) : The command name (letters, numbers, underscore, dot, hyphen, colon, @)
 	//   - (?=\s|$): Must be followed by whitespace or end of string (lookahead)
 	//
 	// This safely avoids false matches in:
@@ -91,7 +98,8 @@ export async function parseSlashCommands(
 	//   - Partial words: "foo/bar" - same reason
 	//
 	// Only ONE slash command per message is processed (first match found).
-	const slashCommandInTextRegex = /(^|\s)\/([a-zA-Z0-9_.-]+)(?=\s|$)/
+	// Note: Colons are allowed to support MCP prompt commands like /mcp:server:prompt
+	const slashCommandInTextRegex = /(^|\s)\/([a-zA-Z0-9_.:@-]+)(?=\s|$)/
 
 	// Helper function to calculate positions and remove slash command from text
 	const removeSlashCommand = (
@@ -142,6 +150,39 @@ export async function parseSlashCommands(
 				telemetryService.captureSlashCommandUsed(ulid, commandName, "builtin")
 
 				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" }
+			}
+
+			// Check for MCP prompt commands (format: mcp:<server>:<prompt>)
+			if (commandName.startsWith("mcp:") && mcpPromptFetcher) {
+				const parts = commandName.split(":")
+				if (parts.length >= 3) {
+					const serverName = parts[1]
+					const promptName = parts.slice(2).join(":") // Allow colons in prompt name
+
+					try {
+						const promptResponse = await mcpPromptFetcher(serverName, promptName)
+						if (promptResponse) {
+							// Format the prompt messages as text
+							const promptContent = formatMcpPromptResponse(promptResponse)
+
+							// Remove the slash command and add the prompt content
+							const textWithoutSlashCommand = removeSlashCommand(text, tagContent, contentStartIndex, slashMatch)
+							const processedText =
+								`<mcp_prompt server="${serverName}" prompt="${promptName}">\n${promptContent}\n</mcp_prompt>\n` +
+								textWithoutSlashCommand
+
+							// Track telemetry for MCP prompt usage
+							telemetryService.captureSlashCommandUsed(ulid, commandName, "mcp_prompt")
+
+							return { processedText, needsClinerulesFileCheck: false }
+						} else {
+							// Prompt not found - log for debugging and fall through to workflow checking
+							Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
+						}
+					} catch (error) {
+						Logger.error(`Error fetching MCP prompt ${commandName}: ${error}`)
+					}
+				}
 			}
 
 			const globalWorkflows: Workflow[] = Object.entries(globalWorkflowToggles)
@@ -213,4 +254,36 @@ export async function parseSlashCommands(
 
 	// if no supported commands are found, return the original text
 	return { processedText: text, needsClinerulesFileCheck: false }
+}
+
+/**
+ * Formats MCP prompt response messages into a text format for injection
+ */
+export function formatMcpPromptResponse(response: McpPromptResponse): string {
+	const parts: string[] = []
+
+	if (response.description) {
+		parts.push(`Description: ${response.description}`)
+	}
+
+	for (const message of response.messages) {
+		const roleLabel = message.role === "user" ? "User" : "Assistant"
+
+		if (message.content.type === "text") {
+			parts.push(`[${roleLabel}]\n${message.content.text}`)
+		} else if (message.content.type === "image") {
+			parts.push(`[${roleLabel}]\n[Image: ${message.content.mimeType}]`)
+		} else if (message.content.type === "audio") {
+			parts.push(`[${roleLabel}]\n[Audio: ${message.content.mimeType}]`)
+		} else if (message.content.type === "resource") {
+			const resource = message.content.resource
+			if (resource.text) {
+				parts.push(`[${roleLabel}]\n[Resource: ${resource.uri}]\n${resource.text}`)
+			} else {
+				parts.push(`[${roleLabel}]\n[Resource: ${resource.uri}]`)
+			}
+		}
+	}
+
+	return parts.join("\n\n")
 }
