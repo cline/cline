@@ -1,7 +1,7 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import styled from "styled-components"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
@@ -219,8 +219,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										Interval (in messages) to remind about focus chain checklist (1-100)
 									</FeatureDescription>
 								</FeatureInfo>
-								<VSCodeTextField
-									onChange={(e: any) => {
+								<input
+									onChange={(e) => {
 										const value = parseInt(e.target.value, 10)
 										if (!Number.isNaN(value) && value >= 1 && value <= 100) {
 											updateSetting("focusChainSettings", {
@@ -229,8 +229,18 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											})
 										}
 									}}
-									style={{ width: 60 }}
-									value={String(focusChainSettings?.remindClineInterval || 6)}
+									style={{
+										width: 60,
+										padding: "8px 12px",
+										borderRadius: 6,
+										border: "1px solid var(--vscode-widget-border)",
+										backgroundColor: "var(--vscode-input-background)",
+										color: "var(--vscode-input-foreground)",
+										fontSize: 14,
+										textAlign: "center",
+									}}
+									type="text"
+									value={focusChainSettings?.remindClineInterval || 6}
 								/>
 							</FeatureRow>
 						)}
