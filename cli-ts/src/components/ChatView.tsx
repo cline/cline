@@ -1079,7 +1079,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 											<Text color="gray">{bar.empty}</Text>
 										</Text>
 									)
-								})()}({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
+								})()} ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
 								{metrics.totalCost.toFixed(3)}
 							</Text>
 						</Box>
