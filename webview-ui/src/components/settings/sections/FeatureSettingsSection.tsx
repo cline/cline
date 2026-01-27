@@ -423,7 +423,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 												const checked = e.target.checked === true
 												updateSetting("yoloModeToggled", checked)
 											}}>
-											Auto Approve All
+											YOLO Mode
 										</VSCodeCheckbox>
 										{remoteConfigSettings?.yoloModeToggled !== undefined && (
 											<i className="codicon codicon-lock text-description text-sm" />
