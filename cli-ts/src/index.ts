@@ -31,7 +31,17 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
-import { printInfo, printWarning } from "./utils/display"
+import { print, printInfo, printWarning } from "./utils/display"
+import {
+	addMcpServer,
+	formatServerConfig,
+	listMcpServers,
+	type McpServerConfig,
+	parseKeyValuePairs,
+	removeMcpServer,
+	setMcpServerDisabled,
+	updateMcpServerAutoApprove,
+} from "./utils/mcp"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
@@ -521,6 +531,180 @@ program
 	.command("version")
 	.description("Show Cline CLI version number")
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
+
+// MCP Server management commands
+const mcpCommand = program.command("mcp").description("Manage MCP (Model Context Protocol) servers")
+
+mcpCommand
+	.command("add <name>")
+	.description("Add a new MCP server")
+	.option("--command <cmd>", "Command to run (for stdio transport)")
+	.option("--args <args...>", "Arguments for the command")
+	.option("--cwd <path>", "Working directory for the command")
+	.option("--env <pairs...>", "Environment variables (KEY=VALUE format)")
+	.option("--url <url>", "Server URL (for sse/http transport)")
+	.option("--headers <pairs...>", "HTTP headers (KEY=VALUE format)")
+	.option("--type <type>", "Transport type: stdio, sse, or http", "stdio")
+	.option("--timeout <seconds>", "Network timeout in seconds")
+	.option("--allow <tools...>", "Tools to auto-approve")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(async (name, options) => {
+		const dataDir = options.config ? path.join(options.config, "data") : undefined
+
+		let config: McpServerConfig
+
+		if (options.url) {
+			// SSE or Streamable HTTP server
+			const type = options.type === "http" ? "streamableHttp" : "sse"
+			config = {
+				type,
+				url: options.url,
+				headers: options.headers ? parseKeyValuePairs(options.headers) : undefined,
+				autoApprove: options.allow,
+				timeout: options.timeout ? parseInt(options.timeout, 10) : undefined,
+			} as McpServerConfig
+		} else if (options.command) {
+			// STDIO server
+			config = {
+				type: "stdio",
+				command: options.command,
+				args: options.args,
+				cwd: options.cwd,
+				env: options.env ? parseKeyValuePairs(options.env) : undefined,
+				autoApprove: options.allow,
+				timeout: options.timeout ? parseInt(options.timeout, 10) : undefined,
+			}
+		} else {
+			printWarning("Error: Either --command (for stdio) or --url (for sse/http) is required")
+			exit(1)
+		}
+
+		try {
+			await addMcpServer(name, config, dataDir)
+			printInfo(`Added MCP server: ${name}`)
+		} catch (error: any) {
+			printWarning(`Failed to add server: ${error.message}`)
+			exit(1)
+		}
+	})
+
+mcpCommand
+	.command("remove <name>")
+	.alias("rm")
+	.description("Remove an MCP server")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(async (name, options) => {
+		const dataDir = options.config ? path.join(options.config, "data") : undefined
+
+		const removed = await removeMcpServer(name, dataDir)
+		if (removed) {
+			printInfo(`Removed MCP server: ${name}`)
+		} else {
+			printWarning(`Server not found: ${name}`)
+			exit(1)
+		}
+	})
+
+mcpCommand
+	.command("disable <name>")
+	.description("Disable an MCP server")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(async (name, options) => {
+		const dataDir = options.config ? path.join(options.config, "data") : undefined
+
+		const success = await setMcpServerDisabled(name, true, dataDir)
+		if (success) {
+			printInfo(`Disabled MCP server: ${name}`)
+		} else {
+			printWarning(`Server not found: ${name}`)
+			exit(1)
+		}
+	})
+
+mcpCommand
+	.command("enable <name>")
+	.description("Enable an MCP server")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(async (name, options) => {
+		const dataDir = options.config ? path.join(options.config, "data") : undefined
+
+		const success = await setMcpServerDisabled(name, false, dataDir)
+		if (success) {
+			printInfo(`Enabled MCP server: ${name}`)
+		} else {
+			printWarning(`Server not found: ${name}`)
+			exit(1)
+		}
+	})
+
+mcpCommand
+	.command("list")
+	.alias("ls")
+	.description("List all configured MCP servers")
+	.option("--json", "Output as JSON")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(async (options) => {
+		const dataDir = options.config ? path.join(options.config, "data") : undefined
+
+		const servers = await listMcpServers(dataDir)
+
+		if (servers.length === 0) {
+			printInfo("No MCP servers configured.")
+			return
+		}
+
+		if (options.json) {
+			print(JSON.stringify(servers, null, 2))
+		} else {
+			for (const { name, config } of servers) {
+				print(formatServerConfig(name, config))
+				print("")
+			}
+		}
+	})
+
+mcpCommand
+	.command("allow <name>")
+	.description("Manage auto-approve tools for an MCP server")
+	.option("--add <tools...>", "Add tools to auto-approve list")
+	.option("--remove <tools...>", "Remove tools from auto-approve list")
+	.option("--set <tools...>", "Set the auto-approve list (replaces existing)")
+	.option("--clear", "Clear all auto-approve tools")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(async (name, options) => {
+		const dataDir = options.config ? path.join(options.config, "data") : undefined
+
+		let action: "add" | "remove" | "set" | "clear"
+		let tools: string[] = []
+
+		if (options.clear) {
+			action = "clear"
+		} else if (options.set) {
+			action = "set"
+			tools = options.set
+		} else if (options.add) {
+			action = "add"
+			tools = options.add
+		} else if (options.remove) {
+			action = "remove"
+			tools = options.remove
+		} else {
+			printWarning("Error: Specify --add, --remove, --set, or --clear")
+			exit(1)
+		}
+
+		const success = await updateMcpServerAutoApprove(name, action, tools, dataDir)
+		if (success) {
+			if (action === "clear") {
+				printInfo(`Cleared auto-approve tools for: ${name}`)
+			} else {
+				printInfo(`Updated auto-approve tools for: ${name}`)
+			}
+		} else {
+			printWarning(`Server not found: ${name}`)
+			exit(1)
+		}
+	})
 
 /**
  * Check if the user has authentication configured.
