@@ -14,6 +14,7 @@ const ClineCommands = {
 	SettingsButton: prefix + ".settingsButtonClicked",
 	HistoryButton: prefix + ".historyButtonClicked",
 	AccountButton: prefix + ".accountButtonClicked",
+	WorktreesButton: prefix + ".worktreesButtonClicked",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
 	AddToChat: prefix + ".addToChat",
 	FixWithCline: prefix + ".fixWithCline",
@@ -24,6 +25,10 @@ const ClineCommands = {
 	GenerateCommit: prefix + ".generateGitCommitMessage",
 	AbortCommit: prefix + ".abortGitCommitMessage",
 	ReconstructTaskHistory: prefix + ".reconstructTaskHistory",
+	// Jupyter Notebook commands
+	JupyterGenerateCell: prefix + ".jupyterGenerateCell",
+	JupyterExplainCell: prefix + ".jupyterExplainCell",
+	JupyterImproveCell: prefix + ".jupyterImproveCell",
 }
 
 /**

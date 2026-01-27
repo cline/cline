@@ -16,7 +16,7 @@ interface WhatsNewModalProps {
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels, navigateToSettings } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const clickedModelsRef = useRef<Set<string>>(new Set())
@@ -41,6 +41,15 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		},
 		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
 	)
+
+	const setOpenAiCodexProvider = useCallback(() => {
+		handleFieldsChange({
+			planModeApiProvider: "openai-codex",
+			actModeApiProvider: "openai-codex",
+		})
+		onClose()
+		navigateToSettings("api-config")
+	}, [handleFieldsChange, onClose, navigateToSettings])
 
 	const handleShowAccount = useCallback(() => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
@@ -87,28 +96,25 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Cline provider</strong> now runs on the Vercel AI Gateway for better latency and fewer errors.
+							<strong>OpenAI ChatGPT Subscription Integration:</strong> Use your ChatGPT subscription directly in
+							Cline with no additional token cost and no api keys to manage.{" "}
+							<span
+								onClick={setOpenAiCodexProvider}
+								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+								Sign in
+							</span>
+						</li>
+						<li className="mb-2">
+							<strong>Jupyter Notebooks:</strong> Comprehensive AI-assisted editing of <code>.ipynb</code> files
+							with full cell-level context awareness.{" "}
+							<a
+								href="https://docs.cline.bot/features/jupyter-notebooks"
+								style={{ color: "var(--vscode-textLink-foreground)" }}>
+								Learn More
+							</a>
 						</li>
 						<li>
-							<strong>GLM 4.7</strong> now available!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try GLM 4.7" modelId="z-ai/glm-4.7" />
-							</AuthButton>
-						</li>
-						<li>
-							<strong>Kat-Coder Pro</strong>, free for a limited time!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try Kat-Coder Pro" modelId="kwaipilot/kat-coder-pro:free" />
-							</AuthButton>
-						</li>
-						<li>
-							<strong>Gemini 3 Flash Preview</strong> now available!
-							<br />
-							<AuthButton>
-								<ModelButton label="Try Gemini 3 Flash Preview" modelId="google/gemini-3-flash-preview" />
-							</AuthButton>
+							<strong>Grok Code Fast 1</strong> and <strong>Devstral-2512</strong> are no longer free to use.
 						</li>
 					</ul>
 				</div>

@@ -27,6 +27,7 @@ import { WorkspaceRootManager } from "@core/workspace"
 import { telemetryService } from "@services/telemetry"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import CheckpointTracker from "./CheckpointTracker"
 import { ICheckpointManager } from "./types"
 
@@ -72,27 +73,27 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 
 	private async doInitialize(): Promise<void> {
 		if (!this.enableCheckpoints) {
-			console.log("[MultiRootCheckpointManager] Checkpoints disabled, skipping initialization")
+			Logger.log("[MultiRootCheckpointManager] Checkpoints disabled, skipping initialization")
 			return
 		}
 
 		const startTime = performance.now()
 		const roots = this.workspaceManager.getRoots()
-		console.log(`[MultiRootCheckpointManager] Initializing for ${roots.length} workspace roots`)
+		Logger.log(`[MultiRootCheckpointManager] Initializing for ${roots.length} workspace roots`)
 
 		// Initialize all workspace roots in parallel
 		const initPromises = roots.map(async (root) => {
 			try {
-				console.log(`[MultiRootCheckpointManager] Creating tracker for ${root.name} at ${root.path}`)
+				Logger.log(`[MultiRootCheckpointManager] Creating tracker for ${root.name} at ${root.path}`)
 				const tracker = await CheckpointTracker.create(this.taskId, this.enableCheckpoints, root.path)
 				if (tracker) {
 					this.trackers.set(root.path, tracker)
-					console.log(`[MultiRootCheckpointManager] Successfully initialized tracker for ${root.name}`)
+					Logger.log(`[MultiRootCheckpointManager] Successfully initialized tracker for ${root.name}`)
 					return true
 				}
 				return false
 			} catch (error) {
-				console.error(`[MultiRootCheckpointManager] Failed to initialize checkpoint for ${root.name}:`, error)
+				Logger.error(`[MultiRootCheckpointManager] Failed to initialize checkpoint for ${root.name}:`, error)
 				// Continue with other roots even if one fails
 				return false
 			}
@@ -103,7 +104,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 		const failureCount = results.length - successCount
 
 		this.initialized = true
-		console.log(`[MultiRootCheckpointManager] Initialization complete. Active trackers: ${this.trackers.size}`)
+		Logger.log(`[MultiRootCheckpointManager] Initialization complete. Active trackers: ${this.trackers.size}`)
 
 		// TELEMETRY: Track multi-root checkpoint initialization
 		telemetryService.captureMultiRootCheckpoint(
@@ -126,11 +127,11 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 		}
 
 		if (this.trackers.size === 0) {
-			console.log("[MultiRootCheckpointManager] No trackers available for checkpoint")
+			Logger.log("[MultiRootCheckpointManager] No trackers available for checkpoint")
 			return
 		}
 
-		console.log(`[MultiRootCheckpointManager] Creating checkpoint across ${this.trackers.size} workspace(s)`)
+		Logger.log(`[MultiRootCheckpointManager] Creating checkpoint across ${this.trackers.size} workspace(s)`)
 
 		// Commit all roots in parallel (fire and forget for performance)
 		const commitPromises = Array.from(this.trackers.entries()).map(async ([path, tracker]) => {
@@ -138,12 +139,12 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 				const hash = await tracker.commit()
 				if (hash) {
 					const rootName = this.workspaceManager.getRoots().find((r) => r.path === path)?.name || path
-					console.log(`[MultiRootCheckpointManager] Checkpoint created for ${rootName}: ${hash}`)
+					Logger.log(`[MultiRootCheckpointManager] Checkpoint created for ${rootName}: ${hash}`)
 				}
 				return { path, hash, success: true }
 			} catch (error) {
 				const rootName = this.workspaceManager.getRoots().find((r) => r.path === path)?.name || path
-				console.error(`[MultiRootCheckpointManager] Failed to checkpoint ${rootName}:`, error)
+				Logger.error(`[MultiRootCheckpointManager] Failed to checkpoint ${rootName}:`, error)
 				return { path, hash: undefined, success: false }
 			}
 		})
@@ -155,7 +156,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 			.then((results) => {
 				const successful = results.filter((r) => r.success).length
 				const failed = results.length - successful
-				console.log(`[MultiRootCheckpointManager] Checkpoint complete: ${successful}/${results.length} successful`)
+				Logger.log(`[MultiRootCheckpointManager] Checkpoint complete: ${successful}/${results.length} successful`)
 
 				// TELEMETRY: Track checkpoint commits
 				telemetryService.captureMultiRootCheckpoint(
@@ -168,7 +169,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 				)
 			})
 			.catch((error) => {
-				console.error("[MultiRootCheckpointManager] Unexpected error during checkpoint:", error)
+				Logger.error("[MultiRootCheckpointManager] Unexpected error during checkpoint:", error)
 			})
 	}
 
@@ -180,18 +181,18 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 	async restoreCheckpoint(): Promise<any> {
 		const primaryRoot = this.workspaceManager.getPrimaryRoot()
 		if (!primaryRoot) {
-			console.error("[MultiRootCheckpointManager] No primary root found")
+			Logger.error("[MultiRootCheckpointManager] No primary root found")
 			return { error: "No primary workspace found" }
 		}
 
 		const tracker = this.trackers.get(primaryRoot.path)
 
 		if (!tracker) {
-			console.error(`[MultiRootCheckpointManager] No tracker found for primary root: ${primaryRoot.path}`)
+			Logger.error(`[MultiRootCheckpointManager] No tracker found for primary root: ${primaryRoot.path}`)
 			return { error: "No checkpoint tracker for primary workspace" }
 		}
 
-		console.log(`[MultiRootCheckpointManager] Restoring checkpoint for primary root: ${primaryRoot.name}`)
+		Logger.log(`[MultiRootCheckpointManager] Restoring checkpoint for primary root: ${primaryRoot.name}`)
 
 		// TODO: Implement full restore logic similar to TaskCheckpointManager
 		// For now, this is a placeholder that would delegate to the existing restore logic
@@ -216,9 +217,9 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 				// This would need to track checkpoint hashes per root
 				// For now, return false as a safe default
 				const rootName = this.workspaceManager.getRoots().find((r) => r.path === path)?.name || path
-				console.log(`[MultiRootCheckpointManager] Checking for changes in ${rootName}`)
+				Logger.log(`[MultiRootCheckpointManager] Checking for changes in ${rootName}`)
 			} catch (error) {
-				console.error(`[MultiRootCheckpointManager] Error checking changes for ${path}:`, error)
+				Logger.error(`[MultiRootCheckpointManager] Error checking changes for ${path}:`, error)
 			}
 		}
 
@@ -236,11 +237,11 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 
 		const primaryRoot = this.workspaceManager.getPrimaryRoot()
 		if (!primaryRoot) {
-			console.warn("[MultiRootCheckpointManager] No primary root found, committing all roots")
+			Logger.warn("[MultiRootCheckpointManager] No primary root found, committing all roots")
 			// Just commit all roots and return undefined
 			const commitPromises = Array.from(this.trackers.values()).map((tracker) =>
 				tracker.commit().catch((error) => {
-					console.error("[MultiRootCheckpointManager] Commit error:", error)
+					Logger.error("[MultiRootCheckpointManager] Commit error:", error)
 					return undefined
 				}),
 			)
@@ -251,7 +252,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 		// Commit all roots in parallel
 		const commitPromises = Array.from(this.trackers.values()).map((tracker) =>
 			tracker.commit().catch((error) => {
-				console.error("[MultiRootCheckpointManager] Commit error:", error)
+				Logger.error("[MultiRootCheckpointManager] Commit error:", error)
 				return undefined
 			}),
 		)
@@ -298,7 +299,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 			await showChangedFilesDiff(this.messageStateHandler, tracker, messageTs, seeNewChangesSinceLastTaskCompletion)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			console.error("[MultiRootCheckpointManager] Failed to present multifile diff:", errorMessage)
+			Logger.error("[MultiRootCheckpointManager] Failed to present multifile diff:", errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to present diff: " + errorMessage,

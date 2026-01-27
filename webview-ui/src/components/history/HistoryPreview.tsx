@@ -1,5 +1,4 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -82,6 +81,25 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						font-weight: 500;
 						white-space: nowrap;
 					}
+					.history-view-all-btn {
+						background: none;
+						border: none;
+						padding: 4px 0 4px 8px;
+						cursor: pointer;
+						font-size: 0.85em;
+						font-weight: 500;
+						color: var(--vscode-descriptionForeground);
+						white-space: nowrap;
+						display: flex;
+						align-items: center;
+						gap: 2px;
+					}
+					.history-view-all-btn .codicon {
+						font-size: 1.2em;
+					}
+					.history-view-all-btn:hover {
+						color: var(--vscode-foreground);
+					}
 				`}
 			</style>
 
@@ -92,79 +110,65 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					margin: "10px 16px 10px 16px",
 					display: "flex",
 					alignItems: "center",
+					justifyContent: "space-between",
 				}}>
-				<span
-					className="codicon codicon-comment-discussion"
-					style={{
-						marginRight: "4px",
-						transform: "scale(0.9)",
-					}}></span>
-				<span
-					style={{
-						fontWeight: 500,
-						fontSize: "0.85em",
-						textTransform: "uppercase",
-					}}>
-					Recent Tasks
-				</span>
+				<div style={{ display: "flex", alignItems: "center" }}>
+					<span
+						className="codicon codicon-comment-discussion"
+						style={{
+							marginRight: "4px",
+							transform: "scale(0.9)",
+						}}></span>
+					<span
+						style={{
+							fontWeight: 500,
+							fontSize: "0.85em",
+							textTransform: "uppercase",
+						}}>
+						Recent
+					</span>
+				</div>
+				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
+					<button
+						aria-label="View all history"
+						className="history-view-all-btn"
+						onClick={() => showHistoryView()}
+						type="button">
+						View All
+						<span className="codicon codicon-chevron-right" />
+					</button>
+				)}
 			</div>
 
 			{
 				<div className="px-4">
 					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
-						<>
-							{taskHistory
-								.filter((item) => item.ts && item.task)
-								.slice(0, 3)
-								.map((item) => (
-									<div
-										className="history-preview-item"
-										key={item.id}
-										onClick={() => handleHistorySelect(item.id)}>
-										<div className="history-task-content">
-											{item.isFavorited && (
-												<span
-													aria-label="Favorited"
-													className="codicon codicon-star-full"
-													style={{
-														color: "var(--vscode-button-background)",
-														flexShrink: 0,
-													}}
-												/>
-											)}
-											<div className="history-task-description ph-no-capture">{item.task}</div>
-										</div>
-										<div className="history-meta-stack">
-											<span className="history-date">{formatDate(item.ts)}</span>
-											{item.totalCost != null && (
-												<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
-											)}
-										</div>
+						taskHistory
+							.filter((item) => item.ts && item.task)
+							.slice(0, 3)
+							.map((item) => (
+								<div className="history-preview-item" key={item.id} onClick={() => handleHistorySelect(item.id)}>
+									<div className="history-task-content">
+										{item.isFavorited && (
+											<span
+												aria-label="Favorited"
+												className="codicon codicon-star-full"
+												style={{
+													color: "var(--vscode-button-background)",
+													flexShrink: 0,
+												}}
+											/>
+										)}
+										<div className="history-task-description ph-no-capture">{item.task}</div>
 									</div>
-								))}
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-								}}>
-								<VSCodeButton
-									appearance="icon"
-									aria-label="View all history"
-									onClick={() => showHistoryView()}
-									style={{
-										opacity: 0.9,
-									}}>
-									<div
-										style={{
-											fontSize: "var(--vscode-font-size)",
-											color: "var(--vscode-descriptionForeground)",
-										}}>
-										View All
+									<div className="history-meta-stack">
+										<span className="history-date">{formatDate(item.ts)}</span>
+										{item.totalCost != null && (
+											<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
+										)}
 									</div>
-								</VSCodeButton>
-							</div>
-						</>
+								</div>
+							))
 					) : (
 						<div
 							style={{

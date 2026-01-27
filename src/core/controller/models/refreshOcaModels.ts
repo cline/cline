@@ -1,13 +1,18 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
+import { ApiFormat, OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { DEFAULT_EXTERNAL_OCA_BASE_URL, DEFAULT_INTERNAL_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
+import {
+	CHAT_COMPLETIONS_API,
+	DEFAULT_EXTERNAL_OCA_BASE_URL,
+	DEFAULT_INTERNAL_OCA_BASE_URL,
+	RESPONSES_API,
+} from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
-import { Logger } from "@/services/logging/Logger"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import { Controller } from ".."
 
@@ -57,6 +62,11 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					defaultModelId = modelId
 				}
 				const modelInfo = model.model_info
+				const supportedApiList = modelInfo.supported_api_list ?? [CHAT_COMPLETIONS_API]
+				const apiFormat: ApiFormat =
+					supportedApiList.includes(RESPONSES_API) && !supportedApiList.includes(CHAT_COMPLETIONS_API)
+						? ApiFormat.OPENAI_RESPONSES
+						: ApiFormat.OPENAI_CHAT
 				models[modelId] = OcaModelInfo.create({
 					maxTokens: model.litellm_params?.max_tokens || -1,
 					contextWindow: modelInfo.context_window,
@@ -73,9 +83,12 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					temperature: modelInfo.temperature || 0,
 					banner: modelInfo.banner,
 					modelName: modelId,
+					apiFormat: apiFormat,
+					supportsReasoning: modelInfo.is_reasoning_model || false,
+					reasoningEffortOptions: modelInfo.reasoning_effort_options || [],
 				})
 			}
-			console.log("OCA models fetched", models)
+			Logger.log("OCA models fetched", models)
 
 			// Fetch current config to determine existing model selections
 			const apiConfiguration = controller.stateManager.getApiConfiguration()
@@ -91,6 +104,25 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					? apiConfiguration.actModeOcaModelId
 					: defaultModelId!
 
+			let planModeOcaReasoningEffort
+			let actModeOcaReasoningEffort
+			if (
+				models[planModeSelectedModelId].supportsReasoning &&
+				models[planModeSelectedModelId].reasoningEffortOptions.length > 0
+			) {
+				planModeOcaReasoningEffort = apiConfiguration.planModeOcaReasoningEffort
+					? apiConfiguration.planModeOcaReasoningEffort
+					: models[planModeSelectedModelId].reasoningEffortOptions[0]
+			}
+			if (
+				models[actModeSelectedModelId].supportsReasoning &&
+				models[actModeSelectedModelId].reasoningEffortOptions.length > 0
+			) {
+				actModeOcaReasoningEffort = apiConfiguration.actModeOcaReasoningEffort
+					? apiConfiguration.actModeOcaReasoningEffort
+					: models[actModeSelectedModelId].reasoningEffortOptions[0]
+			}
+
 			// Build updates object based on plan/act mode setting
 			const updates: Partial<GlobalStateAndSettings> = {}
 
@@ -98,15 +130,19 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				if (currentMode === "plan") {
 					updates.planModeOcaModelId = planModeSelectedModelId
 					updates.planModeOcaModelInfo = models[planModeSelectedModelId]
+					updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
 				} else {
 					updates.actModeOcaModelId = actModeSelectedModelId
 					updates.actModeOcaModelInfo = models[actModeSelectedModelId]
+					updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
 				}
 			} else {
 				updates.planModeOcaModelId = planModeSelectedModelId
 				updates.planModeOcaModelInfo = models[planModeSelectedModelId]
+				updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
 				updates.actModeOcaModelId = actModeSelectedModelId
 				updates.actModeOcaModelInfo = models[actModeSelectedModelId]
+				updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
 			}
 
 			// Update state directly using batch method
@@ -118,7 +154,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			})
 			await controller.postStateToWebview?.()
 		} else {
-			console.error("Invalid response from OCA API")
+			Logger.error("Invalid response from OCA API")
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: `Failed to fetch OCA models. Please check your configuration from ${baseUrl}`,
@@ -134,7 +170,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			userMsg = `Unable to access the OCA backend. Is your endpoint and proxy configured properly? Please see the troubleshooting guide.`
 		} else {
 			userMsg = err.message
-			console.error(userMsg, err)
+			Logger.error(userMsg, err)
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,

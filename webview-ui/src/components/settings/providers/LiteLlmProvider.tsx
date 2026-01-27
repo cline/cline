@@ -1,12 +1,12 @@
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
+import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -21,18 +21,11 @@ interface LiteLlmProviderProps {
 }
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings, liteLlmModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration with model info
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode, liteLlmModels)
-
-	// Refresh models when both base URL and API key are configured
-	useEffect(() => {
-		if (apiConfiguration?.liteLlmBaseUrl && apiConfiguration?.liteLlmApiKey) {
-			refreshLiteLlmModels()
-		}
-	}, [refreshLiteLlmModels, apiConfiguration?.liteLlmApiKey, apiConfiguration?.liteLlmBaseUrl])
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Handle model change
 	const handleModelChange = (e: any) => {
@@ -54,25 +47,31 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 	return (
 		<div>
-			<DebouncedTextField
-				initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
-				onChange={async (value) => {
-					await ModelsServiceClient.updateApiConfiguration(
-						UpdateApiConfigurationRequestNew.create({
-							updates: {
-								options: {
-									liteLlmBaseUrl: value,
+			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.liteLlmBaseUrl === undefined}>
+				<DebouncedTextField
+					disabled={remoteConfigSettings?.liteLlmBaseUrl !== undefined}
+					initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									options: {
+										liteLlmBaseUrl: value,
+									},
 								},
-							},
-							updateMask: ["options.liteLlmBaseUrl"],
-						}),
-					)
-				}}
-				placeholder={"Default: http://localhost:4000"}
-				style={{ width: "100%" }}
-				type="text">
-				<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
-			</DebouncedTextField>
+								updateMask: ["options.liteLlmBaseUrl"],
+							}),
+						)
+					}}
+					placeholder={"Default: http://localhost:4000"}
+					style={{ width: "100%" }}
+					type="text">
+					<div className="flex items-center gap-2 mb-1">
+						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+						{remoteConfigSettings?.liteLlmBaseUrl !== undefined && <LockIcon />}
+					</div>
+				</DebouncedTextField>
+			</RemotelyConfiguredInputWrapper>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmApiKey || ""}
 				onChange={async (value) => {

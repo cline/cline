@@ -1,5 +1,6 @@
 import { isGPT5ModelFamily, isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
@@ -24,10 +25,18 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		}
 		const providerInfo = context.providerInfo
 		const modelId = providerInfo.model.id
+		if (!isNextGenModelProvider(providerInfo)) {
+			return false
+		}
+		if (modelId.includes("gpt-oss")) {
+			return true
+		}
 		return (
 			isGPT5ModelFamily(modelId) &&
-			// Exclude gpt-5.1 and gpt-5.2 models except for codex variants
-			(modelId.includes("codex") || (!isGPT51Model(modelId) && !isGPT52Model(modelId))) &&
+			// Exclude gpt-5.1 and gpt-5.2 models (including codex variants)
+			// GPT-5.1 and GPT-5.2 use extended reasoning and need the native-gpt-5-1 variant
+			!isGPT51Model(modelId) &&
+			!isGPT52Model(modelId) &&
 			// gpt-5-chat models do not support native tool use
 			!modelId.includes("chat") &&
 			isNextGenModelProvider(providerInfo)
@@ -46,14 +55,15 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		// Should disable FILE_NEW and FILE_EDIT when enabled
-		// ClineDefaultTool.APPLY_PATCH,
-		ClineDefaultTool.FILE_NEW, // Replaced by APPLY_PATCH
-		ClineDefaultTool.FILE_EDIT, // Replaced by APPLY_PATCH
+		ClineDefaultTool.APPLY_PATCH,
+		// ClineDefaultTool.FILE_NEW, // Replaced by APPLY_PATCH
+		// ClineDefaultTool.FILE_EDIT, // Replaced by APPLY_PATCH
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,
@@ -67,6 +77,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5,
@@ -96,12 +107,12 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_GPT_5 }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("GPT-5 variant configuration validation failed:", validationResult.errors)
+	Logger.error("GPT-5 variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("GPT-5 variant configuration warnings:", validationResult.warnings)
+	Logger.warn("GPT-5 variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

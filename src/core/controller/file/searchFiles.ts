@@ -3,6 +3,7 @@ import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
 import { getWorkspacePath } from "@utils/path"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -41,8 +42,8 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 			const workspacePath = await getWorkspacePath()
 
 			if (!workspacePath) {
-				console.error("Error in searchFiles: No workspace path available")
-				await telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
+				Logger.error("Error in searchFiles: No workspace path available")
+				telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
 				return { results: [], mentionsRequestId: request.mentionsRequestId }
 			}
 
@@ -78,7 +79,7 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		return { results: protoResults, mentionsRequestId: request.mentionsRequestId }
 	} catch (error) {
 		// Log the error but don't include it in the response, following the pattern in searchCommits
-		console.error("Error in searchFiles:", error)
+		Logger.error("Error in searchFiles:", error)
 
 		// Track as a search execution error with appropriate error type
 		const errorMessage = error instanceof Error ? error.message : String(error)

@@ -3,6 +3,7 @@ import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { fetchLiteLlmModelsInfo } from "@/core/api/providers/litellm"
 import { StateManager } from "@/core/storage/StateManager"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
+import { Logger } from "@/shared/services/Logger"
 import { sendLiteLlmModelsEvent } from "./subscribeToLiteLlmModels"
 
 /**
@@ -18,7 +19,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 	try {
 		// Get the LiteLLM configuration
 		const apiConfiguration = stateManager.getApiConfiguration()
-		const baseUrl = apiConfiguration.liteLlmBaseUrl || ""
+		const baseUrl = apiConfiguration.liteLlmBaseUrl || "http://localhost:4000"
 		const apiKey = apiConfiguration.liteLlmApiKey
 
 		if (!apiKey) {
@@ -56,7 +57,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 			}
 		}
 	} catch (error) {
-		console.error("Error fetching LiteLLM models:", error)
+		Logger.error("Error fetching LiteLLM models:", error)
 		throw error
 	}
 
@@ -71,7 +72,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 			}),
 		)
 	} catch (error) {
-		console.error("Error sending LiteLLM models event:", error)
+		Logger.error("Error sending LiteLLM models event:", error)
 	}
 
 	return models

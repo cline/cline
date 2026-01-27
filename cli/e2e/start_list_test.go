@@ -29,7 +29,7 @@ func TestStartAndList(t *testing.T) {
 		t.Fatalf("expected 1 instance, got %d", len(out.CoreInstances))
 	}
 
-	addr := out.CoreInstances[0].Address
+	addr := out.CoreInstances[0].CoreAddress
 	t.Logf("Instance address: %s, status: %s", addr, out.CoreInstances[0].Status)
 
 	t.Logf("Waiting for address %s to become healthy...", addr)
@@ -44,8 +44,8 @@ func TestStartAndList(t *testing.T) {
 	if out.DefaultInstance == "" {
 		t.Fatalf("default_instance not set")
 	}
-	if out.DefaultInstance != out.CoreInstances[0].Address {
-		t.Fatalf("expected default_instance=%s, got %s", out.CoreInstances[0].Address, out.DefaultInstance)
+	if out.DefaultInstance != out.CoreInstances[0].CoreAddress {
+		t.Fatalf("expected default_instance=%s, got %s", out.CoreInstances[0].CoreAddress, out.DefaultInstance)
 	}
 
 	t.Logf("TestStartAndList completed successfully")
@@ -64,7 +64,7 @@ func TestTaskNewDefault(t *testing.T) {
 	if len(out.CoreInstances) != 1 {
 		t.Fatalf("expected 1 instance, got %d", len(out.CoreInstances))
 	}
-	addr := out.CoreInstances[0].Address
+	addr := out.CoreInstances[0].CoreAddress
 	waitForAddressHealthy(t, addr, defaultTimeout)
 
 	// Create a new task at default (success is sufficient)
@@ -108,21 +108,21 @@ func TestCrashCleanup(t *testing.T) {
 
 	// Test 1: Graceful shutdown (SIGTERM) - should clean up both processes
 	gracefulTarget := out.CoreInstances[0]
-	waitForAddressHealthy(t, gracefulTarget.Address, defaultTimeout)
+	waitForAddressHealthy(t, gracefulTarget.CoreAddress, defaultTimeout)
 
 	// Get PID using runtime discovery
-	gracefulPID := getCorePID(t, gracefulTarget.Address)
+	gracefulPID := getCorePID(t, gracefulTarget.CoreAddress)
 	if gracefulPID <= 0 {
-		t.Fatalf("could not find PID for graceful target at %s", gracefulTarget.Address)
+		t.Fatalf("could not find PID for graceful target at %s", gracefulTarget.CoreAddress)
 	}
 
-	t.Logf("Testing graceful shutdown (SIGTERM) for instance %s (PID %d)", gracefulTarget.Address, gracefulPID)
+	t.Logf("Testing graceful shutdown (SIGTERM) for instance %s (PID %d)", gracefulTarget.CoreAddress, gracefulPID)
 	if err := syscall.Kill(gracefulPID, syscall.SIGTERM); err != nil {
 		t.Fatalf("kill SIGTERM pid %d: %v", gracefulPID, err)
 	}
 
 	// Wait for registry cleanup
-	waitForAddressRemoved(t, gracefulTarget.Address, longTimeout)
+	waitForAddressRemoved(t, gracefulTarget.CoreAddress, longTimeout)
 
 	// Verify both core and host ports are freed (no dangling processes)
 	waitForPortsClosed(t, gracefulTarget.CorePort(), gracefulTarget.HostPort(), defaultTimeout)
@@ -132,21 +132,21 @@ func TestCrashCleanup(t *testing.T) {
 
 	// Test 2: Crash cleanup (SIGKILL) - creates dangling host process that we must clean up
 	crashTarget := out.CoreInstances[1]
-	waitForAddressHealthy(t, crashTarget.Address, defaultTimeout)
+	waitForAddressHealthy(t, crashTarget.CoreAddress, defaultTimeout)
 
 	// Get PID using runtime discovery
-	crashPID := getCorePID(t, crashTarget.Address)
+	crashPID := getCorePID(t, crashTarget.CoreAddress)
 	if crashPID <= 0 {
-		t.Fatalf("could not find PID for crash target at %s", crashTarget.Address)
+		t.Fatalf("could not find PID for crash target at %s", crashTarget.CoreAddress)
 	}
 
-	t.Logf("Testing crash cleanup (SIGKILL) for instance %s (PID %d)", crashTarget.Address, crashPID)
+	t.Logf("Testing crash cleanup (SIGKILL) for instance %s (PID %d)", crashTarget.CoreAddress, crashPID)
 	if err := syscall.Kill(crashPID, syscall.SIGKILL); err != nil {
 		t.Fatalf("kill SIGKILL pid %d: %v", crashPID, err)
 	}
 
 	// Wait for registry cleanup
-	waitForAddressRemoved(t, crashTarget.Address, longTimeout)
+	waitForAddressRemoved(t, crashTarget.CoreAddress, longTimeout)
 
 	// Verify the instance is removed from SQLite (no file to check anymore)
 	// The waitForAddressRemoved already confirms the instance is gone from the registry

@@ -2,6 +2,7 @@ import { getWorkspaceBasename } from "@core/workspace"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import { RuleScope, ToggleClineRules } from "@shared/proto/cline/file"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -14,7 +15,7 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 	const { scope, rulePath, enabled } = request
 
 	if (!rulePath || typeof enabled !== "boolean" || scope === undefined) {
-		console.error("toggleClineRule: Missing or invalid parameters", {
+		Logger.error("toggleClineRule: Missing or invalid parameters", {
 			rulePath,
 			scope,
 			enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,

@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
 import { telemetryService } from "../../services/telemetry"
@@ -215,16 +216,23 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	 * @returns A successful hook output (no cancellation)
 	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
-		return HookOutput.create({
-			cancel: false,
-		})
+		// HookOutput is a protobuf-generated type with non-optional fields.
+		// Protobuf defaults: cancel=false, contextModification="", errorMessage=""
+		return HookOutput.create({ cancel: false })
 	}
 }
 
 /**
  * Callback type for streaming hook output
  */
-export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => void
+export type HookStreamCallback = (
+	line: string,
+	stream: "stdout" | "stderr",
+	meta?: {
+		source: "global" | "workspace"
+		scriptPath: string
+	},
+) => void
 
 /**
  * Executes a hook script as a child process with real-time output streaming.
@@ -300,7 +308,12 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		if (this.streamCallback) {
 			const callback = this.streamCallback
 			hookProcess.on("line", (line: string, stream: "stdout" | "stderr") => {
-				callback(line, stream)
+				// NOTE: HookProcess emits a synthetic empty line (""), used as a "start of output" marker.
+				// Preserve it for now so downstream can keep existing behavior.
+				callback(line, stream, {
+					source: this.source,
+					scriptPath: this.scriptPath,
+				})
 			})
 		}
 
@@ -329,7 +342,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					// Validate and truncate context modification if too large
 					if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
-						console.warn(
+						Logger.warn(
 							`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
 								`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
 						)
@@ -396,7 +409,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 							// Validate and truncate context modification if too large
 							if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
-								console.warn(
+								Logger.warn(
 									`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
 										`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
 								)
@@ -425,9 +438,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 				// Log warning if non-zero exit but valid JSON (for developers)
 				if (exitCode !== 0) {
-					console.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
+					Logger.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
 					if (stderr) {
-						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
+						Logger.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
 					}
 				}
 
@@ -470,7 +483,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			// No valid JSON found
 			if (exitCode === 0) {
 				// Hook succeeded but didn't provide JSON - allow execution (no cancellation)
-				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
+				Logger.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
 				const durationMs = performance.now() - startTime
 
 				// Capture success telemetry even without JSON
@@ -687,6 +700,21 @@ function isExpectedHookError(error: unknown): boolean {
 }
 
 export class HookFactory {
+	/**
+	 * Get information about discovered hooks including their script paths
+	 * @param hookName The type of hook to query
+	 * @returns Object containing array of script paths
+	 */
+	async getHookInfo<Name extends HookName>(
+		hookName: Name,
+	): Promise<{
+		scriptPaths: string[]
+	}> {
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
+		return { scriptPaths: scripts }
+	}
+
 	/**
 	 * Check if any hook scripts exist for the given hook name
 	 * @returns true if at least one hook script exists, false otherwise

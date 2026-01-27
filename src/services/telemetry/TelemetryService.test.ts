@@ -9,7 +9,9 @@
 
 import * as assert from "assert"
 import * as sinon from "sinon"
+import { ClineEndpoint } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
+import * as otelConfigModule from "@/shared/services/config/otel-config"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { NoOpTelemetryProvider, TelemetryProviderFactory } from "./TelemetryProviderFactory"
@@ -260,6 +262,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		it("should return default configurations", () => {
 			// Mock PostHog config validation to return true for this test
 			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
+			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
 
 			const defaultConfigs = TelemetryProviderFactory.getDefaultConfigs()
 
@@ -270,7 +273,127 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				"Should include PostHog configuration",
 			)
 
-			// Restore the stub
+			// Restore the stubs
+			isPostHogConfigValidStub.restore()
+			isSelfHostedStub.restore()
+		})
+
+		it("should NOT include PostHog config when in selfHosted mode", () => {
+			// Stub ClineEndpoint.isSelfHosted() to return true (selfHosted mode)
+			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(true)
+			// Even if PostHog config is valid, it should be skipped
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
+
+			const configs = TelemetryProviderFactory.getDefaultConfigs()
+
+			// Should NOT include PostHog when in selfHosted mode
+			const hasPosthog = configs.some((c) => c.type === "posthog")
+			assert.strictEqual(hasPosthog, false, "Should NOT include PostHog configuration in selfHosted mode")
+
+			// Restore the stubs
+			isSelfHostedStub.restore()
+			isPostHogConfigValidStub.restore()
+		})
+
+		it("should include PostHog config when NOT in selfHosted mode and config is valid", () => {
+			// Stub ClineEndpoint.isSelfHosted() to return false (normal mode)
+			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
+
+			const configs = TelemetryProviderFactory.getDefaultConfigs()
+
+			// Should include PostHog when NOT in selfHosted mode and config is valid
+			const hasPosthog = configs.some((c) => c.type === "posthog")
+			assert.strictEqual(hasPosthog, true, "Should include PostHog configuration when not in selfHosted mode")
+
+			// Restore the stubs
+			isSelfHostedStub.restore()
+			isPostHogConfigValidStub.restore()
+		})
+
+		it("should NOT include build-time OTEL config when in selfHosted mode", () => {
+			// Stub ClineEndpoint.isSelfHosted() to return true (selfHosted mode)
+			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(true)
+			// Even if build-time OTEL config is valid, it should be skipped
+			const getValidOtelConfigStub = sinon.stub(otelConfigModule, "getValidOpenTelemetryConfig").returns({
+				enabled: true,
+				metricsExporter: "otlp",
+			})
+			// Disable runtime OTEL to isolate test
+			const getRuntimeOtelConfigStub = sinon.stub(otelConfigModule, "getValidRuntimeOpenTelemetryConfig").returns(null)
+			// Disable PostHog to isolate test
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(false)
+
+			const configs = TelemetryProviderFactory.getDefaultConfigs()
+
+			// Should NOT include build-time OTEL when in selfHosted mode
+			const hasOtel = configs.some((c) => c.type === "opentelemetry")
+			assert.strictEqual(hasOtel, false, "Should NOT include build-time OTEL configuration in selfHosted mode")
+
+			// Restore the stubs
+			isSelfHostedStub.restore()
+			getValidOtelConfigStub.restore()
+			getRuntimeOtelConfigStub.restore()
+			isPostHogConfigValidStub.restore()
+		})
+
+		it("should include build-time OTEL config when NOT in selfHosted mode", () => {
+			// Stub ClineEndpoint.isSelfHosted() to return false (normal mode)
+			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
+			const getValidOtelConfigStub = sinon.stub(otelConfigModule, "getValidOpenTelemetryConfig").returns({
+				enabled: true,
+				metricsExporter: "otlp",
+			})
+			// Disable runtime OTEL to isolate test
+			const getRuntimeOtelConfigStub = sinon.stub(otelConfigModule, "getValidRuntimeOpenTelemetryConfig").returns(null)
+			// Disable PostHog to isolate test
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(false)
+
+			const configs = TelemetryProviderFactory.getDefaultConfigs()
+
+			// Should include build-time OTEL when NOT in selfHosted mode
+			const hasOtel = configs.some((c) => c.type === "opentelemetry")
+			assert.strictEqual(hasOtel, true, "Should include build-time OTEL configuration when not in selfHosted mode")
+
+			// Restore the stubs
+			isSelfHostedStub.restore()
+			getValidOtelConfigStub.restore()
+			getRuntimeOtelConfigStub.restore()
+			isPostHogConfigValidStub.restore()
+		})
+
+		it("should STILL include runtime env OTEL config even in selfHosted mode", () => {
+			// Stub ClineEndpoint.isSelfHosted() to return true (selfHosted mode)
+			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(true)
+			// Disable build-time OTEL
+			const getValidOtelConfigStub = sinon.stub(otelConfigModule, "getValidOpenTelemetryConfig").returns(null)
+			// Enable runtime OTEL (user explicitly configured it)
+			const getRuntimeOtelConfigStub = sinon.stub(otelConfigModule, "getValidRuntimeOpenTelemetryConfig").returns({
+				enabled: true,
+				metricsExporter: "otlp",
+				otlpEndpoint: "http://user-collector:4317",
+			})
+			// Disable PostHog to isolate test
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(false)
+
+			const configs = TelemetryProviderFactory.getDefaultConfigs()
+
+			// Should STILL include runtime env OTEL even in selfHosted mode (user explicitly enabled it)
+			const hasOtel = configs.some((c) => c.type === "opentelemetry")
+			assert.strictEqual(hasOtel, true, "Should include runtime env OTEL configuration even in selfHosted mode")
+
+			// Verify it has bypassUserSettings: true
+			const otelConfig = configs.find((c) => c.type === "opentelemetry")
+			assert.strictEqual(
+				(otelConfig as any).bypassUserSettings,
+				true,
+				"Runtime env OTEL should have bypassUserSettings: true",
+			)
+
+			// Restore the stubs
+			isSelfHostedStub.restore()
+			getValidOtelConfigStub.restore()
+			getRuntimeOtelConfigStub.restore()
 			isPostHogConfigValidStub.restore()
 		})
 
@@ -404,6 +527,41 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Test that events are captured for execution
 			telemetryService.captureSubagentExecution("task-789", 2000, 10, true)
 			assert.ok(logSpy.calledOnce, "Execution event should be captured when category is enabled")
+
+			logSpy.restore()
+			await noOpProvider.dispose()
+		})
+	})
+
+	describe("Skills Telemetry", () => {
+		it("should capture skill used events correctly", async () => {
+			const noOpProvider = new NoOpTelemetryProvider()
+			const logSpy = sinon.spy(noOpProvider, "log")
+			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
+
+			logSpy.resetHistory()
+
+			telemetryService.captureSkillUsed({
+				ulid: "task-123",
+				skillName: "my-skill",
+				skillSource: "global",
+				skillsAvailableGlobal: 2,
+				skillsAvailableProject: 3,
+				provider: "cline",
+				modelId: "anthropic/claude-sonnet-4.5",
+			})
+
+			assert.ok(logSpy.calledOnce, "Log should be called once")
+			const [eventName, properties] = logSpy.firstCall.args
+			assert.strictEqual(eventName, "task.skill_used", "Event name should be task.skill_used")
+			assert.ok(properties, "Properties should be defined")
+			assert.strictEqual(properties.ulid, "task-123", "Properties should include task ULID")
+			assert.strictEqual(properties.skillName, "my-skill", "Properties should include skillName")
+			assert.strictEqual(properties.skillSource, "global", "Properties should include skillSource")
+			assert.strictEqual(properties.skillsAvailableGlobal, 2, "Properties should include global skill count")
+			assert.strictEqual(properties.skillsAvailableProject, 3, "Properties should include project skill count")
+			assert.strictEqual(properties.provider, "cline", "Properties should include provider")
+			assert.strictEqual(properties.modelId, "anthropic/claude-sonnet-4.5", "Properties should include modelId")
 
 			logSpy.restore()
 			await noOpProvider.dispose()

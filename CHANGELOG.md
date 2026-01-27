@@ -1,11 +1,136 @@
 # Changelog
 
+## [3.54.0]
+
+### Added
+
+- Native tool calls support for Ollama provider
+- Sonnet 4.5 is now the default Amazon Bedrock model id
+
+### Fixed
+
+- Prevent infinite retry loops when replace_in_file fails repeatedly. The system now detects repeated failures and provides better guidance to break out of retry cycles.
+- Skip diff error UI handling during streaming to prevent flickering. Error handling is deferred until streaming completes.
+- Strip notebook cell outputs when extracting text content from Jupyter notebooks, significantly reducing context size sent to the LLM.
+- Throttle diff view updates during streaming to reduce UI flickering and improve performance.
+
+### Changed
+
+- Removed Mistral's Devstral-2512 free from the free models list
+- Removed deprecated zai-glm-4.6 model from Cerebras provider
+
+## [3.53.1]
+
+### Fixed
+
+- Bug in responses API
+
+## [3.53.0]
+
+### Fixed
+
+- Removed grok model from free tier
+
+## [3.52.0]
+
+### Added
+
+- Users with ChatGPT Plus or Pro subscriptions can now use GPT-5 models directly through Cline without needing an API key. Authentication is handled via OAuth through OpenAI's authentication system.
+- Grok models are now moving out of free tier and into paid plans.
+- Introduces comprehensive Jupyter Notebook support for Cline, enabling AI-assisted editing of `.ipynb` files with full cell-level context awareness.
+
+### Fixed
+
+- Bugs in DiffViewProvider for file editing
+- Ollama's recommended models to use correct identifiers
+
+## [3.51.0]
+
+### Added
+
+- Adding OpenAI gpt-5.2-codex model to the model picker
+
+## [3.50.0]
+
+### Added
+
+- Add gpt-5.2-codex OpenAI model support
+- Add create-pull-request skill
+
+### Fixed
+
+- Fix the selection of remotely configured providers
+- Fix act_mode_respond to prevent consecutive calls
+- Fix invalid tool call IDs when switching between model formats
+
+## [3.49.1]
+
+### Added
+
+- Add telemetry to track usage of skills feature
+- Add version headers to Cline backend requests
+- Phase in Responses API usage instead of defaulting for every supported model
+
+### Fixed
+
+- Fix workflow slash command search to be case-insensitive
+- Fix model display in ModelPickerModal when using LiteLLM
+- Fix LiteLLM model fetching with default base URL
+- Fix crash when OpenAI-compatible APIs send usage chunks with empty or null choices arrays at end of streaming
+- Fix model ID for Kat Coder Pro Free model
+
+## [3.49.0]
+
+- Enable configuring an OTEL collector at runtime
+- Removing Minimax-2.1 from free model list as the free trial has ended
+- Improved image display in MCP responses
+- Auto-sync remote MCP servers from remote config to local settings
+
+## [3.48.0]
+
+### Added
+
+- Add Skills system for reusable, on-demand agent instructions
+- Add new websearch tooling in Cline provider
+- Add zai-glm-4.7 to Cerebras model list
+- Add model refresh and improve reasoning support for Vercel AI Gateway
+
+### Fixed
+
+- Revert #8341 due to regressions in diff view/document truncation (see #8423, #8429)
+- Fixed extension crash when using context menu selector
+
+## [3.47.0]
+
+### Added
+
+- Added experimental support for Background Edits (allows editing files in background without opening the diff view)
+- Updated free model to MiniMax M2.1 (replacing MiniMax M2)
+- Added support for Azure based identity authentication in OpenAI Compatible provider and Azure OpenAI
+- Add `supportsReasoning` property to Baseten models
+
+### Fixed
+
+- Prevent expired token usage in authenticated requests
+- Exclude binary files without extensions from diffs
+- Preserve file endings and trailing newlines
+- Fix Cerebras rate limiting
+- Fix Auto Compact for Claude Code provider
+- Make Workspace and Favorites history filters independent
+- Fix remote MCP server connection failures (404 response handling)
+- Disable native tool calling for Deepseek 3.2 speciale
+- Show notification instead of opening sidebar on update
+- Fix Baseten model selector
+
+### Refactored
+
+- Modify prompts for parallel tool usage in Claude and Gemini 3 models
+
 ## [3.46.1]
 
 ### Fixed
 
 - Remove GLM 4.6 from free models
-
 
 ## [3.46.0]
 

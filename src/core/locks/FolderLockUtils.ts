@@ -1,3 +1,4 @@
+import { Logger } from "@/shared/services/Logger"
 import type { SqliteLockManager } from "./SqliteLockManager"
 import type { FolderLockOptions, FolderLockResult, FolderLockWithRetryResult } from "./types"
 
@@ -30,7 +31,7 @@ export async function getStandaloneLockManager(): Promise<SqliteLockManager | un
 		const { getLockManager } = await import("../../standalone/lock-manager")
 		return getLockManager()
 	} catch (_importError) {
-		console.debug("Lock manager not available")
+		Logger.debug("Lock manager not available")
 		return undefined
 	}
 }
@@ -52,17 +53,17 @@ export async function tryAcquireFolderLockWithRetry(
 			const lockManager = await getStandaloneLockManager()
 
 			if (!lockManager) {
-				console.debug("Lock manager not available - skipping lock acquisition")
+				Logger.debug("Lock manager not available - skipping lock acquisition")
 				return { acquired: false, skipped: true }
 			}
 
-			console.log(`Attempting to acquire folder lock for: ${options.lockTarget}`)
+			Logger.log(`Attempting to acquire folder lock for: ${options.lockTarget}`)
 
 			const result = await acquireFolderLock(options)
 
 			return { acquired: result.acquired, conflictingLock: result.conflictingLock, skipped: false }
 		} catch (error) {
-			console.error("Error in folder lock acquisition attempt:", error)
+			Logger.error("Error in folder lock acquisition attempt:", error)
 			return { acquired: false }
 		}
 	}, config)
@@ -79,14 +80,14 @@ export async function releaseFolderLock(taskId: string, lockTarget: string): Pro
 		const lockManager = await getStandaloneLockManager()
 
 		if (!lockManager) {
-			console.debug("Lock manager not available - skipping lock release")
+			Logger.debug("Lock manager not available - skipping lock release")
 			return
 		}
 
 		await lockManager.releaseFolderLockByTarget(taskId, lockTarget)
-		console.log(`Released folder lock for: ${lockTarget}`)
+		Logger.log(`Released folder lock for: ${lockTarget}`)
 	} catch (error) {
-		console.error("Error releasing folder lock:", error)
+		Logger.error("Error releasing folder lock:", error)
 	}
 }
 
@@ -99,7 +100,7 @@ export async function acquireFolderLock(options: FolderLockOptions): Promise<Fol
 	const lockManager = await getStandaloneLockManager()
 
 	if (!lockManager) {
-		console.debug("Lock manager not available - cannot acquire folder lock")
+		Logger.debug("Lock manager not available - cannot acquire folder lock")
 		return { acquired: false }
 	}
 
@@ -117,7 +118,7 @@ export async function acquireFolderLock(options: FolderLockOptions): Promise<Fol
 			}
 		}
 	} catch (error) {
-		console.error("Failed to acquire folder lock:", error)
+		Logger.error("Failed to acquire folder lock:", error)
 		return { acquired: false }
 	}
 }
@@ -141,7 +142,7 @@ export async function retryFolderLockAcquisition(
 
 		// Retries = check timeout before starting next attempt
 		if (elapsedTime >= config.maxTotalTimeoutMs) {
-			console.warn(`Folder lock acquisition timed out after ${config.maxTotalTimeoutMs}ms`)
+			Logger.warn(`Folder lock acquisition timed out after ${config.maxTotalTimeoutMs}ms`)
 			return lastResult || { acquired: false }
 		}
 
@@ -153,12 +154,12 @@ export async function retryFolderLockAcquisition(
 			// Return immediately if skipped or acquired
 			if (result.skipped || result.acquired) {
 				if (result.acquired && attemptCount > 0) {
-					console.debug(`Folder lock acquired after ${attemptCount + 1} attempts (${elapsedTime}ms)`)
+					Logger.debug(`Folder lock acquired after ${attemptCount + 1} attempts (${elapsedTime}ms)`)
 				}
 				return result
 			}
 		} catch (error) {
-			console.error(`Error during folder lock acquisition attempt ${attemptCount + 1}:`, error)
+			Logger.error(`Error during folder lock acquisition attempt ${attemptCount + 1}:`, error)
 		}
 
 		// Prep for next attempt
@@ -168,11 +169,11 @@ export async function retryFolderLockAcquisition(
 		const delay = Math.min(baseDelay, Math.max(0, remainingTime))
 
 		if (delay <= 0) {
-			console.warn(`Folder lock acquisition timed out after ${config.maxTotalTimeoutMs}ms`)
+			Logger.warn(`Folder lock acquisition timed out after ${config.maxTotalTimeoutMs}ms`)
 			return lastResult || { acquired: false }
 		}
 
-		console.log(`Folder lock held by another instance, retrying in ${delay}ms (attempt ${attemptCount})`)
+		Logger.log(`Folder lock held by another instance, retrying in ${delay}ms (attempt ${attemptCount})`)
 		await new Promise((resolve) => setTimeout(resolve, delay))
 	}
 }
