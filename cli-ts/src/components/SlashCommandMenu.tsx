@@ -43,19 +43,13 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 						</Box>
 						{showDescription && cmd.description && (
 							<Box paddingLeft={3}>
-								<Text color="gray" dimColor>
-									{cmd.description}
-								</Text>
+								<Text color="gray">{cmd.description}</Text>
 							</Box>
 						)}
 					</Box>
 				)
 			})}
-			{hasMoreBelow && (
-				<Text color="gray" dimColor>
-					{"  "}▼
-				</Text>
-			)}
+			{hasMoreBelow && <Text color="gray">{"  "}▼</Text>}
 		</Box>
 	)
 }

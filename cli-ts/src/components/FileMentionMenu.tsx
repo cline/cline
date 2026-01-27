@@ -60,11 +60,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 					</Box>
 				)
 			})}
-			{hasMoreBelow && (
-				<Text color="gray" dimColor>
-					{"  "}▼
-				</Text>
-			)}
+			{hasMoreBelow && <Text color="gray">{"  "}▼</Text>}
 		</Box>
 	)
 }
