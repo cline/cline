@@ -67,4 +67,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "history",
+		description: "Browse and search task history",
+		section: "default",
+		cliCompatible: true,
+	},
 ]
