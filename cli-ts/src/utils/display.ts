@@ -458,3 +458,15 @@ export async function promptConfirmation(question: string): Promise<boolean> {
 	const answer = await promptUser(`${question} ${style.dim("(y/n)")}`)
 	return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes"
 }
+
+/**
+ * Set the terminal session title using OSC escape sequence.
+ * Works in most modern terminal emulators (iTerm2, Terminal.app, GNOME Terminal, etc.)
+ */
+export function setTerminalTitle(title: string): void {
+	if (process.stdout.isTTY) {
+		const maxLength = 80
+		const truncated = title.length > maxLength ? title.slice(0, maxLength) + "..." : title
+		process.stdout.write(`\x1b]0;${truncated}\x07`)
+	}
+}

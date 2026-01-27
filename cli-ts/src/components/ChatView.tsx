@@ -118,6 +118,7 @@ import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
+import { setTerminalTitle } from "../utils/display"
 import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
@@ -672,6 +673,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							)
 						: []
 				const validImages = imageDataUrls.filter((img): img is string => img !== null)
+				setTerminalTitle(text.trim())
 				await ctrl.initTask(text.trim(), validImages.length > 0 ? validImages : undefined)
 			} catch (_error) {
 				onError?.()
@@ -697,6 +699,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			await new Promise((resolve) => setTimeout(resolve, 100))
 
 			try {
+				// Set terminal title to the task prompt
+				if (initialPrompt) {
+					setTerminalTitle(initialPrompt)
+				}
 				// initialImages are already data URLs from index.ts processing
 				await ctrl.initTask(initialPrompt || "", initialImages && initialImages.length > 0 ? initialImages : undefined)
 			} catch (_error) {

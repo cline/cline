@@ -9,6 +9,7 @@
 import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Controller } from "@/core/controller"
+import { setTerminalTitle } from "./display"
 
 export interface PlainTextTaskOptions {
 	controller: Controller
@@ -115,6 +116,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	try {
 		// Get initial state
 		await handleStateUpdate()
+
+		// Set terminal title to the task prompt
+		setTerminalTitle(prompt)
 
 		// Start the task
 		await controller.initTask(prompt, imageDataUrls)
