@@ -1,8 +1,8 @@
 import type { ModelInfo as ModelInfoType } from "@shared/api"
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
-import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { OpenaiReasoningEffort, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { Mode } from "@shared/storage/types"
 import { ArrowLeftRight, Brain, Check, ChevronDownIcon, Search, Settings } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -167,11 +167,25 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		[handleModeFieldChange, currentMode],
 	)
 
+	// Convert string to proto enum for reasoning effort
+	const stringToReasoningEffort = (value: string): OpenaiReasoningEffort => {
+		switch (value) {
+			case "low":
+				return OpenaiReasoningEffort.LOW
+			case "medium":
+				return OpenaiReasoningEffort.MEDIUM
+			case "high":
+				return OpenaiReasoningEffort.HIGH
+			default:
+				return OpenaiReasoningEffort.MEDIUM
+		}
+	}
+
 	// Handle reasoning effort change for OpenAI models
-	const handleReasoningEffortChange = useCallback((newValue: OpenaiReasoningEffort) => {
+	const handleReasoningEffortChange = useCallback((newValue: string) => {
 		StateServiceClient.updateSettings(
 			UpdateSettingsRequest.create({
-				openaiReasoningEffort: newValue,
+				openaiReasoningEffort: stringToReasoningEffort(newValue),
 			}),
 		).catch((error: Error) => console.error("Failed to update reasoning effort:", error))
 	}, [])
@@ -694,7 +708,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 								<div className="flex items-center gap-2 py-1.5 px-0 mt-0.5 w-full">
 									<div className="text-description whitespace-nowrap text-[10px]">Reasoning Effort:</div>
 									<ReasoningEffortSelect
-										onChange={(e) => handleReasoningEffortChange(e.target.value as OpenaiReasoningEffort)}
+										onChange={(e) => handleReasoningEffortChange(e.target.value)}
 										onClick={(e) => e.stopPropagation()}
 										value={openaiReasoningEffort || "medium"}>
 										<option value="low">Low</option>
