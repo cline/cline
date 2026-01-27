@@ -121,7 +121,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const enabled = (e?.target as HTMLInputElement).checked
 									updateSetting("nativeToolCallEnabled", enabled)
 								}}>
-								Enable Native Tool Call
+								Native Tool Call
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Uses the model's native tool calling API instead of XML-based tool parsing. This will improve
@@ -137,7 +137,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const enabled = (e?.target as HTMLInputElement).checked
 									updateSetting("enableParallelToolCalling", enabled)
 								}}>
-								Enable Parallel Tool Calling
+								Parallel Tool Calling
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Allows models to call multiple tools in a single response. Automatically enabled for GPT-5 models.
@@ -173,7 +173,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
 								}}>
-								Enable Focus Chain
+								Focus Chain
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables enhanced task progress tracking and automatic focus chain list management throughout
@@ -218,7 +218,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("enableCheckpointsSetting", checked)
 								}}>
-								Enable Checkpoints
+								Checkpoints
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood
@@ -234,7 +234,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("useAutoCondense", checked)
 								}}>
-								Enable Auto Compact
+								Auto Compact
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
@@ -256,7 +256,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("skillsEnabled", checked)
 								}}>
-								Enable Skills
+								Skills
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables custom skills that extend Cline's capabilities with reusable prompts and instructions.
@@ -341,9 +341,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										const checked = e.target.checked === true
 										updateSetting("subagentsEnabled", checked)
 									}}>
-									<span className="font-semibold">
-										{subagentsEnabled ? "Subagents Enabled" : "Enable Subagents"}
-									</span>
+									<span className="font-semibold">{subagentsEnabled ? "Subagents Enabled" : "Subagents"}</span>
 								</VSCodeCheckbox>
 								<p className="text-xs mt-1 mb-0">
 									<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
@@ -389,7 +387,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("backgroundEditEnabled", checked)
 								}}>
-								Enable Background Edit
+								Background Edit
 							</VSCodeCheckbox>
 							<p className="text-xs">
 								<span className="text-error">Experimental: </span>
@@ -408,7 +406,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										const checked = e.target.checked === true
 										updateSetting("clineWebToolsEnabled", checked)
 									}}>
-									Enable Cline Web Tools
+									Cline Web Tools
 								</VSCodeCheckbox>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
 									Enables websearch and webfetch tools while using the Cline provider.
@@ -458,7 +456,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										const checked = e.target.checked === true
 										updateSetting("worktreesEnabled", checked)
 									}}>
-									Enable Worktrees
+									Worktrees
 								</VSCodeCheckbox>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
 									Enables git worktree management for running parallel Cline tasks.
