@@ -140,7 +140,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Parallel Tool Calling
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Allows models to call multiple tools in a single response. Automatically enabled for GPT-5 models.
+								Call multiple tools in a single response. Automatically enabled for GPT-5 models.
 							</p>
 						</div>
 					</CategoryBox>
@@ -176,8 +176,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Focus Chain
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables enhanced task progress tracking and automatic focus chain list management throughout
-								tasks.
+								Track task progress automatically with focus chain list management throughout tasks.
 							</p>
 						</div>
 
@@ -221,8 +220,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Checkpoints
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood
-								which may not work well with large workspaces.
+								Save checkpoints of workspace throughout the task. Uses git under the hood which may not work well
+								with large workspaces.
 							</p>
 						</div>
 
@@ -237,7 +236,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Auto Compact
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
+								Advanced context management using LLM-based condensing for next-gen models.{" "}
 								<a
 									className="text-(--vscode-textLink-foreground) hover:text-(--vscode-textLink-activeForeground)"
 									href="https://docs.cline.bot/features/auto-compact"
@@ -259,7 +258,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Skills
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables custom skills that extend Cline's capabilities with reusable prompts and instructions.
+								Custom skills that extend Cline's capabilities with reusable prompts.
 							</p>
 						</div>
 						{/* Subagents - Only show on macOS and Linux */}
@@ -346,8 +345,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<p className="text-xs mt-1 mb-0">
 									<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
 									<span className="text-description">
-										Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
-										keeping your main context clean.
+										Spawn subprocesses to handle focused tasks like exploring large codebases, keeping your
+										main context clean.
 									</span>
 								</p>
 								{subagentsEnabled && (
@@ -391,9 +390,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</VSCodeCheckbox>
 							<p className="text-xs">
 								<span className="text-error">Experimental: </span>
-								<span className="text-description">
-									Allows editing files in background without opening the diff view in editor.
-								</span>
+								<span className="text-description">Edit files in background without opening the diff view.</span>
 							</p>
 						</div>
 
@@ -409,7 +406,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									Cline Web Tools
 								</VSCodeCheckbox>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
-									Enables websearch and webfetch tools while using the Cline provider.
+									Websearch and webfetch tools for the Cline provider.
 								</p>
 							</div>
 						)}
@@ -459,7 +456,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									Worktrees
 								</VSCodeCheckbox>
 								<p className="text-xs text-(--vscode-descriptionForeground)">
-									Enables git worktree management for running parallel Cline tasks.
+									Git worktree management for running parallel Cline tasks.
 								</p>
 							</div>
 						)}
