@@ -187,7 +187,7 @@ export class Controller {
 
 		// Abort all active tasks before clearing
 		for (const [, task] of this.activeTasks) {
-			await task.abortTask().catch((error) => console.error("Failed to abort task during controller dispose:", error))
+			await task.abortTask().catch((error) => Logger.error("Failed to abort task during controller dispose:", error))
 		}
 
 		await this.clearTask()
@@ -1048,7 +1048,7 @@ export class Controller {
 		const targetTask = this.activeTasks.get(taskId)
 
 		if (!targetTask) {
-			console.error(`[Controller.switchTask] Task ${taskId} not found in active tasks`)
+			Logger.error(`[Controller.switchTask] Task ${taskId} not found in active tasks`)
 			return false
 		}
 
