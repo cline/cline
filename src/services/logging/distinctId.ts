@@ -32,7 +32,7 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 
 	setDistinctId(distinctId)
 
-	Logger.log("Telemetry distinct ID initialized:", distinctId)
+	Logger.log("[DistinctId] initialized:", distinctId)
 }
 
 /*
@@ -46,7 +46,7 @@ async function getMachineId(): Promise<string | undefined> {
 		const id = await machineId()
 		return id
 	} catch (error) {
-		Logger.log("Failed to get machine ID from node-machine-id", error)
+		Logger.log("[DistinctId] Failed to get machine ID from node-machine-id", error)
 		return undefined
 	}
 }
@@ -57,7 +57,7 @@ async function getMachineId(): Promise<string | undefined> {
  */
 export function setDistinctId(newId: string) {
 	if (_distinctId && _distinctId !== newId) {
-		Logger.log(`Changing telemetry ID from ${_distinctId} to ${newId}.`)
+		Logger.log("[DistinctId] Updating...", `From ${_distinctId} to ${newId}`)
 	}
 	_distinctId = newId
 }
@@ -69,7 +69,7 @@ export function setDistinctId(newId: string) {
  */
 export function getDistinctId() {
 	if (!_distinctId) {
-		Logger.error("Telemetry ID is not initialized. Call initializeDistinctId() first.")
+		Logger.debug("[DistinctId] Not initialized. Call initializeDistinctId() first.")
 	}
 	return _distinctId
 }
