@@ -1075,12 +1075,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 									)
 									return (
 										<Text>
-											<Text color="gray">{bar.filled}</Text>
+											<Text>{bar.filled}</Text>
 											<Text color="gray">{bar.empty}</Text>
 										</Text>
 									)
-								})()} ({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
-								{metrics.totalCost.toFixed(3)}
+								})()} <Text color="gray">
+									({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
+									{metrics.totalCost.toFixed(3)}
+								</Text>
 							</Text>
 						</Box>
 
@@ -1090,7 +1092,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								{workspacePath.split("/").pop() || workspacePath}
 								{gitBranch && ` (${gitBranch})`}
 								{gitDiffStats && gitDiffStats.files > 0 && (
-									<Text>
+									<Text color="gray">
 										{" "}
 										| {gitDiffStats.files} file{gitDiffStats.files !== 1 ? "s" : ""}{" "}
 										<Text color="green">+{gitDiffStats.additions}</Text>{" "}
