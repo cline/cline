@@ -6,10 +6,10 @@ import { getRequestRegistry, type StreamingResponseHandler } from "@/core/contro
 import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
-import { Logger } from "../logging/Logger"
 import { ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { LogoutReason } from "./types"
 
@@ -88,7 +88,7 @@ export class AuthService {
 	public static getInstance(controller?: Controller): AuthService {
 		if (!AuthService.instance) {
 			if (!controller) {
-				console.warn("Extension context was not provided to AuthService.getInstance, using default context")
+				Logger.warn("Extension context was not provided to AuthService.getInstance, using default context")
 				controller = {} as Controller
 			}
 			if (process.env.E2E_TEST) {
@@ -274,7 +274,7 @@ export class AuthService {
 			this.destroyTokens()
 			this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error signing out:", error)
+			Logger.error("Error signing out:", error)
 			throw error
 		}
 	}
@@ -287,7 +287,7 @@ export class AuthService {
 			telemetryService.captureAuthSucceeded(this._provider.name)
 			await setWelcomeViewCompleted(this._controller, { value: true })
 		} catch (error) {
-			console.error("Error signing in with custom token:", error)
+			Logger.error("Error signing in with custom token:", error)
 			telemetryService.captureAuthFailed(this._provider.name)
 			throw error
 		} finally {
@@ -315,13 +315,13 @@ export class AuthService {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
-				console.warn("No user found after restoring auth token")
+				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
 				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
 			}
 		} catch (error) {
-			console.error("Error restoring auth token:", error)
+			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
@@ -369,7 +369,7 @@ export class AuthService {
 		try {
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error sending initial auth status:", error)
+			Logger.error("Error sending initial auth status:", error)
 			// Remove the subscription if there was an error
 			this._activeAuthStatusUpdateHandlers.delete(responseStream)
 			this._handlerToController.delete(responseStream)
@@ -396,7 +396,7 @@ export class AuthService {
 					false, // Not the last message
 				)
 			} catch (error) {
-				console.error("Error sending authStatusUpdate event:", error)
+				Logger.error("Error sending authStatusUpdate event:", error)
 				// Remove the subscription if there was an error
 				this._activeAuthStatusUpdateHandlers.delete(responseStream)
 				this._handlerToController.delete(responseStream)

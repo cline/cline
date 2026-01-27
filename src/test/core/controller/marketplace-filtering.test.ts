@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, before, beforeEach, describe, it } from "mocha"
 import "should"
 import { Controller } from "@core/controller"
 import type { McpMarketplaceItem } from "@shared/mcp"
 import type { RemoteConfig } from "@shared/remote-config/schema"
 import axios from "axios"
 import * as sinon from "sinon"
-import { ClineEnv } from "@/config"
+import { ClineEndpoint, ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**
@@ -19,6 +19,13 @@ describe("Controller Marketplace Filtering", () => {
 	let mockStateManager: any
 	let axiosGetStub: sinon.SinonStub
 	let hostProviderInitialized: boolean = false
+
+	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
+	before(async () => {
+		if (!ClineEndpoint.isInitialized()) {
+			await ClineEndpoint.initialize()
+		}
+	})
 
 	const mockMarketplaceData: McpMarketplaceItem[] = [
 		{

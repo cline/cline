@@ -238,7 +238,7 @@ func (pw *ProviderWizard) handleAddSapAiCoreProvider() error {
 
 // handleListProviders retrieves and displays configured providers
 func (pw *ProviderWizard) handleListProviders() error {
-	result, err := GetProviderConfigurations(pw.ctx, pw.manager)
+	result, err := GetProviderConfigurations(pw.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve provider configurations: %w", err)
 	}
@@ -446,7 +446,7 @@ func (pw *ProviderWizard) manualModelEntry(provider cline.ApiProvider) (string, 
 // handleChangeModel allows changing the model for any configured provider
 func (pw *ProviderWizard) handleChangeModel() error {
 	// Step 1: Get current provider configurations
-	result, err := GetProviderConfigurations(pw.ctx, pw.manager)
+	result, err := GetProviderConfigurations(pw.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve provider configurations: %w", err)
 	}
@@ -631,11 +631,11 @@ func getProviderModelIDFromState(stateData map[string]interface{}, provider clin
 	return ""
 }
 
- // getProviderAPIKeyFromState retrieves the API key for a specific provider from state
+// getProviderAPIKeyFromState retrieves the API key for a specific provider from state
 func getProviderAPIKeyFromState(stateData map[string]interface{}, provider cline.ApiProvider) string {
 	// OCA uses account authentication, not API keys. Consider it "present" if authenticated.
 	if provider == cline.ApiProvider_OCA {
-		if state, _ := GetLatestOCAState(context.TODO(), 2 * time.Second); state != nil && state.User != nil {
+		if state, _ := GetLatestOCAState(context.TODO(), 2*time.Second); state != nil && state.User != nil {
 			// Return a sentinel non-empty string so upstream checks pass.
 			return "OCA_AUTH_VERIFIED"
 		}
@@ -694,7 +694,7 @@ func convertMapToOpenRouterModelInfo(data map[string]interface{}) *cline.OpenRou
 // handleRemoveProvider allows removing a configured provider by clearing its API key
 func (pw *ProviderWizard) handleRemoveProvider() error {
 	// Step 1: Get current provider configurations
-	result, err := GetProviderConfigurations(pw.ctx, pw.manager)
+	result, err := GetProviderConfigurations(pw.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve provider configurations: %w", err)
 	}
@@ -793,7 +793,6 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 func (pw *ProviderWizard) clearProviderAPIKey(provider cline.ApiProvider) error {
 	return RemoveProviderPartial(pw.ctx, pw.manager, provider)
 }
-
 
 func signOutOca(ctx context.Context) error {
 	client, err := global.GetDefaultClient(ctx)

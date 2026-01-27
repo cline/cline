@@ -1,3 +1,4 @@
+import { Logger } from "@/shared/services/Logger"
 import { StreamingResponseHandler } from "./grpc-handler"
 import { Controller } from "./index"
 
@@ -37,7 +38,7 @@ export class ServiceRegistry {
 	 * @param serviceName The name of the service (used for logging)
 	 */
 	constructor(serviceName: string) {
-		console.log(`Registering Protobus service: ${serviceName}...`)
+		Logger.log(`Registering Protobus service: ${serviceName}...`)
 		this.serviceName = serviceName
 	}
 

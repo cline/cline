@@ -13,6 +13,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
@@ -78,7 +79,7 @@ export async function getDocumentsPath(): Promise<string> {
 				return trimmedPath
 			}
 		} catch (_err) {
-			console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
+			Logger.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
 		}
 	} else if (process.platform === "linux") {
 		try {
@@ -93,7 +94,7 @@ export async function getDocumentsPath(): Promise<string> {
 			}
 		} catch {
 			// Log error but continue to fallback
-			console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
+			Logger.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
 		}
 	}
 
@@ -217,7 +218,7 @@ export async function saveApiConversationHistory(taskId: string, apiConversation
 		}
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
-		console.error("Failed to save API conversation history:", error)
+		Logger.error("Failed to save API conversation history:", error)
 	}
 }
 
@@ -243,7 +244,7 @@ export async function saveClineMessages(taskId: string, uiMessages: ClineMessage
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
-		console.error("Failed to save ui messages:", error)
+		Logger.error("Failed to save ui messages:", error)
 	}
 }
 
@@ -265,7 +266,7 @@ export async function collectEnvironmentMetadata(): Promise<Omit<EnvironmentMeta
 			cline_version: ExtensionRegistryInfo.version,
 		}
 	} catch (error) {
-		console.error("Failed to collect environment metadata:", error)
+		Logger.error("Failed to collect environment metadata:", error)
 		// Return fallback values if collection fails
 		return {
 			os_name: os.platform(),
@@ -285,7 +286,7 @@ export async function getTaskMetadata(taskId: string): Promise<TaskMetadata> {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		}
 	} catch (error) {
-		console.error("Failed to read task metadata:", error)
+		Logger.error("Failed to read task metadata:", error)
 	}
 	return { files_in_context: [], model_usage: [], environment_history: [] }
 }
@@ -296,7 +297,7 @@ export async function saveTaskMetadata(taskId: string, metadata: TaskMetadata) {
 		const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
 		await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
 	} catch (error) {
-		console.error("Failed to save task metadata:", error)
+		Logger.error("Failed to save task metadata:", error)
 	}
 }
 
@@ -318,7 +319,7 @@ export async function readMcpMarketplaceCatalogFromCache(): Promise<McpMarketpla
 		}
 		return undefined
 	} catch (error) {
-		console.error("Failed to read MCP marketplace catalog from cache:", error)
+		Logger.error("Failed to read MCP marketplace catalog from cache:", error)
 		return undefined
 	}
 }
@@ -328,7 +329,7 @@ export async function writeMcpMarketplaceCatalogToCache(catalog: McpMarketplaceC
 		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
 		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
 	} catch (error) {
-		console.error("Failed to write MCP marketplace catalog to cache:", error)
+		Logger.error("Failed to write MCP marketplace catalog to cache:", error)
 	}
 }
 
@@ -384,7 +385,7 @@ export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<voi
 		const filePath = await getTaskHistoryStateFilePath()
 		await atomicWriteFile(filePath, JSON.stringify(items))
 	} catch (error) {
-		console.error("[Disk] Failed to write task history:", error)
+		Logger.error("[Disk] Failed to write task history:", error)
 		throw error
 	}
 }
@@ -402,7 +403,7 @@ export async function readTaskSettingsFromStorage(taskId: string): Promise<Parti
 		// Return empty object if settings file doesn't exist (new task)
 		return {}
 	} catch (error) {
-		console.error("[Disk] Failed to read task settings:", error)
+		Logger.error("[Disk] Failed to read task settings:", error)
 		throw error
 	}
 }
@@ -421,7 +422,7 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 		const updatedSettings = { ...existingSettings, ...settings }
 		await fs.writeFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
 	} catch (error) {
-		console.error("[Disk] Failed to write task settings:", error)
+		Logger.error("[Disk] Failed to write task settings:", error)
 		throw error
 	}
 }
@@ -436,7 +437,7 @@ export async function readRemoteConfigFromCache(organizationId: string): Promise
 		}
 		return undefined
 	} catch (error) {
-		console.error("Failed to read remote config from cache:", error)
+		Logger.error("Failed to read remote config from cache:", error)
 		return undefined
 	}
 }
@@ -446,7 +447,7 @@ export async function writeRemoteConfigToCache(organizationId: string, config: R
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))
 	} catch (error) {
-		console.error("Failed to write remote config to cache:", error)
+		Logger.error("Failed to write remote config to cache:", error)
 	}
 }
 
@@ -458,7 +459,7 @@ export async function deleteRemoteConfigFromCache(organizationId: string): Promi
 			await fs.unlink(remoteConfigFilePath)
 		}
 	} catch (error) {
-		console.error("Failed to delete remote config from cache:", error)
+		Logger.error("Failed to delete remote config from cache:", error)
 	}
 }
 
@@ -543,7 +544,7 @@ export async function writeConversationHistoryJson(
 		await atomicWriteFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
 		return tempFilePath
 	} catch (error) {
-		console.error("Failed to write conversation history JSON for hook:", error)
+		Logger.error("Failed to write conversation history JSON for hook:", error)
 		throw error
 	}
 }
@@ -561,7 +562,7 @@ export async function cleanupConversationHistoryFile(filePath: string): Promise<
 		}
 	} catch (error) {
 		// Silently handle errors - this is cleanup, not critical
-		console.debug("Failed to cleanup conversation history file:", filePath, error)
+		Logger.debug("Failed to cleanup conversation history file:", filePath, error)
 	}
 }
 
@@ -632,7 +633,7 @@ export async function writeConversationHistoryText(
 		await atomicWriteFile(tempFilePath, fullContext)
 		return tempFilePath
 	} catch (error) {
-		console.error("Failed to write conversation history text for hook:", error)
+		Logger.error("Failed to write conversation history text for hook:", error)
 		throw error
 	}
 }

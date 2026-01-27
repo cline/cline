@@ -4,6 +4,7 @@ import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -125,11 +126,11 @@ export class VercelAIGatewayHandler implements ApiHandler {
 			}
 
 			if (!didOutputUsage) {
-				console.warn("Vercel AI Gateway did not provide usage information in stream")
+				Logger.warn("Vercel AI Gateway did not provide usage information in stream")
 			}
 		} catch (error: any) {
-			console.error("Vercel AI Gateway error details:", error)
-			console.error("Error stack:", error.stack)
+			Logger.error("Vercel AI Gateway error details:", error)
+			Logger.error("Error stack:", error.stack)
 			throw new Error(`Vercel AI Gateway error: ${error.message}`)
 		}
 	}

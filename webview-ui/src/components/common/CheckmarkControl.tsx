@@ -111,6 +111,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			)
 		} catch (err) {
 			console.error("Checkpoint restore task error:", err)
+		} finally {
 			setRestoreTaskDisabled(false)
 		}
 	}
@@ -127,6 +128,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			)
 		} catch (err) {
 			console.error("Checkpoint restore workspace error:", err)
+		} finally {
 			setRestoreWorkspaceDisabled(false)
 		}
 	}
@@ -143,6 +145,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			)
 		} catch (err) {
 			console.error("Checkpoint restore both error:", err)
+		} finally {
 			setRestoreBothDisabled(false)
 		}
 	}

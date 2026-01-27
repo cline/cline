@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { OpenGraphData } from "@shared/proto/cline/web"
+import { Logger } from "@/shared/services/Logger"
 import { fetchOpenGraphData as fetchOGData } from "../../../integrations/misc/link-preview"
 import { convertDomainOpenGraphDataToProto } from "../../../shared/proto-conversions/web/open-graph-conversion"
 import { Controller } from ".."
@@ -19,7 +20,7 @@ export async function fetchOpenGraphData(_controller: Controller, request: Strin
 		// Convert domain model to proto model
 		return convertDomainOpenGraphDataToProto(ogData)
 	} catch (error) {
-		console.error(`Error fetching Open Graph data: ${request.value}`, error)
+		Logger.error(`Error fetching Open Graph data: ${request.value}`, error)
 		// Return empty OpenGraphData object
 		return OpenGraphData.create({})
 	}

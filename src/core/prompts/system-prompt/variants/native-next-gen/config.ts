@@ -1,5 +1,6 @@
 import { isGPT5ModelFamily, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
@@ -88,12 +89,12 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_NEXT_GEN }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Native Next Gen variant configuration validation failed:", validationResult.errors)
+	Logger.error("Native Next Gen variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid Native Next Gen variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Native Next Gen variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Native Next Gen variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

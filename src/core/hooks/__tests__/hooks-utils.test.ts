@@ -33,18 +33,8 @@ describe("hooks-utils", () => {
 				})
 			})
 
-			it("should return false when user setting is true", () => {
-				const result = getHooksEnabledSafe(true)
-				result.should.be.false()
-			})
-
-			it("should return false when user setting is false", () => {
-				const result = getHooksEnabledSafe(false)
-				result.should.be.false()
-			})
-
-			it("should return false when user setting is undefined", () => {
-				const result = getHooksEnabledSafe(undefined)
+			it("should return false", () => {
+				const result = getHooksEnabledSafe()
 				result.should.be.false()
 			})
 		})
@@ -63,18 +53,13 @@ describe("hooks-utils", () => {
 					})
 
 					it("should return true when user setting is true", () => {
-						const result = getHooksEnabledSafe(true)
+						const result = getHooksEnabledSafe()
 						result.should.be.true()
 					})
 
-					it("should return false when user setting is false", () => {
-						const result = getHooksEnabledSafe(false)
-						result.should.be.false()
-					})
-
-					it("should return false when user setting is undefined (default)", () => {
-						const result = getHooksEnabledSafe(undefined)
-						result.should.be.false()
+					it("should return true", () => {
+						const result = getHooksEnabledSafe()
+						result.should.be.true()
 					})
 				})
 			})
@@ -88,10 +73,7 @@ describe("hooks-utils", () => {
 					configurable: true,
 				})
 
-				// macOS should respect user setting
-				getHooksEnabledSafe(true).should.be.true()
-				getHooksEnabledSafe(false).should.be.false()
-				getHooksEnabledSafe(undefined).should.be.false()
+				getHooksEnabledSafe().should.be.true()
 			})
 
 			it("should handle Linux platform correctly", () => {
@@ -101,10 +83,7 @@ describe("hooks-utils", () => {
 					configurable: true,
 				})
 
-				// Linux should respect user setting
-				getHooksEnabledSafe(true).should.be.true()
-				getHooksEnabledSafe(false).should.be.false()
-				getHooksEnabledSafe(undefined).should.be.false()
+				getHooksEnabledSafe().should.be.true()
 			})
 		})
 	})

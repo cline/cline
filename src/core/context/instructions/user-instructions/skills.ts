@@ -3,13 +3,14 @@ import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
 
 /** Parse YAML frontmatter from markdown content (shared helper). */
 function parseFrontmatter(fileContent: string): { data: Record<string, unknown>; content: string } {
 	const result = parseYamlFrontmatter(fileContent)
 	if (result.parseError) {
-		console.warn("Failed to parse YAML frontmatter:", result.parseError)
+		Logger.warn("Failed to parse YAML frontmatter:", result.parseError)
 	}
 	return { data: result.data, content: result.body }
 }
@@ -39,7 +40,7 @@ async function scanSkillsDirectory(dirPath: string, source: "global" | "project"
 		}
 	} catch (error: unknown) {
 		if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EACCES") {
-			console.warn(`Permission denied reading skills directory: ${dirPath}`)
+			Logger.warn(`Permission denied reading skills directory: ${dirPath}`)
 		}
 	}
 
@@ -63,17 +64,17 @@ async function loadSkillMetadata(
 
 		// Validate required fields
 		if (!frontmatter.name || typeof frontmatter.name !== "string") {
-			console.warn(`Skill at ${skillDir} missing required 'name' field`)
+			Logger.warn(`Skill at ${skillDir} missing required 'name' field`)
 			return null
 		}
 		if (!frontmatter.description || typeof frontmatter.description !== "string") {
-			console.warn(`Skill at ${skillDir} missing required 'description' field`)
+			Logger.warn(`Skill at ${skillDir} missing required 'description' field`)
 			return null
 		}
 
 		// Name must match directory name per spec
 		if (frontmatter.name !== skillName) {
-			console.warn(`Skill name "${frontmatter.name}" doesn't match directory "${skillName}"`)
+			Logger.warn(`Skill name "${frontmatter.name}" doesn't match directory "${skillName}"`)
 			return null
 		}
 
@@ -84,7 +85,7 @@ async function loadSkillMetadata(
 			source,
 		}
 	} catch (error) {
-		console.warn(`Failed to load skill at ${skillDir}:`, error)
+		Logger.warn(`Failed to load skill at ${skillDir}:`, error)
 		return null
 	}
 }

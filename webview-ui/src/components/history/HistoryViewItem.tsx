@@ -12,7 +12,7 @@ import {
 	StarIcon,
 	TrashIcon,
 } from "lucide-react"
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -37,6 +37,11 @@ const HistoryViewItem = ({
 	selectedItems,
 }: HistoryViewItemProps) => {
 	const [expanded, setExpanded] = useState(false)
+
+	const isFavoritedItem = useMemo(
+		() => pendingFavoriteToggles[item.id] ?? item.isFavorited,
+		[item.id, item.isFavorited, pendingFavoriteToggles],
+	)
 
 	const handleShowTaskWithId = useCallback((id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
@@ -97,7 +102,7 @@ const HistoryViewItem = ({
 						<Button
 							aria-label="Delete"
 							className="p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-							disabled={pendingFavoriteToggles[item.id] !== undefined}
+							disabled={isFavoritedItem}
 							onClick={(e) => {
 								e.stopPropagation()
 								handleDeleteHistoryItem(item.id)
@@ -108,18 +113,17 @@ const HistoryViewItem = ({
 							</span>
 						</Button>
 						<Button
-							aria-label={item.isFavorited ? "Remove from favorites" : "Add to favorites"}
+							aria-label={isFavoritedItem ? "Remove from favorites" : "Add to favorites"}
 							className="p-0"
 							disabled={pendingFavoriteToggles[item.id] !== undefined}
 							onClick={(e) => {
 								e.stopPropagation()
-								toggleFavorite(item.id, item.isFavorited || false)
+								toggleFavorite(item.id, isFavoritedItem)
 							}}
 							variant="icon">
 							<StarIcon
 								className={cn("opacity-70", {
-									"text-button-background  fill-button-background opacity-100":
-										pendingFavoriteToggles[item.id] ?? item.isFavorited,
+									"text-button-background  fill-button-background opacity-100": isFavoritedItem,
 								})}
 							/>
 						</Button>

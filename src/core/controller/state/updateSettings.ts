@@ -15,6 +15,7 @@ import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -339,17 +340,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
 
-		if (request.hooksEnabled !== undefined) {
-			const isEnabled = !!request.hooksEnabled
-
-			// Platform validation: Only allow enabling hooks on macOS and Linux
-			if (isEnabled && process.platform === "win32") {
-				throw new Error("Hooks are not yet supported on Windows")
-			}
-
-			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
-		}
-
 		if (request.subagentsEnabled !== undefined) {
 			const currentSettings = controller.stateManager.getGlobalSettingsKey("subagentsEnabled")
 			const wasEnabled = currentSettings ?? false
@@ -413,7 +403,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update settings:", error)
+		Logger.error("Failed to update settings:", error)
 		throw error
 	}
 }

@@ -3,6 +3,7 @@ import { ResetStateRequest } from "@shared/proto/cline/state"
 import { resetGlobalState, resetWorkspaceState } from "@/core/storage/utils/state-helpers"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -43,7 +44,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Error resetting state:", error)
+		Logger.error("Error resetting state:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to reset state: ${error instanceof Error ? error.message : String(error)}`,

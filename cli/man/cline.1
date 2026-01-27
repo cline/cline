@@ -298,6 +298,64 @@ cline task view
 \f[I]# Start interactive chat with this task\f[R]
 cline task chat
 .EE
+.SH ENVIRONMENT
+.TP
+\f[B]CLINE_COMMAND_PERMISSIONS\f[R]
+JSON configuration for restricting which shell commands Cline can
+execute.
+When set, commands are validated against allow/deny patterns before
+execution.
+When not set, all commands are allowed (backward compatibility).
+.RS
+.PP
+Format:
+\f[CR]{"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirects": true}\f[R]
+.PP
+\f[B]Fields:\f[R]
+.IP \(bu 2
+\f[B]allow\f[R] (array of strings): Glob patterns for allowed commands.
+If specified, only matching commands are permitted.
+Uses \f[CR]*\f[R] to match any characters and \f[CR]?\f[R] to match a
+single character.
+.IP \(bu 2
+\f[B]deny\f[R] (array of strings): Glob patterns for denied commands.
+Deny rules take precedence over allow rules.
+.IP \(bu 2
+\f[B]allowRedirects\f[R] (boolean): Whether to allow shell redirects
+(\f[CR]>\f[R], \f[CR]>>\f[R], \f[CR]<\f[R], etc.).
+Defaults to false.
+.PP
+\f[B]Rule evaluation:\f[R]
+.IP "1." 3
+Check for dangerous characters (backticks outside single quotes,
+unquoted newlines)
+.IP "2." 3
+Parse command into segments split by operators (\f[CR]&&\f[R],
+\f[CR]||\f[R], \f[CR]|\f[R], \f[CR];\f[R])
+.IP "3." 3
+If redirects detected and \f[CR]allowRedirects\f[R] is not true, command
+is denied
+.IP "4." 3
+Each segment is validated against deny rules first, then allow rules
+.IP "5." 3
+Subshell contents (\f[CR]$(...)\f[R] and \f[CR](...)\f[R]) are
+recursively validated
+.IP "6." 3
+All segments must pass for the command to be allowed
+.PP
+\f[B]Examples:\f[R]
+.IP
+.EX
+\f[I]# Allow only npm and git commands\f[R]
+export CLINE_COMMAND_PERMISSIONS=\(aq{"allow": ["npm *", "git *"]}\(aq
+
+\f[I]# Allow development commands but deny dangerous ones\f[R]
+export CLINE_COMMAND_PERMISSIONS=\(aq{"allow": ["npm *", "git *", "node *"], "deny": ["rm \-rf *", "sudo *"]}\(aq
+
+\f[I]# Allow file operations with redirects\f[R]
+export CLINE_COMMAND_PERMISSIONS=\(aq{"allow": ["cat *", "echo *"], "allowRedirects": true}\(aq
+.EE
+.RE
 .SH ARCHITECTURE
 Cline operates on a three\-layer architecture:
 .TP

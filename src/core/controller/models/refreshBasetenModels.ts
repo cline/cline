@@ -6,6 +6,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { basetenModels } from "../../../shared/api"
 import { Controller } from ".."
 
@@ -83,7 +84,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 			throw new Error("No Baseten API key set or no models fetched")
 		}
 	} catch (error) {
-		console.error("Error fetching Baseten models:", error)
+		Logger.error("Error fetching Baseten models:", error)
 
 		// Provide more specific error messages
 		let errorMessage = "Unknown error occurred"
@@ -103,7 +104,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 			errorMessage = error.message
 		}
 
-		console.error("Baseten API Error:", errorMessage)
+		Logger.error("Baseten API Error:", errorMessage)
 
 		// If we failed to fetch models, try to read cached models first
 		const cachedModels = await readBasetenModels()
@@ -166,7 +167,7 @@ async function readBasetenModels(): Promise<Record<string, Partial<ModelInfo>> |
 			const fileContents = await fs.readFile(basetenModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		} catch (error) {
-			console.error("Error reading cached Baseten models:", error)
+			Logger.error("Error reading cached Baseten models:", error)
 			return undefined
 		}
 	}

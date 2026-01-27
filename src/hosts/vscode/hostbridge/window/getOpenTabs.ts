@@ -7,5 +7,5 @@ export async function getOpenTabs(_: GetOpenTabsRequest): Promise<GetOpenTabsRes
 		.map((tab) => (tab.input as TabInputText)?.uri?.fsPath)
 		.filter(Boolean)
 
-	return GetOpenTabsResponse.create({ paths: openTabPaths })
+	return GetOpenTabsResponse.create({ paths: openTabPaths ?? [] })
 }

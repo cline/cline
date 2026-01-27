@@ -1,6 +1,7 @@
 import type { HookOutputStreamMeta } from "@shared/ExtensionMessage"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import type { HookOutput } from "@shared/proto/cline/hooks"
+import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
 import { HookFactory } from "./hook-factory"
@@ -151,7 +152,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			...hookInput,
 		})
 
-		console.log(`[${hookName} Hook]`, result)
+		Logger.log(`[${hookName} Hook]`, result)
 
 		// NoOp hooks return proto defaults; preserve the minimal legacy return shape.
 		if (result.cancel === false && result.contextModification === "" && result.errorMessage === "") {
@@ -240,7 +241,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 
 		// Log error for non-cancellable hooks or unexpected errors
-		console.error(`${hookName} hook failed:`, hookError)
+		Logger.error(`${hookName} hook failed:`, hookError)
 
 		// Return safe defaults for all fields to avoid undefined property access
 		return {

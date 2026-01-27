@@ -187,20 +187,11 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            - name: Setup Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: '1.24'
-                  cache-dependency-path: cli/go.sum
-
-            - name: Build CLI binaries
-              run: npm run compile-cli-all-platforms
-
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
 
-            - name: Compile NPM package
-              run: npm run compile-standalone-npm
+            - name: Compile Standalone
+              run: npm run compile-standalone
 
             - name: Install testing platform dependencies
               if: steps.testing-platform-cache.outputs.cache-hit != 'true'
@@ -213,7 +204,7 @@ jobs:
               # This prevents the job from showing as failed and avoids distracting developers
               # until the integration tests are ready to be enforced.
               run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage || true
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4

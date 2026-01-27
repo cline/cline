@@ -8,6 +8,7 @@
 
 import * as fs from "fs/promises"
 import { GlobalFileNames, getSavedApiConversationHistory, getTaskHistoryStateFilePath } from "@/core/storage/disk"
+import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "./sync"
 import { getTaskTimestamp } from "./utils"
 
@@ -101,7 +102,7 @@ export async function backfillTask(taskId: string): Promise<BackfillTaskResult> 
 			result.filesQueued.push(taskId)
 		} catch (err) {
 			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-				console.error(`Failed to queue ${taskId}:`, err)
+				Logger.error(`Failed to queue ${taskId}:`, err)
 			}
 			// Skip missing files silently
 		}

@@ -12,7 +12,7 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import type { Controller } from "@/core/controller"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "./BannerService"
 
 describe.skip("BannerService (TEMPORARILY DISABLED - Banner API fetch disabled)", () => {

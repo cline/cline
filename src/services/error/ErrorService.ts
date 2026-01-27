@@ -1,3 +1,4 @@
+import { Logger } from "@/shared/services/Logger"
 import { ClineError } from "./ClineError"
 import { ErrorProviderFactory } from "./ErrorProviderFactory"
 import { IErrorProvider } from "./providers/IErrorProvider"
@@ -41,7 +42,7 @@ export class ErrorService {
 
 	public logException(error: Error | ClineError, properties?: Record<string, unknown>): void {
 		this.provider.logException(error, properties)
-		console.error("[ErrorService] Logging exception", JSON.stringify(error))
+		Logger.error("[ErrorService] Logging exception", JSON.stringify(error))
 	}
 
 	public logMessage(

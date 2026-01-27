@@ -1,11 +1,12 @@
 import { Empty } from "@shared/proto/cline/common"
 import { TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../"
 
 export async function toggleTaskFavorite(controller: Controller, request: TaskFavoriteRequest): Promise<Empty> {
 	if (!request.taskId || request.isFavorited === undefined) {
 		const errorMsg = `[toggleTaskFavorite] Invalid request: taskId or isFavorited missing`
-		console.error(errorMsg)
+		Logger.error(errorMsg)
 		return Empty.create({})
 	}
 
@@ -17,7 +18,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
 			if (taskIndex === -1) {
-				console.log(`[toggleTaskFavorite] Task not found in history array!`)
+				Logger.log(`[toggleTaskFavorite] Task not found in history array!`)
 			} else {
 				// Create a new array instead of modifying in place to ensure state change
 				const updatedHistory = [...history]
@@ -30,21 +31,21 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 				try {
 					controller.stateManager.setGlobalState("taskHistory", updatedHistory)
 				} catch (stateErr) {
-					console.error("Error updating global state:", stateErr)
+					Logger.error("Error updating global state:", stateErr)
 				}
 			}
 		} catch (historyErr) {
-			console.error("Error processing task history:", historyErr)
+			Logger.error("Error processing task history:", historyErr)
 		}
 
 		// Post to webview
 		try {
 			await controller.postStateToWebview()
 		} catch (webviewErr) {
-			console.error("Error posting to webview:", webviewErr)
+			Logger.error("Error posting to webview:", webviewErr)
 		}
 	} catch (error) {
-		console.error("Error in toggleTaskFavorite:", error)
+		Logger.error("Error in toggleTaskFavorite:", error)
 	}
 
 	return Empty.create({})

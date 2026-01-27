@@ -1,3 +1,4 @@
+import { Logger } from "@/shared/services/Logger"
 import type { ClineDefaultTool } from "@/shared/tools"
 import { ClineToolSet } from "../registry/ClineToolSet"
 import { type ClineToolSpec, resolveInstruction } from "../spec"
@@ -34,7 +35,7 @@ export class PromptBuilder {
 		for (const componentId of componentOrder) {
 			const componentFn = this.components[componentId]
 			if (!componentFn) {
-				console.warn(`Warning: Component '${componentId}' not found`)
+				Logger.warn(`Warning: Component '${componentId}' not found`)
 				continue
 			}
 
@@ -44,7 +45,7 @@ export class PromptBuilder {
 					sections[componentId] = result
 				}
 			} catch (error) {
-				console.warn(`Warning: Failed to build component '${componentId}':`, error)
+				Logger.warn(`Warning: Failed to build component '${componentId}':`, error)
 			}
 		}
 

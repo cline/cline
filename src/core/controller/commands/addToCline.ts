@@ -1,8 +1,8 @@
 import { getFileMentionFromPath } from "@/core/mentions"
 import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
-import { Logger } from "@/services/logging/Logger"
 import { telemetryService } from "@/services/telemetry"
 import { CommandContext, Empty } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
 import { sendAddToInputEvent } from "../ui/subscribeToAddToInput"
 
@@ -39,7 +39,7 @@ export async function addToCline(controller: Controller, request: CommandContext
 		await sendAddToInputEvent(input)
 	}
 
-	console.log("addToCline", request.selectedText, filePath, request.language, notebookContext ? "with notebook context" : "")
+	Logger.log("addToCline", request.selectedText, filePath, request.language)
 	telemetryService.captureButtonClick("codeAction_addToChat", controller.task?.ulid)
 
 	return {}

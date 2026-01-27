@@ -4,6 +4,7 @@ import { Empty } from "@shared/proto/cline/common"
 import { ExplainChangesRequest } from "@shared/proto/cline/task"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 import { sendRelinquishControlEvent } from "../ui/subscribeToRelinquishControl"
 import {
@@ -76,14 +77,14 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		const message = clineMessages[messageIndex]
 
 		if (!message) {
-			console.error(`[explainChanges] Message not found for timestamp ${request.messageTs}`)
+			Logger.error(`[explainChanges] Message not found for timestamp ${request.messageTs}`)
 			relinquishButton()
 			return Empty.create({})
 		}
 
 		const hash = message.lastCheckpointHash
 		if (!hash) {
-			console.error(`[explainChanges] No checkpoint hash found for message ${request.messageTs}`)
+			Logger.error(`[explainChanges] No checkpoint hash found for message ${request.messageTs}`)
 			relinquishButton()
 			return Empty.create({})
 		}
@@ -104,7 +105,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 				messageStateHandler.setCheckpointTracker(checkpointManager.state.checkpointTracker)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error(`[explainChanges] Failed to initialize checkpoint tracker:`, errorMessage)
+				Logger.error(`[explainChanges] Failed to initialize checkpoint tracker:`, errorMessage)
 				checkpointManager.state.checkpointManagerErrorMessage = errorMessage
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
@@ -117,7 +118,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 
 		const checkpointTracker = checkpointManager.state?.checkpointTracker as CheckpointTracker | undefined
 		if (!checkpointTracker) {
-			console.error(`[explainChanges] Checkpoint tracker not available`)
+			Logger.error(`[explainChanges] Checkpoint tracker not available`)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Checkpoint tracker not available",
@@ -240,7 +241,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		return Empty.create({})
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : "Unknown error"
-		console.error("Error in explainChanges:", errorMessage)
+		Logger.error("Error in explainChanges:", errorMessage)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "Failed to explain changes: " + errorMessage,

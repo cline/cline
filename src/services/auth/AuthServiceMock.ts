@@ -5,6 +5,7 @@ import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewC
 import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { AuthService } from "./AuthService"
 
@@ -25,7 +26,7 @@ export class AuthServiceMock extends AuthService {
 	public static override getInstance(controller?: Controller): AuthServiceMock {
 		if (!AuthServiceMock.instance) {
 			if (!controller) {
-				console.error("Extension controller was not provided to AuthServiceMock.getInstance")
+				Logger.error("Extension controller was not provided to AuthServiceMock.getInstance")
 				throw new Error("Extension controller was not provided to AuthServiceMock.getInstance")
 			}
 			AuthServiceMock.instance = new AuthServiceMock(controller)
@@ -49,7 +50,7 @@ export class AuthServiceMock extends AuthService {
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
 		if (this._authenticated && this._clineAuthInfo) {
-			console.log("Already authenticated with mock server")
+			Logger.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
 		}
 
@@ -100,7 +101,7 @@ export class AuthServiceMock extends AuthService {
 				provider: this._provider?.name || "mock",
 			}
 
-			console.log(`Successfully authenticated with mock server as ${authData.userInfo.name} (${authData.userInfo.email})`)
+			Logger.log(`Successfully authenticated with mock server as ${authData.userInfo.name} (${authData.userInfo.email})`)
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 
@@ -109,7 +110,7 @@ export class AuthServiceMock extends AuthService {
 			// Simulate handling the auth callback as if from a real provider
 			await visibleWebview?.controller.handleAuthCallback(authData.accessToken, providerName)
 		} catch (error) {
-			console.error("Error signing in with mock server:", error)
+			Logger.error("Error signing in with mock server:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			throw error
@@ -124,7 +125,7 @@ export class AuthServiceMock extends AuthService {
 			await setWelcomeViewCompleted(this._controller, { value: true })
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error signing in with custom token:", error)
+			Logger.error("Error signing in with custom token:", error)
 			throw error
 		}
 	}
@@ -135,12 +136,12 @@ export class AuthServiceMock extends AuthService {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
-				console.warn("No user found after restoring auth token")
+				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
 			}
 		} catch (error) {
-			console.error("Error restoring auth token:", error)
+			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			return

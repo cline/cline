@@ -5,6 +5,7 @@ import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
 import readline from "readline"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
 import { ClaudeCodeMessage } from "./types"
 
@@ -97,7 +98,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			)
 		}
 	} catch (err) {
-		console.error(`Error during Claude Code execution:`, err)
+		Logger.error(`Error during Claude Code execution:`, err)
 
 		if (processState.stderrLogs.includes("unknown option '--system-prompt-file'")) {
 			throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
@@ -152,7 +153,7 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 		}
 
 		if (options.shouldUseFile) {
-			fs.unlink(tempFilePath).catch(console.error)
+			fs.unlink(tempFilePath).catch(Logger.error)
 		}
 	}
 }
@@ -267,7 +268,7 @@ function attemptParseChunk(data: string): ClaudeCodeMessage | null {
 	try {
 		return JSON.parse(data)
 	} catch (error) {
-		console.error("Error parsing chunk:", error, data.length)
+		Logger.error("Error parsing chunk:", error, data.length)
 		return null
 	}
 }

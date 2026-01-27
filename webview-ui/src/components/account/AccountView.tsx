@@ -76,7 +76,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 
 export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
-	const { remoteConfigSettings } = useExtensionState()
+	const { remoteConfigSettings, environment } = useExtensionState()
 
 	// Determine if dropdown should be locked by remote config
 	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
@@ -395,7 +395,8 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 					/>
 				</div>
 
-				{isClineTester && (
+				{/* Hide environment switching UI when in self-hosted mode */}
+				{isClineTester && environment !== "selfHosted" && (
 					<div className="w-full gap-1 items-end">
 						<VSCodeDivider className="w-full my-3" />
 						<div className="text-sm font-semibold">Cline Environment</div>

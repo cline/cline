@@ -1,4 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineTool } from "@/shared/tools"
 import { ClineToolSet } from ".."
 import { getSystemPromptComponents } from "../components"
@@ -50,19 +51,19 @@ export class PromptRegistry {
 		const missingVariants = criticalVariants.filter((variant) => !this.variants.has(variant))
 
 		if (missingVariants.length > 0) {
-			console.error(`Registry health check failed: Missing critical variants: ${missingVariants.join(", ")}`)
-			console.error(`Available variants: ${Array.from(this.variants.keys()).join(", ")}`)
+			Logger.error(`Registry health check failed: Missing critical variants: ${missingVariants.join(", ")}`)
+			Logger.error(`Available variants: ${Array.from(this.variants.keys()).join(", ")}`)
 		}
 
 		if (this.variants.size === 0) {
-			console.error("Registry health check failed: No variants loaded at all")
+			Logger.error("Registry health check failed: No variants loaded at all")
 		}
 
 		if (Object.keys(this.components).length === 0) {
-			console.warn("Registry health check warning: No components loaded")
+			Logger.warn("Registry health check warning: No components loaded")
 		}
 
-		console.log(
+		Logger.log(
 			`Registry health check: ${this.variants.size} variants, ${Object.keys(this.components).length} components loaded`,
 		)
 	}
@@ -82,7 +83,7 @@ export class PromptRegistry {
 			}
 		}
 		// Fallback to generic variant if no match found
-		console.log("No matching variant found, falling back to generic")
+		Logger.log("No matching variant found, falling back to generic")
 		return ModelFamily.GENERIC
 	}
 	/**
@@ -109,7 +110,7 @@ export class PromptRegistry {
 				isLoaded: this.loaded,
 			}
 
-			console.error("Prompt variant lookup failed:", errorDetails)
+			Logger.error("Prompt variant lookup failed:", errorDetails)
 
 			throw new Error(
 				`No prompt variant found for model '${context.providerInfo.model.id}' and no generic fallback available. ` +
@@ -265,7 +266,7 @@ export class PromptRegistry {
 			// Ensure generic variant is always available as a safety fallback
 			this.ensureGenericFallback()
 		} catch (error) {
-			console.warn("Warning: Could not load variants:", error)
+			Logger.warn("Warning: Could not load variants:", error)
 			// Even if variant loading fails completely, create a minimal generic fallback
 			this.createMinimalGenericFallback()
 		}
@@ -276,7 +277,7 @@ export class PromptRegistry {
 	 */
 	private ensureGenericFallback(): void {
 		if (!this.variants.has(ModelFamily.GENERIC)) {
-			console.warn("Generic variant not found, creating minimal fallback")
+			Logger.warn("Generic variant not found, creating minimal fallback")
 			this.createMinimalGenericFallback()
 		}
 	}
@@ -305,7 +306,7 @@ export class PromptRegistry {
 				this.variants.set(`${variantId}@${variant.version}`, variant)
 			}
 		} catch (error) {
-			console.warn(`Warning: Could not load variant '${variantId}':`, error)
+			Logger.warn(`Warning: Could not load variant '${variantId}':`, error)
 		}
 	}
 
@@ -323,7 +324,7 @@ export class PromptRegistry {
 				}
 			}
 		} catch (error) {
-			console.warn("Warning: Could not load some components:", error)
+			Logger.warn("Warning: Could not load some components:", error)
 		}
 	}
 

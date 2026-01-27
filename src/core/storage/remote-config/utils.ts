@@ -2,13 +2,15 @@ import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-in
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
-import { Logger } from "@/services/logging/Logger"
+import { getDistinctId } from "@/services/logging/distinctId"
 import { getTelemetryService, telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { ApiProvider } from "@/shared/api"
 import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { Logger } from "@/shared/services/Logger"
+import { syncWorker } from "@/shared/services/worker/sync"
 import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
@@ -92,7 +94,6 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	}
 
 	// Map provider settings
-
 	const providers: ApiProvider[] = []
 
 	// Map OpenAiCompatible provider settings
@@ -228,7 +229,20 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 			}
 		}
 	} catch (err) {
-		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+	}
+}
+
+async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigFields>) {
+	try {
+		const blobStoreConfig = transformed.blobStoreConfig
+		if (!blobStoreConfig) {
+			return
+		}
+
+		syncWorker().init({ ...blobStoreConfig, userDistinctId: getDistinctId() })
+	} catch (err) {
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote sync queue config", err)
 	}
 }
 
@@ -291,6 +305,15 @@ export async function applyRemoteConfig(
 	stateManager.clearRemoteConfig()
 	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
+	// If the existing configured provider is valid, don't update it
+	const apiConfiguration = stateManager.getApiConfiguration()
+	if (isProviderValid(apiConfiguration.actModeApiProvider, transformed)) {
+		transformed.actModeApiProvider = apiConfiguration.actModeApiProvider
+	}
+	if (isProviderValid(apiConfiguration.planModeApiProvider, transformed)) {
+		transformed.planModeApiProvider = apiConfiguration.planModeApiProvider
+	}
+
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
@@ -301,6 +324,8 @@ export async function applyRemoteConfig(
 		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
 	}
 
+	applyRemoteSyncQueueConfig(transformed)
+
 	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
 	if (remoteConfig.remoteMCPServers !== undefined) {
 		try {
@@ -310,15 +335,16 @@ export async function applyRemoteConfig(
 			// Store current remote servers list for next sync to detect removals
 			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
 		} catch (error) {
-			console.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
 			// Continue with other config application even if MCP sync fails
 		}
 	}
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }
 
-const isProviderValid = (provider?: ApiProvider) => {
-	const remoteConfiguredProviders = StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
+const isProviderValid = (provider?: ApiProvider, remoteConfig?: Partial<RemoteConfigFields>) => {
+	const remoteConfiguredProviders =
+		remoteConfig?.remoteConfiguredProviders ?? StateManager.get().getRemoteConfigSettings().remoteConfiguredProviders
 	if (!remoteConfiguredProviders || !remoteConfiguredProviders.length) {
 		return true
 	}

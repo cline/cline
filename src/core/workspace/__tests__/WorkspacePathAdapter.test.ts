@@ -11,12 +11,13 @@ import * as sinon from "sinon"
 import { createWorkspacePathAdapter, WorkspacePathAdapter } from "../WorkspacePathAdapter"
 import { WorkspaceRootManager } from "../WorkspaceRootManager"
 import "@utils/path"
+import { Logger } from "@/shared/services/Logger"
 
 describe("WorkspacePathAdapter", () => {
 	let consoleWarnStub: sinon.SinonStub
 
 	beforeEach(() => {
-		consoleWarnStub = sinon.stub(console, "warn")
+		consoleWarnStub = sinon.stub(Logger, "warn")
 	})
 
 	afterEach(() => {

@@ -1,5 +1,6 @@
 import type { ToggleMcpServerRequest } from "@shared/proto/cline/mcp"
 import { McpServers } from "@shared/proto/cline/mcp"
+import { Logger } from "@/shared/services/Logger"
 import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
 import type { Controller } from "../index"
 
@@ -18,7 +19,7 @@ export async function toggleMcpServer(controller: Controller, request: ToggleMcp
 
 		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
-		console.error(`Failed to toggle MCP server ${request.serverName}:`, error)
+		Logger.error(`Failed to toggle MCP server ${request.serverName}:`, error)
 		throw error
 	}
 }

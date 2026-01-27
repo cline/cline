@@ -3,6 +3,7 @@ import { formatResponse } from "@core/prompts/responses"
 import { findLast, parsePartialArrayString } from "@shared/array"
 import { telemetryService } from "@/services/telemetry"
 import { ClinePlanModeResponse } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -85,7 +86,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 				// we dont need to process any text, options, files or other content here
 				return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
 			} else {
-				console.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
+				Logger.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
 			}
 		}
 

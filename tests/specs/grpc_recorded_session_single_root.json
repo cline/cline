@@ -1,137 +1,96 @@
 {
-  "startTime": "2025-09-22T15:10:39.693Z",
-  "entries": [
-    {
-      "requestId": "6e4460e9-e701-4bd2-bac6-1b0f20938c11",
-      "service": "cline.AccountService",
-      "method": "accountLoginClicked",
-      "isStreaming": false,
-      "request": {
-        "message": {}
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": false
-      },
-      "response": {
-        "message": {
-          "value": "http://localhost:7777/"
-        }
-      },
-      "duration": 13
-    },
-    {
-      "requestId": "2f774918-949e-4919-9b26-8b8be5b95bb9",
-      "service": "cline.AccountService",
-      "method": "getUserOrganizations",
-      "isStreaming": false,
-      "request": {
-        "message": {}
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": false
-      },
-      "response": {
-        "message": {
-          "organizations": [
-            {
-              "active": false,
-              "memberId": "random-member-id",
-              "name": "Test Organization",
-              "organizationId": "random-org-id",
-              "roles": [
-                "member"
-              ]
-            }
-          ]
-        }
-      },
-      "duration": 5
-    },
-    {
-      "requestId": "118991fc-73b1-4dce-ae20-15cd3529f465",
-      "service": "cline.TaskService",
-      "method": "newTask",
-      "isStreaming": false,
-      "request": {
-        "message": {
-          "text": "Hello, Cline!",
-          "images": [],
-          "files": []
-        }
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": false
-      },
-      "response": {
-        "message": {}
-      },
-      "duration": 49
-    },
-    {
-      "requestId": "68dd4b35-f839-4831-a192-a00f46fabfde",
-      "service": "cline.TaskService",
-      "method": "clearTask",
-      "isStreaming": false,
-      "request": {
-        "message": {}
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": false
-      },
-      "response": {
-        "message": {}
-      },
-      "duration": 2
-    },
-    {
-      "requestId": "6633a706-366d-49d5-a3f4-4589131bdc5c",
-      "service": "cline.TaskService",
-      "method": "newTask",
-      "isStreaming": false,
-      "request": {
-        "message": {
-          "text": "edit_request",
-          "images": [],
-          "files": []
-        }
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": false
-      },
-      "response": {
-        "message": {}
-      },
-      "duration": 49
-    },
-    {
-      "requestId": "6633a706-366d-49d5-a3f4-4589131bdc5c",
-      "service": "cline.StateService",
-      "method": "getLatestState",
-      "isStreaming": false,
-      "request": {
-        "message": {}
-      },
-      "status": "completed",
-      "meta": {
-        "synthetic": true
-      },
-      "response": {
-        "message": {
-          "stateJson": "{\"version\":\"3.30.3\",\"apiConfiguration\":{\"openAiHeaders\":{},\"sapAiCoreUseOrchestrationMode\":true,\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"clineMessages\":[{\"ts\":1758625013954,\"type\":\"say\",\"say\":\"text\",\"text\":\"edit_request\",\"images\":[],\"files\":[],\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"dictationSettings\":{\"featureEnabled\":true,\"dictationEnabled\":false,\"dictationLanguage\":\"en\"},\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"yoloModeToggled\":false,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"fake-machine-id-Joses-MacBook-Pro.local\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[{\"id\":\"1758625013739\",\"ulid\":\"01K5V3G7ZBK1YRG4EVXVAB8J68\",\"ts\":1758625013740,\"task\":\"Hello, Cline!\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":220,\"cwdOnTaskInitialization\":\"/var/folders/x3/5k62k0qj0rx84w8t_qh1z6gh0000gq/T/cline-test-workspace-OuVGt0\",\"isFavorited\":false}],\"platform\":\"darwin\",\"shouldShowAnnouncement\":true,\"favoritedModelIds\":[],\"workspaceRoots\":[{\"path\":\"/var/folders/x3/5k62k0qj0rx84w8t_qh1z6gh0000gq/T/cline-test-workspace-OuVGt0\",\"name\":\"cline-test-workspace-OuVGt0\",\"vcs\":\"none\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
-        }
-      },
-      "duration": 0
-    }
-  ],
-  "stats": {
-    "totalRequests": 6,
-    "pendingRequests": 0,
-    "completedRequests": 6,
-    "errorRequests": 0
-  }
+	"startTime": "2025-09-22T15:10:39.693Z",
+	"entries": [
+		{
+			"requestId": "6e4460e9-e701-4bd2-bac6-1b0f20938c11",
+			"service": "cline.AccountService",
+			"method": "accountLoginClicked",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false
+			},
+			"response": {
+				"message": {
+					"value": "http://localhost:7777/"
+				}
+			},
+			"duration": 13
+		},
+		{
+			"requestId": "2f774918-949e-4919-9b26-8b8be5b95bb9",
+			"service": "cline.AccountService",
+			"method": "getUserOrganizations",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false
+			},
+			"response": {
+				"message": {
+					"organizations": [
+						{
+							"active": false,
+							"memberId": "random-member-id",
+							"name": "Test Organization",
+							"organizationId": "random-org-id",
+							"roles": [
+								"member"
+							]
+						}
+					]
+				}
+			},
+			"duration": 5
+		},
+		{
+			"requestId": "118991fc-73b1-4dce-ae20-15cd3529f465",
+			"service": "cline.TaskService",
+			"method": "newTask",
+			"isStreaming": false,
+			"request": {
+				"message": {
+					"text": "Hello, Cline!",
+					"images": [],
+					"files": []
+				}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": false,
+				"expected": {}
+			},
+			"response": {
+				"message": {
+					"value": "1768819891184"
+				}
+			},
+			"duration": 49
+		},
+		{
+			"requestId": "6633a706-366d-49d5-a3f4-4589131bdc5c",
+			"service": "cline.StateService",
+			"method": "getLatestState",
+			"isStreaming": false,
+			"request": {
+				"message": {}
+			},
+			"status": "completed",
+			"meta": {
+				"synthetic": true
+			},
+			"response": {
+				"message": {
+					"stateJson": "{\"version\":\"3.51.0\",\"apiConfiguration\":{\"openAiHeaders\":{},\"sapAiCoreUseOrchestrationMode\":true,\"ocaMode\":\"internal\",\"planModeThinkingBudgetTokens\":1024,\"actModeThinkingBudgetTokens\":1024,\"planModeApiProvider\":\"cline\",\"actModeApiProvider\":\"cline\"},\"clineMessages\":[{\"ts\":1768822228168,\"type\":\"say\",\"say\":\"text\",\"text\":\"edit_request\",\"images\":[],\"files\":[],\"modelInfo\":{\"providerId\":\"cline\",\"modelId\":\"anthropic/claude-sonnet-4.5\",\"mode\":\"act\"},\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"favorites\":[],\"maxRequests\":20,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":true},\"enableNotifications\":false},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"dictationSettings\":{\"featureEnabled\":true,\"dictationEnabled\":false,\"dictationLanguage\":\"en\"},\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"yoloModeToggled\":false,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"platform\":\"darwin\",\"environment\":\"local\",\"distinctId\":\"test-member-789\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localAgentsRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"globalSkillsToggles\":{},\"localSkillsToggles\":{},\"remoteRulesToggles\":{},\"remoteWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"vscodeTerminalExecutionMode\":\"vscodeTerminal\",\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"onboardingModels\":{\"models\":[{\"group\":\"free\",\"id\":\"x-ai/grok-code-fast-1\",\"name\":\"xAI: Grok Code Fast 1\",\"score\":90,\"latency\":1,\"badge\":\"Best\",\"info\":{\"contextWindow\":256000,\"supportsImages\":true,\"supportsPromptCache\":true,\"inputPrice\":0,\"outputPrice\":0,\"tiers\":[]}},{\"group\":\"frontier\",\"id\":\"anthropic/claude-sonnet-4.5\",\"name\":\"Anthropic: Claude Sonnet 4.5\",\"badge\":\"Best\",\"score\":97,\"latency\":3,\"info\":{\"contextWindow\":200000,\"supportsImages\":true,\"supportsPromptCache\":true,\"inputPrice\":3,\"outputPrice\":15,\"tiers\":[]}},{\"group\":\"frontier\",\"id\":\"google/gemini-3-pro-preview\",\"name\":\"Gemini 3.0 Pro\",\"badge\":\"Preview\",\"score\":97,\"latency\":3,\"info\":{\"contextWindow\":1048576,\"supportsImages\":true,\"supportsPromptCache\":true,\"inputPrice\":4,\"outputPrice\":18,\"tiers\":[]}},{\"group\":\"frontier\",\"id\":\"openai/gpt-5-codex\",\"name\":\"OpenAI: GPT-5 Codex\",\"badge\":\"Best\",\"score\":97,\"latency\":7,\"info\":{\"contextWindow\":400000,\"supportsImages\":true,\"supportsPromptCache\":true,\"inputPrice\":1.25,\"outputPrice\":10,\"tiers\":[]}},{\"group\":\"frontier\",\"id\":\"openai/gpt-5.2\",\"name\":\"OpenAI: GPT-5.2\",\"badge\":\"New\",\"score\":97,\"latency\":3,\"info\":{\"contextWindow\":272000,\"supportsImages\":true,\"supportsPromptCache\":true,\"inputPrice\":1.75,\"outputPrice\":14,\"tiers\":[]}},{\"group\":\"open source\",\"id\":\"z-ai/glm-4.6:exacto\",\"name\":\"Z.AI: GLM 4.6 (exacto)\",\"badge\":\"Trending\",\"score\":90,\"latency\":2,\"info\":{\"contextWindow\":202752,\"supportsImages\":false,\"supportsPromptCache\":false,\"inputPrice\":0.6,\"outputPrice\":2.5,\"tiers\":[]}}]},\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"maxConsecutiveMistakes\":3,\"subagentTerminalOutputLineLimit\":2000,\"taskHistory\":[{\"id\":\"1768822227920\",\"ulid\":\"01KFB0AGYJFJ8R7BV2RZMETAQA\",\"ts\":1768822227923,\"task\":\"Hello, Cline!\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":308,\"cwdOnTaskInitialization\":\"/var/folders/x3/5k62k0qj0rx84w8t_qh1z6gh0000gq/T/cline-test-workspace-ZM6Khu\",\"isFavorited\":false}],\"shouldShowAnnouncement\":true,\"favoritedModelIds\":[],\"autoCondenseThreshold\":0.75,\"backgroundCommandRunning\":false,\"workspaceRoots\":[{\"path\":\"/var/folders/x3/5k62k0qj0rx84w8t_qh1z6gh0000gq/T/cline-test-workspace-ZM6Khu\",\"name\":\"cline-test-workspace-ZM6Khu\",\"vcs\":\"none\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false,\"multiRootSetting\":{\"user\":false,\"featureFlag\":true},\"clineWebToolsEnabled\":{\"user\":true,\"featureFlag\":false},\"worktreesEnabled\":{\"user\":false,\"featureFlag\":false},\"hooksEnabled\":false,\"lastDismissedInfoBannerVersion\":0,\"lastDismissedModelBannerVersion\":0,\"remoteConfigSettings\":{},\"lastDismissedCliBannerVersion\":0,\"subagentsEnabled\":false,\"nativeToolCallSetting\":true,\"enableParallelToolCalling\":false,\"backgroundEditEnabled\":false,\"skillsEnabled\":false,\"optOutOfRemoteConfig\":false,\"banners\":[]}"
+				}
+			},
+			"duration": 0
+		}
+	]
 }

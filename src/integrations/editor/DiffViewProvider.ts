@@ -8,7 +8,9 @@ import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { detectEncoding } from "../misc/extract-text"
+import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
 
 export abstract class DiffViewProvider {
@@ -168,6 +170,23 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
+	/**
+	 * Switches to a specialized editor for specific file types after final content is available.
+	 * Called automatically by the `update` method when `isFinal` is true.
+	 *
+	 * For example, switches to Jupyter notebook editor for .ipynb files to provide
+	 * enhanced editing experience with proper notebook cell rendering.
+	 *
+	 * Default is no-op. Subclasses can override to provide specialized behavior.
+	 */
+	protected async switchToSpecializedEditor(): Promise<void> {
+		// Default no-op - subclasses can override if needed
+	}
+
+	private lastUpdateContentLength = -1
+	private lastUpdateTime = 0
+	private static readonly UPDATE_THROTTLE_MS = 100 // Throttle updates to max 10/second during streaming
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -175,6 +194,25 @@ export abstract class DiffViewProvider {
 	) {
 		if (!this.isEditing) {
 			throw new Error("Not editing any file")
+		}
+
+		// Throttle updates during streaming to prevent performance issues with large files
+		// This is especially important for notebooks where streaming can trigger thousands of calls
+		if (!isFinal) {
+			const now = Date.now()
+			const contentLength = accumulatedContent.length
+			const timeSinceLastUpdate = now - this.lastUpdateTime
+
+			// Skip if: no content, content unchanged, or throttle period not elapsed
+			if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
+				return
+			}
+			if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
+				return // Throttle: too soon since last update
+			}
+
+			this.lastUpdateContentLength = contentLength
+			this.lastUpdateTime = now
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -244,6 +282,8 @@ export abstract class DiffViewProvider {
 			await this.safelyTruncateDocument(this.streamedLines.length)
 			// Allow subclasses to perform cleanup (e.g., clearing decorations)
 			await this.onFinalUpdate()
+			// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
+			await this.switchToSpecializedEditor()
 		}
 	}
 
@@ -285,6 +325,15 @@ export abstract class DiffViewProvider {
 		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
 	}
 
+	/**
+	 * Returns the original content sanitized for LLM context.
+	 * For notebooks, strips all outputs since they aren't needed for editing.
+	 */
+	getOriginalContentForLLM(): string | undefined {
+		if (this.originalContent === undefined) return undefined
+		return this.isNotebookFile() ? sanitizeNotebookForLLM(this.originalContent, true) : this.originalContent
+	}
+
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
@@ -307,12 +356,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		// we need to open notebook files with Notebook editor if available.
-		// Currently, HostProvider opens it with Text editor. Not opening
-		// notebook files until we fix that.
-		if (!this.isNotebookFile()) {
-			await this.showFile(this.absolutePath)
-		}
+		await this.showFile(this.absolutePath)
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
@@ -346,11 +390,16 @@ export abstract class DiffViewProvider {
 			)
 		}
 
+		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
+		const finalContent = this.isNotebookFile()
+			? sanitizeNotebookForLLM(normalizedPostSaveContent, true)
+			: normalizedPostSaveContent
+
 		return {
 			newProblemsMessage,
 			userEdits,
 			autoFormattingEdits,
-			finalContent: normalizedPostSaveContent,
+			finalContent,
 		}
 	}
 
@@ -366,15 +415,15 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
-			console.log(`File ${this.absolutePath} has been deleted.`)
+			Logger.log(`File ${this.absolutePath} has been deleted.`)
 
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				try {
 					await fs.rmdir(this.createdDirs[i])
-					console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+					Logger.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 				} catch (error) {
-					console.log(`Could not delete directory ${this.createdDirs[i]}`, error)
+					Logger.log(`Could not delete directory ${this.createdDirs[i]}`, error)
 				}
 			}
 		} else {
@@ -386,7 +435,7 @@ export abstract class DiffViewProvider {
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
-			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
+			Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				openFile(this.absolutePath, true)
 			}
@@ -428,9 +477,9 @@ export abstract class DiffViewProvider {
 		// Delete the file
 		try {
 			await fs.rm(fileLocation, { force: true })
-			console.log(`File ${fileLocation} has been deleted.`)
+			Logger.log(`File ${fileLocation} has been deleted.`)
 		} catch (error) {
-			console.error(`Failed to delete file ${fileLocation}:`, error)
+			Logger.error(`Failed to delete file ${fileLocation}:`, error)
 		}
 
 		this.isEditing = false
@@ -452,6 +501,8 @@ export abstract class DiffViewProvider {
 		this.streamedLines = []
 		this.createdDirs = []
 		this.newContent = undefined
+		this.lastUpdateContentLength = -1
+		this.lastUpdateTime = 0
 
 		await this.resetDiffView()
 	}

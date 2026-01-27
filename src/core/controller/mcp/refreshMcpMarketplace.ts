@@ -1,5 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -17,7 +18,7 @@ export async function refreshMcpMarketplace(controller: Controller, _request: Em
 			return catalog as McpMarketplaceCatalog
 		}
 	} catch (error) {
-		console.error("Failed to refresh MCP marketplace:", error)
+		Logger.error("Failed to refresh MCP marketplace:", error)
 	}
 	// Return empty catalog if nothing was fetched
 	return { items: [] }

@@ -80,7 +80,7 @@ func ensureTaskManager(ctx context.Context, address string) error {
 		}
 
 		// Always set the instance we're using as the default
-		registry := global.Clients.GetRegistry()
+		registry := global.Instances.GetRegistry()
 		if err := registry.SetDefaultInstance(instanceAddress); err != nil {
 			// Log warning but don't fail - this is not critical
 			fmt.Printf("Warning: failed to set default instance: %v\n", err)
@@ -91,10 +91,10 @@ func ensureTaskManager(ctx context.Context, address string) error {
 
 // ensureInstanceAtAddress ensures an instance exists at the given address
 func ensureInstanceAtAddress(ctx context.Context, address string) error {
-	if global.Clients == nil {
+	if global.Instances == nil {
 		return fmt.Errorf("global clients not initialized")
 	}
-	return global.Clients.EnsureInstanceAtAddress(ctx, address)
+	return global.Instances.EnsureInstanceAtAddress(ctx, address)
 }
 
 func newTaskNewCommand() *cobra.Command {
@@ -117,7 +117,7 @@ func newTaskNewCommand() *cobra.Command {
 			ctx := cmd.Context()
 
 			// Check if an instance exists when no address specified
-			if address == "" && global.Clients.GetRegistry().GetDefaultInstance() == "" {
+			if address == "" && global.Instances.GetRegistry().GetDefaultInstance() == "" {
 				fmt.Println("No instances available for creating tasks")
 				return nil
 			}
@@ -230,7 +230,7 @@ func newTaskSendCommand() *cobra.Command {
 			ctx := cmd.Context()
 
 			// Check if an instance exists when no address specified
-			if address == "" && global.Clients.GetRegistry().GetDefaultInstance() == "" {
+			if address == "" && global.Instances.GetRegistry().GetDefaultInstance() == "" {
 				fmt.Println("No instances available for sending messages")
 				return nil
 			}
@@ -618,11 +618,6 @@ func CleanupTaskManager() {
 	if taskManager != nil {
 		taskManager.Cleanup()
 	}
-}
-
-// NewTaskManagerForAddress is an exported wrapper around task.NewManagerForAddress
-func NewTaskManagerForAddress(ctx context.Context, address string) (*task.Manager, error) {
-	return task.NewManagerForAddress(ctx, address)
 }
 
 // CreateAndFollowTask creates a new task and immediately follows it in interactive mode

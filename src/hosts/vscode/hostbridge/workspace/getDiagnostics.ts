@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
 import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import "@/utils/path" // for String.prototype.toPosix
+import { Logger } from "@/shared/services/Logger"
 
 export async function getDiagnostics(_request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
 	// Get all diagnostics from VS Code
@@ -61,7 +62,7 @@ function convertSeverity(vscodeSeverity: vscode.DiagnosticSeverity): DiagnosticS
 		case vscode.DiagnosticSeverity.Hint:
 			return DiagnosticSeverity.DIAGNOSTIC_HINT
 		default:
-			console.warn("Unhandled vscode severity", vscodeSeverity)
+			Logger.warn("Unhandled vscode severity", vscodeSeverity)
 			return DiagnosticSeverity.DIAGNOSTIC_ERROR
 	}
 }

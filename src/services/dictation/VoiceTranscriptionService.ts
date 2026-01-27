@@ -1,6 +1,6 @@
-import { Logger } from "@services/logging/Logger"
 import axios from "axios"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
 
 // Network error matchers using Map for O(1) lookup

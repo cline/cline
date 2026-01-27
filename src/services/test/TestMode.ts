@@ -8,7 +8,7 @@ import * as fs from "fs"
 import * as path from "path"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { createTestServer, shutdownTestServer } from "./TestServer"
 
 // State variable

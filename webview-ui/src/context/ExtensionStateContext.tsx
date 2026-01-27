@@ -14,7 +14,6 @@ import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mc
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { Environment } from "../../../src/config"
 import {
 	basetenDefaultModelId,
 	basetenModels,
@@ -26,6 +25,7 @@ import {
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
+import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 

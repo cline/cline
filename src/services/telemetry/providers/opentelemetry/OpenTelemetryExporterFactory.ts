@@ -7,6 +7,7 @@ import { OTLPMetricExporter as OTLPMetricExporterHTTP } from "@opentelemetry/exp
 import { OTLPMetricExporter as OTLPMetricExporterProto } from "@opentelemetry/exporter-metrics-otlp-proto"
 import { ConsoleLogRecordExporter, LogRecordExporter } from "@opentelemetry/sdk-logs"
 import { ConsoleMetricExporter, MetricReader, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
+import { Logger } from "@/shared/services/Logger"
 import { wrapLogsExporterWithDiagnostics, wrapMetricsExporterWithDiagnostics } from "./otel-exporter-diagnostics"
 
 /**
@@ -58,7 +59,7 @@ export function createOTLPLogExporter(
 				break
 			}
 			default:
-				console.warn(`[OTEL] Unknown OTLP protocol for logs: ${protocol}`)
+				Logger.warn(`[OTEL] Unknown OTLP protocol for logs: ${protocol}`)
 				return null
 		}
 
@@ -69,7 +70,7 @@ export function createOTLPLogExporter(
 
 		return exporter
 	} catch (error) {
-		console.error("[OTEL] Error creating OTLP log exporter:", error)
+		Logger.error("[OTEL] Error creating OTLP log exporter:", error)
 		return null
 	}
 }
@@ -123,7 +124,7 @@ export function createOTLPMetricReader(
 				break
 			}
 			default:
-				console.warn(`[OTEL] Unknown OTLP protocol for metrics: ${protocol}`)
+				Logger.warn(`[OTEL] Unknown OTLP protocol for metrics: ${protocol}`)
 				return null
 		}
 
@@ -138,7 +139,7 @@ export function createOTLPMetricReader(
 			exportTimeoutMillis: timeoutMs,
 		})
 	} catch (error) {
-		console.error("[OTEL] Error creating OTLP metric reader:", error)
+		Logger.error("[OTEL] Error creating OTLP metric reader:", error)
 		return null
 	}
 }

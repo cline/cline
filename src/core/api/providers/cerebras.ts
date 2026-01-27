@@ -112,10 +112,11 @@ export class CerebrasHandler implements ApiHandler {
 		}
 
 		try {
+			const model = this.getModel()
 			const stream = await client.chat.completions.create({
-				model: this.getModel().id,
+				model: model.id,
 				messages: cerebrasMessages,
-				temperature: 0,
+				temperature: model.info.temperature ?? 0,
 				stream: true,
 				max_tokens: CEREBRAS_DEFAULT_MAX_TOKENS,
 			})

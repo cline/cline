@@ -25,6 +25,8 @@ interface FileChange {
 	oldContent?: string
 	newContent?: string
 	movePath?: string
+	/** Starting line numbers (1-indexed) for each chunk in the patch */
+	startLineNumbers?: number[]
 }
 
 interface Commit {
@@ -526,11 +528,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					changes[path] = { type: PatchActionType.ADD, newContent: action.newFile }
 					break
 				case PatchActionType.UPDATE:
+					// Extract starting line numbers from chunks (convert from 0-indexed to 1-indexed)
+					const startLineNumbers = action.chunks.map((chunk) => chunk.origIndex + 1)
 					changes[path] = {
 						type: PatchActionType.UPDATE,
 						oldContent: originalFiles[path],
 						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path),
 						movePath: action.movePath,
+						startLineNumbers,
 					}
 					break
 			}
@@ -666,6 +671,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							path: change.movePath || file,
 							content: change.movePath ? change.oldContent : change.newContent,
 							operationIsLocatedInWorkspace,
+							startLineNumbers: change.startLineNumbers,
 						} as ClineSayTool
 					case PatchActionType.DELETE:
 						return {

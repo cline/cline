@@ -7,6 +7,7 @@ import fs from "fs/promises"
 import path from "path"
 import { ensureCacheDirectoryExists } from "@/core/storage/disk"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -67,7 +68,7 @@ export async function refreshHuggingFaceModels(
 			await fs.writeFile(huggingFaceModelsFilePath, JSON.stringify(models, null, 2))
 		}
 	} catch (error) {
-		console.error("Error fetching Hugging Face models:", error)
+		Logger.error("Error fetching Hugging Face models:", error)
 
 		// Try to load from cache
 		try {
@@ -77,7 +78,7 @@ export async function refreshHuggingFaceModels(
 				models = parsedModels
 			}
 		} catch (cacheError) {
-			console.error("Error loading cached Hugging Face models:", cacheError)
+			Logger.error("Error loading cached Hugging Face models:", cacheError)
 		}
 
 		// If no cache available, use static models as fallback

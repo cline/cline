@@ -3,6 +3,7 @@ import { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { LogoutReason } from "../types"
 import { OcaAuthProvider } from "./providers/OcaAuthProvider"
@@ -159,7 +160,7 @@ export class OcaAuthService {
 			this._authenticated = false
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error signing out:", error)
+			Logger.error("Error signing out:", error)
 			throw error
 		}
 	}
@@ -177,7 +178,7 @@ export class OcaAuthService {
 			this._authenticated = true
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error signing in with custom token:", error)
+			Logger.error("Error signing in with custom token:", error)
 			throw error
 		} finally {
 			const authHandler = AuthHandler.getInstance()
@@ -195,10 +196,10 @@ export class OcaAuthService {
 				await this.sendAuthStatusUpdate()
 				return
 			}
-			console.warn("No user found after restoring auth token")
+			Logger.warn("No user found after restoring auth token")
 			await this.kickstartInteractiveLoginAsFallback()
 		} catch (error) {
-			console.error("Error restoring auth token:", error)
+			Logger.error("Error restoring auth token:", error)
 			await this.kickstartInteractiveLoginAsFallback(error)
 		}
 	}
@@ -226,10 +227,10 @@ export class OcaAuthService {
 				await new Promise((r) => setTimeout(r, pollMs))
 			}
 			if (!this._authenticated) {
-				console.warn("Interactive OCA login timed out after 120 seconds")
+				Logger.warn("Interactive OCA login timed out after 120 seconds")
 			}
 		} catch (e) {
-			console.error("Failed to initiate interactive OCA login:", e)
+			Logger.error("Failed to initiate interactive OCA login:", e)
 		} finally {
 			this._interactiveLoginPending = false
 		}
@@ -240,7 +241,7 @@ export class OcaAuthService {
 		responseStream: StreamingResponseHandler<OcaAuthState>,
 		requestId?: string,
 	): Promise<void> {
-		console.log("Subscribing to authStatusUpdate")
+		Logger.log("Subscribing to authStatusUpdate")
 		const ctrl = this.requireController()
 		if (!this._ocaAuthState) {
 			this._ocaAuthState = await this.requireProvider().getExistingAuthState(ctrl)
@@ -257,7 +258,7 @@ export class OcaAuthService {
 		try {
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error sending initial auth status:", error)
+			Logger.error("Error sending initial auth status:", error)
 			this._activeAuthStatusUpdateSubscriptions.delete(entry)
 		}
 	}
@@ -277,7 +278,7 @@ export class OcaAuthService {
 					await ctrl.postStateToWebview()
 				}
 			} catch (error) {
-				console.error("Error sending authStatusUpdate event:", error)
+				Logger.error("Error sending authStatusUpdate event:", error)
 				this._activeAuthStatusUpdateSubscriptions.delete(entry)
 			}
 		})

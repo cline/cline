@@ -1,10 +1,6 @@
 import type { FeatureFlagPayload } from "@/services/feature-flags/providers/IFeatureFlagsProvider"
 
 export enum FeatureFlag {
-	CUSTOM_INSTRUCTIONS = "custom-instructions",
-	DICTATION = "dictation",
-	FOCUS_CHAIN_CHECKLIST = "focus_chain_checklist",
-	HOOKS = "hooks",
 	WEBTOOLS = "webtools",
 	WORKTREES = "worktree-exp",
 	// Feature flag for showing the new onboarding flow or old welcome view.
@@ -12,7 +8,6 @@ export enum FeatureFlag {
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
-	[FeatureFlag.HOOKS]: false,
 	[FeatureFlag.WEBTOOLS]: false,
 	[FeatureFlag.WORKTREES]: false,
 	[FeatureFlag.ONBOARDING_MODELS]: process.env.E2E_TEST === "true" ? { models: {} } : undefined,

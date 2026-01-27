@@ -1,6 +1,7 @@
 import { DeleteSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "@/utils/fs"
 import { Controller } from ".."
 
@@ -14,7 +15,7 @@ export async function deleteSkillFile(controller: Controller, request: DeleteSki
 	const { skillPath, isGlobal } = request
 
 	if (!skillPath || typeof skillPath !== "string" || typeof isGlobal !== "boolean") {
-		console.error("deleteSkillFile: Missing or invalid parameters", {
+		Logger.error("deleteSkillFile: Missing or invalid parameters", {
 			skillPath: typeof skillPath === "string" ? skillPath : `Invalid: ${typeof skillPath}`,
 			isGlobal: typeof isGlobal === "boolean" ? isGlobal : `Invalid: ${typeof isGlobal}`,
 		})
@@ -26,7 +27,7 @@ export async function deleteSkillFile(controller: Controller, request: DeleteSki
 
 	// Verify the path exists
 	if (!(await fileExistsAtPath(skillDir))) {
-		console.warn(`deleteSkillFile: Skill directory not found: ${skillDir}`)
+		Logger.warn(`deleteSkillFile: Skill directory not found: ${skillDir}`)
 		// Return current toggles anyway
 		const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}
 		const localToggles = controller.stateManager.getWorkspaceStateKey("localSkillsToggles") || {}

@@ -12,6 +12,7 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/types"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.
@@ -47,7 +48,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					this.emit("line", fallbackMessage)
 				}
 			} catch (error) {
-				console.error("Error capturing terminal output:", error)
+				Logger.error("Error capturing terminal output:", error)
 			}
 		}
 
@@ -242,7 +243,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			this.emit("continue")
 			this.emit("no_shell_integration")
 			// setTimeout(() => {
-			// 	console.log(`Emitting continue after delay for terminal`)
+			// 	Logger.log(`Emitting continue after delay for terminal`)
 			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
 			// }, 500) // Adjust this delay as needed
 		}

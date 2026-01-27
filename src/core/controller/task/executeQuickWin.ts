@@ -1,5 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { ExecuteQuickWinRequest } from "@shared/proto/cline/task"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -19,17 +20,17 @@ import type { Controller } from "../index"
  * }
  *
  * TaskServiceClient.executeQuickWin(request)
- *   .then(() => console.log("Quick win executed successfully"))
- *   .catch(error => console.error("Failed to execute quick win:", error))
+ *   .then(() => Logger.log("Quick win executed successfully"))
+ *   .catch(error => Logger.error("Failed to execute quick win:", error))
  */
 export async function executeQuickWin(controller: Controller, request: ExecuteQuickWinRequest): Promise<Empty> {
 	try {
 		const { command, title } = request
-		console.log(`Received executeQuickWin: command='${command}', title='${title}'`)
+		Logger.log(`Received executeQuickWin: command='${command}', title='${title}'`)
 		await controller.initTask(title)
 		return Empty.create({})
 	} catch (error) {
-		console.error("Failed to execute quick win:", error)
+		Logger.error("Failed to execute quick win:", error)
 		throw error
 	}
 }

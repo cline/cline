@@ -91,7 +91,6 @@ export async function writeFile(
 	content: string | Uint8Array,
 	encoding: BufferEncoding = "utf8",
 ): Promise<void> {
-	console.log("[DEBUG] writing file:", filePath, content.length, encoding)
 	if (content instanceof Uint8Array) {
 		await fs.writeFile(filePath, content)
 	} else {

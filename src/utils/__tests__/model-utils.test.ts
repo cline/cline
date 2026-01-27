@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { isClaude4PlusModelFamily, shouldSkipReasoningForModel } from "../model-utils"
+import { isClaude4PlusModelFamily, isGPT5ModelFamily, shouldSkipReasoningForModel } from "../model-utils"
 
 describe("shouldSkipReasoningForModel", () => {
 	it("should return true for grok-4 models", () => {
@@ -53,5 +53,32 @@ describe("isClaude4PlusModelFamily", () => {
 		isClaude4PlusModelFamily("gpt-4").should.equal(false)
 		isClaude4PlusModelFamily("gemini-pro").should.equal(false)
 		isClaude4PlusModelFamily("llama-3").should.equal(false)
+	})
+})
+
+describe("isGPT5ModelFamily", () => {
+	it("should return true for GPT-5 model IDs with hyphen", () => {
+		isGPT5ModelFamily("gpt-5").should.equal(true)
+		isGPT5ModelFamily("gpt-5.1").should.equal(true)
+		isGPT5ModelFamily("gpt-5.2-codex").should.equal(true)
+		isGPT5ModelFamily("openai/gpt-5").should.equal(true)
+	})
+
+	it("should return true for GPT-5 model IDs without hyphen (OCA format)", () => {
+		isGPT5ModelFamily("gpt5").should.equal(true)
+		isGPT5ModelFamily("oca/gpt5").should.equal(true)
+	})
+
+	it("should be case insensitive", () => {
+		isGPT5ModelFamily("GPT-5").should.equal(true)
+		isGPT5ModelFamily("GPT5").should.equal(true)
+		isGPT5ModelFamily("OCA/GPT5").should.equal(true)
+	})
+
+	it("should return false for non-GPT-5 models", () => {
+		isGPT5ModelFamily("gpt-4").should.equal(false)
+		isGPT5ModelFamily("gpt-4o").should.equal(false)
+		isGPT5ModelFamily("claude-3-sonnet").should.equal(false)
+		isGPT5ModelFamily("gemini-pro").should.equal(false)
 	})
 })

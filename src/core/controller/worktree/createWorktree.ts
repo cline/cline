@@ -2,6 +2,7 @@ import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/workt
 import { createWorktree as createWorktreeUtil, listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -55,7 +56,7 @@ export async function createWorktree(_controller: Controller, request: CreateWor
 				: undefined,
 		})
 	} catch (error) {
-		console.error(`Error creating worktree: ${JSON.stringify(error)}`)
+		Logger.error(`Error creating worktree: ${JSON.stringify(error)}`)
 		return WorktreeResult.create({
 			success: false,
 			message: error instanceof Error ? error.message : String(error),

@@ -46,6 +46,7 @@ const evaluatePathsConditional: ConditionalEvaluatorWithMatch = (frontmatterValu
 	}
 
 	const patterns = frontmatterValue.map((p) => p.trim()).filter(Boolean)
+
 	// Policy:
 	// - `paths` omitted => universal (because this evaluator is never invoked)
 	// - `paths: []` (or `paths` that trims to no usable patterns) => match nothing (fail-closed)
@@ -111,8 +112,13 @@ export function evaluateRuleConditionals(
 export function extractPathLikeStrings(text: string): string[] {
 	if (!text) return []
 
+	// 0) Strip fenced code blocks to avoid extracting paths from pasted code.
+	// This dramatically reduces false positives from snippets containing `foo/bar` or `a.b.c`.
+	// Note: We intentionally keep this simple and fail-open (if fences are unbalanced, we do nothing special).
+	const withoutCodeFences = text.replace(/```[\s\S]*?```/g, " ")
+
 	// 1) Remove URLs to avoid false positives.
-	const withoutUrls = text.replace(/\b\w+:\/\/[^\s]+/g, " ")
+	const withoutUrls = withoutCodeFences.replace(/\b\w+:\/\/[^\s]+/g, " ")
 
 	// 2) Match tokens that look like paths.
 	//    - Either contain at least one slash (e.g. src/index.ts)

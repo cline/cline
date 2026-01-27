@@ -1,6 +1,7 @@
 import { status } from "@grpc/grpc-js"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { Logger } from "@/shared/services/Logger"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditorId: string | undefined
@@ -65,7 +66,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 			if (err.code === status.NOT_FOUND) {
 				// This can happen when the task is reloaded or the diff editor is closed. So, don't
 				// consider it a real error.
-				console.log("Diff not found:", this.activeDiffEditorId)
+				Logger.log("Diff not found:", this.activeDiffEditorId)
 				return false
 			} else {
 				throw err
@@ -89,7 +90,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		try {
 			return (await HostProvider.diff.getDocumentText({ diffId: this.activeDiffEditorId })).content
 		} catch (err) {
-			console.log("Error getting contents of diff editor", err)
+			Logger.log("Error getting contents of diff editor", err)
 			return undefined
 		}
 	}

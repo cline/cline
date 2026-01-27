@@ -6,6 +6,7 @@ import * as os from "os"
 import * as path from "path"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -76,7 +77,7 @@ export class QwenCodeHandler implements ApiHandler {
 			const credsStr = await fs.readFile(keyFile, "utf-8")
 			return JSON.parse(credsStr)
 		} catch (error) {
-			console.error(
+			Logger.error(
 				`Error reading or parsing credentials file at ${getQwenCachedCredentialPath(this.options.qwenCodeOauthPath)}`,
 			)
 			throw new Error(`Failed to load Qwen OAuth credentials: ${error}`)

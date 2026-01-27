@@ -3,7 +3,7 @@ import type {
 	ChatCompletionToolChoiceOption,
 	ChatCompletionTool as OpenAITool,
 } from "openai/resources/chat/completions"
-import { Logger } from "@/services/logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import type { ApiStreamToolCallsChunk } from "./stream"
 
 /**

@@ -1333,7 +1333,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 
 			// 1c. Filter for valid schemes (file or vscode-file) and non-empty strings
-			const validUris = uris.filter((uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:")))
+			const validUris = uris.filter(
+				(uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:") || uri.startsWith("vscode-remote:")),
+			)
 
 			if (validUris.length > 0) {
 				setPendingInsertions([])

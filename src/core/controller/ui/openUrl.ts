@@ -1,5 +1,6 @@
 import type { StringRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { openUrlInBrowser } from "../../../utils/github-url-utils"
 import type { Controller } from "../index"
 
@@ -14,7 +15,7 @@ export async function openUrl(_controller: Controller, request: StringRequest): 
 		await openUrlInBrowser(request.value)
 		return Empty.create({})
 	} catch (error) {
-		console.error(`Failed to open URL: ${error}`)
+		Logger.error(`Failed to open URL: ${error}`)
 		throw error
 	}
 }

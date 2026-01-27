@@ -2,6 +2,7 @@ import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
@@ -21,7 +22,7 @@ function parseApiKeys(value: string): APIKeySettings {
 		}
 		return APIKeySchema.parse(JSON.parse(value))
 	} catch (err) {
-		console.error(`Failed to parse providers api keys`, err)
+		Logger.error(`Failed to parse providers api keys`, err)
 		return {}
 	}
 }
@@ -116,7 +117,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 
 		return validatedConfig
 	} catch (error) {
-		console.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
+		Logger.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
 
 		// Try to fall back to cached config
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
@@ -127,7 +128,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 				return validatedCachedConfig
 			} catch (validationError) {
 				// Cache validation failed - log and continue
-				console.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
+				Logger.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
 			}
 		}
 
@@ -149,7 +150,7 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<APIK
 		// Parse and return API keys
 		return parseApiKeys(response?.providerApiKeys)
 	} catch (error) {
-		console.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
+		Logger.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
 		return {}
 	}
 }
@@ -244,7 +245,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 
 		return config
 	} catch (error) {
-		console.error("Failed to ensure user in organization with remote config:", error)
+		Logger.error("Failed to ensure user in organization with remote config:", error)
 		return undefined
 	}
 }
@@ -265,6 +266,6 @@ export async function fetchRemoteConfig(controller: Controller) {
 	try {
 		await ensureUserInOrgWithRemoteConfig(controller)
 	} catch (error) {
-		console.error("Failed to fetch remote config", error)
+		Logger.error("Failed to fetch remote config", error)
 	}
 }

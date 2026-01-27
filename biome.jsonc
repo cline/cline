@@ -148,6 +148,29 @@
 			]
 		},
 		{
+			// Do not use console logging directly, use the Logger service instead.
+			"plugins": [
+				"src/dev/grit/console-log.grit"
+			],
+			"includes": [
+				"**",
+				"!**/webview-ui/**",
+				"!**/evals/**",
+				"!**/standalone/**",
+				"!**/e2e/**",
+				"!**/test/**",
+				"!**/__tests__/**",
+				"!**/*.test.ts",
+				"!**/*.stories.ts",
+				"!src/dev/**",
+				"!**/*.mjs",
+				"!**/*.js",
+				"!**/scripts/**",
+				"!**/*.tsx",
+				"!**/testing-platform/**"
+			]
+		},
+		{
 			"includes": [
 				"**",
 				"!src/core/storage/state-migrations.ts",

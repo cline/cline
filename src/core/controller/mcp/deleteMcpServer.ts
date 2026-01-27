@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
+import { Logger } from "@/shared/services/Logger"
 import { convertMcpServersToProtoMcpServers } from "../../../shared/proto-conversions/mcp/mcp-server-conversion"
 import type { Controller } from "../index"
 
@@ -19,7 +20,7 @@ export async function deleteMcpServer(controller: Controller, request: StringReq
 
 		return McpServers.create({ mcpServers: protoServers })
 	} catch (error) {
-		console.error(`Failed to delete MCP server: ${error}`)
+		Logger.error(`Failed to delete MCP server: ${error}`)
 		throw error
 	}
 }

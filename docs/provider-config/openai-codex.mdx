@@ -1,0 +1,105 @@
+---
+title: "OpenAI Codex"
+sidebarTitle: "OpenAI Codex"
+description: "Connect your OpenAI account to Cline via OAuth for seamless access to OpenAI models."
+---
+
+OpenAI Codex lets you connect your OpenAI account directly to Cline using OAuth, meaning you don't need to manage API keys. Simply sign in with your OpenAI account through a one-click browser authentication, and you'll automatically have access to all the models available on your OpenAI plan. No additional configuration required. 
+
+<Tip>
+If you prefer to use API keys instead, see the [OpenAI (API Key)](/provider-config/openai) provider configuration.
+</Tip>
+
+## Prerequisites
+
+- An [OpenAI account](https://platform.openai.com/signup)
+- An active OpenAI subscription or API access plan
+
+<Note>
+The models available to you depend on your OpenAI account's subscription tier. See [OpenAI's pricing page](https://openai.com/pricing) for details on what's included in each plan.
+</Note>
+
+## Connecting Your OpenAI Account
+
+<Steps>
+  <Step title="Open Cline Settings">
+    Click the settings gear icon in the top-right corner of the Cline extension.
+  </Step>
+  <Step title="Select OpenAI Codex Provider">
+    Choose **"OpenAI Codex"** from the "API Provider" dropdown menu.
+  </Step>
+  <Step title="Sign In with OpenAI">
+    Click the **"Sign in with OpenAI"** button. This will open a browser window for authentication.
+  </Step>
+  <Step title="Authorize Cline">
+    In the browser window that opens:
+    1. Sign in to your OpenAI account (if not already signed in)
+    2. Review the permissions Cline is requesting
+    3. Click **"Authorize"** to grant access
+  </Step>
+  <Step title="Select Your Model">
+    Once authorized, you'll be returned to Cline. Choose your desired model from the **"Model"** dropdown.
+  </Step>
+</Steps>
+
+<Note>
+If a model doesn't appear in your dropdown, it may not be available on your OpenAI subscription tier.
+</Note>
+
+For the most current list of available models and their capabilities, see the official [OpenAI Models documentation](https://platform.openai.com/docs/models).
+
+## Managing Your Connection
+
+### Disconnecting Your Account
+
+To disconnect your OpenAI account from Cline:
+
+1. Open Cline Settings
+2. With OpenAI Codex selected as the provider, click **"Sign out"**
+3. Confirm the disconnection
+
+This removes the OAuth connection. You can reconnect at any time by signing in again.
+
+### Token Refresh
+
+OAuth tokens are automatically refreshed by Cline. If you encounter authentication errors:
+
+1. Try disconnecting and reconnecting your account
+2. Ensure your OpenAI account is in good standing
+3. Check that your subscription is active
+
+## Troubleshooting
+
+### "Authentication failed" error
+
+- Ensure you're signing in with the correct OpenAI account
+- Check that your OpenAI subscription is active
+- Try clearing your browser cache and signing in again
+
+### Models not appearing
+
+- The available models depend on your OpenAI subscription tier
+- Some models may require specific plan upgrades
+- Check [OpenAI's pricing page](https://openai.com/pricing) for model availability by plan
+
+### OAuth window doesn't open
+
+- Check if pop-ups are blocked in your browser
+- Try using a different browser
+- Ensure you have a stable internet connection
+
+### Connection keeps expiring
+
+- This is rare but can happen if your OpenAI account session expired
+- Disconnect and reconnect to refresh your authentication
+
+## Good to Know
+
+Cline only requests the permissions necessary to make API calls on your behalf. Your OpenAI credentials are never stored by Cline.
+
+When using OpenAI Codex, Cline accesses models through your OpenAI/ChatGPT subscription. There is no separate per-token API billing or consumption of OpenAI API credits for this provider; usage and limits are governed by your ChatGPT (or OpenAI account) subscription plan, not by Cline.
+
+## Related Documentation
+
+- [OpenAI (API Key)](/provider-config/openai): Alternative configuration using API keys
+- [Model Selection Guide](/core-features/model-selection-guide): Help choosing the right model

@@ -1,4 +1,5 @@
 import { AwsClient } from "aws4fetch"
+import { Logger } from "../services/Logger"
 import type { BlobStoreSettings } from "./ClineBlobStorage"
 
 export interface StorageAdapter {
@@ -34,7 +35,7 @@ function createAdapter(client: AwsClient, endpoint: string, bucket: string): Sto
 					throw new Error(`Failed to write ${path}: ${response.status}`)
 				}
 			} catch (error) {
-				console.error("Error in write:", error)
+				Logger.error("Error in write:", error)
 			}
 		},
 
@@ -54,7 +55,7 @@ function createS3Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 	const { bucket, accessKeyId, secretAccessKey } = settings
 
 	if (!bucket || !accessKeyId || !secretAccessKey) {
-		console.error("[StorageAdapter] Missing required S3 settings")
+		Logger.error("[StorageAdapter] Missing required S3 settings")
 		return undefined
 	}
 
@@ -68,7 +69,7 @@ function createS3Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 		})
 		return createAdapter(client, endpoint, bucket)
 	} catch (error) {
-		console.error("[StorageAdapter] Failed to create S3 adapter:", error)
+		Logger.error("[StorageAdapter] Failed to create S3 adapter:", error)
 		return undefined
 	}
 }
@@ -77,7 +78,7 @@ function createR2Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 	const { accountId, bucket, accessKeyId, secretAccessKey } = settings
 
 	if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
-		console.error("[StorageAdapter] Missing required R2 settings")
+		Logger.error("[StorageAdapter] Missing required R2 settings")
 		return undefined
 	}
 
@@ -89,7 +90,7 @@ function createR2Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 		const endpoint = settings.endpoint ?? `https://${accountId}.r2.cloudflarestorage.com`
 		return createAdapter(client, endpoint, bucket)
 	} catch (error) {
-		console.error("[StorageAdapter] Failed to create R2 adapter:", error)
+		Logger.error("[StorageAdapter] Failed to create R2 adapter:", error)
 		return undefined
 	}
 }
@@ -102,11 +103,11 @@ export function getStorageAdapter(settings: BlobStoreSettings): StorageAdapter |
 		} else if (adapterType === "s3") {
 			return createS3Adapter(settings)
 		} else {
-			console.error(`[StorageAdapter] Invalid adapterType: ${adapterType}. Must be "s3" or "r2".`)
+			Logger.error(`[StorageAdapter] Invalid adapterType: ${adapterType}. Must be "s3" or "r2".`)
 			return undefined
 		}
 	} catch (error) {
-		console.error("[StorageAdapter] Unexpected error creating adapter:", error)
+		Logger.error("[StorageAdapter] Unexpected error creating adapter:", error)
 		return undefined
 	}
 }

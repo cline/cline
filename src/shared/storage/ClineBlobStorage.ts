@@ -1,3 +1,4 @@
+import { Logger } from "../services/Logger"
 import { getStorageAdapter, StorageAdapter } from "./adapters"
 import { ClineStorage } from "./ClineStorage"
 
@@ -77,11 +78,11 @@ export class ClineBlobStorage extends ClineStorage {
 				this.adapter = adapter
 				this.settings = settings
 				this.initialized = true
-				console.log("[ClineBlobStorage] Adapter created")
+				Logger.log(`[ClineBlobStorage] Adapter created for ${settings.adapterType}`)
 			}
 		} catch (error) {
 			// Log but don't throw - allow startup to continue
-			console.error("[ClineBlobStorage] initialization failed:", error)
+			Logger.error("[ClineBlobStorage] initialization failed:", error)
 		}
 	}
 
@@ -113,8 +114,8 @@ export class ClineBlobStorage extends ClineStorage {
 		}
 		try {
 			return await this.adapter!.read(key)
-		} catch (error) {
-			console.error(`[ClineBlobStorage] failed to get '${key}':`, error)
+		} catch {
+			// Silently return undefined on read errors
 			return undefined
 		}
 	}
@@ -127,7 +128,6 @@ export class ClineBlobStorage extends ClineStorage {
 		try {
 			await this.adapter!.write(key, value)
 		} catch (error) {
-			console.error(`[ClineBlobStorage] failed to store '${key}':`, error)
 			throw error
 		}
 	}
@@ -140,7 +140,6 @@ export class ClineBlobStorage extends ClineStorage {
 		try {
 			await this.adapter!.remove(key)
 		} catch (error) {
-			console.error(`[ClineBlobStorage] failed to delete '${key}':`, error)
 			throw error
 		}
 	}

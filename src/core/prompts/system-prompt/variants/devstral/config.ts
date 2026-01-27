@@ -1,4 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isDevstralModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -66,12 +67,12 @@ export const config = createVariant(ModelFamily.DEVSTRAL)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: "devstral" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Devstral variant configuration validation failed:", validationResult.errors)
+	Logger.error("Devstral variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid Devstral variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Devstral variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Devstral variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

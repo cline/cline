@@ -33,7 +33,10 @@ export class FileProviderOperations {
 	async createFile(path: string, content: string, isFinal: boolean = true): Promise<FileOpsResult | undefined> {
 		this.provider.editType = "create"
 		await this.openFile(path)
-		await this.provider.update(content, isFinal)
+		// Always pass isFinal=true to update() to ensure proper document finalization
+		// (extends replacement range to full document, truncates trailing content).
+		// The isFinal parameter here only controls whether to save after the update.
+		await this.provider.update(content, true)
 
 		if (isFinal) {
 			return await this.saveChanges()
@@ -48,7 +51,10 @@ export class FileProviderOperations {
 	async modifyFile(path: string, content: string, isFinal: boolean = true): Promise<FileOpsResult | undefined> {
 		this.provider.editType = "modify"
 		await this.openFile(path)
-		await this.provider.update(content, isFinal)
+		// Always pass isFinal=true to update() to ensure proper document finalization
+		// (extends replacement range to full document, truncates trailing content).
+		// The isFinal parameter here only controls whether to save after the update.
+		await this.provider.update(content, true)
 
 		if (isFinal) {
 			return await this.saveChanges()
@@ -70,7 +76,8 @@ export class FileProviderOperations {
 			return undefined
 		} else {
 			// Update with empty content to show the file will be deleted
-			await this.provider.update("", isFinal)
+			// Always pass isFinal=true to update() to ensure proper document finalization
+			await this.provider.update("", true)
 			return undefined
 		}
 	}

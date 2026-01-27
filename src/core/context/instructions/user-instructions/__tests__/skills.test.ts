@@ -10,6 +10,7 @@ import * as path from "path"
 import * as sinon from "sinon"
 
 import * as disk from "@/core/storage/disk"
+import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
 import { discoverSkills, getAvailableSkills, getSkillContent } from "../skills"
 
@@ -29,8 +30,8 @@ describe("Skills Utility Functions", () => {
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 
-		// Stub console.warn to avoid noise in test output
-		sandbox.stub(console, "warn")
+		// Stub Logger.warn to avoid noise in test output
+		sandbox.stub(Logger, "warn")
 
 		// Stub filesystem utilities
 		fileExistsStub = sandbox.stub(fsUtils, "fileExistsAtPath")
@@ -295,7 +296,7 @@ Content`)
 			const skills = await discoverSkills(TEST_CWD)
 
 			expect(skills).to.have.lengthOf(0)
-			sinon.assert.calledWithMatch(console.warn as sinon.SinonStub, /missing required 'name' field/)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /missing required 'name' field/)
 		})
 
 		it("should reject skill with missing description field", async () => {
@@ -315,7 +316,7 @@ Content`)
 			const skills = await discoverSkills(TEST_CWD)
 
 			expect(skills).to.have.lengthOf(0)
-			sinon.assert.calledWithMatch(console.warn as sinon.SinonStub, /missing required 'description' field/)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /missing required 'description' field/)
 		})
 
 		it("should reject skill when name doesn't match directory name", async () => {
@@ -336,7 +337,7 @@ Content`)
 			const skills = await discoverSkills(TEST_CWD)
 
 			expect(skills).to.have.lengthOf(0)
-			sinon.assert.calledWithMatch(console.warn as sinon.SinonStub, /doesn't match directory/)
+			sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /doesn't match directory/)
 		})
 
 		it("should handle malformed YAML frontmatter gracefully", async () => {

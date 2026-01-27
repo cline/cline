@@ -348,7 +348,7 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 				return ChangeInputTypeMsg{
 					InputType:   InputTypeFeedback,
 					Title:       "Your feedback",
-					Placeholder: "/plan or /act to switch modes\nctrl+e to open editor",
+					Placeholder: "/plan or /act to switch modes\nctrl+e to open editor\nctrl+c to exit",
 				}
 			}
 		}
@@ -546,4 +546,75 @@ func (m *InputModel) openEditor() tea.Cmd {
 // SetSlashRegistry sets the slash command registry for autocomplete
 func (m *InputModel) SetSlashRegistry(registry *slash.Registry) {
 	m.completion.SetRegistry(registry)
+}
+
+// initialPromptWrapper wraps InputModel to capture the submit result for initial task prompts
+type initialPromptWrapper struct {
+	model     *InputModel
+	result    string
+	cancelled bool
+}
+
+func (w *initialPromptWrapper) Init() tea.Cmd {
+	return w.model.Init()
+}
+
+func (w *initialPromptWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case InputSubmitMsg:
+		w.result = msg.Value
+		clearCodes := w.model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
+		return w, tea.Quit
+
+	case InputCancelMsg:
+		w.cancelled = true
+		clearCodes := w.model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
+		return w, tea.Quit
+	}
+
+	// Forward to wrapped model
+	_, cmd := w.model.Update(msg)
+	return w, cmd
+}
+
+func (w *initialPromptWrapper) View() string {
+	return w.model.View()
+}
+
+// ErrUserAborted is returned when the user cancels the input prompt
+var ErrUserAborted = fmt.Errorf("user aborted")
+
+// PromptForInitialTask displays an interactive prompt for the initial task with slash command autocomplete.
+// Returns the entered text, or ErrUserAborted if cancelled.
+func PromptForInitialTask(title, placeholder, mode string, registry *slash.Registry) (string, error) {
+	model := NewInputModelWithRegistry(
+		InputTypeMessage,
+		title,
+		placeholder,
+		mode,
+		registry,
+	)
+
+	wrapper := &initialPromptWrapper{
+		model: &model,
+	}
+
+	p := tea.NewProgram(wrapper)
+
+	_, err := p.Run()
+	if err != nil {
+		return "", fmt.Errorf("input prompt failed: %w", err)
+	}
+
+	if wrapper.cancelled {
+		return "", ErrUserAborted
+	}
+
+	return strings.TrimSpace(wrapper.result), nil
 }

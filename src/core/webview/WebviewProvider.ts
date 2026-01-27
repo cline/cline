@@ -5,6 +5,7 @@ import { readFile } from "fs/promises"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getNonce } from "./getNonce"
 
 export abstract class WebviewProvider {
@@ -140,12 +141,12 @@ export abstract class WebviewProvider {
 		return readFile(portFilePath, "utf8")
 			.then((portFile) => {
 				const port = parseInt(portFile.trim()) || DEFAULT_PORT
-				console.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
+				Logger.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
 
 				return port
 			})
 			.catch((_err) => {
-				console.warn(
+				Logger.warn(
 					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
 				)
 				return DEFAULT_PORT

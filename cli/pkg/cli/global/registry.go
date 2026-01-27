@@ -18,28 +18,28 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// ClientRegistry manages Cline client connections using direct SQLite operations
-type ClientRegistry struct {
+// InstanceRegistry manages Cline client connections using direct SQLite operations
+type InstanceRegistry struct {
 	lockManager *sqlite.LockManager
 	configPath  string
 }
 
-// NewClientRegistry creates a new client registry
-func NewClientRegistry(configPath string) *ClientRegistry {
+// NewInstanceRegistry creates a new instance registry
+func NewInstanceRegistry(configPath string) *InstanceRegistry {
 	lockManager, err := sqlite.NewLockManager(configPath)
 	if err != nil {
 		// Log error but continue - we can still function without SQLite
 		log.Fatalf("Warning: Failed to initialize SQLite lock manager: %v\n", err)
 	}
 
-	return &ClientRegistry{
+	return &InstanceRegistry{
 		lockManager: lockManager,
 		configPath:  configPath,
 	}
 }
 
 // GetDefaultInstance returns the default instance address from settings file
-func (r *ClientRegistry) GetDefaultInstance() string {
+func (r *InstanceRegistry) GetDefaultInstance() string {
 	defaultAddr, err := sqlite.GetDefaultInstance(r.configPath)
 	if err != nil {
 		return ""
@@ -48,7 +48,7 @@ func (r *ClientRegistry) GetDefaultInstance() string {
 }
 
 // SetDefaultInstance sets the default instance (writes default.json)
-func (r *ClientRegistry) SetDefaultInstance(address string) error {
+func (r *InstanceRegistry) SetDefaultInstance(address string) error {
 	// Verify the instance exists in SQLite
 	if r.lockManager != nil {
 		exists, err := r.lockManager.HasInstanceAtAddress(address)
@@ -64,7 +64,7 @@ func (r *ClientRegistry) SetDefaultInstance(address string) error {
 }
 
 // GetInstance returns instance information directly from SQLite
-func (r *ClientRegistry) GetInstance(address string) (*common.CoreInstanceInfo, error) {
+func (r *InstanceRegistry) GetInstance(address string) (*common.CoreInstanceInfo, error) {
 	if r.lockManager == nil {
 		return nil, fmt.Errorf("lock manager not available")
 	}
@@ -73,7 +73,7 @@ func (r *ClientRegistry) GetInstance(address string) (*common.CoreInstanceInfo, 
 }
 
 // GetClient returns a connected client for the given address (created on-demand)
-func (r *ClientRegistry) GetClient(ctx context.Context, address string) (*client.ClineClient, error) {
+func (r *InstanceRegistry) GetClient(ctx context.Context, address string) (*client.ClineClient, error) {
 	// Verify instance exists in SQLite
 	if r.lockManager != nil {
 		exists, err := r.lockManager.HasInstanceAtAddress(address)
@@ -104,7 +104,7 @@ func (r *ClientRegistry) GetClient(ctx context.Context, address string) (*client
 }
 
 // GetDefaultClient returns a client for the default instance
-func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineClient, error) {
+func (r *InstanceRegistry) GetDefaultClient(ctx context.Context) (*client.ClineClient, error) {
 	defaultAddr := r.GetDefaultInstance()
 	if defaultAddr == "" {
 		return nil, fmt.Errorf("no default instance configured")
@@ -117,7 +117,7 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 			// Database is unavailable - Return error instead of attempting cleanup
 			return nil, fmt.Errorf("cannot verify default instance: database unavailable: %w", err)
 		}
-		
+
 		if !exists {
 			// Instance doesn't exist in database but config file references it
 			// This is a stale config - remove it and try to find another instance
@@ -127,14 +127,14 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 			} else {
 				fmt.Printf("Removed stale default instance config (instance %s not found in database)\n", defaultAddr)
 			}
-			
+
 			// Try to find and set a new default instance
 			instances := r.ListInstances()
 			if len(instances) > 0 {
 				if err := r.EnsureDefaultInstance(instances); err != nil {
 					return nil, fmt.Errorf("failed to set new default instance: %w", err)
 				}
-				
+
 				// Retry with the new default
 				newDefaultAddr := r.GetDefaultInstance()
 				if newDefaultAddr != "" {
@@ -142,7 +142,7 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 					return r.GetClient(ctx, newDefaultAddr)
 				}
 			}
-			
+
 			return nil, fmt.Errorf("no default instance configured")
 		}
 	}
@@ -151,7 +151,7 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 }
 
 // ListInstances returns all registered instances directly from SQLite
-func (r *ClientRegistry) ListInstances() []*common.CoreInstanceInfo {
+func (r *InstanceRegistry) ListInstances() []*common.CoreInstanceInfo {
 	if r.lockManager == nil {
 		return []*common.CoreInstanceInfo{}
 	}
@@ -170,7 +170,7 @@ func (r *ClientRegistry) ListInstances() []*common.CoreInstanceInfo {
 }
 
 // HasInstanceAtAddress checks if an instance exists at the given address (delegates to SQLite)
-func (r *ClientRegistry) HasInstanceAtAddress(address string) bool {
+func (r *InstanceRegistry) HasInstanceAtAddress(address string) bool {
 	if r.lockManager == nil {
 		return false
 	}
@@ -185,7 +185,7 @@ func (r *ClientRegistry) HasInstanceAtAddress(address string) bool {
 }
 
 // CleanupStaleInstances removes stale instances using direct SQLite operations
-func (r *ClientRegistry) CleanupStaleInstances(ctx context.Context) error {
+func (r *InstanceRegistry) CleanupStaleInstances(ctx context.Context) error {
 	if r.lockManager == nil {
 		return nil
 	}
@@ -202,15 +202,15 @@ func (r *ClientRegistry) CleanupStaleInstances(ctx context.Context) error {
 			// Try to gracefully shutdown the paired host process before cleanup
 
 			fmt.Printf("Attempting to shutdown dangling host service %s for stale cline core instance %s\n",
-				instance.HostServiceAddress, instance.Address)
+				instance.HostServiceAddress, instance.CoreAddress)
 			r.tryShutdownHostProcess(instance.HostServiceAddress)
 
 			// Remove from SQLite database
-			if err := r.lockManager.RemoveInstanceLock(instance.Address); err != nil {
-				return fmt.Errorf("failed to remove stale instance %s: %w", instance.Address, err)
+			if err := r.lockManager.RemoveInstanceLock(instance.CoreAddress); err != nil {
+				return fmt.Errorf("failed to remove stale instance %s: %w", instance.CoreAddress, err)
 			}
 
-			fmt.Printf("Removed stale instance: %s\n", instance.Address)
+			fmt.Printf("Removed stale instance: %s\n", instance.CoreAddress)
 		}
 	}
 
@@ -218,8 +218,7 @@ func (r *ClientRegistry) CleanupStaleInstances(ctx context.Context) error {
 }
 
 // tryShutdownHostProcess attempts to gracefully shutdown a host process via RPC
-// Best effort, don't throw errors i guess
-func (r *ClientRegistry) tryShutdownHostProcess(hostServiceAddress string) {
+func (r *InstanceRegistry) tryShutdownHostProcess(hostServiceAddress string) {
 	err := common.RetryOperation(3, 2*time.Second, func() error {
 		// Create context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -252,7 +251,7 @@ func (r *ClientRegistry) tryShutdownHostProcess(hostServiceAddress string) {
 }
 
 // ListInstancesCleaned performs cleanup and returns instances with health checks
-func (r *ClientRegistry) ListInstancesCleaned(ctx context.Context) ([]*common.CoreInstanceInfo, error) {
+func (r *InstanceRegistry) ListInstancesCleaned(ctx context.Context) ([]*common.CoreInstanceInfo, error) {
 	// 1. Clean up stale entries (best-effort)
 	_ = r.CleanupStaleInstances(ctx)
 
@@ -268,7 +267,7 @@ func (r *ClientRegistry) ListInstancesCleaned(ctx context.Context) ([]*common.Co
 }
 
 // EnsureDefaultInstance ensures a default instance is set if instances exist but no default is configured
-func (r *ClientRegistry) EnsureDefaultInstance(instances []*common.CoreInstanceInfo) error {
+func (r *InstanceRegistry) EnsureDefaultInstance(instances []*common.CoreInstanceInfo) error {
 	currentDefault := r.GetDefaultInstance()
 
 	// If we have no instances, clear any stale default and remove settings file
@@ -283,13 +282,13 @@ func (r *ClientRegistry) EnsureDefaultInstance(instances []*common.CoreInstanceI
 
 	// If we have instances but no default, pick the first one
 	if currentDefault == "" {
-		return sqlite.SetDefaultInstance(r.configPath, instances[0].Address)
+		return sqlite.SetDefaultInstance(r.configPath, instances[0].CoreAddress)
 	}
 
 	// Validate current default still exists in the instances
 	defaultExists := false
 	for _, instance := range instances {
-		if instance.Address == currentDefault {
+		if instance.CoreAddress == currentDefault {
 			defaultExists = true
 			break
 		}
@@ -297,7 +296,7 @@ func (r *ClientRegistry) EnsureDefaultInstance(instances []*common.CoreInstanceI
 
 	if !defaultExists {
 		// Current default doesn't exist, pick a new one from available instances
-		return sqlite.SetDefaultInstance(r.configPath, instances[0].Address)
+		return sqlite.SetDefaultInstance(r.configPath, instances[0].CoreAddress)
 	}
 
 	return nil

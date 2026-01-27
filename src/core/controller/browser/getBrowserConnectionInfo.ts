@@ -1,5 +1,6 @@
 import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
 
 /**
@@ -36,7 +37,7 @@ export async function getBrowserConnectionInfo(controller: Controller, _: EmptyR
 			host: browserSettings.remoteBrowserHost || "",
 		})
 	} catch (error: unknown) {
-		console.error("Error getting browser connection info:", error)
+		Logger.error("Error getting browser connection info:", error)
 		return BrowserConnectionInfo.create({
 			isConnected: false,
 			isRemote: false,

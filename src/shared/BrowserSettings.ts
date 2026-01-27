@@ -22,7 +22,7 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 	remoteBrowserHost: "http://localhost:9222",
 	chromeExecutablePath: "", // Changed from undefined to empty string
 	// chromeType: "chromium",
-	disableToolUse: false,
+	disableToolUse: true,
 	customArgs: "",
 }
 

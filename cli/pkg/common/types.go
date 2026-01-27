@@ -10,7 +10,7 @@ import (
 // This is the canonical definition used across all CLI packages
 type CoreInstanceInfo struct {
 	// Full core address including port
-	Address string `json:"address"`
+	CoreAddress string `json:"address"`
 	// Host bridge service address that core holds (host is ALWAYS running on localhost FYI)
 	HostServiceAddress string                                           `json:"host_port"`
 	Status             grpc_health_v1.HealthCheckResponse_ServingStatus `json:"status"`
@@ -20,7 +20,7 @@ type CoreInstanceInfo struct {
 }
 
 func (c *CoreInstanceInfo) CorePort() int {
-	_, port, _ := ParseHostPort(c.Address)
+	_, port, _ := ParseHostPort(c.CoreAddress)
 	return port
 }
 
