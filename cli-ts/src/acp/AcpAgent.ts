@@ -223,13 +223,11 @@ export class AcpAgent implements acp.Agent {
 
 		const sessionId = crypto.randomUUID()
 
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] newSession called:", {
-				sessionId,
-				cwd: params.cwd,
-				mcpServers: params.mcpServers?.length ?? 0,
-			})
-		}
+		Logger.debug("[AcpAgent] newSession called:", {
+			sessionId,
+			cwd: params.cwd,
+			mcpServers: params.mcpServers?.length ?? 0,
+		})
 
 		// Create Controller for this session
 		const controller = new Controller(this.ctx.extensionContext)
@@ -260,9 +258,7 @@ export class AcpAgent implements acp.Agent {
 		// Send available slash commands to the client
 		// This is done asynchronously after session creation per ACP spec
 		await this.sendAvailableCommands(sessionId, controller).catch((error) => {
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Failed to send available commands:", error)
-			}
+			Logger.debug("[AcpAgent] Failed to send available commands:", error)
 		})
 
 		// Get current model configuration for the response
@@ -339,12 +335,10 @@ export class AcpAgent implements acp.Agent {
 			throw new Error(`Session not found: ${params.sessionId}`)
 		}
 
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] unstable_setSessionModel called:", {
-				sessionId: params.sessionId,
-				modelId: params.modelId,
-			})
-		}
+		Logger.debug("[AcpAgent] unstable_setSessionModel called:", {
+			sessionId: params.sessionId,
+			modelId: params.modelId,
+		})
 
 		// Parse the modelId format: "provider/modelId"
 		const slashIndex = params.modelId.indexOf("/")
@@ -416,12 +410,10 @@ export class AcpAgent implements acp.Agent {
 			throw new Error("Controller not initialized for session. This is a bug in the ACP agent setup.")
 		}
 
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] prompt called:", {
-				sessionId: params.sessionId,
-				promptLength: params.prompt.length,
-			})
-		}
+		Logger.debug("[AcpAgent] prompt called:", {
+			sessionId: params.sessionId,
+			promptLength: params.prompt.length,
+		})
 
 		// Mark session as processing and set as current active session
 		sessionState.isProcessing = true
@@ -470,9 +462,7 @@ export class AcpAgent implements acp.Agent {
 
 			if (isLoadedSession && !hasActiveTask) {
 				// First prompt on a loaded session - resume the task from history
-				if (this.options.debug) {
-					Logger.debug("[AcpAgent] Resuming loaded session:", params.sessionId)
-				}
+				Logger.debug("[AcpAgent] Resuming loaded session:", params.sessionId)
 
 				// Clear the flag so subsequent prompts are handled normally
 				session.isLoadedFromHistory = false
@@ -487,9 +477,7 @@ export class AcpAgent implements acp.Agent {
 				}
 			} else if (hasActiveTask && controller.task) {
 				// Continue existing task - respond to pending ask
-				if (this.options.debug) {
-					Logger.debug("[AcpAgent] Continuing existing task:", controller.task.taskId)
-				}
+				Logger.debug("[AcpAgent] Continuing existing task:", controller.task.taskId)
 
 				// Find the last ask message and respond to it
 				const messages = controller.task.messageStateHandler.getClineMessages()
@@ -500,16 +488,12 @@ export class AcpAgent implements acp.Agent {
 				} else {
 					// No pending ask - treat as new user message
 					// This shouldn't normally happen but handle gracefully
-					if (this.options.debug) {
-						Logger.debug("[AcpAgent] No pending ask found, starting new task")
-					}
+					Logger.debug("[AcpAgent] No pending ask found, starting new task")
 					await controller.initTask(textContent, imageContent, fileResources)
 				}
 			} else {
 				// Start new task
-				if (this.options.debug) {
-					Logger.debug("[AcpAgent] Starting new task")
-				}
+				Logger.debug("[AcpAgent] Starting new task")
 				await controller.initTask(textContent, imageContent, fileResources)
 			}
 
@@ -518,9 +502,7 @@ export class AcpAgent implements acp.Agent {
 				const onClineMessagesChanged = (change: ClineMessageChange) => {
 					this.handleClineMessagesChanged(params.sessionId, sessionState, change, resolvePrompt, promptResolved).catch(
 						(error) => {
-							if (this.options.debug) {
-								Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
-							}
+							Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
 						},
 					)
 				}
@@ -553,9 +535,7 @@ export class AcpAgent implements acp.Agent {
 				try {
 					cleanup()
 				} catch (error) {
-					if (this.options.debug) {
-						Logger.debug("[AcpAgent] Error during cleanup:", error)
-					}
+					Logger.debug("[AcpAgent] Error during cleanup:", error)
 				}
 			}
 			sessionState.isProcessing = false
@@ -595,9 +575,7 @@ export class AcpAgent implements acp.Agent {
 					break
 			}
 		} catch (error) {
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
-			}
+			Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
 		}
 	}
 
@@ -624,9 +602,7 @@ export class AcpAgent implements acp.Agent {
 		const controller = session?.controller
 
 		if (!controller?.task) {
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] No active task for permission request")
-			}
+			Logger.debug("[AcpAgent] No active task for permission request")
 			return
 		}
 
@@ -636,9 +612,7 @@ export class AcpAgent implements acp.Agent {
 			// Request permission from the client
 			const response = await this.requestPermission(sessionId, permissionRequest.toolCall, permissionRequest.options)
 
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Permission response received:", response.outcome)
-			}
+			Logger.debug("[AcpAgent] Permission response received:", response.outcome)
 
 			// Handle the response
 			const result = handlePermissionResponse(response, askType)
@@ -678,9 +652,7 @@ export class AcpAgent implements acp.Agent {
 				await controller.task.handleWebviewAskResponse(result.response, result.text)
 			}
 		} catch (error) {
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Error handling permission request:", error)
-			}
+			Logger.debug("[AcpAgent] Error handling permission request:", error)
 
 			// Update tool call status to failed
 			if (sessionState.currentToolCallId) {
@@ -853,12 +825,10 @@ export class AcpAgent implements acp.Agent {
 		const session = this.sessions.get(params.sessionId)
 		const sessionState = this.sessionStates.get(params.sessionId)
 
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] cancel called:", {
-				sessionId: params.sessionId,
-				isProcessing: sessionState?.isProcessing,
-			})
-		}
+		Logger.debug("[AcpAgent] cancel called:", {
+			sessionId: params.sessionId,
+			isProcessing: sessionState?.isProcessing,
+		})
 
 		if (sessionState) {
 			sessionState.cancelled = true
@@ -869,9 +839,7 @@ export class AcpAgent implements acp.Agent {
 				try {
 					await controller.cancelTask()
 				} catch (error) {
-					if (this.options.debug) {
-						Logger.debug("[AcpAgent] Error cancelling task:", error)
-					}
+					Logger.debug("[AcpAgent] Error cancelling task:", error)
 				}
 			}
 		}
@@ -891,12 +859,10 @@ export class AcpAgent implements acp.Agent {
 			throw new Error(`Session not found: ${params.sessionId}`)
 		}
 
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] setSessionMode called:", {
-				sessionId: params.sessionId,
-				modeId: params.modeId,
-			})
-		}
+		Logger.debug("[AcpAgent] setSessionMode called:", {
+			sessionId: params.sessionId,
+			modeId: params.modeId,
+		})
 
 		// Validate mode
 		const validModes = ["plan", "act"]
@@ -930,9 +896,7 @@ export class AcpAgent implements acp.Agent {
 	 * - OpenAI Codex/ChatGPT authentication (openai-codex-oauth)
 	 */
 	async authenticate(params: acp.AuthenticateRequest): Promise<acp.AuthenticateResponse> {
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] authenticate called:", { methodId: params.methodId })
-		}
+		Logger.debug("[AcpAgent] authenticate called:", { methodId: params.methodId })
 
 		// Handle OpenAI Codex OAuth flow
 		if (params.methodId === "openai-codex-oauth") {
@@ -947,17 +911,13 @@ export class AcpAgent implements acp.Agent {
 		const authHandler = AuthHandler.getInstance()
 		authHandler.setEnabled(true)
 
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] AuthHandler enabled, getting callback URL...")
-		}
+		Logger.debug("[AcpAgent] AuthHandler enabled, getting callback URL...")
 
 		// Get the callback URL first to ensure the server is ready
 		let callbackUrl: string
 		try {
 			callbackUrl = await authHandler.getCallbackUrl()
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Callback URL ready:", callbackUrl)
-			}
+			Logger.debug("[AcpAgent] Callback URL ready:", callbackUrl)
 		} catch (error) {
 			Logger.error("[AcpAgent] Failed to get callback URL:", error)
 			throw new Error(`Failed to start auth server: ${error instanceof Error ? error.message : String(error)}`)
@@ -973,16 +933,12 @@ export class AcpAgent implements acp.Agent {
 			// Get the AuthService instance with the webview's controller
 			const authService = AuthService.getInstance(this.webviewProvider.controller)
 
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Starting OAuth flow...")
-			}
+			Logger.debug("[AcpAgent] Starting OAuth flow...")
 
 			// Start the OAuth flow - this opens the browser
 			await authService.createAuthRequest()
 
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Browser opened, waiting for callback...")
-			}
+			Logger.debug("[AcpAgent] Browser opened, waiting for callback...")
 
 			// Wait for authentication to complete (with timeout)
 			const AUTH_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
@@ -994,9 +950,7 @@ export class AcpAgent implements acp.Agent {
 				// Check if auth data has been stored
 				const authData = await secretStorage.get("cline:clineAccountId")
 				if (authData) {
-					if (this.options.debug) {
-						Logger.debug("[AcpAgent] Authentication successful")
-					}
+					Logger.debug("[AcpAgent] Authentication successful")
 
 					// Set up the provider configuration for cline
 					const stateManager = StateManager.get()
@@ -1032,9 +986,7 @@ export class AcpAgent implements acp.Agent {
 				update,
 			})
 		} catch (error) {
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Error sending session update:", error)
-			}
+			Logger.debug("[AcpAgent] Error sending session update:", error)
 		}
 	}
 
@@ -1054,13 +1006,11 @@ export class AcpAgent implements acp.Agent {
 		toolCall: acp.ToolCallUpdate,
 		options: acp.PermissionOption[],
 	): Promise<acp.RequestPermissionResponse> {
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] Requesting permission:", {
-				sessionId,
-				toolCallId: toolCall.toolCallId,
-				options: options.map((o) => o.optionId),
-			})
-		}
+		Logger.debug("[AcpAgent] Requesting permission:", {
+			sessionId,
+			toolCallId: toolCall.toolCallId,
+			options: options.map((o) => o.optionId),
+		})
 
 		return await this.connection.requestPermission({
 			sessionId,
@@ -1119,17 +1069,13 @@ export class AcpAgent implements acp.Agent {
 				availableCommands,
 			})
 
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Sent available commands:", {
-					sessionId,
-					commandCount: availableCommands.length,
-					commands: availableCommands.map((c) => c.name),
-				})
-			}
+			Logger.debug("[AcpAgent] Sent available commands:", {
+				sessionId,
+				commandCount: availableCommands.length,
+				commands: availableCommands.map((c) => c.name),
+			})
 		} catch (error) {
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Error sending available commands:", error)
-			}
+			Logger.debug("[AcpAgent] Error sending available commands:", error)
 		}
 	}
 
@@ -1185,9 +1131,7 @@ export class AcpAgent implements acp.Agent {
 	 * 4. Configures the provider on success
 	 */
 	private async authenticateOpenAiCodex(): Promise<acp.AuthenticateResponse> {
-		if (this.options.debug) {
-			Logger.debug("[AcpAgent] Starting OpenAI Codex OAuth flow...")
-		}
+		Logger.debug("[AcpAgent] Starting OpenAI Codex OAuth flow...")
 
 		try {
 			// Initialize the OAuth manager with extension context
@@ -1196,9 +1140,7 @@ export class AcpAgent implements acp.Agent {
 			// Get the authorization URL and start the callback server
 			const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
 
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] Opening browser for OpenAI Codex auth:", authUrl)
-			}
+			Logger.debug("[AcpAgent] Opening browser for OpenAI Codex auth:", authUrl)
 
 			// Open browser to authorization URL
 			await openExternal(authUrl)
@@ -1206,9 +1148,7 @@ export class AcpAgent implements acp.Agent {
 			// Wait for the callback (blocks until auth completes or times out)
 			await openAiCodexOAuthManager.waitForCallback()
 
-			if (this.options.debug) {
-				Logger.debug("[AcpAgent] OpenAI Codex authentication successful")
-			}
+			Logger.debug("[AcpAgent] OpenAI Codex authentication successful")
 
 			// Success - configure the provider
 			const stateManager = StateManager.get()
