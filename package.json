@@ -5,8 +5,7 @@
 	"version": "3.56.2",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
-		"cli-ts",
-		"webview-ui"
+		"cli-ts"
 	],
 	"engines": {
 		"vscode": "^1.84.0"
