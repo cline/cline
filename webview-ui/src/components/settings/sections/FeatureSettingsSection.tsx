@@ -39,12 +39,6 @@ const CategoryTitle = styled.span`
 	color: var(--vscode-foreground);
 `
 
-const CategoryDescription = styled.span`
-	font-size: 10px;
-	color: var(--vscode-descriptionForeground);
-	margin-left: auto;
-`
-
 interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
@@ -103,7 +97,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<CategoryHeader>
 							<Wrench size={14} style={{ color: "var(--vscode-textLink-foreground)" }} />
 							<CategoryTitle>Tool Calling</CategoryTitle>
-							<CategoryDescription>How Cline processes and executes tools</CategoryDescription>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Info
+										size={12}
+										style={{
+											color: "var(--vscode-descriptionForeground)",
+											cursor: "help",
+											marginLeft: "auto",
+										}}
+									/>
+								</TooltipTrigger>
+								<TooltipContent side="top">How Cline processes and executes tools</TooltipContent>
+							</Tooltip>
 						</CategoryHeader>
 
 						{/* Native Tool Call */}
@@ -143,7 +149,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<CategoryHeader>
 							<Brain size={14} style={{ color: "var(--vscode-textLink-foreground)" }} />
 							<CategoryTitle>Agent Behavior</CategoryTitle>
-							<CategoryDescription>How Cline thinks and operates</CategoryDescription>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Info
+										size={12}
+										style={{
+											color: "var(--vscode-descriptionForeground)",
+											cursor: "help",
+											marginLeft: "auto",
+										}}
+									/>
+								</TooltipTrigger>
+								<TooltipContent side="top">How Cline thinks and operates</TooltipContent>
+							</Tooltip>
 						</CategoryHeader>
 
 						{/* Focus Chain */}
@@ -333,7 +351,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<CategoryHeader>
 							<Pencil size={14} style={{ color: "var(--vscode-textLink-foreground)" }} />
 							<CategoryTitle>Editing & Automation</CategoryTitle>
-							<CategoryDescription>How Cline handles file changes and approvals</CategoryDescription>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Info
+										size={12}
+										style={{
+											color: "var(--vscode-descriptionForeground)",
+											cursor: "help",
+											marginLeft: "auto",
+										}}
+									/>
+								</TooltipTrigger>
+								<TooltipContent side="top">How Cline handles file changes and approvals</TooltipContent>
+							</Tooltip>
 						</CategoryHeader>
 
 						{/* Background Edit */}
