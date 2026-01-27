@@ -110,6 +110,9 @@ export class AcpAgent implements acp.Agent {
 	/** Current active session ID for use by DiffViewProvider */
 	private currentActiveSessionId: string | undefined
 
+	/** Shared WebviewProvider instance for auth and other operations */
+	private webviewProvider: ReturnType<typeof HostProvider.get.prototype.createWebviewProvider> | undefined
+
 	constructor(connection: acp.AgentSideConnection, options: AcpAgentOptions) {
 		this.connection = connection
 		this.options = options
@@ -960,12 +963,15 @@ export class AcpAgent implements acp.Agent {
 			throw new Error(`Failed to start auth server: ${error instanceof Error ? error.message : String(error)}`)
 		}
 
-		// Create a temporary controller for auth purposes
-		const tempController = new Controller(this.ctx.extensionContext)
+		// Ensure WebviewProvider exists (creates one if not already created)
+		// This is needed for SharedUriHandler to find the controller during OAuth callback
+		if (!this.webviewProvider) {
+			this.webviewProvider = HostProvider.get().createWebviewProvider()
+		}
 
 		try {
-			// Get the AuthService instance with the temp controller
-			const authService = AuthService.getInstance(tempController)
+			// Get the AuthService instance with the webview's controller
+			const authService = AuthService.getInstance(this.webviewProvider.controller)
 
 			if (this.options.debug) {
 				Logger.debug("[AcpAgent] Starting OAuth flow...")
@@ -1009,9 +1015,6 @@ export class AcpAgent implements acp.Agent {
 		} catch (error) {
 			Logger.error("[AcpAgent] Authentication error:", error)
 			throw error
-		} finally {
-			// Clean up the temp controller
-			await tempController.dispose()
 		}
 	}
 
@@ -1073,6 +1076,12 @@ export class AcpAgent implements acp.Agent {
 			await session.controller?.dispose()
 			this.sessions.delete(sessionId)
 			this.sessionStates.delete(sessionId)
+		}
+
+		// Dispose the shared webview provider if it was created
+		if (this.webviewProvider) {
+			await this.webviewProvider.dispose()
+			this.webviewProvider = undefined
 		}
 	}
 
