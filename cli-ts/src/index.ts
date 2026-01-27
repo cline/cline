@@ -610,7 +610,6 @@ program
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
 	.option("-m, --model <model>", "Model to use for the task")
-	.option("-i, --images <paths...>", "Image file paths to include with the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
