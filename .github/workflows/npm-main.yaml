@@ -33,6 +33,14 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
+      # Cache root dependencies
+      - name: Cache root dependencies
+        uses: actions/cache@v4
+        id: root-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
       # Cache cli-ts dependencies
       - name: Cache cli-ts dependencies
         uses: actions/cache@v4
@@ -41,9 +49,16 @@ jobs:
           path: cli-ts/node_modules
           key: ${{ runner.os }}-npm-cli-ts-${{ hashFiles('cli-ts/package-lock.json') }}
 
+      - name: Install root dependencies
+        if: steps.root-cache.outputs.cache-hit != 'true'
+        run: npm ci --include=optional
+
       - name: Install cli-ts dependencies
         if: steps.cli-ts-cache.outputs.cache-hit != 'true'
         run: cd cli-ts && npm ci
+
+      - name: Generate Protos
+        run: npm run protos
 
       - name: Read release version
         id: version
