@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.54.1
+
+### Patch Changes
+
+- e243376: Add MCP prompts support - prompts from connected MCP servers now appear in slash command autocomplete as `/mcp:<server>:<prompt>`
+
 ## [3.54.0]
 
 ### Added
