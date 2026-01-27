@@ -72,6 +72,8 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
+	performStorageMigrations(context)
+
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
 		context as any, // Adapt VSCode ExtensionContext to generic interface
@@ -699,7 +701,7 @@ if (IS_DEV && IS_DEV !== "false") {
 	})
 }
 
-export async function performStorageMigrations(context: ExtensionContext): Promise<void> {
+async function performStorageMigrations(context: ExtensionContext): Promise<void> {
 	try {
 		// If they still have the old welcomeViewCompleted flag,
 		// we know they haven't had the migrations run yet.
