@@ -57,7 +57,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 					variant="text">
 					<div
 						className={cn(
-							"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
+							"flex max-h-[150px] overflow-y-auto text-description leading-normal whitespace-pre-wrap break-words flex-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
 							{
 								"pl-2 border-l border-description/50": showTitle,
 							},
