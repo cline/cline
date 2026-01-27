@@ -53,6 +53,77 @@ function generateToolCallId(): string {
 }
 
 /**
+ * Result of parsing a unified diff.
+ */
+interface ParsedDiff {
+	oldText: string
+	newText: string
+}
+
+/**
+ * Parse a unified diff format to extract old and new text.
+ *
+ * Unified diff format:
+ * --- a/file.txt
+ * +++ b/file.txt
+ * @@ -1,3 +1,4 @@
+ *  unchanged line
+ * -removed line
+ * +added line
+ *  another unchanged line
+ *
+ * @param unifiedDiff - The unified diff string
+ * @returns The parsed old and new text
+ */
+function parseUnifiedDiff(unifiedDiff: string): ParsedDiff {
+	const lines = unifiedDiff.split("\n")
+	const oldLines: string[] = []
+	const newLines: string[] = []
+
+	let inHunk = false
+
+	for (const line of lines) {
+		// Skip diff headers
+		if (line.startsWith("---") || line.startsWith("+++") || line.startsWith("diff ")) {
+			continue
+		}
+
+		// Detect hunk header
+		if (line.startsWith("@@")) {
+			inHunk = true
+			continue
+		}
+
+		if (!inHunk) {
+			continue
+		}
+
+		if (line.startsWith("-")) {
+			// Line was removed (exists in old, not in new)
+			oldLines.push(line.substring(1))
+		} else if (line.startsWith("+")) {
+			// Line was added (exists in new, not in old)
+			newLines.push(line.substring(1))
+		} else if (line.startsWith(" ") || line === "") {
+			// Context line (exists in both) - remove the leading space
+			const content = line.startsWith(" ") ? line.substring(1) : line
+			oldLines.push(content)
+			newLines.push(content)
+		} else if (line.startsWith("\\")) {
+		} else {
+			// Unknown line format, treat as context
+			oldLines.push(line)
+			newLines.push(line)
+		}
+	}
+
+	return {
+		oldText: oldLines.join("\n"),
+		newText: newLines.join("\n"),
+	}
+}
+
+/**
  * Options for translating a message.
  */
 export interface TranslateMessageOptions {
@@ -591,11 +662,13 @@ function translateToolMessage(message: ClineMessage, sessionState: AcpSessionSta
 			})
 		}
 		if (toolInfo.diff) {
+			// Parse the unified diff to extract old and new text
+			const parsedDiff = parseUnifiedDiff(toolInfo.diff)
 			content.push({
 				type: "diff",
 				path: toolInfo.path || "",
-				oldText: "", // Diff is already in unified format
-				newText: toolInfo.diff,
+				oldText: parsedDiff.oldText,
+				newText: parsedDiff.newText,
 			})
 		}
 

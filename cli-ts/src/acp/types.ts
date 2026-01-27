@@ -20,6 +20,7 @@ export type {
 	LoadSessionRequest,
 	LoadSessionResponse,
 	McpServer,
+	ModelInfo,
 	NewSessionRequest,
 	NewSessionResponse,
 	PermissionOption,
@@ -30,8 +31,14 @@ export type {
 	ReadTextFileResponse,
 	RequestPermissionRequest,
 	RequestPermissionResponse,
+	SessionConfigOption,
+	SessionModelState,
 	SessionNotification,
 	SessionUpdate,
+	SetSessionConfigOptionRequest,
+	SetSessionConfigOptionResponse,
+	SetSessionModelRequest,
+	SetSessionModelResponse,
 	SetSessionModeRequest,
 	SetSessionModeResponse,
 	StopReason,
@@ -98,6 +105,10 @@ export interface ClineAcpSession {
 	isLoadedFromHistory?: boolean
 	/** Controller instance for this session (manages task execution) */
 	controller?: Controller
+	/** Model ID override for plan mode (format: "provider/modelId") */
+	planModeModelId?: string
+	/** Model ID override for act mode (format: "provider/modelId") */
+	actModeModelId?: string
 }
 
 /**
