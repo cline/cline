@@ -1,9 +1,6 @@
-import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { EmptyRequest } from "@shared/proto/index.cline"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -20,17 +17,11 @@ interface FeatureSettingsSectionProps {
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
 	const {
 		enableCheckpointsSetting,
-		mcpDisplayMode,
-		openaiReasoningEffort,
-		strictPlanModeEnabled,
 		yoloModeToggled,
-		dictationSettings,
 		useAutoCondense,
 		clineWebToolsEnabled,
 		worktreesEnabled,
 		focusChainSettings,
-		multiRootSetting,
-		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
 		nativeToolCallSetting,
@@ -39,10 +30,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
-
-	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
-		updateSetting("openaiReasoningEffort", newValue)
-	}
 
 	// Poll for CLI installation status while the component is mounted
 	useEffect(() => {
@@ -70,10 +57,122 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			{renderSectionHeader("features")}
 			<Section>
 				<div style={{ marginBottom: 20 }}>
+					{/* ==================== DEFAULT ON SECTION ==================== */}
+
+					{/* Checkpoints */}
+					<div>
+						<VSCodeCheckbox
+							checked={enableCheckpointsSetting}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("enableCheckpointsSetting", checked)
+							}}>
+							Enable Checkpoints
+						</VSCodeCheckbox>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
+							Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which
+							may not work well with large workspaces.
+						</p>
+					</div>
+
+					{/* Native Tool Call */}
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={nativeToolCallSetting}
+							onChange={(e) => {
+								const enabled = (e?.target as HTMLInputElement).checked
+								updateSetting("nativeToolCallEnabled", enabled)
+							}}>
+							Enable Native Tool Call
+						</VSCodeCheckbox>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
+							Uses the model's native tool calling API instead of XML-based tool parsing. This will improve
+							performance for supported models.
+						</p>
+					</div>
+
+					{/* Parallel Tool Calling */}
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={enableParallelToolCalling}
+							onChange={(e) => {
+								const enabled = (e?.target as HTMLInputElement).checked
+								updateSetting("enableParallelToolCalling", enabled)
+							}}>
+							Enable Parallel Tool Calling
+						</VSCodeCheckbox>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
+							Allows models to call multiple tools in a single response. Automatically enabled for GPT-5 models.
+						</p>
+					</div>
+
+					{/* Focus Chain */}
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={focusChainSettings?.enabled || false}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
+							}}>
+							Enable Focus Chain
+						</VSCodeCheckbox>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
+							Enables enhanced task progress tracking and automatic focus chain list management throughout tasks.
+						</p>
+					</div>
+
+					{/* Focus Chain Interval (sub-setting) */}
+					{focusChainSettings?.enabled && (
+						<div style={{ marginTop: 10, marginLeft: 20 }}>
+							<label
+								className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+								htmlFor="focus-chain-remind-interval">
+								Focus Chain Reminder Interval
+							</label>
+							<VSCodeTextField
+								className="w-20"
+								id="focus-chain-remind-interval"
+								onChange={(e: any) => {
+									const value = parseInt(e.target.value, 10)
+									if (!Number.isNaN(value) && value >= 1 && value <= 100) {
+										updateSetting("focusChainSettings", {
+											...focusChainSettings,
+											remindClineInterval: value,
+										})
+									}
+								}}
+								value={String(focusChainSettings?.remindClineInterval || 6)}
+							/>
+							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
+								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
+								provide more frequent reminders.
+							</p>
+						</div>
+					)}
+
+					{/* Cline Web Tools */}
+					{clineWebToolsEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={clineWebToolsEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("clineWebToolsEnabled", checked)
+								}}>
+								Enable Cline Web Tools
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables websearch and webfetch tools while using the Cline provider.
+							</p>
+						</div>
+					)}
+
+					{/* ==================== DEFAULT OFF SECTION ==================== */}
+
 					{/* Subagents - Only show on macOS and Linux */}
 					{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 						<div
-							className="relative p-3 mb-3 rounded-md"
+							className="relative p-3 mt-4 mb-3 rounded-md"
 							id="subagents-section"
 							style={{
 								border: "1px solid var(--vscode-widget-border)",
@@ -168,136 +267,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 
-					<div>
-						<VSCodeCheckbox
-							checked={enableCheckpointsSetting}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("enableCheckpointsSetting", checked)
-							}}>
-							Enable Checkpoints
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which
-							may not work well with large workspaces.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<label
-							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
-							htmlFor="mcp-display-mode-dropdown">
-							MCP Display Mode
-						</label>
-						<McpDisplayModeDropdown
-							className="w-full"
-							id="mcp-display-mode-dropdown"
-							onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
-							value={mcpDisplayMode}
-						/>
-						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
-							rendering.
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<label
-							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
-							htmlFor="openai-reasoning-effort-dropdown">
-							OpenAI Reasoning Effort
-						</label>
-						<VSCodeDropdown
-							className="w-full"
-							currentValue={openaiReasoningEffort || "medium"}
-							id="openai-reasoning-effort-dropdown"
-							onChange={(e: any) => {
-								const newValue = e.target.currentValue as OpenaiReasoningEffort
-								handleReasoningEffortChange(newValue)
-							}}>
-							<VSCodeOption value="minimal">Minimal</VSCodeOption>
-							<VSCodeOption value="low">Low</VSCodeOption>
-							<VSCodeOption value="medium">Medium</VSCodeOption>
-							<VSCodeOption value="high">High</VSCodeOption>
-						</VSCodeDropdown>
-						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
-						</p>
-					</div>
-					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={strictPlanModeEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("strictPlanModeEnabled", checked)
-							}}>
-							Enable strict plan mode
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enforces strict tool use while in plan mode, preventing file edits.
-						</p>
-					</div>
-					{
-						<div style={{ marginTop: 10 }}>
-							<VSCodeCheckbox
-								checked={focusChainSettings?.enabled || false}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
-								}}>
-								Enable Focus Chain
-							</VSCodeCheckbox>
-							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables enhanced task progress tracking and automatic focus chain list management throughout
-								tasks.
-							</p>
-						</div>
-					}
-					{focusChainSettings?.enabled && (
-						<div style={{ marginTop: 10, marginLeft: 20 }}>
-							<label
-								className="block text-sm font-medium text-(--vscode-foreground) mb-1"
-								htmlFor="focus-chain-remind-interval">
-								Focus Chain Reminder Interval
-							</label>
-							<VSCodeTextField
-								className="w-20"
-								id="focus-chain-remind-interval"
-								onChange={(e: any) => {
-									const value = parseInt(e.target.value, 10)
-									if (!Number.isNaN(value) && value >= 1 && value <= 100) {
-										updateSetting("focusChainSettings", {
-											...focusChainSettings,
-											remindClineInterval: value,
-										})
-									}
-								}}
-								value={String(focusChainSettings?.remindClineInterval || 6)}
-							/>
-							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
-								provide more frequent reminders.
-							</p>
-						</div>
-					)}
-					{dictationSettings?.featureEnabled && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={dictationSettings?.dictationEnabled}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									const updatedDictationSettings = {
-										...dictationSettings,
-										dictationEnabled: checked,
-									}
-									updateSetting("dictationSettings", updatedDictationSettings)
-								}}>
-								Enable Dictation
-							</VSCodeCheckbox>
-							<p className="text-xs text-description mt-1">
-								Enables speech-to-text transcription using your Cline account. Uses the Aqua Voice's Avalon model,
-								at $0.0065 credits per minute of audio processed. 5 minutes max per message.
-							</p>
-						</div>
-					)}
+					{/* Auto Compact */}
 					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
 							checked={useAutoCondense}
@@ -318,66 +288,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
-					{clineWebToolsEnabled?.featureFlag && (
-						<div style={{ marginTop: 10 }}>
-							<VSCodeCheckbox
-								checked={clineWebToolsEnabled?.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("clineWebToolsEnabled", checked)
-								}}>
-								Enable Cline Web Tools
-							</VSCodeCheckbox>
-							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables websearch and webfetch tools while using the Cline provider.
-							</p>
-						</div>
-					)}
-					{worktreesEnabled?.featureFlag && (
-						<div style={{ marginTop: 10 }}>
-							<VSCodeCheckbox
-								checked={worktreesEnabled?.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("worktreesEnabled", checked)
-								}}>
-								Enable Worktrees
-							</VSCodeCheckbox>
-							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables git worktree management for running parallel Cline tasks.
-							</p>
-						</div>
-					)}
-					<div className="mt-2.5">
-						<VSCodeCheckbox
-							checked={nativeToolCallSetting}
-							onChange={(e) => {
-								const enabled = (e?.target as HTMLInputElement).checked
-								updateSetting("nativeToolCallEnabled", enabled)
-							}}>
-							Enable Native Tool Call
-						</VSCodeCheckbox>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Uses the model's native tool calling API instead of XML-based tool parsing. This will improve
-							performance for supported models.
-						</p>
-					</div>
-					<div className="mt-2.5">
-						<VSCodeCheckbox
-							checked={enableParallelToolCalling}
-							onChange={(e) => {
-								const enabled = (e?.target as HTMLInputElement).checked
-								updateSetting("enableParallelToolCalling", enabled)
-							}}>
-							Enable Parallel Tool Calling
-						</VSCodeCheckbox>
-						<p className="text-xs">
-							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-							<span className="text-description">
-								Allows models to call multiple tools in a single response. Automatically enabled for GPT-5 models.
-							</span>
-						</p>
-					</div>
+
+					{/* Background Edit */}
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={backgroundEditEnabled}
@@ -394,38 +306,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</span>
 						</p>
 					</div>
-					{multiRootSetting.featureFlag && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={multiRootSetting.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("multiRootEnabled", checked)
-								}}>
-								Enable Multi-Root Workspace
-							</VSCodeCheckbox>
-							<p className="text-xs">
-								<span className="text-error">Experimental: </span>{" "}
-								<span className="text-description">Allows cline to work across multiple workspaces.</span>
-							</p>
-						</div>
-					)}
-					<div className="mt-2.5">
-						<VSCodeCheckbox
-							checked={skillsEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("skillsEnabled", checked)
-							}}>
-							Enable Skills
-						</VSCodeCheckbox>
-						<p className="text-xs">
-							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-							<span className="text-description">
-								Enables Skills for reusable, on-demand agent instructions from .cline/skills/ directories.
-							</span>
-						</p>
-					</div>
+
+					{/* Auto Approve All */}
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -437,7 +319,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											const checked = e.target.checked === true
 											updateSetting("yoloModeToggled", checked)
 										}}>
-										Enable YOLO Mode
+										Auto Approve All
 									</VSCodeCheckbox>
 									{remoteConfigSettings?.yoloModeToggled !== undefined && (
 										<i className="codicon codicon-lock text-description text-sm" />
@@ -453,10 +335,27 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</Tooltip>
 
 						<p className="text-xs text-(--vscode-errorForeground)">
-							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
-							automatically approve all actions without asking. Use with extreme caution.
+							CAUTION: Automatically approves all tool actions without confirmation, switches from Plan to Act mode,
+							and disables clarifying questions. Use with extreme caution.
 						</p>
 					</div>
+
+					{/* Worktrees */}
+					{worktreesEnabled?.featureFlag && (
+						<div style={{ marginTop: 10 }}>
+							<VSCodeCheckbox
+								checked={worktreesEnabled?.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("worktreesEnabled", checked)
+								}}>
+								Enable Worktrees
+							</VSCodeCheckbox>
+							<p className="text-xs text-(--vscode-descriptionForeground)">
+								Enables git worktree management for running parallel Cline tasks.
+							</p>
+						</div>
+					)}
 				</div>
 			</Section>
 		</div>

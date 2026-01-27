@@ -2,7 +2,7 @@ import type { ModelInfo as ModelInfoType } from "@shared/api"
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { Mode } from "@shared/storage/types"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { ArrowLeftRight, Brain, Check, ChevronDownIcon, Search, Settings } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -99,6 +99,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		favoritedModelIds,
 		basetenModels,
 		liteLlmModels,
+		openaiReasoningEffort,
 	} = useExtensionState()
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -129,9 +130,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	const isSplit = planActSeparateModelsSetting
 
 	// Check if model supports thinking (token-based budget)
-	// OpenAI Codex uses discrete reasoning effort levels controlled via global settings, not token budgets
+	// OpenAI models use discrete reasoning effort levels, not token budgets
 	const supportsThinking = useMemo(() => {
-		if (selectedProvider === "openai-codex") {
+		if (selectedProvider === "openai-codex" || selectedProvider === "openai-native") {
 			return false
 		}
 		if (selectedProvider === "anthropic" || selectedProvider === "claude-code") {
@@ -142,6 +143,11 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 		return selectedModelInfo?.supportsReasoning || !!selectedModelInfo?.thinkingConfig
 	}, [selectedProvider, selectedModelId, selectedModelInfo])
+
+	// Check if model uses OpenAI reasoning effort (discrete levels instead of token budget)
+	const supportsReasoningEffort = useMemo(() => {
+		return selectedProvider === "openai-native" || selectedProvider === "openai-codex"
+	}, [selectedProvider])
 
 	// Get thinking budget from current mode config
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -160,6 +166,15 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		},
 		[handleModeFieldChange, currentMode],
 	)
+
+	// Handle reasoning effort change for OpenAI models
+	const handleReasoningEffortChange = useCallback((newValue: OpenaiReasoningEffort) => {
+		StateServiceClient.updateSettings(
+			UpdateSettingsRequest.create({
+				openaiReasoningEffort: newValue,
+			}),
+		).catch((error: Error) => console.error("Failed to update reasoning effort:", error))
+	}, [])
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
@@ -674,6 +689,20 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									<ThinkingBudgetSlider currentMode={currentMode} showEnableToggle={false} />
 								</div>
 							)}
+							{/* Reasoning effort dropdown - shown for OpenAI models */}
+							{supportsReasoningEffort && (
+								<div className="flex items-center gap-2 py-1.5 px-0 mt-0.5 w-full">
+									<div className="text-description whitespace-nowrap text-[10px]">Reasoning Effort:</div>
+									<ReasoningEffortSelect
+										onChange={(e) => handleReasoningEffortChange(e.target.value as OpenaiReasoningEffort)}
+										onClick={(e) => e.stopPropagation()}
+										value={openaiReasoningEffort || "medium"}>
+										<option value="low">Low</option>
+										<option value="medium">Medium</option>
+										<option value="high">High</option>
+									</ReasoningEffortSelect>
+								</div>
+							)}
 						</SettingsSection>
 
 						{/* Scrollable content */}
@@ -755,7 +784,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => {
+											itemRefs.current[index] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
@@ -775,7 +806,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, model.info)}
 										onMouseEnter={() => setSelectedIndex(globalIndex)}
-										ref={(el) => (itemRefs.current[globalIndex] = el)}>
+										ref={(el) => {
+											itemRefs.current[globalIndex] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
@@ -1153,6 +1186,28 @@ const SettingsOnlyLink = styled.div`
 	font-size: 11px;
 	&:hover {
 		text-decoration: underline;
+	}
+`
+
+// Compact select for reasoning effort
+const ReasoningEffortSelect = styled.select`
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	border: 1px solid var(--vscode-dropdown-border);
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	outline: none;
+	&:hover {
+		border-color: var(--vscode-focusBorder);
+	}
+	&:focus {
+		border-color: var(--vscode-focusBorder);
+	}
+	option {
+		background: var(--vscode-dropdown-background);
+		color: var(--vscode-dropdown-foreground);
 	}
 `
 
