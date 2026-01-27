@@ -22,22 +22,6 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 		},
 	},
 	{
-		group: "free",
-		id: "mistralai/devstral-2512:free",
-		name: "Mistral: Devstral 2512",
-		score: 85,
-		latency: 2,
-		badge: "",
-		info: {
-			contextWindow: 256_000,
-			supportsImages: false,
-			supportsPromptCache: false,
-			inputPrice: 0,
-			outputPrice: 0,
-			tiers: [],
-		},
-	},
-	{
 		group: "frontier",
 		id: "anthropic/claude-sonnet-4.5",
 		name: "Anthropic: Claude Sonnet 4.5",
