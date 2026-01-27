@@ -530,7 +530,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 			{currentListLength > MAX_VISIBLE && (
 				<Box marginTop={1}>
-					<Text color="gray" dimColor>
+					<Text color="gray">
 						{startIndex > 0 ? "↑ " : "  "}
 						Showing {startIndex + 1}-{Math.min(startIndex + MAX_VISIBLE, currentListLength)} of {currentListLength}
 						{startIndex + MAX_VISIBLE < currentListLength ? " ↓" : "  "}
@@ -541,13 +541,9 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			<Text color="gray">{SEPARATOR}</Text>
 
 			<Box flexDirection="column">
-				<Text color="gray" dimColor>
-					{getHelpText()}
-				</Text>
+				<Text color="gray">{getHelpText()}</Text>
 				{currentTab === "settings" && selectedConfigEntry && !selectedConfigEntry.isEditable && (
-					<Text color="yellow" dimColor>
-						This field is read-only ({selectedConfigEntry.type} type or not a setting)
-					</Text>
+					<Text color="yellow">This field is read-only ({selectedConfigEntry.type} type or not a setting)</Text>
 				)}
 			</Box>
 		</Box>

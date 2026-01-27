@@ -142,9 +142,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 					</Box>
 				))}
 				<Text> </Text>
-				<Text color="gray" dimColor>
-					Arrows to navigate, Enter to select, Esc to go back
-				</Text>
+				<Text color="gray">Arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		)
 	}
@@ -186,9 +184,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 					</Text>
 				</Box>
 				<Text> </Text>
-				<Text color="gray" dimColor>
-					Enter to confirm, Esc to go back
-				</Text>
+				<Text color="gray">Enter to confirm, Esc to go back</Text>
 			</Box>
 		)
 	}
@@ -210,9 +206,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				<Text> </Text>
 				<Text color="yellow">{errorMessage}</Text>
 				<Text> </Text>
-				<Text color="gray" dimColor>
-					Press Enter or Esc to go back
-				</Text>
+				<Text color="gray">Press Enter or Esc to go back</Text>
 			</Box>
 		)
 	}

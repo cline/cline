@@ -281,9 +281,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 			{/* Model ID and Mode toggle row */}
 			<Box justifyContent="space-between" width="100%">
 				{/* Model ID on left */}
-				<Text color="gray" dimColor>
-					{modelId}
-				</Text>
+				<Text color="gray">{modelId}</Text>
 
 				{/* Mode toggle on right */}
 				<Box gap={1}>
@@ -297,9 +295,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 							{mode === "act" ? "●" : "○"} Act
 						</Text>
 					</Box>
-					<Text color="gray" dimColor>
-						(Tab)
-					</Text>
+					<Text color="gray">(Tab)</Text>
 				</Box>
 			</Box>
 
@@ -322,9 +318,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 
 			{/* Help text */}
 			<Box>
-				<Text color="gray" dimColor>
-					Enter to submit · @ to mention files ·{" "}
-				</Text>
+				<Text color="gray">Enter to submit · @ to mention files · </Text>
 				<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
 					{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
 				</Text>

@@ -67,9 +67,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 				<Text inverse> </Text>
 			</Box>
 			<Box marginTop={1}>
-				<Text color="gray" dimColor>
-					Enter to save, Esc to cancel
-				</Text>
+				<Text color="gray">Enter to save, Esc to cancel</Text>
 			</Box>
 		</Box>
 	)
