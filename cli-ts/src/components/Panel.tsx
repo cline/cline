@@ -6,6 +6,7 @@
 import { Box, Text } from "ink"
 import React, { ReactNode } from "react"
 import { COLORS } from "../constants/colors"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 
 export interface PanelTab {
 	key: string
@@ -24,6 +25,7 @@ interface PanelProps {
 }
 
 export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children }) => {
+	const { columns } = useTerminalSize()
 	const currentTabIndex = currentTab && tabs ? tabs.findIndex((t) => t.key === currentTab) : 0
 
 	return (
@@ -58,7 +60,7 @@ export const Panel: React.FC<PanelProps> = ({ label, tabs, currentTab, children 
 			{/* Separator line */}
 			<Box>
 				<Text bold color={COLORS.primaryBlue}>
-					{"─".repeat(process.stdout.columns - 2)}
+					{"─".repeat(Math.max(columns - 2, 0))}
 				</Text>
 			</Box>
 

@@ -5,13 +5,14 @@
 
 import { StringRequest } from "@shared/proto/cline/common"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
-import { Box, Text, useInput, useStdout } from "ink"
+import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import type { Controller } from "@/core/controller"
 import { getTaskHistory } from "@/core/controller/task/getTaskHistory"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 import { isMouseEscapeSequence } from "../utils/input"
 import { Panel } from "./Panel"
 
@@ -52,7 +53,7 @@ function formatCost(cost: number): string {
 
 export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClose, onSelectTask, controller }) => {
 	const { isRawModeSupported } = useStdinContext()
-	const { stdout } = useStdout()
+	const { rows: terminalRows } = useTerminalSize()
 	const [items, setItems] = useState<TaskHistoryItem[]>([])
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedIndex, setSelectedIndex] = useState(0)
@@ -61,7 +62,6 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 	// Calculate how many items fit in the panel
 	// Panel has border (2) + header (1) + separator (1) + search bar (1) + hint (1) = 6 lines overhead
 	// Each item takes 2 lines (text + metadata)
-	const terminalRows = stdout?.rows ?? 24
 	const panelHeight = Math.min(terminalRows - 6, 20) // Cap panel height
 	const itemHeight = 2
 	const maxVisible = Math.max(1, Math.floor((panelHeight - 4) / itemHeight) - 2) // 4 lines for search + hints + padding
