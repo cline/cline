@@ -1,4 +1,4 @@
-import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
+import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -10,6 +10,7 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import { AskResponseRequest, SetToolApprovalPolicyRequest } from "@shared/proto/cline/task"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
@@ -46,7 +47,7 @@ import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
@@ -54,6 +55,7 @@ import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import HookMessage from "./HookMessage"
+import { InlineApprovalCard } from "./InlineApprovalCard"
 import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
 import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
@@ -153,6 +155,7 @@ export const ChatRowContent = memo(
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
+			autoApprovalSettings,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
@@ -397,6 +400,66 @@ export const ChatRowContent = memo(
 			return extension ? imageExtensions.includes(`.${extension}`) : false
 		}
 
+		// Helper function to get approval policy for a tool
+		const getToolPolicy = useCallback(
+			(toolName: string): "ask_everytime" | "auto_approve" | "never_allow" => {
+				// Map tool names to their keys in toolPolicies
+				const toolKey = toolName.replace(/ /g, "").replace(/\(|\)/g, "")
+				const policyKey = toolKey.charAt(0).toLowerCase() + toolKey.slice(1)
+				return (
+					autoApprovalSettings?.toolPolicies?.[policyKey as keyof typeof autoApprovalSettings.toolPolicies] ||
+					"ask_everytime"
+				)
+			},
+			[autoApprovalSettings],
+		)
+
+		// Approval handlers for inline approval cards
+		const [approvalPolicy, setApprovalPolicy] = useState<"ask_everytime" | "auto_approve" | "never_allow">("ask_everytime")
+
+		const handleApprove = useCallback(async () => {
+			try {
+				await TaskServiceClient.askResponse(
+					AskResponseRequest.create({
+						responseType: "yesButtonClicked",
+					}),
+				)
+			} catch (error) {
+				console.error("Error approving tool:", error)
+			}
+		}, [])
+
+		const handleReject = useCallback(async () => {
+			try {
+				await TaskServiceClient.askResponse(
+					AskResponseRequest.create({
+						responseType: "noButtonClicked",
+					}),
+				)
+			} catch (error) {
+				console.error("Error rejecting tool:", error)
+			}
+		}, [])
+
+		const handlePolicyChange = useCallback(
+			async (toolName: string, policy: "ask_everytime" | "auto_approve" | "never_allow") => {
+				setApprovalPolicy(policy)
+
+				// Save policy to backend
+				try {
+					await TaskServiceClient.setToolApprovalPolicy(
+						SetToolApprovalPolicyRequest.create({
+							toolName,
+							policy,
+						}),
+					)
+				} catch (error) {
+					console.error("Error saving tool approval policy:", error)
+				}
+			},
+			[],
+		)
+
 		if (conditionalRulesInfo) {
 			const names = conditionalRulesInfo.rules.map((r: { name: string }) => r.name).join(", ")
 			return (
@@ -431,6 +494,7 @@ export const ChatRowContent = memo(
 					const editToolTitle = isApplyingPatch
 						? "Cline is creating patches to edit this file:"
 						: "Cline wants to edit this file:"
+					const showEditApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -441,6 +505,7 @@ export const ChatRowContent = memo(
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow
+									hasApproval={showEditApproval}
 									isLoading={message.partial}
 									patch={tool.content}
 									path={tool.path}
@@ -450,14 +515,27 @@ export const ChatRowContent = memo(
 								<CodeAccordian
 									// isLoading={message.partial}
 									code={tool.content}
+									hasApproval={showEditApproval}
 									isExpanded={isExpanded}
 									onToggleExpand={handleToggle}
 									path={tool.path!}
 								/>
 							)}
+							{showEditApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("editedExistingFile")}
+									approveButtonLabel="Save"
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="editedExistingFile"
+								/>
+							)}
 						</div>
 					)
 				case "fileDeleted":
+					const showDeleteApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -469,13 +547,25 @@ export const ChatRowContent = memo(
 							<CodeAccordian
 								// isLoading={message.partial}
 								code={tool.content}
+								hasApproval={showDeleteApproval}
 								isExpanded={isExpanded}
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
+							{showDeleteApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("fileDeleted")}
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="fileDeleted"
+								/>
+							)}
 						</div>
 					)
 				case "newFileCreated":
+					const showNewFileApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -485,20 +575,38 @@ export const ChatRowContent = memo(
 								<span className="font-bold">Cline wants to create a new file:</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
-								<DiffEditRow patch={tool.content} path={tool.path} startLineNumbers={tool.startLineNumbers} />
+								<DiffEditRow
+									hasApproval={showNewFileApproval}
+									patch={tool.content}
+									path={tool.path}
+									startLineNumbers={tool.startLineNumbers}
+								/>
 							) : (
 								<CodeAccordian
 									code={tool.content!}
+									hasApproval={showNewFileApproval}
 									isExpanded={isExpanded}
 									isLoading={message.partial}
 									onToggleExpand={handleToggle}
 									path={tool.path!}
 								/>
 							)}
+							{showNewFileApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("newFileCreated")}
+									approveButtonLabel="Save"
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="newFileCreated"
+								/>
+							)}
 						</div>
 					)
 				case "readFile":
 					const isImage = isImageFile(tool.path || "")
+					const showReadApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -507,7 +615,11 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span className="font-bold">Cline wants to read this file:</span>
 							</div>
-							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
+							<div
+								className={cn("bg-code overflow-hidden border border-editor-group-border", {
+									"rounded-sm": !showReadApproval,
+									"rounded-t-sm": showReadApproval,
+								})}>
 								<div
 									className={cn("text-description flex items-center cursor-pointer select-none py-2 px-2.5", {
 										"cursor-default select-text": isImage,
@@ -528,9 +640,21 @@ export const ChatRowContent = memo(
 									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
 								</div>
 							</div>
+							{showReadApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("readFile")}
+									approveButtonLabel="Read"
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="readFile"
+								/>
+							)}
 						</div>
 					)
 				case "listFilesTopLevel":
+					const showListTopLevelApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -545,14 +669,26 @@ export const ChatRowContent = memo(
 							</div>
 							<CodeAccordian
 								code={tool.content!}
+								hasApproval={showListTopLevelApproval}
 								isExpanded={isExpanded}
 								language="shell-session"
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
+							{showListTopLevelApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("listFilesTopLevel")}
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="listFilesTopLevel"
+								/>
+							)}
 						</div>
 					)
 				case "listFilesRecursive":
+					const showListRecursiveApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -567,14 +703,26 @@ export const ChatRowContent = memo(
 							</div>
 							<CodeAccordian
 								code={tool.content!}
+								hasApproval={showListRecursiveApproval}
 								isExpanded={isExpanded}
 								language="shell-session"
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
+							{showListRecursiveApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("listFilesRecursive")}
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="listFilesRecursive"
+								/>
+							)}
 						</div>
 					)
 				case "listCodeDefinitionNames":
+					const showListCodeApproval = message.ask === "tool" && isLast
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
@@ -589,10 +737,21 @@ export const ChatRowContent = memo(
 							</div>
 							<CodeAccordian
 								code={tool.content!}
+								hasApproval={showListCodeApproval}
 								isExpanded={isExpanded}
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
+							{showListCodeApproval && (
+								<InlineApprovalCard
+									approvalPolicy={getToolPolicy("listCodeDefinitionNames")}
+									isEnabled={true}
+									onApprove={handleApprove}
+									onPolicyChange={handlePolicyChange}
+									onReject={handleReject}
+									toolName="listCodeDefinitionNames"
+								/>
+							)}
 						</div>
 					)
 				case "searchFiles":
@@ -747,17 +906,29 @@ export const ChatRowContent = memo(
 		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
 
 		if (message.ask === "command" || message.say === "command") {
+			const showCommandApproval = message.ask === "command" && isLast
+			const commandText = message.text || ""
+			// Check if command is risky by looking for COMMAND_REQ_APP_STRING marker
+			const isRiskyCommand = commandText.includes(COMMAND_REQ_APP_STRING)
+			const commandToolName = isRiskyCommand ? "executeRiskyCommand" : "executeSafeCommand"
+
 			return (
 				<CommandOutputRow
+					approvalPolicy={getToolPolicy(commandToolName)}
 					icon={icon}
 					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
 					isCommandCompleted={isCommandCompleted}
 					isCommandExecuting={isCommandExecuting}
 					isCommandPending={isCommandPending}
 					isOutputFullyExpanded={isOutputFullyExpanded}
+					isRiskyCommand={isRiskyCommand}
 					message={message}
+					onApprove={handleApprove}
 					onCancelCommand={onCancelCommand}
+					onPolicyChange={handlePolicyChange}
+					onReject={handleReject}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
+					showApproval={showCommandApproval}
 					title={title}
 				/>
 			)
@@ -766,6 +937,9 @@ export const ChatRowContent = memo(
 		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
 			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
+			// Only show approval if this is the last message and it's asking for approval
+			const showMcpApproval = message.ask === "use_mcp_server" && isLast
+
 			return (
 				<div>
 					<div className={HEADER_CLASSNAMES}>
@@ -773,7 +947,11 @@ export const ChatRowContent = memo(
 						{title}
 					</div>
 
-					<div className="bg-code rounded-xs py-2 px-2.5 mt-2">
+					<div
+						className={cn("bg-code py-2 px-2.5 mt-2 border border-editor-group-border", {
+							"rounded-xs": !showMcpApproval,
+							"rounded-t-xs": showMcpApproval,
+						})}>
 						{useMcpServer.type === "access_mcp_resource" && (
 							<McpResourceRow
 								item={{
@@ -821,6 +999,20 @@ export const ChatRowContent = memo(
 							</div>
 						)}
 					</div>
+					{showMcpApproval && (
+						<InlineApprovalCard
+							approvalPolicy={
+								useMcpServer.type === "use_mcp_tool"
+									? autoApprovalSettings?.toolPolicies?.useMcpTool || "ask_everytime"
+									: autoApprovalSettings?.toolPolicies?.accessMcpResource || "ask_everytime"
+							}
+							isEnabled={true}
+							onApprove={handleApprove}
+							onPolicyChange={handlePolicyChange}
+							onReject={handleReject}
+							toolName={useMcpServer.type === "use_mcp_tool" ? "useMcpTool" : "accessMcpResource"}
+						/>
+					)}
 				</div>
 			)
 		}

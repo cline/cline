@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
 import ExpandHandle from "./ExpandHandle"
+import { InlineApprovalCard } from "./InlineApprovalCard"
 
 export const CommandOutputContent = memo(
 	({
@@ -120,6 +121,12 @@ export const CommandOutputRow = memo(
 		title,
 		isOutputFullyExpanded,
 		setIsOutputFullyExpanded,
+		showApproval = false,
+		approvalPolicy = "ask_everytime",
+		onApprove,
+		onReject,
+		onPolicyChange,
+		isRiskyCommand = false,
 	}: {
 		message: ClineMessage
 		isCommandExecuting?: boolean
@@ -131,6 +138,12 @@ export const CommandOutputRow = memo(
 		title?: JSX.Element | null
 		isOutputFullyExpanded: boolean
 		setIsOutputFullyExpanded: (expanded: boolean) => void
+		showApproval?: boolean
+		approvalPolicy?: "ask_everytime" | "auto_approve" | "never_allow"
+		onApprove?: () => void
+		onReject?: () => void
+		onPolicyChange?: (toolName: string, policy: "ask_everytime" | "auto_approve" | "never_allow") => void
+		isRiskyCommand?: boolean
 	}) => {
 		const splitMessage = (text: string) => {
 			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
@@ -209,7 +222,10 @@ export const CommandOutputRow = memo(
 			<>
 				{commandHeader}
 				<div
-					className="bg-code rounded-sm border border-editor-group-border"
+					className={cn("bg-code border border-editor-group-border", {
+						"rounded-sm": !showApproval,
+						"rounded-t-sm": showApproval,
+					})}
 					style={{
 						transition: "all 0.3s ease-in-out",
 					}}>
@@ -281,6 +297,17 @@ export const CommandOutputRow = memo(
 						<i className="codicon codicon-warning"></i>
 						<span>The model has determined this command requires explicit approval.</span>
 					</div>
+				)}
+				{showApproval && onApprove && onReject && onPolicyChange && (
+					<InlineApprovalCard
+						approvalPolicy={approvalPolicy}
+						approveButtonLabel="Run"
+						isEnabled={true}
+						onApprove={onApprove}
+						onPolicyChange={onPolicyChange}
+						onReject={onReject}
+						toolName={isRiskyCommand ? "executeRiskyCommand" : "executeSafeCommand"}
+					/>
 				)}
 			</>
 		)

@@ -159,8 +159,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	const opacity = canInteract || isStreaming ? 1 : 0.5
 
+	// Hide approve/reject buttons but keep cancel button visible
+	const isApprovalButton =
+		primaryAction === "approve" || primaryAction === "reject" || secondaryAction === "approve" || secondaryAction === "reject"
+
 	return (
-		<div className="flex px-3.5" style={{ opacity }}>
+		<div className="flex px-3.5" style={{ opacity, display: isApprovalButton ? "none" : undefined }}>
 			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"

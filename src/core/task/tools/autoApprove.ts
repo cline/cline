@@ -64,6 +64,19 @@ export class AutoApprove {
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
+		// Check tool-specific policies first (granular control)
+		const toolPolicyKey = this.getToolPolicyKey(toolName)
+		if (toolPolicyKey && autoApprovalSettings.toolPolicies) {
+			const policy = autoApprovalSettings.toolPolicies[toolPolicyKey as keyof typeof autoApprovalSettings.toolPolicies]
+			if (policy === "auto_approve") {
+				return [true, true] // Auto-approve both local and external
+			} else if (policy === "never_allow") {
+				return [false, false] // Never auto-approve
+			}
+			// If "ask_everytime", fall through to legacy logic
+		}
+
+		// Fall back to legacy broad category flags
 		switch (toolName) {
 			case ClineDefaultTool.FILE_READ:
 			case ClineDefaultTool.LIST_FILES:
@@ -90,6 +103,54 @@ export class AutoApprove {
 				return autoApprovalSettings.actions.useMcp
 		}
 		return false
+	}
+
+	/**
+	 * Map ClineDefaultTool enum to toolPolicies key
+	 */
+	private getToolPolicyKey(
+		toolName: ClineDefaultTool,
+	):
+		| "readFile"
+		| "editedExistingFile"
+		| "newFileCreated"
+		| "fileDeleted"
+		| "listFilesTopLevel"
+		| "listFilesRecursive"
+		| "listCodeDefinitionNames"
+		| "searchFiles"
+		| "executeSafeCommand"
+		| "executeRiskyCommand"
+		| "useBrowser"
+		| "useMcpTool"
+		| "accessMcpResource"
+		| null {
+		switch (toolName) {
+			case ClineDefaultTool.FILE_READ:
+				return "readFile"
+			case ClineDefaultTool.FILE_EDIT:
+			case ClineDefaultTool.APPLY_PATCH:
+				return "editedExistingFile"
+			case ClineDefaultTool.FILE_NEW:
+				return "newFileCreated"
+			case ClineDefaultTool.LIST_FILES:
+				return "listFilesTopLevel" // Note: This covers both top-level and recursive
+			case ClineDefaultTool.LIST_CODE_DEF:
+				return "listCodeDefinitionNames"
+			case ClineDefaultTool.SEARCH:
+				return "searchFiles"
+			case ClineDefaultTool.BASH:
+				// Note: BASH tool returns tuple [safe, risky], so this is handled specially in shouldAutoApproveTool
+				return null
+			case ClineDefaultTool.BROWSER:
+				return "useBrowser"
+			case ClineDefaultTool.MCP_USE:
+				return "useMcpTool"
+			case ClineDefaultTool.MCP_ACCESS:
+				return "accessMcpResource"
+			default:
+				return null
+		}
 	}
 
 	// Check if the tool should be auto-approved based on the settings

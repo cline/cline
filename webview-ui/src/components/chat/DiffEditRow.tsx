@@ -34,9 +34,10 @@ interface DiffEditRowProps {
 	path: string
 	isLoading?: boolean
 	startLineNumbers?: number[]
+	hasApproval?: boolean
 }
 
-export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers }) => {
+export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers, hasApproval }) => {
 	const { parsedFiles, isStreaming } = useMemo(() => {
 		const parsed = parsePatch(patch, path)
 		return {
@@ -50,7 +51,7 @@ export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, sta
 	}
 
 	return (
-		<div className="space-y-4 rounded-xs">
+		<div className={cn("space-y-4", { "rounded-xs": !hasApproval, "rounded-t-xs": hasApproval })}>
 			{parsedFiles.map((file, index) => (
 				<FileBlock
 					file={file}

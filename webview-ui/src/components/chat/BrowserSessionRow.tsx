@@ -1,6 +1,7 @@
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
+import { AskResponseRequest, SetToolApprovalPolicyRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
@@ -12,7 +13,8 @@ import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient } from "@/services/grpc-client"
+import { InlineApprovalCard } from "./InlineApprovalCard"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -106,10 +108,48 @@ const headerStyle: CSSProperties = {
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage, onSetQuote } = props
-	const { browserSettings } = useExtensionState()
+	const { browserSettings, autoApprovalSettings } = useExtensionState()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
+
+	// Approval handlers
+	const handleApprove = useCallback(async () => {
+		try {
+			await TaskServiceClient.askResponse(
+				AskResponseRequest.create({
+					responseType: "yesButtonClicked",
+				}),
+			)
+		} catch (error) {
+			console.error("Error approving browser:", error)
+		}
+	}, [])
+
+	const handleReject = useCallback(async () => {
+		try {
+			await TaskServiceClient.askResponse(
+				AskResponseRequest.create({
+					responseType: "noButtonClicked",
+				}),
+			)
+		} catch (error) {
+			console.error("Error rejecting browser:", error)
+		}
+	}, [])
+
+	const handlePolicyChange = useCallback(async (toolName: string, policy: "ask_everytime" | "auto_approve" | "never_allow") => {
+		try {
+			await TaskServiceClient.setToolApprovalPolicy(
+				SetToolApprovalPolicyRequest.create({
+					toolName,
+					policy,
+				}),
+			)
+		} catch (error) {
+			console.error("Error saving browser approval policy:", error)
+		}
+	}, [])
 
 	const isLastApiReqInterrupted = useMemo(() => {
 		// Check if last api_req_started is cancelled
@@ -341,10 +381,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// 	shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 	// }
 
-	const _shouldShowSettings = useMemo(() => {
+	// Check if we should show approval (when last message is asking for browser launch AND it's the last message in chat)
+	const showBrowserApproval = useMemo(() => {
 		const lastMessage = messages[messages.length - 1]
-		return lastMessage?.ask === "browser_action_launch" || lastMessage?.say === "browser_action_launch"
-	}, [messages])
+		return lastMessage?.ask === "browser_action_launch" && isLast
+	}, [messages, isLast])
 
 	// Calculate maxWidth
 	const maxWidth = browserSettings.viewport.width < BROWSER_VIEWPORT_PRESETS["Small Desktop (900x600)"].width ? 200 : undefined
@@ -365,13 +406,15 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			</div>
 			<div
 				style={{
-					borderRadius: 3,
+					borderRadius: showBrowserApproval ? "3px 3px 0 0" : 3,
 					border: "1px solid var(--vscode-editorGroup-border)",
 					// overflow: "hidden",
 					backgroundColor: CODE_BLOCK_BG_COLOR,
-					// marginBottom: 10,
 					maxWidth,
-					margin: "0 auto 10px auto", // Center the container
+					marginLeft: "auto",
+					marginRight: "auto",
+					marginTop: 0,
+					marginBottom: showBrowserApproval ? 0 : 10, // Remove bottom margin when approval shown
 				}}>
 				{/* URL Bar */}
 				<div style={urlBarContainerStyle}>
@@ -450,6 +493,18 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 			{/* Action content with min height */}
 			<div style={{ minHeight: maxActionHeight }}>{actionContent}</div>
+
+			{/* Inline approval card for browser launch */}
+			{showBrowserApproval && (
+				<InlineApprovalCard
+					approvalPolicy={autoApprovalSettings?.toolPolicies?.useBrowser || "ask_everytime"}
+					isEnabled={true}
+					onApprove={handleApprove}
+					onPolicyChange={handlePolicyChange}
+					onReject={handleReject}
+					toolName="useBrowser"
+				/>
+			)}
 
 			{/* Pagination moved to bottom */}
 			{pages.length > 1 && (

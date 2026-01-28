@@ -15,6 +15,7 @@ interface CodeAccordianProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	isLoading?: boolean
+	hasApproval?: boolean
 }
 
 /*
@@ -35,6 +36,7 @@ const CodeAccordian = ({
 	isExpanded,
 	onToggleExpand,
 	isLoading,
+	hasApproval,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -49,7 +51,11 @@ const CodeAccordian = ({
 	}, [code])
 
 	return (
-		<div className="bg-code overflow-hidden rounded-xs border border-editor-group-border">
+		<div
+			className={cn("bg-code overflow-hidden border border-editor-group-border", {
+				"rounded-xs": !hasApproval,
+				"rounded-t-xs": hasApproval,
+			})}>
 			{(path || isFeedback || isConsoleLogs) && (
 				<Button
 					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}

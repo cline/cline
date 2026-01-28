@@ -42,6 +42,8 @@ service TaskService {
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
   // Explains changes with AI and adds inline comments to the diff view
   rpc explainChanges(ExplainChangesRequest) returns (Empty);
+  // Sets the approval policy for a specific tool
+  rpc setToolApprovalPolicy(SetToolApprovalPolicyRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -131,4 +133,11 @@ message ExplainChangesRequest {
   Metadata metadata = 1;
   // Timestamp of the completion message to explain changes for
   int64 message_ts = 2;
+}
+
+// Request for setting tool approval policy
+message SetToolApprovalPolicyRequest {
+  Metadata metadata = 1;
+  string tool_name = 2;
+  string policy = 3; // "ask_everytime" | "auto_approve" | "never_allow"
 }

@@ -1,3 +1,5 @@
+export type ToolApprovalPolicy = "ask_everytime" | "auto_approve" | "never_allow"
+
 export interface AutoApprovalSettings {
 	// Version for race condition prevention (incremented on every change)
 	version: number
@@ -20,6 +22,22 @@ export interface AutoApprovalSettings {
 		executeAllCommands?: boolean // Execute all commands
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
+	}
+	// Per-tool approval policies (granular control)
+	toolPolicies?: {
+		readFile?: ToolApprovalPolicy
+		editedExistingFile?: ToolApprovalPolicy
+		newFileCreated?: ToolApprovalPolicy
+		fileDeleted?: ToolApprovalPolicy
+		listFilesTopLevel?: ToolApprovalPolicy
+		listFilesRecursive?: ToolApprovalPolicy
+		listCodeDefinitionNames?: ToolApprovalPolicy
+		searchFiles?: ToolApprovalPolicy
+		executeSafeCommand?: ToolApprovalPolicy
+		executeRiskyCommand?: ToolApprovalPolicy
+		useBrowser?: ToolApprovalPolicy
+		useMcpTool?: ToolApprovalPolicy
+		accessMcpResource?: ToolApprovalPolicy
 	}
 	// Global settings
 	enableNotifications: boolean // Show notifications for approval and task completion
