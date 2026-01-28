@@ -427,7 +427,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const { prompt, imagePaths } = parseImagesFromInput(textInput)
 	const mentionInfo = useMemo(() => extractMentionQuery(textInput), [textInput])
-	const slashInfo = useMemo(() => extractSlashQuery(textInput), [textInput])
+	const slashInfo = useMemo(() => extractSlashQuery(textInput, cursorPos), [textInput, cursorPos])
 	const filteredCommands = useMemo(
 		() => filterCommands(availableCommands, slashInfo.query),
 		[availableCommands, slashInfo.query],
