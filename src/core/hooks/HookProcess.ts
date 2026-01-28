@@ -109,7 +109,7 @@ export class HookProcess extends EventEmitter {
 					stdio: ["pipe", "pipe", "pipe"],
 					shell: true, // Use shell on all platforms for shebang interpretation
 					detached: process.platform !== "win32", // Create process group on Unix
-					cwd: this.cwd, // Execute from the primary workspace root
+					cwd: this.cwd, // Execute from the determined workspace root
 				})
 
 				let didEmitEmptyLine = false
