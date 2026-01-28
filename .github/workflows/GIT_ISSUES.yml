@@ -61,15 +61,39 @@ jobs:
           REOPENED_CANDIDATES=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
             '[.[] | select(.created_at < $since and .state == "open" and .updated_at >= $since)]')
           
+          # For each new issue, fetch the github-actions bot comment
+          ENRICHED_NEW_ISSUES='[]'
+          while IFS= read -r issue_json; do
+            [ -z "$issue_json" ] && continue
+            
+            ISSUE_NUMBER=$(echo "$issue_json" | jq -r '.number')
+            
+            # Fetch comments for this issue and find the github-actions bot comment
+            BOT_COMMENT=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/${ISSUE_NUMBER}/comments?per_page=10" \
+              --jq '[.[] | select(.user.login == "github-actions" or .user.login == "github-actions[bot]")] | first | .body // ""' 2>/dev/null || echo "")
+            
+            # Extract first 200 chars of bot comment
+            BOT_COMMENT_EXCERPT=$(echo "$BOT_COMMENT" | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
+            # Add bot comment to the issue object
+            ENRICHED_ISSUE=$(echo "$issue_json" | jq --arg bot_comment "$BOT_COMMENT_EXCERPT" \
+              '. + {bot_comment: $bot_comment}')
+            
+            ENRICHED_NEW_ISSUES=$(echo "$ENRICHED_NEW_ISSUES" | jq --argjson issue "$ENRICHED_ISSUE" \
+              '. + [$issue]')
+          done < <(echo "$NEW_ISSUES" | jq -c '.[]')
+          
           # Count items
-          NEW_COUNT=$(echo "$NEW_ISSUES" | jq 'length')
+          NEW_COUNT=$(echo "$ENRICHED_NEW_ISSUES" | jq 'length')
           REOPENED_COUNT=$(echo "$REOPENED_CANDIDATES" | jq 'length')
           
           echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
           echo "reopened_count=$REOPENED_COUNT" >> $GITHUB_OUTPUT
           
           # Save to files for the next step
-          echo "$NEW_ISSUES" > /tmp/new_issues.json
+          echo "$ENRICHED_NEW_ISSUES" > /tmp/new_issues.json
           echo "$REOPENED_CANDIDATES" > /tmp/reopened_issues.json
           
           echo "Found $NEW_COUNT new issues and $REOPENED_COUNT reopened/updated issues"
@@ -201,6 +225,7 @@ jobs:
               URL=$(echo "$issue_json" | jq -r '.html_url')
               USER=$(echo "$issue_json" | jq -r '.user.login')
               BODY=$(echo "$issue_json" | jq -r '.body // ""')
+              BOT_COMMENT=$(echo "$issue_json" | jq -r '.bot_comment // ""')
               
               # Extract "What happened?" section
               # Get text after "### What happened?" and before "### Steps to reproduce"
@@ -210,10 +235,16 @@ jobs:
               WHAT_HAPPENED=$(echo "$WHAT_HAPPENED" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
               
               # Build the issue block (use \n for newline in Slack mrkdwn)
+              ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE* (_by $USER_)"
+              
+              # Add "What happened?" if available
               if [ -n "$WHAT_HAPPENED" ] && [ "$WHAT_HAPPENED" != "" ]; then
-                ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE* (_by $USER_)\n  _${WHAT_HAPPENED}..._"
-              else
-                ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE* (_by $USER_)"
+                ISSUE_TEXT="${ISSUE_TEXT}\n  📝 _${WHAT_HAPPENED}..._"
+              fi
+              
+              # Add bot triage comment if available
+              if [ -n "$BOT_COMMENT" ] && [ "$BOT_COMMENT" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  🤖 _${BOT_COMMENT}..._"
               fi
               
               BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
