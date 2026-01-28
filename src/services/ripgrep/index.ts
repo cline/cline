@@ -4,6 +4,7 @@ import * as path from "path"
 import * as readline from "readline"
 import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
+import "@/utils/path" // necessary to have access to String.prototype.toPosix
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -56,8 +57,10 @@ interface SearchResult {
 }
 
 const MAX_RESULTS = 300
+// Default timeout for ripgrep searches (30 seconds)
+const DEFAULT_RIPGREP_TIMEOUT_MS = 30_000
 
-async function execRipgrep(args: string[]): Promise<string> {
+async function execRipgrep(args: string[], timeoutMs: number = DEFAULT_RIPGREP_TIMEOUT_MS): Promise<string> {
 	const binPath: string = await getBinaryLocation("rg")
 
 	return new Promise((resolve, reject) => {
@@ -70,31 +73,101 @@ async function execRipgrep(args: string[]): Promise<string> {
 
 		let output = ""
 		let lineCount = 0
+		let isResolved = false
+		let sigkillTimeout: NodeJS.Timeout | null = null
 		const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
 
+		// Cleanup function to ensure process and listeners are properly cleaned up
+		const cleanup = () => {
+			// Clear any pending SIGKILL timeout
+			if (sigkillTimeout) {
+				clearTimeout(sigkillTimeout)
+				sigkillTimeout = null
+			}
+			if (rgProcess && !rgProcess.killed) {
+				rgProcess.kill("SIGTERM")
+				// Force kill if still running after a short delay
+				sigkillTimeout = setTimeout(() => {
+					if (rgProcess && !rgProcess.killed) {
+						rgProcess.kill("SIGKILL")
+					}
+					sigkillTimeout = null
+				}, 1000)
+			}
+			rl.removeAllListeners()
+			rgProcess.stdout?.removeAllListeners()
+			rgProcess.stderr?.removeAllListeners()
+			rgProcess.removeAllListeners()
+		}
+
+		// Set up timeout
+		const timeoutHandle = setTimeout(() => {
+			if (!isResolved) {
+				isResolved = true
+				cleanup()
+				reject(new Error(`ripgrep process timed out after ${timeoutMs}ms`))
+			}
+		}, timeoutMs)
+
+		// Helper to resolve/reject once
+		const finish = (result: "resolve" | "reject", value?: string | Error) => {
+			if (isResolved) {
+				return
+			}
+			isResolved = true
+			clearTimeout(timeoutHandle)
+			cleanup()
+			if (result === "resolve") {
+				resolve(value as string)
+			} else {
+				reject(value as Error)
+			}
+		}
+
 		rl.on("line", (line) => {
+			if (isResolved) {
+				return
+			}
 			if (lineCount < maxLines) {
 				output += line + "\n"
 				lineCount++
 			} else {
 				rl.close()
-				rgProcess.kill()
+				rgProcess.kill("SIGTERM")
 			}
 		})
 
 		let errorOutput = ""
 		rgProcess.stderr.on("data", (data) => {
+			if (isResolved) {
+				return
+			}
 			errorOutput += data.toString()
 		})
+
 		rl.on("close", () => {
+			if (isResolved) {
+				return
+			}
 			if (errorOutput) {
-				reject(new Error(`ripgrep process error: ${errorOutput}`))
+				finish("reject", new Error(`ripgrep process error: ${errorOutput}`))
 			} else {
-				resolve(output)
+				finish("resolve", output)
 			}
 		})
+
 		rgProcess.on("error", (error) => {
-			reject(new Error(`ripgrep process error: ${error.message}`))
+			if (isResolved) {
+				return
+			}
+			finish("reject", new Error(`ripgrep process error: ${error.message}`))
+		})
+
+		rgProcess.on("exit", (code, signal) => {
+			// If process exits before we've resolved, handle it
+			if (!isResolved && code !== null && code !== 0) {
+				finish("reject", new Error(`ripgrep process exited with code ${code}${signal ? ` (signal: ${signal})` : ""}`))
+			}
 		})
 	})
 }
@@ -105,12 +178,18 @@ export async function regexSearchFiles(
 	regex: string,
 	filePattern?: string,
 	clineIgnoreController?: ClineIgnoreController,
+	includesHiddenFiles = true, // Includes hidden files and ignored files by default
+	timeoutMs?: number, // Optional timeout in milliseconds (default: 30 seconds)
 ): Promise<string> {
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
 
+	if (!includesHiddenFiles) {
+		args.push("--no-hidden")
+	}
+
 	let output: string
 	try {
-		output = await execRipgrep(args)
+		output = await execRipgrep(args, timeoutMs)
 	} catch (error) {
 		throw Error("Error calling ripgrep", { cause: error })
 	}

@@ -26,9 +26,11 @@ import {
 	ImageUpIcon,
 	LightbulbIcon,
 	Link2Icon,
+	Loader2Icon,
 	LoaderCircleIcon,
 	PencilIcon,
 	RefreshCwIcon,
+	ScanSearchIcon,
 	SearchIcon,
 	SettingsIcon,
 	SquareArrowOutUpRightIcon,
@@ -44,6 +46,7 @@ import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
+import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -593,6 +596,30 @@ export const ChatRowContent = memo(
 								onToggleExpand={handleToggle}
 								path={tool.path!}
 							/>
+						</div>
+					)
+				case "subagent":
+					return (
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								{message.partial !== false && !isLast ? (
+									<Loader2Icon className="size-2 animate-spin" />
+								) : (
+									<ScanSearchIcon className="size-2" />
+								)}
+								<span className="bold">Cline requested help from subagent:</span>
+							</div>
+							<Button
+								className="bg-code-block-background text-description border border-editor-group-border rounded-xs overflow-hidden w-full flex flex-col justify-start items-start text-left"
+								onClick={handleToggle}
+								variant="ghost">
+								{/* Search Agent Query */}
+								<span className="w-full break-words whitespace-normal text-left">{tool.filePattern} </span>
+								<div className="w-full flex flex-col gap-1 text-left select-text pt-1">
+									{(message.partial || isExpanded) &&
+										tool.content?.split("\n")?.map((line) => <div className="w-full">{line}</div>)}
+								</div>
+							</Button>
 						</div>
 					)
 				case "searchFiles":

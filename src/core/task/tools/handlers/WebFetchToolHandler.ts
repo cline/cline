@@ -6,7 +6,6 @@ import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
-import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { getAxiosSettings } from "@/shared/net"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
@@ -139,39 +138,43 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				throw error
 			}
 
-			// Execute the actual fetch
-			const baseUrl = ClineEnv.config().apiBaseUrl
-			const authToken = await AuthService.getInstance().getAuthToken()
-
-			if (!authToken) {
-				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
-			}
-
-			const response = await axios.post(
-				`${baseUrl}/api/v1/search/webfetch`,
-				{
-					Url: url,
-					Prompt: prompt,
-				},
-				{
-					headers: {
-						Authorization: `Bearer ${authToken}`,
-						"Content-Type": "application/json",
-						"X-Task-ID": config.ulid || "",
-						...(await buildClineExtraHeaders()),
-					},
-					timeout: 15000,
-					...getAxiosSettings(),
-				},
-			)
-
-			// Parse response
-			// Axios will throw on non-200 status, so no need to check fetchStatus
-			const result = response.data.data.result
+			const result = await webfetch(url, prompt, config.ulid)
 
 			return formatResponse.toolResult(result)
 		} catch (error) {
 			return `Error fetching web content: ${(error as Error).message}`
 		}
+	}
+}
+
+export async function webfetch(url: string, prompt: string, ulid = ""): Promise<string> {
+	try {
+		// Execute the actual fetch
+		const baseUrl = ClineEnv.config().apiBaseUrl
+		const authToken = await AuthService.getInstance().getAuthToken()
+
+		const response = await axios.post(
+			`${baseUrl}/api/v1/search/webfetch`,
+			{
+				Url: url,
+				Prompt: prompt,
+			},
+			{
+				headers: {
+					Authorization: `Bearer ${authToken}`,
+					"Content-Type": "application/json",
+					"X-Task-ID": ulid,
+					...(await buildClineExtraHeaders()),
+				},
+				timeout: 15000,
+				...getAxiosSettings(),
+			},
+		)
+
+		// Parse response
+		// Axios will throw on non-200 status, so no need to check fetchStatus
+		return response?.data?.data?.result
+	} catch (error: any) {
+		return `Error fetching web content: ${(error as Error).message}`
 	}
 }

@@ -39,6 +39,7 @@ import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
+import { SubagentHandler } from "./tools/handlers/SubagentHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
@@ -221,8 +222,10 @@ export class ToolExecutor {
 		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
 		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
-		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
+		this.coordinator.register(new SubagentHandler())
 		this.coordinator.register(new SearchFilesToolHandler(validator))
+
+		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new ExecuteCommandToolHandler(validator))
 		this.coordinator.register(new UseMcpToolHandler())
 		this.coordinator.register(new AccessMcpResourceHandler())

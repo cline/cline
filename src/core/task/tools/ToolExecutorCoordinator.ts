@@ -20,6 +20,13 @@ export interface IFullyManagedTool extends IToolHandler, IPartialBlockHandler {
 }
 
 /**
+ * Interface for tool handlers that support cancellation via abort.
+ */
+export interface IAbortableToolHandler {
+	abort(): void
+}
+
+/**
  * A wrapper class that allows a single tool handler to be registered under multiple names.
  * This provides proper typing for tools that share the same implementation logic.
  */
@@ -83,5 +90,24 @@ export class ToolExecutorCoordinator {
 			throw new Error(`No handler registered for tool: ${block.name}`)
 		}
 		return handler.execute(config, block)
+	}
+
+	/**
+	 * Abort all running abortable tool handlers.
+	 * This is called when the task is cancelled to stop any in-progress agent executions.
+	 */
+	abortAll(): void {
+		for (const handler of this.handlers.values()) {
+			if (this.isAbortable(handler)) {
+				handler.abort()
+			}
+		}
+	}
+
+	/**
+	 * Type guard to check if a handler implements IAbortableToolHandler
+	 */
+	private isAbortable(handler: IToolHandler): handler is IToolHandler & IAbortableToolHandler {
+		return "abort" in handler && typeof (handler as IAbortableToolHandler).abort === "function"
 	}
 }

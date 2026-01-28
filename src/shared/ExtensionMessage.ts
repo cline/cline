@@ -202,10 +202,12 @@ export interface ClineSayTool {
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
+		| "searchAgent"
 		| "searchFiles"
 		| "webFetch"
 		| "webSearch"
 		| "summarizeTask"
+		| "subagent"
 		| "useSkill"
 	path?: string
 	diff?: string
