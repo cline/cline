@@ -20,6 +20,7 @@ import { type DetectedSources, detectImportSources, type ImportSource } from "..
 import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
+import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { getProviderLabel, getProviderOrder } from "./ProviderPicker"
@@ -36,6 +37,7 @@ type AuthStep =
 	| "cline_auth"
 	| "cline_model"
 	| "openai_codex_auth"
+	| "bedrock"
 	| "import"
 
 // Featured models loaded from shared constants
@@ -162,6 +164,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [clineModelIndex, setClineModelIndex] = useState(0)
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
+	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
 
 	// Use providers.json order, filtered to only available providers
 	const sortedProviders = useMemo(() => {
@@ -466,6 +469,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			} else if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
+			} else if (value === "bedrock") {
+				setStep("bedrock")
 			} else {
 				setStep("apikey")
 			}
@@ -499,8 +504,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					apiProvider: selectedProvider,
 				}
 
-				// Add API key using provider-specific field
-				if (apiKey) {
+				// Add API key or Bedrock-specific config
+				if (selectedProvider === "bedrock" && bedrockConfig) {
+					const bedrockFields: Record<string, unknown> = {
+						awsAuthentication: bedrockConfig.awsAuthentication,
+						awsRegion: bedrockConfig.awsRegion,
+						awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
+					}
+					if (bedrockConfig.awsProfile !== undefined) bedrockFields.awsProfile = bedrockConfig.awsProfile
+					if (bedrockConfig.awsAccessKey) bedrockFields.awsAccessKey = bedrockConfig.awsAccessKey
+					if (bedrockConfig.awsSecretKey) bedrockFields.awsSecretKey = bedrockConfig.awsSecretKey
+					if (bedrockConfig.awsSessionToken) bedrockFields.awsSessionToken = bedrockConfig.awsSessionToken
+					Object.assign(config, bedrockFields)
+				} else if (apiKey) {
 					const keyField = ProviderToApiKeyMap[selectedProvider as keyof typeof ProviderToApiKeyMap]
 					if (keyField) {
 						const fields = Array.isArray(keyField) ? keyField : [keyField]
@@ -520,7 +536,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("error")
 			}
 		},
-		[selectedProvider, apiKey],
+		[selectedProvider, apiKey, bedrockConfig],
 	)
 
 	const handleModelIdSubmit = useCallback(
@@ -556,6 +572,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		},
 		[saveConfiguration],
 	)
+
+	const handleBedrockComplete = useCallback((config: BedrockConfig) => {
+		setBedrockConfig(config)
+		setStep("modelid")
+	}, [])
 
 	const handleImportComplete = useCallback(() => {
 		setStep("success")
@@ -638,6 +659,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "cline_model":
 				setClineModelIndex(0)
 				setStep("menu")
+				break
+			case "bedrock":
+				setBedrockConfig(null)
+				setStep("provider")
 				break
 			case "import":
 				setImportSource(null)
@@ -843,6 +868,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				)
 			}
 
+			case "bedrock":
+				return (
+					<BedrockSetup
+						isActive={step === "bedrock"}
+						onCancel={() => {
+							setBedrockConfig(null)
+							setStep("provider")
+						}}
+						onComplete={handleBedrockComplete}
+					/>
+				)
+
 			case "import":
 				if (!importSource) {
 					return null
@@ -872,7 +909,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [menuIndex, setMenuIndex] = useState(0)
 
 	// Steps that allow going back with escape (apikey handled by ApiKeyInput component)
-	const canGoBack = ["provider", "modelid", "baseurl", "cline_auth", "cline_model", "openai_codex_auth", "error"].includes(step)
+	const canGoBack = [
+		"provider",
+		"modelid",
+		"baseurl",
+		"cline_auth",
+		"cline_model",
+		"openai_codex_auth",
+		"bedrock",
+		"error",
+	].includes(step)
 
 	useInput(
 		(input, key) => {
