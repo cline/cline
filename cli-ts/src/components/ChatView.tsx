@@ -944,6 +944,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setSlashMenuDismissed(true)
 						return
 					}
+					if (cmd.name === "exit") {
+						handleExit()
+						return
+					}
 					const newText = insertSlashCommand(textInput, slashInfo.slashIndex, cmd.name)
 					setTextInput(newText)
 					setCursorPos(newText.length)

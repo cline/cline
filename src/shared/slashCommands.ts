@@ -73,4 +73,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "exit",
+		description: "Exit the CLI and return to terminal",
+		section: "default",
+		cliCompatible: true,
+	},
 ]
