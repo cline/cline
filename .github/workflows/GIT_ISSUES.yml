@@ -58,8 +58,39 @@ jobs:
             '[.[] | select(.created_at >= $since and .state == "open")]')
           
           # Reopened/Updated issues: older issues that were updated recently
-          REOPENED_CANDIDATES=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+          REOPENED_CANDIDATES_RAW=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
             '[.[] | select(.created_at < $since and .state == "open" and .updated_at >= $since)]')
+          
+          # For each reopened issue, fetch the last comment (or reopen comment)
+          ENRICHED_REOPENED_ISSUES='[]'
+          while IFS= read -r issue_json; do
+            [ -z "$issue_json" ] && continue
+            
+            ISSUE_NUMBER=$(echo "$issue_json" | jq -r '.number')
+            
+            # Fetch the last comment on this issue
+            LAST_COMMENT=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/${ISSUE_NUMBER}/comments?per_page=5" \
+              --jq 'sort_by(.created_at) | last | {body: .body, user: .user.login} // {body: "", user: ""}' 2>/dev/null || echo '{"body":"","user":""}')
+            
+            LAST_COMMENT_BODY=$(echo "$LAST_COMMENT" | jq -r '.body // ""')
+            LAST_COMMENT_USER=$(echo "$LAST_COMMENT" | jq -r '.user // ""')
+            
+            # Extract first 200 chars of the comment
+            LAST_COMMENT_EXCERPT=$(echo "$LAST_COMMENT_BODY" | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
+            # Add last comment to the issue object
+            ENRICHED_ISSUE=$(echo "$issue_json" | jq \
+              --arg comment "$LAST_COMMENT_EXCERPT" \
+              --arg commenter "$LAST_COMMENT_USER" \
+              '. + {last_comment: $comment, last_commenter: $commenter}')
+            
+            ENRICHED_REOPENED_ISSUES=$(echo "$ENRICHED_REOPENED_ISSUES" | jq --argjson issue "$ENRICHED_ISSUE" \
+              '. + [$issue]')
+          done < <(echo "$REOPENED_CANDIDATES_RAW" | jq -c '.[]')
+          
+          REOPENED_CANDIDATES="$ENRICHED_REOPENED_ISSUES"
           
           # For each new issue, fetch the github-actions bot comment
           ENRICHED_NEW_ISSUES='[]'
@@ -284,17 +315,48 @@ jobs:
               }
             }]')
             
-            REOPENED_TEXT=$(cat /tmp/reopened_issues.json | jq -r \
-              '.[0:10] | .[] | "• <\(.html_url)|#\(.number)>: \(.title)"')
-            
-            if [ -n "$REOPENED_TEXT" ]; then
-              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$REOPENED_TEXT" \
+            # Add each reopened issue with last comment (limit to 5)
+            REOPENED_COUNT_DISPLAY=0
+            while IFS= read -r issue_json; do
+              [ -z "$issue_json" ] && continue
+              [ "$REOPENED_COUNT_DISPLAY" -ge 5 ] && break
+              
+              NUMBER=$(echo "$issue_json" | jq -r '.number')
+              TITLE=$(echo "$issue_json" | jq -r '.title')
+              URL=$(echo "$issue_json" | jq -r '.html_url')
+              LAST_COMMENT=$(echo "$issue_json" | jq -r '.last_comment // ""')
+              LAST_COMMENTER=$(echo "$issue_json" | jq -r '.last_commenter // ""')
+              
+              # Build the issue text
+              ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE*"
+              
+              # Add last comment if available
+              if [ -n "$LAST_COMMENT" ] && [ "$LAST_COMMENT" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  💬 _${LAST_COMMENTER}: ${LAST_COMMENT}..._"
+              fi
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
                 '. + [{
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
                     "text": $text
                   }
+                }]')
+              
+              REOPENED_COUNT_DISPLAY=$((REOPENED_COUNT_DISPLAY + 1))
+            done < <(cat /tmp/reopened_issues.json | jq -c '.[]')
+            
+            # Show if truncated
+            if [ "$REOPENED_COUNT" -gt 5 ]; then
+              REMAINING=$((REOPENED_COUNT - 5))
+              BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
+                '. + [{
+                  "type": "context",
+                  "elements": [{
+                    "type": "mrkdwn",
+                    "text": "_...and \($remaining) more_"
+                  }]
                 }]')
             fi
           fi
