@@ -161,13 +161,21 @@ jobs:
             STATE=$(echo "$ISSUE" | jq -r '.state // "unknown"')
             
             if [ "$IS_PR" = "false" ] && [ "$STATE" = "open" ]; then
-              # Get the latest non-bot commenter for this issue
-              LATEST_COMMENTER=$(echo "$COMMENTS_JSON" | jq -r --arg url "$ISSUE_URL" \
-                '[.[] | select(.issue_url == $url)] | sort_by(.created_at) | last | .user.login // "unknown"')
+              # Get the latest non-bot comment for this issue
+              LATEST_COMMENT_DATA=$(echo "$COMMENTS_JSON" | jq --arg url "$ISSUE_URL" \
+                '[.[] | select(.issue_url == $url)] | sort_by(.created_at) | last | {user: .user.login, body: .body} // {user: "unknown", body: ""}')
               
-              # Add commenter info to the issue
-              ISSUE_WITH_COMMENTER=$(echo "$ISSUE" | jq --arg commenter "$LATEST_COMMENTER" \
-                '. + {latest_commenter: $commenter}')
+              LATEST_COMMENTER=$(echo "$LATEST_COMMENT_DATA" | jq -r '.user // "unknown"')
+              LATEST_COMMENT_BODY=$(echo "$LATEST_COMMENT_DATA" | jq -r '.body // ""')
+              
+              # Extract first 200 chars of the comment
+              COMMENT_EXCERPT=$(echo "$LATEST_COMMENT_BODY" | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              
+              # Add commenter info and comment excerpt to the issue
+              ISSUE_WITH_COMMENTER=$(echo "$ISSUE" | jq \
+                --arg commenter "$LATEST_COMMENTER" \
+                --arg comment "$COMMENT_EXCERPT" \
+                '. + {latest_commenter: $commenter, latest_comment: $comment}')
               
               COMMENTED_ISSUES=$(echo "$COMMENTED_ISSUES" | jq --argjson issue "$ISSUE_WITH_COMMENTER" \
                 '. + [$issue]')
@@ -372,12 +380,29 @@ jobs:
               }
             }]')
             
-            # Show issue with who commented
-            COMMENTED_TEXT=$(cat /tmp/commented_issues.json | jq -r \
-              '.[0:10] | .[] | "• <\(.html_url)|#\(.number)>: \(.title) (_comment by \(.latest_commenter)_)"')
-            
-            if [ -n "$COMMENTED_TEXT" ]; then
-              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$COMMENTED_TEXT" \
+            # Add each commented issue with comment content (limit to 5)
+            COMMENTED_COUNT_DISPLAY=0
+            while IFS= read -r issue_json; do
+              [ -z "$issue_json" ] && continue
+              [ "$COMMENTED_COUNT_DISPLAY" -ge 5 ] && break
+              
+              NUMBER=$(echo "$issue_json" | jq -r '.number')
+              TITLE=$(echo "$issue_json" | jq -r '.title')
+              URL=$(echo "$issue_json" | jq -r '.html_url')
+              COMMENTER=$(echo "$issue_json" | jq -r '.latest_commenter // ""')
+              COMMENT=$(echo "$issue_json" | jq -r '.latest_comment // ""')
+              
+              # Build the issue text
+              ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE*"
+              
+              # Add comment content if available
+              if [ -n "$COMMENT" ] && [ "$COMMENT" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  💬 _${COMMENTER}: ${COMMENT}..._"
+              else
+                ISSUE_TEXT="${ISSUE_TEXT}\n  💬 _comment by ${COMMENTER}_"
+              fi
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
                 '. + [{
                   "type": "section",
                   "text": {
@@ -385,11 +410,13 @@ jobs:
                     "text": $text
                   }
                 }]')
-            fi
+              
+              COMMENTED_COUNT_DISPLAY=$((COMMENTED_COUNT_DISPLAY + 1))
+            done < <(cat /tmp/commented_issues.json | jq -c '.[]')
             
             # Show if truncated
-            if [ "$COMMENTED_COUNT" -gt 10 ]; then
-              REMAINING=$((COMMENTED_COUNT - 10))
+            if [ "$COMMENTED_COUNT" -gt 5 ]; then
+              REMAINING=$((COMMENTED_COUNT - 5))
               BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
                 '. + [{
                   "type": "context",
