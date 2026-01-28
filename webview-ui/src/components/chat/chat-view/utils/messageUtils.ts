@@ -5,7 +5,7 @@
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
-import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
+import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchCodeIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
 
 /**
  * Low-stakes tool types that should be grouped together
@@ -16,6 +16,7 @@ const LOW_STAKES_TOOLS = new Set([
 	"listFilesRecursive",
 	"listCodeDefinitionNames",
 	"searchFiles",
+	"subagent",
 ])
 
 /**
@@ -836,6 +837,8 @@ export function getIconByToolName(toolName: string) {
 			return SearchIcon
 		case "listCodeDefinitionNames":
 			return ShapesIcon
+		case "subagent":
+			return SearchCodeIcon
 		default:
 			return WrenchIcon
 	}

@@ -78,7 +78,19 @@ function filterPartialToolMessages(messages: ClineMessage[]): ClineMessage[] {
 
 		// Filter out partial tool/command messages only
 		const isToolOrCommand = isToolOrCommandMessage(msg)
-		return !(isToolOrCommand && msg.partial === true)
+		if (isToolOrCommand && msg.partial === true) {
+			// Allow partial subagent tools through so they show progress while running
+			try {
+				const toolData = JSON.parse(msg.text || "{}")
+				if (toolData.tool === "subagent") {
+					return true
+				}
+			} catch {
+				// If parsing fails, filter it out
+			}
+			return false
+		}
+		return true
 	})
 }
 

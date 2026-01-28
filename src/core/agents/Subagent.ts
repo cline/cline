@@ -21,7 +21,7 @@ export class Subagent extends ClineAgent {
 		call_id: number,
 		prompt: string,
 		taskConfig: TaskConfig,
-		maxIterations: number = 50,
+		maxIterations: number = 30,
 		systemPrompt?: string,
 		client?: ApiHandler,
 		abortSignal?: AbortSignal,

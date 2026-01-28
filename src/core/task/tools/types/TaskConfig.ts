@@ -132,6 +132,9 @@ export interface TaskCallbacks {
 		userContent: ClineContent[],
 		context: "initial_task" | "resume" | "feedback",
 	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
+
+	// Message content replacement by timestamp
+	replaceMessageContentByTs: (ts: number, content: string) => Promise<boolean>
 }
 
 /**

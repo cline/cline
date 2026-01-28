@@ -8,8 +8,10 @@ import { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { convertClineMessageToProto } from "@/shared/proto-conversions/cline-message"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { sendPartialMessageEvent } from "../controller/ui/subscribeToPartialMessage"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
@@ -215,6 +217,37 @@ export class MessageStateHandler {
 
 			// Save changes and update history
 			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
+
+	/**
+	 * Replace the content of a message identified by its timestamp
+	 * Finds the message by ts and replaces its text content
+	 * The entire operation is atomic to prevent races (RC-4)
+	 * @param ts - The timestamp of the message to update
+	 * @param content - The new content to set
+	 * @returns true if the message was found and updated, false otherwise
+	 */
+	async replaceMessageContentByTs(ts: number, content: string): Promise<boolean> {
+		return await this.withStateLock(async () => {
+			const index = this.clineMessages.findIndex((m) => m.ts === ts)
+			if (index === -1) {
+				return false
+			}
+
+			// Update the message content
+			this.clineMessages[index].text = content
+
+			// Save changes and update history
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+
+			// Send partial message event to update the webview in real-time
+			// This is necessary because replaceMessageContentByTs is used for streaming updates
+			// (e.g., Subagent progress updates) that need to be reflected in the UI immediately
+			const protoMessage = convertClineMessageToProto(this.clineMessages[index])
+			await sendPartialMessageEvent(protoMessage)
+
+			return true
 		})
 	}
 }

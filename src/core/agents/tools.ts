@@ -18,6 +18,8 @@ export interface SubAgentToolDefinition {
 	execute: (inputs: string[], taskConfig: TaskConfig) => Promise<SubAgentToolResult>
 }
 
+const FILE_READ_TIMEOUT_MS = 10_000 // 10 second timeout per file read
+
 const TOOLFILE: SubAgentToolDefinition = {
 	title: "TOOLFILE",
 	tag: "name",
@@ -28,13 +30,27 @@ const TOOLFILE: SubAgentToolDefinition = {
 	execute: async (filePaths: string[], taskConfig: TaskConfig): Promise<SubAgentToolResult> => {
 		const fileReadPromises = filePaths.map(async (filePath): Promise<GeneralToolResult> => {
 			try {
-				// Resolve the file path relative to the workspace
-				const pathResult = resolveWorkspacePath(taskConfig, filePath, "SubAgent.executeParallelFileReads")
-				const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+				// Create a timeout promise to prevent hanging on large/problematic files
+				const timeoutPromise = new Promise<never>((_, reject) => {
+					setTimeout(
+						() => reject(new Error(`File read timed out after ${FILE_READ_TIMEOUT_MS}ms`)),
+						FILE_READ_TIMEOUT_MS,
+					)
+				})
 
-				// Read the file content
-				const supportsImages = taskConfig.api.getModel().info.supportsImages ?? false
-				const fileContent = await extractFileContent(absolutePath, supportsImages)
+				// Create the actual file read promise
+				const readPromise = (async () => {
+					// Resolve the file path relative to the workspace
+					const pathResult = resolveWorkspacePath(taskConfig, filePath, "SubAgent.executeParallelFileReads")
+					const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+
+					// Read the file content
+					const supportsImages = taskConfig.api.getModel().info.supportsImages ?? false
+					return await extractFileContent(absolutePath, supportsImages)
+				})()
+
+				// Race between file read and timeout
+				const fileContent = await Promise.race([readPromise, timeoutPromise])
 
 				Logger.info(`Read file content for "${filePath}" successfully.`)
 
@@ -139,13 +155,26 @@ const TOOLBASH: SubAgentToolDefinition = {
 	],
 	execute: async (commands: string[], taskConfig: TaskConfig): Promise<SubAgentToolResult> => {
 		const results = await Promise.all(
-			commands.map(async (command) => {
-				const result = await runShellCommand(command, { cwd: taskConfig.cwd })
-				return {
-					agent: "TOOLBASH",
-					query: command,
-					result: result.stdout,
-					success: true,
+			commands.map(async (command): Promise<GeneralToolResult> => {
+				try {
+					const result = await runShellCommand(command, { cwd: taskConfig.cwd })
+					return {
+						agent: "TOOLBASH",
+						query: command,
+						result: result.stdout,
+						success: true,
+					}
+				} catch (error) {
+					Logger.error(
+						`Bash command failed for "${command}": ${error instanceof Error ? error.message : String(error)}`,
+					)
+					return {
+						agent: "TOOLBASH",
+						query: command,
+						result: "",
+						error: `Command failed: ${error instanceof Error ? error.message : String(error)}`,
+						success: false,
+					}
 				}
 			}),
 		)

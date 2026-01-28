@@ -49,16 +49,16 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 		return JSON.stringify(sharedProps)
 	}
 
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const partialMessage = this.buildPartialToolMessage(block, uiHelpers)
-		const isAutoApprove = uiHelpers.getConfig().callbacks.shouldAutoApproveTool(this.name)
-		if (isAutoApprove) {
-			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
-		} else {
-			await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
-			await uiHelpers.ask("tool", partialMessage, block.partial).catch(() => {})
+	async handlePartialBlock(block: ToolUse, _uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		if (!block.params.prompt) {
+			return
 		}
+		// const partialMessage = this.buildPartialToolMessage(block, uiHelpers)
+		// const isAutoApprove = uiHelpers.getConfig().callbacks.shouldAutoApproveTool(this.name)
+		// if (isAutoApprove) {
+		// 	await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
+		// 	await uiHelpers.say("tool", partialMessage, undefined, undefined, true)
+		// }
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -93,7 +93,7 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 			// Create AbortController for this task execution
 			this.abortController = new AbortController()
 
-			// Remove previous partial message by timestamp (safe for parallel tool execution)
+			// Build the initial partial message
 			const sharedProps: ClineSayTool = {
 				tool: "subagent",
 				path: undefined,
@@ -105,7 +105,26 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 
 			const partialMessage = JSON.stringify(sharedProps)
 
-			const lastMessageTs = (await config.callbacks.say("tool", partialMessage, undefined, undefined, true)) || Date.now()
+			// // Check if there's an existing partial "say tool" message from handlePartialBlock
+			// // We need to get its timestamp BEFORE calling say(), because say() returns undefined
+			// // when updating an existing partial message.
+			// // Note: We only look for "say" messages because we're about to call say() below,
+			// // which will either update an existing "say" message or create a new one.
+			// // If handlePartialBlock created an "ask" message (auto-approve disabled), say() will
+			// // create a NEW "say" message, so we shouldn't use the "ask" message's timestamp.
+			// const clineMessages = config.messageState.getClineMessages()
+			// const existingPartialSayMessage = clineMessages
+			// 	.slice()
+			// 	.reverse()
+			// 	.find((m) => m.partial && m.type === "say" && m.say === "tool")
+			// const existingTs = existingPartialSayMessage?.ts
+
+			// Call say() to create or update the partial message
+			const returnedTs = await config.callbacks.say("tool", partialMessage, undefined, undefined, true)
+
+			// Use the returned timestamp if available, otherwise use the existing message's timestamp
+			// If neither is available (shouldn't happen), fall back to Date.now()
+			const lastMessageTs = returnedTs ?? Date.now()
 
 			// Create agent with max 50 iterations for complex tasks
 			const agent = new Subagent(lastMessageTs, prompt, config, 50, undefined, config.api, this.abortController?.signal)
@@ -115,7 +134,7 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 			if (this.abortController?.signal?.aborted) {
 				const abortMessage = "Task agent was cancelled."
 				const abortToolMessage = this.buildToolMessage(prompt, abortMessage)
-				await config.callbacks.say("tool", abortToolMessage, undefined, undefined, false)
+				await config.callbacks.replaceMessageContentByTs(lastMessageTs, abortToolMessage)
 				return abortMessage
 			}
 
@@ -127,13 +146,14 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 						: String(taskResults)
 
 			const completeMessage = this.buildToolMessage(prompt, formattedResults)
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			await config.callbacks.replaceMessageContentByTs(lastMessageTs, completeMessage)
 
 			return taskResults
 		} catch (error) {
 			Logger.error("Task agent error:", error)
 			const errorMessage = `Task agent error: ${error instanceof Error ? error.message : String(error)}`
 			const errorToolMessage = this.buildToolMessage(prompt, errorMessage)
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 			await config.callbacks.say("tool", errorToolMessage, undefined, undefined, false)
 			return errorMessage
 		} finally {

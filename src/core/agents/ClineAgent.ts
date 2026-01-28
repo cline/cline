@@ -465,7 +465,14 @@ export abstract class ClineAgent {
 			filePattern: this.prompt,
 			operationIsLocatedInWorkspace: true,
 		}
-		// await this.taskConfig?.callbacks.removePartialMessageByTs(this.config.call_id)
-		await this.taskConfig?.callbacks.say("tool", JSON.stringify(partialMessage), undefined, undefined, true)
+		// Try to replace existing message content by ts, fall back to say if not found
+		const replaced = await this.taskConfig?.callbacks.replaceMessageContentByTs(
+			this.config.call_id,
+			JSON.stringify(partialMessage),
+		)
+		if (!replaced) {
+			// Fall back to creating a new partial message if ts not found
+			await this.taskConfig?.callbacks.say("tool", JSON.stringify(partialMessage), undefined, undefined, true)
+		}
 	}
 }

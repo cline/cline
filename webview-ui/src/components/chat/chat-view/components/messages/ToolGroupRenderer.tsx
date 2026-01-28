@@ -22,7 +22,13 @@ interface ToolWithReasoning {
 	activityText?: string
 }
 
-const EXPANDABLE_TOOLS = new Set(["listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"])
+const EXPANDABLE_TOOLS = new Set([
+	"listFilesTopLevel",
+	"listFilesRecursive",
+	"listCodeDefinitionNames",
+	"searchFiles",
+	"subagent",
+])
 
 // Helper to format activity text for active items (from RequestStartRow logic)
 const getActivityText = (tool: ClineSayTool): string | null => {
@@ -45,6 +51,11 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 		case "listFilesTopLevel":
 		case "listFilesRecursive":
 			return tool.path ? `Exploring ${cleanedPath}/...` : null
+		case "subagent": {
+			// Subagent uses content for progress text, filePattern for the task description
+			const subagentText = tool.content || tool.filePattern
+			return subagentText ? "Subagent is working..." : "Starting Subagent..."
+		}
 		case "searchFiles":
 			return tool.regex && tool.path ? `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...` : null
 		case "listCodeDefinitionNames":
@@ -55,44 +66,90 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 }
 
 // Calculate current activities (from RequestStartRow logic)
+// Must match the same range logic as getToolsNotInCurrentActivities in messageUtils.ts
 const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
-	// Find current api_req
-	let currentApiReqIndex = -1
+	if (allMessages.at(-1)?.say !== "tool") {
+		return []
+	}
+	// Find the most recent api_req_started
+	let mostRecentApiReqIndex = -1
+	let mostRecentHasCost = false
 	for (let i = allMessages.length - 1; i >= 0; i--) {
 		const msg = allMessages[i]
 		if (msg.say === "api_req_started" && msg.text) {
 			try {
 				const info = JSON.parse(msg.text)
-				const hasCost = info.cost != null
-				if (!hasCost) {
-					currentApiReqIndex = i
-					break
-				}
+				mostRecentApiReqIndex = i
+				mostRecentHasCost = info.cost != null
+				break
 			} catch {
 				// ignore
 			}
 		}
 	}
 
-	if (currentApiReqIndex === -1) {
+	if (mostRecentApiReqIndex === -1) {
 		return []
 	}
 
-	// Collect tools AFTER the current api_req_started
-	const activities: ClineMessage[] = []
-	for (let i = currentApiReqIndex + 1; i < allMessages.length; i++) {
-		const msg = allMessages[i]
-		// Only collect tools that are currently executing (ask === "tool")
-		// Skip completed tools (say === "tool") - they should be in the completed list
-		if (msg.say === "tool" || msg.ask !== "tool") {
-			continue
+	if (!mostRecentHasCost) {
+		// CASE A: Most recent api_req is INCOMPLETE (loading state active)
+		// Find the previous COMPLETED api_req
+		let prevCompletedApiReqIndex = -1
+		for (let i = mostRecentApiReqIndex - 1; i >= 0; i--) {
+			const msg = allMessages[i]
+			if (msg.say === "api_req_started" && msg.text) {
+				try {
+					const prevInfo = JSON.parse(msg.text)
+					if (prevInfo.cost != null) {
+						prevCompletedApiReqIndex = i
+						break
+					}
+				} catch {
+					// ignore
+				}
+			}
 		}
-		if (isLowStakesTool(msg)) {
-			activities.push(msg)
-		}
-	}
 
-	return activities
+		if (prevCompletedApiReqIndex === -1) {
+			return []
+		}
+
+		// Collect tools BETWEEN prev completed and current incomplete
+		// This matches the range filtered by getToolsNotInCurrentActivities CASE A
+		const activities: ClineMessage[] = []
+		for (let i = prevCompletedApiReqIndex + 1; i < mostRecentApiReqIndex; i++) {
+			const msg = allMessages[i]
+			// Only collect tools that are currently executing (ask === "tool")
+			// Skip completed tools (say === "tool") - they should be in the completed list
+			if (msg.say === "tool" || msg.ask !== "tool") {
+				continue
+			}
+			if (isLowStakesTool(msg)) {
+				activities.push(msg)
+			}
+		}
+
+		return activities
+	} else {
+		// CASE B: Most recent api_req is COMPLETE (has cost)
+		// Collect tools AFTER the completed api_req
+		// This matches the range filtered by getToolsNotInCurrentActivities CASE B
+		const activities: ClineMessage[] = []
+		for (let i = mostRecentApiReqIndex + 1; i < allMessages.length; i++) {
+			const msg = allMessages[i]
+			// Only collect tools that are currently executing (ask === "tool")
+			// Skip completed tools (say === "tool") - they should be in the completed list
+			if (msg.say === "tool" || msg.ask !== "tool") {
+				continue
+			}
+			if (isLowStakesTool(msg)) {
+				activities.push(msg)
+			}
+		}
+
+		return activities
+	}
 }
 
 /**
@@ -291,6 +348,16 @@ function getToolDisplayInfo(tool: ClineSayTool) {
 				label: `search: ${tool.regex}`,
 				displayText: formatSearchDisplay(tool.regex || "", filePath, tool.filePattern),
 			}
+		case "subagent": {
+			// Subagent uses content for progress text, filePattern for the task description
+			const subagentDisplayText = tool.filePattern || "Subagent working..."
+			return {
+				icon,
+				path: folderPath,
+				label: "subagent",
+				displayText: subagentDisplayText,
+			}
+		}
 		default:
 			return null
 	}
@@ -320,7 +387,7 @@ function formatSearchDisplay(regex: string, path: string, filePattern?: string):
  * Get summary label for a tool group - shows what's been added to context.
  */
 function getToolGroupSummary(messages: ClineMessage[]): string {
-	const counts = { read: 0, list: 0, search: 0, def: 0 }
+	const counts = { read: 0, list: 0, search: 0, def: 0, subagent: 0 }
 
 	for (const msg of messages) {
 		if (!isLowStakesTool(msg)) {
@@ -338,6 +405,9 @@ function getToolGroupSummary(messages: ClineMessage[]): string {
 				break
 			case "searchFiles":
 				counts.search++
+				break
+			case "subagent":
+				counts.subagent++
 				break
 			case "listCodeDefinitionNames":
 				counts.def++
@@ -359,6 +429,9 @@ function getToolGroupSummary(messages: ClineMessage[]): string {
 	}
 	if (counts.search > 0) {
 		parts.push(`performed ${counts.search} search${counts.search > 1 ? "es" : ""}`)
+	}
+	if (counts.subagent > 0) {
+		parts.push(`consulted ${counts.subagent} subagent${counts.subagent > 1 ? "s" : ""}`)
 	}
 
 	return parts.length === 0 ? "Context" : "Cline" + action + parts.join(", ")
