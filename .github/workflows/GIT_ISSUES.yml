@@ -1,51 +1,225 @@
-name: Notify Slack on Issues
+name: Daily Issues Digest to Slack
+
+on:
+  schedule:
+    # Runs once daily at 9:00 AM UTC (6:00 AM Argentina time)
+    # To change frequency: https://crontab.guru/
+    # Examples:
+    #   "0 9 * * *"     = 9am UTC daily
+    #   "0 9,17 * * *"  = 9am and 5pm UTC daily
+    #   "0 */5 * * *"   = every 5 hours
+    - cron: '0 9 * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      hours_lookback:
+        description: 'Hours to look back for issues (default: 24)'
+        required: false
+        default: '24'
+
 permissions:
   contents: read
-on:
-  issues:
-    types: [opened, reopened]  # New issues AND reopened issues
+  issues: read
+
+env:
+  # Default lookback period in hours
+  HOURS_LOOKBACK: ${{ github.event.inputs.hours_lookback || '24' }}
+
 jobs:
-  notify:
+  digest:
     runs-on: ubuntu-latest
     steps:
-      - name: Send to Slack
-        env:
-          ACTION: ${{ github.event.action }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          ISSUE_USER: ${{ github.event.issue.user.login }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
+      - name: Calculate time range
+        id: time
         run: |
-          if [ "$ACTION" = "opened" ]; then
-            EMOJI="🆕"
-            TEXT="New Issue"
-          else
-            EMOJI="🔄"
-            TEXT="Issue Reopened"
+          # Calculate the timestamp for N hours ago in ISO 8601 format
+          SINCE=$(date -u -d "${{ env.HOURS_LOOKBACK }} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "since=$SINCE" >> $GITHUB_OUTPUT
+          echo "Looking back ${{ env.HOURS_LOOKBACK }} hours (since $SINCE)"
+
+      - name: Fetch new and reopened issues
+        id: issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SINCE="${{ steps.time.outputs.since }}"
+          
+          # Fetch issues updated since the lookback time
+          # Filter out pull requests (they show up in issues API)
+          ISSUES_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/issues?state=all&since=$SINCE&per_page=100" \
+            --jq '[.[] | select(.pull_request == null)]')
+          
+          # Separate into categories
+          # New issues: created_at >= SINCE
+          NEW_ISSUES=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+            '[.[] | select(.created_at >= $since and .state == "open")]')
+          
+          # Reopened/Updated issues: older issues that were updated recently
+          REOPENED_CANDIDATES=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+            '[.[] | select(.created_at < $since and .state == "open" and .updated_at >= $since)]')
+          
+          # Count items
+          NEW_COUNT=$(echo "$NEW_ISSUES" | jq 'length')
+          REOPENED_COUNT=$(echo "$REOPENED_CANDIDATES" | jq 'length')
+          
+          echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
+          echo "reopened_count=$REOPENED_COUNT" >> $GITHUB_OUTPUT
+          
+          # Save to files for the next step
+          echo "$NEW_ISSUES" > /tmp/new_issues.json
+          echo "$REOPENED_CANDIDATES" > /tmp/reopened_issues.json
+          
+          echo "Found $NEW_COUNT new issues and $REOPENED_COUNT reopened/updated issues"
+
+      - name: Build Slack message
+        id: message
+        run: |
+          NEW_COUNT="${{ steps.issues.outputs.new_count }}"
+          REOPENED_COUNT="${{ steps.issues.outputs.reopened_count }}"
+          
+          # Check if there's anything to report
+          if [ "$NEW_COUNT" -eq 0 ] && [ "$REOPENED_COUNT" -eq 0 ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No issues to report"
+            exit 0
           fi
           
-          # Use jq to safely construct JSON payload (handles special characters in title)
-          PAYLOAD=$(jq -n \
-            --arg emoji "$EMOJI" \
-            --arg text "$TEXT" \
-            --arg number "$ISSUE_NUMBER" \
-            --arg title "$ISSUE_TITLE" \
-            --arg url "$ISSUE_URL" \
-            --arg user "$ISSUE_USER" \
-            '{
-              text: "\($emoji) \($text): #\($number) \($title)",
-              blocks: [
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "\($emoji) *\($text)*\n<\($url)|#\($number): \($title)>\nBy: \($user)"
-                  }
-                }
-              ]
-            }')
+          echo "skip=false" >> $GITHUB_OUTPUT
           
-          curl --fail -X POST -H 'Content-type: application/json' \
-            --data "$PAYLOAD" \
+          # Build the Slack blocks JSON
+          BLOCKS='[]'
+          
+          # Header block
+          BLOCKS=$(echo "$BLOCKS" | jq \
+            '. + [{
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "📊 Daily Issues Digest",
+                "emoji": true
+              }
+            }]')
+          
+          # Summary context
+          BLOCKS=$(echo "$BLOCKS" | jq \
+            --arg new "$NEW_COUNT" \
+            --arg reopened "$REOPENED_COUNT" \
+            --arg repo "${{ github.repository }}" \
+            --arg hours "${{ env.HOURS_LOOKBACK }}" \
+            '. + [{
+              "type": "context",
+              "elements": [{
+                "type": "mrkdwn",
+                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) reopened/updated"
+              }]
+            }]')
+          
+          # Divider
+          BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+          
+          # New Issues Section
+          if [ "$NEW_COUNT" -gt 0 ]; then
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*🆕 New Issues*"
+              }
+            }]')
+            
+            # Add each new issue (limit to 10 to avoid huge messages)
+            NEW_ISSUES_TEXT=$(cat /tmp/new_issues.json | jq -r \
+              '.[0:10] | .[] | "• <\(.html_url)|#\(.number)>: \(.title) (_by \(.user.login)_)"')
+            
+            if [ -n "$NEW_ISSUES_TEXT" ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$NEW_ISSUES_TEXT" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $text
+                  }
+                }]')
+            fi
+            
+            # Show if truncated
+            if [ "$NEW_COUNT" -gt 10 ]; then
+              REMAINING=$((NEW_COUNT - 10))
+              BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
+                '. + [{
+                  "type": "context",
+                  "elements": [{
+                    "type": "mrkdwn",
+                    "text": "_...and \($remaining) more_"
+                  }]
+                }]')
+            fi
+          fi
+          
+          # Reopened/Updated Issues Section
+          if [ "$REOPENED_COUNT" -gt 0 ]; then
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*🔄 Reopened/Recently Updated Issues*"
+              }
+            }]')
+            
+            REOPENED_TEXT=$(cat /tmp/reopened_issues.json | jq -r \
+              '.[0:10] | .[] | "• <\(.html_url)|#\(.number)>: \(.title)"')
+            
+            if [ -n "$REOPENED_TEXT" ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$REOPENED_TEXT" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $text
+                  }
+                }]')
+            fi
+          fi
+          
+          # Footer with link to all issues
+          BLOCKS=$(echo "$BLOCKS" | jq --arg url "https://github.com/${{ github.repository }}/issues" \
+            '. + [{
+              "type": "context",
+              "elements": [{
+                "type": "mrkdwn",
+                "text": "<\($url)|View all issues →>"
+              }]
+            }]')
+          
+          # Save the blocks JSON
+          echo "$BLOCKS" > /tmp/slack_blocks.json
+          
+          # Create the full payload
+          PAYLOAD=$(jq -n \
+            --arg text "📊 Daily Issues Digest for ${{ github.repository }}" \
+            --argjson blocks "$(cat /tmp/slack_blocks.json)" \
+            '{text: $text, blocks: $blocks}')
+          
+          echo "$PAYLOAD" > /tmp/slack_payload.json
+          echo "Slack payload built successfully"
+
+      - name: Send to Slack
+        if: steps.message.outputs.skip != 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
+        run: |
+          curl --fail -X POST \
+            -H 'Content-type: application/json' \
+            --data @/tmp/slack_payload.json \
             "$SLACK_WEBHOOK_URL"
+          
+          echo "✅ Digest sent to Slack!"
+
+      - name: No updates to report
+        if: steps.message.outputs.skip == 'true'
+        run: |
+          echo "ℹ️ No new or reopened issues in the last ${{ env.HOURS_LOOKBACK }} hours. Skipping Slack notification."
