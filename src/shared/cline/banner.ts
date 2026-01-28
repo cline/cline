@@ -87,7 +87,14 @@ export const BANNER_DATA: BannerCardData[] = [
 		icon: "megaphone",
 		title: "Use ChatGPT with Cline",
 		description:
-			"Bring your ChatGPT subscription to Cline! Use your existing plan directly with no per token costs or API keys to manage. [Connect →](command:cline.openSettings?api-config)",
+			"Bring your ChatGPT subscription to Cline! Use your existing plan directly with no per token costs or API keys to manage.",
+		actions: [
+			{
+				title: "Connect",
+				action: BannerActionType.ShowApiSettings,
+				arg: "openai-codex", // Pre-select OpenAI Codex provider
+			},
+		],
 	},
 
 	// Jupyter Notebooks banner
