@@ -103,7 +103,10 @@ const outputChannelLoggers = new Map<string, Logger>()
 function getOutputChannelLogger(channelName: string): Logger {
 	let logger = outputChannelLoggers.get(channelName)
 	if (!logger) {
-		const logFileName = (channelName.trim() || "output").replace(/[^a-zA-Z0-9._-]+/g, "-")
+		const logFileName = channelName
+			.trim()
+			.toLowerCase()
+			.replaceAll(/[^a-zA-Z0-9._-]+/g, "-")
 		const transport = pino.transport({
 			target: "pino-roll",
 			options: {
@@ -335,3 +338,13 @@ export type Memento = any
 export type SecretStorage = any
 // biome-ignore lint/correctness/noUnusedVariables: placeholder
 export type Extension<T> = any
+
+// ============================================================================
+// Shutdown event for graceful cleanup
+// ============================================================================
+
+/**
+ * Event emitter for app shutdown notification.
+ * Components can listen to this to clean up UI before process exit.
+ */
+export const shutdownEvent = new EventEmitter<void>()

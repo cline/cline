@@ -28,6 +28,11 @@ vi.mock("@/shared/proto/cline/common", () => ({
 	},
 }))
 
+// Mock useTerminalSize to prevent EventEmitter memory leak warnings from resize listeners
+vi.mock("../hooks/useTerminalSize", () => ({
+	useTerminalSize: () => ({ columns: 80, rows: 24, resizeKey: 0 }),
+}))
+
 // Import after mocks are set up
 import { HistoryView } from "./HistoryView"
 
