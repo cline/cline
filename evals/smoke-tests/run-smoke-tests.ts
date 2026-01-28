@@ -22,9 +22,13 @@ import * as fs from "fs"
 import * as path from "path"
 import { MetricsCalculator } from "../analysis/src/metrics"
 
-// Default model - uses whatever is configured via `cline auth`
-// Pass --model to override
-const MODELS: string[] = ["default"]
+// Default provider and model for smoke tests
+// These ensure deterministic behavior regardless of local config
+const DEFAULT_PROVIDER = "vercel_ai_gateway"
+const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5"
+
+// Models to test - can be overridden with --model flag
+const MODELS: string[] = [DEFAULT_MODEL]
 
 // Check if cline CLI is available
 function checkClineCli(): boolean {
@@ -114,16 +118,18 @@ async function runTrial(scenario: SmokeScenario, modelId: string, trialWorkdir: 
 		fs.cpSync(templateDir, trialWorkdir, { recursive: true })
 	}
 
-	// Build CLI command - uses pre-configured auth from `cline auth`
+	// Build CLI command with explicit provider/model settings for determinism
+	// Note: prompt must come last per CLI usage: cline [prompt] [flags]
 	const args = [
 		"-y", // YOLO mode - auto-approve
 		"-o", // Oneshot - complete and exit
-		scenario.prompt,
+		// Always pass provider and model explicitly to override any local config
+		"-s",
+		`plan_mode_api_provider=${DEFAULT_PROVIDER}`,
+		"-s",
+		`plan_mode_api_model_id=${modelId}`,
+		scenario.prompt, // Prompt must be last
 	]
-	// Only pass model if explicitly specified (not "default")
-	if (modelId !== "default") {
-		args.push("-s", `plan_mode_api_model_id=${modelId}`)
-	}
 
 	try {
 		// Run cline CLI
@@ -280,7 +286,7 @@ interface ScenarioResult {
 
 interface SmokeTestReport {
 	timestamp: string
-	provider: "cline"
+	provider: string
 	models: string[]
 	scenarios: string[]
 	trialsPerTest: number
@@ -364,11 +370,11 @@ async function main() {
 	const resultsDir = path.join(resultsBaseDir, timestamp)
 	fs.mkdirSync(resultsDir, { recursive: true })
 
-	// Resolve actual model IDs for display
-	const resolvedModels = models.map((m) => (m === "default" ? getConfiguredModel() : m))
+	// Models are now always explicit
+	const resolvedModels = models
 
 	console.log(`Running ${scenarios.length} scenarios × ${models.length} models × ${trials} trials`)
-	console.log(`Provider: cline`)
+	console.log(`Provider: ${DEFAULT_PROVIDER}`)
 	console.log(`Models: ${resolvedModels.join(", ")}`)
 	console.log(`Scenarios: ${scenarios.map((s) => s.id).join(", ")}`)
 	console.log(`Results: ${resultsDir}`)
@@ -424,14 +430,11 @@ async function main() {
 			const metrics = metricsCalc.calculateTaskMetrics(trialBools)
 			const status = metricsCalc.getTaskStatus(trialBools)
 
-			// Resolve actual model ID if using "default"
-			const actualModelId = modelId === "default" ? getConfiguredModel() : modelId
-
 			results.push({
 				scenarioId: scenario.id,
 				scenarioName: scenario.name,
-				model: actualModelId,
-				modelId: actualModelId,
+				model: modelId,
+				modelId: modelId,
 				trials: trialResults,
 				metrics,
 				status,
@@ -447,7 +450,7 @@ async function main() {
 	// Generate report
 	const report: SmokeTestReport = {
 		timestamp: new Date().toISOString(),
-		provider: "cline",
+		provider: DEFAULT_PROVIDER,
 		models: resolvedModels,
 		scenarios: scenarios.map((s) => s.id),
 		trialsPerTest: trials,
