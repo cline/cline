@@ -72,25 +72,31 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					</div>
 				</DebouncedTextField>
 			</RemotelyConfiguredInputWrapper>
-			<DebouncedTextField
-				initialValue={apiConfiguration?.liteLlmApiKey || ""}
-				onChange={async (value) => {
-					await ModelsServiceClient.updateApiConfiguration(
-						UpdateApiConfigurationRequestNew.create({
-							updates: {
-								secrets: {
-									liteLlmApiKey: value,
+			<RemotelyConfiguredInputWrapper hidden={!remoteConfigSettings?.configuredApiKeys?.litellm}>
+				<DebouncedTextField
+					disabled={remoteConfigSettings?.configuredApiKeys?.litellm}
+					initialValue={apiConfiguration?.liteLlmApiKey || ""}
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									secrets: {
+										liteLlmApiKey: value,
+									},
 								},
-							},
-							updateMask: ["secrets.liteLlmApiKey"],
-						}),
-					)
-				}}
-				placeholder="Default: noop"
-				style={{ width: "100%" }}
-				type="password">
-				<span style={{ fontWeight: 500 }}>API Key</span>
-			</DebouncedTextField>
+								updateMask: ["secrets.liteLlmApiKey"],
+							}),
+						)
+					}}
+					placeholder="Default: noop"
+					style={{ width: "100%" }}
+					type="password">
+					<div className="flex items-center gap-2 mb-1">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+						{remoteConfigSettings?.configuredApiKeys?.litellm && <LockIcon />}
+					</div>
+				</DebouncedTextField>
+			</RemotelyConfiguredInputWrapper>
 			{showModelOptions && (
 				<>
 					<ModelSelector
