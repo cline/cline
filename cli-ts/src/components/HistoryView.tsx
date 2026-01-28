@@ -3,12 +3,13 @@
  * Displays task history with keyboard navigation
  */
 
-import { Box, Text, useInput, useStdout } from "ink"
+import { Box, Text, useInput } from "ink"
 import React, { useCallback, useState } from "react"
 import { Controller } from "@/core/controller"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StringRequest } from "@/shared/proto/cline/common"
 import { useStdinContext } from "../context/StdinContext"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 
 interface TaskHistoryItem {
 	id: string
@@ -55,12 +56,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 	const { isRawModeSupported } = useStdinContext()
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [internalPage, setInternalPage] = useState(pagination?.page ?? 1)
-	const { stdout } = useStdout()
+	const { rows: terminalRows } = useTerminalSize()
 
 	// Calculate visible count based on terminal height to prevent overflow
 	// Each item takes ~5 lines (date, id, task text, cost/model, margin)
 	// Reserve lines for header (title, hint, pagination, separator) and footer (separator)
-	const terminalRows = stdout?.rows ?? 24
 	const headerLines = (pagination?.totalPages ?? 1) > 1 ? 5 : 4
 	const footerLines = 1
 	const availableRows = terminalRows - headerLines - footerLines
