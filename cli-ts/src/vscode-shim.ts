@@ -12,6 +12,8 @@ import { CLINE_CLI_DIR } from "./utils/path"
 export { URI } from "vscode-uri"
 export { ClineFileStorage } from "@/shared/storage"
 
+export const CLI_LOG_FILE = path.join(CLINE_CLI_DIR.log, "cline-cli.1.log")
+
 /**
  * Safely read and parse a JSON file, returning a default value on failure
  */
@@ -103,17 +105,14 @@ const outputChannelLoggers = new Map<string, Logger>()
 function getOutputChannelLogger(channelName: string): Logger {
 	let logger = outputChannelLoggers.get(channelName)
 	if (!logger) {
-		const logFileName = channelName
-			.trim()
-			.toLowerCase()
-			.replaceAll(/[^a-zA-Z0-9._-]+/g, "-")
 		const transport = pino.transport({
 			target: "pino-roll",
 			options: {
-				file: path.join(CLINE_CLI_DIR.log, logFileName),
+				name: channelName,
+				file: CLI_LOG_FILE,
 				mkdir: true,
 				frequency: "daily",
-				limit: { count: 2 },
+				limit: { count: 5 },
 			},
 		})
 		logger = pino({ timestamp: pino.stdTimeFunctions.isoTime }, transport)

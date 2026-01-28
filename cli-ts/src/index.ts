@@ -33,10 +33,11 @@ import { restoreConsole } from "./utils/console"
 import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
 import { printInfo, printWarning } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
+import { CLINE_CLI_DIR } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { initializeCliContext } from "./vscode-context"
-import { shutdownEvent, window } from "./vscode-shim"
+import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 
 // Track active context for graceful shutdown
 let activeContext: CliContext | null = null
@@ -85,6 +86,7 @@ function setupSignalHandlers() {
 		const message = reason instanceof Error ? reason.message : String(reason)
 		// Silently ignore abort-related errors - they're expected during task cancellation
 		if (message.includes("aborted") || message.includes("abort")) {
+			Logger.info("Suppressed unhandled rejection due to abort:", message)
 			return
 		}
 		// For other unhandled rejections, log to file via Logger (if available)
@@ -128,7 +130,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	}
 
 	const outputChannel = window.createOutputChannel("Cline CLI")
-	outputChannel.appendLine(`Cline CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}`)
+	outputChannel.appendLine(
+		`Cline CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}, Log dir: ${CLINE_CLI_DIR.log}`,
+	)
 	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	HostProvider.initialize(
@@ -371,7 +375,6 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
 		exit(0)
-		return
 	}
 
 	await runInkApp(
@@ -532,6 +535,17 @@ program
 	.command("version")
 	.description("Show Cline CLI version number")
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
+
+// Dev command with subcommands
+const devCommand = program.command("dev").description("Developer tools and utilities")
+
+devCommand
+	.command("log")
+	.description("Open the log file")
+	.action(async () => {
+		const { openExternal } = await import("@/utils/env")
+		await openExternal(CLI_LOG_FILE)
+	})
 
 /**
  * Check if the user has authentication configured.
