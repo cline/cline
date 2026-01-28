@@ -1,8 +1,10 @@
 # Changelog
 
-## 3.54.1
+## [3.55.0]
 
-- e243376: Add MCP prompts support - prompts from connected MCP servers now appear in slash command autocomplete as `/mcp:<server>:<prompt>`
+- Add new model: Arcee Trinity Large Preview
+- Add new model: Moonshot Kimi K2.5
+- Add MCP prompts support - prompts from connected MCP servers now appear in slash command autocomplete as `/mcp:<server>:<prompt>`
 
 ## [3.54.0]
 
