@@ -20,6 +20,7 @@ import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
+import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
 import { LanguagePicker } from "./LanguagePicker"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
@@ -114,6 +115,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
+	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
@@ -570,6 +572,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 
+			// Special handling for Bedrock - needs multi-field configuration
+			if (providerId === "bedrock") {
+				setPendingProvider(providerId)
+				setIsPickingProvider(false)
+				setIsConfiguringBedrock(true)
+				return
+			}
+
 			// Check if this provider needs an API key
 			const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
 			if (keyField) {
@@ -640,6 +650,45 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			setApiKeyValue("")
 		},
 		[pendingProvider, stateManager, controller],
+	)
+
+	// Handle Bedrock configuration complete
+	const handleBedrockComplete = useCallback(
+		async (bedrockConfig: BedrockConfig) => {
+			const config: Record<string, unknown> = {
+				actModeApiProvider: "bedrock",
+				planModeApiProvider: "bedrock",
+				apiProvider: "bedrock",
+				awsAuthentication: bedrockConfig.awsAuthentication,
+				awsRegion: bedrockConfig.awsRegion,
+				awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
+			}
+
+			const defaultModelId = getDefaultModelId("bedrock")
+			if (defaultModelId) {
+				config.actModeApiModelId = defaultModelId
+				config.planModeApiModelId = defaultModelId
+			}
+
+			if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
+			if (bedrockConfig.awsAccessKey) config.awsAccessKey = bedrockConfig.awsAccessKey
+			if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
+			if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
+
+			stateManager.setApiConfiguration(config as Record<string, string>)
+			await stateManager.flushPendingState()
+
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				const apiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			}
+
+			setProvider("bedrock")
+			setIsConfiguringBedrock(false)
+			setPendingProvider(null)
+		},
+		[stateManager, controller],
 	)
 
 	// Handle saving edited value
@@ -796,7 +845,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey },
+		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock },
 	)
 
 	// Render content
@@ -830,6 +879,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					onSubmit={handleApiKeySubmit}
 					providerName={getProviderLabel(pendingProvider)}
 					value={apiKeyValue}
+				/>
+			)
+		}
+
+		if (isConfiguringBedrock) {
+			return (
+				<BedrockSetup
+					isActive={isConfiguringBedrock}
+					onCancel={() => {
+						setIsConfiguringBedrock(false)
+						setPendingProvider(null)
+					}}
+					onComplete={handleBedrockComplete}
 				/>
 			)
 		}
