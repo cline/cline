@@ -79,6 +79,19 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			</Button>
 		)
 
+	const InlineModelLink: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
+		const isClicked = clickedModelsRef.current.has(modelId)
+		if (isClicked) {
+			return null
+		}
+
+		return (
+			<span onClick={() => setModel(modelId)} style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+				{label}
+			</span>
+		)
+	}
+
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
 			<DialogContent
@@ -96,25 +109,26 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>OpenAI ChatGPT Subscription Integration:</strong> Use your ChatGPT subscription directly in
-							Cline with no additional token cost and no api keys to manage.{" "}
+							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
+							model. <InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" />
+						</li>
+						<li className="mb-2">
+							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
+							coding tasks. Great for front-end tasks.{" "}
+							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" />
+						</li>
+						<li className="mb-2">
+							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
+							token costs or API keys to manage.{" "}
 							<span
 								onClick={setOpenAiCodexProvider}
 								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-								Sign in
+								Connect
 							</span>
 						</li>
-						<li className="mb-2">
-							<strong>Jupyter Notebooks:</strong> Comprehensive AI-assisted editing of <code>.ipynb</code> files
-							with full cell-level context awareness.{" "}
-							<a
-								href="https://docs.cline.bot/features/jupyter-notebooks"
-								style={{ color: "var(--vscode-textLink-foreground)" }}>
-								Learn More
-							</a>
-						</li>
 						<li>
-							<strong>Grok Code Fast 1</strong> and <strong>Devstral-2512</strong> are no longer free to use.
+							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
+							there are plenty models in our free tier. <InlineModelLink label="See alternatives" modelId="" />
 						</li>
 					</ul>
 				</div>
