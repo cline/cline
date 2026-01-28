@@ -495,11 +495,16 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Check if the user is authenticated
+	 * Check if the user has stored credentials (i.e. has completed auth).
+	 * This intentionally does NOT attempt a token refresh so that transient
+	 * network failures or expired-but-refreshable tokens don't cause the
+	 * CLI to bounce the user back to the onboarding flow.
 	 */
 	async isAuthenticated(): Promise<boolean> {
-		const token = await this.getAccessToken()
-		return token !== null
+		if (!this.credentials) {
+			await this.loadCredentials()
+		}
+		return this.credentials !== null
 	}
 
 	/**
