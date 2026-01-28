@@ -48,23 +48,27 @@ export function sortCommandsWorkflowsFirst(commands: SlashCommandInfo[]): SlashC
 /**
  * Extract slash command query from input text.
  * Returns info about whether we're in slash mode and what the query is.
+ * Takes cursor position to only examine text before cursor (matching webview behavior).
  */
-export function extractSlashQuery(text: string): SlashQueryInfo {
-	// Find the last slash in the text
-	const slashIndex = text.lastIndexOf("/")
+export function extractSlashQuery(text: string, cursorPosition?: number): SlashQueryInfo {
+	// Use text up to cursor position (or full text if no cursor position provided)
+	const beforeCursor = cursorPosition !== undefined ? text.slice(0, cursorPosition) : text
+
+	// Find the last slash before cursor
+	const slashIndex = beforeCursor.lastIndexOf("/")
 
 	if (slashIndex === -1) {
 		return { inSlashMode: false, query: "", slashIndex: -1 }
 	}
 
 	// Slash must be at start or preceded by whitespace
-	const charBeforeSlash = slashIndex > 0 ? text[slashIndex - 1] : null
+	const charBeforeSlash = slashIndex > 0 ? beforeCursor[slashIndex - 1] : null
 	if (charBeforeSlash !== null && !/\s/.test(charBeforeSlash)) {
 		return { inSlashMode: false, query: "", slashIndex: -1 }
 	}
 
-	// Get text after the slash
-	const textAfterSlash = text.slice(slashIndex + 1)
+	// Get text after slash (up to cursor)
+	const textAfterSlash = beforeCursor.slice(slashIndex + 1)
 
 	// If there's whitespace after slash, we're not in slash mode anymore
 	if (/\s/.test(textAfterSlash)) {
