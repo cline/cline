@@ -8,7 +8,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk"
-import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk"
+import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk"
 import type { ClineMessageChange } from "@core/task/message-state"
 import type { ApiProvider } from "@shared/api"
 import {
@@ -149,18 +149,18 @@ export class AcpAgent implements acp.Agent {
 				name: "cline",
 				version: this.options.version,
 			},
-			authMethods: [
-				{
-					id: "cline-oauth",
-					name: "Sign in with Cline",
-					description: "Authenticate with your Cline account via browser OAuth",
-				},
-				{
-					id: "openai-codex-oauth",
-					name: "Sign in with ChatGPT",
-					description: "Authenticate with your ChatGPT Plus/Pro/Team subscription",
-				},
-			],
+			// authMethods: [
+			// 	{
+			// 		id: "cline-oauth",
+			// 		name: "Sign in with Cline",
+			// 		description: "Authenticate with your Cline account via browser OAuth",
+			// 	},
+			// 	{
+			// 		id: "openai-codex-oauth",
+			// 		name: "Sign in with ChatGPT",
+			// 		description: "Authenticate with your ChatGPT Plus/Pro/Team subscription",
+			// 	},
+			// ],
 		}
 	}
 
@@ -216,10 +216,10 @@ export class AcpAgent implements acp.Agent {
 	 */
 	async newSession(params: acp.NewSessionRequest): Promise<acp.NewSessionResponse> {
 		// Check if authentication is required
-		const isAuthenticated = await this.isAuthConfigured()
-		if (!isAuthenticated) {
-			throw RequestError.authRequired()
-		}
+		// const isAuthenticated = await this.isAuthConfigured()
+		// if (!isAuthenticated) {
+		// 	throw RequestError.authRequired()
+		// }
 
 		const sessionId = crypto.randomUUID()
 
