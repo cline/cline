@@ -414,12 +414,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
 	}, [mode, activePanel])
 
-	const toggleMode = useCallback(() => {
+	const toggleMode = useCallback(async () => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
 		setMode(newMode)
-		const stateManager = StateManager.get()
-		stateManager.setGlobalState("mode", newMode)
-	}, [mode])
+		await ctrl.togglePlanActMode(newMode)
+	}, [mode, ctrl])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
