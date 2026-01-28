@@ -35,9 +35,12 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
+
+	private get _baseUrl(): string {
+		return ClineEnv.config().apiBaseUrl
+	}
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options

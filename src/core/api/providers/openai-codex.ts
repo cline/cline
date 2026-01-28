@@ -157,7 +157,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		// Pass through strict value from tool (MCP/custom tools have strict: false, built-in tools default to true)
 		if (tools && tools.length > 0) {
 			body.tools = tools
-				.filter((tool: any) => tool.type === "function")
+				.filter((tool: any) => tool?.type === "function")
 				.map((tool: any) => ({
 					type: "function",
 					name: tool.function.name,

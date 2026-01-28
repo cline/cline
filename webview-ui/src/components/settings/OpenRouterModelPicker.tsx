@@ -81,8 +81,8 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "mistralai/devstral-2512:free",
-		description: "Mistral's latest model with strong coding abilities",
+		id: "arcee-ai/trinity-large-preview:free",
+		description: "Arcee AI's advanced large preview model in the Trinity series",
 		label: "FREE",
 	},
 ]

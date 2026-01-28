@@ -1,5 +1,6 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
+import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -7,6 +8,7 @@ import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
 import type { ApiStream } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface OllamaHandlerOptions extends CommonApiHandlerOptions {
 	ollamaBaseUrl?: string
@@ -51,7 +53,7 @@ export class OllamaHandler implements ApiHandler {
 	}
 
 	@withRetry({ retryAllErrors: true })
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		const client = this.ensureClient()
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
@@ -70,20 +72,44 @@ export class OllamaHandler implements ApiHandler {
 				options: {
 					num_ctx: Number(this.options.ollamaApiOptionsCtxNum),
 				},
+				tools: tools as any,
 			})
+
+			const toolCallProcessor = new ToolCallProcessor()
 
 			// Race the API request against the timeout
 			const stream = (await Promise.race([apiPromise, timeoutPromise])) as Awaited<typeof apiPromise>
 
 			try {
 				for await (const chunk of stream) {
-					if (typeof chunk.message.content === "string") {
-						yield {
-							type: "text",
-							text: chunk.message.content,
-						}
+					Logger.debug("[OllamaHandler] Message Chunk" + JSON.stringify(chunk))
+
+					const delta = chunk.message
+
+					if (delta?.tool_calls) {
+						Logger.debug(`[OllamaHandler] Tool Calls Detected: ${JSON.stringify(delta.tool_calls)}`)
+						yield* toolCallProcessor.processToolCallDeltas(
+							delta.tool_calls?.map((tc, inx) => ({
+								index: inx,
+								id: `ollama-tool-${inx}`,
+								function: {
+									name: tc.function.name,
+									arguments:
+										typeof tc.function.arguments === "string"
+											? tc.function.arguments
+											: JSON.stringify(tc.function.arguments),
+								},
+								type: "function",
+							})),
+						)
 					}
 
+					if (typeof delta.content === "string") {
+						yield {
+							type: "text",
+							text: delta.content,
+						}
+					}
 					// Handle token usage if available
 					if (chunk.eval_count !== undefined || chunk.prompt_eval_count !== undefined) {
 						yield {

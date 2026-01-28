@@ -15,7 +15,6 @@ import { getDistinctId } from "../logging/distinctId"
  */
 export class BannerService {
 	private static instance: BannerService | null = null
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
@@ -23,6 +22,10 @@ export class BannerService {
 	private _authService?: AuthService
 	private actionTypes: Set<string>
 	private _fetchPromise: Promise<Banner[]> | null = null
+
+	private get _baseUrl(): string {
+		return ClineEnv.config().apiBaseUrl
+	}
 
 	private constructor(controller: Controller) {
 		this._controller = controller
