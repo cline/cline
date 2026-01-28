@@ -123,15 +123,14 @@ jobs:
 
       - name: Configure auth
         env:
-          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+          VERCEL_API_KEY: ${{ secrets.VERCEL_API_KEY }}
         run: |
           export PATH="$HOME/.cline/cli/bin:$PATH"
-          # TODO: Remove hardcoded model once CLI supports default models without -m flag
-          cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
+          cline auth -p vercel-ai-gateway -k "$VERCEL_API_KEY" -m "anthropic/claude-sonnet-4.5"
 
       - name: Run test
         env:
-          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+          VERCEL_API_KEY: ${{ secrets.VERCEL_API_KEY }}
         run: |
           export PATH="$HOME/.cline/cli/bin:$PATH"
           npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --scenario ${{ matrix.scenario }}
