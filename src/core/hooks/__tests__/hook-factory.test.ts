@@ -87,7 +87,7 @@ describe("Hook System", () => {
 	})
 
 	describe("StdioHookRunner", () => {
-		it("should execute hook from the primary workspace root directory", async () => {
+		it("should execute workspace hook from its respective workspace root directory", async () => {
 			// Create a test hook script that outputs the current working directory
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
@@ -113,11 +113,11 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			// The hook should execute from the primary workspace root (tempDir)
+			// The hook should execute from its workspace root (tempDir)
 			// On macOS, paths may have /private prefix due to symlink resolution,
 			// so we verify the path contains our tempDir basename
 			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
-			// The cwd should be the tempDir (primary workspace root), not the hooks dir
+			// The cwd should be the tempDir (workspace root), not the hooks dir
 			// Get just the unique part of the tempDir path for comparison
 			const tempDirBasename = path.basename(tempDir)
 			cwdFromHook.should.containEql(tempDirBasename)
