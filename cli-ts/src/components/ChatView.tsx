@@ -126,7 +126,6 @@ import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
 	type FileSearchResult,
-	getRipgrepInstallInstructions,
 	insertMention,
 	searchWorkspaceFiles,
 } from "../utils/file-search"
@@ -1252,14 +1251,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					</Box>
 				)}
 
-				{/* Ripgrep warning if needed */}
-				{showRipgrepWarning && (
-					<Box marginTop={1}>
-						<Text color="yellow">Warning: ripgrep not found - file search will be slower. </Text>
-						<Text color="gray">Install: {getRipgrepInstallInstructions()}</Text>
-					</Box>
-				)}
-
 				{/* Action buttons for tool approvals and other asks (not during streaming) */}
 				{buttonConfig.enableButtons &&
 					!isSpinnerActive &&
@@ -1328,6 +1319,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							query={mentionInfo.query}
 							results={fileResults}
 							selectedIndex={selectedIndex}
+							showRipgrepWarning={showRipgrepWarning}
 						/>
 					</Box>
 				)}
