@@ -3714,6 +3714,16 @@ export const sapAiCoreModels = {
 // Moonshot AI Studio
 // https://platform.moonshot.ai/docs/pricing/chat
 export const moonshotModels = {
+	"kimi-k2.5": {
+		maxTokens: 32_000,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 3.0,
+		cacheReadsPrice: 0.1,
+		temperature: 1.0,
+	},
 	"kimi-k2-0905-preview": {
 		maxTokens: 16384,
 		contextWindow: 262144,
