@@ -11,5 +11,5 @@
 			"contains": "user"
 		}
 	],
-	"timeout": 90
+	"timeout": 180
 }

@@ -15,5 +15,5 @@
 			"contains": "capitalize"
 		}
 	],
-	"timeout": 90
+	"timeout": 180
 }

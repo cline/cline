@@ -36,6 +36,27 @@ function checkClineCli(): boolean {
 	}
 }
 
+// Get the actual model ID from CLI config
+function getConfiguredModel(): string {
+	try {
+		const output = execSync("cline config list", { encoding: "utf-8", timeout: 10000 })
+		// Look for plan-mode model ID (format varies by provider)
+		// Common patterns: plan-mode-open-router-model-id, plan-mode-anthropic-model-id, etc.
+		const modelMatch = output.match(/plan-mode-(?:open-router|anthropic|openai|gemini|xai|cerebras|ollama)-model-id:\s*(\S+)/)
+		if (modelMatch) {
+			return modelMatch[1]
+		}
+		// Fallback: try to find any model-id in plan-mode section
+		const genericMatch = output.match(/plan-mode-.*model-id:\s*(\S+)/)
+		if (genericMatch) {
+			return genericMatch[1]
+		}
+		return "unknown"
+	} catch {
+		return "unknown"
+	}
+}
+
 // Smoke test scenario definition
 interface SmokeScenario {
 	id: string
@@ -192,7 +213,6 @@ function runClineWithTimeout(args: string[], cwd: string, timeoutMs: number): Pr
 
 		const proc = spawn("cline", args, {
 			cwd,
-			shell: true,
 			env: { ...process.env },
 		})
 
@@ -344,9 +364,12 @@ async function main() {
 	const resultsDir = path.join(resultsBaseDir, timestamp)
 	fs.mkdirSync(resultsDir, { recursive: true })
 
+	// Resolve actual model IDs for display
+	const resolvedModels = models.map((m) => (m === "default" ? getConfiguredModel() : m))
+
 	console.log(`Running ${scenarios.length} scenarios × ${models.length} models × ${trials} trials`)
 	console.log(`Provider: cline`)
-	console.log(`Models: ${models.join(", ")}`)
+	console.log(`Models: ${resolvedModels.join(", ")}`)
 	console.log(`Scenarios: ${scenarios.map((s) => s.id).join(", ")}`)
 	console.log(`Results: ${resultsDir}`)
 	console.log("")
@@ -401,11 +424,14 @@ async function main() {
 			const metrics = metricsCalc.calculateTaskMetrics(trialBools)
 			const status = metricsCalc.getTaskStatus(trialBools)
 
+			// Resolve actual model ID if using "default"
+			const actualModelId = modelId === "default" ? getConfiguredModel() : modelId
+
 			results.push({
 				scenarioId: scenario.id,
 				scenarioName: scenario.name,
-				model: modelId,
-				modelId: modelId,
+				model: actualModelId,
+				modelId: actualModelId,
 				trials: trialResults,
 				metrics,
 				status,
@@ -422,7 +448,7 @@ async function main() {
 	const report: SmokeTestReport = {
 		timestamp: new Date().toISOString(),
 		provider: "cline",
-		models: models,
+		models: resolvedModels,
 		scenarios: scenarios.map((s) => s.id),
 		trialsPerTest: trials,
 		results,

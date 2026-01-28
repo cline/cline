@@ -1,14 +1,13 @@
 {
 	"name": "cline-evals",
-	"version": "0.1.0",
-	"description": "Evaluation scripts and tools for Cline",
-	"main": "cli/dist/index.js",
+	"version": "2.0.0",
+	"description": "Three-layer evaluation system for Cline: tool-precision, coding-exercises, and real-world tasks",
 	"scripts": {
-		"build:cli": "cd cli && tsc",
-		"start:cli": "cd cli && node dist/index.js",
-		"dev:cli": "cd cli && ts-node src/index.ts",
-		"diff-eval": "./diff-edits/run_and_open_dashboard.sh",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"analysis": "cd analysis && npm start --",
+		"test:tool-precision": "cd benchmarks/tool-precision/replace-in-file && npm test",
+		"test:coding-exercises": "cd benchmarks/coding-exercises && npm test",
+		"legacy:build-cli": "cd legacy/cli && tsc",
+		"legacy:cli": "cd legacy/cli && node dist/index.js"
 	},
 	"keywords": [
 		"cline",
