@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GenerateContentConfig, GoogleGenAI } from "@google/genai"
 import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
@@ -44,6 +45,7 @@ export class AIhubmixHandler implements ApiHandler {
 					baseURL: this.options.baseURL,
 					defaultHeaders: {
 						"APP-Code": this.options.appCode,
+						...buildExternalBasicHeaders(),
 					},
 				})
 			} catch (error) {
@@ -64,6 +66,7 @@ export class AIhubmixHandler implements ApiHandler {
 					baseURL: `${this.options.baseURL}/v1`,
 					defaultHeaders: {
 						"APP-Code": this.options.appCode,
+						...buildExternalBasicHeaders(),
 					},
 				})
 			} catch (error) {
@@ -87,6 +90,7 @@ export class AIhubmixHandler implements ApiHandler {
 							// @ts-expect-error
 							"APP-Code": this.options.appCode,
 							Authorization: `Bearer ${this.options.apiKey ?? ""}`,
+							...buildExternalBasicHeaders(),
 						},
 					},
 				})

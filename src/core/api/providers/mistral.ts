@@ -3,6 +3,7 @@ import { HTTPClient } from "@mistralai/mistralai/lib/http"
 import { Tool as MistralTool } from "@mistralai/mistralai/models/components/tool"
 import { MistralModelId, ModelInfo, mistralDefaultModelId, mistralModels } from "@shared/api"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -29,6 +30,7 @@ export class MistralHandler implements ApiHandler {
 				throw new Error("Mistral API key is required")
 			}
 			try {
+				const externalHeaders = buildExternalBasicHeaders()
 				// Create HTTP client with custom fetch for proxy support
 				// The Mistral SDK's HTTPClient passes a Request object to the fetcher,
 				// but we need to extract the URL and init options to pass to our fetch wrapper
@@ -37,6 +39,11 @@ export class MistralHandler implements ApiHandler {
 					fetcher: async (input: RequestInfo | URL, init?: RequestInit) => {
 						// Handle both string/URL and Request object inputs
 						if (input instanceof Request) {
+							Object.keys(externalHeaders).forEach((key) => {
+								if (!input.headers.has(key)) {
+									input.headers.set(key, externalHeaders[key])
+								}
+							})
 							return fetch(input.url, {
 								method: input.method,
 								headers: input.headers,
@@ -48,7 +55,16 @@ export class MistralHandler implements ApiHandler {
 								...init,
 							} as RequestInit)
 						}
-						return fetch(input, init)
+
+						// Merge external headers with existing headers
+						const mergedInit = {
+							...init,
+							headers: {
+								...externalHeaders,
+								...(init?.headers || {}),
+							},
+						}
+						return fetch(input, mergedInit)
 					},
 				})
 
