@@ -16,7 +16,13 @@ interface WhatsNewModalProps {
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels, navigateToSettings } = useExtensionState()
+	const {
+		openRouterModels,
+		setShowChatModelSelector,
+		refreshOpenRouterModels,
+		navigateToSettings,
+		navigateToSettingsModelPicker,
+	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const clickedModelsRef = useRef<Set<string>>(new Set())
@@ -40,6 +46,14 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			onClose()
 		},
 		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
+	)
+
+	const navigateToModelPicker = useCallback(
+		(initialModelTab: "recommended" | "free") => {
+			onClose()
+			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
+		},
+		[navigateToSettingsModelPicker, onClose],
 	)
 
 	const setOpenAiCodexProvider = useCallback(() => {
@@ -79,15 +93,31 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			</Button>
 		)
 
-	const InlineModelLink: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
-		const isClicked = clickedModelsRef.current.has(modelId)
+	type InlineModelLinkProps =
+		| { type: "model"; modelId: string; label: string }
+		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
+
+	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
+		if (props.type === "picker") {
+			return (
+				<span
+					onClick={() => navigateToModelPicker(props.pickerTab)}
+					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+					{props.label}
+				</span>
+			)
+		}
+
+		const isClicked = clickedModelsRef.current.has(props.modelId)
 		if (isClicked) {
 			return null
 		}
 
 		return (
-			<span onClick={() => setModel(modelId)} style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-				{label}
+			<span
+				onClick={() => setModel(props.modelId)}
+				style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+				{props.label}
 			</span>
 		)
 	}
@@ -110,12 +140,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
 							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
-							model. <InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" />
+							model.{" "}
+							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
 						</li>
 						<li className="mb-2">
 							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
 							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" />
+							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
 						</li>
 						<li className="mb-2">
 							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
@@ -128,7 +159,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						</li>
 						<li>
 							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
-							there are plenty models in our free tier. <InlineModelLink label="See alternatives" modelId="" />
+							there are plenty models in our free tier.{" "}
+							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
 						</li>
 					</ul>
 				</div>
