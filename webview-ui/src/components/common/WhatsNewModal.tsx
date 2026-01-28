@@ -50,10 +50,15 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 	const navigateToModelPicker = useCallback(
 		(initialModelTab: "recommended" | "free") => {
+			// Switch to Cline provider first so the model picker tab works
+			handleFieldsChange({
+				planModeApiProvider: "cline",
+				actModeApiProvider: "cline",
+			})
 			onClose()
 			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 		},
-		[navigateToSettingsModelPicker, onClose],
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
 	)
 
 	const setOpenAiCodexProvider = useCallback(() => {
