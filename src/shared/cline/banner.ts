@@ -81,63 +81,29 @@ export interface BannerAction {
  * TODO: Backend would return a similar JSON structure in the future which we will replace this with.
  */
 export const BANNER_DATA: BannerCardData[] = [
-	// Info banner with inline link
+	// ChatGPT integration banner
 	{
-		id: "info-banner-v1",
-		icon: "lightbulb",
-		title: "Use Cline in Right Sidebar",
-		description:
-			"For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in real-time. [See how →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)",
-	},
-
-	// Announcement with conditional actions based on user auth state
-	{
-		id: "new-model-opus-4-5-cline-users",
+		id: "chatgpt-integration-v1",
 		icon: "megaphone",
-		title: "Claude Opus 4.5 Now Available",
-		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
-		actions: [
-			{
-				title: "Try Now",
-				action: BannerActionType.SetModel,
-				arg: "anthropic/claude-opus-4.5",
-			},
-		],
-		isClineUserOnly: true, // Only Cline users see this
-	},
-
-	{
-		id: "new-model-opus-4-5-non-cline-users",
-		icon: "megaphone",
-		title: "Claude Opus 4.5 Now Available",
-		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
-		actions: [
-			{
-				title: "Get Started",
-				action: BannerActionType.ShowAccount,
-			},
-		],
-		isClineUserOnly: false, // Only non-Cline users see this
-	},
-
-	// Platform-specific banner (macOS/Linux)
-	{
-		id: "cli-install-unix-v1",
-		icon: "terminal",
-		title: "CLI & Subagents Available",
-		platforms: ["mac", "linux"] satisfies BannerCardData["platforms"],
+		title: "Use ChatGPT with Cline",
 		description:
-			"Use Cline in your terminal and enable subagent capabilities. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+			"Bring your ChatGPT subscription to Cline! Use your existing plan directly with no per token costs or API keys to manage.",
 		actions: [
 			{
-				title: "Install",
-				action: BannerActionType.InstallCli,
-			},
-			{
-				title: "Enable Subagents",
-				action: BannerActionType.ShowFeatureSettings,
+				title: "Connect",
+				action: BannerActionType.ShowApiSettings,
+				arg: "openai-codex", // Pre-select OpenAI Codex provider
 			},
 		],
+	},
+
+	// Jupyter Notebooks banner
+	{
+		id: "jupyter-notebooks-v1",
+		icon: "book-open",
+		title: "Jupyter Notebooks",
+		description:
+			"Comprehensive AI-assisted editing of `.ipynb` files with full cell-level context awareness. [Learn More →](https://docs.cline.bot/features/jupyter-notebooks)",
 	},
 
 	// Platform-specific banner (Windows)
@@ -148,5 +114,14 @@ export const BANNER_DATA: BannerCardData[] = [
 		platforms: ["windows"] satisfies BannerCardData["platforms"],
 		description:
 			"Available for macOS and Linux. Coming soon to other platforms. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+	},
+
+	// Info banner with inline link
+	{
+		id: "info-banner-v1",
+		icon: "lightbulb",
+		title: "Use Cline in Right Sidebar",
+		description:
+			"For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in real-time. [See how →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)",
 	},
 ]

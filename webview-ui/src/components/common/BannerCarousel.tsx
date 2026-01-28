@@ -45,6 +45,7 @@ const BannerCardContent: React.FC<BannerCardContentProps> = ({ banner, isActive,
 			})}
 			style={{
 				gridArea: "stack",
+				pointerEvents: isActive ? "auto" : "none", // Disable interaction on inactive cards
 			}}>
 			{/* Title with optional icon */}
 			<h3
@@ -122,7 +123,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 
 		autoPlayIntervalRef.current = setInterval(() => {
 			setCurrentIndex((prevIndex) => (prevIndex + 1) % banners.length)
-		}, 5000) // Rotate every 5 seconds
+		}, 6500) // Rotate every 6.5 seconds
 
 		return () => {
 			if (autoPlayIntervalRef.current) {
@@ -144,7 +145,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 		return null
 	}
 
-	const showDismissButton = safeCurrentIndex === banners.length - 1 && currentBanner.onDismiss
+	const showDismissButton = !!currentBanner.onDismiss
 
 	return (
 		<div
@@ -157,16 +158,16 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 			role="region">
 			{/* Card container */}
 			<div className="relative bg-muted rounded-sm">
-				{/* Dismiss button - only show on last card, dismisses ALL banners */}
+				{/* Dismiss button - shows on each card that has onDismiss defined */}
 				{showDismissButton && (
 					<Button
-						aria-label="Dismiss all banners"
+						aria-label="Dismiss banner"
 						className="absolute top-2.5 right-2 z-10"
 						data-testid="banner-dismiss-button"
 						onClick={(e) => {
 							e.stopPropagation()
-							// Dismiss ALL banners, not just the current one
-							banners.forEach((banner) => banner.onDismiss?.())
+							// Dismiss only the current banner
+							currentBanner.onDismiss?.()
 						}}
 						size="icon"
 						variant="icon">
@@ -178,8 +179,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 				<div className="grid" style={{ gridTemplateAreas: "'stack'" }}>
 					{banners.map((banner, idx) => {
 						const isActive = idx === safeCurrentIndex
-						const isLastBanner = idx === banners.length - 1
-						const showDismiss = isLastBanner && banner.onDismiss
+						const showDismiss = !!banner.onDismiss
 
 						return (
 							<BannerCardContent
@@ -187,7 +187,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ banners }) => {
 								isActive={isActive}
 								isTransitioning={isTransitioning}
 								key={banner.id}
-								showDismissButton={!!showDismiss}
+								showDismissButton={showDismiss}
 							/>
 						)
 					})}
