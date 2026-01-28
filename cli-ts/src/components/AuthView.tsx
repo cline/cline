@@ -172,35 +172,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		return getProviderOrder().filter((p) => availableProviders.has(p))
 	}, [])
 
-	// Get configured providers (those with API keys set)
-	const configuredProviders = useMemo(() => {
-		try {
-			const config = StateManager.get().getApiConfiguration()
-			const configured = new Set<string>()
-
-			for (const provider of sortedProviders) {
-				const keyField = ProviderToApiKeyMap[provider]
-				if (!keyField) {
-					continue
-				}
-
-				const fields = Array.isArray(keyField) ? keyField : [keyField]
-				const hasKey = fields.some((field) => {
-					const value = (config as Record<string, unknown>)[field]
-					return value !== undefined && value !== null && value !== ""
-				})
-
-				if (hasKey) {
-					configured.add(provider)
-				}
-			}
-
-			return configured
-		} catch {
-			return new Set<string>()
-		}
-	}, [sortedProviders, ProviderToApiKeyMap])
-
 	// Main menu items - conditionally include import options
 	const mainMenuItems: SelectItem[] = useMemo(() => {
 		const items: SelectItem[] = [{ label: "Sign in with Cline account", value: "cline_auth" }]
@@ -231,10 +202,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				)
 			: sortedProviders
 		return filtered.map((p: string) => ({
-			label: `${getProviderLabel(p)}${configuredProviders.has(p) ? " (configured)" : ""}`,
+			label: getProviderLabel(p),
 			value: p,
 		}))
-	}, [sortedProviders, configuredProviders, providerSearch])
+	}, [sortedProviders, providerSearch])
 
 	// Use shared scrollable list hook for provider windowing
 	const TOTAL_PROVIDER_ROWS = 8
