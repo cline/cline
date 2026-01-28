@@ -7,9 +7,10 @@ import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
+import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
-import { Logger } from "@/shared/services/Logger"
 import type { ToolResponse } from "../../index"
+import { showNotificationForApproval } from "../../utils"
 import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -131,14 +132,49 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 			}
 
-			// complete command message - need to ask for approval
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
-			if (!didApprove) {
-				return formatResponse.toolDenied()
+			// Check if command should be auto-approved
+			// attempt_completion commands don't have requires_approval param, so we treat them as safe commands
+			const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(ClineDefaultTool.BASH)
+			const autoApproveSafe = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
+
+			let didAutoApprove = false
+
+			if (autoApproveSafe) {
+				// Auto-approve flow - show command as 'say' instead of 'ask'
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
+				await config.callbacks.say("command", command, undefined, undefined, false)
+				didAutoApprove = true
+			} else {
+				// Manual approval flow - need to ask for approval
+				showNotificationForApproval(
+					`Cline wants to execute a command: ${command}`,
+					config.autoApprovalSettings.enableNotifications,
+				)
+
+				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+				if (!didApprove) {
+					return formatResponse.toolDenied()
+				}
 			}
 
-			// User approved, execute the command
+			// Setup timeout notification for long-running auto-approved commands
+			let timeoutId: NodeJS.Timeout | undefined
+			if (didAutoApprove && config.autoApprovalSettings.enableNotifications) {
+				timeoutId = setTimeout(() => {
+					showSystemNotification({
+						subtitle: "Command is still running",
+						message: "An auto-approved command has been running for 30s, and may need your attention.",
+					})
+				}, 30_000)
+			}
+
+			// Execute the command
 			const [userRejected, execCommandResult] = await config.callbacks.executeCommandTool(command!, undefined) // no timeout for attempt_completion command
+
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
+
 			if (userRejected) {
 				config.taskState.didRejectTool = true
 				return execCommandResult
