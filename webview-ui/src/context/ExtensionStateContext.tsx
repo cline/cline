@@ -46,6 +46,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
 	lastDismissedCliBannerVersion: number
+	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 
 	availableTerminalProfiles: TerminalProfile[]
 
