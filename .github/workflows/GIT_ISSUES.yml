@@ -74,14 +74,72 @@ jobs:
           
           echo "Found $NEW_COUNT new issues and $REOPENED_COUNT reopened/updated issues"
 
+      - name: Fetch issues with user comments
+        id: comments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SINCE="${{ steps.time.outputs.since }}"
+          
+          # Fetch all issue comments since the lookback time
+          # Filter out bot comments (user.type != "Bot")
+          COMMENTS_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/issues/comments?since=$SINCE&per_page=100" \
+            --jq '[.[] | select(.user.type != "Bot")]')
+          
+          # Get unique issue URLs from comments (to avoid duplicates)
+          # Each comment has issue_url field that points to the issue API
+          COMMENTED_ISSUE_URLS=$(echo "$COMMENTS_JSON" | jq -r '[.[].issue_url] | unique | .[]')
+          
+          # Fetch details for each commented issue
+          COMMENTED_ISSUES='[]'
+          for ISSUE_URL in $COMMENTED_ISSUE_URLS; do
+            # Skip if empty
+            [ -z "$ISSUE_URL" ] && continue
+            
+            # Fetch issue details
+            ISSUE=$(gh api -H "Accept: application/vnd.github+json" "$ISSUE_URL" 2>/dev/null || echo '{}')
+            
+            # Skip pull requests and closed issues
+            IS_PR=$(echo "$ISSUE" | jq 'has("pull_request")')
+            STATE=$(echo "$ISSUE" | jq -r '.state // "unknown"')
+            
+            if [ "$IS_PR" = "false" ] && [ "$STATE" = "open" ]; then
+              # Get the latest non-bot commenter for this issue
+              LATEST_COMMENTER=$(echo "$COMMENTS_JSON" | jq -r --arg url "$ISSUE_URL" \
+                '[.[] | select(.issue_url == $url)] | sort_by(.created_at) | last | .user.login // "unknown"')
+              
+              # Add commenter info to the issue
+              ISSUE_WITH_COMMENTER=$(echo "$ISSUE" | jq --arg commenter "$LATEST_COMMENTER" \
+                '. + {latest_commenter: $commenter}')
+              
+              COMMENTED_ISSUES=$(echo "$COMMENTED_ISSUES" | jq --argjson issue "$ISSUE_WITH_COMMENTER" \
+                '. + [$issue]')
+            fi
+          done
+          
+          # Exclude issues that are already in "new issues" (created in this window)
+          # We only want to show "commented on existing issues"
+          COMMENTED_ISSUES=$(echo "$COMMENTED_ISSUES" | jq --arg since "$SINCE" \
+            '[.[] | select(.created_at < $since)]')
+          
+          COMMENTED_COUNT=$(echo "$COMMENTED_ISSUES" | jq 'length')
+          
+          echo "commented_count=$COMMENTED_COUNT" >> $GITHUB_OUTPUT
+          echo "$COMMENTED_ISSUES" > /tmp/commented_issues.json
+          
+          echo "Found $COMMENTED_COUNT issues with user comments"
+
       - name: Build Slack message
         id: message
         run: |
           NEW_COUNT="${{ steps.issues.outputs.new_count }}"
           REOPENED_COUNT="${{ steps.issues.outputs.reopened_count }}"
+          COMMENTED_COUNT="${{ steps.comments.outputs.commented_count }}"
           
           # Check if there's anything to report
-          if [ "$NEW_COUNT" -eq 0 ] && [ "$REOPENED_COUNT" -eq 0 ]; then
+          if [ "$NEW_COUNT" -eq 0 ] && [ "$REOPENED_COUNT" -eq 0 ] && [ "$COMMENTED_COUNT" -eq 0 ]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "No issues to report"
             exit 0
@@ -107,13 +165,14 @@ jobs:
           BLOCKS=$(echo "$BLOCKS" | jq \
             --arg new "$NEW_COUNT" \
             --arg reopened "$REOPENED_COUNT" \
+            --arg commented "$COMMENTED_COUNT" \
             --arg repo "${{ github.repository }}" \
             --arg hours "${{ env.HOURS_LOOKBACK }}" \
             '. + [{
               "type": "context",
               "elements": [{
                 "type": "mrkdwn",
-                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) reopened/updated"
+                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented"
               }]
             }]')
           
@@ -181,6 +240,46 @@ jobs:
                     "type": "mrkdwn",
                     "text": $text
                   }
+                }]')
+            fi
+          fi
+          
+          # Issues with User Comments Section (excluding bots)
+          if [ "$COMMENTED_COUNT" -gt 0 ]; then
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*💬 Issues with New Comments* _(from users, not bots)_"
+              }
+            }]')
+            
+            # Show issue with who commented
+            COMMENTED_TEXT=$(cat /tmp/commented_issues.json | jq -r \
+              '.[0:10] | .[] | "• <\(.html_url)|#\(.number)>: \(.title) (_comment by \(.latest_commenter)_)"')
+            
+            if [ -n "$COMMENTED_TEXT" ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$COMMENTED_TEXT" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $text
+                  }
+                }]')
+            fi
+            
+            # Show if truncated
+            if [ "$COMMENTED_COUNT" -gt 10 ]; then
+              REMAINING=$((COMMENTED_COUNT - 10))
+              BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
+                '. + [{
+                  "type": "context",
+                  "elements": [{
+                    "type": "mrkdwn",
+                    "text": "_...and \($remaining) more_"
+                  }]
                 }]')
             fi
           fi
