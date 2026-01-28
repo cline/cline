@@ -137,13 +137,10 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(ClineDefaultTool.BASH)
 			const autoApproveSafe = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
 
-			let didAutoApprove = false
-
 			if (autoApproveSafe) {
 				// Auto-approve flow - show command as 'say' instead of 'ask'
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 				await config.callbacks.say("command", command, undefined, undefined, false)
-				didAutoApprove = true
 			} else {
 				// Manual approval flow - need to ask for approval
 				showNotificationForApproval(
@@ -157,23 +154,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				}
 			}
 
-			// Setup timeout notification for long-running auto-approved commands
-			let timeoutId: NodeJS.Timeout | undefined
-			if (didAutoApprove && config.autoApprovalSettings.enableNotifications) {
-				timeoutId = setTimeout(() => {
-					showSystemNotification({
-						subtitle: "Command is still running",
-						message: "An auto-approved command has been running for 30s, and may need your attention.",
-					})
-				}, 30_000)
-			}
-
 			// Execute the command
 			const [userRejected, execCommandResult] = await config.callbacks.executeCommandTool(command!, undefined) // no timeout for attempt_completion command
-
-			if (timeoutId) {
-				clearTimeout(timeoutId)
-			}
 
 			if (userRejected) {
 				config.taskState.didRejectTool = true
