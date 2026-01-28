@@ -8,6 +8,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 import { isFileSaveTool, parseToolFromMessage } from "../utils/tools"
 
 /**
@@ -298,7 +299,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 	}
 
 	// Calculate button widths based on terminal width
-	const terminalWidth = process.stdout.columns || 80
+	const { columns: terminalWidth } = useTerminalSize()
 	const buttonCount = (hasPrimary ? 1 : 0) + (hasSecondary ? 1 : 0)
 	const gapWidth = buttonCount > 1 ? 1 : 0 // 1 char gap between buttons
 	const availableWidth = terminalWidth - 2 - gapWidth // 1 space padding on each side
