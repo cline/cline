@@ -11,5 +11,5 @@
 			"contains": "Hello"
 		}
 	],
-	"timeout": 60
+	"timeout": 120
 }

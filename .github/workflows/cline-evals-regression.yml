@@ -1,0 +1,190 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/core/**'
+      - 'src/shared/**'
+      - 'proto/**'
+      - 'evals/**'
+      - '.github/workflows/cline-evals-regression.yml'
+  pull_request:
+    paths:
+      - 'src/core/**'
+      - 'src/shared/**'
+      - 'proto/**'
+      - 'evals/**'
+      - '.github/workflows/cline-evals-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: |
+            cli/go.sum
+            go.work.sum
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build CLI and standalone
+        run: |
+          npm run compile-cli
+          npm run compile-standalone
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cline-cli
+          path: |
+            cli/bin/
+            dist-standalone/
+          retention-days: 1
+
+  test:
+    name: Test ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - 01-create-file
+          - 02-edit-file
+          - 03-read-summarize
+          - 04-multi-file
+          - 05-typescript-function
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cline-cli
+
+      - name: Install CLI
+        run: |
+          # Create install directory
+          mkdir -p $HOME/.cline/cli/bin
+          
+          # Copy binaries
+          cp cli/bin/cline cli/bin/cline-host $HOME/.cline/cli/bin/
+          chmod +x $HOME/.cline/cli/bin/*
+          
+          # Copy standalone files
+          cp -r dist-standalone/* $HOME/.cline/cli/
+          
+          # Install runtime dependencies
+          cd standalone/runtime-files
+          npm install --silent
+          cp -r node_modules $HOME/.cline/cli/
+          cp -r vscode $HOME/.cline/cli/node_modules/
+          
+          # Link system Node
+          ln -sf $(which node) $HOME/.cline/cli/bin/node
+          
+          # Rebuild native modules
+          cd $HOME/.cline/cli
+          npm rebuild better-sqlite3 > /dev/null 2>&1
+          
+          # Verify
+          export PATH="$HOME/.cline/cli/bin:$PATH"
+          cline --version
+
+      - name: Configure auth
+        env:
+          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+        run: |
+          export PATH="$HOME/.cline/cli/bin:$PATH"
+          # TODO: Remove hardcoded model once CLI supports default models without -m flag
+          cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
+
+      - name: Run test
+        env:
+          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+        run: |
+          export PATH="$HOME/.cline/cli/bin:$PATH"
+          npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --scenario ${{ matrix.scenario }}
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-${{ matrix.scenario }}
+          path: evals/smoke-tests/results/latest/
+          retention-days: 30
+
+  summarize:
+    name: Summarize Results
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: test
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: all-results/
+          merge-multiple: false
+
+      - name: Generate summary
+        run: |
+          echo "## Smoke Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scenario | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          for dir in all-results/results-*/; do
+            scenario=$(basename "$dir" | sed 's/results-//')
+            if [ -f "$dir/report.json" ]; then
+              # Handle JSON with spaces after colon (e.g., "passed": 1)
+              failed=$(cat "$dir/report.json" | grep -o '"failed": *[0-9]*' | head -1 | sed 's/.*: *//')
+              if [ "$failed" = "0" ]; then
+                echo "| $scenario | ✅ PASS |" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "| $scenario | ❌ FAIL |" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "| $scenario | ⚠️ NO RESULTS |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+      - name: Upload combined results
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results-${{ github.run_id }}
+          path: all-results/
+          retention-days: 30

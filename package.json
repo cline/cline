@@ -437,7 +437,13 @@
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
 		"report-issue": "node scripts/report-issue.js",
-		"storybook": "cd webview-ui && npm run storybook"
+		"storybook": "cd webview-ui && npm run storybook",
+		"eval:smoke:build": "bash scripts/install-local.sh",
+		"eval:smoke:run": "npx tsx evals/smoke-tests/run-smoke-tests.ts",
+		"eval:smoke": "npm run eval:smoke:build && npm run eval:smoke:run",
+		"eval:smoke:ci": "npm run eval:smoke:build && npm run eval:smoke:run -- --trials 1",
+		"eval:smoke:clean": "rm -rf evals/smoke-tests/results",
+		"eval:e2e": "npx tsx evals/e2e/run-cline-bench.ts"
 	},
 	"lint-staged": {
 		"src/shared/storage/state-keys.ts": [
@@ -450,6 +456,9 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.4",
+		"commander": "^12.0.0",
+		"dotenv": "^16.4.1",
+		"tiktoken": "^1.0.17",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/better-sqlite3": "^7.6.13",

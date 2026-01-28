@@ -99,8 +99,8 @@ With 3 trials:
 
 ## CI Integration
 
-- **PR Gate**: Contract tests + smoke tests (fast, ~3min)
-- **Nightly**: E2E tests with cline-bench (not yet implemented, see TODO)
+- **PR Gate**: Contract tests + smoke tests (fast, required)
+- **Nightly**: E2E tests with cline-bench (slow, comprehensive)
 
 ## Quick Start
 
@@ -137,11 +137,3 @@ Contribute to [cline/cline-bench](https://github.com/cline/cline-bench)
 - [cline-bench tasks](evals/cline-bench/README.md)
 - [Smoke test scenarios](evals/smoke-tests/README.md)
 - [Analysis framework](evals/analysis/README.md)
-
-## TODO
-
-- [ ] **Nightly E2E CI**: Add scheduled workflow for cline-bench tests
-  - Requires: Docker runner, Harbor setup, ~1-2 hour timeout
-  - Should run on schedule (e.g., nightly) not per-PR
-  - Separate secrets for E2E environment
-- [ ] **Native tool calling smoke tests**: Add CLI support for `native_tool_call_enabled` setting to test Claude 4 with native tools
