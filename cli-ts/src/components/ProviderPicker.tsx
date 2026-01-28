@@ -26,10 +26,9 @@ export function getProviderOrder(): string[] {
 interface ProviderPickerProps {
 	onSelect: (providerId: string) => void
 	isActive?: boolean
-	configuredProviders?: Set<string>
 }
 
-export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActive = true, configuredProviders = new Set() }) => {
+export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActive = true }) => {
 	// Use providers.json order, filtered to only available providers
 	const items: SearchableListItem[] = useMemo(() => {
 		const availableProviders = new Set(API_PROVIDERS_LIST)
@@ -38,9 +37,8 @@ export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActi
 		return sorted.map((providerId) => ({
 			id: providerId,
 			label: getProviderLabel(providerId),
-			suffix: configuredProviders.has(providerId) ? "(configured)" : undefined,
 		}))
-	}, [configuredProviders])
+	}, [])
 
 	return <SearchableList isActive={isActive} items={items} onSelect={(item) => onSelect(item.id)} />
 }
