@@ -340,10 +340,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		return (
 			<Box flexDirection="column" marginBottom={1} width="100%">
 				<DotRow color="red">
-					<Text bold color="red">
-						Error
+					<Text color="red" wrap="wrap">
+						<Text bold>Error</Text>: {errorMessage}
 					</Text>
-					<Text color="red">: {errorMessage}</Text>
 				</DotRow>
 			</Box>
 		)
