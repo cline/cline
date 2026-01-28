@@ -1054,7 +1054,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						paddingRight={1}
 						width="100%">
 						<Box>
-							{inputPrompt && <Text color="yellow">{inputPrompt} </Text>}
+							{inputPrompt && <Text color={borderColor}>{inputPrompt} </Text>}
 							<HighlightedInput
 								availableCommands={availableCommands.map((c) => c.name)}
 								cursorPos={cursorPos}

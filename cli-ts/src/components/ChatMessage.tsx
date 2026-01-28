@@ -495,7 +495,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 							{parsed.options.map((opt, idx) => {
 								const isSelected = parsed.selected === opt
 								return (
-									<Text color={isSelected ? "green" : "gray"} key={opt}>
+									<Text color={isSelected ? "green" : toolColor} key={opt}>
 										{isSelected ? "✓" : `${idx + 1}.`} {opt}
 									</Text>
 								)
