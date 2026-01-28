@@ -16,7 +16,13 @@ interface WhatsNewModalProps {
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const {
+		openRouterModels,
+		setShowChatModelSelector,
+		refreshOpenRouterModels,
+		navigateToSettings,
+		navigateToSettingsModelPicker,
+	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const clickedModelsRef = useRef<Set<string>>(new Set())
@@ -41,6 +47,28 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		},
 		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
 	)
+
+	const navigateToModelPicker = useCallback(
+		(initialModelTab: "recommended" | "free") => {
+			// Switch to Cline provider first so the model picker tab works
+			handleFieldsChange({
+				planModeApiProvider: "cline",
+				actModeApiProvider: "cline",
+			})
+			onClose()
+			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
+		},
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
+	)
+
+	const setOpenAiCodexProvider = useCallback(() => {
+		handleFieldsChange({
+			planModeApiProvider: "openai-codex",
+			actModeApiProvider: "openai-codex",
+		})
+		onClose()
+		navigateToSettings("api-config")
+	}, [handleFieldsChange, onClose, navigateToSettings])
 
 	const handleShowAccount = useCallback(() => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
@@ -70,6 +98,35 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			</Button>
 		)
 
+	type InlineModelLinkProps =
+		| { type: "model"; modelId: string; label: string }
+		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
+
+	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
+		if (props.type === "picker") {
+			return (
+				<span
+					onClick={() => navigateToModelPicker(props.pickerTab)}
+					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+					{props.label}
+				</span>
+			)
+		}
+
+		const isClicked = clickedModelsRef.current.has(props.modelId)
+		if (isClicked) {
+			return null
+		}
+
+		return (
+			<span
+				onClick={() => setModel(props.modelId)}
+				style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+				{props.label}
+			</span>
+		)
+	}
+
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
 			<DialogContent
@@ -87,28 +144,28 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>OpenAI:</strong> Added gpt-5.2-codex model support
-							<div>
-								<AuthButton>
-									<ModelButton label="Try now!" modelId="openai/gpt-5.2-codex" />
-								</AuthButton>
-							</div>
+							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
+							model.{" "}
+							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
 						</li>
 						<li className="mb-2">
-							<strong>Skills:</strong> Extend Cline with instruction sets for specialized tasks.{" "}
-							<a
-								href="https://docs.cline.bot/features/skills"
-								style={{ color: "var(--vscode-textLink-foreground)" }}>
-								Learn more
-							</a>
+							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
+							coding tasks. Great for front-end tasks.{" "}
+							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+						</li>
+						<li className="mb-2">
+							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
+							token costs or API keys to manage.{" "}
+							<span
+								onClick={setOpenAiCodexProvider}
+								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+								Connect
+							</span>
 						</li>
 						<li>
-							<strong>Web Search:</strong> Improved websearch tooling in Cline provider.{" "}
-							<a
-								href="https://docs.cline.bot/features/web-tools"
-								style={{ color: "var(--vscode-textLink-foreground)" }}>
-								Learn more
-							</a>
+							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
+							there are plenty models in our free tier.{" "}
+							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
 						</li>
 					</ul>
 				</div>

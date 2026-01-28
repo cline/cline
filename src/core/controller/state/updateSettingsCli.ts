@@ -12,6 +12,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { telemetryService } from "../../../services/telemetry"
 import { Controller } from ".."
@@ -79,7 +80,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 			controller.stateManager.setGlobalStateBatch(filteredSettings)
 
-			console.log("autoApprovalSettings", controller.stateManager.getGlobalSettingsKey("autoApprovalSettings"))
+			Logger.log("autoApprovalSettings", controller.stateManager.getGlobalSettingsKey("autoApprovalSettings"))
 
 			// Handle fields requiring type conversion from generated protobuf types to application types
 			if (autoApprovalSettings) {
@@ -281,7 +282,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update settings:", error)
 		throw error
 	}
 }

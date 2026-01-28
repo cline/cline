@@ -1,5 +1,5 @@
 import { SVGProps } from "react"
-import type { Environment } from "../../../src/config"
+import type { Environment } from "../../../src/shared/config-types"
 import { getEnvironmentColor } from "../utils/environmentColors"
 
 /**

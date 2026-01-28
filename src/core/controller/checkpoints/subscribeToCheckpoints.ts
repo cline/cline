@@ -1,5 +1,6 @@
 import { CheckpointEvent, CheckpointEvent_OperationType, CheckpointSubscriptionRequest } from "@shared/proto/cline/checkpoints"
 import { Timestamp } from "@shared/proto/google/protobuf/timestamp"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -105,7 +106,7 @@ export async function sendCheckpointEvent(eventData: CheckpointEventData): Promi
 		try {
 			await responseStream(event, false) // Not the last message
 		} catch (error) {
-			console.error("Error sending checkpoint event:", error)
+			Logger.error("Error sending checkpoint event:", error)
 			subscriptions.delete(responseStream)
 			if (subscriptions.size === 0) {
 				activeCheckpointSubscriptions.delete(cwdHash)

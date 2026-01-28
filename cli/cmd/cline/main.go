@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/slash"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -71,8 +72,6 @@ see the manual page: man cline`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			var instanceAddress string
-
 			// Validate workspace paths exist
 			if err := common.ValidateDirsExist(workspaces); err != nil {
 				return err
@@ -89,13 +88,13 @@ see the manual page: man cline`,
 				if global.Config.Verbose {
 					fmt.Println("Starting new Cline instance...")
 				}
-				instance, err := global.Clients.StartNewInstance(ctx, allWorkspaces...)
+				instance, err := global.Instances.StartNewInstance(ctx, allWorkspaces...)
 				if err != nil {
 					return fmt.Errorf("failed to start new instance: %w", err)
 				}
-				instanceAddress = instance.Address
+				global.Config.CoreAddress = instance.CoreAddress
 				if global.Config.Verbose {
-					fmt.Printf("Started instance at %s\n\n", instanceAddress)
+					fmt.Printf("Started instance at %s\n\n", global.Config.CoreAddress)
 				}
 
 				// Set up cleanup on exit
@@ -103,38 +102,35 @@ see the manual page: man cline`,
 					if global.Config.Verbose {
 						fmt.Println("\nCleaning up instance...")
 					}
-					registry := global.Clients.GetRegistry()
-					if err := global.KillInstanceByAddress(context.Background(), registry, instanceAddress); err != nil {
+					registry := global.Instances.GetRegistry()
+					if err := global.KillInstanceByAddress(context.Background(), registry, global.Config.CoreAddress); err != nil {
 						if global.Config.Verbose {
 							fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
 						}
 					}
 				}()
+			}
 
-				// Check if user has credentials configured
-				if !isUserReadyToUse(ctx, instanceAddress) {
-					// Create renderer for welcome messages
-					renderer := display.NewRenderer(global.Config.OutputFormat)
-					fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
+			// Check if user has credentials configured
+			if !isUserReadyToUse(ctx) {
+				// Create renderer for welcome messages
+				renderer := display.NewRenderer(global.Config.OutputFormat)
+				fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
 
-					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
-						// Check if user cancelled - exit cleanly
-						if err == huh.ErrUserAborted {
-							return nil
-						}
-						return fmt.Errorf("auth setup failed: %w", err)
+				if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
+					// Check if user cancelled - exit cleanly
+					if err == huh.ErrUserAborted {
+						return nil
 					}
-
-					// Re-check after auth wizard
-					if !isUserReadyToUse(ctx, instanceAddress) {
-						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
-					}
-
-					fmt.Printf("\n%s\n\n", renderer.Dim("✓ Setup complete, you can now use the Cline CLI"))
+					return fmt.Errorf("auth setup failed: %w", err)
 				}
-			} else {
-				// User specified --address flag, use that
-				instanceAddress = coreAddress
+
+				// Re-check after auth wizard
+				if !isUserReadyToUse(ctx) {
+					return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
+				}
+
+				fmt.Printf("\n%s\n\n", renderer.Dim("✓ Setup complete, you can now use the Cline CLI"))
 			}
 
 			// Get content from both args and stdin
@@ -143,10 +139,13 @@ see the manual page: man cline`,
 				return fmt.Errorf("failed to read prompt: %w", err)
 			}
 
-			// If no prompt from args or stdin, show interactive input
-			if prompt == "" {
+			// If no prompt (or just a mode switch with no message), show interactive input
+			// Loop to allow mode switches without a message
+			bannerShown := false
+			for prompt == "" {
 				// Pass the mode flag and workspaces to banner so it shows correct info
-				prompt, err = promptForInitialTask(ctx, instanceAddress, mode, allWorkspaces)
+				prompt, err = promptForInitialTask(ctx, mode, allWorkspaces, !bannerShown)
+				bannerShown = true
 				if err != nil {
 					// Check if user cancelled - exit cleanly without error
 					if err == huh.ErrUserAborted {
@@ -154,6 +153,23 @@ see the manual page: man cline`,
 					}
 					return err
 				}
+
+				// Check if user entered a mode switch command
+				if newMode, remaining, isModeSwitch := slash.ParseModeSwitch(prompt); isModeSwitch {
+					mode = newMode
+					prompt = remaining
+					// If just a mode switch with no message, continue loop to re-prompt
+					if prompt == "" {
+						renderer := display.NewRenderer(global.Config.OutputFormat)
+						if mode == "act" {
+							fmt.Printf("\n%s\n\n", renderer.Success("Switched to act mode"))
+						} else {
+							fmt.Printf("\n%s\n\n", renderer.Success("Switched to plan mode"))
+						}
+						continue
+					}
+				}
+
 				if prompt == "" {
 					return fmt.Errorf("prompt required")
 				}
@@ -171,7 +187,7 @@ see the manual page: man cline`,
 				Mode:       mode,
 				Settings:   settings,
 				Yolo:       yolo,
-				Address:    instanceAddress,
+				Address:    global.Config.CoreAddress,
 				Verbose:    verbose,
 				Workspaces: allWorkspaces,
 			})
@@ -207,51 +223,30 @@ see the manual page: man cline`,
 	}
 }
 
-func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string, workspaces []string) (string, error) {
-	// Show session banner before the initial input
-	showSessionBanner(ctx, instanceAddress, modeFlag, workspaces)
-
-	var prompt string
-
-	// Create custom theme with mode-colored cursor and title
-	theme := huh.ThemeCharm()
-
-	// Set cursor and title color based on mode
-	modeColor := lipgloss.Color("3") // Yellow for plan
-	if modeFlag == "act" {
-		modeColor = lipgloss.Color("39") // Blue for act
+func promptForInitialTask(ctx context.Context, modeFlag string, workspaces []string, showBanner bool) (string, error) {
+	// Show session banner before the initial input (only on first prompt)
+	if showBanner {
+		showSessionBanner(ctx, modeFlag, workspaces)
 	}
 
-	theme.Focused.TextInput.Cursor = theme.Focused.TextInput.Cursor.Foreground(modeColor)
-	theme.Focused.Title = theme.Focused.Title.Foreground(modeColor)
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewText().
-				Title("Start a new Cline task").
-				Description("What would you like Cline to help you with?").
-				Placeholder("e.g., Create a REST API with authentication...").
-				Lines(5).
-				Value(&prompt),
-		),
-	).WithWidth(48).WithTheme(theme)
-
-	err := form.Run()
+	prompt, err := output.PromptForInitialTask(
+		"Start a new Cline task",
+		"/plan or /act to switch modes\ntab to autocomplete commands\nctrl+e to open editor\nctrl+c to exit",
+		modeFlag,
+		slash.NewRegistry(ctx),
+	)
 	if err != nil {
-		// Check if user cancelled with Control-C
-		if err == huh.ErrUserAborted {
-			// Return a special error that indicates clean cancellation
-			// This allows deferred cleanup to run
+		if err == output.ErrUserAborted {
 			return "", huh.ErrUserAborted
 		}
 		return "", err
 	}
 
-	return strings.TrimSpace(prompt), nil
+	return prompt, nil
 }
 
 // showSessionBanner displays session info before initial prompt
-func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string, workspaces []string) {
+func showSessionBanner(ctx context.Context, modeFlag string, workspaces []string) {
 	bannerInfo := display.BannerInfo{
 		Version: global.CliVersion,
 		Mode:    modeFlag, // Use the mode from command flag, not state
@@ -265,21 +260,18 @@ func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string, wo
 	bannerInfo.Workdirs = workspaces
 
 	// Get provider/model using auth functions (same logic as auth menu)
-	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
-	if err == nil {
-		if providerList, err := auth.GetProviderConfigurations(ctx, manager); err == nil {
-			// Show provider/model for the mode we'll be using
-			var providerDisplay *auth.ProviderDisplay
-			if bannerInfo.Mode == "plan" && providerList.PlanProvider != nil {
-				providerDisplay = providerList.PlanProvider
-			} else if bannerInfo.Mode == "act" && providerList.ActProvider != nil {
-				providerDisplay = providerList.ActProvider
-			}
+	if providerList, err := auth.GetProviderConfigurations(ctx); err == nil {
+		// Show provider/model for the mode we'll be using
+		var providerDisplay *auth.ProviderDisplay
+		if bannerInfo.Mode == "plan" && providerList.PlanProvider != nil {
+			providerDisplay = providerList.PlanProvider
+		} else if bannerInfo.Mode == "act" && providerList.ActProvider != nil {
+			providerDisplay = providerList.ActProvider
+		}
 
-			if providerDisplay != nil {
-				bannerInfo.Provider = auth.GetProviderIDForEnum(providerDisplay.Provider)
-				bannerInfo.ModelID = providerDisplay.ModelID
-			}
+		if providerDisplay != nil {
+			bannerInfo.Provider = auth.GetProviderIDForEnum(providerDisplay.Provider)
+			bannerInfo.ModelID = providerDisplay.ModelID
 		}
 	}
 
@@ -292,25 +284,22 @@ func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string, wo
 // isUserReadyToUse checks if the user has completed initial setup
 // Returns true if welcomeViewCompleted flag is set OR user is authenticated
 // Matches extension logic: welcomeViewCompleted = Boolean(globalState.welcomeViewCompleted || user?.uid)
-func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
-	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
+func isUserReadyToUse(ctx context.Context) bool {
+	grpcClient, err := global.GetClientForAddress(ctx, global.Config.CoreAddress)
 	if err != nil {
 		return false
 	}
 
-	// Get state
-	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := grpcClient.State.GetLatestState(ctx, &cline.EmptyRequest{})
 	if err != nil {
 		return false
 	}
 
-	// Parse state JSON
 	stateMap := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(state.StateJson), &stateMap); err != nil {
 		return false
 	}
 
-	// Check 1: welcomeViewCompleted flag
 	if welcomeCompleted, ok := stateMap["welcomeViewCompleted"].(bool); ok && welcomeCompleted {
 		return true
 	}

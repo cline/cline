@@ -26,7 +26,7 @@ func TestMixedLocalhostVs127Coexist(t *testing.T) {
 		t.Fatalf("expected at least 1 instance")
 	}
 	inst := out.CoreInstances[0]
-	waitForAddressHealthy(t, inst.Address, defaultTimeout)
+	waitForAddressHealthy(t, inst.CoreAddress, defaultTimeout)
 
 	// Manually add a SQLite entry for the same port but 127.0.0.1 host
 	addr127 := fmt.Sprintf("127.0.0.1:%d", inst.CorePort())
@@ -37,12 +37,12 @@ func TestMixedLocalhostVs127Coexist(t *testing.T) {
 	}
 
 	// Verify both addresses appear and are healthy
-	waitForAddressHealthy(t, inst.Address, defaultTimeout)
+	waitForAddressHealthy(t, inst.CoreAddress, defaultTimeout)
 	waitForAddressHealthy(t, addr127, defaultTimeout)
 
 	out = listInstancesJSON(ctx, t)
-	if !hasAddress(out, inst.Address) || !hasAddress(out, addr127) {
-		t.Fatalf("expected both %s and %s present", inst.Address, addr127)
+	if !hasAddress(out, inst.CoreAddress) || !hasAddress(out, addr127) {
+		t.Fatalf("expected both %s and %s present", inst.CoreAddress, addr127)
 	}
 }
 
@@ -58,7 +58,7 @@ func TestStartStopStress(t *testing.T) {
 		before := listInstancesJSON(ctx, t)
 		beforeSet := map[string]struct{}{}
 		for _, it := range before.CoreInstances {
-			beforeSet[it.Address] = struct{}{}
+			beforeSet[it.CoreAddress] = struct{}{}
 		}
 
 		// Start a new instance
@@ -69,8 +69,8 @@ func TestStartStopStress(t *testing.T) {
 		waitFor(t, defaultTimeout, func() (bool, string) {
 			after := listInstancesJSON(ctx, t)
 			for _, it := range after.CoreInstances {
-				if _, ok := beforeSet[it.Address]; !ok {
-					newAddr = it.Address
+				if _, ok := beforeSet[it.CoreAddress]; !ok {
+					newAddr = it.CoreAddress
 					return true, ""
 				}
 			}
@@ -88,12 +88,12 @@ func TestStartStopStress(t *testing.T) {
 		}
 
 		// Get PID using runtime discovery
-		corePID := getCorePID(t, info.Address)
+		corePID := getCorePID(t, info.CoreAddress)
 		if corePID <= 0 {
-			t.Fatalf("could not find PID for new instance at %s", info.Address)
+			t.Fatalf("could not find PID for new instance at %s", info.CoreAddress)
 		}
 
-		t.Logf("Killing new instance %s (PID %d) for iteration %d", info.Address, corePID, i)
+		t.Logf("Killing new instance %s (PID %d) for iteration %d", info.CoreAddress, corePID, i)
 		if err := syscall.Kill(corePID, syscall.SIGKILL); err != nil {
 			t.Fatalf("kill pid %d: %v", corePID, err)
 		}

@@ -30,7 +30,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled,
 		focusChainSettings,
 		multiRootSetting,
-		hooksEnabled,
 		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
@@ -411,30 +410,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
-					<div className="mt-2.5">
-						<VSCodeCheckbox
-							checked={hooksEnabled}
-							disabled={!isMacOSOrLinux()}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("hooksEnabled", checked)
-							}}>
-							Enable Hooks
-						</VSCodeCheckbox>
-						{!isMacOSOrLinux() ? (
-							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
-								only.
-							</p>
-						) : (
-							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-								<span className="text-description">
-									Allows execution of hooks from .clinerules/hooks/ directory.
-								</span>
-							</p>
-						)}
-					</div>
 					<div className="mt-2.5">
 						<VSCodeCheckbox
 							checked={skillsEnabled}

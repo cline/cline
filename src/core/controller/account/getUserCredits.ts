@@ -1,5 +1,6 @@
 import { UserCreditsData } from "@shared/proto/cline/account"
 import type { EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -32,7 +33,7 @@ export async function getUserCredits(controller: Controller, _request: EmptyRequ
 			paymentTransactions: paymentTransactions,
 		})
 	} catch (error) {
-		console.error(`Failed to fetch user credits data: ${error}`)
+		Logger.error(`Failed to fetch user credits data: ${error}`)
 		throw error
 	}
 }

@@ -12,6 +12,7 @@ import {
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -238,12 +239,12 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 				}
 			}
 		} else {
-			console.error("Invalid response from OpenRouter API")
+			Logger.error("Invalid response from OpenRouter API")
 		}
 		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		console.log("OpenRouter models fetched and saved", JSON.stringify(models).slice(0, 300))
+		Logger.log("OpenRouter models fetched and saved")
 	} catch (error) {
-		console.error("Error fetching OpenRouter models:", error)
+		Logger.error("Error fetching OpenRouter models:", error)
 
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await controller.readOpenRouterModels()

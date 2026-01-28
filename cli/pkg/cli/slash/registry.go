@@ -2,10 +2,11 @@ package slash
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
-	"github.com/cline/grpc-go/client"
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/grpc-go/cline"
 )
 
@@ -32,24 +33,30 @@ var cliLocalCommands = []Command{
 }
 
 // NewRegistry creates a new slash command registry
-func NewRegistry() *Registry {
-	return &Registry{
-		commands: make([]Command, 0),
+func NewRegistry(ctx context.Context) *Registry {
+	defaultCommands := append([]Command{}, cliLocalCommands...)
+	r := &Registry{
+		commands: defaultCommands,
 	}
+	r.FetchFromBackend(ctx)
+	return r
 }
 
 // FetchFromBackend fetches available commands from cline-core backend
-func (r *Registry) FetchFromBackend(ctx context.Context, c *client.ClineClient) error {
-	resp, err := c.Slash.GetAvailableSlashCommands(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return err
+func (r *Registry) FetchFromBackend(ctx context.Context) error {
+	grpcClient, err := global.GetDefaultClient(ctx)
+	if err != nil && global.Config.Verbose {
+		fmt.Printf("Warning: could not get gRPC client: %v\n", err)
+		return nil
+	}
+	resp, err := grpcClient.Slash.GetAvailableSlashCommands(ctx, &cline.EmptyRequest{})
+	if err != nil && global.Config.Verbose {
+		fmt.Printf("Warning: could not get gRPC client: %v\n", err)
+		return nil
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	// Start with CLI-local commands
-	r.commands = append([]Command{}, cliLocalCommands...)
 
 	// Add backend commands (only CLI-compatible ones)
 	for _, cmd := range resp.Commands {
@@ -64,17 +71,6 @@ func (r *Registry) FetchFromBackend(ctx context.Context, c *client.ClineClient) 
 	}
 
 	return nil
-}
-
-// GetCommands returns all available commands
-func (r *Registry) GetCommands() []Command {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	// Return a copy to avoid race conditions
-	result := make([]Command, len(r.commands))
-	copy(result, r.commands)
-	return result
 }
 
 // GetMatching returns commands that start with the given prefix (case-insensitive)
@@ -122,4 +118,25 @@ func (r *Registry) HasCommands() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.commands) > 0
+}
+
+// ParseModeSwitch checks if message starts with /act or /plan and extracts the mode and remaining message.
+// Returns (mode, remainingMessage, isModeSwitch).
+// This is a package-level function so it can be used both during initial task creation
+// and during interactive input handling.
+func ParseModeSwitch(message string) (string, string, bool) {
+	trimmed := strings.TrimSpace(message)
+	lower := strings.ToLower(trimmed)
+
+	if strings.HasPrefix(lower, "/plan") {
+		remaining := strings.TrimSpace(trimmed[5:])
+		return "plan", remaining, true
+	}
+
+	if strings.HasPrefix(lower, "/act") {
+		remaining := strings.TrimSpace(trimmed[4:])
+		return "act", remaining, true
+	}
+
+	return "", message, false
 }

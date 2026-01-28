@@ -79,7 +79,7 @@ func RenderField(key string, value interface{}, censor bool) error {
 		"planActSeparateModelsSetting", "enableCheckpointsSetting",
 		"terminalReuseEnabled", "mcpResponsesCollapsed", "strictPlanModeEnabled",
 		"useAutoCondense", "yoloModeToggled", "shellIntegrationTimeout",
-		"terminalOutputLineLimit", "autoCondenseThreshold", "hooksEnabled":
+		"terminalOutputLineLimit", "autoCondenseThreshold":
 		fmt.Printf("%s: %s\n", camelToKebab(key), formatValue(value, key, censor))
 		return nil
 

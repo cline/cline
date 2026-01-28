@@ -1,15 +1,16 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { RemoteConfig } from "@shared/remote-config/schema"
-import { GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
+import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { Logger } from "@/services/logging/Logger"
-import { getTelemetryService, telemetryService } from "@/services/telemetry"
+import { type McpHub } from "@/services/mcp/McpHub"
+import { telemetryService } from "@/services/telemetry"
 import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryClientProvider"
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { ApiProvider } from "@/shared/api"
 import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
+import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
@@ -229,7 +230,7 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 			}
 		}
 	} catch (err) {
-		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
 	}
 }
 
@@ -242,7 +243,7 @@ async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigField
 
 		syncWorker().init({ ...blobStoreConfig, userDistinctId: getDistinctId() })
 	} catch (err) {
-		console.error("[REMOTE CONFIG DEBUG] Failed to apply remote sync queue config", err)
+		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote sync queue config", err)
 	}
 }
 
@@ -266,17 +267,14 @@ export function clearRemoteConfig() {
 /**
  * Applies remote config to the StateManager's remote config cache
  * @param remoteConfig The remote configuration object to apply
- * @param settingsDirectoryPath Path to the settings directory
- * @param mcpHub Optional McpHub instance to prevent watcher triggers during sync
+ * @param mcpHub McpHub instance to prevent watcher triggers during sync
  */
 export async function applyRemoteConfig(
-	remoteConfig?: RemoteConfig,
-	settingsDirectoryPath?: string,
-	mcpHub?: any,
+	remoteConfig: RemoteConfig,
+	configuredKeys: ConfiguredAPIKeys,
+	mcpHub: McpHub,
 ): Promise<void> {
 	const stateManager = StateManager.get()
-	const telemetryService = await getTelemetryService()
-
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
 		clearRemoteConfig()
@@ -318,6 +316,7 @@ export async function applyRemoteConfig(
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
+	stateManager.setRemoteConfigField("configuredApiKeys", configuredKeys)
 
 	// Restore previousRemoteMCPServers across cache clears
 	if (previousRemoteMCPServers !== undefined) {
@@ -330,12 +329,12 @@ export async function applyRemoteConfig(
 	if (remoteConfig.remoteMCPServers !== undefined) {
 		try {
 			// Get settings directory path - use provided path or get it from disk helper
-			const settingsPath = settingsDirectoryPath || (await ensureSettingsDirectoryExists())
+			const settingsPath = await ensureSettingsDirectoryExists()
 			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath, mcpHub)
 			// Store current remote servers list for next sync to detect removals
 			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
 		} catch (error) {
-			console.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+			Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
 			// Continue with other config application even if MCP sync fails
 		}
 	}

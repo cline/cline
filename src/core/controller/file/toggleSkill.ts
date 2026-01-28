@@ -1,4 +1,5 @@
 import { SkillsToggles, ToggleSkillRequest } from "@shared/proto/cline/file"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -11,7 +12,7 @@ export async function toggleSkill(controller: Controller, request: ToggleSkillRe
 	const { skillPath, isGlobal, enabled } = request
 
 	if (!skillPath || typeof enabled !== "boolean" || typeof isGlobal !== "boolean") {
-		console.error("toggleSkill: Missing or invalid parameters", {
+		Logger.error("toggleSkill: Missing or invalid parameters", {
 			skillPath,
 			isGlobal,
 			enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,

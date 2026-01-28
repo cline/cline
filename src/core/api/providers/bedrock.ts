@@ -12,6 +12,7 @@ import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
@@ -109,9 +110,13 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
-// a special jp inference profile was created for sonnet 4.5
+// a special jp inference profile was created for sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
-const JP_SUPPORTED_CRIS_MODELS = ["anthropic.claude-sonnet-4-5-20250929-v1:0", "anthropic.claude-sonnet-4-5-20250929-v1:0:1m"]
+const JP_SUPPORTED_CRIS_MODELS = [
+	"anthropic.claude-sonnet-4-5-20250929-v1:0",
+	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
+	"anthropic.claude-haiku-4-5-20251001-v1:0",
+]
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -449,7 +454,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							}
 						}
 					} catch (error) {
-						console.error("Error parsing Deepseek response chunk:", error)
+						Logger.error("Error parsing Deepseek response chunk:", error)
 						// Propagate the error by yielding a text response with error information
 						yield {
 							type: "text",
@@ -550,7 +555,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 				for await (const chunk of response.stream) {
 					// Debug logging to see actual response structure
-					// console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
+					// Logger.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
 
 					// Handle thinking response in additionalModelResponseFields (LangChain format)
 					const metadata = chunk.metadata as ExtendedMetadata | undefined
@@ -854,7 +859,7 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 
 						// Log unsupported content types for debugging
-						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
+						Logger.warn(`Unsupported content type: ${(item as ContentItem).type}`)
 						return null
 					})
 					.filter((item): item is ContentBlock => item !== null)
@@ -912,7 +917,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				},
 			}
 		} catch (error) {
-			console.error("Failed to process image content:", error)
+			Logger.error("Failed to process image content:", error)
 			// Return a text content indicating the error instead of null
 			// This ensures users are aware of the issue
 			return {
@@ -1111,7 +1116,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error with OpenAI model via Converse API:", error)
+			Logger.error("Error with OpenAI model via Converse API:", error)
 
 			// Try to extract more detailed error information
 			let errorMessage = "Failed to process OpenAI model request"
@@ -1246,7 +1251,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error with Qwen model via Converse API:", error)
+			Logger.error("Error with Qwen model via Converse API:", error)
 
 			// Try to extract more detailed error information
 			let errorMessage = "Failed to process Qwen model request"

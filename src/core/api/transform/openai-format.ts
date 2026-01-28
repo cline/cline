@@ -9,6 +9,7 @@ import {
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 
 // OpenAI API has a maximum tool call ID length of 40 characters
 const MAX_TOOL_CALL_ID_LENGTH = 40
@@ -424,7 +425,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 						try {
 							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
 						} catch (error) {
-							console.error("Failed to parse tool arguments:", error)
+							Logger.error("Failed to parse tool arguments:", error)
 						}
 						return {
 							type: "tool_use",
@@ -439,7 +440,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			return anthropicMessage
 		}
 	} catch (error) {
-		console.error("Error converting OpenAI message to Anthropic format:", error)
+		Logger.error("Error converting OpenAI message to Anthropic format:", error)
 	}
 
 	return anthropicMessage
