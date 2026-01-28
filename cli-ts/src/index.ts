@@ -36,7 +36,7 @@ import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { initializeCliContext } from "./vscode-context"
-import { window } from "./vscode-shim"
+import { shutdownEvent, window } from "./vscode-shim"
 
 // Track active context for graceful shutdown
 let activeContext: CliContext | null = null
@@ -50,7 +50,15 @@ function setupSignalHandlers() {
 		}
 		isShuttingDown = true
 
-		printWarning(`\n${signal} received, shutting down...`)
+		// Notify components to hide UI before shutdown
+		shutdownEvent.fire()
+
+		// Clear several lines to remove the input field and footer from display
+		// Move cursor up and clear lines (input box + footer rows)
+		const linesToClear = 8 // Input box (3 lines with border) + footer (4-5 lines)
+		process.stdout.write(`\x1b[${linesToClear}A\x1b[J`)
+
+		printWarning(`${signal} received, shutting down...`)
 
 		try {
 			if (activeContext) {
@@ -165,7 +173,10 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 	// Ink's incremental rendering tries to erase N lines based on previous output height,
 	// but when the terminal shrinks, this leaves artifacts. Gemini CLI only enables
 	// incrementalRendering when alternateBuffer is also enabled (which we don't use).
-	const { waitUntilExit, unmount } = render(element)
+	//
+	// exitOnCtrlC: false - We handle Ctrl+C ourselves so we can clean up UI before exiting.
+	// The app components listen for Ctrl+C via useInput and call their exit handlers.
+	const { waitUntilExit, unmount } = render(element, { exitOnCtrlC: false })
 
 	try {
 		await waitUntilExit()

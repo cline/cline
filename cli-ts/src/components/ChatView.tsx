@@ -109,7 +109,7 @@ import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
-import { Box, Static, Text, useInput } from "ink"
+import { Box, Static, Text, useApp, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
@@ -131,6 +131,7 @@ import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
+import { shutdownEvent } from "../vscode-shim"
 import { ActionButtons, type ButtonActionType, getButtonConfig } from "./ActionButtons"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
@@ -304,6 +305,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	initialImages,
 	taskId,
 }) => {
+	// Get Ink app instance for graceful exit
+	const { exit: inkExit } = useApp()
+
 	// Get task state from context
 	const taskState = useTaskState()
 	const { controller: taskController } = useTaskContext()
@@ -332,6 +336,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [activePanel, setActivePanel] = useState<
 		{ type: "settings"; initialMode?: "model-picker" } | { type: "history" } | null
 	>(null)
+
+	// Track when we're exiting to hide UI elements before exit
+	const [isExiting, setIsExiting] = useState(false)
+
+	// Listen for shutdown event (Ctrl+C) to hide UI before exit
+	useEffect(() => {
+		const subscription = shutdownEvent.event(() => {
+			setIsExiting(true)
+		})
+		return () => subscription.dispose()
+	}, [])
 
 	// Track which messages have been rendered to Static (by timestamp)
 	// Using refs instead of state to avoid extra renders during streaming->static transition
@@ -621,6 +636,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	}, [ctrl])
 
+	// Handle exit - hide input first, then exit Ink app gracefully
+	const handleExit = useCallback(() => {
+		setIsExiting(true)
+		// Small delay to allow Ink to re-render without the input field
+		setTimeout(() => {
+			inkExit()
+			onExit?.()
+		}, 50)
+	}, [inkExit, onExit])
+
 	// Get button config based on the last message state
 	const buttonConfig = useMemo(() => {
 		const lastMsg = messages[messages.length - 1] as ClineMessage | undefined
@@ -642,7 +667,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				case "reject":
 					// Check for resume states that should trigger exit
 					if (pendingAsk?.ask === "resume_task" || pendingAsk?.ask === "resume_completed_task") {
-						onExit?.()
+						handleExit()
 					} else {
 						sendAskResponse("noButtonClicked")
 					}
@@ -662,7 +687,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					break
 			}
 		},
-		[controller, taskController, sendAskResponse, pendingAsk, onExit, handleCancel],
+		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel],
 	)
 
 	// Handle task submission (new task)
@@ -789,6 +814,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Handle keyboard input
 	useInput((input, key) => {
+		// Handle Ctrl+C - hide input and exit gracefully
+		if (input === "\x03" || (key.ctrl && input === "c")) {
+			handleExit()
+			return
+		}
+
 		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
 		if (isMouseEscapeSequence(input)) {
 			return
@@ -1043,8 +1074,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				{/* Thinking indicator when processing */}
 				{isSpinnerActive && <ThinkingIndicator mode={mode} onCancel={handleCancel} startTime={spinnerStartTime} />}
 
-				{/* Input field with border - hidden when panel is open */}
-				{!activePanel && (
+				{/* Input field with border - hidden when panel is open or exiting */}
+				{!activePanel && !isExiting && (
 					<Box
 						borderColor={borderColor}
 						borderStyle="round"
@@ -1116,7 +1147,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 				{/* Footer - hidden when any menu or panel is shown */}
 				{!showSlashMenu && !showFileMenu && !activePanel && (
-					<>
+					<Box flexDirection="column" width="100%">
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 							<Box flexShrink={1} flexWrap="wrap">
@@ -1182,7 +1213,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								<Text color="gray">Auto-approve all disabled (Shift+Tab)</Text>
 							)}
 						</Box>
-					</>
+					</Box>
 				)}
 			</Box>
 		</Box>

@@ -35,6 +35,11 @@ vi.mock("../context/StdinContext", () => ({
 	StdinProvider: ({ children }: any) => children,
 }))
 
+// Mock useTerminalSize to prevent EventEmitter memory leak warnings from resize listeners
+vi.mock("../hooks/useTerminalSize", () => ({
+	useTerminalSize: () => ({ columns: 80, rows: 24, resizeKey: 0 }),
+}))
+
 describe("App", () => {
 	const mockController = {
 		dispose: vi.fn(),
