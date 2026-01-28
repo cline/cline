@@ -189,12 +189,34 @@ jobs:
               }
             }]')
             
-            # Add each new issue (limit to 10 to avoid huge messages)
-            NEW_ISSUES_TEXT=$(cat /tmp/new_issues.json | jq -r \
-              '.[0:10] | .[] | "• <\(.html_url)|#\(.number)>: \(.title) (_by \(.user.login)_)"')
-            
-            if [ -n "$NEW_ISSUES_TEXT" ]; then
-              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$NEW_ISSUES_TEXT" \
+            # Add each new issue with "What happened?" excerpt (limit to 5 to avoid huge messages)
+            # Extract text between "### What happened?" and "### Steps to reproduce"
+            ISSUE_COUNT=0
+            while IFS= read -r issue_json; do
+              [ -z "$issue_json" ] && continue
+              [ "$ISSUE_COUNT" -ge 5 ] && break
+              
+              NUMBER=$(echo "$issue_json" | jq -r '.number')
+              TITLE=$(echo "$issue_json" | jq -r '.title')
+              URL=$(echo "$issue_json" | jq -r '.html_url')
+              USER=$(echo "$issue_json" | jq -r '.user.login')
+              BODY=$(echo "$issue_json" | jq -r '.body // ""')
+              
+              # Extract "What happened?" section
+              # Get text after "### What happened?" and before "### Steps to reproduce"
+              WHAT_HAPPENED=$(echo "$BODY" | sed -n '/### What happened?/,/### Steps to reproduce/p' | sed '1d;$d' | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200)
+              
+              # Clean up the excerpt
+              WHAT_HAPPENED=$(echo "$WHAT_HAPPENED" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              
+              # Build the issue block (use \n for newline in Slack mrkdwn)
+              if [ -n "$WHAT_HAPPENED" ] && [ "$WHAT_HAPPENED" != "" ]; then
+                ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE* (_by $USER_)\n  _${WHAT_HAPPENED}..._"
+              else
+                ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE* (_by $USER_)"
+              fi
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
                 '. + [{
                   "type": "section",
                   "text": {
@@ -202,11 +224,13 @@ jobs:
                     "text": $text
                   }
                 }]')
-            fi
+              
+              ISSUE_COUNT=$((ISSUE_COUNT + 1))
+            done < <(cat /tmp/new_issues.json | jq -c '.[]')
             
             # Show if truncated
-            if [ "$NEW_COUNT" -gt 10 ]; then
-              REMAINING=$((NEW_COUNT - 10))
+            if [ "$NEW_COUNT" -gt 5 ]; then
+              REMAINING=$((NEW_COUNT - 5))
               BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
                 '. + [{
                   "type": "context",
@@ -251,7 +275,7 @@ jobs:
               "type": "section",
               "text": {
                 "type": "mrkdwn",
-                "text": "*💬 Issues with New Comments* _(from users, not bots)_"
+                "text": "*💬 Issues with New Comments*"
               }
             }]')
             
