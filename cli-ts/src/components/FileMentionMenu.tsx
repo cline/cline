@@ -6,7 +6,7 @@
 import { Box, Text } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
-import type { FileSearchResult } from "../utils/file-search"
+import { type FileSearchResult, getRipgrepInstallInstructions } from "../utils/file-search"
 import { getVisibleWindow } from "../utils/slash-commands"
 
 interface FileMentionMenuProps {
@@ -14,6 +14,7 @@ interface FileMentionMenuProps {
 	selectedIndex: number
 	isLoading: boolean
 	query: string
+	showRipgrepWarning?: boolean
 }
 
 /**
@@ -26,11 +27,25 @@ function truncatePath(filePath: string, maxLength: number = 50): string {
 	return "..." + filePath.slice(-(maxLength - 3))
 }
 
-export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selectedIndex, isLoading, query }) => {
+export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({
+	results,
+	selectedIndex,
+	isLoading,
+	query,
+	showRipgrepWarning,
+}) => {
+	const ripgrepWarning = showRipgrepWarning && (
+		<Box marginTop={1}>
+			<Text color="yellow">ripgrep not found - file search will be slower. </Text>
+			<Text color="gray">Install: {getRipgrepInstallInstructions()}</Text>
+		</Box>
+	)
+
 	if (isLoading) {
 		return (
 			<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 				<Text color="gray">Searching files...</Text>
+				{ripgrepWarning}
 			</Box>
 		)
 	}
@@ -39,6 +54,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 		return (
 			<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 				<Text color="gray">{query ? `No files matching "${query}"` : "Type to search files..."}</Text>
+				{ripgrepWarning}
 			</Box>
 		)
 	}
@@ -61,6 +77,7 @@ export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({ results, selec
 				)
 			})}
 			{hasMoreBelow && <Text color="gray">{"  "}▼</Text>}
+			{ripgrepWarning}
 		</Box>
 	)
 }
