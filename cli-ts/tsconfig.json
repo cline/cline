@@ -58,10 +58,12 @@
 		"outDir": "dist"
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"esbuild.mts"
 	],
 	"exclude": [
 		"node_modules",
-		"dist"
+		"dist",
+		"*.tgz"
 	]
 }

@@ -252,6 +252,41 @@ npm run watch
 npm run typecheck
 ```
 
+## Publish
+
+#### 1. Publish to npm
+```bash
+npm publish
+```
+
+#### 2. Update the Homebrew formula
+```bash
+npm run update-brew-formula
+```
+
+#### 3. Test the formula locally
+```bash
+# Create a local tap
+brew tap-new cline/local
+cp ./cli-ts/cline.rb "$(brew --repository)/Library/Taps/cline/homebrew-local/Formula/cline.rb"
+
+# Build from Source
+brew install --build-from-source cline/local/cline
+
+# Install from your local tap
+brew install cline/local/cline
+
+# Clean up when done
+brew untap cline/local
+```
+
+#### 4. If using a tap, commit and push
+```bash
+git add cline.rb
+git commit -m "Update cline to v2.0.0"
+git push
+```
+
 ## Architecture
 
 The CLI reuses the core Cline TypeScript codebase:
