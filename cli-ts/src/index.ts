@@ -21,6 +21,7 @@ import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { version as CLI_VERSION } from "../package.json"
@@ -36,6 +37,7 @@ import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
+import { printSessionSummary } from "./utils/session-summary"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 
@@ -74,6 +76,10 @@ function setupSignalHandlers() {
 		} catch {
 			// Best effort cleanup
 		}
+
+		// Print session summary before exit
+		printSessionSummary()
+
 		process.exit(0)
 	}
 
@@ -124,6 +130,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	await ClineEndpoint.initialize()
 	await initializeDistinctId(extensionContext)
+
+	// Initialize/reset session tracking for this CLI run
+	Session.reset()
 
 	if (options.enableAuth) {
 		AuthHandler.getInstance().setEnabled(true)

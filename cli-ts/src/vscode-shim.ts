@@ -109,7 +109,7 @@ function getOutputChannelLogger(channelName: string): Logger {
 			target: "pino-roll",
 			options: {
 				name: channelName,
-				file: CLI_LOG_FILE,
+				file: CLI_LOG_FILE.replace(".1", ""),
 				mkdir: true,
 				frequency: "daily",
 				limit: { count: 5 },
