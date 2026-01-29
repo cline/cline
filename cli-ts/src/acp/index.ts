@@ -4,6 +4,12 @@
  * When the CLI is invoked with `--acp`, this module sets up the ACP connection
  * and runs Cline as an ACP-compliant agent communicating over stdio.
  *
+ * This module exports:
+ * - `ClineAgent` - Decoupled agent for programmatic use (no stdio dependency)
+ * - `AcpAgent` - Thin wrapper that bridges stdio connection to ClineAgent
+ * - `ClineSessionEmitter` - Typed EventEmitter for per-session events
+ * - `runAcpMode` - Function to run Cline in stdio-based ACP mode
+ *
  * @module acp
  */
 
@@ -11,6 +17,21 @@ import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
 import { version as CLI_VERSION } from "../../../package.json"
 import { AcpAgent } from "./AcpAgent.js"
 import { nodeToWebReadable, nodeToWebWritable } from "./streamUtils.js"
+
+// Re-export classes for programmatic use
+export { ClineAgent } from "../agent/ClineAgent.js"
+export { ClineSessionEmitter } from "../agent/ClineSessionEmitter.js"
+// Re-export types
+export type {
+	AcpAgentOptions,
+	AcpSessionState,
+	ClineAcpSession,
+	ClineAgentOptions,
+	ClineSessionEvents,
+	PermissionHandler,
+	PermissionResolver,
+} from "../agent/types.js"
+export { AcpAgent } from "./AcpAgent.js"
 
 /** Original console methods for restoration if needed */
 const originalConsole = {

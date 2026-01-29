@@ -229,11 +229,11 @@ function translateSayMessage(
 
 		case "completion_result":
 			// Task completion - no direct update needed, handled by stopReason in prompt response
-			// But we can send a final message chunk
+			// But we can send a final message chunk with a leading newline to separate from previous content
 			if (message.text) {
 				updates.push({
 					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: message.text },
+					content: { type: "text", text: "\n" + message.text },
 				})
 			}
 			break
@@ -400,7 +400,6 @@ function translateAskMessage(
 	switch (ask) {
 		case "followup":
 		case "plan_mode_respond":
-		case "act_mode_respond":
 			// These are questions to the user - send as agent message and await next prompt
 			if (message.text) {
 				let textToSend = message.text
@@ -426,6 +425,11 @@ function translateAskMessage(
 					})
 				}
 			}
+			break
+
+		case "act_mode_respond":
+			// act_mode_respond signals the turn is complete but its text content was already
+			// sent via the say: "text" message. Don't send it again to avoid duplicate output.
 			break
 
 		case "command":
@@ -610,6 +614,14 @@ function translateAskMessage(
 			break
 
 		case "completion_result":
+			// Completion result needs a leading newline to separate from previous content
+			if (message.text) {
+				updates.push({
+					sessionUpdate: "agent_message_chunk",
+					content: { type: "text", text: "\n" + message.text },
+				})
+			}
+			break
 		case "resume_task":
 		case "resume_completed_task":
 		case "new_task":

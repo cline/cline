@@ -416,7 +416,6 @@ export class AcpTerminalManager implements ITerminalManager {
 	 * @param connection - The ACP agent-side connection
 	 * @param clientCapabilities - The client's advertised capabilities
 	 * @param sessionIdResolver - The current session ID
-	 * @param debug - Whether to enable debug logging
 	 */
 	constructor(
 		connection: acp.AgentSideConnection,

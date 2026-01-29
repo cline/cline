@@ -40,17 +40,6 @@ export type CwdResolver = () => string | undefined
  * the fs capabilities (readTextFile/writeTextFile).
  */
 class ACPDiffServiceClient implements DiffServiceClientInterface {
-	private readonly debug: boolean
-
-	constructor(
-		_connection: acp.AgentSideConnection,
-		_clientCapabilities: acp.ClientCapabilities | undefined,
-		_sessionIdResolver: SessionIdResolver,
-		debug: boolean = false,
-	) {
-		this.debug = debug
-	}
-
 	async openDiff(_request: proto.host.OpenDiffRequest): Promise<proto.host.OpenDiffResponse> {
 		// Next phase: Could use ACP client capabilities to open a diff view in the editor.
 		// This would involve sending an ACP extension notification/request to the client
@@ -120,12 +109,16 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
 	private readonly version: string
 
 	constructor(
-		_connection: acp.AgentSideConnection,
 		_clientCapabilities: acp.ClientCapabilities | undefined,
 		_sessionIdResolver: SessionIdResolver,
 		version: string = "1.0.0",
 	) {
 		this.version = version
+	}
+
+	async debugLog(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
+		Logger.debug(request.value)
+		return proto.cline.Empty.create()
 	}
 
 	async clipboardWriteText(_request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
@@ -188,11 +181,7 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
  * Most operations are stubs that will be implemented using ACP extension methods.
  */
 class ACPWindowServiceClient implements WindowServiceClientInterface {
-	constructor(
-		_connection: acp.AgentSideConnection,
-		_clientCapabilities: acp.ClientCapabilities | undefined,
-		_sessionIdResolver: SessionIdResolver,
-	) {}
+	constructor(_clientCapabilities: acp.ClientCapabilities | undefined, _sessionIdResolver: SessionIdResolver) {}
 
 	async showTextDocument(request: proto.host.ShowTextDocumentRequest): Promise<proto.host.TextEditorInfo> {
 		// Next phase: Send ACP extension request to open document in the editor.
@@ -281,7 +270,6 @@ class ACPWorkspaceServiceClient implements WorkspaceServiceClientInterface {
 	private readonly cwdResolver: CwdResolver
 
 	constructor(
-		_connection: acp.AgentSideConnection,
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		_sessionIdResolver: SessionIdResolver,
 		cwdResolver: CwdResolver,
@@ -401,15 +389,14 @@ export class ACPHostBridgeClientProvider implements HostBridgeClientProvider {
 	 * @param version - Version string for getHostVersion (optional)
 	 */
 	constructor(
-		connection: acp.AgentSideConnection,
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
 		cwdResolver: CwdResolver,
 		version: string = "1.0.0",
 	) {
-		this.workspaceClient = new ACPWorkspaceServiceClient(connection, clientCapabilities, sessionIdResolver, cwdResolver)
-		this.envClient = new ACPEnvServiceClient(connection, clientCapabilities, sessionIdResolver, version)
-		this.windowClient = new ACPWindowServiceClient(connection, clientCapabilities, sessionIdResolver)
-		this.diffClient = new ACPDiffServiceClient(connection, clientCapabilities, sessionIdResolver)
+		this.workspaceClient = new ACPWorkspaceServiceClient(clientCapabilities, sessionIdResolver, cwdResolver)
+		this.envClient = new ACPEnvServiceClient(clientCapabilities, sessionIdResolver, version)
+		this.windowClient = new ACPWindowServiceClient(clientCapabilities, sessionIdResolver)
+		this.diffClient = new ACPDiffServiceClient()
 	}
 }
