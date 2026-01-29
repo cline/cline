@@ -282,7 +282,7 @@ func showSessionBanner(ctx context.Context, modeFlag string, workspaces []string
 }
 
 // isUserReadyToUse checks if the user has completed initial setup
-// Returns true if welcomeViewCompleted flag is set OR user is authenticated
+// Returns true if welcomeViewCompleted flag is set OR user is authenticated OR a BYO provider is configured
 // Matches extension logic: welcomeViewCompleted = Boolean(globalState.welcomeViewCompleted || user?.uid)
 func isUserReadyToUse(ctx context.Context) bool {
 	grpcClient, err := global.GetClientForAddress(ctx, global.Config.CoreAddress)
@@ -307,6 +307,18 @@ func isUserReadyToUse(ctx context.Context) bool {
 	// Check 2: Is user authenticated? (matches extension's || user?.uid check)
 	if userInfo, ok := stateMap["userInfo"].(map[string]interface{}); ok {
 		if uid, ok := userInfo["uid"].(string); ok && uid != "" {
+			return true
+		}
+	}
+
+	// Check 3: Is a BYO provider configured? (allows skipping auth wizard when using BYO)
+	if apiConfig, ok := stateMap["apiConfiguration"].(map[string]interface{}); ok {
+		// Check plan mode provider
+		if planProvider, ok := apiConfig["planModeApiProvider"].(string); ok && planProvider != "" && planProvider != "cline" {
+			return true
+		}
+		// Check act mode provider
+		if actProvider, ok := apiConfig["actModeApiProvider"].(string); ok && actProvider != "" && actProvider != "cline" {
 			return true
 		}
 	}
