@@ -347,6 +347,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
+		// OpenAI Native and Codex providers don't support thinking budget (they use reasoning effort)
+		const showThinkingOption = provider !== "openai-native" && provider !== "openai-codex"
+
 		switch (currentTab) {
 			case "api":
 				return [
@@ -369,12 +372,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								{
-									key: "actThinkingEnabled",
-									label: "Enable thinking",
-									type: "checkbox" as const,
-									value: actThinkingEnabled,
-								},
+								...(showThinkingOption
+									? [
+											{
+												key: "actThinkingEnabled",
+												label: "Enable thinking",
+												type: "checkbox" as const,
+												value: actThinkingEnabled,
+											},
+										]
+									: []),
 								{ key: "planHeader", label: "Plan Mode", type: "header" as const, value: "" },
 								{
 									key: "planModelId",
@@ -382,12 +389,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									type: "editable" as const,
 									value: planModelId || "not set",
 								},
-								{
-									key: "planThinkingEnabled",
-									label: "Enable thinking",
-									type: "checkbox" as const,
-									value: planThinkingEnabled,
-								},
+								...(showThinkingOption
+									? [
+											{
+												key: "planThinkingEnabled",
+												label: "Enable thinking",
+												type: "checkbox" as const,
+												value: planThinkingEnabled,
+											},
+										]
+									: []),
 								{ key: "spacer1", label: "", type: "spacer" as const, value: "" },
 							]
 						: [
@@ -397,12 +408,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								{
-									key: "actThinkingEnabled",
-									label: "Enable thinking",
-									type: "checkbox" as const,
-									value: actThinkingEnabled,
-								},
+								...(showThinkingOption
+									? [
+											{
+												key: "actThinkingEnabled",
+												label: "Enable thinking",
+												type: "checkbox" as const,
+												value: actThinkingEnabled,
+											},
+										]
+									: []),
 							]),
 					{
 						key: "separateModels",
