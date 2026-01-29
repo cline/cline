@@ -1,34 +1,35 @@
 import React from "react"
+import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
 
 const SubagentOutputLineLimitSlider: React.FC = () => {
 	const { subagentTerminalOutputLineLimit } = useExtensionState()
 
-	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const value = parseInt(event.target.value, 10)
-		updateSetting("subagentTerminalOutputLineLimit", value)
+	const handleSliderChange = (value: number[]) => {
+		updateSetting("subagentTerminalOutputLineLimit", value[0])
 	}
 
 	return (
-		<div>
-			<label htmlFor="subagent-output-limit" style={{ fontWeight: "700", fontSize: 12, display: "block", marginBottom: 5 }}>
-				Subagent output limit
-			</label>
-			<div style={{ display: "flex", alignItems: "center" }}>
-				<input
-					id="subagent-output-limit"
-					max="5000"
-					min="100"
-					onChange={handleSliderChange}
-					step="100"
-					style={{ flexGrow: 1, marginRight: "1rem" }}
-					type="range"
-					value={subagentTerminalOutputLineLimit ?? 2000}
-				/>
-				<span>{subagentTerminalOutputLineLimit ?? 2000}</span>
+		<div className="mt-2 p-3 rounded-md bg-editor-widget-background/30 border border-editor-widget-border/30">
+			<div className="flex items-center justify-between gap-4">
+				<div className="space-y-0.5 flex-1">
+					<Label className="text-xs font-medium text-description">Output Limit (100-5000)</Label>
+				</div>
+				<span className="text-sm font-mono text-foreground w-12 text-right">
+					{subagentTerminalOutputLineLimit ?? 2000}
+				</span>
 			</div>
-			<p style={{ fontSize: 11, color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
+			<Slider
+				className="mt-2"
+				max={5000}
+				min={100}
+				onValueChange={handleSliderChange}
+				step={100}
+				value={[subagentTerminalOutputLineLimit ?? 2000]}
+			/>
+			<p className="text-xs text-description mt-2">
 				Maximum number of lines to include in output from CLI subagents. Truncates middle to save tokens.
 			</p>
 		</div>
