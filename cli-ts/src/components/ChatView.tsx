@@ -463,8 +463,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Load existing task when taskId is provided
 	useEffect(() => {
 		if (!taskId) return
-
 		if (!ctrl) return
+		// Prevent duplicate loads after resize. The resize fix remounts components via
+		// resizeKey, but the controller's task persists. Skip if already loaded.
+		if (ctrl.task?.taskId === taskId) return
 
 		// Load the task by ID
 		showTaskWithId(ctrl, StringRequest.create({ value: taskId })).catch((error) => {
