@@ -1,8 +1,11 @@
 import os from "node:os"
 import path from "node:path"
+import { parseYamlFrontmatter as parseYamlFrontmatterBase } from "@core/context/instructions/user-instructions/frontmatter"
 import { existsSync } from "fs"
 import { mkdir, readdir, readFile, writeFile } from "fs/promises"
 import { Logger } from "@/shared/services/Logger"
+import { ClineDefaultTool } from "@/shared/tools"
+import { isLocatedInPath } from "@/utils/path"
 
 const DEFAULT_PROMPT_ID = "default"
 
@@ -22,34 +25,35 @@ export interface RoleTransformation {
 }
 
 /**
- * Tool groups for granular tool selection
- * Each group contains related tools that can be enabled/disabled together
+ * Tool groups for granular tool selection.
+ * Each group contains related tools that can be enabled/disabled together.
+ * Uses ClineDefaultTool enum values to ensure consistency with tool definitions.
  */
 export const TOOL_GROUPS = {
 	/** File system tools: read, write, list, search */
 	filesystem: [
-		"read_file",
-		"write_to_file",
-		"replace_in_file",
-		"list_files",
-		"search_files",
-		"list_code_definition_names",
-		"apply_patch",
+		ClineDefaultTool.FILE_READ,
+		ClineDefaultTool.FILE_NEW,
+		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.LIST_FILES,
+		ClineDefaultTool.SEARCH,
+		ClineDefaultTool.LIST_CODE_DEF,
+		ClineDefaultTool.APPLY_PATCH,
 	],
 	/** Browser automation tools */
-	browser: ["browser_action"],
+	browser: [ClineDefaultTool.BROWSER],
 	/** Web access tools: fetch, search */
-	web: ["web_fetch", "web_search"],
+	web: [ClineDefaultTool.WEB_FETCH, ClineDefaultTool.WEB_SEARCH],
 	/** Command execution tools */
-	terminal: ["execute_command"],
+	terminal: [ClineDefaultTool.BASH],
 	/** MCP integration tools */
-	mcp: ["use_mcp_tool", "access_mcp_resource", "load_mcp_documentation"],
+	mcp: [ClineDefaultTool.MCP_USE, ClineDefaultTool.MCP_ACCESS, ClineDefaultTool.MCP_DOCS],
 	/** Communication tools */
-	communication: ["ask_followup_question", "attempt_completion"],
+	communication: [ClineDefaultTool.ASK, ClineDefaultTool.ATTEMPT],
 	/** Task management tools */
-	task: ["new_task", "plan_mode_respond", "act_mode_respond", "focus_chain"],
+	task: [ClineDefaultTool.NEW_TASK, ClineDefaultTool.PLAN_MODE, ClineDefaultTool.ACT_MODE, ClineDefaultTool.TODO],
 	/** Utility tools */
-	utility: ["generate_explanation", "use_skill"],
+	utility: [ClineDefaultTool.GENERATE_EXPLANATION, ClineDefaultTool.USE_SKILL],
 } as const
 
 export type ToolGroup = keyof typeof TOOL_GROUPS
@@ -179,164 +183,52 @@ export interface PromptValidationResult {
 	metadata?: CustomPromptMetadata
 }
 
-// YAML frontmatter regex pattern
-const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---\s*\n?/
-
 /**
- * Parses YAML frontmatter from content (simple parser, no external deps)
- * Supports nested objects (one level deep) for tools configuration
+ * Parses YAML frontmatter from content using the shared frontmatter parser.
+ * Wraps the result to match CustomPromptMetadata interface.
  */
 function parseYamlFrontmatter(content: string): { metadata: CustomPromptMetadata; rawContent: string } {
-	const match = content.match(FRONTMATTER_REGEX)
-	if (!match) {
+	const result = parseYamlFrontmatterBase(content)
+
+	if (result.parseError) {
+		Logger.warn(`Failed to parse prompt frontmatter: ${result.parseError}`)
 		return { metadata: {}, rawContent: content }
 	}
 
-	const yamlContent = match[1]
-	const rawContent = content.slice(match[0].length)
+	// Map parsed data to CustomPromptMetadata
+	const data = result.data
 	const metadata: CustomPromptMetadata = {}
 
-	const lines = yamlContent.split("\n")
-	let currentKey: string | null = null
-	let currentArray: string[] | null = null
-	let currentObject: Record<string, unknown> | null = null
-	let currentObjectKey: string | null = null
-	let currentObjectArray: string[] | null = null
+	// String fields
+	if (typeof data.name === "string") metadata.name = data.name
+	if (typeof data.description === "string") metadata.description = data.description
+	if (typeof data.version === "string") metadata.version = data.version
+	if (typeof data.author === "string") metadata.author = data.author
 
-	const getIndentLevel = (line: string): number => {
-		const match = line.match(/^(\s*)/)
-		return match ? match[1].length : 0
-	}
+	// Boolean fields
+	if (typeof data.includeToolInstructions === "boolean") metadata.includeToolInstructions = data.includeToolInstructions
+	if (typeof data.includeEditingGuidelines === "boolean") metadata.includeEditingGuidelines = data.includeEditingGuidelines
+	if (typeof data.includeBrowserRules === "boolean") metadata.includeBrowserRules = data.includeBrowserRules
+	if (typeof data.includeMcpSection === "boolean") metadata.includeMcpSection = data.includeMcpSection
+	if (typeof data.includeUserInstructions === "boolean") metadata.includeUserInstructions = data.includeUserInstructions
+	if (typeof data.includeRules === "boolean") metadata.includeRules = data.includeRules
+	if (typeof data.includeSystemInfo === "boolean") metadata.includeSystemInfo = data.includeSystemInfo
+	if (typeof data.enablePlaceholders === "boolean") metadata.enablePlaceholders = data.enablePlaceholders
 
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i]
-		const trimmed = line.trim()
-		if (!trimmed || trimmed.startsWith("#")) continue
+	// Array fields
+	if (Array.isArray(data.includeComponents)) metadata.includeComponents = data.includeComponents as string[]
+	if (Array.isArray(data.excludeComponents)) metadata.excludeComponents = data.excludeComponents as string[]
 
-		const indent = getIndentLevel(line)
-
-		// Handle nested object array items (indent >= 4)
-		if (trimmed.startsWith("- ") && currentObject && currentObjectKey && currentObjectArray !== null && indent >= 4) {
-			currentObjectArray.push(
-				trimmed
-					.slice(2)
-					.trim()
-					.replace(/^['"]|['"]$/g, ""),
-			)
-			continue
-		}
-
-		// Handle top-level array items (indent >= 2 but in array context)
-		if (trimmed.startsWith("- ") && currentKey && currentArray !== null && !currentObject) {
-			currentArray.push(
-				trimmed
-					.slice(2)
-					.trim()
-					.replace(/^['"]|['"]$/g, ""),
-			)
-			continue
-		}
-
-		// Check for key: value pair
-		const keyMatch = trimmed.match(/^(\w+):\s*(.*)$/)
-		if (keyMatch) {
-			const key = keyMatch[1]
-			const value = keyMatch[2].trim()
-
-			// Save pending nested object array
-			if (currentObject && currentObjectKey && currentObjectArray !== null) {
-				currentObject[currentObjectKey] = currentObjectArray
-				currentObjectArray = null
-				currentObjectKey = null
-			}
-
-			// Check if this is a nested key (indent >= 2 and we have a current object)
-			if (indent >= 2 && currentObject) {
-				currentObjectKey = key
-
-				if (value === "" || value === "[]") {
-					currentObjectArray = []
-				} else if (value.startsWith("[") && value.endsWith("]")) {
-					const items = value
-						.slice(1, -1)
-						.split(",")
-						.map((s) => s.trim().replace(/^['"]|['"]$/g, ""))
-						.filter((s) => s)
-					currentObject[key] = items
-					currentObjectKey = null
-				} else if (value === "true" || value === "false") {
-					currentObject[key] = value === "true"
-					currentObjectKey = null
-				} else if (!isNaN(Number(value)) && value !== "") {
-					currentObject[key] = Number(value)
-					currentObjectKey = null
-				} else if (value) {
-					currentObject[key] = value.replace(/^['"]|['"]$/g, "")
-					currentObjectKey = null
-				}
-				continue
-			}
-
-			// Top-level key - save previous state
-			if (currentKey && currentArray !== null) {
-				;(metadata as any)[currentKey] = currentArray
-			}
-			if (currentKey && currentObject !== null) {
-				;(metadata as any)[currentKey] = currentObject
-			}
-
-			currentKey = key
-			currentArray = null
-			currentObject = null
-			currentObjectKey = null
-			currentObjectArray = null
-
-			if (value === "" || value === "[]") {
-				// Could be start of array or object - peek ahead
-				const nextLine = i + 1 < lines.length ? lines[i + 1] : ""
-				const nextTrimmed = nextLine.trim()
-				const nextIndent = getIndentLevel(nextLine)
-
-				if (nextIndent >= 2 && nextTrimmed && !nextTrimmed.startsWith("-") && nextTrimmed.includes(":")) {
-					// Next line is an indented key: value - this is an object
-					currentObject = {}
-				} else {
-					// Start of array
-					currentArray = []
-				}
-			} else if (value.startsWith("[") && value.endsWith("]")) {
-				const items = value
-					.slice(1, -1)
-					.split(",")
-					.map((s) => s.trim().replace(/^['"]|['"]$/g, ""))
-					.filter((s) => s)
-				;(metadata as any)[currentKey] = items
-				currentKey = null
-			} else if (value === "true" || value === "false") {
-				;(metadata as any)[currentKey] = value === "true"
-				currentKey = null
-			} else if (!isNaN(Number(value)) && value !== "") {
-				;(metadata as any)[currentKey] = Number(value)
-				currentKey = null
-			} else if (value) {
-				;(metadata as any)[currentKey] = value.replace(/^['"]|['"]$/g, "")
-				currentKey = null
-			}
+	// Tools object
+	if (data.tools && typeof data.tools === "object") {
+		const tools = data.tools as Record<string, unknown>
+		metadata.tools = {
+			enabled: Array.isArray(tools.enabled) ? (tools.enabled as string[]) : undefined,
+			disabled: Array.isArray(tools.disabled) ? (tools.disabled as string[]) : undefined,
 		}
 	}
 
-	// Save final pending state
-	if (currentObject && currentObjectKey && currentObjectArray !== null) {
-		currentObject[currentObjectKey] = currentObjectArray
-	}
-	if (currentKey && currentArray !== null) {
-		;(metadata as any)[currentKey] = currentArray
-	}
-	if (currentKey && currentObject !== null) {
-		;(metadata as any)[currentKey] = currentObject
-	}
-
-	return { metadata, rawContent }
+	return { metadata, rawContent: result.body }
 }
 
 /**
@@ -914,8 +806,7 @@ You review legal documents for clarity, consistency, and potential issues.
 		}
 
 		const promptPath = path.resolve(this.promptsDir, `${activeId}.md`)
-		// Prevent path traversal attacks
-		if (!promptPath.startsWith(this.promptsDir + path.sep)) {
+		if (!isLocatedInPath(this.promptsDir, promptPath)) {
 			Logger.warn(`Invalid active prompt path detected: ${activeId}`)
 			return null
 		}
@@ -946,8 +837,7 @@ You review legal documents for clarity, consistency, and potential issues.
 		// Validate prompt exists (unless default)
 		if (promptId !== DEFAULT_PROMPT_ID) {
 			const promptPath = path.resolve(this.promptsDir, `${promptId}.md`)
-			// Prevent path traversal attacks
-			if (!promptPath.startsWith(this.promptsDir + path.sep)) {
+			if (!isLocatedInPath(this.promptsDir, promptPath)) {
 				throw new Error(`Invalid prompt ID: ${promptId}`)
 			}
 			if (!existsSync(promptPath)) {
@@ -994,7 +884,7 @@ You review legal documents for clarity, consistency, and potential issues.
 		}
 
 		const promptPath = path.resolve(this.promptsDir, `${activeId}.md`)
-		if (!promptPath.startsWith(this.promptsDir + path.sep)) {
+		if (!isLocatedInPath(this.promptsDir, promptPath)) {
 			Logger.warn(`Invalid active prompt path detected: ${activeId}`)
 			return null
 		}
@@ -1027,7 +917,7 @@ You review legal documents for clarity, consistency, and potential issues.
 	 */
 	async validatePrompt(promptId: string): Promise<PromptValidationResult> {
 		const promptPath = path.resolve(this.promptsDir, `${promptId}.md`)
-		if (!promptPath.startsWith(this.promptsDir + path.sep)) {
+		if (!isLocatedInPath(this.promptsDir, promptPath)) {
 			return {
 				isValid: false,
 				errors: ["Invalid prompt ID (path traversal detected)"],
@@ -1070,7 +960,7 @@ You review legal documents for clarity, consistency, and potential issues.
 
 		// Load from disk
 		const promptPath = path.resolve(this.promptsDir, `${promptId}.md`)
-		if (!promptPath.startsWith(this.promptsDir + path.sep)) {
+		if (!isLocatedInPath(this.promptsDir, promptPath)) {
 			return null
 		}
 		if (!existsSync(promptPath)) {
@@ -1201,6 +1091,61 @@ You review legal documents for clarity, consistency, and potential issues.
 
 		lines.push("---")
 		return lines.join("\n")
+	}
+
+	/**
+	 * Updates an existing prompt file
+	 */
+	async updatePrompt(promptId: string, content: string): Promise<{ success: boolean; error?: string }> {
+		const promptPath = path.resolve(this.promptsDir, `${promptId}.md`)
+
+		if (!isLocatedInPath(this.promptsDir, promptPath)) {
+			Logger.warn(`Invalid prompt path detected: ${promptId}`)
+			return { success: false, error: "Invalid prompt ID" }
+		}
+
+		if (!existsSync(promptPath)) {
+			return { success: false, error: "Prompt file not found" }
+		}
+
+		try {
+			await writeFile(promptPath, content, "utf-8")
+			this.clearCache()
+			return { success: true }
+		} catch (error) {
+			return { success: false, error: `Failed to update prompt: ${error}` }
+		}
+	}
+
+	/**
+	 * Deletes a prompt file
+	 */
+	async deletePrompt(promptId: string): Promise<{ success: boolean; error?: string }> {
+		const promptPath = path.resolve(this.promptsDir, `${promptId}.md`)
+
+		if (!isLocatedInPath(this.promptsDir, promptPath)) {
+			Logger.warn(`Invalid prompt path detected: ${promptId}`)
+			return { success: false, error: "Invalid prompt ID" }
+		}
+
+		if (!existsSync(promptPath)) {
+			return { success: false, error: "Prompt file not found" }
+		}
+
+		try {
+			// Deactivate if this was the active prompt
+			const activeId = await this.getActivePromptId()
+			if (activeId === promptId) {
+				await this.deactivateAll()
+			}
+
+			const { unlink } = await import("fs/promises")
+			await unlink(promptPath)
+			this.clearCache()
+			return { success: true }
+		} catch (error) {
+			return { success: false, error: `Failed to delete prompt: ${error}` }
+		}
 	}
 }
 

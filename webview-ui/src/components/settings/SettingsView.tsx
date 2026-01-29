@@ -6,6 +6,7 @@ import {
 	FlaskConical,
 	Info,
 	type LucideIcon,
+	MessageSquare,
 	SlidersHorizontal,
 	SquareMousePointer,
 	SquareTerminal,
@@ -26,6 +27,7 @@ import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import SystemPromptsSection from "./sections/SystemPromptsSection"
 import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
@@ -54,6 +56,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "Feature Settings",
 		headerText: "Feature Settings",
 		icon: CheckCheck,
+	},
+	{
+		id: "system-prompts",
+		name: "System Prompts",
+		tooltipText: "Custom Prompts Configuration",
+		headerText: "System Prompts",
+		icon: MessageSquare,
 	},
 	{
 		id: "browser",
@@ -123,6 +132,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			"api-config": ApiConfigurationSection,
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
+			"system-prompts": SystemPromptsSection,
 			browser: BrowserSettingsSection,
 			terminal: TerminalSettingsSection,
 			about: AboutSection,

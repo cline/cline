@@ -208,7 +208,8 @@ export async function getSystemPrompt(context: SystemPromptContext) {
 
 	if (customPromptData) {
 		const { rawContent, metadata } = customPromptData
-		Logger.log("Using custom system prompt")
+		Logger.log(`Using custom system prompt with content length: ${rawContent.length}`)
+		Logger.log(`Custom prompt metadata: ${JSON.stringify({ name: metadata.name, description: metadata.description })}`)
 
 		// Build custom prompt by merging with default components
 		let finalPrompt = await buildCustomPrompt(rawContent, metadata, context)
