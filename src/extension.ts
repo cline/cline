@@ -72,6 +72,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				const pattern = new vscode.RelativePattern(dir, "*")
 				const watcher = vscode.workspace.createFileSystemWatcher(pattern)
+				// Ensure watcher is disposed when extension is deactivated
+				context.subscriptions.push(watcher)
 				// Adapt VSCode FileSystemWatcher to generic interface
 				return {
 					onDidCreate: (listener: () => void) => watcher.onDidCreate(listener),
@@ -85,10 +87,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 		(callback: () => void) => {
 			// Adapt VSCode Disposable to generic interface
-			return vscode.workspace.onDidChangeWorkspaceFolders(callback)
+			const disposable = vscode.workspace.onDidChangeWorkspaceFolders(callback)
+			context.subscriptions.push(disposable)
+			return disposable
 		},
 	)
 
+	// Register services and perform common initialization
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	if (IS_DEV) {

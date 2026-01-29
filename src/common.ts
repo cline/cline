@@ -50,47 +50,43 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {
-		Logger.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+		Logger.error("[Cline] CRITICAL: Failed to initialize StateManager:", error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Failed to initialize Cline's application state. Please restart the extension.",
+			message: "Failed to initialize storage. Please check logs for details or try restarting the client.",
 		})
 	}
 
-	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
-	ClineTempManager.startPeriodicCleanup()
-
+	// =============== External services ===============
+	await ErrorService.initialize()
 	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
 	openAiCodexOAuthManager.initialize(context)
-
 	// Initialize PostHog client provider (skip in self-hosted mode)
 	if (!ClineEndpoint.isSelfHosted()) {
 		PostHogClientProvider.getInstance()
 	}
 
-	// Setup the external services
-	await ErrorService.initialize()
-	await featureFlagsService.poll(null)
-
-	// Clean up orphaned file context warnings (startup cleanup)
-	await FileContextTracker.cleanupOrphanedWarnings(context)
-
+	// =============== Webview services ===============
 	const webview = HostProvider.get().createWebviewProvider()
-
-	await showVersionUpdateAnnouncement(context)
-
-	// Check if this workspace was opened from worktree quick launch
-	await checkWorktreeAutoOpen(context)
-
 	// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
 	BannerService.initialize(webview.controller)
-	// DISABLED: .getActiveBanners(true)
+
+	const stateManager = StateManager.get()
+	// Non-blocking announcement check and display
+	showVersionUpdateAnnouncement(context)
+	// Check if this workspace was opened from worktree quick launch
+	await checkWorktreeAutoOpen(stateManager)
+
+	// =============== Background sync and cleanup tasks ===============
+	// Use remote config blobStoreConfig if available, otherwise fall back to env vars
+	const blobStoreSettings = stateManager.getRemoteConfigSettings()?.blobStoreConfig ?? getBlobStoreSettingsFromEnv()
+	syncWorker().init({ ...blobStoreSettings, userDistinctId: getDistinctId() })
+	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
+	ClineTempManager.startPeriodicCleanup()
+	// Clean up orphaned file context warnings (startup cleanup)
+	FileContextTracker.cleanupOrphanedWarnings(context)
 
 	telemetryService.captureExtensionActivated()
-
-	// Use remote config blobStoreConfig if available, otherwise fall back to env vars
-	const blobStoreSettings = StateManager.get().getRemoteConfigSettings()?.blobStoreConfig ?? getBlobStoreSettingsFromEnv()
-	syncWorker().init({ ...blobStoreSettings, userDistinctId: getDistinctId() })
 
 	return webview
 }
@@ -131,11 +127,11 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
  * Checks if this workspace was opened from the worktree quick launch button.
  * If so, opens the Cline sidebar and clears the state.
  */
-async function checkWorktreeAutoOpen(context: vscode.ExtensionContext): Promise<void> {
+async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> {
 	try {
 		// Read directly from globalState (not StateManager cache) since this may have been
 		// set by another window right before this one opened
-		const worktreeAutoOpenPath = context.globalState.get<string>("worktreeAutoOpenPath")
+		const worktreeAutoOpenPath = stateManager.getGlobalStateKey("worktreeAutoOpenPath")
 		if (!worktreeAutoOpenPath) {
 			return
 		}
@@ -151,7 +147,7 @@ async function checkWorktreeAutoOpen(context: vscode.ExtensionContext): Promise<
 		// Check if current workspace matches the worktree path
 		if (arePathsEqual(currentPath, worktreeAutoOpenPath)) {
 			// Clear the state first to prevent re-triggering
-			await context.globalState.update("worktreeAutoOpenPath", undefined)
+			stateManager.setGlobalState("worktreeAutoOpenPath", undefined)
 			// Open the Cline sidebar
 			await HostProvider.workspace.openClineSidebarPanel({})
 		}
