@@ -11,6 +11,7 @@ import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { FeatureFlagsAndPayloads } from "@/services/feature-flags/providers/IFeatureFlagsProvider"
 import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Logger } from "@/shared/services/Logger"
@@ -64,6 +65,7 @@ export const GlobalFileNames = {
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
+	featureFlagsCache: "feature_flags_cache.json",
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -113,6 +115,13 @@ export async function getDocumentsPath(): Promise<string> {
  */
 export function getClineHomePath(): string {
 	return path.join(os.homedir(), ".cline")
+}
+
+async function getExistingClineHomeDir(): Promise<string> {
+	const clineHomeDir = getClineHomePath()
+	await fs.mkdir(clineHomeDir, { recursive: true })
+
+	return clineHomeDir
 }
 
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
@@ -460,6 +469,41 @@ export async function deleteRemoteConfigFromCache(organizationId: string): Promi
 		}
 	} catch (error) {
 		Logger.error("Failed to delete remote config from cache:", error)
+	}
+}
+
+export interface FeatureFlagsCacheData {
+	updateTime: number
+	userId: string | null
+	cachedFlags: string[]
+	flagsPayload?: FeatureFlagsAndPayloads
+}
+
+export async function readFeatureFlagsCacheFromDisk(): Promise<FeatureFlagsCacheData | undefined> {
+	try {
+		const clineHomeDir = await getExistingClineHomeDir()
+		const cacheFilePath = path.join(clineHomeDir, GlobalFileNames.featureFlagsCache)
+		const fileExists = await fileExistsAtPath(cacheFilePath)
+
+		if (!fileExists) {
+			return undefined
+		}
+
+		const fileContents = await fs.readFile(cacheFilePath, "utf8")
+		return JSON.parse(fileContents)
+	} catch (error) {
+		Logger.error("Failed to read feature flags cache from disk:", error)
+		return undefined
+	}
+}
+
+export async function writeFeatureFlagsCacheToDisk(cache: FeatureFlagsCacheData): Promise<void> {
+	try {
+		const clineHomeDir = await getExistingClineHomeDir()
+		const cacheFilePath = path.join(clineHomeDir, GlobalFileNames.featureFlagsCache)
+		await fs.writeFile(cacheFilePath, JSON.stringify(cache, null, 2))
+	} catch (error) {
+		Logger.error("Failed to write feature flags cache to disk:", error)
 	}
 }
 
