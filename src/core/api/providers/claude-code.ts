@@ -64,6 +64,18 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
+			// Handle streaming events for incremental token output
+			if (chunk.type === "stream_event" && "event" in chunk) {
+				const event = chunk.event
+				if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+					yield {
+						type: "text",
+						text: event.delta.text,
+					}
+				}
+				continue
+			}
+
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 

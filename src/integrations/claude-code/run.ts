@@ -201,6 +201,7 @@ function runProcess(
 		"--verbose",
 		"--output-format",
 		"stream-json",
+		"--include-partial-messages",
 		"--disallowedTools",
 		claudeCodeTools,
 		// Cline will handle recursive calls

@@ -31,4 +31,22 @@ type ResultMessage = {
 	session_id: string
 }
 
-export type ClaudeCodeMessage = InitMessage | AssistantMessage | ErrorMessage | ResultMessage
+// Streaming event message for incremental token output (--include-partial-messages)
+type StreamEventMessage = {
+	type: "stream_event"
+	event: {
+		type: string
+		index?: number
+		delta?: {
+			type: string
+			text?: string
+		}
+		content_block?: {
+			type: string
+			text?: string
+		}
+	}
+	session_id: string
+}
+
+export type ClaudeCodeMessage = InitMessage | AssistantMessage | ErrorMessage | ResultMessage | StreamEventMessage
