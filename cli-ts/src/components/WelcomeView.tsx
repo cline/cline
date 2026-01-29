@@ -319,7 +319,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 			{/* Help text */}
 			<Box>
 				<Text color="gray">Enter to submit · @ to mention files · </Text>
-				<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"} dimColor={!escPressedOnce}>
+				<Text bold={escPressedOnce} color={escPressedOnce ? "white" : "gray"}>
 					{escPressedOnce ? "Press Esc again to exit" : "Esc to exit"}
 				</Text>
 			</Box>

@@ -51,11 +51,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 			)
 		} else if (fullMatch.startsWith("`") && fullMatch.endsWith("`")) {
 			// Inline code
-			nodes.push(
-				<Text dimColor key={key}>
-					{fullMatch.slice(1, -1)}
-				</Text>,
-			)
+			nodes.push(<Text key={key}>{fullMatch.slice(1, -1)}</Text>)
 		}
 
 		lastIndex = regex.lastIndex
@@ -106,7 +102,7 @@ const DotRow: React.FC<{ children: React.ReactNode; color?: string }> = ({ child
 const ResultRow: React.FC<{ children: React.ReactNode; isFirst?: boolean }> = ({ children, isFirst }) => (
 	<Box flexDirection="row">
 		<Box width={3}>
-			<Text dimColor>{isFirst ? "⎿ " : "  "}</Text>
+			<Text color="gray">{isFirst ? "⎿ " : "  "}</Text>
 		</Box>
 		<Box flexGrow={1}>{children}</Box>
 	</Box>
@@ -258,7 +254,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 						<Box flexDirection="column" marginLeft={2} width="100%">
 							{contentLines.map((line, idx) => (
 								<ResultRow isFirst={idx === 0} key={idx}>
-									<Text dimColor>{line}</Text>
+									<Text color="gray">{line}</Text>
 								</ResultRow>
 							))}
 						</Box>
@@ -302,7 +298,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 					<Box flexDirection="column" marginLeft={2} width="100%">
 						{formatToolResult(output, 8).map((line, idx) => (
 							<ResultRow isFirst={idx === 0} key={idx}>
-								<Text dimColor>{line}</Text>
+								<Text color="gray">{line}</Text>
 							</ResultRow>
 						))}
 					</Box>
@@ -319,7 +315,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				<Box flexDirection="column" marginLeft={2} width="100%">
 					{lines.map((line, idx) => (
 						<ResultRow isFirst={idx === 0} key={idx}>
-							<Text dimColor>{line}</Text>
+							<Text color="gray">{line}</Text>
 						</ResultRow>
 					))}
 				</Box>
