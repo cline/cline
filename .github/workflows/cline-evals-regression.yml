@@ -76,6 +76,8 @@ jobs:
           - 03-read-summarize
           - 04-multi-file
           - 05-typescript-function
+          - 06-apply-patch
+          - 07-edit-gemini
     steps:
       - uses: actions/checkout@v4
 
@@ -123,14 +125,14 @@ jobs:
 
       - name: Configure auth
         env:
-          VERCEL_API_KEY: ${{ secrets.VERCEL_API_KEY }}
+          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
           export PATH="$HOME/.cline/cli/bin:$PATH"
-          cline auth -p vercel-ai-gateway -k "$VERCEL_API_KEY" -m "anthropic/claude-sonnet-4.5"
+          cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
 
       - name: Run test
         env:
-          VERCEL_API_KEY: ${{ secrets.VERCEL_API_KEY }}
+          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
           export PATH="$HOME/.cline/cli/bin:$PATH"
           npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --scenario ${{ matrix.scenario }}
