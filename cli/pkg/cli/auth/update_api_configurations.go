@@ -174,6 +174,15 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
 		}, nil
 
+	case cline.ApiProvider_SAPAICORE:
+		return ProviderFields{
+			APIKeyField:                          "sapAiCoreClientId",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeProviderSpecificModelIDField: "planModeSapAiCoreDeploymentId",
+			ActModeProviderSpecificModelIDField:  "actModeSapAiCoreDeploymentId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
@@ -291,6 +300,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.HicapApiKey = value
 	case "nousResearchApiKey":
 		apiConfig.NousResearchApiKey = value
+	case "sapAiCoreClientId":
+		apiConfig.SapAiCoreClientId = value
 	}
 }
 
@@ -318,6 +329,9 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeNousResearchModelId":
 		apiConfig.PlanModeNousResearchModelId = value
 		apiConfig.ActModeNousResearchModelId = value
+	case "planModeSapAiCoreDeploymentId":
+		apiConfig.PlanModeSapAiCoreDeploymentId = value
+		apiConfig.ActModeSapAiCoreDeploymentId = value
 	}
 }
 
@@ -454,6 +468,20 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	return nil
 }
 
+// getSapAiCoreRemovalFields returns all SAP AI Core-specific fields that should be cleared when removing the provider
+func getSapAiCoreRemovalFields() []string {
+	return []string{
+		"sapAiCoreClientId",
+		"sapAiCoreClientSecret",
+		"sapAiCoreBaseUrl",
+		"sapAiCoreTokenUrl",
+		"sapAiResourceGroup",
+		"sapAiCoreUseOrchestrationMode",
+		"planModeSapAiCoreDeploymentId",
+		"actModeSapAiCoreDeploymentId",
+	}
+}
+
 // RemoveProviderPartial removes a provider by clearing its API key using partial updates
 func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider) error {
 	// Get field mapping for this provider
@@ -466,11 +494,16 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	// Fields in the mask without values will be cleared
 	apiConfig := &cline.ModelsApiConfiguration{}
 
-	// Build field mask with only the API key field(s)
-	// For Bedrock, include both access key and secret key
-	fieldPaths := []string{fields.APIKeyField}
-	if provider == cline.ApiProvider_BEDROCK {
-		fieldPaths = append(fieldPaths, "awsSecretKey")
+	// Build field mask with provider-specific fields to clear
+	var fieldPaths []string
+
+	switch provider {
+	case cline.ApiProvider_BEDROCK:
+		fieldPaths = []string{fields.APIKeyField, "awsSecretKey"}
+	case cline.ApiProvider_SAPAICORE:
+		fieldPaths = getSapAiCoreRemovalFields()
+	default:
+		fieldPaths = []string{fields.APIKeyField}
 	}
 
 	// Create field mask
