@@ -4,6 +4,7 @@
  */
 
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
+import { fuzzyFilter } from "./fuzzy-search"
 
 export interface SlashQueryInfo {
 	inSlashMode: boolean
@@ -91,13 +92,13 @@ export function extractSlashQuery(text: string, cursorPosition?: number): SlashQ
 }
 
 /**
- * Filter commands that match the query prefix (case-insensitive)
+ * Filter commands using fuzzy matching
  */
 export function filterCommands(commands: SlashCommandInfo[], query: string): SlashCommandInfo[] {
 	if (!query) {
 		return commands
 	}
-	return commands.filter((cmd) => cmd.name.toLowerCase().startsWith(query.toLowerCase()))
+	return fuzzyFilter(commands, query, (cmd) => cmd.name)
 }
 
 /**

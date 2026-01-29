@@ -9,6 +9,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"
+import { fuzzyFilter } from "../utils/fuzzy-search"
 import { isMouseEscapeSequence } from "../utils/input"
 
 export interface SearchableListItem {
@@ -38,17 +39,14 @@ export function SearchableList<T extends SearchableListItem>({
 	const [search, setSearch] = useState("")
 	const [index, setIndex] = useState(0)
 
-	// Default filter: search in id and label
-	const defaultFilter = (item: T, searchStr: string) => {
-		const searchLower = searchStr.toLowerCase()
-		return item.id.toLowerCase().includes(searchLower) || item.label.toLowerCase().includes(searchLower)
-	}
-
-	// Filter items by search
+	// Filter items by search using fuzzy matching
 	const filteredItems = useMemo(() => {
 		if (!search) return items
-		const filter = filterFn || defaultFilter
-		return items.filter((item) => filter(item, search))
+		// Use custom filter if provided, otherwise use fuzzy search
+		if (filterFn) {
+			return items.filter((item) => filterFn(item, search))
+		}
+		return fuzzyFilter(items, search, (item) => `${item.label} ${item.id}`)
 	}, [items, search, filterFn])
 
 	// Use shared scrollable list hook for windowing
