@@ -57,6 +57,11 @@ jobs:
           NEW_ISSUES=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
             '[.[] | select(.created_at >= $since and .state == "open")]')
           
+          # Closed issues: issues that were closed in the time window
+          CLOSED_COUNT=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+            '[.[] | select(.state == "closed" and .closed_at >= $since)] | length')
+          echo "closed_count=$CLOSED_COUNT" >> $GITHUB_OUTPUT
+          
           # Reopened/Updated issues: older issues that were updated recently
           REOPENED_CANDIDATES_RAW=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
             '[.[] | select(.created_at < $since and .state == "open" and .updated_at >= $since)]')
@@ -200,6 +205,7 @@ jobs:
           NEW_COUNT="${{ steps.issues.outputs.new_count }}"
           REOPENED_COUNT="${{ steps.issues.outputs.reopened_count }}"
           COMMENTED_COUNT="${{ steps.comments.outputs.commented_count }}"
+          CLOSED_COUNT="${{ steps.issues.outputs.closed_count }}"
           
           # Check if there's anything to report
           if [ "$NEW_COUNT" -eq 0 ] && [ "$REOPENED_COUNT" -eq 0 ] && [ "$COMMENTED_COUNT" -eq 0 ]; then
@@ -229,13 +235,14 @@ jobs:
             --arg new "$NEW_COUNT" \
             --arg reopened "$REOPENED_COUNT" \
             --arg commented "$COMMENTED_COUNT" \
+            --arg closed "$CLOSED_COUNT" \
             --arg repo "${{ github.repository }}" \
             --arg hours "${{ env.HOURS_LOOKBACK }}" \
             '. + [{
               "type": "context",
               "elements": [{
                 "type": "mrkdwn",
-                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented"
+                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed"
               }]
             }]')
           
