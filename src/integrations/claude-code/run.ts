@@ -160,23 +160,26 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 
 // We want the model to use our custom tool format instead of built-in tools.
 // Disabling built-in tools prevents tool-only responses and ensures text output.
+// Updated for Claude Code v2.1.23+ (January 2026)
 const claudeCodeTools = [
 	"Task",
+	"TaskOutput",
+	"TaskStop",
 	"Bash",
 	"Glob",
 	"Grep",
-	"LS",
-	"exit_plan_mode",
+	"EnterPlanMode",
+	"ExitPlanMode",
 	"Read",
 	"Edit",
-	"MultiEdit",
 	"Write",
-	"NotebookRead",
 	"NotebookEdit",
 	"WebFetch",
-	"TodoRead",
 	"TodoWrite",
 	"WebSearch",
+	"AskUserQuestion",
+	"Skill",
+	"ToolSearch",
 ].join(",")
 
 const CLAUDE_CODE_TIMEOUT = 600000 // 10 minutes
