@@ -154,6 +154,8 @@
 			],
 			"includes": [
 				"**",
+				"!**/esbuild.*",
+				"!**/*.mts",
 				"!**/webview-ui/**",
 				"!**/evals/**",
 				"!**/standalone/**",

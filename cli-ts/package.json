@@ -11,9 +11,12 @@
 		"node": ">=20.0.0"
 	},
 	"scripts": {
-		"build": "node esbuild.mjs",
-		"build:production": "node esbuild.mjs --production",
-		"watch": "node esbuild.mjs --watch",
+		"prepublishOnly": "npm run build:production",
+		"package:brew": "node ./scripts/update-brew-formula.mts",
+		"package": "npm pack --pack-destination ./dist",
+		"build": "node esbuild.mts",
+		"build:production": "node esbuild.mts --production",
+		"watch": "node esbuild.mts --watch",
 		"dev": "IS_DEV=true && npm run link && npm run watch ; npm run unlink",
 		"clean": "rimraf dist",
 		"typecheck": "tsc --noEmit",

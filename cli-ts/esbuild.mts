@@ -1,22 +1,23 @@
-import "dotenv/config"
-
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import dotenv from "dotenv"
 import * as esbuild from "esbuild"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, "..")
 
+// Load .env from repo root
+dotenv.config({ path: path.join(rootDir, ".env") })
+
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
 
 /**
  * Plugin to resolve path aliases from the parent project
- * @type {import('esbuild').Plugin}
  */
-const aliasResolverPlugin = {
+const aliasResolverPlugin: esbuild.Plugin = {
 	name: "alias-resolver",
 	setup(build) {
 		const aliases = {
@@ -74,9 +75,8 @@ const aliasResolverPlugin = {
 
 /**
  * Plugin to redirect vscode imports to our shim
- * @type {import('esbuild').Plugin}
  */
-const vscodeStubPlugin = {
+const vscodeStubPlugin: esbuild.Plugin = {
 	name: "vscode-stub",
 	setup(build) {
 		// Redirect 'vscode' imports to our shim
@@ -86,11 +86,11 @@ const vscodeStubPlugin = {
 	},
 }
 
-const esbuildProblemMatcherPlugin = {
+const esbuildProblemMatcherPlugin: esbuild.Plugin = {
 	name: "esbuild-problem-matcher",
 	setup(build) {
 		build.onStart(() => {
-			console.log("[cli-ts] Build started...")
+			console.log("[cli-ts esbuild] Build started...")
 		})
 		build.onEnd((result) => {
 			result.errors.forEach(({ text, location }) => {
@@ -99,13 +99,13 @@ const esbuildProblemMatcherPlugin = {
 					console.error(`    ${location.file}:${location.line}:${location.column}:`)
 				}
 			})
-			console.log("[cli-ts] Build finished")
+			console.log("[cli-ts esbuild] Build finished")
 		})
 	},
 }
 
 // Plugin to stub out optional devtools module
-const stubOptionalModulesPlugin = {
+const stubOptionalModulesPlugin: esbuild.Plugin = {
 	name: "stub-optional-modules",
 	setup(build) {
 		build.onResolve({ filter: /^react-devtools-core$/ }, () => {
@@ -114,7 +114,7 @@ const stubOptionalModulesPlugin = {
 	},
 }
 
-const copyWasmFiles = {
+const copyWasmFiles: esbuild.Plugin = {
 	name: "copy-wasm-files",
 	setup(build) {
 		build.onEnd(() => {
@@ -166,7 +166,7 @@ const copyWasmFiles = {
 	},
 }
 
-const buildEnvVars = {
+const buildEnvVars: Record<string, string> = {
 	"process.env.IS_STANDALONE": JSON.stringify("true"),
 	"process.env.IS_CLI": JSON.stringify("true"),
 }
@@ -196,7 +196,7 @@ if (production) {
 	buildEnvVars["process.env.IS_DEV"] = "false"
 }
 
-const config = {
+const config: esbuild.BuildOptions = {
 	entryPoints: [path.join(__dirname, "src", "index.ts")],
 	bundle: true,
 	minify: production,
@@ -255,6 +255,6 @@ async function main() {
 }
 
 main().catch((e) => {
-	console.error(e)
+	console.log(e)
 	process.exit(1)
 })
