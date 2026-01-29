@@ -10,6 +10,7 @@ import {
 	SquareMousePointer,
 	SquareTerminal,
 	Wrench,
+	FileText,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
@@ -23,6 +24,7 @@ import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
+import CustomPromptsSection from "./sections/CustomPromptsSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
@@ -54,6 +56,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "Feature Settings",
 		headerText: "Feature Settings",
 		icon: CheckCheck,
+	},
+	{
+		id: "custom-prompts",
+		name: "Custom Prompts",
+		tooltipText: "Custom System Prompts Management",
+		headerText: "Custom System Prompts",
+		icon: FileText,
 	},
 	{
 		id: "browser",
@@ -123,6 +132,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			"api-config": ApiConfigurationSection,
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
+			"custom-prompts": CustomPromptsSection,
 			browser: BrowserSettingsSection,
 			terminal: TerminalSettingsSection,
 			about: AboutSection,

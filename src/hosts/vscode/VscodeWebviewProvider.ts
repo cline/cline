@@ -2,6 +2,9 @@ import { sendShowWebviewEvent } from "@core/controller/ui/subscribeToShowWebview
 import { WebviewProvider } from "@core/webview"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
+import { listCustomPrompts } from "@/core/controller/prompts/listCustomPrompts"
+import { openPromptsFolder } from "@/core/controller/prompts/openPromptsFolder"
+import { setActiveCustomPrompt } from "@/core/controller/prompts/setActiveCustomPrompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
@@ -174,9 +177,53 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				}
 				break
 			}
+			case "customSystemPrompts": {
+				await this.handleCustomSystemPromptsMessage(message)
+				break
+			}
 			default: {
 				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}
+		}
+	}
+
+	private async handleCustomSystemPromptsMessage(message: WebviewMessage) {
+		const { action, promptId } = message
+
+		try {
+			switch (action) {
+				case "list": {
+					const result = await listCustomPrompts()
+					await this.postMessageToWebview({
+						type: "customSystemPrompts.response",
+						action: "list",
+						prompts: result.prompts,
+						activePromptId: result.activePromptId,
+					} as any)
+					break
+				}
+				case "activate": {
+					if (promptId) {
+						const result = await setActiveCustomPrompt(promptId)
+						await this.postMessageToWebview({
+							type: "customSystemPrompts.response",
+							action: "activate",
+							success: result.success,
+							activePromptId: result.activePromptId,
+							error: result.error,
+						} as any)
+					}
+					break
+				}
+				case "openFolder": {
+					await openPromptsFolder()
+					break
+				}
+				default:
+					Logger.warn("Unknown customSystemPrompts action:", action)
+			}
+		} catch (error) {
+			Logger.error("Error handling customSystemPrompts message:", error)
 		}
 	}
 
