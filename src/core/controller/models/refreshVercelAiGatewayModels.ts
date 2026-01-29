@@ -4,6 +4,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -81,6 +82,11 @@ function deriveTemperature(modelId: string): number | undefined {
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshVercelAiGatewayModels(_controller: Controller): Promise<Record<string, ModelInfo>> {
+	const cache = StateManager.get().getModelsCache("vercel")
+	if (cache) {
+		return cache
+	}
+
 	const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 
 	let models: Record<string, ModelInfo> = {}
@@ -122,7 +128,7 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			await fs.writeFile(vercelAiGatewayModelsFilePath, JSON.stringify(models))
 			Logger.log("Vercel AI Gateway models fetched and saved")
 		} else {
-			Logger.error("Invalid response from Vercel AI Gateway API")
+			throw new Error("Invalid response from Vercel AI Gateway API")
 		}
 	} catch (error) {
 		Logger.error("Error fetching Vercel AI Gateway models:", error)
@@ -133,6 +139,9 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			models = cachedModels
 		}
 	}
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("vercel", models)
 
 	return models
 }

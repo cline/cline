@@ -415,11 +415,29 @@ export class StateManager {
 			| "huaweiCloudMaas"
 			| "hicap"
 			| "aihubmix"
-			| "liteLlm",
+			| "liteLlm"
+			| "vercel",
 		models: Record<string, ModelInfo>,
 	): void {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
 		this.modelInfoCache[cacheKey] = models
+	}
+
+	getModelsCache(
+		provider:
+			| "openRouter"
+			| "groq"
+			| "baseten"
+			| "huggingFace"
+			| "requesty"
+			| "huaweiCloudMaas"
+			| "hicap"
+			| "aihubmix"
+			| "liteLlm"
+			| "vercel",
+	): Record<string, ModelInfo> | null {
+		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
+		return this.modelInfoCache[cacheKey]
 	}
 
 	/**

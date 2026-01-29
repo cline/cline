@@ -4,6 +4,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -16,6 +17,11 @@ import { Controller } from ".."
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshGroqModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	const cache = StateManager.get().getModelsCache("groq")
+	if (cache) {
+		return cache
+	}
+
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 
 	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
@@ -158,6 +164,9 @@ export async function refreshGroqModels(controller: Controller): Promise<Record<
 			tiers: model.tiers,
 		}
 	}
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("groq", typedModels)
 
 	return typedModels
 }

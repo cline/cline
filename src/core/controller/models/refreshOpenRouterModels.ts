@@ -78,6 +78,11 @@ interface OpenRouterRawModelInfo {
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	const cache = StateManager.get().getModelsCache("openRouter")
+	if (cache) {
+		return cache
+	}
+
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, ModelInfo> = {}
@@ -237,12 +242,14 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					// sonnet 4.5
 					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
 				}
+
+				// Save models and cache them in memory
+				await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
+				Logger.log("OpenRouter models fetched and saved")
 			}
 		} else {
-			Logger.error("Invalid response from OpenRouter API")
+			throw new Error("Invalid response data when fetching OpenRouter models")
 		}
-		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		Logger.log("OpenRouter models fetched and saved")
 	} catch (error) {
 		Logger.error("Error fetching OpenRouter models:", error)
 
