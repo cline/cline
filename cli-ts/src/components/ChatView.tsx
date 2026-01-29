@@ -101,9 +101,10 @@
  * - log-update: node_modules/ink/build/log-update.js (eraseLines logic)
  */
 
+import type { ModelInfo } from "@shared/api"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
+import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
@@ -140,6 +141,7 @@ import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
+import { providerModels } from "./ModelPicker"
 import { SessionSummary } from "./SessionSummary"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
@@ -417,6 +419,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const stateManager = StateManager.get()
 		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
+	}, [mode, activePanel])
+
+	// Get provider based on current mode
+	const provider = useMemo(() => {
+		const stateManager = StateManager.get()
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		return (stateManager.getGlobalSettingsKey(providerKey) as string) || "anthropic"
 	}, [mode, activePanel])
 
 	const toggleMode = useCallback(async () => {
@@ -1224,6 +1233,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const borderColor = mode === "act" ? COLORS.primaryBlue : "yellow"
 	const metrics = getApiMetrics(messages)
+
+	// Get last API request total tokens for context window progress
+	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(messages), [messages])
+
+	// Get context window size from model info
+	const contextWindowSize = useMemo(() => {
+		const providerData = providerModels[provider]
+		if (providerData && modelId in providerData.models) {
+			const modelInfo = providerData.models[modelId] as ModelInfo
+			if (modelInfo?.contextWindow) {
+				return modelInfo.contextWindow
+			}
+		}
+		return DEFAULT_CONTEXT_WINDOW
+	}, [provider, modelId])
+
 	const showSlashMenu = slashInfo.inSlashMode && !slashMenuDismissed
 	const showFileMenu = mentionInfo.inMentionMode && !showSlashMenu
 
@@ -1390,10 +1415,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						<Box paddingLeft={1} paddingRight={1}>
 							<Text>
 								{modelId} {(() => {
-									const bar = createContextBar(
-										metrics.totalTokensIn + metrics.totalTokensOut,
-										DEFAULT_CONTEXT_WINDOW,
-									)
+									const bar = createContextBar(lastApiReqTotalTokens, contextWindowSize)
 									return (
 										<Text>
 											<Text>{bar.filled}</Text>
@@ -1401,8 +1423,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 										</Text>
 									)
 								})()} <Text color="gray">
-									({(metrics.totalTokensIn + metrics.totalTokensOut).toLocaleString()}) | $
-									{metrics.totalCost.toFixed(3)}
+									({lastApiReqTotalTokens.toLocaleString()}) | ${metrics.totalCost.toFixed(3)}
 								</Text>
 							</Text>
 						</Box>
