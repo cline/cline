@@ -40,7 +40,6 @@ const ClineRulesToggleModal: React.FC = () => {
 		remoteWorkflowToggles = {},
 		remoteConfigSettings = {},
 		hooksEnabled,
-		skillsEnabled,
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
@@ -75,13 +74,6 @@ const ClineRulesToggleModal: React.FC = () => {
 			setCurrentView("rules")
 		}
 	}, [currentView, hooksEnabled])
-
-	// Auto-switch to rules tab if skills become disabled while viewing skills tab
-	useEffect(() => {
-		if (currentView === "skills" && !skillsEnabled) {
-			setCurrentView("rules")
-		}
-	}, [currentView, skillsEnabled])
 
 	useEffect(() => {
 		if (isVisible) {
@@ -484,11 +476,9 @@ const ClineRulesToggleModal: React.FC = () => {
 										Hooks
 									</TabButton>
 								)}
-								{skillsEnabled && (
-									<TabButton isActive={currentView === "skills"} onClick={() => setCurrentView("skills")}>
-										Skills
-									</TabButton>
-								)}
+								<TabButton isActive={currentView === "skills"} onClick={() => setCurrentView("skills")}>
+									Skills
+								</TabButton>
 							</div>
 						</div>
 

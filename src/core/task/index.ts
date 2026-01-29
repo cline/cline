@@ -1775,9 +1775,8 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
-		// Discover and filter available skills (gated by skillsEnabled setting)
-		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
-		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		// Discover and filter available skills
+		const allSkills = await discoverSkills(this.cwd)
 		const resolvedSkills = getAvailableSkills(allSkills)
 
 		// Filter skills by toggle state (enabled by default)
