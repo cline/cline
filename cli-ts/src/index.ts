@@ -295,7 +295,7 @@ async function runTask(
 	// Detect if output is a TTY (interactive terminal) or redirected to a file/pipe
 	const isTTY = process.stdout.isTTY === true
 
-	// Use plain text mode when output is redirected, stdin was piped, JSON mode is enabled, or --plain flag is used
+	// Use plain text mode when output is redirected, stdin was piped, JSON mode is enabled, or --yolo flag is used
 	// Ink requires raw mode on stdin which isn't available when stdin is piped
 	// Note: we use the stdinWasPiped flag passed from the caller because process.stdin.isTTY
 	// may not be reliable after stdin has been consumed by readStdinIfPiped()
@@ -528,7 +528,6 @@ program
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.option("--json", "Output messages as JSON instead of styled text")
-	.option("--plain", "Use plain text output (no Ink UI)")
 	.action((prompt, options) => runTask(prompt, options))
 
 program
