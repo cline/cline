@@ -114,6 +114,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/shared/services/Logger"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
@@ -157,6 +158,7 @@ const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 const DEFAULT_CONTEXT_WINDOW = 200000
+const PASTE_COLLAPSE_THRESHOLD = 100 // Charcters before showing placeholder
 
 /**
  * Get current git branch name
@@ -295,6 +297,17 @@ function parseAskOptions(text: string): string[] {
 	return parts.options || []
 }
 
+/**
+ * Expand pasted text placeholders back to actual content
+ * Replaces [Pasted text #N +X lines] with the stored content
+ */
+function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
+	return text.replace(/\[Pasted text #(\d+) \+\d+ lines\]/g, (match, num) => {
+		const content = pastedTexts.get(parseInt(num, 10))
+		return content ?? match
+	})
+}
+
 export const ChatView: React.FC<ChatViewProps> = ({
 	controller,
 	onExit,
@@ -325,6 +338,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 	const [userScrolled, setUserScrolled] = useState(false)
+
+	// Pasted text storage - maps placeholder number to full pasted content
+	const [pastedTexts, setPastedTexts] = useState<Map<number, string>>(new Map())
+	const pasteCounterRef = useRef(0)
+	// Track paste timing to combine chunks that arrive in rapid succession
+	const lastPasteTimeRef = useRef<number>(0)
+	const activePasteNumRef = useRef<number>(0)
+	const activePasteStartPosRef = useRef<number>(0) // Where the placeholder starts in the text
+	const activePasteLinesRef = useRef<number>(0) // Total line count for current paste
+	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce placeholder updates
+	const PASTE_CHUNK_WINDOW_MS = 150 // Chunks within this window are combined into one paste
+	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
 
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -612,17 +637,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (responseType: string, text?: string) => {
 			if (!ctrl?.task || !pendingAsk) return
 
+			// Expand any pasted text placeholders
+			const expandedText = text ? expandPastedTexts(text, pastedTexts) : text
+
 			setRespondedToAsk(pendingAsk.ts)
 			setTextInput("")
 			setCursorPos(0)
+			setPastedTexts(new Map()) // Clear stored pastes
+			pasteCounterRef.current = 0
 
 			try {
-				await ctrl.task.handleWebviewAskResponse(responseType, text)
+				await ctrl.task.handleWebviewAskResponse(responseType, expandedText)
 			} catch {
 				// Controller may be disposed
 			}
 		},
-		[ctrl, pendingAsk],
+		[ctrl, pendingAsk, pastedTexts],
 	)
 
 	// Handle cancel/interrupt
@@ -695,8 +725,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (text: string, images: string[]) => {
 			if (!ctrl || !text.trim()) return
 
+			// Expand any pasted text placeholders
+			const expandedText = expandPastedTexts(text, pastedTexts)
+
 			setTextInput("")
 			setCursorPos(0)
+			setPastedTexts(new Map()) // Clear stored pastes
+			pasteCounterRef.current = 0
 
 			try {
 				// Convert image paths to data URLs if needed
@@ -718,13 +753,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							)
 						: []
 				const validImages = imageDataUrls.filter((img): img is string => img !== null)
-				setTerminalTitle(text.trim())
-				await ctrl.initTask(text.trim(), validImages.length > 0 ? validImages : undefined)
+				setTerminalTitle(expandedText.trim())
+				await ctrl.initTask(expandedText.trim(), validImages.length > 0 ? validImages : undefined)
 			} catch (_error) {
 				onError?.()
 			}
 		},
-		[ctrl, onError],
+		[ctrl, onError, pastedTexts],
 	)
 
 	// Auto-submit initial prompt if provided
@@ -952,6 +987,100 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
+		// Handle Ctrl+ shortcuts
+		const keydown = input?.toLowerCase()
+		if ((key.ctrl || key.meta) && cursorPos && keydown) {
+			switch (keydown) {
+				case "u": // Ctrl+U, clear line before cursor
+					if (cursorPos > 0) {
+						setTextInput((prev) => prev.slice(cursorPos))
+						setCursorPos(0)
+					}
+					return
+				case "e": // Ctrl+E, move cursor to end
+					setCursorPos(textInput.length)
+					return
+				case "b": // Ctrl+B, move cursor left
+					setCursorPos((pos) => Math.max(0, pos - 1))
+					return
+				case "f": // Ctrl+F, move cursor right
+					setCursorPos((pos) => Math.min(textInput.length, pos + 1))
+					return
+				case "d": // Ctrl+D, delete character after cursor
+					if (cursorPos < textInput.length) {
+						setTextInput((prev) => prev.slice(0, cursorPos) + prev.slice(cursorPos + 1))
+					}
+					return
+				case "h": // Ctrl+H, delete character before cursor (like backspace)
+					if (cursorPos > 0) {
+						setTextInput((prev) => prev.slice(0, cursorPos - 1) + prev.slice(cursorPos))
+						setCursorPos((pos) => pos - 1)
+					}
+					return
+			}
+		}
+
+		// Detect paste by checking if input length exceeds threshold
+		// Large pastes mess up the terminal UI, so we collapse them into a placeholder
+		// Terminal sends large pastes in multiple chunks, so we combine chunks that arrive rapidly
+		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
+			const now = Date.now()
+			const timeSinceLastPaste = now - lastPasteTimeRef.current
+			lastPasteTimeRef.current = now
+
+			// Check if this is a continuation of a recent paste (within time window)
+			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS && activePasteNumRef.current > 0) {
+				// Append to existing paste content (store immediately, don't lose data)
+				const pasteNum = activePasteNumRef.current
+				const chunkLines = input.match(/[\r\n]/g)?.length || 0
+				activePasteLinesRef.current += chunkLines
+
+				setPastedTexts((prev) => {
+					const next = new Map(prev)
+					const existing = next.get(pasteNum) || ""
+					next.set(pasteNum, existing + input)
+					return next
+				})
+
+				// Debounce the visual update to avoid flicker while chunks are arriving
+				if (pasteUpdateTimeoutRef.current) {
+					clearTimeout(pasteUpdateTimeoutRef.current)
+				}
+				pasteUpdateTimeoutRef.current = setTimeout(() => {
+					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
+					setTextInput((prev) => {
+						const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
+						return prev.replace(pattern, newPlaceholder)
+					})
+					// Update cursor to be right after the placeholder
+					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
+					Logger.info(`Paste #${pasteNum} complete: ${activePasteLinesRef.current} lines`)
+				}, PASTE_UPDATE_DEBOUNCE_MS)
+
+				return // Don't add another placeholder
+			}
+
+			// New paste operation - create placeholder
+			pasteCounterRef.current += 1
+			const pasteNum = pasteCounterRef.current
+			activePasteNumRef.current = pasteNum
+			activePasteStartPosRef.current = cursorPos // Track where placeholder starts
+			// Count line breaks in the pasted content (handle both \n and \r)
+			const extraLines = input.match(/[\r\n]/g)?.length || 0
+			activePasteLinesRef.current = extraLines // Track total lines
+			const placeholder = `[Pasted text #${pasteNum} +${extraLines} lines]`
+			// Store the full content
+			setPastedTexts((prev) => {
+				const next = new Map(prev)
+				next.set(pasteNum, input)
+				return next
+			})
+
+			setTextInput((prev) => prev.slice(0, cursorPos) + placeholder + prev.slice(cursorPos))
+			setCursorPos(cursorPos + placeholder.length)
+			return // Exit early - don't also add the raw input via normal handling below
+		}
+
 		// Normal input handling
 		if (key.shift && key.tab) {
 			toggleYolo()
@@ -991,6 +1120,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			setCursorPos(moveCursorDown(textInput, cursorPos))
 			return
 		}
+		// Normal input (single char or short paste)
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			setTextInput((prev) => prev.slice(0, cursorPos) + input + prev.slice(cursorPos))
 			setCursorPos((pos) => pos + input.length)
