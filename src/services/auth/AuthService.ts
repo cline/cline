@@ -404,6 +404,7 @@ export class AuthService {
 		})
 
 		await Promise.all(streamSends)
+
 		// Identify the user in telemetry if available
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
