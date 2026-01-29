@@ -47,3 +47,10 @@ test-results
 /pkg
 .secrets
 
+# Smoke test workspace outputs (regenerated on each run)
+evals/smoke-tests/scenarios/*/workspace/*
+evals/smoke-tests/scenarios/*/workspace-trial-*
+!evals/smoke-tests/scenarios/*/workspace/.gitkeep
+
+# Smoke test results (generated)
+evals/smoke-tests/results/
