@@ -33,7 +33,24 @@ service StateService {
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
+
+  // Instance usage/introspection for orchestration/cleanup.
+  // Intended for CLI automation to identify idle instances.
+  rpc getInstanceUsage(EmptyRequest) returns (InstanceUsage);
   rpc flushPendingState(EmptyRequest) returns (Empty);
+}
+
+message InstanceUsage {
+  // Number of tasks currently initialized/active in this core instance.
+  // (This is a coarse signal; used together with last_activity_ts_ms + active_connections.)
+  int32 active_tasks = 1;
+
+  // Number of active gRPC requests/subscriptions currently registered.
+  int32 active_connections = 2;
+
+  // Timestamp (ms since epoch) of last meaningful activity.
+  // Updated on task creation, task output streaming, and request lifecycle events.
+  int64 last_activity_ts_ms = 3;
 }
 
 message AutoApprovalActions {

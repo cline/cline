@@ -1,4 +1,5 @@
 import { Controller } from "@core/controller/index"
+import { instanceUsageTracker } from "@core/services/instance-usage/InstanceUsageTracker"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
@@ -55,6 +56,7 @@ export async function handleGrpcRequest(
 	postMessageToWebview: PostMessageToWebview,
 	request: GrpcRequest,
 ): Promise<void> {
+	instanceUsageTracker.markActivity()
 	recordRequest(request, controller)
 
 	// Create recording middleware wrapper
@@ -161,6 +163,7 @@ async function handleStreamingRequest(
  * @param request The cancellation request
  */
 export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageToWebview, request: GrpcCancel) {
+	instanceUsageTracker.markActivity()
 	const cancelled = requestRegistry.cancelRequest(request.request_id)
 
 	if (cancelled) {

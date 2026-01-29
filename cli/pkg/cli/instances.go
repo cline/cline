@@ -69,7 +69,89 @@ func NewInstanceCommand() *cobra.Command {
 	cmd.AddCommand(newInstanceListCommand())
 	cmd.AddCommand(newInstanceDefaultCommand())
 	cmd.AddCommand(newInstanceNewCommand())
+	cmd.AddCommand(newInstanceCleanupCommand())
 	cmd.AddCommand(newInstanceKillCommand())
+
+	return cmd
+}
+
+func newInstanceCleanupCommand() *cobra.Command {
+	var idle string
+	var killIdle bool
+
+	cmd := &cobra.Command{
+		Use:     "cleanup",
+		Aliases: []string{"prune"},
+		Short:   "Clean up stale Cline instances",
+		Long:    "Remove stale (unhealthy) instances from the registry and attempt to shutdown any dangling host processes. Optionally, terminate healthy idle instances.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if global.Instances == nil {
+				return fmt.Errorf("clients not initialized")
+			}
+
+			ctx := cmd.Context()
+			registry := global.Instances.GetRegistry()
+
+			// Always clean up stale/unhealthy instances first
+			if err := registry.CleanupStaleInstances(ctx); err != nil {
+				return err
+			}
+
+			if !killIdle {
+				return nil
+			}
+
+			if idle == "" {
+				return fmt.Errorf("--idle is required when --kill-idle is set")
+			}
+
+			idleDur, err := time.ParseDuration(idle)
+			if err != nil {
+				return fmt.Errorf("invalid --idle duration %q: %w", idle, err)
+			}
+			idleMs := idleDur.Milliseconds()
+			if idleMs <= 0 {
+				return fmt.Errorf("--idle must be > 0")
+			}
+
+			instances := registry.ListInstances()
+			for _, instance := range instances {
+				if instance.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+					continue
+				}
+
+				cl, err := registry.GetClient(ctx, instance.CoreAddress)
+				if err != nil {
+					continue
+				}
+
+				usage, err := cl.State.GetInstanceUsage(ctx, &cline.EmptyRequest{})
+				if err != nil {
+					// Best-effort: if the instance doesn't support the RPC or is unreachable, skip it.
+					continue
+				}
+
+				if usage.ActiveTasks != 0 {
+					continue
+				}
+				if usage.ActiveConnections != 0 {
+					continue
+				}
+
+				ageMs := time.Now().UnixMilli() - usage.LastActivityTsMs
+				if ageMs <= idleMs {
+					continue
+				}
+
+				_ = global.KillInstanceByAddress(ctx, registry, instance.CoreAddress)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&killIdle, "kill-idle", false, "Also terminate healthy instances that are idle")
+	cmd.Flags().StringVar(&idle, "idle", "", "Idle duration threshold (e.g., 10m, 1h). Used with --kill-idle")
 
 	return cmd
 }
