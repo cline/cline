@@ -3,6 +3,7 @@ import { Controller } from "@/core/controller"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
+import { ConfiguredAPIKeys } from "@/shared/storage/state-keys"
 import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
@@ -217,12 +218,14 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 			await controller.accountService.switchAccount(organizationId)
 		}
 
+		const configuredApiKeys: ConfiguredAPIKeys = {}
 		// Fetch and store API keys for configured providers
 		const hasConfiguredProviders = config.providerSettings && Object.keys(config.providerSettings).length > 0
 		if (hasConfiguredProviders) {
 			const apiKeys = await fetchApiKeysForOrganization(organizationId)
 			if (config.providerSettings?.LiteLLM) {
 				if (apiKeys.litellm) {
+					configuredApiKeys["litellm"] = true
 					controller.stateManager.setSecret("remoteLiteLlmApiKey", apiKeys.litellm)
 				} else {
 					controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
@@ -237,7 +240,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
 		// Cache and apply the remote config
 		await writeRemoteConfigToCache(organizationId, config)
 		if (isRemoteConfigEnabled(organizationId)) {
-			await applyRemoteConfig(config, undefined, controller.mcpHub)
+			await applyRemoteConfig(config, configuredApiKeys, controller.mcpHub)
 		} else {
 			clearRemoteConfig()
 		}

@@ -9,7 +9,7 @@ import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
@@ -41,9 +41,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 				throw new Error("OpenAI API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					apiKey: this.options.openAiNativeApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenAI client: ${error.message}`)
@@ -159,7 +158,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
-			?.filter((tool) => tool.type === "function")
+			?.filter((tool) => tool?.type === "function")
 			.map((tool: any) => ({
 				type: "function" as const,
 				name: tool.function.name,

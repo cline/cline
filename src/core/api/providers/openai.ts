@@ -2,8 +2,9 @@ import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient, fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -45,6 +46,7 @@ export class OpenAiHandler implements ApiHandler {
 			try {
 				const baseUrl = this.options.openAiBaseUrl?.toLowerCase() ?? ""
 				const isAzureDomain = baseUrl.includes("azure.com") || baseUrl.includes("azure.us")
+				const externalHeaders = buildExternalBasicHeaders()
 				// Azure API shape slightly differs from the core API shape...
 				if (
 					this.options.azureApiVersion ||
@@ -58,7 +60,10 @@ export class OpenAiHandler implements ApiHandler {
 								this.getAzureAudienceScope(this.options.openAiBaseUrl),
 							),
 							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-							defaultHeaders: this.options.openAiHeaders,
+							defaultHeaders: {
+								...externalHeaders,
+								...this.options.openAiHeaders,
+							},
 							fetch,
 						})
 					} else {
@@ -66,16 +71,18 @@ export class OpenAiHandler implements ApiHandler {
 							baseURL: this.options.openAiBaseUrl,
 							apiKey: this.options.openAiApiKey,
 							apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-							defaultHeaders: this.options.openAiHeaders,
+							defaultHeaders: {
+								...externalHeaders,
+								...this.options.openAiHeaders,
+							},
 							fetch,
 						})
 					}
 				} else {
-					this.client = new OpenAI({
+					this.client = createOpenAIClient({
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
 						defaultHeaders: this.options.openAiHeaders,
-						fetch,
 					})
 				}
 			} catch (error: any) {
@@ -163,7 +170,7 @@ export class OpenAiHandler implements ApiHandler {
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

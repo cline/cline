@@ -126,7 +126,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
+		// NOTE: Do NOT reset consecutiveMistakeCount here - it should only be reset after successful completion
+		// The reset was moved to after saveChanges() succeeds to properly track consecutive failures
 
 		try {
 			const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
@@ -297,6 +298,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 				await config.services.diffViewProvider.saveChanges()
 
+			// Reset consecutive mistake counter on successful file operation
+			config.taskState.consecutiveMistakeCount = 0
+
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
 			// Track file edit operation
@@ -423,13 +427,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				newContent = result.newContent
 				matchIndices = result.matchIndices
 			} catch (error) {
-				// Check if we've already pushed an error for this specific tool call (prevents duplicates during streaming)
-				const callId = block.call_id || ""
-				if (callId && config.taskState.errorPushedForCallIds.has(callId)) {
+				// During streaming (block.partial=true), the diff may fail repeatedly as incomplete content streams in.
+				// Skip all error UI handling for partial blocks to prevent flickering.
+				if (block.partial) {
 					return
 				}
 
-				// Full original behavior - comprehensive error handling even for partial blocks
+				config.taskState.consecutiveMistakeCount++
+
 				// Removes any existing diff_error messages to avoid duplicates.
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
 				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
@@ -461,10 +466,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.toolUseIdMap,
 				)
 
-				// Mark this call as having had its error pushed (prevents duplicates during streaming)
-				if (callId) {
-					config.taskState.errorPushedForCallIds.add(callId)
-				}
 				if (!config.enableParallelToolCalling) {
 					config.taskState.didAlreadyUseTool = true
 				}

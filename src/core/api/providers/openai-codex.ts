@@ -4,6 +4,7 @@ import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
 import { v7 as uuidv7 } from "uuid"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -157,7 +158,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		// Pass through strict value from tool (MCP/custom tools have strict: false, built-in tools default to true)
 		if (tools && tools.length > 0) {
 			body.tools = tools
-				.filter((tool: any) => tool.type === "function")
+				.filter((tool: any) => tool?.type === "function")
 				.map((tool: any) => ({
 					type: "function",
 					name: tool.function.name,
@@ -184,6 +185,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 				session_id: this.sessionId,
 				"User-Agent": `cline/${process.env.npm_package_version || "1.0.0"} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
 				...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
+				...buildExternalBasicHeaders(),
 			}
 
 			// Try using OpenAI SDK first

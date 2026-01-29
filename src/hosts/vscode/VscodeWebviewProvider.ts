@@ -113,7 +113,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// if the extension is starting a new session, clear previous task state
 		this.controller.clearTask()
 
-		HostProvider.get().logToChannel("Webview view resolved")
+		Logger.log("[VscodeWebviewProvider] Webview view resolved")
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}

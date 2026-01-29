@@ -2,7 +2,7 @@ import { ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels }
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -29,10 +29,9 @@ export class SambanovaHandler implements ApiHandler {
 				throw new Error("SambaNova API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://api.sambanova.ai/v1",
 					apiKey: this.options.sambanovaApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating SambaNova client: ${error.message}`)

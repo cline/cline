@@ -11,7 +11,7 @@ import {
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -49,12 +49,11 @@ export class QwenHandler implements ApiHandler {
 				throw new Error("Alibaba API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: this.useChinaApi()
 						? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 						: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 					apiKey: this.options.qwenApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Alibaba client: ${error.message}`)
@@ -151,9 +150,9 @@ export class QwenHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

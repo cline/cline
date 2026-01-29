@@ -119,7 +119,6 @@ export class Controller {
 
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
-		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
@@ -154,6 +153,8 @@ export class Controller {
 
 		// Check CLI installation status once on startup
 		checkCliInstallation(this)
+
+		Logger.log("[Controller] ClineProvider instantiated")
 	}
 
 	/*
@@ -848,6 +849,7 @@ export class Controller {
 		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
+		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
@@ -872,7 +874,8 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
-		const environment = ClineEnv.config().environment
+		const clineConfig = ClineEnv.config()
+		const environment = clineConfig.environment
 		const banners = await this.getBanners()
 
 		// Check OpenAI Codex authentication status
@@ -961,6 +964,7 @@ export class Controller {
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 			lastDismissedCliBannerVersion,
+			dismissedBanners,
 			subagentsEnabled,
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
