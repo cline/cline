@@ -36,8 +36,7 @@ export class ClineSecretStorage extends ClineStorage {
 	protected async _get(key: string): Promise<string | undefined> {
 		try {
 			return key ? await this.storage.get(key) : undefined
-		} catch (error) {
-			Logger.error("[ClineSecretStorage]", error)
+		} catch {
 			return undefined
 		}
 	}
@@ -51,12 +50,11 @@ export class ClineSecretStorage extends ClineStorage {
 				await this.storage.store(key, value)
 			}
 		} catch (error) {
-			Logger.error("[ClineSecretStorage]", error)
+			Logger.error("[ClineSecretStorage] Failed to store", error)
 		}
 	}
 
 	protected async _delete(key: string): Promise<void> {
-		Logger.info("[ClineSecretStorage] deleting secret")
 		await this.storage.delete(key)
 	}
 }

@@ -31,9 +31,17 @@ import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import {
+	cleanupMcpMarketplaceCatalogFromGlobalState,
+	migrateCustomInstructionsToGlobalRules,
+	migrateTaskHistoryToFile,
+	migrateWelcomeViewCompleted,
+	migrateWorkspaceToGlobalStorage,
+} from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
+import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
@@ -49,6 +57,7 @@ import { ClineTempManager } from "./services/temp"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
+
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
@@ -62,6 +71,8 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
+
+	performStorageMigrations(context)
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
@@ -593,14 +604,13 @@ async function showJupyterPromptInput(title: string, placeholder: string): Promi
 }
 
 function setupHostProvider(context: ExtensionContext) {
-	Logger.log("Setting up vscode host providers...")
+	const outputChannel = registerClineOutputChannel(context)
+	outputChannel.appendLine("Setting up vscode host providers...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
-	const outputChannel = vscode.window.createOutputChannel("Cline")
-	context.subscriptions.push(outputChannel)
 
 	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
 	HostProvider.initialize(
@@ -609,7 +619,7 @@ function setupHostProvider(context: ExtensionContext) {
 		createCommentReview,
 		createTerminalManager,
 		vscodeHostBridgeClient,
-		outputChannel.appendLine,
+		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,
@@ -689,4 +699,34 @@ if (IS_DEV && IS_DEV !== "false") {
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})
+}
+
+async function performStorageMigrations(context: ExtensionContext): Promise<void> {
+	try {
+		// Migrate is not done if old welcomeViewCompleted flag is still stored in global state
+		if (context.globalState.get<boolean>("welcomeViewCompleted") === undefined) {
+			// If has already been migrated, skip
+			return
+		}
+
+		// Migrate custom instructions to global Cline rules (one-time cleanup)
+		await migrateCustomInstructionsToGlobalRules(context)
+
+		// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
+		await migrateWelcomeViewCompleted(context)
+
+		// Migrate workspace storage values back to global storage (reverting previous migration)
+		await migrateWorkspaceToGlobalStorage(context)
+
+		// Ensure taskHistory.json exists and migrate legacy state (runs once)
+		await migrateTaskHistoryToFile(context)
+
+		// Clean up MCP marketplace catalog from global state (moved to disk cache)
+		await cleanupMcpMarketplaceCatalogFromGlobalState(context)
+
+		// Makes sure we don't run migrations again
+		context.globalState.update("welcomeViewCompleted", undefined)
+	} catch (error) {
+		Logger.error("Migration Failed:", error)
+	}
 }

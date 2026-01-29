@@ -1,11 +1,4 @@
 import * as vscode from "vscode"
-import {
-	cleanupMcpMarketplaceCatalogFromGlobalState,
-	migrateCustomInstructionsToGlobalRules,
-	migrateTaskHistoryToFile,
-	migrateWelcomeViewCompleted,
-	migrateWorkspaceToGlobalStorage,
-} from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -27,15 +20,24 @@ import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
+
 /**
  * Performs intialization for Cline that is common to all platforms.
  *
  * @param context
  * @returns The webview provider
+ * @throws ClineConfigurationError if endpoints.json exists but is invalid
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
-	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.setOutput((msg: string) => HostProvider.get().logToChannel(msg))
+	// Configure the shared Logging class to use HostProvider's output channels and debug logger
+	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
+	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
+
+	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
+	// This must be done before any other code that calls ClineEnv.config()
+	// Throws ClineConfigurationError if config file exists but is invalid
+	const { ClineEndpoint } = await import("./config")
+	await ClineEndpoint.initialize()
 
 	try {
 		await StateManager.initialize(context)
@@ -53,27 +55,14 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)
 
-	// Initialize PostHog client provider
-	PostHogClientProvider.getInstance()
+	// Initialize PostHog client provider (skip in self-hosted mode)
+	if (!ClineEndpoint.isSelfHosted()) {
+		PostHogClientProvider.getInstance()
+	}
 
 	// Setup the external services
 	await ErrorService.initialize()
 	await featureFlagsService.poll(null)
-
-	// Migrate custom instructions to global Cline rules (one-time cleanup)
-	await migrateCustomInstructionsToGlobalRules(context)
-
-	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
-	await migrateWelcomeViewCompleted(context)
-
-	// Migrate workspace storage values back to global storage (reverting previous migration)
-	await migrateWorkspaceToGlobalStorage(context)
-
-	// Ensure taskHistory.json exists and migrate legacy state (runs once)
-	await migrateTaskHistoryToFile(context)
-
-	// Clean up MCP marketplace catalog from global state (moved to disk cache)
-	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)

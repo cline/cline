@@ -3,6 +3,7 @@ import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import {
 	CheckCheck,
+	FileText,
 	FlaskConical,
 	Info,
 	type LucideIcon,
@@ -10,7 +11,6 @@ import {
 	SquareMousePointer,
 	SquareTerminal,
 	Wrench,
-	FileText,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
@@ -141,7 +141,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version, environment } = useExtensionState()
+	const { version, environment, settingsInitialModelTab } = useExtensionState()
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
@@ -243,10 +243,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			props.onResetState = handleResetState
 		} else if (activeTab === "about") {
 			props.version = version
+		} else if (activeTab === "api-config") {
+			props.initialModelTab = settingsInitialModelTab
 		}
 
 		return <Component {...props} />
-	}, [activeTab, handleResetState, version])
+	}, [activeTab, handleResetState, settingsInitialModelTab, version])
 
 	const titleColor = getEnvironmentColor(environment)
 

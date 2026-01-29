@@ -623,7 +623,7 @@ export class OpenAiCodexOAuthManager {
     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
   </div>
   <h1>Authentication Successful</h1>
-  <p>You're now signed in to OpenAI Codex. You can close this window and return to VS Code.</p>
+  <p>You're now signed in to OpenAI Codex. You can close this window and return to your IDE.</p>
   <p class="closing">This window will close automatically...</p>
 </div>
 <script>setTimeout(() => window.close(), 3000);</script>

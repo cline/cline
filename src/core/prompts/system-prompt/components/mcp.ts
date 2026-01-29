@@ -22,11 +22,13 @@ export function hasEnabledMcpServers(context: SystemPromptContext): boolean {
 
 const MCP_TEMPLATE_TEXT = `MCP SERVERS
 
-The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
+The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools, resources, and prompts to extend your capabilities.
 
 # Connected MCP Servers
 
 When a server is connected, you can use the server's tools via the \`use_mcp_tool\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
+
+Servers may also provide prompts - predefined templates that can be invoked by users to generate contextual messages.
 
 {{MCP_SERVERS_LIST}}`
 
@@ -71,6 +73,21 @@ function formatMcpServersList(servers: McpServer[]): string {
 				?.map((resource) => `- ${resource.uri} (${resource.name}): ${resource.description}`)
 				.join("\n")
 
+			const prompts = server.prompts
+				?.map((prompt) => {
+					const argsStr = prompt.arguments?.length
+						? `\n    Arguments: ${prompt.arguments
+								.map(
+									(arg) =>
+										`${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`,
+								)
+								.join(", ")}`
+						: ""
+					const title = prompt.title ? ` (${prompt.title})` : ""
+					return `- ${prompt.name}${title}: ${prompt.description || "No description"}${argsStr}`
+				})
+				.join("\n")
+
 			const config = JSON.parse(server.config)
 
 			return (
@@ -80,7 +97,8 @@ function formatMcpServersList(servers: McpServer[]): string {
 					: "") +
 				(tools ? `\n\n### Available Tools\n${tools}` : "") +
 				(templates ? `\n\n### Resource Templates\n${templates}` : "") +
-				(resources ? `\n\n### Direct Resources\n${resources}` : "")
+				(resources ? `\n\n### Direct Resources\n${resources}` : "") +
+				(prompts ? `\n\n### Available Prompts\n${prompts}` : "")
 			)
 		})
 		.join("\n\n")

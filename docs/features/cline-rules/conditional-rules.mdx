@@ -1,0 +1,267 @@
+---
+title: "Conditional Rules"
+sidebarTitle: "Conditional Rules"
+description: "Activate rules automatically based on which files you're working with"
+---
+
+Conditional rules let you scope rules to specific parts of your codebase. Rules activate only when you're working with matching files, keeping your context focused and relevant.
+
+For an introduction to Cline Rules, see the [Overview](/features/cline-rules/overview).
+
+- **Without conditionals**: every rule loads for every request. 
+- **With conditionals**, rules activate only when your current files match their defined scope.
+
+For example, React component rules should appear when you're working with React components, not when you're editing Python or documentation.
+
+## How It Works
+
+Conditional rules use YAML frontmatter at the top of your rule files. When Cline processes a request, it gathers context from your current work (open files, visible tabs, mentioned paths, edited files), evaluates each rule's conditions, and activates matching rules.
+
+<Note>
+When a conditional rule activates, you'll see a notification: **"Conditional rules applied: workspace:frontend-rules.md"**
+</Note>
+
+## Writing Conditional Rules
+
+Add YAML frontmatter to the top of any rule file in your `.clinerules/` directory:
+
+```yaml
+---
+paths:
+  - "src/components/**"
+  - "src/hooks/**"
+---
+
+# React Component Guidelines
+
+When creating or modifying React components:
+- Use functional components with React hooks
+- Extract reusable logic into custom React hooks
+- Keep components focused on a single responsibility
+```
+
+The `---` markers delimit the frontmatter. Everything after the closing `---` is your rule content.
+
+### The `paths` Conditional
+
+Currently, `paths` is the supported conditional. It takes an array of glob patterns:
+
+```yaml
+---
+paths:
+  - "src/**"           # All files under src/
+  - "*.config.js"      # Config files in root
+  - "packages/*/src/"  # Monorepo package sources
+---
+```
+
+**Glob pattern syntax:**
+- `*` matches any characters except `/`
+- `**` matches any characters including `/` (recursive)
+- `?` matches a single character
+- `[abc]` matches any character in the brackets
+- `{a,b}` matches either pattern
+
+**Examples:**
+
+| Pattern | Matches |
+|---------|---------|
+| `src/**/*.ts` | All TypeScript files under `src/` |
+| `*.md` | Markdown files in root only |
+| `**/*.test.ts` | Test files anywhere in the project |
+| `packages/{web,api}/**` | Files in web or api packages |
+| `src/components/*.tsx` | TSX files directly in components (not nested) |
+
+### Behavior Details
+
+**Multiple patterns**: A rule activates if any pattern matches any file in your context.
+
+```yaml
+---
+paths:
+  - "frontend/**"
+  - "mobile/**"
+---
+# Activates when working in frontend OR mobile
+```
+
+**No frontmatter**: Rules without frontmatter are always active.
+
+**Empty paths array**: `paths: []` means the rule never activates. Use this to temporarily disable a rule.
+
+**Invalid YAML**: If frontmatter can't be parsed, Cline fails open: the rule activates with raw content visible to help debugging.
+
+## What Counts as "Current Context"
+
+Cline evaluates rules based on:
+
+1. **Your message**: File paths mentioned in your prompt (e.g., "update `src/App.tsx`")
+2. **Open tabs**: Files currently open in your editor
+3. **Visible files**: Files visible in your active editor panes
+4. **Edited files**: Files Cline has created, modified, or deleted during the task
+5. **Pending operations**: Files Cline is about to edit
+
+Conditional rules can activate on your first message, when relevant files are open, or mid-task when Cline starts working with matching files.
+
+<Tip>
+Be explicit about file paths in your prompts. "Update `src/services/user.ts`" reliably triggers path-based rules; "update the user service" may not.
+</Tip>
+
+## Practical Examples
+
+Copy these patterns and adapt them to your project structure.
+
+### Frontend vs Backend Rules
+
+Keep frontend and backend rules separate to avoid noise. Frontend rules only load when working with UI code, backend rules only load when working with API or service code.
+
+```yaml
+# .clinerules/frontend.md
+---
+paths:
+  - "src/components/**"
+  - "src/pages/**"
+  - "src/hooks/**"
+---
+
+# Frontend Guidelines
+
+- Use Tailwind CSS for styling
+- Prefer server components where possible
+- Keep client components small and focused
+```
+
+```yaml
+# .clinerules/backend.md
+---
+paths:
+  - "src/api/**"
+  - "src/services/**"
+  - "src/db/**"
+---
+
+# Backend Guidelines
+
+- Use dependency injection for services
+- All database queries go through repositories
+- Return typed errors, not thrown exceptions
+```
+
+### Test File Rules
+
+Enforce testing standards automatically. This rule activates only when you're writing or modifying tests, so testing guidance appears exactly when you need it.
+
+```yaml
+# .clinerules/testing.md
+---
+paths:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/__tests__/**"
+---
+
+# Testing Standards
+
+- Use descriptive test names: "should [expected behavior] when [condition]"
+- One assertion per test when possible
+- Mock external dependencies, not internal modules
+- Use factories for test data, not fixtures
+```
+
+### Documentation Rules
+
+Apply documentation standards only when editing docs. Prevents style rules from cluttering your context when you're writing code.
+
+```yaml
+# .clinerules/docs.md
+---
+paths:
+  - "docs/**"
+  - "**/*.md"
+  - "**/*.mdx"
+---
+
+# Documentation Guidelines
+
+- Use sentence case for headings
+- Include code examples for all features
+- Keep paragraphs short (3-4 sentences max)
+- Link to related documentation
+```
+
+## Combining with Rule Toggles
+
+Conditional rules work alongside the rule toggle UI. Toggle off a conditional rule to disable it entirely (it won't activate even if paths match). Toggle on to let it activate when conditions are met.
+
+This provides two levels of control: manual toggles and automatic condition-based activation.
+
+## Tips for Effective Conditional Rules
+
+### Start Broad, Then Narrow
+
+Begin with broader patterns and refine as you learn what works:
+
+```yaml
+# Start here
+paths:
+  - "src/**"
+
+# Then narrow down
+paths:
+  - "src/features/auth/**"
+```
+
+### Use Descriptive Filenames
+
+Name your rule files to indicate their scope:
+
+```
+.clinerules/
+├── api-endpoints.md      # Rules for API code
+├── database-models.md    # Rules for DB layer
+├── react-components.md   # Rules for React
+└── universal.md          # No frontmatter = always active
+```
+
+### Keep Universal Rules Separate
+
+Put always-on rules (coding standards, project conventions) in files without frontmatter. Reserve conditional rules for context-specific guidance.
+
+### Test Your Patterns
+
+Not sure if a pattern matches? Create a simple test rule:
+
+```yaml
+---
+paths:
+  - "your/pattern/here/**"
+---
+
+TEST: This rule should activate for your/pattern/here files.
+```
+
+Then work with a file in that path and check if you see the activation notification.
+
+## Troubleshooting
+
+**Rule not activating:**
+- Check that file paths in your context match the glob pattern
+- Verify the rule is toggled on in the rules panel
+- Ensure YAML frontmatter has proper `---` delimiters
+
+**Rule activating unexpectedly:**
+- Review glob patterns: `**` is recursive and may match more than intended
+- Check for open files that match the pattern
+- File paths mentioned in your message also count as context
+
+**Frontmatter showing in output:**
+- YAML couldn't be parsed
+- Check for syntax errors (unquoted special characters, improper indentation)
+
+## Related
+
+- [Cline Rules Overview](/features/cline-rules/overview) - Complete rules system guide
+- [Skills](/features/skills) - Load instructions on demand with `/skill` command
+- [Workflows](/features/slash-commands/workflows/index) - Define explicit task automation
+- [@ Mentions](/features/at-mentions/overview) - Add files to context explicitly
+- [Understanding Context Management](/prompting/understanding-context-management) - How Cline manages context window
