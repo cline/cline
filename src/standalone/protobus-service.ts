@@ -12,7 +12,12 @@ export const PROTOBUS_PORT = 26040
 
 export function startProtobusService(controller: Controller): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const server = new grpc.Server()
+		// Increase gRPC message size limits to handle large task state
+		// Default is 4MiB which can be exceeded by tasks with extensive conversation history
+		const server = new grpc.Server({
+			"grpc.max_receive_message_length": 100 * 1024 * 1024, // 100MB
+			"grpc.max_send_message_length": 100 * 1024 * 1024, // 100MB
+		})
 
 		// Set up health check.
 		const healthImpl = new health.HealthImplementation({ "": "SERVING" })
