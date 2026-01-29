@@ -110,6 +110,10 @@ export class FileEditProvider extends DiffViewProvider {
 		}
 
 		try {
+			// Ensure there is exactly one newline at the end of the file
+			// This ensures consistent file formatting and prevents issues with some tools
+			this.documentContent = this.processContentForSaving(this.documentContent)
+
 			// Write the content to the file using fs
 			await fs.writeFile(this.absolutePath, this.documentContent, { encoding: this.fileEncoding as BufferEncoding })
 			return true
@@ -117,6 +121,17 @@ export class FileEditProvider extends DiffViewProvider {
 			Logger.error(`Failed to save document to ${this.absolutePath}:`, error)
 			return false
 		}
+	}
+
+	private processContentForSaving(content: string): string {
+		// Remove any trailing newlines and add exactly one
+		// This handles cases where there might be 0, 1, or multiple trailing newlines
+		let processedContent = content.trimEnd()
+		if (processedContent.length > 0) {
+			// Only add newline if the content is not empty
+			processedContent += "\n"
+		}
+		return processedContent
 	}
 
 	protected async closeAllDiffViews(): Promise<void> {
