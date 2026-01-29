@@ -13,7 +13,7 @@ const CollapsibleTrigger = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<CollapsiblePrimitive.CollapsibleTrigger className={cn("cursor-pointer", className)} ref={ref} {...props} />
 ))
-Collapsible.displayName = CollapsiblePrimitive.CollapsibleTrigger.displayName
+CollapsibleTrigger.displayName = CollapsiblePrimitive.CollapsibleTrigger.displayName
 
 const CollapsibleContent = React.forwardRef<
 	React.ElementRef<typeof CollapsiblePrimitive.CollapsibleContent>,
@@ -21,6 +21,6 @@ const CollapsibleContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<CollapsiblePrimitive.CollapsibleContent className={cn(labelVariants(), className)} ref={ref} {...props} />
 ))
-Collapsible.displayName = CollapsiblePrimitive.CollapsibleContent.displayName
+CollapsibleContent.displayName = CollapsiblePrimitive.CollapsibleContent.displayName
 
 export { Collapsible, CollapsibleTrigger, CollapsibleContent }

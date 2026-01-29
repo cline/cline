@@ -14,7 +14,6 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
 import SettingsSlider from "../SettingsSlider"
-import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
 // Reusable checkbox component for feature settings
@@ -202,6 +201,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		subagentTerminalOutputLineLimit,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
@@ -369,9 +369,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										)}
 									</div>
 									{subagentsEnabled && (
-										<div className="mt-3">
-											<SubagentOutputLineLimitSlider />
-										</div>
+										<SettingsSlider
+											description="Maximum number of lines to include in output from CLI subagents. Truncates middle to save tokens."
+											label="Output Limit (100-5000)"
+											max={5000}
+											min={100}
+											onChange={(value) => updateSetting("subagentTerminalOutputLineLimit", value)}
+											step={100}
+											value={subagentTerminalOutputLineLimit ?? 2000}
+										/>
 									)}
 								</>
 							)}
