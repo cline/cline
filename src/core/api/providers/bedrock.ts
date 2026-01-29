@@ -9,6 +9,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { NodeHttp2Handler } from "@smithy/node-http-handler"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -290,6 +291,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
+			requestHandler: NodeHttp2Handler.create({
+				disableConcurrentStreams: false,
+			}),
 		})
 	}
 
