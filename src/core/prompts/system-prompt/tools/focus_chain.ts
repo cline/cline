@@ -7,7 +7,7 @@ const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id: ClineDefaultTool.TODO,
 	name: "focus_chain",
-	description: "",
+	description: "Tool for maintaining conversation context across multiple interactions",
 	contextRequirements: (context) => context.focusChainSettings?.enabled === true,
 }
 
