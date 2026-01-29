@@ -41,7 +41,7 @@ type BuildArgs = {
 	// callbacks for single-root TaskCheckpointManager
 	updateTaskHistory: (historyItem: any) => Promise<any[]>
 	say: (...args: any[]) => Promise<number | undefined>
-	cancelTask: () => Promise<void>
+	cancelTask: (id: string) => Promise<void>
 	postStateToWebview: () => Promise<void>
 
 	// initial state for single-root
