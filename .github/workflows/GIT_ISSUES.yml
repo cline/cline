@@ -270,12 +270,10 @@ jobs:
               }
             }]')
             
-            # Add each new issue with "What happened?" excerpt (limit to 5 to avoid huge messages)
+            # Add each new issue with "What happened?" excerpt
             # Extract text between "### What happened?" and "### Steps to reproduce"
-            ISSUE_COUNT=0
             while IFS= read -r issue_json; do
               [ -z "$issue_json" ] && continue
-              [ "$ISSUE_COUNT" -ge 5 ] && break
               
               NUMBER=$(echo "$issue_json" | jq -r '.number')
               TITLE=$(echo "$issue_json" | jq -r '.title')
@@ -312,22 +310,7 @@ jobs:
                     "text": $text
                   }
                 }]')
-              
-              ISSUE_COUNT=$((ISSUE_COUNT + 1))
             done < <(cat /tmp/new_issues.json | jq -c '.[]')
-            
-            # Show if truncated
-            if [ "$NEW_COUNT" -gt 5 ]; then
-              REMAINING=$((NEW_COUNT - 5))
-              BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
-                '. + [{
-                  "type": "context",
-                  "elements": [{
-                    "type": "mrkdwn",
-                    "text": "_...and \($remaining) more_"
-                  }]
-                }]')
-            fi
           fi
           
           # Reopened/Updated Issues Section
@@ -341,11 +324,9 @@ jobs:
               }
             }]')
             
-            # Add each reopened issue with last comment (limit to 5)
-            REOPENED_COUNT_DISPLAY=0
+            # Add each reopened issue with last comment
             while IFS= read -r issue_json; do
               [ -z "$issue_json" ] && continue
-              [ "$REOPENED_COUNT_DISPLAY" -ge 5 ] && break
               
               NUMBER=$(echo "$issue_json" | jq -r '.number')
               TITLE=$(echo "$issue_json" | jq -r '.title')
@@ -369,22 +350,7 @@ jobs:
                     "text": $text
                   }
                 }]')
-              
-              REOPENED_COUNT_DISPLAY=$((REOPENED_COUNT_DISPLAY + 1))
             done < <(cat /tmp/reopened_issues.json | jq -c '.[]')
-            
-            # Show if truncated
-            if [ "$REOPENED_COUNT" -gt 5 ]; then
-              REMAINING=$((REOPENED_COUNT - 5))
-              BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
-                '. + [{
-                  "type": "context",
-                  "elements": [{
-                    "type": "mrkdwn",
-                    "text": "_...and \($remaining) more_"
-                  }]
-                }]')
-            fi
           fi
           
           # Issues with User Comments Section (excluding bots)
@@ -398,11 +364,9 @@ jobs:
               }
             }]')
             
-            # Add each commented issue with comment content (limit to 5)
-            COMMENTED_COUNT_DISPLAY=0
+            # Add each commented issue with comment content
             while IFS= read -r issue_json; do
               [ -z "$issue_json" ] && continue
-              [ "$COMMENTED_COUNT_DISPLAY" -ge 5 ] && break
               
               NUMBER=$(echo "$issue_json" | jq -r '.number')
               TITLE=$(echo "$issue_json" | jq -r '.title')
@@ -428,22 +392,7 @@ jobs:
                     "text": $text
                   }
                 }]')
-              
-              COMMENTED_COUNT_DISPLAY=$((COMMENTED_COUNT_DISPLAY + 1))
             done < <(cat /tmp/commented_issues.json | jq -c '.[]')
-            
-            # Show if truncated
-            if [ "$COMMENTED_COUNT" -gt 5 ]; then
-              REMAINING=$((COMMENTED_COUNT - 5))
-              BLOCKS=$(echo "$BLOCKS" | jq --arg remaining "$REMAINING" \
-                '. + [{
-                  "type": "context",
-                  "elements": [{
-                    "type": "mrkdwn",
-                    "text": "_...and \($remaining) more_"
-                  }]
-                }]')
-            fi
           fi
           
           # Footer with link to all issues
