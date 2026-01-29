@@ -79,13 +79,13 @@ your-project/
 └── ...
 ```
 
-Cline's system prompt, on the other hand, is not user-editable ([here's where you can find it](https://github.com/cline/cline/blob/main/src/core/prompts/system.ts)). For a broader look at prompt engineering best practices, check out [this resource](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview).
+Cline's system prompt can now be customized through the [Custom Prompts System](/CUSTOM_PROMPTS_IMPLEMENTATION.md), which allows you to create personalized prompts while automatically merging with Cline's essential capabilities. For a broader look at prompt engineering best practices, check out [this resource](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview).
 
 ### AGENTS.md Standard Support
 
 Cline also supports the [AGENTS.md](https://agents.md/) standard as a fallback 
 (in addition to Cline Rules) by automatically detecting `AGENTS.md` files in 
-your workspace root. This allows you to use the same rules file across different AI 
+your workspace root. This way you can use the same rules file across different AI 
 coding tools.
 
 ```

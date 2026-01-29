@@ -135,6 +135,7 @@
 									"features/customization/disable-terminal-pagers"
 								]
 							},
+							"CUSTOM_PROMPTS_IMPLEMENTATION",
 							"features/dictation",
 							"features/drag-and-drop",
 							"features/editing-messages",

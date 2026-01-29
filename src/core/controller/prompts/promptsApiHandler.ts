@@ -1,7 +1,7 @@
-import { systemPromptsManager } from "../../prompts/SystemPromptsManager"
-import { Logger } from "@/shared/services/Logger"
-import { readdir, readFile, writeFile } from "fs/promises"
 import path from "node:path"
+import { readdir, readFile, writeFile } from "fs/promises"
+import { Logger } from "@/shared/services/Logger"
+import { systemPromptsManager } from "../../prompts/SystemPromptsManager"
 
 /**
  * API handler for listing files in prompts directory
@@ -28,7 +28,7 @@ export async function getPromptFile(filename: string) {
 	try {
 		const promptsDir = systemPromptsManager.getPromptsDirectory()
 		const filePath = path.resolve(promptsDir, filename)
-		
+
 		// Prevent path traversal attacks
 		if (!filePath.startsWith(promptsDir + path.sep)) {
 			Logger.warn(`Invalid prompt file path detected: ${filename}`)
@@ -57,7 +57,7 @@ export async function updatePromptFile(filename: string, content: string) {
 	try {
 		const promptsDir = systemPromptsManager.getPromptsDirectory()
 		const filePath = path.resolve(promptsDir, filename)
-		
+
 		// Prevent path traversal attacks
 		if (!filePath.startsWith(promptsDir + path.sep)) {
 			Logger.warn(`Invalid prompt file path detected: ${filename}`)
