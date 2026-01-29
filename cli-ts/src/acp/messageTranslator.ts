@@ -179,7 +179,7 @@ export function translateMessage(
 function translateSayMessage(
 	message: ClineMessage,
 	sessionState: AcpSessionState,
-	options?: TranslateMessageOptions,
+	_options?: TranslateMessageOptions,
 ): TranslatedMessage {
 	const updates: acp.SessionUpdate[] = []
 	let toolCallId: string | undefined

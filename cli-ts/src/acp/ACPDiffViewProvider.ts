@@ -19,6 +19,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { detectEncoding } from "@/integrations/misc/extract-text"
 import type { FileDiagnostics } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * A function that resolves the current session ID.
@@ -43,7 +44,6 @@ export class ACPDiffViewProvider extends FileEditProvider {
 	private readonly connection: acp.AgentSideConnection
 	private readonly clientCapabilities: acp.ClientCapabilities | undefined
 	private readonly sessionIdResolver: SessionIdResolver
-	private readonly debug: boolean
 
 	/**
 	 * Creates a new ACPDiffViewProvider.
@@ -57,13 +57,11 @@ export class ACPDiffViewProvider extends FileEditProvider {
 		connection: acp.AgentSideConnection,
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
-		debug: boolean = false,
 	) {
 		super()
 		this.connection = connection
 		this.clientCapabilities = clientCapabilities
 		this.sessionIdResolver = sessionIdResolver
-		this.debug = debug
 	}
 
 	/**
@@ -101,9 +99,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 	override async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
 		// If we can't read files via ACP, fall back to FileEditProvider
 		if (!this.canReadFile()) {
-			if (this.debug) {
-				console.error("[ACPDiffViewProvider] Client does not support fs.readTextFile, falling back to local fs")
-			}
+			Logger.debug("[ACPDiffViewProvider] Client does not support fs.readTextFile, falling back to local fs")
 			return super.open(relPath, options)
 		}
 
@@ -129,9 +125,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 
 			// Read file content via ACP
 			try {
-				if (this.debug) {
-					console.error("[ACPDiffViewProvider] Reading file via ACP:", this.absolutePath)
-				}
+				Logger.debug("[ACPDiffViewProvider] Reading file via ACP:", this.absolutePath)
 
 				const response = await this.connection.readTextFile({
 					sessionId: this.getSessionId(),
@@ -142,14 +136,10 @@ export class ACPDiffViewProvider extends FileEditProvider {
 				// ACP always returns UTF-8 text content
 				this.fileEncoding = "utf8"
 
-				if (this.debug) {
-					console.error("[ACPDiffViewProvider] Read file successfully, length:", response.content.length)
-				}
+				Logger.debug("[ACPDiffViewProvider] Read file successfully, length:", response.content.length)
 			} catch (error) {
 				// If ACP read fails, fall back to local fs
-				if (this.debug) {
-					console.error("[ACPDiffViewProvider] ACP read failed, falling back to local fs:", error)
-				}
+				Logger.debug("[ACPDiffViewProvider] ACP read failed, falling back to local fs:", error)
 
 				const fileBuffer = await fs.readFile(this.absolutePath!)
 				this.fileEncoding = await detectEncoding(fileBuffer)
@@ -225,9 +215,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 	protected override async saveDocument(): Promise<Boolean> {
 		// If we can't write files via ACP, fall back to FileEditProvider
 		if (!this.canWriteFile()) {
-			if (this.debug) {
-				console.error("[ACPDiffViewProvider] Client does not support fs.writeTextFile, falling back to local fs")
-			}
+			Logger.debug("[ACPDiffViewProvider] Client does not support fs.writeTextFile, falling back to local fs")
 			return super.saveDocument()
 		}
 
@@ -237,12 +225,10 @@ export class ACPDiffViewProvider extends FileEditProvider {
 		}
 
 		try {
-			if (this.debug) {
-				console.error("[ACPDiffViewProvider] Writing file via ACP:", {
-					path: this.absolutePath,
-					contentLength: content.length,
-				})
-			}
+			Logger.debug("[ACPDiffViewProvider] Writing file via ACP:", {
+				path: this.absolutePath,
+				contentLength: content.length,
+			})
 
 			await this.connection.writeTextFile({
 				sessionId: this.getSessionId(),
@@ -250,16 +236,12 @@ export class ACPDiffViewProvider extends FileEditProvider {
 				content: content,
 			})
 
-			if (this.debug) {
-				console.error("[ACPDiffViewProvider] Write file successfully")
-			}
+			Logger.debug("[ACPDiffViewProvider] Write file successfully")
 
 			return true
 		} catch (error) {
 			// If ACP write fails, fall back to local fs
-			if (this.debug) {
-				console.error("[ACPDiffViewProvider] ACP write failed, falling back to local fs:", error)
-			}
+			Logger.debug("[ACPDiffViewProvider] ACP write failed, falling back to local fs:", error)
 
 			return super.saveDocument()
 		}

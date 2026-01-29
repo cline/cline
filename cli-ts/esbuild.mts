@@ -33,56 +33,56 @@ const aliasResolverPlugin: esbuild.Plugin = {
 			"@api": path.resolve(rootDir, "src/core/api"),
 		}
 
-        // For each alias entry, create a resolver
-        Object.entries(aliases).forEach(([alias, aliasPath]) => {
-            const aliasRegex = new RegExp(`^${alias}($|/.*)`)
-            build.onResolve({ filter: aliasRegex }, (args) => {
-                const importPath = args.path.replace(alias, aliasPath)
+		// For each alias entry, create a resolver
+		Object.entries(aliases).forEach(([alias, aliasPath]) => {
+			const aliasRegex = new RegExp(`^${alias}($|/.*)`)
+			build.onResolve({ filter: aliasRegex }, (args) => {
+				const importPath = args.path.replace(alias, aliasPath)
 
-                // First, check if the path exists as is
-                if (fs.existsSync(importPath)) {
-                    const stats = fs.statSync(importPath)
-                    if (stats.isDirectory()) {
-                        // If it's a directory, try to find index files
-                        const extensions = [".ts", ".tsx", ".js", ".jsx"]
-                        for (const ext of extensions) {
-                            const indexFile = path.join(importPath, `index${ext}`)
-                            if (fs.existsSync(indexFile)) {
-                                return { path: indexFile }
-                            }
-                        }
-                    } else {
-                        // It's a file that exists, so return it
-                        return { path: importPath }
-                    }
-                }
+				// First, check if the path exists as is
+				if (fs.existsSync(importPath)) {
+					const stats = fs.statSync(importPath)
+					if (stats.isDirectory()) {
+						// If it's a directory, try to find index files
+						const extensions = [".ts", ".tsx", ".js", ".jsx"]
+						for (const ext of extensions) {
+							const indexFile = path.join(importPath, `index${ext}`)
+							if (fs.existsSync(indexFile)) {
+								return { path: indexFile }
+							}
+						}
+					} else {
+						// It's a file that exists, so return it
+						return { path: importPath }
+					}
+				}
 
-                // If the path doesn't exist, try appending extensions
-                const extensions = [".ts", ".tsx", ".js", ".jsx"]
-                for (const ext of extensions) {
-                    const pathWithExtension = `${importPath}${ext}`
-                    if (fs.existsSync(pathWithExtension)) {
-                        return { path: pathWithExtension }
-                    }
-                }
+				// If the path doesn't exist, try appending extensions
+				const extensions = [".ts", ".tsx", ".js", ".jsx"]
+				for (const ext of extensions) {
+					const pathWithExtension = `${importPath}${ext}`
+					if (fs.existsSync(pathWithExtension)) {
+						return { path: pathWithExtension }
+					}
+				}
 
-                // Handle .js -> .ts extension mapping (common in ESM TypeScript projects)
-                if (importPath.endsWith(".js")) {
-                    const tsPath = importPath.replace(/\.js$/, ".ts")
-                    if (fs.existsSync(tsPath)) {
-                        return { path: tsPath }
-                    }
-                    const tsxPath = importPath.replace(/\.js$/, ".tsx")
-                    if (fs.existsSync(tsxPath)) {
-                        return { path: tsxPath }
-                    }
-                }
+				// Handle .js -> .ts extension mapping (common in ESM TypeScript projects)
+				if (importPath.endsWith(".js")) {
+					const tsPath = importPath.replace(/\.js$/, ".ts")
+					if (fs.existsSync(tsPath)) {
+						return { path: tsPath }
+					}
+					const tsxPath = importPath.replace(/\.js$/, ".tsx")
+					if (fs.existsSync(tsxPath)) {
+						return { path: tsxPath }
+					}
+				}
 
-                // If nothing worked, return the original path and let esbuild handle the error
-                return { path: importPath }
-            })
-        })
-    },
+				// If nothing worked, return the original path and let esbuild handle the error
+				return { path: importPath }
+			})
+		})
+	},
 }
 
 /**
@@ -132,50 +132,50 @@ const copyWasmFiles: esbuild.Plugin = {
 		build.onEnd(() => {
 			const destDir = path.join(__dirname, "dist")
 
-            // Ensure dist directory exists
-            if (!fs.existsSync(destDir)) {
-                fs.mkdirSync(destDir, { recursive: true })
-            }
+			// Ensure dist directory exists
+			if (!fs.existsSync(destDir)) {
+				fs.mkdirSync(destDir, { recursive: true })
+			}
 
-            // tree sitter
-            const sourceDir = path.join(rootDir, "node_modules", "web-tree-sitter")
+			// tree sitter
+			const sourceDir = path.join(rootDir, "node_modules", "web-tree-sitter")
 
-            // Copy tree-sitter.wasm
-            const treeSitterWasm = path.join(sourceDir, "tree-sitter.wasm")
-            if (fs.existsSync(treeSitterWasm)) {
-                fs.copyFileSync(treeSitterWasm, path.join(destDir, "tree-sitter.wasm"))
-            }
+			// Copy tree-sitter.wasm
+			const treeSitterWasm = path.join(sourceDir, "tree-sitter.wasm")
+			if (fs.existsSync(treeSitterWasm)) {
+				fs.copyFileSync(treeSitterWasm, path.join(destDir, "tree-sitter.wasm"))
+			}
 
-            // Copy language-specific WASM files
-            const languageWasmDir = path.join(rootDir, "node_modules", "tree-sitter-wasms", "out")
-            const languages = [
-                "typescript",
-                "tsx",
-                "python",
-                "rust",
-                "javascript",
-                "go",
-                "cpp",
-                "c",
-                "c_sharp",
-                "ruby",
-                "java",
-                "php",
-                "swift",
-                "kotlin",
-            ]
+			// Copy language-specific WASM files
+			const languageWasmDir = path.join(rootDir, "node_modules", "tree-sitter-wasms", "out")
+			const languages = [
+				"typescript",
+				"tsx",
+				"python",
+				"rust",
+				"javascript",
+				"go",
+				"cpp",
+				"c",
+				"c_sharp",
+				"ruby",
+				"java",
+				"php",
+				"swift",
+				"kotlin",
+			]
 
-            if (fs.existsSync(languageWasmDir)) {
-                languages.forEach((lang) => {
-                    const filename = `tree-sitter-${lang}.wasm`
-                    const sourcePath = path.join(languageWasmDir, filename)
-                    if (fs.existsSync(sourcePath)) {
-                        fs.copyFileSync(sourcePath, path.join(destDir, filename))
-                    }
-                })
-            }
-        })
-    },
+			if (fs.existsSync(languageWasmDir)) {
+				languages.forEach((lang) => {
+					const filename = `tree-sitter-${lang}.wasm`
+					const sourcePath = path.join(languageWasmDir, filename)
+					if (fs.existsSync(sourcePath)) {
+						fs.copyFileSync(sourcePath, path.join(destDir, filename))
+					}
+				})
+			}
+		})
+	},
 }
 
 const buildEnvVars: Record<string, string> = {
@@ -184,28 +184,28 @@ const buildEnvVars: Record<string, string> = {
 }
 
 const buildTimeEnvs = [
-    "TELEMETRY_SERVICE_API_KEY",
-    "ERROR_SERVICE_API_KEY",
-    "POSTHOG_TELEMETRY_ENABLED",
-    "OTEL_TELEMETRY_ENABLED",
-    "OTEL_LOGS_EXPORTER",
-    "OTEL_METRICS_EXPORTER",
-    "OTEL_EXPORTER_OTLP_PROTOCOL",
-    "OTEL_EXPORTER_OTLP_ENDPOINT",
-    "OTEL_EXPORTER_OTLP_HEADERS",
-    "OTEL_METRIC_EXPORT_INTERVAL",
-    "CLINE_ENVIRONMENT",
+	"TELEMETRY_SERVICE_API_KEY",
+	"ERROR_SERVICE_API_KEY",
+	"POSTHOG_TELEMETRY_ENABLED",
+	"OTEL_TELEMETRY_ENABLED",
+	"OTEL_LOGS_EXPORTER",
+	"OTEL_METRICS_EXPORTER",
+	"OTEL_EXPORTER_OTLP_PROTOCOL",
+	"OTEL_EXPORTER_OTLP_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_HEADERS",
+	"OTEL_METRIC_EXPORT_INTERVAL",
+	"CLINE_ENVIRONMENT",
 ]
 
 buildTimeEnvs.forEach((envVar) => {
-    if (process.env[envVar]) {
-        console.log(`[cli-ts esbuild] ${envVar} env var is set`)
-        buildEnvVars[`process.env.${envVar}`] = JSON.stringify(process.env[envVar])
-    }
+	if (process.env[envVar]) {
+		console.log(`[cli-ts esbuild] ${envVar} env var is set`)
+		buildEnvVars[`process.env.${envVar}`] = JSON.stringify(process.env[envVar])
+	}
 })
 
 if (production) {
-    buildEnvVars["process.env.IS_DEV"] = "false"
+	buildEnvVars["process.env.IS_DEV"] = "false"
 }
 
 const config: esbuild.BuildOptions = {
@@ -246,27 +246,27 @@ import { dirname as _dirname } from 'path';
 const require = _createRequire(import.meta.url);
 const __filename = _fileURLToPath(import.meta.url);
 const __dirname = _dirname(__filename);`,
-    },
+	},
 }
 
 async function main() {
-    const ctx = await esbuild.context(config)
-    if (watch) {
-        await ctx.watch()
-        console.log("[cli-ts] Watching for changes...")
-    } else {
-        await ctx.rebuild()
-        await ctx.dispose()
+	const ctx = await esbuild.context(config)
+	if (watch) {
+		await ctx.watch()
+		console.log("[cli-ts] Watching for changes...")
+	} else {
+		await ctx.rebuild()
+		await ctx.dispose()
 
-        // Make the output executable
-        const outfile = path.join(__dirname, "dist", "cli.mjs")
-        if (fs.existsSync(outfile)) {
-            fs.chmodSync(outfile, "755")
-        }
-    }
+		// Make the output executable
+		const outfile = path.join(__dirname, "dist", "cli.mjs")
+		if (fs.existsSync(outfile)) {
+			fs.chmodSync(outfile, "755")
+		}
+	}
 }
 
 main().catch((e) => {
-    console.error(e)
-    process.exit(1)
+	console.error(e)
+	process.exit(1)
 })

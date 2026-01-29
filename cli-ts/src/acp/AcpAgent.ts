@@ -170,29 +170,18 @@ export class AcpAgent implements acp.Agent {
 			clientCapabilities,
 			() => this.currentActiveSessionId,
 			() => this.sessions.get(this.currentActiveSessionId ?? "")?.cwd ?? process.cwd(),
-			this.options.debug,
 			this.options.version,
 		)
 
 		HostProvider.initialize(
 			() => new ExternalWebviewProvider(this.ctx.extensionContext),
 			() => {
-				return new ACPDiffViewProvider(
-					this.connection,
-					clientCapabilities,
-					() => this.currentActiveSessionId,
-					this.options.debug,
-				)
+				return new ACPDiffViewProvider(this.connection, clientCapabilities, () => this.currentActiveSessionId)
 			},
 			() => new ExternalCommentReviewController(),
 			() => {
 				if (clientCapabilities?.terminal) {
-					return new AcpTerminalManager(
-						this.connection,
-						clientCapabilities,
-						() => this.currentActiveSessionId,
-						this.options.debug,
-					)
+					return new AcpTerminalManager(this.connection, clientCapabilities, () => this.currentActiveSessionId)
 				} else {
 					return new StandaloneTerminalManager()
 				}
@@ -502,7 +491,7 @@ export class AcpAgent implements acp.Agent {
 				const onClineMessagesChanged = (change: ClineMessageChange) => {
 					this.handleClineMessagesChanged(params.sessionId, sessionState, change, resolvePrompt, promptResolved).catch(
 						(error) => {
-							Logger.debug("[AcpAgent] Error handling clineMessagesChanged:", error)
+							Logger.error("[AcpAgent] Error handling clineMessagesChanged:", error)
 						},
 					)
 				}

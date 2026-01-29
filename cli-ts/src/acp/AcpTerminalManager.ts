@@ -26,6 +26,7 @@ import type {
 	TerminalProcessResultPromise,
 } from "@integrations/terminal/types"
 import { EventEmitter } from "events"
+import { Logger } from "@/shared/services/Logger"
 import { SessionIdResolver } from "./ACPDiffViewProvider"
 
 // =============================================================================
@@ -148,6 +149,7 @@ class AcpTerminalProcess extends EventEmitter<TerminalProcessEvents> implements 
 	private _continued: boolean = false
 	private _completed: boolean = false
 	private _hotTimeout: NodeJS.Timeout | null = null
+	private _exitWaitTimeout: NodeJS.Timeout | null = null
 	private readonly manager: AcpTerminalManager
 	private readonly terminalId: string
 	private pollInterval: NodeJS.Timeout | null = null
@@ -160,7 +162,7 @@ class AcpTerminalProcess extends EventEmitter<TerminalProcessEvents> implements 
 
 	continue(): void {
 		this._continued = true
-		this.stopPolling()
+		this.cleanup()
 		this.emit("continue")
 	}
 
@@ -171,8 +173,24 @@ class AcpTerminalProcess extends EventEmitter<TerminalProcessEvents> implements 
 	}
 
 	async terminate(): Promise<void> {
-		this.stopPolling()
+		this.cleanup()
 		await this.manager.kill(this.terminalId)
+	}
+
+	/**
+	 * Clean up all timers and intervals.
+	 * Called on continue, terminate, or completion to prevent memory leaks.
+	 */
+	private cleanup(): void {
+		this.stopPolling()
+		if (this._hotTimeout) {
+			clearTimeout(this._hotTimeout)
+			this._hotTimeout = null
+		}
+		if (this._exitWaitTimeout) {
+			clearTimeout(this._exitWaitTimeout)
+			this._exitWaitTimeout = null
+		}
 	}
 
 	private stopPolling(): void {
@@ -238,10 +256,11 @@ class AcpTerminalProcess extends EventEmitter<TerminalProcessEvents> implements 
 		this.manager.waitForExit(this.terminalId).then((result) => {
 			if (result.success && !this._continued && !this._completed) {
 				// The polling loop should handle this, but ensure we emit completed
-				setTimeout(() => {
+				// Track the timeout so it can be cleaned up if the process is terminated early
+				this._exitWaitTimeout = setTimeout(() => {
 					if (!this._continued && !this._completed) {
 						this._completed = true
-						this.stopPolling()
+						this.cleanup()
 						this.emit("completed")
 					}
 				}, 200)
@@ -299,7 +318,7 @@ class AcpTerminal implements ITerminal {
 	sendText(_text: string, _addNewLine?: boolean): void {
 		// ACP terminals don't support interactive input this way
 		// Commands are run via runCommand
-		console.error("[AcpTerminal] sendText not supported for ACP terminals")
+		Logger.debug("[AcpTerminal] sendText not supported for ACP terminals")
 	}
 
 	show(): void {
@@ -313,7 +332,7 @@ class AcpTerminal implements ITerminal {
 	dispose(): void {
 		// Release the terminal
 		this._manager.release(this._managedTerminal.id).catch((err) => {
-			console.error("[AcpTerminal] Error releasing terminal:", err)
+			Logger.debug("[AcpTerminal] Error releasing terminal:", err)
 		})
 	}
 }
@@ -370,7 +389,6 @@ export class AcpTerminalManager implements ITerminalManager {
 	private readonly connection: acp.AgentSideConnection
 	private readonly clientCapabilities: acp.ClientCapabilities | undefined
 	private readonly sessionIdResolver: SessionIdResolver
-	private readonly debug: boolean
 
 	/** Active terminals indexed by their string ID */
 	private readonly terminals: Map<string, ManagedTerminal> = new Map()
@@ -391,8 +409,6 @@ export class AcpTerminalManager implements ITerminalManager {
 	private terminalReuseEnabled: boolean = true
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
 	private subagentTerminalOutputLineLimit: number = DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT
-	private shellIntegrationTimeout: number = 0
-	private defaultTerminalProfile: string = ""
 
 	/**
 	 * Creates a new AcpTerminalManager.
@@ -406,12 +422,10 @@ export class AcpTerminalManager implements ITerminalManager {
 		connection: acp.AgentSideConnection,
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
-		debug: boolean = false,
 	) {
 		this.connection = connection
 		this.clientCapabilities = clientCapabilities
 		this.sessionIdResolver = sessionIdResolver
-		this.debug = debug
 	}
 
 	// =========================================================================
@@ -567,9 +581,7 @@ export class AcpTerminalManager implements ITerminalManager {
 		this.numericIdToStringId.set(numericId, managedTerminal.id)
 		this.terminalInfos.set(numericId, terminalInfo)
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] Created terminal:", { numericId, cwd })
-		}
+		Logger.debug("[AcpTerminalManager] Created terminal:", { numericId, cwd })
 
 		return terminalInfo
 	}
@@ -620,7 +632,7 @@ export class AcpTerminalManager implements ITerminalManager {
 	disposeAll(): void {
 		// Release all terminals
 		this.releaseAll().catch((err) => {
-			console.error("[AcpTerminalManager] Error releasing terminals:", err)
+			Logger.debug("[AcpTerminalManager] Error releasing terminals:", err)
 		})
 
 		// Clear all tracking
@@ -629,17 +641,15 @@ export class AcpTerminalManager implements ITerminalManager {
 		this.processes.clear()
 		this.terminalInfos.clear()
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] disposeAll complete")
-		}
+		Logger.debug("[AcpTerminalManager] disposeAll complete")
 	}
 
 	/**
 	 * Set the timeout for waiting for shell integration.
 	 * @param timeout Timeout in milliseconds
 	 */
-	setShellIntegrationTimeout(timeout: number): void {
-		this.shellIntegrationTimeout = timeout
+	setShellIntegrationTimeout(_timeout: number): void {
+		// no-op
 	}
 
 	/**
@@ -670,8 +680,8 @@ export class AcpTerminalManager implements ITerminalManager {
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */
-	setDefaultTerminalProfile(profile: string): void {
-		this.defaultTerminalProfile = profile
+	setDefaultTerminalProfile(_profile: string): void {
+		// no-op
 	}
 
 	/**
@@ -719,9 +729,7 @@ export class AcpTerminalManager implements ITerminalManager {
 			return { error: "Client does not support terminal capability" }
 		}
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] createTerminal:", options)
-		}
+		Logger.debug("[AcpTerminalManager] createTerminal:", options)
 
 		try {
 			const request: acp.CreateTerminalRequest = {
@@ -762,17 +770,13 @@ export class AcpTerminalManager implements ITerminalManager {
 			this.terminals.set(handle.id, managedTerminal)
 			this.numericIdToStringId.set(numericId, handle.id)
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] createTerminal success:", { id: handle.id, numericId })
-			}
+			Logger.debug("[AcpTerminalManager] createTerminal success:", { id: handle.id, numericId })
 
 			return managedTerminal
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] createTerminal error:", errorMessage)
-			}
+			Logger.debug("[AcpTerminalManager] createTerminal error:", errorMessage)
 
 			return { error: errorMessage }
 		}
@@ -805,9 +809,7 @@ export class AcpTerminalManager implements ITerminalManager {
 			}
 		}
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] getOutput:", { terminalId })
-		}
+		Logger.debug("[AcpTerminalManager] getOutput:", { terminalId })
 
 		try {
 			const response = await terminal.handle.currentOutput()
@@ -825,21 +827,17 @@ export class AcpTerminalManager implements ITerminalManager {
 				}
 			}
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] getOutput response:", {
-					outputLength: response.output.length,
-					truncated: response.truncated,
-					hasExitStatus: !!response.exitStatus,
-				})
-			}
+			Logger.debug("[AcpTerminalManager] getOutput response:", {
+				outputLength: response.output.length,
+				truncated: response.truncated,
+				hasExitStatus: !!response.exitStatus,
+			})
 
 			return result
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] getOutput error:", errorMessage)
-			}
+			Logger.debug("[AcpTerminalManager] getOutput error:", errorMessage)
 
 			return {
 				output: "",
@@ -873,16 +871,12 @@ export class AcpTerminalManager implements ITerminalManager {
 			}
 		}
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] waitForExit:", { terminalId })
-		}
+		Logger.debug("[AcpTerminalManager] waitForExit:", { terminalId })
 
 		try {
 			const response = await terminal.handle.waitForExit()
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] waitForExit response:", response)
-			}
+			Logger.debug("[AcpTerminalManager] waitForExit response:", response)
 
 			return {
 				exitCode: response.exitCode ?? undefined,
@@ -892,9 +886,7 @@ export class AcpTerminalManager implements ITerminalManager {
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] waitForExit error:", errorMessage)
-			}
+			Logger.debug("[AcpTerminalManager] waitForExit error:", errorMessage)
 
 			return {
 				success: false,
@@ -931,24 +923,18 @@ export class AcpTerminalManager implements ITerminalManager {
 			}
 		}
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] kill:", { terminalId })
-		}
+		Logger.debug("[AcpTerminalManager] kill:", { terminalId })
 
 		try {
 			await terminal.handle.kill()
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] kill success")
-			}
+			Logger.debug("[AcpTerminalManager] kill success")
 
 			return { success: true }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] kill error:", errorMessage)
-			}
+			Logger.debug("[AcpTerminalManager] kill error:", errorMessage)
 
 			return {
 				success: false,
@@ -982,25 +968,19 @@ export class AcpTerminalManager implements ITerminalManager {
 			return { success: true }
 		}
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] release:", { terminalId })
-		}
+		Logger.debug("[AcpTerminalManager] release:", { terminalId })
 
 		try {
 			await terminal.handle.release()
 			terminal.released = true
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] release success")
-			}
+			Logger.debug("[AcpTerminalManager] release success")
 
 			return { success: true }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 
-			if (this.debug) {
-				console.error("[AcpTerminalManager] release error:", errorMessage)
-			}
+			Logger.debug("[AcpTerminalManager] release error:", errorMessage)
 
 			return {
 				success: false,
@@ -1041,16 +1021,12 @@ export class AcpTerminalManager implements ITerminalManager {
 	async releaseAll(): Promise<void> {
 		const activeTerminals = this.getActiveTerminals()
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] releaseAll:", { count: activeTerminals.length })
-		}
+		Logger.debug("[AcpTerminalManager] releaseAll:", { count: activeTerminals.length })
 
 		const releasePromises = activeTerminals.map((terminal) => this.release(terminal.id))
 		await Promise.allSettled(releasePromises)
 
-		if (this.debug) {
-			console.error("[AcpTerminalManager] releaseAll complete")
-		}
+		Logger.debug("[AcpTerminalManager] releaseAll complete")
 	}
 
 	/**
