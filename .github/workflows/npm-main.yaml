@@ -97,7 +97,6 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-          POSTHOG_TELEMETRY_ENABLED: "true"
         run: npm run compile-standalone-npm
 
       - name: Generate Protos (Second Pass - Bug Workaround)

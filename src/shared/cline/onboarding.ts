@@ -23,13 +23,13 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	},
 	{
 		group: "free",
-		id: "mistralai/devstral-2512:free",
-		name: "Mistral: Devstral 2512",
-		score: 85,
+		id: "arcee-ai/trinity-large-preview:free",
+		name: "Arcee AI: Trinity Large Preview",
+		score: 88,
 		latency: 2,
-		badge: "",
+		badge: "New",
 		info: {
-			contextWindow: 256_000,
+			contextWindow: 131_000,
 			supportsImages: false,
 			supportsPromptCache: false,
 			inputPrice: 0,

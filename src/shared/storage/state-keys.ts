@@ -48,6 +48,7 @@ type FieldDefinition<T> = {
 
 type FieldDefinitions = Record<string, FieldDefinition<any>>
 
+export type ConfiguredAPIKeys = Partial<Record<ApiProvider, boolean>>
 const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteConfiguredProviders: { default: [] as ApiProvider[] },
 	allowedMCPServers: { default: [] as Array<{ id: string }> },
@@ -58,6 +59,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
 	blobStoreConfig: { default: undefined as BlobStoreSettings | undefined },
+	configuredApiKeys: { default: {} as ConfiguredAPIKeys | undefined },
 } satisfies FieldDefinitions
 
 const GLOBAL_STATE_FIELDS = {

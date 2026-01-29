@@ -75,6 +75,19 @@ message McpResourceTemplate {
   optional string description = 4;
 }
 
+message McpPromptArgument {
+  string name = 1;
+  optional string description = 2;
+  optional bool required = 3;
+}
+
+message McpPrompt {
+  string name = 1;
+  optional string title = 2;
+  optional string description = 3;
+  repeated McpPromptArgument arguments = 4;
+}
+
 enum McpServerStatus {
   // Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set.
   // To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
@@ -95,6 +108,7 @@ message McpServer {
   optional int32 timeout = 9;
   optional bool oauth_required = 10;
   optional string oauth_auth_status = 11;
+  repeated McpPrompt prompts = 12;
 }
 
 message McpServers {

@@ -3044,6 +3044,15 @@ export class Task {
 				this.workspaceManager,
 			)
 
+			// Create MCP prompt fetcher callback that wraps mcpHub.getPrompt
+			const mcpPromptFetcher = async (serverName: string, promptName: string) => {
+				try {
+					return await this.mcpHub.getPrompt(serverName, promptName)
+				} catch {
+					return null
+				}
+			}
+
 			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
 				parsedText,
 				localWorkflowToggles,
@@ -3052,6 +3061,7 @@ export class Task {
 				focusChainSettings,
 				useNativeToolCalls,
 				providerInfo,
+				mcpPromptFetcher,
 			)
 
 			if (needsCheck) {
