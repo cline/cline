@@ -104,14 +104,25 @@ export class FileEditProvider extends DiffViewProvider {
 		return this.getDocumentText()
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.absolutePath || !this.documentContent) {
 			return false
 		}
-
 		try {
+			// Ensure there is exactly one newline at the end of the file
+			// This ensures consistent file formatting and prevents issues with some tools
+			let contentToWrite = this.documentContent
+
+			// Remove any trailing newlines and add exactly one
+			// This handles cases where there might be 0, 1, or multiple trailing newlines
+			contentToWrite = contentToWrite.trimEnd()
+			if (contentToWrite.length > 0) {
+				// Only add newline if the content is not empty
+				contentToWrite += "\n"
+			}
+
 			// Write the content to the file using fs
-			await fs.writeFile(this.absolutePath, this.documentContent, { encoding: this.fileEncoding as BufferEncoding })
+			await fs.writeFile(this.absolutePath, contentToWrite, { encoding: this.fileEncoding as BufferEncoding })
 			return true
 		} catch (error) {
 			Logger.error(`Failed to save document to ${this.absolutePath}:`, error)
