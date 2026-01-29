@@ -405,6 +405,113 @@ jobs:
               }]
             }]')
           
+          # Check block count (Slack limit is 50)
+          BLOCK_COUNT=$(echo "$BLOCKS" | jq 'length')
+          echo "Block count: $BLOCK_COUNT"
+          
+          if [ "$BLOCK_COUNT" -gt 50 ]; then
+            echo "⚠️ Block count exceeds Slack limit (50). Creating compact summary..."
+            
+            # Build compact fallback message
+            BLOCKS='[]'
+            
+            # Header
+            BLOCKS=$(echo "$BLOCKS" | jq \
+              --arg repo "${{ github.repository }}" \
+              --arg hours "${{ env.HOURS_LOOKBACK }}" \
+              '. + [{
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "📊 Daily Issues Digest - \($repo) | Last \($hours) hours",
+                  "emoji": true
+                }
+              }]')
+            
+            # Summary counters
+            BLOCKS=$(echo "$BLOCKS" | jq \
+              --arg new "$NEW_COUNT" \
+              --arg reopened "$REOPENED_COUNT" \
+              --arg commented "$COMMENTED_COUNT" \
+              --arg closed "$CLOSED_COUNT" \
+              --arg prs "$PR_OPENED_COUNT" \
+              '. + [{
+                "type": "context",
+                "elements": [{
+                  "type": "mrkdwn",
+                  "text": "🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed | 🔀 \($prs) PRs opened"
+                }]
+              }]')
+            
+            # Divider
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+            
+            # Compact New Issues list (titles only)
+            if [ "$NEW_COUNT" -gt 0 ]; then
+              NEW_LIST=$(cat /tmp/new_issues.json | jq -r \
+                '.[] | "• <\(.html_url)|#\(.number)>: \(.title)"' | head -20)
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg list "$NEW_LIST" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*🆕 New Issues*\n\($list)"
+                  }
+                }]')
+            fi
+            
+            # Compact Updated Issues list
+            if [ "$REOPENED_COUNT" -gt 0 ]; then
+              REOPENED_LIST=$(cat /tmp/reopened_issues.json | jq -r \
+                '.[] | "• <\(.html_url)|#\(.number)>: \(.title)"' | head -15)
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg list "$REOPENED_LIST" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*🔄 Reopened/Updated Issues*\n\($list)"
+                  }
+                }]')
+            fi
+            
+            # Compact Commented Issues list
+            if [ "$COMMENTED_COUNT" -gt 0 ]; then
+              COMMENTED_LIST=$(cat /tmp/commented_issues.json | jq -r \
+                '.[] | "• <\(.html_url)|#\(.number)>: \(.title)"' | head -15)
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg list "$COMMENTED_LIST" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*💬 Issues with New Comments*\n\($list)"
+                  }
+                }]')
+            fi
+            
+            # Note about compact mode
+            BLOCKS=$(echo "$BLOCKS" | jq \
+              '. + [{
+                "type": "context",
+                "elements": [{
+                  "type": "mrkdwn",
+                  "text": "⚠️ _Compact mode: Too many issues for full details. Click links for more info._"
+                }]
+              }]')
+            
+            # Footer
+            BLOCKS=$(echo "$BLOCKS" | jq --arg url "https://github.com/${{ github.repository }}/issues" \
+              '. + [{
+                "type": "context",
+                "elements": [{
+                  "type": "mrkdwn",
+                  "text": "<\($url)|View all issues →>"
+                }]
+              }]')
+          fi
+          
           # Save the blocks JSON
           echo "$BLOCKS" > /tmp/slack_blocks.json
           
@@ -415,7 +522,7 @@ jobs:
             '{text: $text, blocks: $blocks}')
           
           echo "$PAYLOAD" > /tmp/slack_payload.json
-          echo "Slack payload built successfully"
+          echo "Slack payload built successfully ($(echo "$BLOCKS" | jq 'length') blocks)"
 
       - name: Send to Slack
         if: steps.message.outputs.skip != 'true'
