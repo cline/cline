@@ -144,6 +144,7 @@ const (
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
 	CEREBRAS = "cerebras"
+	SAPAICORE = "sapaicore"
 	OCA = "oca"
 	NOUSRESEARCH = "nousResearch"
 )
@@ -161,6 +162,7 @@ var AllProviders = []string{
 	"openai-native",
 	"xai",
 	"cerebras",
+	"sapaicore",
 	"oca",
 	"nousResearch",
 }
@@ -235,6 +237,24 @@ var rawConfigFields = `	[
 	    "type": "string",
 	    "comment": "",
 	    "category": "openrouter",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
+	    "name": "aihubmixBaseUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
+	    "name": "aihubmixAppCode",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
 	    "required": true,
 	    "fieldType": "password",
 	    "placeholder": "Enter your API key"
@@ -321,10 +341,28 @@ var rawConfigFields = `	[
 	    "placeholder": "Enter your API key"
 	  },
 	  {
+	    "name": "sapAiCoreClientId",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
+	    "name": "sapAiCoreClientSecret",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
 	    "name": "nousResearchApiKey",
 	    "type": "string",
 	    "comment": "",
-	    "category": "nousResearch",
+	    "category": "general",
 	    "required": true,
 	    "fieldType": "password",
 	    "placeholder": "Enter your API key"
@@ -411,6 +449,15 @@ var rawConfigFields = `	[
 	    "placeholder": ""
 	  },
 	  {
+	    "name": "azureIdentity",
+	    "type": "boolean",
+	    "comment": "",
+	    "category": "general",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
 	    "name": "requestTimeoutMs",
 	    "type": "number",
 	    "comment": "",
@@ -421,6 +468,51 @@ var rawConfigFields = `	[
 	  },
 	  {
 	    "name": "sapAiResourceGroup",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
+	    "name": "sapAiCoreTokenUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
+	  },
+	  {
+	    "name": "sapAiCoreBaseUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
+	  },
+	  {
+	    "name": "sapAiCoreUseOrchestrationMode",
+	    "type": "boolean",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
+	    "name": "hicapApiKey",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
+	    "name": "hicapModelId",
 	    "type": "string",
 	    "comment": "",
 	    "category": "general",
@@ -465,14 +557,41 @@ var rawConfigFields = `	[
 	    "placeholder": ""
 	  },
 	  {
-	    "name": "hicapApiKey",
+	    "name": "aihubmixBaseUrl",
 	    "type": "string",
 	    "comment": "",
 	    "category": "general",
-	    "required": true,
-	    "fieldType": "password",
-	    "placeholder": "Enter your API key"
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
 	  },
+	  {
+	    "name": "aihubmixAppCode",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
+	    "name": "geminiPlanModeThinkingLevel",
+	    "type": "string",
+	    "comment": "",
+	    "category": "gemini",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
+	    "name": "geminiActModeThinkingLevel",
+	    "type": "string",
+	    "comment": "",
+	    "category": "gemini",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  }
 	]`
 
 // Raw model definitions data (parsed from TypeScript)
@@ -524,6 +643,16 @@ var rawModelDefinitions = `	{
 	      "inputPrice": 3,
 	      "outputPrice": 15,
 	      "cacheWritesPrice": 3,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "claude-opus-4-5-20251101": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "inputPrice": 5,
+	      "outputPrice": 25,
+	      "cacheWritesPrice": 6,
 	      "cacheReadsPrice": 0,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
@@ -650,6 +779,16 @@ var rawModelDefinitions = `	{
 	      "supportsImages": true,
 	      "supportsPromptCache": true
 	    },
+	    "anthropic.claude-opus-4-5-20251101-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "inputPrice": 5,
+	      "outputPrice": 25,
+	      "cacheWritesPrice": 6,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
 	    "anthropic.claude-opus-4-20250514-v1:0": {
 	      "maxTokens": 8192,
 	      "contextWindow": 200000,
@@ -694,6 +833,16 @@ var rawModelDefinitions = `	{
 	      "inputPrice": 0,
 	      "outputPrice": 0,
 	      "cacheWritesPrice": 0,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "amazon.nova-2-lite-v1:0": {
+	      "maxTokens": 5000,
+	      "contextWindow": 1000000,
+	      "inputPrice": 0,
+	      "outputPrice": 2,
+	      "cacheWritesPrice": 2,
 	      "cacheReadsPrice": 0,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
@@ -816,6 +965,24 @@ var rawModelDefinitions = `	{
 	    }
 	  },
 	  "gemini": {
+	    "gemini-3-pro-preview": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "inputPrice": 4,
+	      "outputPrice": 18,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-3-flash-preview": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 3,
+	      "cacheWritesPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
 	    "gemini-2.5-pro": {
 	      "maxTokens": 65536,
 	      "contextWindow": 1048576,
@@ -946,9 +1113,63 @@ var rawModelDefinitions = `	{
 	    }
 	  },
 	  "openai-native": {
+	    "gpt-5.2": {
+	      "maxTokens": 8192,
+	      "contextWindow": 272000,
+	      "inputPrice": 1,
+	      "outputPrice": 14,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5.1-2025-11-13": {
+	      "maxTokens": 8192,
+	      "contextWindow": 272000,
+	      "inputPrice": 1,
+	      "outputPrice": 10,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5.1": {
+	      "maxTokens": 8192,
+	      "contextWindow": 272000,
+	      "inputPrice": 1,
+	      "outputPrice": 10,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5.1-codex": {
+	      "maxTokens": 8192,
+	      "contextWindow": 400000,
+	      "inputPrice": 1,
+	      "outputPrice": 10,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5.1-chat-latest": {
+	      "maxTokens": 8192,
+	      "contextWindow": 400000,
+	      "inputPrice": 1,
+	      "outputPrice": 10,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
 	    "gpt-5-2025-08-07": {
 	      "maxTokens": 8192,
 	      "contextWindow": 272000,
+	      "inputPrice": 1,
+	      "outputPrice": 10,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5-codex": {
+	      "maxTokens": 8192,
+	      "contextWindow": 400000,
 	      "inputPrice": 1,
 	      "outputPrice": 10,
 	      "cacheReadsPrice": 0,
@@ -1073,6 +1294,33 @@ var rawModelDefinitions = `	{
 	    }
 	  },
 	  "xai": {
+	    "grok-4-1-fast-reasoning": {
+	      "contextWindow": 2000000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": true,
+	      "description": "xAI's Grok 4.1 Reasoning Fast - multimodal model with 2M context."
+	    },
+	    "grok-4-1-fast-non-reasoning": {
+	      "contextWindow": 2000000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true,
+	      "description": "xAI's Grok 4.1 Non-Reasoning Fast - multimodal model with 2M context."
+	    },
+	    "grok-code-fast-1": {
+	      "contextWindow": 256000,
+	      "inputPrice": 0,
+	      "outputPrice": 1,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": true,
+	      "description": "xAI's Grok Coding model."
+	    },
 	    "grok-4-fast-reasoning": {
 	      "maxTokens": 30000,
 	      "contextWindow": 2000000,
@@ -1238,6 +1486,24 @@ var rawModelDefinitions = `	{
 	    }
 	  },
 	  "cerebras": {
+	    "zai-glm-4.6": {
+	      "maxTokens": 40000,
+	      "contextWindow": 131072,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Fast general-purpose model on Cerebras (up to 1,000 tokens/s). To be deprecated soon."
+	    },
+	    "zai-glm-4.7": {
+	      "maxTokens": 40000,
+	      "contextWindow": 131072,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Highly capable general-purpose model on Cerebras (up to 1,000 tokens/s), competitive with leading proprietary models on coding tasks."
+	    },
 	    "gpt-oss-120b": {
 	      "maxTokens": 65536,
 	      "contextWindow": 128000,
@@ -1246,24 +1512,6 @@ var rawModelDefinitions = `	{
 	      "supportsImages": false,
 	      "supportsPromptCache": false,
 	      "description": "Intelligent general purpose model with 3,000 tokens/s"
-	    },
-	    "qwen-3-coder-480b-free": {
-	      "maxTokens": 40000,
-	      "contextWindow": 64000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA coding model with ~2000 tokens/s ($0 free tier)\\n\\n• Use this if you don't have a Cerebras subscription\\n• 64K context window\\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\\n\\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)"
-	    },
-	    "qwen-3-coder-480b": {
-	      "maxTokens": 40000,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\\n\\n• Use this if you have a Cerebras subscription\\n• 131K context window with higher rate limits"
 	    },
 	    "qwen-3-235b-a22b-instruct-2507": {
 	      "maxTokens": 64000,
@@ -1291,35 +1539,134 @@ var rawModelDefinitions = `	{
 	      "supportsImages": false,
 	      "supportsPromptCache": false,
 	      "description": "SOTA coding performance with ~2500 tokens/s"
-	    },
-	    "qwen-3-235b-a22b-thinking-2507": {
-	      "maxTokens": 32000,
-	      "contextWindow": 65000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA performance with ~1500 tokens/s"
 	    }
 	  },
-	  "nousResearch": {
-	    "Hermes-4-405B": {
+	  "sapaicore": {
+	    "anthropic--claude-4.5-sonnet": {
 	      "maxTokens": 8192,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "This is the largest model in the Hermes 4 family, and it is the fullest expression of our design, focused on advanced reasoning and creative depth rather than optimizing inference speed or cost."
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
 	    },
-	    "Hermes-4-70B": {
+	    "anthropic--claude-4-sonnet": {
 	      "maxTokens": 8192,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-4-opus": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-3.7-sonnet": {
+	      "maxTokens": 64000,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-3.5-sonnet": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "anthropic--claude-3-sonnet": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "anthropic--claude-3-haiku": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "anthropic--claude-3-opus": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-2.5-pro": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-2.5-flash": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-4": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gpt-4o": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gpt-4o-mini": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gpt-4.1": {
+	      "maxTokens": 32768,
+	      "contextWindow": 1047576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-4.1-nano": {
+	      "maxTokens": 32768,
+	      "contextWindow": 1047576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5": {
+	      "maxTokens": 128000,
+	      "contextWindow": 272000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5-nano": {
+	      "maxTokens": 128000,
+	      "contextWindow": 272000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5-mini": {
+	      "maxTokens": 128000,
+	      "contextWindow": 272000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "o3-mini": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "o4-mini": {
+	      "maxTokens": 100000,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "sonar-pro": {
+	      "maxTokens": 128000,
+	      "contextWindow": 200000,
 	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases."
+	      "supportsPromptCache": false
 	    }
 	  }
 	}`
@@ -1438,7 +1785,7 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		RequiredFields:  getFieldsByProvider("gemini", configFields, true),
 		OptionalFields:  getFieldsByProvider("gemini", configFields, false),
 		Models:          modelDefinitions["gemini"],
-		DefaultModelID:  "gemini-2.5-pro",
+		DefaultModelID:  "gemini-3-pro-preview",
 		HasDynamicModels: false,
 		SetupInstructions: `Get your API key from https://makersuite.google.com/app/apikey`,
 	}
@@ -1450,7 +1797,7 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		RequiredFields:  getFieldsByProvider("openai-native", configFields, true),
 		OptionalFields:  getFieldsByProvider("openai-native", configFields, false),
 		Models:          modelDefinitions["openai-native"],
-		DefaultModelID:  "gpt-5-chat-latest",
+		DefaultModelID:  "gpt-5.1-chat-latest",
 		HasDynamicModels: true,
 		SetupInstructions: `Get your API key from your API provider`,
 	}
@@ -1474,9 +1821,21 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		RequiredFields:  getFieldsByProvider("cerebras", configFields, true),
 		OptionalFields:  getFieldsByProvider("cerebras", configFields, false),
 		Models:          modelDefinitions["cerebras"],
-		DefaultModelID:  "qwen-3-coder-480b-free",
+		DefaultModelID:  "zai-glm-4.6",
 		HasDynamicModels: false,
 		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
+	}
+
+	// SAP AI Core
+	definitions["sapaicore"] = ProviderDefinition{
+		ID:              "sapaicore",
+		Name:            "SAP AI Core",
+		RequiredFields:  getFieldsByProvider("sapaicore", configFields, true),
+		OptionalFields:  getFieldsByProvider("sapaicore", configFields, false),
+		Models:          modelDefinitions["sapaicore"],
+		DefaultModelID:  "anthropic--claude-4.5-sonnet",
+		HasDynamicModels: true,
+		SetupInstructions: `Get your SAP AI Core credentials from your BTP subaccount service key`,
 	}
 
 	// Oca
@@ -1498,7 +1857,7 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		RequiredFields:  getFieldsByProvider("nousResearch", configFields, true),
 		OptionalFields:  getFieldsByProvider("nousResearch", configFields, false),
 		Models:          modelDefinitions["nousResearch"],
-		DefaultModelID:  "Hermes-4-405B",
+		DefaultModelID:  "",
 		HasDynamicModels: false,
 		SetupInstructions: `Configure NousResearch API credentials`,
 	}
@@ -1528,6 +1887,7 @@ func GetProviderDisplayName(providerID string) string {
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
 		"cerebras": "Cerebras",
+		"sapaicore": "SAP AI Core",
 		"oca": "Oca",
 		"nousResearch": "NousResearch",
 	}
