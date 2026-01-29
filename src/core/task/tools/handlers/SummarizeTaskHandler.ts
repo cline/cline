@@ -56,6 +56,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						ulid: config.ulid,
 						apiConversationHistory: apiHistory,
 						conversationHistoryDeletedRange: config.taskState.conversationHistoryDeletedRange,
+						conversationHistoryDeletedRanges: config.taskState.conversationHistoryDeletedRanges,
 						contextManager: config.services.contextManager,
 						clineMessages: config.messageState.getClineMessages(),
 						messageStateHandler: config.messageState,

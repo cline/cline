@@ -75,6 +75,12 @@ message TaskCompleteData {
   map<string, string> task_metadata = 1;
 }
 
+// Message for deleted range tuple (start, end indices)
+message DeletedRange {
+  int32 start_index = 1;
+  int32 end_index = 2;
+}
+
 // Data for PreCompact hook
 message PreCompactData {
   // Task identification
@@ -118,4 +124,7 @@ message PreCompactData {
   // Use this to analyze total context size, overhead, and exactly what the model sees
   // This file will be automatically cleaned up after the hook completes
   string context_raw_path = 13;
+
+  // Multiple non-contiguous deleted ranges (for advanced context compaction)
+  repeated DeletedRange deleted_ranges = 14;
 }
