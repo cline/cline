@@ -147,14 +147,29 @@ When filling out the template:
 
 ### Create PR with gh CLI
 
+**Use a temporary file for the PR body** to avoid shell escaping issues, newline problems, and other command-line flakiness:
+
+1. Write the PR body to a temporary file:
+   ```
+   /tmp/pr-body.md
+   ```
+
+2. Create the PR using the file:
+   ```bash
+   gh pr create --title "PR_TITLE" --body-file /tmp/pr-body.md --base main
+   ```
+
+3. Clean up the temporary file:
+   ```bash
+   rm /tmp/pr-body.md
+   ```
+
+For draft PRs:
 ```bash
-gh pr create --title "PR_TITLE" --body "PR_BODY" --base main
+gh pr create --title "PR_TITLE" --body-file /tmp/pr-body.md --base main --draft
 ```
 
-Alternatively, create as draft if the user wants review before marking ready:
-```bash
-gh pr create --title "PR_TITLE" --body "PR_BODY" --base main --draft
-```
+**Why use a file?** Passing complex markdown with newlines, special characters, and checkboxes directly via `--body` is error-prone. The `--body-file` flag handles all content reliably.
 
 ## Post-Creation
 
