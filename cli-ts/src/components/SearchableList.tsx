@@ -106,7 +106,7 @@ export function SearchableList<T extends SearchableListItem>({
 				return (
 					<Box key={item.id}>
 						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
-							{isSelected ? "> " : "  "}
+							{isSelected ? "❯ " : "  "}
 							{item.label}
 							{item.suffix && <Text color="gray"> {item.suffix}</Text>}
 						</Text>

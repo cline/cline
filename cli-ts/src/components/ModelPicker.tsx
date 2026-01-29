@@ -19,6 +19,8 @@ import {
 	groqModels,
 	mistralDefaultModelId,
 	mistralModels,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	xaiDefaultModelId,
@@ -32,6 +34,7 @@ import { SearchableList, SearchableListItem } from "./SearchableList"
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
 	anthropic: { models: anthropicModels, defaultId: anthropicDefaultModelId },
 	"openai-native": { models: openAiNativeModels, defaultId: openAiNativeDefaultModelId },
+	"openai-codex": { models: openAiCodexModels, defaultId: openAiCodexDefaultModelId },
 	gemini: { models: geminiModels, defaultId: geminiDefaultModelId },
 	bedrock: { models: bedrockModels, defaultId: bedrockDefaultModelId },
 	deepseek: { models: deepSeekModels, defaultId: deepSeekDefaultModelId },
