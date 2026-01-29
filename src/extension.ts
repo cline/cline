@@ -60,10 +60,19 @@ import { fileExistsAtPath } from "./utils/fs"
 // for all-platform should be registered in common.ts.
 export async function activate(context: vscode.ExtensionContext) {
 	const activationStartTime = performance.now()
-	Logger.log("[Cline] Activating VS Code extension ...")
 
-	// Set up HostProvider for VSCode
+	// 1. Set up HostProvider for VSCode
+	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
+
+	// 2. Register services and perform common initialization
+	// IMPORTANT: Must be done after host provider is setup
+	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// 3. Register services and commands specific to VS Code
+	// Initialize test mode and add disposables to context
+	const testModeWatchers = await initializeTestMode(webview)
+	context.subscriptions.push(...testModeWatchers)
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
@@ -92,15 +101,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			return disposable
 		},
 	)
-
-	// Register services and perform common initialization
-	const webview = (await initialize(context)) as VscodeWebviewProvider
-
-	if (IS_DEV) {
-		const testModeWatchers = await initializeTestMode(webview)
-		// Initialize test mode and add disposables to context
-		context.subscriptions.push(...testModeWatchers)
-	}
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, webview, {
