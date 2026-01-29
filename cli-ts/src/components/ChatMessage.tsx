@@ -6,6 +6,7 @@
  * - ⎿ for tool results (indented)
  */
 
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
@@ -333,6 +334,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				errorMessage = parsed.message
 			}
 		}
+
+		// Check for Cline auth error to show sign-in instructions
+		const isClineAuthError = errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
+
 		return (
 			<Box flexDirection="column" marginBottom={1} width="100%">
 				<DotRow color="red">
@@ -340,6 +345,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 						<Text bold>Error</Text>: {errorMessage}
 					</Text>
 				</DotRow>
+				{isClineAuthError && (
+					<Box marginLeft={2} marginTop={1}>
+						<Text color="gray">
+							Run <Text color="cyan">/settings</Text> and go to Account to sign in.
+						</Text>
+					</Box>
+				)}
 			</Box>
 		)
 	}
