@@ -88,7 +88,7 @@ export const freeModels = [
 	},
 	{
 		id: "stealth/giga-potato",
-		description: "A stealth model for coding. Not a real potato.",
+		description: "A stealth model for coding(may underperform in quality and have longer latency)",
 		label: "FREE",
 	},
 ]
