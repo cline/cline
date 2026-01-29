@@ -56,6 +56,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						ulid: config.ulid,
 						apiConversationHistory: apiHistory,
 						conversationHistoryDeletedRange: config.taskState.conversationHistoryDeletedRange,
+						conversationHistoryDeletedRanges: config.taskState.conversationHistoryDeletedRanges,
 						contextManager: config.services.contextManager,
 						clineMessages: config.messageState.getClineMessages(),
 						messageStateHandler: config.messageState,
@@ -223,9 +224,9 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 
 			// clear the context history at this point in time. note that this will not include the assistant message
 			// for summarizing, which we will need to delete later
-			config.taskState.conversationHistoryDeletedRange = config.services.contextManager.getNextTruncationRange(
+			config.taskState.conversationHistoryDeletedRanges = config.services.contextManager.getNextTruncationRange(
 				apiConversationHistory,
-				config.taskState.conversationHistoryDeletedRange,
+				config.taskState.conversationHistoryDeletedRanges,
 				keepStrategy,
 			)
 			await config.messageState.saveClineMessagesAndUpdateHistory()

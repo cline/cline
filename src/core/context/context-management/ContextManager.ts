@@ -222,12 +222,12 @@ export class ContextManager {
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
 		clineMessages: ClineMessage[],
 		api: ApiHandler,
-		conversationHistoryDeletedRange: [number, number] | undefined,
+		conversationHistoryDeletedRanges: Array<[number, number]> | undefined,
 		previousApiReqIndex: number,
 		taskDirectory: string,
 		useAutoCondense: boolean, // option to use new auto-condense or old programmatic context management
 	) {
-		let updatedConversationHistoryDeletedRange = false
+		let updatedConversationHistoryDeletedRanges = false
 
 		if (!useAutoCondense) {
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -248,7 +248,7 @@ export class ContextManager {
 						// Attempt file read optimization and check if we need to truncate
 						let { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
 							apiConversationHistory,
-							conversationHistoryDeletedRange,
+							conversationHistoryDeletedRanges,
 							timestamp,
 						)
 
@@ -257,13 +257,13 @@ export class ContextManager {
 							anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
 
 							// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-							conversationHistoryDeletedRange = this.getNextTruncationRange(
+							conversationHistoryDeletedRanges = this.getNextTruncationRange(
 								apiConversationHistory,
-								conversationHistoryDeletedRange,
+								conversationHistoryDeletedRanges,
 								keep,
 							)
 
-							updatedConversationHistoryDeletedRange = true
+							updatedConversationHistoryDeletedRanges = true
 						}
 
 						// if we alter the context history, save the updated version to disk
@@ -277,12 +277,12 @@ export class ContextManager {
 
 		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
 			apiConversationHistory,
-			conversationHistoryDeletedRange,
+			conversationHistoryDeletedRanges,
 		)
 
 		return {
-			conversationHistoryDeletedRange: conversationHistoryDeletedRange,
-			updatedConversationHistoryDeletedRange: updatedConversationHistoryDeletedRange,
+			conversationHistoryDeletedRanges: conversationHistoryDeletedRanges,
+			updatedConversationHistoryDeletedRanges: updatedConversationHistoryDeletedRanges,
 			truncatedConversationHistory: truncatedConversationHistory,
 		}
 	}
@@ -292,12 +292,15 @@ export class ContextManager {
 	 */
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
-		currentDeletedRange: [number, number] | undefined,
+		currentDeletedRanges: Array<[number, number]> | undefined,
 		keep: "none" | "lastTwo" | "half" | "quarter",
-	): [number, number] {
+	): Array<[number, number]> {
+		// Extract current range - undefined if no truncation yet
+		currentDeletedRanges = currentDeletedRanges && currentDeletedRanges.length > 0 ? currentDeletedRanges : undefined
+
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
-		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 2 // inclusive starting index
+		const startOfRest = currentDeletedRanges ? currentDeletedRanges[0][1] + 1 : 2 // inclusive starting index
 
 		let messagesToRemove: number
 		if (keep === "none") {
@@ -329,7 +332,7 @@ export class ContextManager {
 		}
 
 		// this is an inclusive range that will be removed from the conversation history
-		return [rangeStartIndex, rangeEndIndex]
+		return [[rangeStartIndex, rangeEndIndex]]
 	}
 
 	/**
@@ -337,9 +340,9 @@ export class ContextManager {
 	 */
 	public getTruncatedMessages(
 		messages: Anthropic.Messages.MessageParam[],
-		deletedRange: [number, number] | undefined,
+		deletedRanges: Array<[number, number]> | undefined,
 	): Anthropic.Messages.MessageParam[] {
-		return this.getAndAlterTruncatedMessages(messages, deletedRange)
+		return this.getAndAlterTruncatedMessages(messages, deletedRanges)
 	}
 
 	/**
@@ -347,13 +350,16 @@ export class ContextManager {
 	 */
 	private getAndAlterTruncatedMessages(
 		messages: Anthropic.Messages.MessageParam[],
-		deletedRange: [number, number] | undefined,
+		deletedRanges: Array<[number, number]> | undefined,
 	): Anthropic.Messages.MessageParam[] {
 		if (messages.length <= 1) {
 			return messages
 		}
 
-		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
+		const updatedMessages = this.applyContextHistoryUpdates(
+			messages,
+			deletedRanges && deletedRanges.length > 0 ? deletedRanges[0][1] + 1 : 2,
+		)
 
 		// Validate and fix tool_use/tool_result pairing
 		this.ensureToolResultsFollowToolUse(updatedMessages)
@@ -619,13 +625,16 @@ export class ContextManager {
 	 */
 	private attemptFileReadOptimizationCore(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
-		conversationHistoryDeletedRange: [number, number] | undefined,
+		conversationHistoryDeletedRanges: Array<[number, number]> | undefined,
 		timestamp: number,
 	): {
 		anyContextUpdates: boolean
 		needToTruncate: boolean
 	} {
-		const startIndex = conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2
+		const startIndex =
+			conversationHistoryDeletedRanges && conversationHistoryDeletedRanges.length > 0
+				? conversationHistoryDeletedRanges[0][1] + 1
+				: 2
 
 		const [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
 			apiConversationHistory,
@@ -639,7 +648,7 @@ export class ContextManager {
 
 		const percentSaved = this.calculateContextOptimizationMetrics(
 			apiConversationHistory,
-			conversationHistoryDeletedRange,
+			conversationHistoryDeletedRanges,
 			uniqueFileReadIndices,
 		)
 
@@ -654,7 +663,7 @@ export class ContextManager {
 	 */
 	async attemptFileReadOptimization(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
-		conversationHistoryDeletedRange: [number, number] | undefined,
+		conversationHistoryDeletedRanges: Array<[number, number]> | undefined,
 		clineMessages: ClineMessage[],
 		previousApiReqIndex: number,
 		taskDirectory: string,
@@ -673,7 +682,7 @@ export class ContextManager {
 
 		const { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
 			apiConversationHistory,
-			conversationHistoryDeletedRange,
+			conversationHistoryDeletedRanges,
 			timestamp,
 		)
 
@@ -1233,7 +1242,7 @@ export class ContextManager {
 	 */
 	private calculateContextOptimizationMetrics(
 		apiMessages: Anthropic.Messages.MessageParam[],
-		conversationHistoryDeletedRange: [number, number] | undefined,
+		conversationHistoryDeletedRanges: Array<[number, number]> | undefined,
 		uniqueFileReadIndices: Set<number>,
 	): number {
 		// count for first user-assistant message pair
@@ -1242,7 +1251,9 @@ export class ContextManager {
 		// count for the remaining in-range messages
 		const secondChunkResult = this.countCharactersAndSavingsInRange(
 			apiMessages,
-			conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+			conversationHistoryDeletedRanges && conversationHistoryDeletedRanges.length > 0
+				? conversationHistoryDeletedRanges[0][1] + 1
+				: 2,
 			apiMessages.length,
 			uniqueFileReadIndices,
 		)

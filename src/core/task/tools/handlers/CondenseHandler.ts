@@ -62,9 +62,9 @@ export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
 			const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
 
 			// clear the context history at this point in time
-			config.taskState.conversationHistoryDeletedRange = config.services.contextManager.getNextTruncationRange(
+			config.taskState.conversationHistoryDeletedRanges = config.services.contextManager.getNextTruncationRange(
 				apiConversationHistory,
-				config.taskState.conversationHistoryDeletedRange,
+				config.taskState.conversationHistoryDeletedRanges,
 				keepStrategy,
 			)
 			await config.messageState.saveClineMessagesAndUpdateHistory()
