@@ -37,6 +37,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
+	private exitCode: number | undefined = undefined
 
 	async run(terminal: vscode.Terminal, command: string) {
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
@@ -83,6 +84,12 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					const outputBetweenSequences = this.removeLastLineArtifacts(
 						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
 					).trim()
+
+					// Extract exit code from ]633;D;<exitcode> sequence (e.g., ]633;D;0 for success)
+					const exitCodeMatch = data.match(/\]633;D;(\d+)/)
+					if (exitCodeMatch) {
+						this.exitCode = parseInt(exitCodeMatch[1], 10)
+					}
 
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
 					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
@@ -301,6 +308,14 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		}
 
 		return this.removeLastLineArtifacts(unretrieved)
+	}
+
+	/**
+	 * Get the exit code of the command if available.
+	 * Returns undefined if the command hasn't completed or exit code wasn't captured.
+	 */
+	getExitCode(): number | undefined {
+		return this.exitCode
 	}
 
 	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)

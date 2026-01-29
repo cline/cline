@@ -66,6 +66,12 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	 * May be async to allow for graceful shutdown with SIGKILL fallback.
 	 */
 	terminate?(): void | Promise<void>
+
+	/**
+	 * Get the exit code of the command if available.
+	 * Returns undefined if the command hasn't completed or exit code wasn't captured.
+	 */
+	getExitCode?(): number | undefined
 }
 
 // =============================================================================
@@ -399,4 +405,6 @@ export interface OrchestrationResult {
 	outputLines: string[]
 	/** Path to log file if output was too large and written to file */
 	logFilePath?: string
+	/** Exit code of the command if available (0 = success, non-zero = failure) */
+	exitCode?: number
 }
