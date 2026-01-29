@@ -8,6 +8,7 @@
 
 import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import type { Controller } from "@/core/controller"
 import { setTerminalTitle } from "./display"
 
@@ -29,8 +30,46 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// Track completion state
 	let isComplete = false
 	let hasError = false
-	const processedMessages = new Map<number, number>() // index -> last output text length
-	let lastStreamingMessageIndex = -1 // track open streaming line that needs closing
+	// Track which messages have been output (by timestamp)
+	const processedMessages = new Map<number, number>()
+
+	// Helper to output a message and track completion state
+	const outputMessage = (message: ClineMessage) => {
+		const ts = message.ts || 0
+
+		// Only output complete messages (not partial streaming updates)
+		// This prevents duplicate output and ensures clean, final content
+		if (message.partial) {
+			return
+		}
+
+		// Skip if we've already output this message
+		if (processedMessages.has(ts)) {
+			return
+		}
+
+		processedMessages.set(ts, message.text?.length ?? 0)
+
+		// Output the message
+		if (jsonOutput) {
+			process.stdout.write(JSON.stringify(message) + "\n")
+		} else {
+			outputMessageAsText(message, verbose || false)
+		}
+
+		// Check for completion (only on non-partial messages)
+		if (
+			message.say === "completion_result" ||
+			message.ask === "completion_result" ||
+			message.say === "error" ||
+			message.ask === "api_req_failed"
+		) {
+			isComplete = true
+			if (message.say === "error" || message.ask === "api_req_failed") {
+				hasError = true
+			}
+		}
+	}
 
 	// Subscribe to state updates
 	const originalPostState = controller.postStateToWebview.bind(controller)
@@ -40,54 +79,9 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			const state = await controller.getStateToPostToWebview()
 			const messages = state.clineMessages || []
 
-			// Process new messages
-			for (let i = 0; i < messages.length; i++) {
-				const message = messages[i]
-				const currentTextLength = message.text?.length ?? 0
-				const lastOutputLength = processedMessages.get(i) ?? 0
-
-				// Skip if no new content to output
-				if (currentTextLength <= lastOutputLength) continue
-
-				// Close previous streaming line if we're moving to a different message
-				if (lastStreamingMessageIndex >= 0 && lastStreamingMessageIndex !== i && !jsonOutput) {
-					process.stdout.write("\n")
-					lastStreamingMessageIndex = -1
-				}
-
-				processedMessages.set(i, currentTextLength)
-
-				// Output the message
-				if (jsonOutput) {
-					process.stdout.write(JSON.stringify(message) + "\n")
-				} else {
-					const isStreaming = outputMessageAsText(message, verbose || false, lastOutputLength)
-					// Track streaming state for text messages
-					if (isStreaming) {
-						lastStreamingMessageIndex = i
-					} else {
-						lastStreamingMessageIndex = -1
-					}
-				}
-
-				// Check for completion
-				if (
-					message.say === "completion_result" ||
-					message.ask === "completion_result" ||
-					message.say === "error" ||
-					message.ask === "api_req_failed"
-				) {
-					isComplete = true
-					if (message.say === "error" || message.ask === "api_req_failed") {
-						hasError = true
-					}
-				}
-			}
-
-			// Close streaming line on completion
-			if (isComplete && lastStreamingMessageIndex >= 0 && !jsonOutput) {
-				process.stdout.write("\n")
-				lastStreamingMessageIndex = -1
+			// Process all messages
+			for (const message of messages) {
+				outputMessage(message)
 			}
 		} catch (error) {
 			if (jsonOutput) {
@@ -108,9 +102,16 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		await handleStateUpdate()
 	}
 
-	// Subscribe to partial message updates (for streaming)
-	const unsubscribePartial = registerPartialMessageCallback(() => {
-		// Partial updates are handled via postStateToWebview
+	// Subscribe to message updates to detect when messages become complete
+	// This callback is called frequently during LLM streaming, but we only
+	// output messages when partial=false (complete)
+	const unsubscribePartial = registerPartialMessageCallback((protoMessage) => {
+		try {
+			const message = convertProtoToClineMessage(protoMessage) as ClineMessage
+			outputMessage(message)
+		} catch {
+			// Ignore conversion errors for partial messages
+		}
 	})
 
 	try {
@@ -132,11 +133,6 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		}
 
 		if (!isComplete) {
-			// Close any open streaming line before error message
-			if (lastStreamingMessageIndex >= 0 && !jsonOutput) {
-				process.stdout.write("\n")
-				lastStreamingMessageIndex = -1
-			}
 			if (jsonOutput) {
 				process.stdout.write(JSON.stringify({ type: "error", message: "Task timeout" }) + "\n")
 			} else {
@@ -154,10 +150,6 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		}
 		hasError = true
 	} finally {
-		// Close any open streaming line
-		if (lastStreamingMessageIndex >= 0 && !jsonOutput) {
-			process.stdout.write("\n")
-		}
 		// Restore original postStateToWebview
 		controller.postStateToWebview = originalPostState
 		unsubscribePartial()
@@ -168,58 +160,48 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 
 /**
  * Format a Cline message as plain text
- * @param previousLength - Length of text already output for this message (for streaming)
- * @returns true if this is a streaming message (caller should track for newline), false otherwise
+ * Only called for complete (non-partial) messages
  */
-function outputMessageAsText(message: ClineMessage, verbose: boolean, previousLength: number = 0): boolean {
-	const timestamp = new Date(message.ts || Date.now()).toLocaleTimeString()
+function outputMessageAsText(message: ClineMessage, verbose: boolean): void {
 	const fullText = message.text ?? ""
-
-	if (!fullText) {
-		// Skip partial messages without text
-		return false
-	}
-
-	// For streaming text continuations, output only new content
-	if (previousLength > 0 && message.type === "say" && message.say === "text") {
-		process.stdout.write(fullText.slice(previousLength))
-		return true // Still streaming
-	}
 
 	if (message.type === "say") {
 		if (message.say === "task") {
-			process.stdout.write(`[${timestamp}] Task: ${fullText}\n`)
+			process.stdout.write(`Task: ${fullText}\n`)
 		} else if (message.say === "text") {
-			// First output of text message - write prefix but no newline (streaming)
-			process.stdout.write(`[${timestamp}] ${fullText}`)
-			return true // Streaming - newline will be added when stream ends
+			if (fullText) {
+				process.stdout.write(`${fullText}\n`)
+			}
 		} else if (message.say === "completion_result" && fullText) {
-			process.stdout.write(`[${timestamp}] Completed: ${fullText}\n`)
+			process.stdout.write(`Completed: ${fullText}\n`)
 		} else if (message.say === "error") {
-			process.stderr.write(`[${timestamp}] Error: ${fullText}\n`)
+			process.stderr.write(`Error: ${fullText}\n`)
 		} else if (message.say === "api_req_started") {
 			if (verbose) {
-				process.stdout.write(`[${timestamp}] API request started\n`)
+				process.stdout.write(`API request started\n`)
 			}
 		} else if (message.say === "api_req_finished") {
 			if (verbose) {
-				process.stdout.write(`[${timestamp}] API request finished\n`)
+				process.stdout.write(`API request finished\n`)
 			}
 		} else if (verbose) {
-			process.stdout.write(`[${timestamp}] ${message.say}: ${fullText}\n`)
+			process.stdout.write(`${message.say}: ${fullText}\n`)
 		}
 	} else if (message.type === "ask") {
-		if (message.ask === "completion_result") {
-			process.stdout.write(`[${timestamp}] Task completed\n`)
+		if (message.ask === "plan_mode_respond" || message.ask === "act_mode_respond") {
+			// Plan/Act mode responses - output the response text
+			if (fullText) {
+				process.stdout.write(`${fullText}\n`)
+			}
+		} else if (message.ask === "completion_result") {
+			process.stdout.write(`Task completed\n`)
 		} else if (message.ask === "api_req_failed") {
-			process.stderr.write(`[${timestamp}] API request failed: ${fullText}\n`)
+			process.stderr.write(`API request failed: ${fullText}\n`)
 		} else if (message.ask === "tool" || message.ask === "command" || message.ask === "browser_action_launch") {
 			// These require approval - in non-interactive mode, warn the user
-			process.stderr.write(`[${timestamp}] Waiting for approval (use --yolo for auto-approve): ${message.ask}\n`)
+			process.stderr.write(`Waiting for approval (use --yolo for auto-approve): ${message.ask}\n`)
 		} else if (verbose) {
-			process.stdout.write(`[${timestamp}] Question: ${fullText}\n`)
+			process.stdout.write(`Question: ${fullText}\n`)
 		}
 	}
-
-	return false
 }

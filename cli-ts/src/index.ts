@@ -45,6 +45,8 @@ import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 // Track active context for graceful shutdown
 let activeContext: CliContext | null = null
 let isShuttingDown = false
+// Track if we're in plain text mode (no Ink UI) - set by runTask when piped stdin detected
+let isPlainTextMode = false
 
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
@@ -57,10 +59,15 @@ function setupSignalHandlers() {
 		// Notify components to hide UI before shutdown
 		shutdownEvent.fire()
 
-		// Clear several lines to remove the input field and footer from display
-		// Move cursor up and clear lines (input box + footer rows)
-		const linesToClear = 8 // Input box (3 lines with border) + footer (4-5 lines)
-		process.stdout.write(`\x1b[${linesToClear}A\x1b[J`)
+		// Only clear Ink UI lines if we're not in plain text mode
+		// In plain text mode, there's no Ink UI to clear and the ANSI codes
+		// would corrupt the streaming output
+		if (!isPlainTextMode) {
+			// Clear several lines to remove the input field and footer from display
+			// Move cursor up and clear lines (input box + footer rows)
+			const linesToClear = 8 // Input box (3 lines with border) + footer (4-5 lines)
+			process.stdout.write(`\x1b[${linesToClear}A\x1b[J`)
+		}
 
 		printWarning(`${signal} received, shutting down...`)
 
@@ -288,11 +295,14 @@ async function runTask(
 	// Detect if output is a TTY (interactive terminal) or redirected to a file/pipe
 	const isTTY = process.stdout.isTTY === true
 
-	// Use plain text mode when output is redirected, stdin was piped, or JSON mode is enabled
+	// Use plain text mode when output is redirected, stdin was piped, JSON mode is enabled, or --plain flag is used
 	// Ink requires raw mode on stdin which isn't available when stdin is piped
 	// Note: we use the stdinWasPiped flag passed from the caller because process.stdin.isTTY
 	// may not be reliable after stdin has been consumed by readStdinIfPiped()
-	if (!isTTY || options.stdinWasPiped || options.json) {
+	if (!isTTY || options.stdinWasPiped || options.json || options.yolo) {
+		// Set flag so shutdown handler knows not to clear Ink UI lines
+		isPlainTextMode = true
+
 		// Check if auth is configured before attempting to run the task
 		// In plain text mode we can't show the interactive auth flow
 		const hasAuth = await isAuthConfigured()
@@ -304,7 +314,13 @@ async function runTask(
 			exit(1)
 		}
 
-		const reason = options.json ? "json" : options.stdinWasPiped ? "piped_stdin" : "redirected_output"
+		const reason = options.yolo
+			? "yolo_flag"
+			: options.json
+				? "json"
+				: options.stdinWasPiped
+					? "piped_stdin"
+					: "redirected_output"
 		telemetryService.captureHostEvent("plain_text_mode", reason)
 		// Plain text mode: no Ink rendering, just clean text output
 		const success = await runPlainTextTask({
@@ -512,6 +528,7 @@ program
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.option("--json", "Output messages as JSON instead of styled text")
+	.option("--plain", "Use plain text output (no Ink UI)")
 	.action((prompt, options) => runTask(prompt, options))
 
 program
