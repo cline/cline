@@ -192,13 +192,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
-		dictationSettings,
 		useAutoCondense,
 		clineWebToolsEnabled,
 		worktreesEnabled,
 		focusChainSettings,
-		multiRootSetting,
-		skillsEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
 		subagentTerminalOutputLineLimit,
@@ -258,18 +255,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled: worktreesEnabled?.user,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
-		skillsEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
-		multiRootEnabled: multiRootSetting.user,
-		dictationSettings: dictationSettings?.dictationEnabled ?? false,
 	}
 
 	// Visibility lookup for features with feature flags
 	const featureVisibility: Record<string, boolean | undefined> = {
 		clineWebToolsEnabled: clineWebToolsEnabled?.featureFlag,
 		worktreesEnabled: worktreesEnabled?.featureFlag,
-		dictationSettings: dictationSettings?.featureEnabled,
-		multiRootSetting: multiRootSetting.featureFlag,
 	}
 
 	// Handler for feature toggle changes, supports nested settings like focusChainSettings
@@ -280,15 +272,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 				let currentValue = {}
 				if (feature.settingKey === "focusChainSettings") {
 					currentValue = focusChainSettings ?? {}
-				} else if (feature.settingKey === "dictationSettings") {
-					currentValue = dictationSettings ?? {}
 				}
 				updateSetting(feature.settingKey, { ...currentValue, [feature.nestedKey]: checked })
 			} else {
 				updateSetting(feature.settingKey, checked)
 			}
 		},
-		[focusChainSettings, dictationSettings],
+		[focusChainSettings],
 	)
 
 	return (
