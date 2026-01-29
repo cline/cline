@@ -116,10 +116,17 @@ function hashString(str: string): string {
 	return Math.abs(hash).toString(16).substring(0, 8)
 }
 
+export interface CliContextResult {
+	extensionContext: ClineExtensionContext
+	DATA_DIR: string
+	EXTENSION_DIR: string
+	WORKSPACE_STORAGE_DIR: string
+}
+
 /**
  * Initialize the VSCode-like context for CLI mode
  */
-export function initializeCliContext(config: CliContextConfig = {}) {
+export function initializeCliContext(config: CliContextConfig = {}): CliContextResult {
 	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
 	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
 

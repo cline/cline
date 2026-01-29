@@ -740,10 +740,14 @@ export class Task {
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files
-					lastMessage.partial = partial
+					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+					await this.messageStateHandler.updateClineMessage(lastIndex, {
+						text,
+						images,
+						files,
+						partial,
+					})
+
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
@@ -769,14 +773,15 @@ export class Task {
 				if (isUpdatingPreviousPartial) {
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
 					this.taskState.lastMessageTs = lastMessage.ts
-					// lastMessage.ts = sayTs
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files // Ensure files is updated
-					lastMessage.partial = false
+					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+					// updateClineMessage emits the change event and saves to disk
+					await this.messageStateHandler.updateClineMessage(lastIndex, {
+						text,
+						images,
+						files,
+						partial: false,
+					})
 
-					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
