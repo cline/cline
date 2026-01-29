@@ -1,28 +1,28 @@
-import { WebviewProvider } from "./core/webview";
-import "./utils/path"; // necessary to have access to String.prototype.toPosix
+import { WebviewProvider } from "./core/webview"
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 
-import { HostProvider } from "@/hosts/host-provider";
-import { Logger } from "@/shared/services/Logger";
-import type { StorageContext } from "@/shared/storage/storage-context";
-import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker";
-import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels";
-import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache";
-import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry";
-import { StateManager } from "./core/storage/StateManager";
-import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader";
-import { ExtensionRegistryInfo } from "./registry";
-import { ErrorService } from "./services/error";
-import { featureFlagsService } from "./services/feature-flags";
-import { getDistinctId } from "./services/logging/distinctId";
-import { telemetryService } from "./services/telemetry";
-import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider";
-import { ClineTempManager } from "./services/temp";
-import { cleanupTestMode } from "./services/test/TestMode";
-import { ShowMessageType } from "./shared/proto/host/window";
-import { syncWorker } from "./shared/services/worker/sync";
-import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker";
-import { getLatestAnnouncementId } from "./utils/announcements";
-import { arePathsEqual } from "./utils/path";
+import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
+import type { StorageContext } from "@/shared/storage/storage-context"
+import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
+import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
+import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import { StateManager } from "./core/storage/StateManager"
+import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
+import { ExtensionRegistryInfo } from "./registry"
+import { ErrorService } from "./services/error"
+import { featureFlagsService } from "./services/feature-flags"
+import { getDistinctId } from "./services/logging/distinctId"
+import { telemetryService } from "./services/telemetry"
+import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
+import { ClineTempManager } from "./services/temp"
+import { cleanupTestMode } from "./services/test/TestMode"
+import { ShowMessageType } from "./shared/proto/host/window"
+import { syncWorker } from "./shared/services/worker/sync"
+import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
+import { getLatestAnnouncementId } from "./utils/announcements"
+import { arePathsEqual } from "./utils/path"
 
 /**
  * Performs intialization for Cline that is common to all platforms.
