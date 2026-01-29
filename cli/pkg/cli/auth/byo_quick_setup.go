@@ -157,7 +157,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 		// Provider not found - provide helpful error message
 		supportedProviders := []string{
 			"openai-native", "openai", "anthropic", "gemini",
-			"openrouter", "xai", "cerebras", "ollama",
+			"openrouter", "xai", "cerebras", "ollama", "vercel-ai-gateway", "cline",
 		}
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf(
 			"invalid provider '%s'. Supported providers: %s",
@@ -168,15 +168,17 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 
 	// Validate against supported quick setup providers
 	supportedProviders := map[cline.ApiProvider]bool{
-		cline.ApiProvider_OPENAI_NATIVE: true,
-		cline.ApiProvider_OPENAI:        true,
-		cline.ApiProvider_ANTHROPIC:     true,
-		cline.ApiProvider_GEMINI:        true,
-		cline.ApiProvider_OPENROUTER:    true,
-		cline.ApiProvider_XAI:           true,
-		cline.ApiProvider_CEREBRAS:      true,
-		cline.ApiProvider_OLLAMA:        true,
-		cline.ApiProvider_NOUSRESEARCH:  true,
+		cline.ApiProvider_OPENAI_NATIVE:     true,
+		cline.ApiProvider_OPENAI:            true,
+		cline.ApiProvider_ANTHROPIC:         true,
+		cline.ApiProvider_GEMINI:            true,
+		cline.ApiProvider_OPENROUTER:        true,
+		cline.ApiProvider_XAI:               true,
+		cline.ApiProvider_CEREBRAS:          true,
+		cline.ApiProvider_OLLAMA:            true,
+		cline.ApiProvider_NOUSRESEARCH:      true,
+		cline.ApiProvider_VERCEL_AI_GATEWAY: true,
+		cline.ApiProvider_CLINE:             true,
 	}
 
 	if !supportedProviders[provider] {

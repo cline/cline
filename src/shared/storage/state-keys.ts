@@ -300,6 +300,7 @@ const GLOBAL_STATE_AND_SETTINGS_FIELDS = { ...GLOBAL_STATE_FIELDS, ...SETTINGS_F
 // Secret keys used in Api Configuration
 const SECRETS_KEYS = [
 	"apiKey",
+	"clineApiKey",
 	"clineAccountId", // Cline Account ID for Firebase
 	"cline:clineAccountId",
 	"openRouterApiKey",
