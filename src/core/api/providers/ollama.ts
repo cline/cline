@@ -1,6 +1,7 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -32,14 +33,17 @@ export class OllamaHandler implements ApiHandler {
 	private ensureClient(): Ollama {
 		if (!this.client) {
 			try {
+				const externalHeaders = buildExternalBasicHeaders()
 				const clientOptions: Partial<Config> = {
 					host: this.options.ollamaBaseUrl,
 					fetch,
+					headers: externalHeaders,
 				}
 
 				// Add API key if provided (for Ollama cloud or authenticated instances)
 				if (this.options.ollamaApiKey) {
 					clientOptions.headers = {
+						...clientOptions.headers,
 						Authorization: `Bearer ${this.options.ollamaApiKey}`,
 					}
 				}

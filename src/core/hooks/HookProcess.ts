@@ -43,6 +43,7 @@ export class HookProcess extends EventEmitter {
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
 		private readonly abortSignal?: AbortSignal,
+		private readonly cwd?: string,
 	) {
 		super()
 	}
@@ -108,6 +109,7 @@ export class HookProcess extends EventEmitter {
 					stdio: ["pipe", "pipe", "pipe"],
 					shell: true, // Use shell on all platforms for shebang interpretation
 					detached: process.platform !== "win32", // Create process group on Unix
+					cwd: this.cwd, // Execute from the determined workspace root
 				})
 
 				let didEmitEmptyLine = false

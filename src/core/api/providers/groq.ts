@@ -2,6 +2,7 @@ import { GroqModelId, groqDefaultModelId, groqModels, ModelInfo } from "@shared/
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -103,6 +104,7 @@ export class GroqHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.groq.com/openai/v1",
 					apiKey: this.options.groqApiKey,
+					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
