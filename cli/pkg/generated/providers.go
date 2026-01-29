@@ -144,6 +144,7 @@ const (
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
 	CEREBRAS = "cerebras"
+	SAPAICORE = "sapaicore"
 	OCA = "oca"
 	NOUSRESEARCH = "nousResearch"
 )
@@ -161,6 +162,7 @@ var AllProviders = []string{
 	"openai-native",
 	"xai",
 	"cerebras",
+	"sapaicore",
 	"oca",
 	"nousResearch",
 }
@@ -330,6 +332,24 @@ var rawConfigFields = `	[
 	    "placeholder": "Enter your API key"
 	  },
 	  {
+	    "name": "sapAiCoreClientId",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter Client ID"
+	  },
+	  {
+	    "name": "sapAiCoreClientSecret",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter Client Secret"
+	  },
+	  {
 	    "name": "ulid",
 	    "type": "string",
 	    "comment": "Used to identify the task in API requests",
@@ -423,7 +443,34 @@ var rawConfigFields = `	[
 	    "name": "sapAiResourceGroup",
 	    "type": "string",
 	    "comment": "",
-	    "category": "general",
+	    "category": "sapaicore",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
+	    "name": "sapAiCoreTokenUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
+	  },
+	  {
+	    "name": "sapAiCoreBaseUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "sapaicore",
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
+	  },
+	  {
+	    "name": "sapAiCoreUseOrchestrationMode",
+	    "type": "boolean",
+	    "comment": "",
+	    "category": "sapaicore",
 	    "required": false,
 	    "fieldType": "string",
 	    "placeholder": ""
@@ -472,7 +519,7 @@ var rawConfigFields = `	[
 	    "required": true,
 	    "fieldType": "password",
 	    "placeholder": "Enter your API key"
-	  },
+	  }
 	]`
 
 // Raw model definitions data (parsed from TypeScript)
@@ -1321,6 +1368,146 @@ var rawModelDefinitions = `	{
 	      "supportsPromptCache": false,
 	      "description": "This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases."
 	    }
+	  },
+	  "sapaicore": {
+	    "anthropic--claude-4.5-haiku": {
+	      "maxTokens": 64000,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-4.5-sonnet": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-4-sonnet": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-4.5-opus": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-4-opus": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-3.7-sonnet": {
+	      "maxTokens": 64000,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic--claude-3.5-sonnet": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "anthropic--claude-3-sonnet": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "anthropic--claude-3-haiku": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "anthropic--claude-3-opus": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-2.5-pro": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-2.5-flash": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-4": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gpt-4o": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gpt-4o-mini": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gpt-4.1": {
+	      "maxTokens": 32768,
+	      "contextWindow": 1047576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-4.1-nano": {
+	      "maxTokens": 32768,
+	      "contextWindow": 1047576,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5": {
+	      "maxTokens": 128000,
+	      "contextWindow": 272000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5-nano": {
+	      "maxTokens": 128000,
+	      "contextWindow": 272000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gpt-5-mini": {
+	      "maxTokens": 128000,
+	      "contextWindow": 272000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "o3-mini": {
+	      "maxTokens": 4096,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "o4-mini": {
+	      "maxTokens": 100000,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "sonar-pro": {
+	      "maxTokens": 128000,
+	      "contextWindow": 200000,
+	      "supportsImages": false,
+	      "supportsPromptCache": false
+	    }
 	  }
 	}`
 
@@ -1479,6 +1666,18 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
 	}
 
+	// SAP AI Core
+	definitions["sapaicore"] = ProviderDefinition{
+		ID:              "sapaicore",
+		Name:            "SAP AI Core",
+		RequiredFields:  getFieldsByProvider("sapaicore", configFields, true),
+		OptionalFields:  getFieldsByProvider("sapaicore", configFields, false),
+		Models:          modelDefinitions["sapaicore"],
+		DefaultModelID:  "anthropic--claude-4.5-sonnet",
+		HasDynamicModels: true,
+		SetupInstructions: `Configure SAP AI Core client credentials (Client ID, Client Secret, Auth URL, Base URL)`,
+	}
+
 	// Oca
 	definitions["oca"] = ProviderDefinition{
 		ID:              "oca",
@@ -1528,6 +1727,7 @@ func GetProviderDisplayName(providerID string) string {
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
 		"cerebras": "Cerebras",
+		"sapaicore": "SAP AI Core",
 		"oca": "Oca",
 		"nousResearch": "NousResearch",
 	}

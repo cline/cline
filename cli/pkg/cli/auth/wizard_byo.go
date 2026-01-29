@@ -13,6 +13,9 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
+// Special marker to indicate that model selection was already done (e.g., SAP AI Core deployment selection)
+const selectedMarker = "__SELECTED__:"
+
 // ProviderWizard handles the interactive provider configuration process
 type ProviderWizard struct {
 	ctx     context.Context
@@ -111,6 +114,11 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	// Step 2b: Special handling for OCA provider
 	if provider == cline.ApiProvider_OCA {
 		return pw.handleAddOcaProvider()
+	}
+
+	// Step 2c: Special handling for SAP AI Core provider
+	if provider == cline.ApiProvider_SAPAICORE {
+		return pw.handleAddSapAiCoreProvider()
 	}
 
 	// Step 3: Get API key first (for non-Bedrock providers)
@@ -213,6 +221,21 @@ func (pw *ProviderWizard) handleAddOcaProvider() error {
 	return nil
 }
 
+// handleAddSapAiCoreProvider handles the special case of adding SAP AI Core provider with its multi-field form
+func (pw *ProviderWizard) handleAddSapAiCoreProvider() error {
+	// Use the new dynamic model fetching setup function
+	if err := SetupSapAiCoreWithDynamicModels(pw.ctx, pw.manager); err != nil {
+		return fmt.Errorf("failed to setup SAP AI Core: %w", err)
+	}
+
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	}
+
+	fmt.Println("SAP AI Core provider configured successfully!")
+	return nil
+}
+
 // handleListProviders retrieves and displays configured providers
 func (pw *ProviderWizard) handleListProviders() error {
 	result, err := GetProviderConfigurations(pw.ctx)
@@ -246,6 +269,13 @@ func (pw *ProviderWizard) selectModel(provider cline.ApiProvider, apiKey string)
 		if len(models) == 0 {
 			fmt.Println("\n⚠ No models found from the provider. Please enter the model ID manually instead.")
 			return pw.manualModelEntry(provider)
+		}
+
+		// Special marker: if the first model starts with selectedMarker, it means selection was already done
+		if len(models) == 1 && strings.HasPrefix(models[0], selectedMarker) {
+			// Extract the actual model name and return it along with any modelInfo
+			actualModelName := strings.TrimPrefix(models[0], selectedMarker)
+			return actualModelName, modelInfoMap, nil
 		}
 
 		// Let user select from available models (includes manual entry option)
@@ -319,6 +349,9 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		}
 		interfaceMap := ConvertOcaModelsToInterface(models)
 		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
+
+	case cline.ApiProvider_SAPAICORE:
+		return pw.fetchSapAiCoreModels()
 	}
 
 	// Fall back to static models for providers that don't support dynamic fetching
@@ -470,6 +503,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	fmt.Printf("\nChanging model for %s\n", GetProviderDisplayName(provider))
 	fmt.Printf("Current model: %s\n\n", selectedProvider.ModelID)
 
+
 	// Step 5: Retrieve API key if needed for model fetching
 	var apiKey string
 	if pw.supportsModelFetching(provider) {
@@ -517,7 +551,19 @@ func (pw *ProviderWizard) applyModelChange(provider cline.ApiProvider, modelID s
 		ModelInfo: modelInfo,
 	}
 
-	return UpdateProviderPartial(pw.ctx, pw.manager, provider, updates, true)
+	// Check if this provider supports deployment IDs by checking its ProviderFields configuration
+	fields, err := GetProviderFields(provider)
+	if err == nil && fields.PlanModeDeploymentIDField != "" && fields.ActModeDeploymentIDField != "" && modelInfo != nil {
+		if modelInfoMap, ok := modelInfo.(map[string]interface{}); ok {
+			if deploymentID, exists := modelInfoMap["deploymentId"]; exists {
+				if deploymentIDStr, ok := deploymentID.(string); ok && deploymentIDStr != "" {
+					updates.DeploymentID = &deploymentIDStr
+				}
+			}
+		}
+	}
+
+	return UpdateProviderPartial(pw.ctx, pw.manager, provider, updates, false)
 }
 
 // SwitchToBYOProvider switches to a BYO provider that's already configured.
@@ -760,4 +806,75 @@ func signOutOca(ctx context.Context) error {
 func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
 	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
 	return err
+}
+
+// fetchSapAiCoreModels fetches available SAP AI Core deployments from the current state configuration
+// For direct deployment mode, it directly handles the deployment selection UI to show deployment IDs
+func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface{}, error) {
+	// Extract credentials from state to fetch deployments
+	state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get state for SAP AI Core: %w", err)
+	}
+
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse state JSON: %w", err)
+	}
+
+	apiConfig, ok := stateData["apiConfiguration"].(map[string]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("no API configuration found in state")
+	}
+
+	// Extract SAP AI Core credentials and configuration
+	clientID, _ := apiConfig["sapAiCoreClientId"].(string)
+	clientSecret, _ := apiConfig["sapAiCoreClientSecret"].(string)
+	baseURL, _ := apiConfig["sapAiCoreBaseUrl"].(string)
+	tokenURL, _ := apiConfig["sapAiCoreTokenUrl"].(string)
+	resourceGroup, _ := apiConfig["sapAiResourceGroup"].(string)
+	useOrchestrationMode, _ := apiConfig["sapAiCoreUseOrchestrationMode"].(bool)
+
+	if clientID == "" || clientSecret == "" || baseURL == "" || tokenURL == "" {
+		return nil, nil, fmt.Errorf("SAP AI Core credentials not found in configuration")
+	}
+
+	// Use the common logic that handles orchestration mode and model merging
+	staticModels, deployments, err := GetSapAiCoreModelsWithMerging(
+		pw.ctx, pw.manager,
+		clientID, clientSecret, baseURL, tokenURL, resourceGroup,
+		useOrchestrationMode,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Always use the SAP AI Core deployment selection UI for consistent experience
+	// This shows the same UI as the setup wizard (sorted, with deployment IDs for deployments, clean names for static models)
+	var allOptions []SapAiCoreDeployment
+	
+	if useOrchestrationMode {
+		// For orchestration mode, convert static models to deployment-like options
+		for _, modelName := range staticModels {
+			allOptions = append(allOptions, SapAiCoreDeployment{
+				ModelName: modelName,
+				// No deployment ID for static models
+			})
+		}
+	} else {
+		// For direct deployment mode, use the actual deployments
+		allOptions = deployments
+	}
+
+	selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(allOptions, "SAP AI Core")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to select deployment: %w", err)
+	}
+
+	// Return the selected model name with a special marker to indicate selection was already done
+	// Also include deployment ID in the modelInfo map for saving
+	modelInfo := map[string]interface{}{
+		"deploymentId": selectedDeployment.DeploymentID,
+	}
+	return []string{selectedMarker + selectedDeployment.ModelName}, modelInfo, nil
 }
