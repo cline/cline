@@ -347,8 +347,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
-		// OpenAI Native and Codex providers don't support thinking budget (they use reasoning effort)
-		const showThinkingOption = provider !== "openai-native" && provider !== "openai-codex"
+		// OpenAI Native, Codex, and GPT models don't support thinking budget (they use reasoning effort)
+		const isGptModel = actModelId?.toLowerCase().includes("gpt") || planModelId?.toLowerCase().includes("gpt")
+		const showThinkingOption = provider !== "openai-native" && provider !== "openai-codex" && !isGptModel
 
 		switch (currentTab) {
 			case "api":
