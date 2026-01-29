@@ -95,7 +95,10 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	} else {
 		// show the relative path to the cwd
 		const normalizedRelPath = path.relative(cwd, absolutePath)
-		if (absolutePath.includes(cwd)) {
+		// Use isLocatedInPath for proper path containment check instead of string.includes()
+		// which can cause false positives (e.g., /project matching /project-backup)
+		// See: https://github.com/cline/cline/issues/8761
+		if (isLocatedInPath(cwd, absolutePath)) {
 			return normalizedRelPath.toPosix()
 		} else {
 			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
