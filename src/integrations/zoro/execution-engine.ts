@@ -286,6 +286,10 @@ async function extractTestResults(testFilePath: string): Promise<any[]> {
 		// Use same pattern as loadGitDiff in verification-engine.ts
 		const output = execSync(`python "${testFilePath}"`, {
 			cwd: workspaceDir,
+			env: {
+				...process.env,
+				PYTHONPATH: workspaceDir, // Ensure workspace directory is first in Python's import path
+			},
 			encoding: "utf-8",
 			maxBuffer: 10 * 1024 * 1024, // 10MB buffer
 			timeout: 120000, // 120s timeout

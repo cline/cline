@@ -68,6 +68,37 @@ ${filesSummary
 	}
 
 	prompt += `
+## 🐍 CRITICAL: Python Import Guidelines
+
+When writing or modifying Python files in this workspace:
+
+**USE ABSOLUTE IMPORTS FROM WORKSPACE ROOT:**
+
+✅ **CORRECT** - Always use full module path:
+\`\`\`python
+from backend.schemas import ColorScheme
+from backend.api.routes import helper_function
+from backend.storage import load_data, save_data
+\`\`\`
+
+❌ **WRONG** - Do NOT use relative imports or partial paths:
+\`\`\`python
+from schemas import ColorScheme          # ❌ Missing 'backend.'
+from api.routes import helper_function   # ❌ Missing 'backend.'
+from storage import load_data            # ❌ Missing 'backend.'
+from .routes import helper_function      # ❌ Relative import
+\`\`\`
+
+**WHY THIS MATTERS:**
+- Tests run from workspace root with PYTHONPATH set to workspace directory
+- All imports must be resolvable from that root
+- Partial paths will cause \`ModuleNotFoundError\`
+
+**APPLY TO:**
+- All import statements in implementation files
+- When creating new modules in backend/
+- When modifying existing code
+
 ## Instructions
 
 1. **Read the violated rules carefully** - understand what is missing or incorrect

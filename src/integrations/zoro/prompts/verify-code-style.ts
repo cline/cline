@@ -3,30 +3,22 @@ export function getCodeStyleVerificationPrompt(
 	substeps: Array<{ id: string; text: string; completed: boolean }>,
 	rules: Array<{ rule_id: string; name: string; description: string }>,
 	chatHistory: string,
-	gitDiff: string,
-	fileContents: string
 ): string {
-	const rulesComplianceTemplate = rules.map(r => `    "${r.rule_id}": "followed" | "violated" | "not_applicable"`).join(',\n')
-	
+	const rulesComplianceTemplate = rules.map((r) => `    "${r.rule_id}": "followed" | "violated" | "not_applicable"`).join(",\n")
+
 	return `You are verifying whether a code-style step was completed correctly.
 
 ## STEP TO VERIFY:
 ${stepDescription}
 
 ## SUBSTEPS:
-${substeps.map((s, i) => `${i + 1}. [${s.completed ? 'x' : ' '}] ${s.text}`).join('\n')}
+${substeps.map((s, i) => `${i + 1}. [${s.completed ? "x" : " "}] ${s.text}`).join("\n")}
 
 ## RULES TO FOLLOW (CRITICAL - MUST CHECK EACH ONE):
-${rules.map((r, i) => `${i + 1}. [${r.rule_id}] ${r.name}: ${r.description}`).join('\n')}
+${rules.map((r, i) => `${i + 1}. [${r.rule_id}] ${r.name}: ${r.description}`).join("\n")}
 
 ## RECENT CHAT HISTORY:
 ${chatHistory}
-
-## GIT CHANGES:
-${gitDiff}
-
-## CURRENT FILE CONTENTS (relevant files):
-${fileContents}
 
 ## YOUR VERIFICATION TOOLS:
 You have access to these tools - USE THEM to verify thoroughly:
@@ -76,7 +68,7 @@ After using tools to verify, return ONLY a JSON object with this exact structure
   "overview": "## Implementation Summary\n\n### Substeps Completed\n- Substep 1: [description] - VERIFIED ✅\n- Substep 2: [description] - VERIFIED ✅\n- Substep 3: [description] - PARTIAL ⚠️\n\nSee individual substep verifications for detailed file changes and code modifications.\n\n### Overall Assessment\n[High-level summary of whether the implementation achieved the step's goal]",
   "rules_analysis": [
     {
-      "rule_id": "${rules[0]?.rule_id || 'rule-id'}",
+      "rule_id": "${rules[0]?.rule_id || "rule-id"}",
       "rule_text": "[code-style] Full rule text here",
       "followed": true,
       "evidence": "Aggregated evidence across substeps showing how the rule was followed",

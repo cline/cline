@@ -24,13 +24,11 @@ export async function runVerification(request: EnforcementRequest): Promise<Enfo
 
 	try {
 		const chatHistory = await loadChatHistory(request.chat_id)
-		const gitDiff = await loadGitDiff()
-		const fileContents = await loadRelevantFiles(gitDiff)
 		const planOutput = await loadPlanOutput(request.chat_id, request.step_id)
 
 		const nodeType = request.node?.type || "code-style"
 
-		const prompt = buildPrompt(nodeType, request, chatHistory, gitDiff, fileContents, planOutput)
+		const prompt = buildPrompt(nodeType, request, chatHistory, planOutput)
 
 		const llmResponse = await callLLM(prompt)
 		const parsed = parseVerificationResponse(llmResponse)
@@ -65,6 +63,8 @@ async function loadChatHistory(chatId: string): Promise<string> {
 
 		let formatted = "=== CHAT HISTORY ===\n\n"
 
+		// Load ALL messages with full detail - no chunking, no pre-summarization
+		// Let Anthropic's 200K context window handle it naturally
 		for (let i = 0; i < apiHistory.length; i++) {
 			const msg = apiHistory[i]
 			formatted += `--- Message ${i + 1} (${msg.role.toUpperCase()}) ---\n`
@@ -196,21 +196,14 @@ async function loadPlanOutput(chatId: string, stepId?: string): Promise<string> 
 	}
 }
 
-function buildPrompt(
-	nodeType: string,
-	request: EnforcementRequest,
-	chatHistory: string,
-	gitDiff: string,
-	fileContents: string,
-	planOutput: string,
-): string {
+function buildPrompt(nodeType: string, request: EnforcementRequest, chatHistory: string, planOutput: string): string {
 	const stepDescription = request.node?.description || "No description provided"
 	const substeps = request.node?.substeps || []
 	const rules = request.node?.rules || []
 
 	switch (nodeType) {
 		case "code-style":
-			return getCodeStyleVerificationPrompt(stepDescription, substeps, rules, chatHistory, gitDiff, fileContents)
+			return getCodeStyleVerificationPrompt(stepDescription, substeps, rules, chatHistory)
 
 		case "checking-with-user":
 			return getCheckingWithUserVerificationPrompt(stepDescription, rules, chatHistory)
@@ -219,7 +212,7 @@ function buildPrompt(
 			return getPlanningVerificationPrompt(stepDescription, rules, chatHistory, planOutput)
 
 		default:
-			return getCodeStyleVerificationPrompt(stepDescription, substeps, rules, chatHistory, gitDiff, fileContents)
+			return getCodeStyleVerificationPrompt(stepDescription, substeps, rules, chatHistory)
 	}
 }
 

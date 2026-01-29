@@ -75,22 +75,39 @@ ${filesSummary
 
 ### Phase 1: Write and Run Tests
 
-1. **Import Setup - Use EXACTLY This Code**:
-   Copy this import block exactly as shown. Do not modify or add to it:
+1. **Import Setup - Analyze First, Then Write**:
+   
+   Before writing the test, read the implementation files and check what they import. Add those directories to sys.path.
+   
    \`\`\`python
    import sys
    import os
+   import json
+   import unittest
    
-   # Add workspace root to path (this line only, no other sys.path modifications)
+   # Add workspace root
    sys.path.insert(0, '${workspaceDir}')
+   # If implementation uses 'from schemas import X', also add:
+   sys.path.insert(0, '${workspaceDir}/backend')  # or /src, /app, etc.
+   
+   # Helper function to print structured test results
+   def print_test_result(name, status, description, rule_id=None, feature_name=None):
+       """Print test result in format that Zoro can parse"""
+       result = {
+           "name": name,
+           "status": status,  # Must be 'pass', 'fail', or 'error'
+           "description": description,
+           "category": rule_id or feature_name or "general"  # REQUIRED field
+       }
+       if rule_id:
+           result["rule_id"] = rule_id
+       if feature_name:
+           result["feature_name"] = feature_name
+       print(f"TEST_RESULT: {json.dumps(result)}")
+   
+   # Now import from workspace
+   from backend.api.routes import ...
    \`\`\`
-   
-   ⚠️ **CRITICAL**: This single sys.path.insert enables imports like:
-   - \`from backend.api.routes import ...\`
-   - \`from backend.schemas import ...\`
-   - \`from backend.storage import ...\`
-   
-   **Do NOT add additional sys.path entries** (like \`sys.path.insert(0, '${workspaceDir}/backend')\`) - this will break imports!
 
 2. **Test Categories**:
    - **Unit tests**: Test individual functions/methods
@@ -98,17 +115,36 @@ ${filesSummary
    - **Rule compliance tests**: Verify each rule is followed
    - **Feature tests**: Verify substep features work correctly
 
-3. **Test Output Format**:
-   Each test MUST print results in this format:
+3. **⚠️ REQUIRED: Print Results in EVERY Test**:
+   
+   **Every test method MUST call print_test_result():**
+   \`\`\`python
+   def test_feature_works(self):
+       """Test that feature works correctly"""
+       try:
+           # Your test code
+           self.assertEqual(actual, expected)
+           self.assertTrue(condition)
+           
+           # ✅ REQUIRED: Print on success (status must be 'pass', 'fail', or 'error')
+           print_test_result(
+               name="test_feature_works",
+               status="pass",
+               description="Feature works as expected",
+               rule_id="rule-abc-123",  # Optional: if testing a rule
+               feature_name="Feature Name"  # Optional
+           )
+       except AssertionError as e:
+           # ❌ REQUIRED: Print on failure
+           print_test_result(
+               name="test_feature_works",
+               status="fail",
+               description=f"Test failed: {str(e)}"
+           )
+           raise  # Re-raise so unittest marks it as failed
    \`\`\`
-   TEST_RESULT: {
-     "name": "test_feature_name",
-     "status": "passed" | "failed",
-     "description": "What this test verifies",
-     "rule_id": "rule-id-if-applicable",
-     "feature_name": "Feature being tested"
-   }
-   \`\`\`
+   
+   **Without these print_test_result() calls, results won't appear in the Zoro UI!**
 
 4. **Write the test file** to: \`${testFilePath}\`
    - Use pytest or unittest
