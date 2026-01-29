@@ -370,6 +370,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Track when we're exiting to hide UI elements before exit
 	const [isExiting, setIsExiting] = useState(false)
 
+	// Task switch handling: when switching tasks via /history, we clear the terminal and
+	// increment a counter used as the root Box's key. This forces React to remount the tree,
+	// giving us a fresh Static instance. Mirrors how App.tsx handles resize with resizeKey.
+	const [taskSwitchKey, setTaskSwitchKey] = useState(0)
+	const prevFirstMessageTs = useRef<number | null>(null)
+
 	// Listen for shutdown event (Ctrl+C) to hide UI before exit
 	useEffect(() => {
 		const subscription = shutdownEvent.event(() => {
@@ -530,6 +536,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// Combine command messages with their output (like webview does)
 		return combineCommandSequences(filtered)
 	}, [messages])
+
+	// Detect task switches by watching first message timestamp change.
+	// When user selects a different task from /history, the messages array updates with
+	// the new task's messages. We clear the terminal first, then increment the key to
+	// trigger a re-render. The clear must happen before setState so the new render isn't wiped.
+	const firstMessageTs = displayMessages[0]?.ts ?? null
+	useEffect(() => {
+		if (prevFirstMessageTs.current !== null && firstMessageTs !== null && prevFirstMessageTs.current !== firstMessageTs) {
+			process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback, cursor home
+			setTaskSwitchKey((k) => k + 1) // Trigger remount after clear
+		}
+		prevFirstMessageTs.current = firstMessageTs
+	}, [firstMessageTs])
 
 	// Split messages into completed (for Static) and current (for dynamic region)
 	const { completedMessages, currentMessage } = useMemo(() => {
@@ -1206,7 +1225,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}
 
 	return (
-		<Box flexDirection="column" width="100%">
+		<Box flexDirection="column" key={taskSwitchKey} width="100%">
 			{/* Static content - rendered once, stays above dynamic region */}
 			<Static items={staticItems}>
 				{(item) => {
