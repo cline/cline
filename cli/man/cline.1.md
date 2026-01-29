@@ -1,3 +1,18 @@
+.TP
+\fB--cline-dir\fR \fIPATH\fR
+Set the Cline home directory used for settings, task history, logs, and other runtime files.
+Overrides the \fBCLINE_DIR\fR environment variable.
+
+.TP
+\fB--strict\fR
+Error out if the Cline home directory (from \fB--cline-dir\fR or \fBCLINE_DIR\fR) does not already exist.
+This helps prevent accidentally creating a new directory due to a typo.
+
+.TP
+\fB--new\fR
+Start the task in a fresh new Cline instance (even if a default instance exists).
+Useful for orchestration where each run should be isolated.
+
 ---
 title: CLINE
 section: 1
@@ -155,6 +170,12 @@ Cline Core instances are independent agent processes that can run in the backgro
 **cline i k** *address* [**-a**|**\--all**]
 
 :   Terminate a Cline Core instance. Use **\--all** to kill all running instances.
+
+**cline instance cleanup** [**\--kill-idle**] [**\--idle** *duration*]
+
+:   Clean up stale instances from the registry. Optionally terminate healthy-but-idle instances.
+
+    Use **\--kill-idle** together with **\--idle** (e.g. **30m**, **1h**).
 
 ## Task Management
 

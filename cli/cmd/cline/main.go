@@ -25,6 +25,8 @@ var (
 	coreAddress  string
 	verbose      bool
 	outputFormat string
+	clineDir     string
+	strict       bool
 
 	// Task creation flags (for root command)
 	images     []string
@@ -33,6 +35,7 @@ var (
 	settings   []string
 	yolo       bool
 	oneshot    bool
+	newInst    bool
 	workspaces []string
 )
 
@@ -59,11 +62,26 @@ For detailed documentation including all commands, options, and examples,
 see the manual page: man cline`,
 		Args: cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if strict {
+				// Validate chosen home directory exists (prevents silent creation on typos)
+				// Precedence: flag > env var > default (default is always allowed and will be created)
+				chosen := clineDir
+				if chosen == "" {
+					chosen = os.Getenv("CLINE_DIR")
+				}
+				if chosen != "" {
+					if _, err := os.Stat(chosen); err != nil {
+						return fmt.Errorf("--strict: cline dir does not exist: %s", chosen)
+					}
+				}
+			}
+
 			if outputFormat != "rich" && outputFormat != "json" && outputFormat != "plain" {
 				return fmt.Errorf("invalid output format '%s': must be one of 'rich', 'json', or 'plain'", outputFormat)
 			}
 
 			return global.InitializeGlobalConfig(&global.GlobalConfig{
+				ConfigPath:   clineDir,
 				Verbose:      verbose,
 				OutputFormat: outputFormat,
 				CoreAddress:  coreAddress,
@@ -84,7 +102,8 @@ see the manual page: man cline`,
 			}
 
 			// If --address flag not provided, start instance BEFORE getting prompt
-			if !cmd.Flags().Changed("address") {
+			// If --new is provided, always start a fresh instance even if a default exists.
+			if newInst || !cmd.Flags().Changed("address") {
 				if global.Config.Verbose {
 					fmt.Println("Starting new Cline instance...")
 				}
@@ -97,7 +116,7 @@ see the manual page: man cline`,
 					fmt.Printf("Started instance at %s\n\n", global.Config.CoreAddress)
 				}
 
-				// Set up cleanup on exit
+				// Set up cleanup on exit (auto-started/new instances)
 				defer func() {
 					if global.Config.Verbose {
 						fmt.Println("\nCleaning up instance...")
@@ -197,6 +216,8 @@ see the manual page: man cline`,
 	rootCmd.SetVersionTemplate(cli.VersionString())
 
 	rootCmd.PersistentFlags().StringVar(&coreAddress, "address", fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT), "Cline Core gRPC address")
+	rootCmd.PersistentFlags().StringVar(&clineDir, "cline-dir", "", "Cline home directory for settings/task history/etc (overrides CLINE_DIR)")
+	rootCmd.PersistentFlags().BoolVar(&strict, "strict", false, "Error if the Cline home directory (from --cline-dir or CLINE_DIR) does not already exist")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "F", "rich", "output format (rich|json|plain)")
 
@@ -208,6 +229,7 @@ see the manual page: man cline`,
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVarP(&oneshot, "oneshot", "o", false, "full autonomous mode")
+	rootCmd.Flags().BoolVar(&newInst, "new", false, "start the task in a fresh new instance")
 	rootCmd.Flags().StringSliceVarP(&workspaces, "workspace", "w", nil, "additional workspace paths (can be specified multiple times)")
 
 	rootCmd.AddCommand(cli.NewTaskCommand())

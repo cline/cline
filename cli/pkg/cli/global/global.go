@@ -36,6 +36,22 @@ var (
 )
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {
+	// Ensure the chosen config path has the expected runtime subdirectories.
+	// This makes it safe to use alternate/sandbox directories (via --cline-dir or CLINE_DIR)
+	// without requiring a prior bootstrap step.
+	ensureArtifacts := func(base string) error {
+		// Base directory already created/validated by caller.
+		// logs is used by cline-core/cline-host launchers.
+		if err := os.MkdirAll(filepath.Join(base, "logs"), 0755); err != nil {
+			return fmt.Errorf("failed to create logs directory: %w", err)
+		}
+		// settings subfolders used by the CLI instance registry (default instance file).
+		if err := os.MkdirAll(filepath.Join(base, common.SETTINGS_SUBFOLDER, "settings"), 0755); err != nil {
+			return fmt.Errorf("failed to create settings directory: %w", err)
+		}
+		return nil
+	}
+
 	if cfg.ConfigPath == "" {
 		// Check CLINE_DIR environment variable first
 		if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
@@ -52,6 +68,9 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	// Ensure .cline directory exists
 	if err := os.MkdirAll(cfg.ConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	if err := ensureArtifacts(cfg.ConfigPath); err != nil {
+		return err
 	}
 
 	// Configure lipgloss color profile based on output format

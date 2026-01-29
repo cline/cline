@@ -51,6 +51,45 @@ Cline can be configured through:
 -   Configuration files
 -   Command-line arguments
 
+### Cline home directory (sandboxing)
+
+The CLI stores settings, task history, logs, and other runtime files in a single directory.
+
+Precedence (highest to lowest):
+
+1. `--cline-dir <path>`
+2. `CLINE_DIR` environment variable
+3. Default: `~/.cline`
+
+If you want to avoid accidentally creating a typo'd directory, use `--strict`.
+
+Example (run multiple isolated instances with different settings/task history):
+
+```bash
+cline --cline-dir /tmp/cline-a "task for instance A"
+cline --cline-dir /tmp/cline-b "task for instance B"
+
+# Fail if the provided directory doesn't already exist
+cline --strict --cline-dir /tmp/cline-a "use existing sandbox"
+
+# Always run in a fresh new instance (useful for orchestration)
+cline --new -o -F json "do the thing"
+```
+
+### Instance cleanup
+
+By default, cleanup only removes stale/unhealthy instances from the registry:
+
+```bash
+cline instance cleanup
+```
+
+To also terminate *healthy but idle* instances (requires a recent core with `getInstanceUsage` support):
+
+```bash
+cline instance cleanup --kill-idle --idle 30m
+```
+
 See the [main documentation](https://cline.bot) for detailed configuration options.
 
 ## Links
