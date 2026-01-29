@@ -51,7 +51,7 @@ export class MoonshotHandler implements ApiHandler {
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			messages: openAiMessages,
-			temperature: 0,
+			temperature: model.info.temperature,
 			max_tokens: model.info.maxTokens,
 			stream: true,
 			stream_options: { include_usage: true },
