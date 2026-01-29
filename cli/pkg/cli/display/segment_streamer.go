@@ -45,6 +45,9 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 			output.Println("")
 			output.Print(rendered)
 		}
+	} else if outputFormat == "plain" || !isTTY() {
+		// In plain mode, add a blank line before each segment for separation
+		output.Println("")
 	}
 
 	return ss
