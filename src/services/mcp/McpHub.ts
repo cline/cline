@@ -33,7 +33,6 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { nanoid } from "nanoid"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
@@ -124,7 +123,9 @@ export class McpHub {
 
 	/**
 	 * Create a unique key for an MCP server based on its name.
-	 * This avoids making a tool name too long while still ensuring uniqueness.
+	 * Uses the server name directly (sanitized for tool name compatibility) instead of
+	 * ephemeral nanoid to ensure stable routing across restarts/reconnects.
+	 * See: https://github.com/cline/cline/issues/8087
 	 */
 	private getMcpServerKey(server: string): string {
 		// Reuse existing key if server is already registered
@@ -133,10 +134,11 @@ export class McpHub {
 				return existingKey
 			}
 		}
-		// Generate a short 6-character unique ID for the server
+		// Use server name directly, sanitized for tool name compatibility
 		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
-		// Only use the first 5 characters of nanoid to keep it short
-		const uid = "c" + nanoid(5)
+		// Replace any non-alphanumeric characters with underscores
+		const sanitized = server.replace(/[^a-zA-Z0-9]/g, "_")
+		const uid = "c" + sanitized
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
