@@ -131,6 +131,12 @@ export function isDevstralModelFamily(id: string): boolean {
 	return modelId.includes("devstral")
 }
 
+export function isTrinityModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	// OpenRouter: arcee-ai/trinity-large-preview:free and other trinity variants
+	return modelId.includes("arcee-ai/trinity") || modelId.includes("trinity")
+}
+
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
