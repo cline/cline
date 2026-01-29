@@ -19,6 +19,8 @@ const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): an
 				return OpenaiReasoningEffort.MEDIUM
 			case "high":
 				return OpenaiReasoningEffort.HIGH
+			case "xhigh":
+				return OpenaiReasoningEffort.XHIGH
 			default:
 				throw new Error(`Invalid OpenAI reasoning effort value: ${value}`)
 		}

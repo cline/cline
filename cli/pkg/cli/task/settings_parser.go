@@ -570,8 +570,10 @@ func parseOpenaiReasoningEffort(value string) (cline.OpenaiReasoningEffort, erro
 		return cline.OpenaiReasoningEffort_MEDIUM, nil
 	case "high":
 		return cline.OpenaiReasoningEffort_HIGH, nil
+	case "xhigh":
+		return cline.OpenaiReasoningEffort_XHIGH, nil
 	default:
-		return cline.OpenaiReasoningEffort_LOW, fmt.Errorf("invalid openai_reasoning_effort '%s': expected low/medium/high", value)
+		return cline.OpenaiReasoningEffort_LOW, fmt.Errorf("invalid openai_reasoning_effort '%s': expected low/medium/high/xhigh", value)
 	}
 }
 

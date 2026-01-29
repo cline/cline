@@ -35,6 +35,8 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				return "high"
 			case ProtoOpenaiReasoningEffort.MINIMAL:
 				return "minimal"
+			case ProtoOpenaiReasoningEffort.XHIGH:
+				return "xhigh"
 			default:
 				return "medium"
 		}
