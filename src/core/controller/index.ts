@@ -265,6 +265,14 @@ export class Controller {
 		// when done and catches all errors internally.
 		fetchRemoteConfig(this)
 
+		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
+		if (!isParallelTasksEnabled) {
+			// ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
+			await this.clearTask()
+			// Don't track active tasks when PARALLEL_TASKS is not enabled
+			this.activeTasks.clear()
+		}
+
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
@@ -349,7 +357,9 @@ export class Controller {
 		})
 
 		// Track the task in the active tasks map
-		this.activeTasks.set(taskId, this.task)
+		if (isParallelTasksEnabled) {
+			this.activeTasks.set(taskId, this.task)
+		}
 
 		if (historyItem) {
 			this.task.resumeTaskFromHistory()
@@ -440,14 +450,16 @@ export class Controller {
 			return
 		}
 
+		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
+
 		// Determine which task to cancel
 		const targetTaskId = taskId || this.task?.taskId
 
-		if (targetTaskId && !this.activeTasks.has(targetTaskId) && this.task) {
+		if (!isParallelTasksEnabled && targetTaskId && !this.activeTasks.has(targetTaskId) && this.task) {
 			this.activeTasks.set(targetTaskId, this.task)
 		}
 
-		const targetTask = targetTaskId ? this.activeTasks.get(targetTaskId) : undefined
+		const targetTask = isParallelTasksEnabled ? (targetTaskId ? this.activeTasks.get(targetTaskId) : undefined) : this.task
 		if (!targetTask) {
 			return
 		}
@@ -902,9 +914,10 @@ export class Controller {
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
 		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
+		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
 		const currentTaskId = this.task?.taskId
 		const currentTaskItem = currentTaskId ? (taskHistory || []).find((item) => item.id === currentTaskId) : undefined
-		const currentTask = currentTaskItem ? this.activeTasks.get(currentTaskId!) : this.task
+		const currentTask = currentTaskItem && isParallelTasksEnabled ? this.activeTasks.get(currentTaskId!) : this.task
 		const clineMessages = currentTask?.messageStateHandler.getClineMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 

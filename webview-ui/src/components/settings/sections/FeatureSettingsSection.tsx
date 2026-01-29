@@ -36,6 +36,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		parallelTasksEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -426,6 +427,23 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</span>
 						</p>
 					</div>
+
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={parallelTasksEnabled}
+							onChange={(e: any) => {
+								updateSetting("parallelTasksEnabled", e.target.checked === true)
+							}}>
+							Enable Parallel Tasks
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-error">Experimental: </span>{" "}
+							<span className="text-description">
+								Enables tasks from current session to continue in the background when not cancelled manually.
+							</span>
+						</p>
+					</div>
+
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>
 							<TooltipTrigger asChild>

@@ -286,6 +286,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		subagentsEnabled: false,
 		backgroundEditEnabled: false,
 		skillsEnabled: false,
+		parallelTasksEnabled: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

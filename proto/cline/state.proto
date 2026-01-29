@@ -277,6 +277,7 @@ message Settings {
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
   map<string, string> open_ai_headers = 173;
+  optional bool parallel_tasks_enabled = 174;
 }
 
 message DictationSettings {
@@ -423,6 +424,7 @@ message UpdateSettingsRequest {
   optional bool skills_enabled = 38;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
+  optional bool parallel_tasks_enabled = 41;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
