@@ -35,6 +35,10 @@ export function createOTLPLogExporter(
 ): LogRecordExporter | null {
 	try {
 		let exporter: any = null
+		const logsUrl = new URL(endpoint)
+		if (logsUrl.pathname === "/" || logsUrl.pathname === "") {
+			logsUrl.pathname = "/v1/logs"
+		}
 
 		switch (protocol) {
 			case "grpc": {
@@ -49,13 +53,11 @@ export function createOTLPLogExporter(
 				break
 			}
 			case "http/json": {
-				const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
-				exporter = new OTLPLogExporterHTTP({ url: logsUrl, headers })
+				exporter = new OTLPLogExporterHTTP({ url: logsUrl.toString(), headers })
 				break
 			}
 			case "http/protobuf": {
-				const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
-				exporter = new OTLPLogExporterProto({ url: logsUrl, headers })
+				exporter = new OTLPLogExporterProto({ url: logsUrl.toString(), headers })
 				break
 			}
 			default:
@@ -101,6 +103,11 @@ export function createOTLPMetricReader(
 	try {
 		let exporter: any = null
 
+		const metricsUrl = new URL(endpoint)
+		if (metricsUrl.pathname === "/" || metricsUrl.pathname === "") {
+			metricsUrl.pathname = "/v1/metrics"
+		}
+
 		switch (protocol) {
 			case "grpc": {
 				const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
@@ -114,13 +121,11 @@ export function createOTLPMetricReader(
 				break
 			}
 			case "http/json": {
-				const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
-				exporter = new OTLPMetricExporterHTTP({ url: metricsUrl, headers })
+				exporter = new OTLPMetricExporterHTTP({ url: metricsUrl.toString(), headers })
 				break
 			}
 			case "http/protobuf": {
-				const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
-				exporter = new OTLPMetricExporterProto({ url: metricsUrl, headers })
+				exporter = new OTLPMetricExporterProto({ url: metricsUrl.toString(), headers })
 				break
 			}
 			default:
