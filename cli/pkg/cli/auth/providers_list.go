@@ -10,6 +10,7 @@ import (
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/grpc-go/cline"
+	"github.com/cline/grpc-go/client"
 )
 
 // ProviderDisplay represents a configured provider for display purposes
@@ -35,7 +36,14 @@ func GetProviderConfigurations(ctx context.Context) (*ProviderListResult, error)
 	}
 
 	// Get latest state from Cline Core
-	grpcClient, err := global.GetDefaultClient(ctx)
+	// Use auth instance if available, otherwise fall back to default
+	var grpcClient *client.ClineClient
+	var err error
+	if authAddr, ok := ctx.Value(authInstanceAddressKey).(string); ok && authAddr != "" {
+		grpcClient, err = global.GetClientForAddress(ctx, authAddr)
+	} else {
+		grpcClient, err = global.GetDefaultClient(ctx)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider configs due to unable to get gRPC client: %w", err)
 	}
@@ -118,6 +126,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_NOUSRESEARCH,
 		cline.ApiProvider_OCA,
 		cline.ApiProvider_HICAP,
+		cline.ApiProvider_VERCEL_AI_GATEWAY,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -248,6 +257,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_HICAP, true
 	case "nousResearch":
 		return cline.ApiProvider_NOUSRESEARCH, true
+	case "vercel-ai-gateway":
+		return cline.ApiProvider_VERCEL_AI_GATEWAY, true
 	default:
 		return cline.ApiProvider_ANTHROPIC, false // Return 0 value with false
 	}
@@ -283,6 +294,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "hicap"
 	case cline.ApiProvider_NOUSRESEARCH:
 		return "nousResearch"
+	case cline.ApiProvider_VERCEL_AI_GATEWAY:
+		return "vercel-ai-gateway"
 	default:
 		return ""
 	}
@@ -368,6 +381,8 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Hicap"
 	case cline.ApiProvider_NOUSRESEARCH:
 		return "NousResearch"
+	case cline.ApiProvider_VERCEL_AI_GATEWAY:
+		return "Vercel AI Gateway"
 	default:
 		return "Unknown"
 	}
@@ -464,9 +479,19 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 	var configuredProviders []cline.ApiProvider
 
 	// Check for Cline provider (uses authentication instead of API key)
-	if IsAuthenticated(ctx) {
+	isOAuthAuth := IsAuthenticated(ctx)
+	if isOAuthAuth {
 		configuredProviders = append(configuredProviders, cline.ApiProvider_CLINE)
 		verboseLog("[DEBUG] Cline provider is authenticated")
+	}
+
+	// Also check for Cline API key (non-OAuth)
+	if clineKey, ok := apiConfig["clineApiKey"].(string); ok && clineKey != "" {
+		// Only add if not already added via OAuth
+		if !isOAuthAuth {
+			configuredProviders = append(configuredProviders, cline.ApiProvider_CLINE)
+			verboseLog("[DEBUG] Cline provider configured with API key")
+		}
 	}
 
 	// Check OCA provider via global auth subscription (state presence)
@@ -491,6 +516,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_CEREBRAS, []string{"cerebrasApiKey"}},
 		{cline.ApiProvider_HICAP, []string{"hicapApiKey"}},
 		{cline.ApiProvider_NOUSRESEARCH, []string{"nousResearchApiKey"}},
+		{cline.ApiProvider_VERCEL_AI_GATEWAY, []string{"vercelAiGatewayApiKey"}},
 	}
 
 	for _, providerCheck := range providersToCheck {
