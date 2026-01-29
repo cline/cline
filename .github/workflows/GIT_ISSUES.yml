@@ -413,6 +413,9 @@ jobs:
             echo "⚠️ Block count exceeds Slack limit (50). Creating compact summary..."
             
             # Build compact fallback message
+            # Priority: 1) All new issues, 2) Commented issues, 3) Reopened issues
+            # Slack section text limit is ~3000 chars, so we fit as many as possible
+            
             BLOCKS='[]'
             
             # Header
@@ -446,49 +449,117 @@ jobs:
             # Divider
             BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
             
-            # Compact New Issues list (titles only)
+            # Calculate remaining blocks (50 - header - summary - divider - note - footer = 45)
+            REMAINING_BLOCKS=45
+            
+            # 1. PRIORITY: All New Issues (use multiple blocks if needed)
             if [ "$NEW_COUNT" -gt 0 ]; then
-              NEW_LIST=$(cat /tmp/new_issues.json | jq -r \
-                '.[] | "• <\(.html_url)|#\(.number)>: \(.title)"' | head -20)
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*🆕 New Issues*"
+                }
+              }]')
+              REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
               
-              BLOCKS=$(echo "$BLOCKS" | jq --arg list "$NEW_LIST" \
-                '. + [{
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*🆕 New Issues*\n\($list)"
-                  }
-                }]')
+              # Show ALL new issues, split into blocks of ~30 each (to stay under 3000 char limit)
+              BATCH_SIZE=30
+              BATCH_NUM=0
+              while true; do
+                SKIP=$((BATCH_NUM * BATCH_SIZE))
+                NEW_LIST=$(cat /tmp/new_issues.json | jq -r \
+                  ".[$SKIP:$((SKIP + BATCH_SIZE))] | .[] | \"• <\\(.html_url)|#\\(.number)>: \\(.title)\"")
+                
+                [ -z "$NEW_LIST" ] && break
+                [ "$REMAINING_BLOCKS" -le 3 ] && break
+                
+                BLOCKS=$(echo "$BLOCKS" | jq --arg list "$NEW_LIST" \
+                  '. + [{
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $list
+                    }
+                  }]')
+                
+                REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+                BATCH_NUM=$((BATCH_NUM + 1))
+              done
             fi
             
-            # Compact Updated Issues list
-            if [ "$REOPENED_COUNT" -gt 0 ]; then
-              REOPENED_LIST=$(cat /tmp/reopened_issues.json | jq -r \
-                '.[] | "• <\(.html_url)|#\(.number)>: \(.title)"' | head -15)
+            # 2. SECOND PRIORITY: Commented Issues
+            if [ "$COMMENTED_COUNT" -gt 0 ] && [ "$REMAINING_BLOCKS" -gt 3 ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*💬 Issues with New Comments*"
+                }
+              }]')
+              REMAINING_BLOCKS=$((REMAINING_BLOCKS - 2))
               
-              BLOCKS=$(echo "$BLOCKS" | jq --arg list "$REOPENED_LIST" \
-                '. + [{
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*🔄 Reopened/Updated Issues*\n\($list)"
-                  }
-                }]')
+              # Show as many commented issues as blocks allow
+              BATCH_SIZE=30
+              BATCH_NUM=0
+              while true; do
+                SKIP=$((BATCH_NUM * BATCH_SIZE))
+                COMMENTED_LIST=$(cat /tmp/commented_issues.json | jq -r \
+                  ".[$SKIP:$((SKIP + BATCH_SIZE))] | .[] | \"• <\\(.html_url)|#\\(.number)>: \\(.title)\"")
+                
+                [ -z "$COMMENTED_LIST" ] && break
+                [ "$REMAINING_BLOCKS" -le 3 ] && break
+                
+                BLOCKS=$(echo "$BLOCKS" | jq --arg list "$COMMENTED_LIST" \
+                  '. + [{
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $list
+                    }
+                  }]')
+                
+                REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+                BATCH_NUM=$((BATCH_NUM + 1))
+              done
             fi
             
-            # Compact Commented Issues list
-            if [ "$COMMENTED_COUNT" -gt 0 ]; then
-              COMMENTED_LIST=$(cat /tmp/commented_issues.json | jq -r \
-                '.[] | "• <\(.html_url)|#\(.number)>: \(.title)"' | head -15)
+            # 3. LOWEST PRIORITY: Reopened Issues (only if space remains)
+            if [ "$REOPENED_COUNT" -gt 0 ] && [ "$REMAINING_BLOCKS" -gt 3 ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*🔄 Reopened/Updated Issues*"
+                }
+              }]')
+              REMAINING_BLOCKS=$((REMAINING_BLOCKS - 2))
               
-              BLOCKS=$(echo "$BLOCKS" | jq --arg list "$COMMENTED_LIST" \
-                '. + [{
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*💬 Issues with New Comments*\n\($list)"
-                  }
-                }]')
+              # Show as many reopened issues as blocks allow
+              BATCH_SIZE=30
+              BATCH_NUM=0
+              while true; do
+                SKIP=$((BATCH_NUM * BATCH_SIZE))
+                REOPENED_LIST=$(cat /tmp/reopened_issues.json | jq -r \
+                  ".[$SKIP:$((SKIP + BATCH_SIZE))] | .[] | \"• <\\(.html_url)|#\\(.number)>: \\(.title)\"")
+                
+                [ -z "$REOPENED_LIST" ] && break
+                [ "$REMAINING_BLOCKS" -le 2 ] && break
+                
+                BLOCKS=$(echo "$BLOCKS" | jq --arg list "$REOPENED_LIST" \
+                  '. + [{
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $list
+                    }
+                  }]')
+                
+                REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+                BATCH_NUM=$((BATCH_NUM + 1))
+              done
             fi
             
             # Note about compact mode
@@ -497,7 +568,7 @@ jobs:
                 "type": "context",
                 "elements": [{
                   "type": "mrkdwn",
-                  "text": "⚠️ _Compact mode: Too many issues for full details. Click links for more info._"
+                  "text": "⚠️ _Compact mode: Showing titles only. Click links for details._"
                 }]
               }]')
             
