@@ -6,7 +6,6 @@ import { memo, type ReactNode, useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
@@ -14,6 +13,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
+import SettingsSlider from "../SettingsSlider"
 import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
@@ -238,11 +238,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	}, [])
 
 	const handleFocusChainIntervalChange = useCallback(
-		(e: any) => {
-			const value = parseInt(e.target.value, 10)
-			if (!Number.isNaN(value) && value >= 1 && value <= 100) {
-				updateSetting("focusChainSettings", { ...focusChainSettings, remindClineInterval: value })
-			}
+		(value: number) => {
+			updateSetting("focusChainSettings", { ...focusChainSettings, remindClineInterval: value })
 		},
 		[focusChainSettings],
 	)
@@ -390,26 +387,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								/>
 							))}
 							{focusChainSettings?.enabled && (
-								<div className="mt-2 p-3 rounded-md bg-editor-widget-background/30 border border-editor-widget-border/30">
-									<div className="flex items-center justify-between gap-4">
-										<div className="space-y-0.5 flex-1">
-											<Label className="text-xs font-medium text-description">
-												Reminder Interval (1-10)
-											</Label>
-										</div>
-										<span className="text-sm font-mono text-foreground w-6 text-right">
-											{focusChainSettings?.remindClineInterval}
-										</span>
-									</div>
-									<Slider
-										className="mt-2"
-										max={10}
-										min={1}
-										onValueChange={(e) => handleFocusChainIntervalChange({ target: { value: e[0] } })}
-										step={1}
-										value={[focusChainSettings?.remindClineInterval || 6]}
-									/>
-								</div>
+								<SettingsSlider
+									label="Reminder Interval (1-10)"
+									max={10}
+									min={1}
+									onChange={handleFocusChainIntervalChange}
+									step={1}
+									value={focusChainSettings?.remindClineInterval || 6}
+									valueWidth="w-6"
+								/>
 							)}
 						</div>
 					</div>
