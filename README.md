@@ -47,6 +47,8 @@ Thanks to [Claude Sonnet's agentic coding capabilities](https://www.anthropic.c
 
 ---
 
+I have added a pull request here.
+
 <img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4">
 
 ### Use any API and Model
@@ -149,3 +151,6 @@ Get the same Cline experience with enterprise-grade controls: SSO (SAML/OIDC), g
 ## License
 
 [Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
+
+
+Here is a major change that can help project. I will continue on developing it.
