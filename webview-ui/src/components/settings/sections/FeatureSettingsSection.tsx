@@ -448,4 +448,4 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		</div>
 	)
 }
-export default FeatureSettingsSection
+export default memo(FeatureSettingsSection)
