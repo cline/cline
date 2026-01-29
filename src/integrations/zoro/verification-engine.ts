@@ -1,63 +1,46 @@
-import { execSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
-import { getController, getWorkspaceDirectory } from './delegates'
-import { EnforcementRequest, EnforcementResponse } from './types'
-import {
-	getCodeStyleVerificationPrompt,
-} from './prompts/verify-code-style'
-import {
-	getCheckingWithUserVerificationPrompt,
-} from './prompts/verify-checking'
-import {
-	getPlanningVerificationPrompt,
-} from './prompts/verify-planning'
-import {
-	getSubstepVerificationPrompt,
-} from './prompts/verify-substep'
+import { execSync } from "child_process"
+import * as fs from "fs"
+import * as path from "path"
+import { executeTool, getController, getWorkspaceDirectory, TOOL_DEFINITIONS } from "./delegates"
+import { getCheckingWithUserVerificationPrompt } from "./prompts/verify-checking"
+import { getCodeStyleVerificationPrompt } from "./prompts/verify-code-style"
+import { getPlanningVerificationPrompt } from "./prompts/verify-planning"
+import { getSubstepVerificationPrompt } from "./prompts/verify-substep"
+import { EnforcementRequest, EnforcementResponse } from "./types"
 
 interface ChatMessage {
-	role: 'user' | 'assistant'
+	role: "user" | "assistant"
 	content: string
 	timestamp: string
 }
 
-export async function runVerification(
-	request: EnforcementRequest
-): Promise<EnforcementResponse> {
-	console.log('[verification-engine] 🚀 START runVerification:', {
+export async function runVerification(request: EnforcementRequest): Promise<EnforcementResponse> {
+	console.log("[verification-engine] 🚀 START runVerification:", {
 		chat_id: request.chat_id,
 		step_id: request.step_id,
 		node_type: request.node?.type,
-		has_node: !!request.node
+		has_node: !!request.node,
 	})
-	
+
 	try {
 		const chatHistory = await loadChatHistory(request.chat_id)
 		const gitDiff = await loadGitDiff()
 		const fileContents = await loadRelevantFiles(gitDiff)
 		const planOutput = await loadPlanOutput(request.chat_id, request.step_id)
 
-		const nodeType = request.node?.type || 'code-style'
+		const nodeType = request.node?.type || "code-style"
 
-		const prompt = buildPrompt(
-			nodeType,
-			request,
-			chatHistory,
-			gitDiff,
-			fileContents,
-			planOutput
-		)
+		const prompt = buildPrompt(nodeType, request, chatHistory, gitDiff, fileContents, planOutput)
 
 		const llmResponse = await callLLM(prompt)
 		const parsed = parseVerificationResponse(llmResponse)
 
 		return parsed
 	} catch (error) {
-		console.error('[verification-engine] Error:', error)
+		console.error("[verification-engine] Error:", error)
 		return {
-			verdict: 'unclear',
-			overview: `## Verification Failed\n- Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			verdict: "unclear",
+			overview: `## Verification Failed\n- Error: ${error instanceof Error ? error.message : "Unknown error"}`,
 			rules_analysis: [],
 			files_summary: [],
 			code_blocks: [],
@@ -66,150 +49,150 @@ export async function runVerification(
 }
 
 async function loadChatHistory(chatId: string): Promise<string> {
-	console.log('[verification-engine] Loading chat history for:', chatId)
-	
+	console.log("[verification-engine] Loading chat history for:", chatId)
+
 	try {
 		const controller = getController()
 		if (!controller || !controller.task) {
-			return 'No active task found'
+			return "No active task found"
 		}
 
 		const apiHistory = controller.task.messageStateHandler.getApiConversationHistory()
-		
+
 		if (!apiHistory || apiHistory.length === 0) {
-			return 'No conversation history available'
+			return "No conversation history available"
 		}
 
-		let formatted = '=== CHAT HISTORY ===\n\n'
-		
+		let formatted = "=== CHAT HISTORY ===\n\n"
+
 		for (let i = 0; i < apiHistory.length; i++) {
 			const msg = apiHistory[i]
 			formatted += `--- Message ${i + 1} (${msg.role.toUpperCase()}) ---\n`
-			
-			if (typeof msg.content === 'string') {
-				formatted += msg.content + '\n\n'
+
+			if (typeof msg.content === "string") {
+				formatted += msg.content + "\n\n"
 			} else if (Array.isArray(msg.content)) {
 				for (const block of msg.content) {
-					if (block.type === 'text') {
-						formatted += block.text + '\n'
-					} else if (block.type === 'tool_use') {
+					if (block.type === "text") {
+						formatted += block.text + "\n"
+					} else if (block.type === "tool_use") {
 						formatted += `[Tool: ${block.name}]\n`
-					} else if (block.type === 'tool_result') {
+					} else if (block.type === "tool_result") {
 						formatted += `[Tool Result]\n`
 					}
 				}
-				formatted += '\n'
+				formatted += "\n"
 			}
 		}
-		
+
 		return formatted
 	} catch (error) {
-		console.error('[verification-engine] Error loading chat history:', error)
-		return `Error loading chat history: ${error instanceof Error ? error.message : 'Unknown error'}`
+		console.error("[verification-engine] Error loading chat history:", error)
+		return `Error loading chat history: ${error instanceof Error ? error.message : "Unknown error"}`
 	}
 }
 
 async function loadGitDiff(): Promise<string> {
-	console.log('[verification-engine] Loading git diff')
-	
+	console.log("[verification-engine] Loading git diff")
+
 	try {
 		const cwd = getWorkspaceDirectory()
-		
+
 		// Try git diff (works even without HEAD)
-		const diff = execSync('git diff', {
+		const diff = execSync("git diff", {
 			cwd,
-			encoding: 'utf-8',
+			encoding: "utf-8",
 			maxBuffer: 10 * 1024 * 1024,
 			timeout: 10000,
 		})
-		
+
 		if (!diff || diff.trim().length === 0) {
-			return 'No git changes detected (working directory is clean)'
+			return "No git changes detected (working directory is clean)"
 		}
-		
+
 		return diff
 	} catch (error) {
-		console.error('[verification-engine] Error loading git diff:', error)
-		return `Error loading git diff: ${error instanceof Error ? error.message : 'Unknown error'}`
+		console.error("[verification-engine] Error loading git diff:", error)
+		return `Error loading git diff: ${error instanceof Error ? error.message : "Unknown error"}`
 	}
 }
 
 async function loadRelevantFiles(gitDiff: string): Promise<string> {
-	console.log('[verification-engine] Loading relevant files')
-	
+	console.log("[verification-engine] Loading relevant files")
+
 	try {
-		if (!gitDiff || gitDiff.includes('No git changes') || gitDiff.includes('Error')) {
-			return 'No files to load'
+		if (!gitDiff || gitDiff.includes("No git changes") || gitDiff.includes("Error")) {
+			return "No files to load"
 		}
 
 		const cwd = getWorkspaceDirectory()
-		
+
 		const filePathRegex = /^diff --git a\/(.+) b\/(.+)$/gm
 		const matches = [...gitDiff.matchAll(filePathRegex)]
-		const filePaths = new Set(matches.map(m => m[2]))
-		
+		const filePaths = new Set(matches.map((m) => m[2]))
+
 		if (filePaths.size === 0) {
-			return 'No file paths found in git diff'
+			return "No file paths found in git diff"
 		}
-		
-		let result = '=== CHANGED FILES ===\n\n'
-		
+
+		let result = "=== CHANGED FILES ===\n\n"
+
 		for (const filePath of Array.from(filePaths).slice(0, 10)) {
 			const fullPath = path.join(cwd, filePath)
-			
+
 			try {
 				if (fs.existsSync(fullPath)) {
-					const content = fs.readFileSync(fullPath, 'utf-8')
-					const lines = content.split('\n')
-					const preview = lines.slice(0, 50).join('\n')
-					
+					const content = fs.readFileSync(fullPath, "utf-8")
+					const lines = content.split("\n")
+					const preview = lines.slice(0, 50).join("\n")
+
 					result += `--- ${filePath} (${lines.length} lines) ---\n`
 					result += preview
 					if (lines.length > 50) {
 						result += `\n... (${lines.length - 50} more lines)`
 					}
-					result += '\n\n'
+					result += "\n\n"
 				}
 			} catch (err) {
 				result += `--- ${filePath} (error reading file) ---\n\n`
 			}
 		}
-		
+
 		if (filePaths.size > 10) {
 			result += `\n(Showing 10 of ${filePaths.size} changed files)\n`
 		}
-		
+
 		return result
 	} catch (error) {
-		console.error('[verification-engine] Error loading files:', error)
-		return `Error loading files: ${error instanceof Error ? error.message : 'Unknown error'}`
+		console.error("[verification-engine] Error loading files:", error)
+		return `Error loading files: ${error instanceof Error ? error.message : "Unknown error"}`
 	}
 }
 
 async function loadPlanOutput(chatId: string, stepId?: string): Promise<string> {
-	console.log('[verification-engine] Loading plan output for:', chatId, stepId)
-	
+	console.log("[verification-engine] Loading plan output for:", chatId, stepId)
+
 	try {
 		const cwd = getWorkspaceDirectory()
-		const planPath = path.join(cwd, '.zoro', 'generated', 'assistant', chatId, 'plan.json')
-		
+		const planPath = path.join(cwd, ".zoro", "generated", "assistant", chatId, "plan.json")
+
 		if (!fs.existsSync(planPath)) {
 			return `No plan found at ${planPath}`
 		}
-		
-		const planData = JSON.parse(fs.readFileSync(planPath, 'utf-8'))
-		
+
+		const planData = JSON.parse(fs.readFileSync(planPath, "utf-8"))
+
 		if (stepId && planData.steps) {
 			const step = planData.steps.find((s: any) => s.id === stepId)
 			if (step) {
 				return JSON.stringify(step, null, 2)
 			}
 		}
-		
+
 		return JSON.stringify(planData, null, 2)
 	} catch (error) {
-		console.error('[verification-engine] Error loading plan:', error)
-		return `Error loading plan: ${error instanceof Error ? error.message : 'Unknown error'}`
+		console.error("[verification-engine] Error loading plan:", error)
+		return `Error loading plan: ${error instanceof Error ? error.message : "Unknown error"}`
 	}
 }
 
@@ -219,151 +202,36 @@ function buildPrompt(
 	chatHistory: string,
 	gitDiff: string,
 	fileContents: string,
-	planOutput: string
+	planOutput: string,
 ): string {
-	const stepDescription = request.node?.description || 'No description provided'
+	const stepDescription = request.node?.description || "No description provided"
 	const substeps = request.node?.substeps || []
 	const rules = request.node?.rules || []
 
 	switch (nodeType) {
-		case 'code-style':
-			return getCodeStyleVerificationPrompt(
-				stepDescription,
-				substeps,
-				rules,
-				chatHistory,
-				gitDiff,
-				fileContents
-			)
+		case "code-style":
+			return getCodeStyleVerificationPrompt(stepDescription, substeps, rules, chatHistory, gitDiff, fileContents)
 
-		case 'checking-with-user':
-			return getCheckingWithUserVerificationPrompt(
-				stepDescription,
-				rules,
-				chatHistory
-			)
+		case "checking-with-user":
+			return getCheckingWithUserVerificationPrompt(stepDescription, rules, chatHistory)
 
-		case 'planning':
-			return getPlanningVerificationPrompt(
-				stepDescription,
-				rules,
-				chatHistory,
-				planOutput
-			)
+		case "planning":
+			return getPlanningVerificationPrompt(stepDescription, rules, chatHistory, planOutput)
 
 		default:
-			return getCodeStyleVerificationPrompt(
-				stepDescription,
-				substeps,
-				rules,
-				chatHistory,
-				gitDiff,
-				fileContents
-			)
+			return getCodeStyleVerificationPrompt(stepDescription, substeps, rules, chatHistory, gitDiff, fileContents)
 	}
 }
 
-interface ToolDefinition {
-	name: string
-	description: string
-	input_schema: {
-		type: string
-		properties: Record<string, any>
-		required?: string[]
-	}
-}
+async function callLLM(prompt: string, verificationType: "step" | "substep" = "step"): Promise<string> {
+	console.log("[verification-engine] Two-phase verification starting, type:", verificationType)
 
-const TOOL_DEFINITIONS: ToolDefinition[] = [
-	{
-		name: 'read_file',
-		description: 'Read the complete contents of a file in the workspace',
-		input_schema: {
-			type: 'object',
-			properties: {
-				path: { type: 'string', description: 'Relative path from workspace root' }
-			},
-			required: ['path']
-		}
-	},
-	{
-		name: 'search_files',
-		description: 'Search for a pattern across all files in the workspace using grep',
-		input_schema: {
-			type: 'object',
-			properties: {
-				pattern: { type: 'string', description: 'Pattern to search for' },
-				file_pattern: { type: 'string', description: 'Optional file glob pattern (e.g., "*.ts")' }
-			},
-			required: ['pattern']
-		}
-	},
-	{
-		name: 'execute_command',
-		description: 'Execute a shell command (git log, git blame, git show, grep, find, etc.)',
-		input_schema: {
-			type: 'object',
-			properties: {
-				command: { type: 'string', description: 'Shell command to execute' }
-			},
-			required: ['command']
-		}
-	}
-]
-
-async function executeTool(toolName: string, toolInput: any): Promise<string> {
-	const cwd = getWorkspaceDirectory()
-	
-	try {
-		switch (toolName) {
-			case 'read_file': {
-				const filePath = path.join(cwd, toolInput.path)
-				if (!fs.existsSync(filePath)) {
-					return `Error: File not found: ${toolInput.path}`
-				}
-				const content = fs.readFileSync(filePath, 'utf-8')
-				return `File: ${toolInput.path}\n\n${content}`
-			}
-			
-			case 'search_files': {
-				const pattern = toolInput.pattern
-				const filePattern = toolInput.file_pattern || '*'
-				const cmd = `find . -maxdepth 5 -type f -name "${filePattern}" -exec grep -l "${pattern}" {} \\; 2>/dev/null | head -20 || true`
-				const output = execSync(cmd, { 
-					cwd, 
-					encoding: 'utf-8', 
-					maxBuffer: 5 * 1024 * 1024,
-					timeout: 10000
-				})
-				return output || `No matches found for pattern: ${pattern}`
-			}
-			
-			case 'execute_command': {
-				const output = execSync(toolInput.command, { 
-					cwd, 
-					encoding: 'utf-8', 
-					maxBuffer: 5 * 1024 * 1024,
-					timeout: 10000
-				})
-				return output || '(No output)'
-			}
-			
-			default:
-				return `Error: Unknown tool: ${toolName}`
-		}
-	} catch (error) {
-		return `Error executing ${toolName}: ${error instanceof Error ? error.message : 'Unknown error'}`
-	}
-}
-
-async function callLLM(prompt: string, verificationType: 'step' | 'substep' = 'step'): Promise<string> {
-	console.log('[verification-engine] Two-phase verification starting, type:', verificationType)
-	
 	try {
 		const controller = getController()
 		if (!controller || !controller.task) {
 			return JSON.stringify({
-				verdict: 'unclear',
-				overview: '## Verification Failed\n- No active Cline task',
+				verdict: "unclear",
+				overview: "## Verification Failed\n- No active Cline task",
 				rules_analysis: [],
 			})
 		}
@@ -371,46 +239,46 @@ async function callLLM(prompt: string, verificationType: 'step' | 'substep' = 's
 		const api = controller.task.api
 		if (!api) {
 			return JSON.stringify({
-				verdict: 'unclear',
-				overview: '## Verification Failed\n- No LLM API available',
+				verdict: "unclear",
+				overview: "## Verification Failed\n- No LLM API available",
 				rules_analysis: [],
 			})
 		}
 
-		const systemPrompt = 'You are a code verification assistant. Use tools to investigate, then provide a final JSON verdict.'
-		const messages: any[] = [{role: 'user', content: prompt}]
+		const systemPrompt = "You are a code verification assistant. Use tools to investigate, then provide a final JSON verdict."
+		const messages: any[] = [{ role: "user", content: prompt }]
 
-		console.log('[verification-engine] PHASE 1: Investigation (7 iterations max)')
-		
+		console.log("[verification-engine] PHASE 1: Investigation (7 iterations max)")
+
 		for (let i = 0; i < 7; i++) {
 			console.log(`[verification-engine] Iteration ${i + 1}/7`)
-			
+
 			const stream = api.createMessage(systemPrompt, messages, TOOL_DEFINITIONS)
-			
-			let assistantText = ''
+
+			let assistantText = ""
 			const toolCallsMap = new Map<string, { name: string; args: string }>()
-			let thinkingText = ''
+			let thinkingText = ""
 			let thinkingSignature: string | undefined
-			
+
 			for await (const chunk of stream) {
-				if (chunk.type === 'text') {
+				if (chunk.type === "text") {
 					assistantText += chunk.text
 				}
-				if (chunk.type === 'tool_calls') {
+				if (chunk.type === "tool_calls") {
 					const toolCall = chunk.tool_call
 					const id = toolCall.function?.id || `tool_${Date.now()}`
-					const name = toolCall.function?.name || ''
-					const argsChunk = toolCall.function?.arguments || ''
-					
+					const name = toolCall.function?.name || ""
+					const argsChunk = toolCall.function?.arguments || ""
+
 					if (!toolCallsMap.has(id)) {
-						console.log('[verification-engine] Tool:', name)
-						toolCallsMap.set(id, { name, args: '' })
+						console.log("[verification-engine] Tool:", name)
+						toolCallsMap.set(id, { name, args: "" })
 					}
-					
+
 					toolCallsMap.get(id)!.args += argsChunk
 				}
-				if (chunk.type === 'reasoning') {
-					thinkingText += chunk.reasoning || ''
+				if (chunk.type === "reasoning") {
+					thinkingText += chunk.reasoning || ""
 					if (chunk.signature) {
 						thinkingSignature = chunk.signature
 					}
@@ -418,62 +286,69 @@ async function callLLM(prompt: string, verificationType: 'step' | 'substep' = 's
 			}
 
 			const toolCalls = Array.from(toolCallsMap.entries()).map(([id, data]) => ({
-				function: {id, name: data.name, arguments: data.args}
+				function: { id, name: data.name, arguments: data.args },
 			}))
 
 			const assistantContent: any[] = []
-			
+
 			if (thinkingText) {
-				const thinkingBlock: any = {type: 'thinking', thinking: thinkingText}
+				const thinkingBlock: any = { type: "thinking", thinking: thinkingText.trim() }
 				if (thinkingSignature) {
 					thinkingBlock.signature = thinkingSignature
 				}
 				assistantContent.push(thinkingBlock)
 			}
-			
+
 			if (assistantText) {
-				assistantContent.push({type: 'text', text: assistantText})
+				assistantContent.push({ type: "text", text: assistantText.trim() })
 			}
-			
+
 			for (const toolCall of toolCalls) {
 				let toolInput: any = {}
 				try {
-					toolInput = JSON.parse(toolCall.function?.arguments || '{}')
+					toolInput = JSON.parse(toolCall.function?.arguments || "{}")
 				} catch {
 					continue
 				}
-				
+
 				const toolResult = await executeTool(toolCall.function.name, toolInput)
-				
+
 				assistantContent.push({
-					type: 'tool_use',
+					type: "tool_use",
 					id: toolCall.function.id,
 					name: toolCall.function.name,
-					input: toolInput
+					input: toolInput,
 				})
 			}
-			
-			if (assistantContent.length > 0) {
-				messages.push({role: 'assistant', content: assistantContent})
+
+			// CRITICAL FIX: Anthropic API rejects if last content is a thinking block
+			if (assistantContent.length > 0 && assistantContent[assistantContent.length - 1].type === "thinking") {
+				assistantContent.push({ type: "text", text: "." })
 			}
-			
+
+			if (assistantContent.length > 0) {
+				messages.push({ role: "assistant", content: assistantContent })
+			}
+
 			for (const toolCall of toolCalls) {
 				let toolInput: any = {}
 				try {
-					toolInput = JSON.parse(toolCall.function?.arguments || '{}')
+					toolInput = JSON.parse(toolCall.function?.arguments || "{}")
 				} catch {
 					continue
 				}
-				
+
 				const toolResult = await executeTool(toolCall.function.name, toolInput)
-				
+
 				messages.push({
-					role: 'user',
-					content: [{
-						type: 'tool_result',
-						tool_use_id: toolCall.function.id,
-						content: toolResult
-					}]
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: toolCall.function.id,
+							content: toolResult,
+						},
+					],
 				})
 			}
 
@@ -482,11 +357,12 @@ async function callLLM(prompt: string, verificationType: 'step' | 'substep' = 's
 			}
 		}
 
-		console.log('[verification-engine] PHASE 2: Forcing verdict (no tools)')
-		
+		console.log("[verification-engine] PHASE 2: Forcing verdict (no tools)")
+
 		// Substeps now use the same rich schema as steps
-		const schemaPrompt = verificationType === 'substep' 
-			? `Based on your investigation above, return ONLY valid JSON:
+		const schemaPrompt =
+			verificationType === "substep"
+				? `Based on your investigation above, return ONLY valid JSON:
 
 {
   "verdict": "done" | "not_done" | "partial" | "unclear",
@@ -520,7 +396,7 @@ async function callLLM(prompt: string, verificationType: 'step' | 'substep' = 's
 }
 
 Return ONLY the JSON object, nothing else.`
-			: `Based on your investigation above, return ONLY valid JSON:
+				: `Based on your investigation above, return ONLY valid JSON:
 
 {
   "verdict": "done" | "not_done" | "partial" | "unclear",
@@ -538,29 +414,28 @@ Return ONLY the JSON object, nothing else.`
 }
 
 Return ONLY the JSON object, nothing else.`
-		
+
 		messages.push({
-			role: 'user',
-			content: schemaPrompt
+			role: "user",
+			content: schemaPrompt,
 		})
 
 		const verdictStream = api.createMessage(systemPrompt, messages, [])
-		
-		let verdictText = ''
+
+		let verdictText = ""
 		for await (const chunk of verdictStream) {
-			if (chunk.type === 'text') {
+			if (chunk.type === "text") {
 				verdictText += chunk.text
 			}
 		}
 
-		console.log('[verification-engine] Verdict received')
+		console.log("[verification-engine] Verdict received")
 		return verdictText
-		
 	} catch (error) {
-		console.error('[verification-engine] Error:', error)
+		console.error("[verification-engine] Error:", error)
 		return JSON.stringify({
-			verdict: 'unclear',
-			overview: `## Verification Failed\n- Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			verdict: "unclear",
+			overview: `## Verification Failed\n- Error: ${error instanceof Error ? error.message : "Unknown error"}`,
 			rules_analysis: [],
 		})
 	}
@@ -572,16 +447,16 @@ function parseVerificationResponse(llmResponse: string): EnforcementResponse {
 	try {
 		const parsed = JSON.parse(cleaned)
 		return {
-			verdict: parsed.verdict || 'unclear',
-			overview: parsed.overview || parsed.message || 'No overview provided',
+			verdict: parsed.verdict || "unclear",
+			overview: parsed.overview || parsed.message || "No overview provided",
 			rules_analysis: parsed.rules_analysis || [],
 			files_summary: parsed.files_summary || [],
 			code_blocks: parsed.code_blocks || [],
 		}
 	} catch (error) {
-		console.error('[verification-engine] JSON parse error:', error)
+		console.error("[verification-engine] JSON parse error:", error)
 		return {
-			verdict: 'unclear',
+			verdict: "unclear",
 			overview: `## Parse Error\n- Failed to parse LLM response\n- Response: ${llmResponse.substring(0, 200)}...`,
 			rules_analysis: [],
 			files_summary: [],
@@ -609,34 +484,29 @@ export async function runSubstepVerification(
 	stepDescription: string,
 	substepDescription: string,
 	substepId: string,
-	rules: Array<{ rule_id: string; name: string; description: string }>
+	rules: Array<{ rule_id: string; name: string; description: string }>,
 ): Promise<EnforcementResponse> {
-	console.log('[verification-engine] 🔍 Verifying substep:', substepId)
-	
+	console.log("[verification-engine] 🔍 Verifying substep:", substepId)
+
 	try {
 		// Load chat history only - let Cline use tools to investigate files
 		const chatHistory = await loadChatHistory(chatId)
-		
+
 		// Build substep-specific prompt (no preloaded git diff/files)
-		const prompt = getSubstepVerificationPrompt(
-			stepDescription,
-			substepDescription,
-			rules,
-			chatHistory
-		)
+		const prompt = getSubstepVerificationPrompt(stepDescription, substepDescription, rules, chatHistory)
 
 		// Use callLLM with 'substep' type - now returns same rich schema as steps
-		console.log('[verification-engine] Calling LLM with tools for substep verification')
-		const llmResponse = await callLLM(prompt, 'substep')
+		console.log("[verification-engine] Calling LLM with tools for substep verification")
+		const llmResponse = await callLLM(prompt, "substep")
 		// Use same parser as steps - returns VerifyResult/EnforcementResponse
 		const parsed = parseVerificationResponse(llmResponse)
 
 		return parsed
 	} catch (error) {
-		console.error('[verification-engine] Substep verification error:', error)
+		console.error("[verification-engine] Substep verification error:", error)
 		return {
-			verdict: 'unclear',
-			overview: `## Substep Verification Failed\n- Substep: ${substepDescription}\n- Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			verdict: "unclear",
+			overview: `## Substep Verification Failed\n- Substep: ${substepDescription}\n- Error: ${error instanceof Error ? error.message : "Unknown error"}`,
 			rules_analysis: [],
 			files_summary: [],
 			code_blocks: [],
