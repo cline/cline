@@ -133,6 +133,14 @@
 	"overrides": [
 		{
 			"includes": [
+				"webview-ui/**"
+			],
+			"plugins": [
+				"src/dev/grit/webview-import-boundary.grit"
+			]
+		},
+		{
+			"includes": [
 				"**",
 				"!**/hosts/vscode/**",
 				"!**/test/**",
