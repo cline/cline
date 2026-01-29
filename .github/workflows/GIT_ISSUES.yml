@@ -229,31 +229,31 @@ jobs:
           # Build the Slack blocks JSON
           BLOCKS='[]'
           
-          # Header block
+          # Header block with repo and time range
           BLOCKS=$(echo "$BLOCKS" | jq \
+            --arg repo "${{ github.repository }}" \
+            --arg hours "${{ env.HOURS_LOOKBACK }}" \
             '. + [{
               "type": "header",
               "text": {
                 "type": "plain_text",
-                "text": "📊 Daily Issues Digest",
+                "text": "📊 Daily Issues Digest - \($repo) | Last \($hours) hours",
                 "emoji": true
               }
             }]')
           
-          # Summary context
+          # Summary counters
           BLOCKS=$(echo "$BLOCKS" | jq \
             --arg new "$NEW_COUNT" \
             --arg reopened "$REOPENED_COUNT" \
             --arg commented "$COMMENTED_COUNT" \
             --arg closed "$CLOSED_COUNT" \
             --arg prs "$PR_OPENED_COUNT" \
-            --arg repo "${{ github.repository }}" \
-            --arg hours "${{ env.HOURS_LOOKBACK }}" \
             '. + [{
               "type": "context",
               "elements": [{
                 "type": "mrkdwn",
-                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed | 🔀 \($prs) PRs opened"
+                "text": "🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed | 🔀 \($prs) PRs opened"
               }]
             }]')
           
