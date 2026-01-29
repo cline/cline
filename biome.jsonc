@@ -171,8 +171,7 @@
 				"!**/*.js",
 				"!**/scripts/**",
 				"!**/*.tsx",
-				"!**/testing-platform/**",
-				"!**/cli-ts/src/acp/**"
+				"!**/testing-platform/**"
 			]
 		},
 		{
