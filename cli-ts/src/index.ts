@@ -38,6 +38,7 @@ import { CLINE_CLI_DIR } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { printSessionSummary } from "./utils/session-summary"
+import { checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 
@@ -544,6 +545,12 @@ program
 	.command("version")
 	.description("Show Cline CLI version number")
 	.action(() => printInfo(`Cline CLI version: ${CLI_VERSION}`))
+
+program
+	.command("update")
+	.description("Check for updates and install if available")
+	.option("-v, --verbose", "Show verbose output")
+	.action(() => checkForUpdates(CLI_VERSION))
 
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")
