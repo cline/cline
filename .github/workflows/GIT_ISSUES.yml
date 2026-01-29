@@ -21,6 +21,7 @@ on:
 permissions:
   contents: read
   issues: read
+  pull-requests: read
 
 env:
   # Default lookback period in hours
@@ -61,6 +62,14 @@ jobs:
           CLOSED_COUNT=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
             '[.[] | select(.state == "closed" and .closed_at >= $since)] | length')
           echo "closed_count=$CLOSED_COUNT" >> $GITHUB_OUTPUT
+          
+          # Fetch PRs opened in the time window
+          ALL_PRS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/pulls?state=all&sort=created&direction=desc&per_page=100")
+          
+          PR_OPENED_COUNT=$(echo "$ALL_PRS" | jq --arg since "$SINCE" '[.[] | select(.created_at >= $since)] | length')
+          echo "pr_opened_count=$PR_OPENED_COUNT" >> $GITHUB_OUTPUT
           
           # Reopened/Updated issues: older issues that were updated recently
           REOPENED_CANDIDATES_RAW=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
@@ -206,6 +215,7 @@ jobs:
           REOPENED_COUNT="${{ steps.issues.outputs.reopened_count }}"
           COMMENTED_COUNT="${{ steps.comments.outputs.commented_count }}"
           CLOSED_COUNT="${{ steps.issues.outputs.closed_count }}"
+          PR_OPENED_COUNT="${{ steps.issues.outputs.pr_opened_count }}"
           
           # Check if there's anything to report
           if [ "$NEW_COUNT" -eq 0 ] && [ "$REOPENED_COUNT" -eq 0 ] && [ "$COMMENTED_COUNT" -eq 0 ]; then
@@ -236,13 +246,14 @@ jobs:
             --arg reopened "$REOPENED_COUNT" \
             --arg commented "$COMMENTED_COUNT" \
             --arg closed "$CLOSED_COUNT" \
+            --arg prs "$PR_OPENED_COUNT" \
             --arg repo "${{ github.repository }}" \
             --arg hours "${{ env.HOURS_LOOKBACK }}" \
             '. + [{
               "type": "context",
               "elements": [{
                 "type": "mrkdwn",
-                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed"
+                "text": "*\($repo)* | Last \($hours) hours | 🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed | 🔀 \($prs) PRs opened"
               }]
             }]')
           
