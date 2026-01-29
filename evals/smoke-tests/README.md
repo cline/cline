@@ -44,7 +44,7 @@ npm run eval:smoke:run -- --scenario 01-create-file
 # Run with fewer trials (faster)
 npm run eval:smoke:run -- --trials 1
 
-# Run with specific model
+# Run with specific model (overrides any per-scenario models)
 npm run eval:smoke:run -- --model claude-sonnet-4-5-20250929
 ```
 
@@ -71,6 +71,23 @@ cline auth -p cline -k "$CLINE_API_KEY" -m anthropic/claude-sonnet-4.5
 | 03-read-summarize | Read and summarize | `read_file` |
 | 04-multi-file | Create multiple files | Multiple tool calls |
 | 05-typescript-function | Generate TypeScript | Code generation |
+| 06-apply-patch | Edit file (GPT-5) | `apply_patch` tool, native tool calling |
+| 07-edit-gemini | Edit file (Gemini) | Gemini model variant |
+
+### Per-Scenario Models
+
+Scenarios can specify their own model(s) via the `models` field in `config.json`. This is useful for testing model-specific code paths like `apply_patch` (GPT-5 only).
+
+If you pass `--model`, it overrides any per-scenario `models` list.
+
+Examples:
+```bash
+# Run apply_patch scenario with its default model (GPT-5)
+npm run eval:smoke:run -- --scenario 06-apply-patch
+
+# Force that scenario to use a specific model
+npm run eval:smoke:run -- --scenario 06-apply-patch --model openai/gpt-4o
+```
 
 ## Metrics
 
@@ -127,3 +144,7 @@ Upload artifact         Configure auth
 - Actions tab → "Smoke Tests" workflow
 - View "Summary" for quick results
 - Download "smoke-test-results" artifact for details
+
+## TODO
+
+- [ ] **Native tool calling tests**: Add CLI support for `native_tool_call_enabled` setting, then create a scenario that tests Claude 4 with native tool calling enabled (currently only GPT-5 models automatically use native tools via the Responses API)

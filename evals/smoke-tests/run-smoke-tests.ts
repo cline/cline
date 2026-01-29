@@ -24,7 +24,7 @@ import { MetricsCalculator } from "../analysis/src/metrics"
 
 // Default provider and model for smoke tests
 // These ensure deterministic behavior regardless of local config
-const DEFAULT_PROVIDER = "vercel_ai_gateway"
+const DEFAULT_PROVIDER = "cline"
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5"
 
 // Models to test - can be overridden with --model flag
@@ -40,27 +40,6 @@ function checkClineCli(): boolean {
 	}
 }
 
-// Get the actual model ID from CLI config
-function getConfiguredModel(): string {
-	try {
-		const output = execSync("cline config list", { encoding: "utf-8", timeout: 10000 })
-		// Look for plan-mode model ID (format varies by provider)
-		// Common patterns: plan-mode-open-router-model-id, plan-mode-anthropic-model-id, etc.
-		const modelMatch = output.match(/plan-mode-(?:open-router|anthropic|openai|gemini|xai|cerebras|ollama)-model-id:\s*(\S+)/)
-		if (modelMatch) {
-			return modelMatch[1]
-		}
-		// Fallback: try to find any model-id in plan-mode section
-		const genericMatch = output.match(/plan-mode-.*model-id:\s*(\S+)/)
-		if (genericMatch) {
-			return genericMatch[1]
-		}
-		return "unknown"
-	} catch {
-		return "unknown"
-	}
-}
-
 // Smoke test scenario definition
 interface SmokeScenario {
 	id: string
@@ -71,6 +50,7 @@ interface SmokeScenario {
 	expectedFiles?: string[] // Files that should exist after
 	expectedContent?: { file: string; contains: string }[] // Content checks
 	timeout: number // Seconds
+	models?: string[] // Optional: override default models for this scenario
 }
 
 // Load scenarios from disk
@@ -356,12 +336,7 @@ async function main() {
 	// Filter models
 	let models = MODELS
 	if (selectedModel) {
-		models = models.filter((m) => m === selectedModel)
-		if (models.length === 0) {
-			console.error(`Model not found: ${selectedModel}`)
-			console.error(`Available models: ${MODELS.join(", ")}`)
-			process.exit(1)
-		}
+		models = [selectedModel]
 	}
 
 	// Create results directory with timestamp
@@ -385,7 +360,9 @@ async function main() {
 
 	// Run tests
 	for (const scenario of scenarios) {
-		for (const modelId of models) {
+		// Use scenario-specific models if defined, otherwise use global default
+		const scenarioModels = selectedModel ? [selectedModel] : scenario.models || models
+		for (const modelId of scenarioModels) {
 			console.log(`\n[${scenario.id}] ${scenario.name} (${modelId})`)
 			// Create log directory for this scenario/model
 			const logDir = path.join(resultsDir, scenario.id, modelId)
