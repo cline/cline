@@ -78,7 +78,7 @@ export function SearchableList<T extends SearchableListItem>({
 				setIndex((prev) => Math.max(0, prev - 1))
 			} else if (key.downArrow) {
 				setIndex((prev) => Math.min(filteredItems.length - 1, prev + 1))
-			} else if (key.return) {
+			} else if (key.return || key.tab) {
 				if (filteredItems[index]) {
 					onSelect(filteredItems[index])
 				}
