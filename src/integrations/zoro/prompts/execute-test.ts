@@ -26,6 +26,17 @@ ${verificationResult.overview}
 ## Test File Path
 **Write tests to**: \`${testFilePath}\`
 
+## ⚠️ CRITICAL: SINGLE FILE ONLY
+
+**YOU MUST WRITE EXACTLY ONE TEST FILE:**
+- Path: \`${testFilePath}\`
+- DO NOT create additional test files
+- DO NOT create helper files  
+- DO NOT create __init__.py files
+- ALL tests must be in this ONE file
+
+If you create multiple files, the test execution will fail.
+
 ## Workspace Context
 **Workspace root**: \`${workspaceDir}\`
 **Execute tests FROM**: \`${workspaceDir}\` (for proper imports)
@@ -147,6 +158,9 @@ ${filesSummary
    **Without these print_test_result() calls, results won't appear in the Zoro UI!**
 
 4. **Write the test file** to: \`${testFilePath}\`
+   - ⚠️ CRITICAL: Write to THIS path ONLY
+   - DO NOT create additional test files
+   - Put ALL tests in this single file
    - Use pytest or unittest
    - Import relevant code from the workspace
    - Add comprehensive assertions

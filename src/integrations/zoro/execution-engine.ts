@@ -87,7 +87,7 @@ async function executeThroughCline(task: string): Promise<void> {
 
 		console.log("[execution-engine] PHASE 1: Tool-enabled execution (10 iterations max)")
 
-		for (let i = 0; i < 10; i++) {
+		for (let i = 0; i < 5; i++) {
 			console.log(`[execution-engine] Iteration ${i + 1}/10`)
 
 			const stream = api.createMessage(systemPrompt, messages, TOOL_DEFINITIONS)
@@ -128,7 +128,7 @@ async function executeThroughCline(task: string): Promise<void> {
 
 			const assistantContent: any[] = []
 
-			if (thinkingText) {
+			if (thinkingText && thinkingText.trim()) {
 				const thinkingBlock: any = { type: "thinking", thinking: thinkingText.trim() }
 				if (thinkingSignature) {
 					thinkingBlock.signature = thinkingSignature
@@ -136,7 +136,7 @@ async function executeThroughCline(task: string): Promise<void> {
 				assistantContent.push(thinkingBlock)
 			}
 
-			if (assistantText) {
+			if (assistantText && assistantText.trim()) {
 				assistantContent.push({ type: "text", text: assistantText.trim() })
 			}
 

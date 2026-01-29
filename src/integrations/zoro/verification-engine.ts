@@ -61,13 +61,22 @@ async function loadChatHistory(chatId: string): Promise<string> {
 			return "No conversation history available"
 		}
 
+		const KEEP_LAST_N = 50 // Keep last 50 messages (~40K tokens, safe for 200K limit)
+
+		// Take last N messages to stay under token limit
+		const recentMessages = apiHistory.slice(-KEEP_LAST_N)
+		const startIndex = apiHistory.length - recentMessages.length
+
 		let formatted = "=== CHAT HISTORY ===\n\n"
 
-		// Load ALL messages with full detail - no chunking, no pre-summarization
-		// Let Anthropic's 200K context window handle it naturally
-		for (let i = 0; i < apiHistory.length; i++) {
-			const msg = apiHistory[i]
-			formatted += `--- Message ${i + 1} (${msg.role.toUpperCase()}) ---\n`
+		if (apiHistory.length > KEEP_LAST_N) {
+			formatted += `(Showing last ${KEEP_LAST_N} of ${apiHistory.length} total messages)\n\n`
+		}
+
+		for (let i = 0; i < recentMessages.length; i++) {
+			const msg = recentMessages[i]
+			const msgNum = startIndex + i + 1
+			formatted += `--- Message ${msgNum} (${msg.role.toUpperCase()}) ---\n`
 
 			if (typeof msg.content === "string") {
 				formatted += msg.content + "\n\n"
