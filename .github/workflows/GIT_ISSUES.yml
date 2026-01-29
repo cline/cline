@@ -600,12 +600,35 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
         run: |
-          curl --fail -X POST \
-            -H 'Content-type: application/json' \
-            --data @/tmp/slack_payload.json \
-            "$SLACK_WEBHOOK_URL"
+          # Verify webhook URL is configured
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "❌ Error: SLACK_WEBHOOK_URL_ISSUES secret is not configured!"
+            echo "Please add the Slack webhook URL as a repository secret."
+            exit 1
+          fi
           
-          echo "✅ Digest sent to Slack!"
+          # Send to Slack with retry on failure
+          RETRY_COUNT=0
+          MAX_RETRIES=3
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl --fail -X POST \
+              -H 'Content-type: application/json' \
+              --data @/tmp/slack_payload.json \
+              "$SLACK_WEBHOOK_URL"; then
+              echo "✅ Digest sent to Slack!"
+              exit 0
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ Slack send failed, retrying in 5 seconds... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+                sleep 5
+              fi
+            fi
+          done
+          
+          echo "❌ Failed to send to Slack after $MAX_RETRIES attempts"
+          exit 1
 
       - name: No updates to report
         if: steps.message.outputs.skip == 'true'
