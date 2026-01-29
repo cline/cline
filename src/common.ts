@@ -1,17 +1,13 @@
 import * as vscode from "vscode"
-import {
-	cleanupMcpMarketplaceCatalogFromGlobalState,
-	migrateCustomInstructionsToGlobalRules,
-	migrateTaskHistoryToFile,
-	migrateWelcomeViewCompleted,
-	migrateWorkspaceToGlobalStorage,
-} from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
+import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
+import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { ExtensionRegistryInfo } from "./registry"
@@ -22,6 +18,8 @@ import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId, initializeDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
+import { ClineTempManager } from "./services/temp"
+import { cleanupTestMode } from "./services/test/TestMode"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
@@ -46,6 +44,9 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	const { ClineEndpoint } = await import("./config")
 	await ClineEndpoint.initialize()
 
+	// Set the distinct ID for logging and telemetry
+	await initializeDistinctId(context)
+
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {
@@ -56,11 +57,11 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 		})
 	}
 
+	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
+	ClineTempManager.startPeriodicCleanup()
+
 	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
 	openAiCodexOAuthManager.initialize(context)
-
-	// Set the distinct ID for logging and telemetry
-	await initializeDistinctId(context)
 
 	// Initialize PostHog client provider (skip in self-hosted mode)
 	if (!ClineEndpoint.isSelfHosted()) {
@@ -70,21 +71,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Setup the external services
 	await ErrorService.initialize()
 	await featureFlagsService.poll(null)
-
-	// Migrate custom instructions to global Cline rules (one-time cleanup)
-	await migrateCustomInstructionsToGlobalRules(context)
-
-	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
-	await migrateWelcomeViewCompleted(context)
-
-	// Migrate workspace storage values back to global storage (reverting previous migration)
-	await migrateWorkspaceToGlobalStorage(context)
-
-	// Ensure taskHistory.json exists and migrate legacy state (runs once)
-	await migrateTaskHistoryToFile(context)
-
-	// Clean up MCP marketplace catalog from global state (moved to disk cache)
-	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
@@ -188,4 +174,15 @@ export async function tearDown(): Promise<void> {
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()
 	syncWorker().dispose()
+	clearOnboardingModelsCache()
+
+	// Kill any running hook processes to prevent zombies
+	await HookProcessRegistry.terminateAll()
+	// Clean up hook discovery cache
+	HookDiscoveryCache.getInstance().dispose()
+	// Stop periodic temp file cleanup
+	ClineTempManager.stopPeriodicCleanup()
+
+	// Clean up test mode
+	cleanupTestMode()
 }
