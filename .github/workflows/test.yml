@@ -22,22 +22,22 @@ jobs:
         name: Quality Checks
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: 22
 
             - name: Cache root dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: root-cache
               with:
                   path: node_modules
                   key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: webview-cache
               with:
                   path: webview-ui/node_modules
@@ -67,22 +67,22 @@ jobs:
                 shell: bash
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: 22
 
             - name: Cache root dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: root-cache
               with:
                   path: node_modules
                   key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: webview-cache
               with:
                   path: webview-ui/node_modules
@@ -136,7 +136,7 @@ jobs:
                   npm run test:coverage
 
             - name: Save Coverage Reports
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               # Only upload artifacts on Linux - We only need coverage from one OS
               if: runner.os == 'Linux'
               with:
@@ -150,22 +150,22 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: 22
                   
             - name: Cache root dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: root-cache
               with:
                   path: node_modules
                   key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: webview-cache
               with:
                   path: webview-ui/node_modules
@@ -173,7 +173,7 @@ jobs:
 
             # Cache testing-platform dependencies
             - name: Cache testing-platform dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: testing-platform-cache
               with:
                 path: testing-platform/node_modules
@@ -207,7 +207,7 @@ jobs:
                 npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               with:
                 name: test-platform-integration-core-coverage
                 path: coverage/**/lcov.info
@@ -218,10 +218,10 @@ jobs:
         # Run on PRs to main, pushes to main, and manual dispatches
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Download unit tests coverage reports
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v7
               with:
                   name: pr-coverage-reports
                   path: .
@@ -246,7 +246,7 @@ jobs:
                   add-prefix: webview-ui/
 
             - name: Download test platform integration core coverage artifact
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v7
               continue-on-error: true
               id: download-integration-coverage
               with:
