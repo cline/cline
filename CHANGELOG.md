@@ -2,8 +2,6 @@
 
 ## 3.55.1
 
-### Patch Changes
-
 - 03aac0c: added social icons and appropriate links to the new version modal
 - 808dd42: Lock the LiteLLM Api Key input when it's remotely configured
 - 2670a4a: updated welcome card content and added ability to close each card
