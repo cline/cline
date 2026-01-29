@@ -1169,6 +1169,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					</Text>
 					<Box marginTop={1}>
 						<ModelPicker
+							controller={controller}
 							isActive={isPickingModel}
 							onChange={() => {}}
 							onSubmit={handleModelSelect}
