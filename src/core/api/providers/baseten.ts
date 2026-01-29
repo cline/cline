@@ -2,6 +2,7 @@ import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from 
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -34,6 +35,7 @@ export class BasetenHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://inference.baseten.co/v1",
 					apiKey: this.options.basetenApiKey,
+					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {

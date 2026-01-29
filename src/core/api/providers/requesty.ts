@@ -3,7 +3,7 @@ import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { toRequestyServiceStringUrl } from "@/shared/clients/requesty"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -42,14 +42,13 @@ export class RequestyHandler implements ApiHandler {
 				throw new Error("Requesty API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: toRequestyServiceStringUrl(this.options.requestyBaseUrl),
 					apiKey: this.options.requestyApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
 					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Requesty client: ${error.message}`)
