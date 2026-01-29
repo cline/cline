@@ -13,25 +13,38 @@ interface CliSubagentDetectionParams {
 	outputFormat?: string
 }
 
+let lastCheckTime = 0
+let lastCheckResult = false
+const CHECK_CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
+
 /**
  * Check if the Cline CLI tool is installed on the system
  * @returns true if CLI is installed, false otherwise
  */
-export async function isClineCliInstalled(): Promise<boolean> {
+export async function isClineCliInstalled(force = false): Promise<boolean> {
 	try {
+		const current = Date.now()
+		if (!force && current - lastCheckTime < CHECK_CACHE_DURATION_MS) {
+			return lastCheckResult
+		}
+
 		// Try to get the version of the cline CLI tool
 		// This will fail if the tool is not installed
 		const { stdout } = await execAsync("cline version", {
 			timeout: 5000, // 5 second timeout
+			killSignal: "SIGKILL", // Force kill if timeout occurs
 		})
 
 		// If we get here, the CLI is installed
 		// We could also validate the version if needed
-		return stdout.includes("Cline CLI Version") || stdout.includes("Cline Core Version")
-	} catch (error) {
+		const result = stdout.includes("Cline CLI Version") || stdout.includes("Cline Core Version")
+		lastCheckResult = result
+		lastCheckTime = current
+		return result
+	} catch {
 		// Command failed, which likely means CLI is not installed
 		// or not in PATH
-		return false
+		return lastCheckResult
 	}
 }
 
