@@ -10,20 +10,22 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
-import { openAiCodexDefaultModelId } from "@/shared/api"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
+import { applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
 import { LanguagePicker } from "./LanguagePicker"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
 
@@ -33,12 +35,12 @@ interface SettingsPanelContentProps {
 	initialMode?: "model-picker"
 }
 
-type SettingsTab = "api" | "auto-approve" | "features" | "other"
+type SettingsTab = "api" | "auto-approve" | "features" | "other" | "account"
 
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer"
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action"
 	value: string | boolean
 	description?: string
 	isSubItem?: boolean
@@ -49,6 +51,7 @@ const TABS: PanelTab[] = [
 	{ key: "api", label: "API" },
 	{ key: "auto-approve", label: "Auto-approve" },
 	{ key: "features", label: "Features" },
+	{ key: "account", label: "Account" },
 	{ key: "other", label: "Other" },
 ]
 
@@ -99,6 +102,16 @@ const FEATURE_SETTINGS = {
 } as const
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS
+
+/**
+ * Format balance as currency (balance is in microcredits, divide by 1000000)
+ */
+function formatBalance(balance: number | null): string {
+	if (balance === null || balance === undefined) {
+		return "..."
+	}
+	return `$${(balance / 1000000).toFixed(2)}`
+}
 
 export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller, initialMode }) => {
 	const { isRawModeSupported } = useStdinContext()
@@ -156,6 +169,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		() => stateManager.getGlobalSettingsKey("telemetrySetting") || "unset",
 	)
 
+	// Account tab state
+	const [accountEmail, setAccountEmail] = useState<string | null>(null)
+	const [accountBalance, setAccountBalance] = useState<number | null>(null)
+	const [accountOrganization, setAccountOrganization] = useState<ClineAccountOrganization | null>(null)
+	const [accountOrganizations, setAccountOrganizations] = useState<ClineAccountOrganization[] | null>(null)
+	const [isAccountLoading, setIsAccountLoading] = useState(false)
+	const [isPickingOrganization, setIsPickingOrganization] = useState(false)
+	const [isWaitingForClineAuth, setIsWaitingForClineAuth] = useState(false)
+	const [accountChecked, setAccountChecked] = useState(false) // Tracks if we've already checked auth
+
 	// Get current provider and model info
 	const apiConfig = stateManager.getApiConfiguration()
 	const [provider, setProvider] = useState<string>(
@@ -175,12 +198,167 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		[features, stateManager],
 	)
 
+	// Fetch account info (reused pattern from AccountInfoView.tsx)
+	const fetchAccountInfo = useCallback(async () => {
+		if (!controller) {
+			return
+		}
+		try {
+			setIsAccountLoading(true)
+
+			const authService = AuthService.getInstance(controller)
+
+			// Wait for auth to be restored
+			let authInfo = authService.getInfo()
+			let attempts = 0
+			const maxAttempts = 20 // 2 seconds max
+			while (!authInfo?.user?.uid && attempts < maxAttempts) {
+				await new Promise((resolve) => setTimeout(resolve, 100))
+				authInfo = authService.getInfo()
+				attempts++
+			}
+
+			// Get user info
+			if (authInfo?.user?.email) {
+				setAccountEmail(authInfo.user.email)
+			} else {
+				setAccountEmail(null)
+				setIsAccountLoading(false)
+				return
+			}
+
+			// Get organization info
+			const organizations = authService.getUserOrganizations()
+			if (organizations) {
+				setAccountOrganizations(organizations)
+				const activeOrg = organizations.find((org) => org.active)
+				setAccountOrganization(activeOrg || null)
+			}
+
+			// Fetch credit balance
+			try {
+				const accountService = ClineAccountService.getInstance()
+				const activeOrgId = authService.getActiveOrganizationId()
+
+				if (activeOrgId) {
+					const orgBalance = await accountService.fetchOrganizationCreditsRPC(activeOrgId)
+					if (orgBalance?.balance !== undefined) {
+						setAccountBalance(orgBalance.balance)
+					}
+				} else {
+					const balanceData = await accountService.fetchBalanceRPC()
+					if (balanceData?.balance !== undefined) {
+						setAccountBalance(balanceData.balance)
+					}
+				}
+			} catch {
+				// Balance fetch failed, but we can still show other info
+			}
+		} catch {
+			// Error fetching account info
+		} finally {
+			setIsAccountLoading(false)
+			setAccountChecked(true)
+		}
+	}, [controller])
+
+	// Handle Cline login - starts OAuth flow
+	const handleClineLogin = useCallback(() => {
+		if (!controller) {
+			return
+		}
+		// Set waiting state first (synchronously) to show the waiting UI immediately
+		setIsWaitingForClineAuth(true)
+		// Then start the auth request (async, but we don't need to await)
+		AuthService.getInstance(controller)
+			.createAuthRequest()
+			.catch(() => {
+				setIsWaitingForClineAuth(false)
+			})
+	}, [controller])
+
+	// Handle Cline logout
+	const handleClineLogout = useCallback(async () => {
+		if (!controller) {
+			return
+		}
+		await AuthService.getInstance(controller).handleDeauth()
+		setAccountEmail(null)
+		setAccountBalance(null)
+		setAccountOrganization(null)
+		setAccountOrganizations(null)
+		setAccountChecked(true) // Mark as checked so we don't re-fetch
+	}, [controller])
+
+	// Handle organization selection
+	const handleOrganizationSelect = useCallback(
+		async (orgId: string | null) => {
+			if (!controller) {
+				return
+			}
+			setIsPickingOrganization(false)
+			try {
+				await ClineAccountService.getInstance().switchAccount(orgId || undefined)
+				// Refetch to get updated auth info with new active org
+				await AuthService.getInstance(controller).restoreRefreshTokenAndRetrieveAuthInfo()
+				fetchAccountInfo()
+			} catch {
+				// Error switching organization
+			}
+		},
+		[controller, fetchAccountInfo],
+	)
+
+	// Fetch account info when switching to account tab (only if not already checked)
+	useEffect(() => {
+		if (currentTab === "account" && !accountEmail && !isAccountLoading && !accountChecked && controller) {
+			fetchAccountInfo()
+		}
+	}, [currentTab, accountEmail, isAccountLoading, accountChecked, controller, fetchAccountInfo])
+
+	// Subscribe to auth status updates when waiting for Cline auth
+	useEffect(() => {
+		if (!isWaitingForClineAuth || !controller) {
+			return
+		}
+
+		let cancelled = false
+		const authService = AuthService.getInstance(controller)
+
+		const responseHandler = async (authState: { user?: { email?: string } }) => {
+			if (cancelled) {
+				return
+			}
+			if (authState.user?.email) {
+				setIsWaitingForClineAuth(false)
+				setAccountChecked(false) // Reset so fetchAccountInfo can run
+				await applyProviderConfig({ providerId: "cline", controller })
+				setProvider("cline")
+				fetchAccountInfo()
+			}
+		}
+
+		authService.subscribeToAuthStatusUpdate(controller, {}, responseHandler, `settings-auth-${Date.now()}`)
+
+		return () => {
+			cancelled = true
+		}
+	}, [isWaitingForClineAuth, controller, fetchAccountInfo])
+
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
 		switch (currentTab) {
 			case "api":
 				return [
-					{ key: "provider", label: "Provider", type: "editable", value: provider || "not configured" },
+					{
+						key: "provider",
+						label: "Provider",
+						type: "editable",
+						value: provider ? getProviderLabel(provider) : "not configured",
+					},
+					...(provider === "cline"
+						? [{ key: "viewAccount", label: "View account", type: "action" as const, value: "" }]
+						: []),
 					...(separateModels
 						? [
 								{ key: "spacer0", label: "", type: "spacer" as const, value: "" },
@@ -340,6 +518,40 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 					},
 				]
 
+			case "account":
+				// If loading, return empty (loading spinner shown in render)
+				if (isAccountLoading) {
+					return []
+				}
+				// If not logged in, show login option
+				if (!accountEmail) {
+					return [{ key: "login", label: "Sign in with Cline", type: "action", value: "" }]
+				}
+				// Logged in - show account info
+				const accountItems: ListItem[] = [
+					{ key: "email", label: "Email", type: "readonly", value: accountEmail },
+					{ key: "balance", label: "Credits", type: "readonly", value: formatBalance(accountBalance) },
+				]
+				// Organization selector - only show if user has organizations
+				if (accountOrganizations && accountOrganizations.length > 0) {
+					accountItems.push({
+						key: "organization",
+						label: "Organization",
+						type: "editable",
+						value: accountOrganization ? accountOrganization.name : "Personal",
+					})
+				} else {
+					accountItems.push({
+						key: "organization",
+						label: "Account",
+						type: "readonly",
+						value: "Personal",
+					})
+				}
+				accountItems.push({ key: "separator", label: "", type: "separator", value: "" })
+				accountItems.push({ key: "logout", label: "Sign out", type: "action", value: "" })
+				return accountItems
+
 			default:
 				return []
 		}
@@ -355,6 +567,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		features,
 		preferredLanguage,
 		telemetry,
+		isAccountLoading,
+		accountEmail,
+		accountBalance,
+		accountOrganization,
+		accountOrganizations,
 	])
 
 	// Reset selection when changing tabs
@@ -369,6 +586,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		setIsEnteringApiKey(false)
 		setPendingProvider(null)
 		setApiKeyValue("")
+		setIsPickingOrganization(false)
 	}, [])
 
 	// Ensure selected index is valid when items change
@@ -383,6 +601,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		const item = items[selectedIndex]
 		if (!item || item.type === "readonly" || item.type === "separator" || item.type === "header" || item.type === "spacer")
 			return
+
+		if (item.type === "action") {
+			// Action items trigger their handler directly
+			if (item.key === "login") {
+				handleClineLogin()
+				return
+			}
+			if (item.key === "logout") {
+				handleClineLogout()
+				return
+			}
+			if (item.key === "viewAccount") {
+				handleTabChange("account")
+				return
+			}
+			return
+		}
 
 		if (item.type === "editable") {
 			// For provider field, use the provider picker
@@ -399,6 +634,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			// For language field, use the language picker
 			if (item.key === "language") {
 				setIsPickingLanguage(true)
+				return
+			}
+			// For organization field, use the organization picker
+			if (item.key === "organization" && accountOrganizations && accountOrganizations.length > 0) {
+				setIsPickingOrganization(true)
 				return
 			}
 			setEditValue(typeof item.value === "string" ? item.value : "")
@@ -490,7 +730,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 		const newSettings = { ...autoApproveSettings, version: (autoApproveSettings.version ?? 1) + 1, actions: newActions }
 		setAutoApproveSettings(newSettings)
 		stateManager.setGlobalState("autoApprovalSettings", newSettings)
-	}, [items, selectedIndex, stateManager, autoApproveSettings, toggleFeature])
+	}, [
+		items,
+		selectedIndex,
+		stateManager,
+		autoApproveSettings,
+		toggleFeature,
+		handleClineLogin,
+		handleClineLogout,
+		accountOrganizations,
+	])
 
 	// Handle model selection from picker
 	const handleModelSelect = useCallback(
@@ -536,23 +785,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			// Wait for the callback
 			await openAiCodexOAuthManager.waitForCallback()
 
-			// Success - save configuration
-			const config: Record<string, string> = {
-				actModeApiProvider: "openai-codex",
-				planModeApiProvider: "openai-codex",
-				actModeApiModelId: openAiCodexDefaultModelId,
-				planModeApiModelId: openAiCodexDefaultModelId,
-			}
-			stateManager.setApiConfiguration(config)
-			await stateManager.flushPendingState()
-
-			// Rebuild API handler on active task if one exists
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
-
+			// Success - apply provider config
+			await applyProviderConfig({ providerId: "openai-codex", controller })
 			setProvider("openai-codex")
 			setIsWaitingForCodexAuth(false)
 		} catch (error) {
@@ -560,11 +794,27 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			setCodexAuthError(error instanceof Error ? error.message : String(error))
 			setIsWaitingForCodexAuth(false)
 		}
-	}, [stateManager, controller])
+	}, [controller])
 
 	// Handle provider selection from picker
 	const handleProviderSelect = useCallback(
 		(providerId: string) => {
+			// Special handling for Cline - uses OAuth (but skip if already logged in)
+			if (providerId === "cline") {
+				setIsPickingProvider(false)
+				// Check if already logged in
+				const authInfo = AuthService.getInstance(controller).getInfo()
+				if (authInfo?.user?.email) {
+					// Already logged in - just set the provider
+					applyProviderConfig({ providerId: "cline", controller })
+					setProvider("cline")
+				} else {
+					// Not logged in - trigger OAuth
+					handleClineLogin()
+				}
+				return
+			}
+
 			// Special handling for OpenAI Codex - uses OAuth instead of API key
 			if (providerId === "openai-codex") {
 				setIsPickingProvider(false)
@@ -590,18 +840,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				setIsEnteringApiKey(true)
 			} else {
 				// Provider doesn't need an API key (rare) - just set it
+				applyProviderConfig({ providerId, controller })
 				setProvider(providerId)
-				stateManager.setGlobalState("actModeApiProvider", providerId)
-				stateManager.setGlobalState("planModeApiProvider", providerId)
-				const defaultModelId = getDefaultModelId(providerId)
-				if (defaultModelId) {
-					stateManager.setGlobalState("actModeApiModelId", defaultModelId)
-					stateManager.setGlobalState("planModeApiModelId", defaultModelId)
-				}
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth],
+		[stateManager, startCodexAuth, handleClineLogin, controller],
 	)
 
 	// Handle API key submission after provider selection
@@ -611,45 +855,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 
-			// Build config object with provider, model, and API key
-			const config: Record<string, string> = {
-				actModeApiProvider: pendingProvider,
-				planModeApiProvider: pendingProvider,
-				apiProvider: pendingProvider,
-			}
-
-			// Add default model ID
-			const defaultModelId = getDefaultModelId(pendingProvider)
-			if (defaultModelId) {
-				config.actModeApiModelId = defaultModelId
-				config.planModeApiModelId = defaultModelId
-			}
-
-			// Add API key using provider-specific field
-			const keyField = ProviderToApiKeyMap[pendingProvider as keyof typeof ProviderToApiKeyMap]
-			if (keyField) {
-				const fields = Array.isArray(keyField) ? keyField : [keyField]
-				config[fields[0]] = submittedValue.trim()
-			}
-
-			// Save via StateManager (same pattern as AuthView)
-			stateManager.setApiConfiguration(config)
-			await stateManager.flushPendingState()
-
-			// Rebuild API handler on active task if one exists (matches extension behavior)
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
-
-			// Update local state
+			await applyProviderConfig({ providerId: pendingProvider, apiKey: submittedValue.trim(), controller })
 			setProvider(pendingProvider)
 			setIsEnteringApiKey(false)
 			setPendingProvider(null)
 			setApiKeyValue("")
 		},
-		[pendingProvider, stateManager, controller],
+		[pendingProvider, controller],
 	)
 
 	// Handle Bedrock configuration complete
@@ -798,6 +1010,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			// Codex OAuth error mode - any key to dismiss
 			if (codexAuthError) {
 				setCodexAuthError(null)
+				return
+			}
+
+			// Organization picker mode - escape to close, input is handled by OrganizationPicker
+			if (isPickingOrganization) {
+				if (key.escape) {
+					setIsPickingOrganization(false)
+				}
+				return
+			}
+
+			// Cline OAuth waiting mode - escape to cancel
+			if (isWaitingForClineAuth) {
+				if (key.escape) {
+					setIsWaitingForClineAuth(false)
+				}
 				return
 			}
 
@@ -970,6 +1198,85 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			)
 		}
 
+		if (isPickingOrganization && accountOrganizations) {
+			return (
+				<Box flexDirection="column">
+					<Text bold color={COLORS.primaryBlue}>
+						Select Organization
+					</Text>
+					<Box marginTop={1}>
+						<OrganizationPicker
+							isActive={isPickingOrganization}
+							onSelect={handleOrganizationSelect}
+							organizations={accountOrganizations}
+						/>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Arrows to navigate, Enter to select, Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
+		if (isWaitingForClineAuth) {
+			return (
+				<Box flexDirection="column">
+					<Box>
+						<Text color={COLORS.primaryBlue}>
+							<Spinner type="dots" />
+						</Text>
+						<Text color="white"> Waiting for Cline sign-in...</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Complete sign-in in your browser.</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
+		// Account tab - loading state
+		if (currentTab === "account" && isAccountLoading) {
+			return (
+				<Box>
+					<Text color={COLORS.primaryBlue}>
+						<Spinner type="dots" />
+					</Text>
+					<Text color="gray"> Loading account info...</Text>
+				</Box>
+			)
+		}
+
+		// Account tab - logged out state with pitch
+		if (currentTab === "account" && !accountEmail && !isAccountLoading) {
+			return (
+				<Box flexDirection="column">
+					<Text color="white">Sign in to access Cline features:</Text>
+					<Box flexDirection="column" marginTop={1}>
+						<Text color="gray"> - Free access to frontier AI models</Text>
+						<Text color="gray"> - Built-in web search capabilities</Text>
+						<Text color="gray"> - Team management and shared billing</Text>
+					</Box>
+					<Box marginTop={1}>
+						{items.map((item, idx) => {
+							const isSelected = idx === selectedIndex
+							return (
+								<Text key={item.key}>
+									<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+										{isSelected ? "❯" : " "}{" "}
+									</Text>
+									<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}</Text>
+									{isSelected && <Text color="gray"> (Enter)</Text>}
+								</Text>
+							)
+						})}
+					</Box>
+				</Box>
+			)
+		}
+
 		if (isEditing) {
 			const item = items[selectedIndex]
 			return (
@@ -1049,6 +1356,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 									label={item.label}
 								/>
 							</Box>
+						)
+					}
+
+					// Action item (button-like, no value display)
+					if (item.type === "action") {
+						return (
+							<Text key={item.key}>
+								<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+									{isSelected ? "❯" : " "}{" "}
+								</Text>
+								<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}</Text>
+								{isSelected && <Text color="gray"> (Enter)</Text>}
+							</Text>
 						)
 					}
 
