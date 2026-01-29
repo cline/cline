@@ -259,7 +259,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		skillsEnabled,
-		yoloModeToggled: yoloModeToggled && !isYoloRemoteLocked,
+		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 		multiRootEnabled: multiRootSetting.user,
 		dictationSettings: dictationSettings?.dictationEnabled ?? false,
 	}
@@ -385,11 +385,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
+									disabled={feature.id === "yolo" && isYoloRemoteLocked}
 									isExperimental={feature.isExperimental}
+									isRemoteLocked={feature.id === "yolo" && isYoloRemoteLocked}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
 									onChange={(checked) => handleFeatureChange(feature, checked)}
+									remoteTooltip="This setting is managed by your organization's remote configuration"
 								/>
 							))}
 							{focusChainSettings?.enabled && (
