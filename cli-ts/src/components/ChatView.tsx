@@ -158,7 +158,8 @@ const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 const DEFAULT_CONTEXT_WINDOW = 200000
-const PASTE_COLLAPSE_THRESHOLD = 100 // Charcters before showing placeholder
+const PASTE_COLLAPSE_THRESHOLD = 100 // Characters before showing placeholder
+const MAX_HISTORY_ITEMS = 20 // Max history items to navigate with up/down arrows
 
 /**
  * Get current git branch name
@@ -333,7 +334,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [textInput, setTextInput] = useState("")
 	const [cursorPos, setCursorPos] = useState(0)
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
-	const [selectedIndex, setSelectedIndex] = useState(0)
+	const [selectedIndex, setSelectedIndex] = useState(0) // For file menu
+	const [historyIndex, setHistoryIndex] = useState(-1) // -1 = not browsing history, 0+ = history item index
+	const [savedInput, setSavedInput] = useState("") // Save user's input when entering history mode
 	const [isSearching, setIsSearching] = useState(false)
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
@@ -373,10 +376,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return () => subscription.dispose()
 	}, [])
 
-	// Track which messages have been rendered to Static (by timestamp)
-	// Using refs instead of state to avoid extra renders during streaming->static transition
-	const loggedMessageTsRef = useRef<Set<number>>(new Set())
-	const headerLoggedRef = useRef(false)
 	const [gitBranch, setGitBranch] = useState<string | null>(null)
 	const [gitDiffStats, setGitDiffStats] = useState<GitDiffStats | null>(null)
 
@@ -491,6 +490,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 		loadCommands()
 	}, [ctrl])
+
+	// Get history items (limited to MAX_HISTORY_ITEMS, most recent first)
+	const getHistoryItems = useCallback(() => {
+		const history = StateManager.get().getGlobalStateKey("taskHistory")
+		if (!history?.length) return []
+		const filtered = [...history]
+			.reverse()
+			.map((item) => item.task)
+			.slice(0, MAX_HISTORY_ITEMS)
+			.filter(Boolean) as string[]
+		return [...new Set(filtered)]
+	}, [])
 
 	const messages = taskState.clineMessages || []
 
@@ -951,6 +962,56 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
+		// History navigation with up/down arrows
+		// Only works when: input is empty, or input matches the currently selected history item
+		if (key.upArrow && !inSlashMenu && !inFileMenu) {
+			const historyItems = getHistoryItems()
+			if (historyItems.length > 0) {
+				const canNavigate =
+					textInput === "" ||
+					(historyIndex >= 0 && historyIndex < historyItems.length && textInput === historyItems[historyIndex])
+
+				if (canNavigate) {
+					// Save original input when first entering history mode
+					if (historyIndex === -1) {
+						setSavedInput(textInput)
+					}
+					const newIndex = Math.min(historyIndex + 1, historyItems.length - 1)
+					if (newIndex !== historyIndex) {
+						setHistoryIndex(newIndex)
+						const historyText = historyItems[newIndex]
+						setTextInput(historyText)
+						setCursorPos(historyText.length)
+					}
+					return
+				}
+			}
+		}
+
+		if (key.downArrow && !inSlashMenu && !inFileMenu) {
+			const historyItems = getHistoryItems()
+			if (historyIndex >= 0) {
+				const canNavigate = historyIndex < historyItems.length && textInput === historyItems[historyIndex]
+
+				if (canNavigate) {
+					const newIndex = historyIndex - 1
+					if (newIndex >= 0) {
+						// Move to older history item
+						setHistoryIndex(newIndex)
+						const historyText = historyItems[newIndex]
+						setTextInput(historyText)
+						setCursorPos(historyText.length)
+					} else {
+						// Exit history mode, restore saved input
+						setHistoryIndex(-1)
+						setTextInput(savedInput)
+						setCursorPos(savedInput.length)
+					}
+					return
+				}
+			}
+		}
+
 		// Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
 		if (
@@ -989,7 +1050,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		// Handle Ctrl+ shortcuts
 		const keydown = input?.toLowerCase()
-		if ((key.ctrl || key.meta) && cursorPos && keydown) {
+		if (key.ctrl && cursorPos && keydown) {
 			switch (keydown) {
 				case "u": // Ctrl+U, clear line before cursor
 					if (cursorPos > 0) {
