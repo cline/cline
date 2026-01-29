@@ -58,6 +58,8 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
+	otlpMetricsHeaders: { default: undefined as Record<string, string> | undefined },
+	otlpLogsHeaders: { default: undefined as Record<string, string> | undefined },
 	blobStoreConfig: { default: undefined as BlobStoreSettings | undefined },
 	configuredApiKeys: { default: {} as ConfiguredAPIKeys | undefined },
 } satisfies FieldDefinitions
