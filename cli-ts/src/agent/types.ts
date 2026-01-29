@@ -7,6 +7,54 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import type { Controller } from "@/core/controller"
 
+// ============================================================
+// Permission Handler Callback Types
+// ============================================================
+
+/**
+ * Callback to resolve a permission request with the user's response.
+ */
+export type PermissionResolver = (response: acp.RequestPermissionResponse) => void
+
+/**
+ * Handler function for permission requests.
+ * Called when the agent needs permission for a tool call.
+ * The handler should present the request to the user and call resolve() with their response.
+ */
+export type PermissionHandler = (request: Omit<acp.RequestPermissionRequest, "sessionId">, resolve: PermissionResolver) => void
+
+// ============================================================
+// Session Event Emitter Types
+// ============================================================
+
+/**
+ * Event types emitted by ClineSessionEmitter for per-session ACP events.
+ */
+export interface ClineSessionEvents {
+	available_commands_update: (commands: acp.AvailableCommand[]) => void
+	agent_message_chunk: (content: acp.TextContent) => void
+	agent_thought_chunk: (content: acp.TextContent) => void
+	tool_call: (toolCall: acp.ToolCallUpdate) => void
+	tool_call_update: (update: acp.ToolCallUpdate) => void
+	plan: (entries: acp.PlanEntry[]) => void
+	current_mode_update: (modeId: string) => void
+	error: (error: Error) => void
+}
+
+// ============================================================
+// ClineAgent Options (decoupled from connection)
+// ============================================================
+
+/**
+ * Options for creating a ClineAgent instance (decoupled from connection).
+ */
+export interface ClineAgentOptions {
+	/** CLI version string */
+	version: string
+	/** Whether debug logging is enabled */
+	debug?: boolean
+}
+
 // Re-export common ACP types for convenience
 export type {
 	Agent,

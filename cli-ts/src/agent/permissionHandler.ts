@@ -11,6 +11,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import type { ClineAsk } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
+import { Logger } from "@/shared/services/Logger.js"
 import type { AcpSessionState, ClinePermissionOption } from "./types.js"
 
 /**
@@ -150,7 +151,7 @@ export function handlePermissionResponse(response: acp.RequestPermissionResponse
 
 		default:
 			// Unknown option ID - treat as rejection for safety
-			console.error(`[permissionHandler] Unknown permission option: ${optionId}`)
+			Logger.error(`[permissionHandler] Unknown permission option: ${optionId}`)
 			return {
 				response: "noButtonClicked",
 			}

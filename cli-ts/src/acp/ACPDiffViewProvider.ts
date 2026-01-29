@@ -51,7 +51,6 @@ export class ACPDiffViewProvider extends FileEditProvider {
 	 * @param connection - The ACP agent-side connection for making requests
 	 * @param clientCapabilities - The client's advertised capabilities
 	 * @param sessionIdResolver - A function that returns the current session ID
-	 * @param debug - Whether to enable debug logging
 	 */
 	constructor(
 		connection: acp.AgentSideConnection,
