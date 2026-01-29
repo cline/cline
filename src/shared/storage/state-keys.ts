@@ -76,7 +76,7 @@ const GLOBAL_STATE_FIELDS = {
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
 	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },
 	primaryRootIndex: { default: 0 as number },
-	multiRootEnabled: { default: false as boolean },
+	multiRootEnabled: { default: true as boolean },
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
@@ -248,7 +248,7 @@ const USER_SETTINGS_FIELDS = {
 	terminalOutputLineLimit: { default: 500 as number },
 	maxConsecutiveMistakes: { default: 3 as number },
 	subagentTerminalOutputLineLimit: { default: 2000 as number },
-	strictPlanModeEnabled: { default: true as boolean },
+	strictPlanModeEnabled: { default: false as boolean },
 	yoloModeToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
@@ -264,9 +264,9 @@ const USER_SETTINGS_FIELDS = {
 	customPrompt: { default: undefined as "compact" | undefined },
 	autoCondenseThreshold: { default: 0.75 as number }, // number from 0 to 1
 	subagentsEnabled: { default: false as boolean },
-	enableParallelToolCalling: { default: false as boolean },
+	enableParallelToolCalling: { default: true as boolean },
 	backgroundEditEnabled: { default: false as boolean },
-	skillsEnabled: { default: false as boolean },
+	skillsEnabled: { default: true as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 
 	// OpenTelemetry configuration

@@ -26,7 +26,7 @@ const TS_PROTO_PLUGIN = isWindows
 	: require.resolve("ts-proto/protoc-gen-ts_proto")
 
 const TS_PROTO_OPTIONS = [
-	"env=node",
+	"env=both",
 	"esModuleInterop=true",
 	"outputServices=generic-definitions", // output generic ServiceDefinitions
 	"outputIndex=true", // output an index file for each package which exports all protos in the package.
