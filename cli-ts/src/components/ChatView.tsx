@@ -114,7 +114,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
+import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
@@ -139,6 +141,7 @@ import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
+import { SessionSummary } from "./SessionSummary"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
@@ -371,6 +374,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Listen for shutdown event (Ctrl+C) to hide UI before exit
 	useEffect(() => {
 		const subscription = shutdownEvent.event(() => {
+			const session = Session.get()
+			const summary = session.getStats()
+			telemetryService.captureHostEvent("exit", JSON.stringify(summary))
 			setIsExiting(true)
 		})
 		return () => subscription.dispose()
@@ -677,14 +683,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	}, [ctrl])
 
-	// Handle exit - hide input first, then exit Ink app gracefully
+	// Handle exit - hide input first, show summary, then exit Ink app gracefully
 	const handleExit = useCallback(() => {
 		setIsExiting(true)
-		// Small delay to allow Ink to re-render without the input field
+		// Delay to allow Ink to re-render with session summary visible
 		setTimeout(() => {
 			inkExit()
 			onExit?.()
-		}, 50)
+		}, 150)
 	}, [inkExit, onExit])
 
 	// Get button config based on the last message state
@@ -1406,6 +1412,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						</Box>
 					</Box>
 				)}
+
+				{/* Session summary - shown when exiting */}
+				{isExiting && <SessionSummary />}
 			</Box>
 		</Box>
 	)

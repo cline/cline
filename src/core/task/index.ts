@@ -96,6 +96,7 @@ import {
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -2587,6 +2588,9 @@ export class Task {
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 
+			// Track API call time for session statistics
+			Session.get().startApiCall()
+
 			try {
 				for await (const chunk of stream) {
 					switch (chunk.type) {
@@ -2756,6 +2760,8 @@ export class Task {
 				}
 			} finally {
 				this.taskState.isStreaming = false
+				// End API call tracking for session statistics
+				Session.get().endApiCall()
 			}
 
 			// Finalize any remaining tool calls at the end of the stream

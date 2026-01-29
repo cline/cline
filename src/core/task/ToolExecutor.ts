@@ -9,6 +9,7 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
+import { Session } from "@shared/services/Session"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
@@ -591,9 +592,13 @@ export class ToolExecutor {
 		let toolWasExecuted = false
 		const executionStartTime = Date.now()
 
+		// Track tool execution in Session
+		Session.get().startToolCall(block.name)
+
 		try {
 			// Final abort check immediately before tool execution
 			if (this.taskState.abort) {
+				Session.get().endToolCall(false)
 				return
 			}
 
@@ -619,6 +624,9 @@ export class ToolExecutor {
 					shouldCancelAfterHook = true
 				}
 			}
+
+			// Track successful tool completion
+			Session.get().endToolCall(true)
 		} catch (error) {
 			executionSuccess = false
 			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
@@ -637,6 +645,9 @@ export class ToolExecutor {
 					shouldCancelAfterHook = true
 				}
 			}
+
+			// Track failed tool completion
+			Session.get().endToolCall(false)
 
 			// Re-throw the error after PostToolUse completes
 			throw error
