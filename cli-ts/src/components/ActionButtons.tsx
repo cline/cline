@@ -278,6 +278,17 @@ interface ActionButtonsProps {
 }
 
 /**
+ * Determine which buttons are actually visible based on config
+ * Some actions (cancel, new_task) are hidden in the CLI
+ */
+export function getVisibleButtons(config: ButtonConfig) {
+	const hiddenActions = ["cancel", "new_task"]
+	const hasPrimary = !!config.primaryText && !hiddenActions.includes(config.primaryAction || "")
+	const hasSecondary = !!config.secondaryText && !hiddenActions.includes(config.secondaryAction || "")
+	return { hasPrimary, hasSecondary }
+}
+
+/**
  * Action buttons component
  * Shows primary and/or secondary buttons based on config
  * Buttons take full width (one button = full, two buttons = half each)
@@ -288,11 +299,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 		return null
 	}
 
-	// Don't show cancel buttons (ThinkingIndicator handles esc to interrupt)
-	// Don't show new_task buttons (CLI doesn't handle starting new tasks)
-	const hiddenActions = ["cancel", "new_task"]
-	const hasPrimary = !!config.primaryText && !hiddenActions.includes(config.primaryAction || "")
-	const hasSecondary = !!config.secondaryText && !hiddenActions.includes(config.secondaryAction || "")
+	const { hasPrimary, hasSecondary } = getVisibleButtons(config)
 
 	if (!hasPrimary && !hasSecondary) {
 		return null
@@ -324,7 +331,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 	return (
 		<Box flexDirection="row" gap={1} marginLeft={1} width="100%">
 			{hasPrimary && renderButton(config.primaryText!, "1")}
-			{hasSecondary && renderButton(config.secondaryText!, "2")}
+			{hasSecondary && renderButton(config.secondaryText!, hasPrimary ? "2" : "1")}
 		</Box>
 	)
 }

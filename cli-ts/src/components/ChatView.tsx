@@ -134,7 +134,7 @@ import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { shutdownEvent } from "../vscode-shim"
-import { ActionButtons, type ButtonActionType, getButtonConfig } from "./ActionButtons"
+import { ActionButtons, type ButtonActionType, getButtonConfig, getVisibleButtons } from "./ActionButtons"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
@@ -1045,11 +1045,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			textInput === "" &&
 			!isYoloSuppressed(yolo, pendingAsk?.ask as ClineAsk | undefined)
 		) {
-			if (input === "1" && buttonConfig.primaryAction) {
-				handleButtonAction(buttonConfig.primaryAction, true)
-				return
+			const { hasPrimary, hasSecondary } = getVisibleButtons(buttonConfig)
+
+			if (input === "1") {
+				// "1" triggers primary if shown, otherwise secondary if it's the only button
+				if (hasPrimary && buttonConfig.primaryAction) {
+					handleButtonAction(buttonConfig.primaryAction, true)
+					return
+				} else if (hasSecondary && !hasPrimary && buttonConfig.secondaryAction) {
+					handleButtonAction(buttonConfig.secondaryAction, false)
+					return
+				}
 			}
-			if (input === "2" && buttonConfig.secondaryAction) {
+			if (input === "2" && hasPrimary && hasSecondary && buttonConfig.secondaryAction) {
+				// "2" only works when both buttons are shown
 				handleButtonAction(buttonConfig.secondaryAction, false)
 				return
 			}
