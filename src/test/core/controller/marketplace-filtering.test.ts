@@ -116,7 +116,7 @@ describe("Controller Marketplace Filtering", () => {
 		}
 
 		// Initialize HostRegistryInfo before creating Controller
-		await require("@/registry").HostRegistryInfo.init("test-distinct-id")
+		await require("@/registry").HostRegistryInfo.init()
 
 		// Mock VSCode context
 		mockContext = {

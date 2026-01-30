@@ -54,11 +54,32 @@ export const ExtensionRegistryInfo = {
 }
 
 export interface HostInfo {
-	extensionVersion: string
+	/**
+	 * The name of the host platform, e.g VSCode, IntelliJ Ultimate Edition, etc.
+	 */
 	platform: string
+	/**
+	 * The operating system platform, e.g. linux, darwin, win32
+	 */
 	os: string
+	/**
+	 * The type of the cline host environment, e.g. 'VSCode Extension', 'Cline for JetBrains', 'CLI'
+	 * This is different from the platform because there are many JetBrains IDEs, but they all use the same
+	 * plugin.
+	 */
 	ide: string
+	/**
+	 * A distinct ID for this installation of the host client
+	 */
 	distinctId: string
+	/**
+	 * The version of the host platform, e.g. 1.103.0 for VSCode, or 2025.1.1.1 for JetBrains IDEs.
+	 */
+	hostVersion?: string
+	/**
+	 * The version of Cline that the host client is running
+	 */
+	extensionVersion: string
 }
 
 let hostInfo = null as HostInfo | null
@@ -66,11 +87,12 @@ let hostInfo = null as HostInfo | null
 export const HostRegistryInfo = {
 	init: async (distinctId: string) => {
 		const host = await HostProvider.env.getHostVersion({})
+		const hostVersion = host.version
 		const extensionVersion = host.clineVersion || ExtensionRegistryInfo.version
 		const platform = host.platform || "unknown"
 		const os = process.platform || "unknown"
 		const ide = host.clineType || "unknown"
-		hostInfo = { extensionVersion, platform, os, ide, distinctId }
+		hostInfo = { hostVersion, extensionVersion, platform, os, ide, distinctId }
 	},
 	get: () => hostInfo,
 }

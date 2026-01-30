@@ -20,6 +20,10 @@ export class BannerService {
 	// Promise deduplication to prevent concurrent requests
 	private _fetchPromise: Promise<Banner[]> | null = null
 
+	// Monotonically increasing ID to track which fetch owns _fetchPromise
+	// Prevents race condition where an aborted fetch's .finally() clears a newer fetch's promise
+	private _currentFetchId: number = 0
+
 	// AbortController for cancelling in-progress fetch requests
 	private _fetchAbortController: AbortController | null = null
 
@@ -85,12 +89,18 @@ export class BannerService {
 			}
 			instance._fetchPromise = null
 
+			// Increment fetch ID to invalidate any pending .finally() callbacks from aborted fetches
+			const fetchId = ++instance._currentFetchId
+
 			// Fetch new banners immediately (don't clear cache before fetch completes)
 			instance._fetchPromise = instance.fetchBanners()
 			try {
 				await instance._fetchPromise
 			} finally {
-				instance._fetchPromise = null
+				// Only clear if we're still the current fetch (no newer fetch has started)
+				if (instance._currentFetchId === fetchId) {
+					instance._fetchPromise = null
+				}
 			}
 		}
 	}
@@ -114,6 +124,14 @@ export class BannerService {
 
 		// Set up timeout to abort after 10 seconds
 		const timeoutId = setTimeout(() => this._fetchAbortController?.abort(), 10000)
+		// Ensure we clear the timeout whenever this controller is aborted (from any path)
+		signal.addEventListener(
+			"abort",
+			() => {
+				clearTimeout(timeoutId)
+			},
+			{ once: true },
+		)
 
 		try {
 			const urlObj = new URL("/banners/v1/messages", ClineEnv.config().apiBaseUrl)
@@ -165,7 +183,7 @@ export class BannerService {
 			this._lastFetchTime = Date.now()
 			this._consecutiveFailures = 0
 
-			Logger.log(`BannerService: Fetched ${matchingBanners.length} banner(s)`)
+			Logger.log(`[BannerService] Fetched ${matchingBanners.length} banner(s)`)
 
 			return matchingBanners
 		} catch (error) {
@@ -267,7 +285,7 @@ export class BannerService {
 			return hasMatchingProvider
 		} catch (error) {
 			Logger.log(
-				`BannerService: Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
+				`[BannerService] Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
 			)
 			return true
 		}
@@ -366,9 +384,9 @@ export class BannerService {
 
 			clearTimeout(timeoutId)
 
-			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
+			Logger.log(`[BannerService] Sent ${eventType} event for banner ${bannerId}`)
 		} catch (error) {
-			Logger.error(`BannerService: Error sending banner event`, error)
+			Logger.error(`[BannerService] Error sending banner event`, error)
 		}
 	}
 
@@ -393,7 +411,7 @@ export class BannerService {
 
 			this.clearCache()
 		} catch (error) {
-			Logger.error(`BannerService: Error dismissing banner`, error)
+			Logger.error(`[BannerService] Error dismissing banner`, error)
 		}
 	}
 
@@ -407,6 +425,7 @@ export class BannerService {
 			const dismissedBanners = StateManager.get().getGlobalStateKey("dismissedBanners") || []
 			return dismissedBanners.some((b) => b.bannerId === bannerId)
 		} catch (error) {
+			Logger.error(`[BannerService] Error dismissing banner`, error)
 			return false
 		}
 	}
@@ -440,11 +459,14 @@ export class BannerService {
 	}
 
 	/**
-	 * Gets banners that haven't been dismissed by the user.
-	 * Fetches from API if cache is empty or expired (24 hours).
-	 * Implements circuit breaker pattern and promise deduplication.
-	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of non-dismissed banners converted to BannerCardData format
+	 * This method is synchronous and returns the currently cached banners immediately.
+	 * If the cache is empty or expired (24 hours) and the service is not in backoff,
+	 * it will trigger a background fetch to refresh the cache, but it does NOT wait
+	 * for that fetch to complete. Callers must therefore tolerate potentially stale
+	 * data being returned.
+	 *
+	 * The success or failure of the background fetch is not exposed to callers of
+	 * this method; it is handled internally by the service.
 	 */
 	public getActiveBanners(): BannerCardData[] {
 		const now = Date.now()
@@ -456,12 +478,17 @@ export class BannerService {
 		// Fetch new banners if cache is empty or expired
 		// Only start a new fetch if there isn't one already in progress
 		if (!inBackoff && cacheExpired && !this._fetchPromise) {
+			// Capture the fetch ID so we can check ownership when clearing the promise
+			const fetchId = ++this._currentFetchId
 			this._fetchPromise = this.fetchBanners()
 
 			// Perform the fetch without awaiting - callers get cached data immediately
 			// The promise is kept alive until it completes (success or failure)
 			this._fetchPromise.finally(() => {
-				this._fetchPromise = null
+				// Only clear if we're still the current fetch (no newer fetch has started)
+				if (this._currentFetchId === fetchId) {
+					this._fetchPromise = null
+				}
 			})
 		}
 
