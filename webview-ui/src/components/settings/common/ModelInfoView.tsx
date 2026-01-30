@@ -103,12 +103,12 @@ const formatCompactPrice = (price: number | undefined): string => {
 		return "Free"
 	}
 	if (price < 0.01) {
-		return `$${price.toFixed(4)}/M`
+		return `$${(price ?? 0).toFixed(4)}/M`
 	}
 	if (price < 1) {
-		return `$${price.toFixed(2)}/M`
+		return `$${(price ?? 0).toFixed(2)}/M`
 	}
-	return `$${price % 1 === 0 ? price : price.toFixed(2)}/M`
+	return `$${price % 1 === 0 ? price : (price ?? 0).toFixed(2)}/M`
 }
 
 /**

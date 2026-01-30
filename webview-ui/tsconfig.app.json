@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"composite": true,
 		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
 		"target": "ES2022",
 		"useDefineForClassFields": true,
@@ -7,10 +8,6 @@
 			"ES2022",
 			"DOM",
 			"DOM.Iterable"
-		],
-		"types": [
-			"vitest/globals",
-			"@testing-library/jest-dom"
 		],
 		"module": "ESNext",
 		"skipLibCheck": true,
@@ -26,7 +23,6 @@
 		/* Linting */
 		"strict": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedSideEffectImports": true,
 
 		/* Aliasing */
 		"baseUrl": ".",
@@ -56,6 +52,10 @@
 		"src/**/*.test.ts",
 		"src/**/*.spec.tsx",
 		"src/**/*.spec.ts",
-		"src/**/__tests__/**"
+		"src/**/__tests__/**",
+		"src/**/*.stories.tsx",
+		"src/**/*.stories.ts",
+		"src/config/StorybookDecorator.tsx",
+		".storybook/**"
 	]
 }
