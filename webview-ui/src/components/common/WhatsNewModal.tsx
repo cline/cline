@@ -165,20 +165,20 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 									<strong>Arcee Trinity Large open weight</strong>{" "}
 									<InlineModelLink
 										label="Try free"
-										modelId="cline:arcee-ai/trinity-large-preview:free"
+										modelId="arcee-ai/trinity-large-preview:free"
 										type="model"
 									/>
 								</li>
 								<li>
 									<strong>Giga Potato stealth</strong>{" "}
-									<InlineModelLink label="Try free" modelId="cline:stealth/giga-potato" type="model" />
+									<InlineModelLink label="Try free" modelId="stealth/giga-potato" type="model" />
 								</li>
 							</ul>
 						</li>
 						<li className="mb-2">
 							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
 							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+							<InlineModelLink label="Try now" modelId="moonshotai/kimi-k2.5" type="model" />
 						</li>
 						<li className="mb-2">
 							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
