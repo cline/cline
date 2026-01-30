@@ -17,11 +17,18 @@ export class BannerService {
 	private static instance: BannerService | null = null
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
-	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
+	private readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours - banners change infrequently
 	private _controller: Controller
 	private _authService?: AuthService
 	private actionTypes: Set<string>
 	private _fetchPromise: Promise<Banner[]> | null = null
+
+	// Circuit breaker state to prevent hammering API after failures
+	private consecutiveFailures: number = 0
+	private readonly MAX_CONSECUTIVE_FAILURES = 3
+	private circuitBreakerOpenedAt: number = 0 // Timestamp when circuit breaker was tripped
+	private readonly CIRCUIT_BREAKER_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour - allow recovery attempt after this
+	private rateLimitBackoffUntil: number = 0 // Timestamp when we can retry after 429
 
 	private get _baseUrl(): string {
 		return ClineEnv.config().apiBaseUrl
@@ -80,9 +87,7 @@ export class BannerService {
 	}
 
 	/**
-	 * Fetches active banners from the API
-	 * Backend handles all filtering based on ide and user context
-	 * Extension only filters by providers (API provider configuration)
+	 * Gets active banners with caching and promise deduplication
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of banners that match current environment
 	 */
@@ -95,7 +100,32 @@ export class BannerService {
 				return this._cachedBanners
 			}
 
+			// Circuit breaker: Stop trying after consecutive failures, but allow recovery after timeout (half-open state)
+			if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+				const timeSinceOpen = now - this.circuitBreakerOpenedAt
+				if (timeSinceOpen < this.CIRCUIT_BREAKER_TIMEOUT_MS) {
+					const remainingMinutes = Math.ceil((this.CIRCUIT_BREAKER_TIMEOUT_MS - timeSinceOpen) / 60000)
+					Logger.log(
+						`BannerService: Circuit breaker open after ${this.consecutiveFailures} failures, will attempt recovery in ${remainingMinutes}m, returning cached banners`,
+					)
+					return this._cachedBanners
+				}
+				// Half-open state: timeout expired, allow one request to test if service recovered
+				Logger.log("BannerService: Circuit breaker half-open, attempting recovery request")
+			}
+
+			// Rate limit backoff: Check if we're still in backoff period
+			if (now < this.rateLimitBackoffUntil) {
+				const remainingSeconds = Math.ceil((this.rateLimitBackoffUntil - now) / 1000)
+				Logger.log(
+					`BannerService: Rate limit backoff active, will retry in ${remainingSeconds}s, returning cached banners`,
+				)
+				return this._cachedBanners
+			}
+
+			// Promise deduplication: Prevent concurrent requests
 			if (this._fetchPromise && !forceRefresh) {
+				Logger.log("BannerService: Reusing in-flight request")
 				return this._fetchPromise
 			}
 
@@ -108,6 +138,12 @@ export class BannerService {
 		}
 	}
 
+	/**
+	 * Fetches active banners from the API
+	 * Backend handles all filtering based on ide and user context
+	 * Extension only filters by providers (API provider configuration)
+	 * @returns Array of banners that match current environment
+	 */
 	private async fetchActiveBanners(): Promise<Banner[]> {
 		try {
 			const now = Date.now()
@@ -154,18 +190,89 @@ export class BannerService {
 			const matchingBanners = backendFilteredBanners.filter((banner) => this.matchesProviderRule(banner))
 			Logger.log(`BannerService: ${matchingBanners.length} banners match provider requirements`)
 
-			// Update cache
+			// Update cache and reset failure counters on success
 			this._cachedBanners = matchingBanners
 			this._lastFetchTime = now
+			this.consecutiveFailures = 0 // Reset circuit breaker on success
 
 			if (matchingBanners.length > 0) {
 				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
 			}
 			return matchingBanners
 		} catch (error) {
-			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.error("BannerService: Error fetching banners", error)
-			return []
+			this.consecutiveFailures++
+
+			// Track when circuit breaker trips or resets timeout after failed half-open recovery
+			if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+				this.circuitBreakerOpenedAt = Date.now()
+				if (this.consecutiveFailures === this.MAX_CONSECUTIVE_FAILURES) {
+					Logger.log("BannerService: Circuit breaker tripped, will allow recovery attempt after 1 hour")
+				} else {
+					Logger.log("BannerService: Half-open recovery failed, resetting timeout for another 1 hour")
+				}
+			}
+
+			// Handle rate limiting (429) and server errors (5xx) with backoff
+			if (axios.isAxiosError(error) && error.response?.status) {
+				const status = error.response.status
+
+				// 429 Rate Limiting
+				if (status === 429) {
+					// Check for Retry-After header (can be in seconds or HTTP date)
+					const retryAfter = error.response.headers["retry-after"]
+					let backoffMs = 60 * 60 * 1000 // Default: 1 hour backoff
+
+					if (retryAfter) {
+						// If it's a number, it's seconds
+						const retrySeconds = Number.parseInt(retryAfter, 10)
+						if (!Number.isNaN(retrySeconds)) {
+							backoffMs = retrySeconds * 1000
+						} else {
+							// Otherwise try to parse as HTTP date
+							const retryDate = new Date(retryAfter)
+							if (!Number.isNaN(retryDate.getTime())) {
+								backoffMs = Math.max(0, retryDate.getTime() - Date.now())
+							}
+						}
+					}
+
+					this.rateLimitBackoffUntil = Date.now() + backoffMs
+					const backoffMinutes = Math.ceil(backoffMs / 60000)
+
+					Logger.error(
+						`BannerService: Rate limited (429), backing off for ${backoffMinutes} minutes. Consecutive failures: ${this.consecutiveFailures}`,
+						error,
+					)
+				}
+				// 5xx Server Errors (502, 503, 500, etc.)
+				else if (status >= 500 && status < 600) {
+					// Use shorter backoff for server errors (15 minutes)
+					const backoffMs = 15 * 60 * 1000
+					this.rateLimitBackoffUntil = Date.now() + backoffMs
+					const backoffMinutes = Math.ceil(backoffMs / 60000)
+
+					Logger.error(
+						`BannerService: Server error (${status}), backing off for ${backoffMinutes} minutes. Consecutive failures: ${this.consecutiveFailures}`,
+						error,
+					)
+				}
+				// Other HTTP errors
+				else {
+					Logger.error(
+						`BannerService: HTTP error ${status} fetching banners (failure ${this.consecutiveFailures}/${this.MAX_CONSECUTIVE_FAILURES})`,
+						error,
+					)
+				}
+			} else {
+				// Network errors or other non-HTTP errors
+				Logger.error(
+					`BannerService: Error fetching banners (failure ${this.consecutiveFailures}/${this.MAX_CONSECUTIVE_FAILURES})`,
+					error,
+				)
+			}
+
+			// Return cached banners if available, otherwise empty array
+			return this._cachedBanners.length > 0 ? this._cachedBanners : []
 		} finally {
 			this._fetchPromise = null
 		}
@@ -311,12 +418,16 @@ export class BannerService {
 	}
 
 	/**
-	 * Clears the banner cache
+	 * Clears the banner cache and resets circuit breaker state
 	 */
 	public clearCache(): void {
 		this._cachedBanners = []
 		this._lastFetchTime = 0
-		Logger.log("BannerService: Cache cleared")
+		this.consecutiveFailures = 0
+		this.circuitBreakerOpenedAt = 0
+		this.rateLimitBackoffUntil = 0
+		this._fetchPromise = null
+		Logger.log("BannerService: Cache cleared and circuit breaker reset")
 	}
 
 	/**
