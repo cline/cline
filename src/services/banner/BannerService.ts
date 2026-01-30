@@ -202,10 +202,14 @@ export class BannerService {
 		} catch (error) {
 			this.consecutiveFailures++
 
-			// Track when circuit breaker trips for half-open timeout
-			if (this.consecutiveFailures === this.MAX_CONSECUTIVE_FAILURES) {
+			// Track when circuit breaker trips or resets timeout after failed half-open recovery
+			if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
 				this.circuitBreakerOpenedAt = Date.now()
-				Logger.log("BannerService: Circuit breaker tripped, will allow recovery attempt after 1 hour")
+				if (this.consecutiveFailures === this.MAX_CONSECUTIVE_FAILURES) {
+					Logger.log("BannerService: Circuit breaker tripped, will allow recovery attempt after 1 hour")
+				} else {
+					Logger.log("BannerService: Half-open recovery failed, resetting timeout for another 1 hour")
+				}
 			}
 
 			// Handle rate limiting (429) and server errors (5xx) with backoff
