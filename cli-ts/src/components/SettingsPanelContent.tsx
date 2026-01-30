@@ -1317,26 +1317,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			)
 		}
 
-		// Show special message for auto-approve tab when auto-approve all is enabled
-		if (currentTab === "auto-approve" && features.autoApproveAll) {
-			return (
-				<Box flexDirection="column">
-					<Text color="green">Auto-approve all is enabled (Shift+Tab)</Text>
-					<Box marginTop={1}>
-						<Text color="gray">All tool calls are automatically approved. When disabled, the settings</Text>
-					</Box>
-					<Text color="gray">below control which actions are auto-approved.</Text>
-				</Box>
-			)
-		}
-
 		return (
 			<Box flexDirection="column">
-				{currentTab === "auto-approve" && !features.autoApproveAll && (
-					<Box marginBottom={1}>
-						<Text color="gray">These actions are auto-approved when 'Auto-approve all' is disabled:</Text>
-					</Box>
-				)}
 				{items.map((item, idx) => {
 					const isSelected = idx === selectedIndex
 
