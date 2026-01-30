@@ -109,7 +109,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						left: 8px;
 						background-color: var(--vscode-button-background);
 						border-radius: 2px 2px 0 0;
-						padding: 1px 3px;
+						padding: 2px 1px 0px 1px;
 						display: flex;
 						align-items: center;
 						justify-content: center;
@@ -228,6 +228,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 													color: "var(--vscode-button-background)",
 													flexShrink: 0,
 													cursor: "pointer",
+													marginLeft: "-4px",
 												}}
 											/>
 										)}
