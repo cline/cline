@@ -27,6 +27,11 @@ const CLI_STATE_OVERRIDES: Record<string, any> = {
 	browserSettings: {
 		disableToolUse: true,
 	},
+	// Disable focus chain (task_progress) in CLI
+	focusChainSettings: {
+		enabled: false,
+		remindClineInterval: 0,
+	},
 }
 
 /**
