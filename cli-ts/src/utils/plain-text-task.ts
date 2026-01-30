@@ -22,6 +22,8 @@ export interface PlainTextTaskOptions {
 	imageDataUrls?: string[]
 	verbose?: boolean
 	jsonOutput?: boolean
+	/** Timeout in seconds (default: 600 = 10 minutes) */
+	timeoutSeconds?: number
 }
 
 /**
@@ -99,8 +101,8 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	try {
 		// Start the task
 		await controller.initTask(prompt, imageDataUrls)
-		const timeout = 10 * 60 * 1000 // 10 minutes
-		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeout))
+		const timeoutMs = (options.timeoutSeconds ?? 600) * 1000 // default 10 minutes
+		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
 		await Promise.race([completionPromise, timeoutPromise])
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : String(error)
