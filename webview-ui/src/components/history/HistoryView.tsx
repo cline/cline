@@ -49,6 +49,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	// Keep track of pending favorite toggle operations
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 
+	// Keep track of pending pin toggle operations
+	const [pendingPinToggles, setPendingPinToggles] = useState<Record<string, boolean>>({})
+
 	// Load filtered task history with gRPC
 	const [tasks, setTasks] = useState<any[]>([])
 
@@ -67,7 +70,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption])
 
 	// Load when filters change
 	useEffect(() => {
@@ -92,10 +95,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}),
 				)
 
-				// Refresh if either filter is active to ensure proper combined filtering
-				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
-					loadTaskHistory()
-				}
+				// Always refresh to show the updated favorite state immediately
+				loadTaskHistory()
 			} catch (err) {
 				console.error(`[FAVORITE_TOGGLE_UI] Error for task ${taskId}:`, err)
 				// Revert optimistic update
@@ -115,7 +116,47 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}, 1000)
 			}
 		},
-		[showFavoritesOnly, loadTaskHistory],
+		[loadTaskHistory],
+	)
+
+	const togglePin = useCallback(
+		async (taskId: string, currentValue: boolean) => {
+			// Optimistic UI update
+			setPendingPinToggles((prev) => ({ ...prev, [taskId]: !currentValue }))
+
+			try {
+				// Import TaskPinRequest locally to avoid formatter issues
+				const { TaskPinRequest } = await import("@shared/proto/cline/task")
+
+				await TaskServiceClient.toggleTaskPin(
+					TaskPinRequest.create({
+						taskId,
+						isPinned: !currentValue,
+					}),
+				)
+
+				// Always refresh to ensure proper sorting with pinned items
+				loadTaskHistory()
+			} catch (err) {
+				console.error(`[PIN_TOGGLE_UI] Error for task ${taskId}:`, err)
+				// Revert optimistic update
+				setPendingPinToggles((prev) => {
+					const updated = { ...prev }
+					delete updated[taskId]
+					return updated
+				})
+			} finally {
+				// Clean up pending state after 1 second
+				setTimeout(() => {
+					setPendingPinToggles((prev) => {
+						const updated = { ...prev }
+						delete updated[taskId]
+						return updated
+					})
+				}, 1000)
+			}
+		},
+		[loadTaskHistory],
 	)
 
 	// Use the onRelinquishControl hook instead of message event
@@ -253,6 +294,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				olderTasks.push(task)
 			}
 		})
+
+		// Sort pinned tasks to top of each group
+		const sortWithPinnedFirst = (tasks: any[]) => {
+			return tasks.sort((a, b) => {
+				// Pinned tasks first
+				if (a.isPinned !== b.isPinned) {
+					return a.isPinned ? -1 : 1
+				}
+				// Then by timestamp (already sorted by taskHistorySearchResults)
+				return 0
+			})
+		}
+
+		sortWithPinnedFirst(todayTasks)
+		sortWithPinnedFirst(olderTasks)
 
 		const groups: { tasks: any[]; label: string }[] = []
 		if (todayTasks.length > 0) {
@@ -417,9 +473,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								handleHistorySelect={handleHistorySelect}
 								index={index}
 								item={item}
+								onTaskUpdated={loadTaskHistory}
 								pendingFavoriteToggles={pendingFavoriteToggles}
+								pendingPinToggles={pendingPinToggles}
 								selectedItems={selectedItems}
 								toggleFavorite={toggleFavorite}
+								togglePin={togglePin}
 							/>
 						)
 					}}
@@ -450,7 +509,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				) : (
 					<Button
 						aria-label="Delete all history"
-						className="w-full"
+						className="w-full border border-transparent hover:!border-red-500"
 						disabled={deleteAllDisabled || taskHistory.length === 0}
 						onClick={() => {
 							setDeleteAllDisabled(true)
@@ -459,7 +518,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								.catch((error) => console.error("Error deleting task history:", error))
 								.finally(() => setDeleteAllDisabled(false))
 						}}
-						variant="danger">
+						variant="secondary">
 						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 					</Button>
 				)}

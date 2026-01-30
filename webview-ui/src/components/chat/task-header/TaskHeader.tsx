@@ -161,7 +161,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex items-center select-none grow min-w-0 gap-1 justify-between">
 						{!isTaskExpanded && (
 							<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
-								<span className="ph-no-capture text-base">{highlightedText}</span>
+								{currentTaskItem?.customName ? (
+									<span className="ph-no-capture text-base font-medium">{currentTaskItem.customName}</span>
+								) : (
+									<span className="ph-no-capture text-base">{highlightedText}</span>
+								)}
 							</div>
 						)}
 					</div>

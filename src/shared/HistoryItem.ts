@@ -14,7 +14,10 @@ export type HistoryItem = {
 	cwdOnTaskInitialization?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isFavorited?: boolean
+	isPinned?: boolean
 	checkpointManagerErrorMessage?: string
 
 	modelId?: string
+	customName?: string
+	customNameColor?: string
 }

@@ -1,11 +1,11 @@
 import { Empty } from "@shared/proto/cline/common"
-import { TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { TaskPinRequest } from "@shared/proto/cline/task"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../"
 
-export async function toggleTaskFavorite(controller: Controller, request: TaskFavoriteRequest): Promise<Empty> {
-	if (!request.taskId || request.isFavorited === undefined) {
-		const errorMsg = `[toggleTaskFavorite] Invalid request: taskId or isFavorited missing`
+export async function toggleTaskPin(controller: Controller, request: TaskPinRequest): Promise<Empty> {
+	if (!request.taskId || request.isPinned === undefined) {
+		const errorMsg = `[toggleTaskPin] Invalid request: taskId or isPinned missing`
 		Logger.error(errorMsg)
 		return Empty.create({})
 	}
@@ -18,13 +18,13 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
 			if (taskIndex === -1) {
-				Logger.log(`[toggleTaskFavorite] Task not found in history array!`)
+				Logger.log(`[toggleTaskPin] Task not found in history array!`)
 			} else {
 				// Create a new array instead of modifying in place to ensure state change
 				const updatedHistory = [...history]
 				updatedHistory[taskIndex] = {
 					...updatedHistory[taskIndex],
-					isFavorited: request.isFavorited,
+					isPinned: request.isPinned,
 				}
 
 				// Update global state and wait for it to complete
@@ -48,7 +48,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 			Logger.error("Error posting to webview:", webviewErr)
 		}
 	} catch (error) {
-		Logger.error("Error in toggleTaskFavorite:", error)
+		Logger.error("Error in toggleTaskPin:", error)
 	}
 
 	return Empty.create({})

@@ -66,9 +66,15 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 		// Calculate total count before sorting
 		const totalCount = filteredTasks.length
 
-		// Apply sorting
+		// Apply sorting - pinned tasks always come first
 		if (sortBy) {
 			filteredTasks.sort((a, b) => {
+				// First, sort by pinned status
+				if (a.isPinned !== b.isPinned) {
+					return a.isPinned ? -1 : 1
+				}
+
+				// Then apply the selected sort
 				switch (sortBy) {
 					case "oldest":
 						return a.ts - b.ts
@@ -88,8 +94,13 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				}
 			})
 		} else {
-			// Default sort by newest
-			filteredTasks.sort((a, b) => b.ts - a.ts)
+			// Default sort by newest, but pinned first
+			filteredTasks.sort((a, b) => {
+				if (a.isPinned !== b.isPinned) {
+					return a.isPinned ? -1 : 1
+				}
+				return b.ts - a.ts
+			})
 		}
 
 		// Map to response format
@@ -98,6 +109,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			task: item.task,
 			ts: item.ts,
 			isFavorited: item.isFavorited || false,
+			isPinned: item.isPinned || false,
 			size: item.size || 0,
 			totalCost: item.totalCost || 0,
 			tokensIn: item.tokensIn || 0,
@@ -105,6 +117,8 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			cacheWrites: item.cacheWrites || 0,
 			cacheReads: item.cacheReads || 0,
 			modelId: item.modelId || "",
+			customName: item.customName || "",
+			customNameColor: item.customNameColor || "",
 		}))
 
 		return TaskHistoryArray.create({

@@ -80,7 +80,7 @@ export class MessageStateHandler {
 	 * This is used by methods that already hold the stateMutex lock
 	 * Should NOT be called directly - use saveClineMessagesAndUpdateHistory() instead
 	 */
-	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
+	private async saveClineMessagesAndUpdateHistoryInternal(existingHistoryItem?: HistoryItem): Promise<void> {
 		try {
 			await saveClineMessages(this.taskId, this.clineMessages)
 
@@ -122,6 +122,10 @@ export class MessageStateHandler {
 				isFavorited: this.taskIsFavorited,
 				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 				modelId: lastModelInfo?.modelInfo?.modelId,
+				// Preserve custom fields from existing history item
+				customName: existingHistoryItem?.customName,
+				customNameColor: existingHistoryItem?.customNameColor,
+				isPinned: existingHistoryItem?.isPinned,
 			})
 		} catch (error) {
 			Logger.error("Failed to save cline messages:", error)

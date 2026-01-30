@@ -28,6 +28,8 @@ service TaskService {
   rpc exportTaskWithId(StringRequest) returns (Empty);
   // Toggles the favorite status of a task
   rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);
+  // Toggles the pin status of a task
+  rpc toggleTaskPin(TaskPinRequest) returns (Empty);
   // Gets filtered task history
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
   // Sends a response to a previous ask operation
@@ -42,6 +44,8 @@ service TaskService {
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
   // Explains changes with AI and adds inline comments to the diff view
   rpc explainChanges(ExplainChangesRequest) returns (Empty);
+  // Updates the custom name for a task
+  rpc updateTaskName(UpdateTaskNameRequest) returns (Empty);
 }
 
 // Request message for creating a new task
@@ -60,6 +64,21 @@ message TaskFavoriteRequest {
   bool is_favorited = 3;
 }
 
+// Request message for toggling task pin status
+message TaskPinRequest {
+  Metadata metadata = 1;
+  string task_id = 2;
+  bool is_pinned = 3;
+}
+
+// Request message for updating task custom name
+message UpdateTaskNameRequest {
+  Metadata metadata = 1;
+  string task_id = 2;
+  string custom_name = 3;
+  string custom_name_color = 4;
+}
+
 // Response for task details
 message TaskResponse {
   string id = 1;
@@ -73,6 +92,7 @@ message TaskResponse {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_pinned = 12;
 }
 
 // Request for getting task history with filtering
@@ -103,6 +123,9 @@ message TaskItem {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  bool is_pinned = 12;
+  string custom_name = 13;
+  string custom_name_color = 14;
 }
 
 // Request for ask response operation

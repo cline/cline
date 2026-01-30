@@ -1007,11 +1007,23 @@ export class Controller {
 		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = item
+			// Preserve custom fields from existing item when updating
+			const existingItem = history[existingItemIndex]
+			history[existingItemIndex] = {
+				...item,
+				// Only preserve these fields if they exist in the existing item and are not explicitly set in the new item
+				customName: item.customName ?? existingItem.customName,
+				customNameColor: item.customNameColor ?? existingItem.customNameColor,
+				isPinned: item.isPinned ?? existingItem.isPinned,
+			}
 		} else {
 			history.push(item)
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
+
+		// Force immediate write to disk to survive hot reloads
+		await this.stateManager.flushPendingState()
+
 		return history
 	}
 
