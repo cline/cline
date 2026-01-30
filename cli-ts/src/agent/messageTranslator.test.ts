@@ -758,7 +758,7 @@ describe("translateMessage - say messages", () => {
 			expect(messageChunk).toBeDefined()
 
 			const chunk = messageChunk as acp.ContentChunk & { sessionUpdate: "agent_message_chunk" }
-			expect((chunk.content as acp.TextContent).text).toBe("Task completed successfully!")
+			expect((chunk.content as acp.TextContent).text).toBe("\nTask completed successfully!")
 		})
 	})
 
