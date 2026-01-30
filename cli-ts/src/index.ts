@@ -210,10 +210,7 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 	// Ink's incremental rendering tries to erase N lines based on previous output height,
 	// but when the terminal shrinks, this leaves artifacts. Gemini CLI only enables
 	// incrementalRendering when alternateBuffer is also enabled (which we don't use).
-	//
-	// exitOnCtrlC: false - We handle Ctrl+C ourselves so we can clean up UI before exiting.
-	// The app components listen for Ctrl+C via useInput and call their exit handlers.
-	const { waitUntilExit, unmount } = render(element, { exitOnCtrlC: false })
+	const { waitUntilExit, unmount } = render(element, { exitOnCtrlC: true })
 
 	try {
 		await waitUntilExit()

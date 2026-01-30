@@ -921,12 +921,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Handle keyboard input
 	useInput((input, key) => {
-		// Handle Ctrl+C - hide input and exit gracefully
-		if (input === "\x03" || (key.ctrl && input === "c")) {
-			handleExit()
-			return
-		}
-
 		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
 		if (isMouseEscapeSequence(input)) {
 			return
