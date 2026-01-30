@@ -17,7 +17,7 @@ import { mockFetchForTesting } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "./BannerService"
 
-describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
+describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockFetch: sinon.SinonStub
 
