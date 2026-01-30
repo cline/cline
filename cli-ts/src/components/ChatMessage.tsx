@@ -12,6 +12,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 import { jsonParseSafe } from "../utils/parser"
 import { getToolDescription, isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { DiffView } from "./DiffView"
@@ -185,17 +186,28 @@ function formatToolResult(result: string, maxLines: number = 5): string[] {
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 	const { type, ask, say, text } = message
 	const toolColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
+	const { columns: terminalWidth } = useTerminalSize()
 
 	// User messages (task, user_feedback)
+	// If multi-line, extend background to full width for consistent appearance
 	if (say === "task" || say === "user_feedback") {
+		const content = "> " + (text || "")
+		const isMultiLine = content.includes("\n") || content.length > terminalWidth
+
+		if (isMultiLine) {
+			return (
+				<Box flexDirection="column" marginBottom={1} width="100%">
+					<Box backgroundColor="blackBright" paddingX={1} width="100%">
+						<Text color="white">{content}</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		return (
 			<Box flexDirection="column" marginBottom={1}>
-				<Box backgroundColor="blackBright" paddingRight={1}>
-					<Text color="white" dimColor>
-						{" "}
-						&gt;{" "}
-					</Text>
-					<Text color="white">{text}</Text>
+				<Box backgroundColor="blackBright" paddingX={1}>
+					<Text color="white">{content}</Text>
 				</Box>
 			</Box>
 		)
