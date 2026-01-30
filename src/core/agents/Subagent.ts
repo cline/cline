@@ -45,9 +45,12 @@ export class Subagent extends ClineAgent {
 		return buildTaskAgentSystemPrompt(userInput, contextPrompt, TASK_ACTIONS_TAGS)
 	}
 
-	buildContextPrompt(context: AgentContext, iteration: number): string {
+	buildContextPrompt(context: AgentContext, iteration: number, formatErrorFeedback?: string): string {
+		// Include format error feedback at the top if present
+		const errorSection = formatErrorFeedback ? `${formatErrorFeedback}\n\n` : ""
+
 		if (iteration === 0 || (context.searchResults.size === 0 && context.fileContents.size === 0)) {
-			return "No context retrieved yet. Use the available tools to gather information."
+			return errorSection + "No context retrieved yet. Use the available tools to gather information."
 		}
 
 		const MAX_RESULTS_TO_SHOW = 10
@@ -113,7 +116,7 @@ export class Subagent extends ClineAgent {
 			parts.push("")
 		}
 
-		return parts.join("\n") + contextParts.join("\n\n")
+		return errorSection + parts.join("\n") + contextParts.join("\n\n")
 	}
 
 	async readContextFiles(filePaths: string[]): Promise<Map<string, string>> {
@@ -240,18 +243,27 @@ ${contextPrompt}
 Available tools:
 ${toolsPlaceholder}
 
-## RESPONSE FORMAT
-Your response must contain ONLY tags (no explanations, no markdown blocks outside tags). Choose one:
+## RESPONSE FORMAT - CRITICAL
+Your response must contain ONLY XML tags. No explanations, no markdown, no text outside tags.
 
-**If you have completed the task and have the answer:**
-- Include your findings in <${actionsTags.RESULT}> tags
-- End with <${actionsTags.ANSWER}>
-- Example: <${actionsTags.RESULT}>Your detailed findings and conclusions here</${actionsTags.RESULT}><${actionsTags.ANSWER}>
+### Tool Format (REQUIRED):
+Each tool MUST use its outer tag AND inner subtag. The subtag contains the actual input.
 
-**If you need more information:**
-- Use tool tags to gather information
-- You can use multiple tools in a single response
-- Example: <TOOLSEARCH><query>class DatabaseController</query></TOOLSEARCH><TOOLFILE><name>src/config.ts</name></TOOLFILE>
+CORRECT format examples:
+- <TOOLSEARCH><query>class DatabaseController</query></TOOLSEARCH>
+- <TOOLFILE><name>src/config.ts</name></TOOLFILE>
+- <TOOLBASH><command>ls -la</command></TOOLBASH>
+- <TOOLWEBFETCH><url>https://example.com</url></TOOLWEBFETCH>
+
+WRONG (missing subtag - will NOT work):
+- <TOOLSEARCH>class DatabaseController</TOOLSEARCH>
+- <TOOLBASH>ls -la</TOOLBASH>
+
+### When task is complete:
+<${actionsTags.RESULT}>Your detailed findings here</${actionsTags.RESULT}><${actionsTags.ANSWER}>
+
+### When you need more information:
+Use one or more tool tags with proper subtags.
 
 ## RULES
 1. Work autonomously - gather all information needed to complete the task
@@ -259,13 +271,14 @@ Your response must contain ONLY tags (no explanations, no markdown blocks outsid
 3. Use bash commands for system operations, git commands, or exploring the filesystem
 4. Be thorough - check multiple sources before concluding
 5. Your final <${actionsTags.RESULT}> should contain a complete, actionable answer
-6. Response must be ONLY tags, nothing else
+6. Response must be ONLY tags with correct subtag structure
 7. DO NOT repeat searches or commands you've already executed
 
 ## IMPORTANT
 - You cannot ask questions - work with what you have
 - Your output will be returned to the calling agent, so be comprehensive
 - If you cannot complete the task, explain what you found and what's missing
+- ALWAYS use the correct tag format: <TOOL><subtag>value</subtag></TOOL>
 
-Remember: Your response will be parsed by a bot. Only include the expected tags.`
+Remember: Your response will be parsed by a bot. Only include the expected tags with proper subtag structure.`
 }

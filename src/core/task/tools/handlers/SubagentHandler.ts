@@ -35,6 +35,22 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 		return JSON.stringify(sharedProps)
 	}
 
+	private buildToolMessageWithHistory(
+		prompt: string,
+		statusHistory: import("@/shared/cline/subagent").SubagentStatusEntry[],
+	): string {
+		const sharedProps: ClineSayTool = {
+			tool: "subagent",
+			path: undefined,
+			content: JSON.stringify(statusHistory),
+			regex: undefined,
+			filePattern: prompt,
+			operationIsLocatedInWorkspace: true,
+		}
+
+		return JSON.stringify(sharedProps)
+	}
+
 	buildPartialToolMessage(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): string {
 		const prompt = uiHelpers.removeClosingTag(block, "prompt", block.params.prompt)
 		const sharedProps: ClineSayTool = {
@@ -99,14 +115,8 @@ export class SubagentHandler implements IFullyManagedTool, IAbortableToolHandler
 				return abortMessage
 			}
 
-			const formattedResults =
-				typeof taskResults === "string"
-					? taskResults
-					: Array.isArray(taskResults)
-						? taskResults.map((r) => (r.type === "text" ? r.text : "")).join("\n\n")
-						: String(taskResults)
-
-			const completeMessage = this.buildToolMessage(prompt, formattedResults)
+			// Use the agent's status history for the final message to preserve the timeline UI
+			const completeMessage = this.buildToolMessageWithHistory(prompt, agent.getStatusHistory())
 			await config.callbacks.replaceMessageContentByUid(callId, completeMessage, false)
 
 			return taskResults

@@ -1,5 +1,23 @@
-import { ApiHandler } from "@/core/api"
-import { ClineStorageMessage } from "@/shared/messages"
+/**
+ * Minimal interface for API handler used by subagents.
+ * This is a subset of the full ApiHandler interface from @/core/api,
+ * defined here to avoid importing extension-only code into shared modules.
+ */
+export interface SubagentApiHandler {
+	createMessage(systemPrompt: string, messages: SubagentMessage[], tools?: unknown[], useResponseApi?: boolean): unknown
+	getModel(): { id: string; info: unknown }
+	abort?(): void
+}
+
+/**
+ * Minimal message interface for subagent communication.
+ * Compatible with ClineStorageMessage from @/shared/messages.
+ */
+export interface SubagentMessage {
+	role: "user" | "assistant"
+	content: string | unknown[]
+	id?: string
+}
 
 export interface AgentContext {
 	filePaths: Set<string>
@@ -51,6 +69,22 @@ export interface AgentIterationUpdate {
 }
 
 /**
+ * A single status entry for subagent timeline display
+ */
+export interface SubagentStatusEntry {
+	/** Iteration number (1-indexed) */
+	iteration: number
+	/** Maximum iterations */
+	maxIterations: number
+	/** Timestamp when this entry was created */
+	timestamp: number
+	/** Status message */
+	status: string
+	/** Type of status entry */
+	type: "searching" | "reading" | "running" | "fetching" | "ready" | "message" | "cost" | "error"
+}
+
+/**
  * Configuration for creating a ClineAgent instance
  */
 export interface ClineAgentConfig {
@@ -63,11 +97,11 @@ export interface ClineAgentConfig {
 	/** System Prompt for the agent */
 	systemPrompt?: string
 	/** Starting messages for the agent */
-	messages?: ClineStorageMessage[]
+	messages?: SubagentMessage[]
 	/** API Request Params */
 	apiParams?: Record<string, unknown>
 	/** Optional API client to use instead of the default ClineHandler */
-	client?: ApiHandler
+	client?: SubagentApiHandler
 	/** Optional tag name for context files extraction (default: no context extraction) */
 	contextTag?: string
 	/** Optional tag name for ready-to-answer check (default: no ready check) */

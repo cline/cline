@@ -1,7 +1,15 @@
 import { ApiHandler } from "@/core/api"
 import { ClineHandler } from "@/core/api/providers/cline"
 import type { ApiStream } from "@/core/api/transform/stream"
-import { AgentActions, AgentContext, AgentIterationUpdate, ClineAgentConfig, GeneralToolResult } from "@/shared/cline/subagent"
+import {
+	AgentActions,
+	AgentContext,
+	AgentIterationUpdate,
+	ClineAgentConfig,
+	GeneralToolResult,
+	SubagentApiHandler,
+	SubagentStatusEntry,
+} from "@/shared/cline/subagent"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -15,7 +23,7 @@ import { extractTagContent } from "./utils"
  * Subclasses implement domain-specific logic for context management, tool execution, and result formatting.
  */
 export abstract class ClineAgent {
-	protected readonly client: ApiHandler
+	protected readonly client: ApiHandler | SubagentApiHandler
 	protected currentIteration: number = 0
 	protected readonly maxIterations: number
 	protected readonly prompt: string
@@ -23,8 +31,18 @@ export abstract class ClineAgent {
 	protected readonly tools: Map<string, SubAgentToolDefinition> = new Map()
 	protected taskConfig?: TaskConfig
 	protected readonly abortSignal?: AbortSignal
+	private statusHistory: SubagentStatusEntry[] = []
+	private toolFormatErrors: string[] = []
+	private static readonly MAX_FORMAT_ERRORS = 3
 
 	private static activeAgents = new Set<ClineAgent>()
+
+	/**
+	 * Returns the accumulated status history for this agent
+	 */
+	public getStatusHistory(): SubagentStatusEntry[] {
+		return this.statusHistory
+	}
 
 	constructor(private config: ClineAgentConfig) {
 		const modelClient = new ClineHandler({ openRouterModelId: config.modelId, ...config.apiParams })
@@ -73,6 +91,7 @@ export abstract class ClineAgent {
 	/**
 	 * Extracts tool calls from agent response based on registered tools.
 	 * Parses the response for tool tags and extracts subtag values.
+	 * Tracks format errors when subtags are missing and provides feedback.
 	 * @param response - The agent's response text
 	 * @returns Map of tool tag to array of extracted input values
 	 */
@@ -80,15 +99,30 @@ export abstract class ClineAgent {
 		const toolCallsMap = new Map<string, string[]>()
 
 		for (const [toolTag, toolDef] of this.tools) {
-			const toolPattern = new RegExp(`<${toolTag}>(.*?)</${toolTag}>`, "gs")
-			const subTagPattern = new RegExp(`<${toolDef.tag}>(.*?)</${toolDef.tag}>`, "gs")
+			const toolPattern = new RegExp(`<${toolTag}>([\\s\\S]*?)</${toolTag}>`, "gs")
+			const subTagPattern = new RegExp(`<${toolDef.tag}>([\\s\\S]*?)</${toolDef.tag}>`, "gs")
 			const inputs: string[] = []
 
 			for (const toolMatch of response.matchAll(toolPattern)) {
 				const toolContent = toolMatch[1]
-				for (const subTagMatch of toolContent.matchAll(subTagPattern)) {
-					const value = subTagMatch[1].trim()
+
+				// First try to extract from subtag (correct format)
+				const subTagMatches = [...toolContent.matchAll(subTagPattern)]
+				if (subTagMatches.length > 0) {
+					for (const subTagMatch of subTagMatches) {
+						const value = subTagMatch[1].trim()
+						if (value) {
+							inputs.push(value)
+						}
+					}
+				} else {
+					// Missing subtag - record the error but still try to use the content
+					const value = toolContent.trim()
 					if (value) {
+						const errorMsg = `<${toolTag}> missing required <${toolDef.tag}> subtag. You wrote: <${toolTag}>${value.slice(0, 50)}${value.length > 50 ? "..." : ""}</${toolTag}>. Correct format: <${toolTag}><${toolDef.tag}>${value.slice(0, 30)}${value.length > 30 ? "..." : ""}</${toolDef.tag}></${toolTag}>`
+						this.toolFormatErrors.push(errorMsg)
+						Logger.warn(`[ClineAgent] Tool format error: ${errorMsg}`)
+						// Still use the content as fallback so the agent can make progress
 						inputs.push(value)
 					}
 				}
@@ -100,6 +134,23 @@ export abstract class ClineAgent {
 		}
 
 		return toolCallsMap
+	}
+
+	/**
+	 * Returns accumulated tool format errors and whether max errors reached
+	 */
+	protected getToolFormatErrorFeedback(): { errors: string[]; maxErrorsReached: boolean } {
+		return {
+			errors: [...this.toolFormatErrors],
+			maxErrorsReached: this.toolFormatErrors.length >= ClineAgent.MAX_FORMAT_ERRORS,
+		}
+	}
+
+	/**
+	 * Clears tool format errors (call after providing feedback)
+	 */
+	protected clearToolFormatErrors(): void {
+		this.toolFormatErrors = []
 	}
 
 	/**
@@ -130,8 +181,9 @@ export abstract class ClineAgent {
 	 * Builds the context prompt for the current iteration
 	 * @param context - The current agent context
 	 * @param iteration - Current iteration number (0-indexed)
+	 * @param formatErrorFeedback - Optional feedback about tool format errors
 	 */
-	abstract buildContextPrompt(context: AgentContext, iteration: number): string
+	abstract buildContextPrompt(context: AgentContext, iteration: number, formatErrorFeedback?: string): string
 
 	/**
 	 * Generic implementation of extractActions using registered tools and config tags.
@@ -342,20 +394,47 @@ export abstract class ClineAgent {
 				Logger.debug("[ClineAgent] execution aborted before iteration " + (iteration + 1))
 				break
 			}
+
+			// Check if max format errors reached
+			const { errors: formatErrors, maxErrorsReached } = this.getToolFormatErrorFeedback()
+			if (maxErrorsReached) {
+				Logger.error(`[ClineAgent] Max tool format errors (${ClineAgent.MAX_FORMAT_ERRORS}) reached, ending loop`)
+				break
+			}
+
 			try {
 				this.currentIteration = iteration
 
+				// Build format error feedback if any
+				let formatErrorFeedback: string | undefined
+				if (formatErrors.length > 0) {
+					formatErrorFeedback = `## ⚠️ TOOL FORMAT ERRORS (${formatErrors.length}/${ClineAgent.MAX_FORMAT_ERRORS} max)\nYour previous tool calls had incorrect format. Fix these issues:\n${formatErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}\n\nREMEMBER: Always use <TOOL><subtag>value</subtag></TOOL> format!`
+
+					// Add error entries to status history for UI display
+					for (const error of formatErrors) {
+						this.statusHistory.push({
+							iteration: this.currentIteration + 1,
+							maxIterations: this.maxIterations,
+							timestamp: Date.now(),
+							status: `Format error: ${error.slice(0, 100)}${error.length > 100 ? "..." : ""}`,
+							type: "error",
+						})
+					}
+
+					this.clearToolFormatErrors()
+				}
+
 				// Build context prompt and system prompt
-				const contextPrompt = this.buildContextPrompt(context, iteration)
+				const contextPrompt = this.buildContextPrompt(context, iteration, formatErrorFeedback)
 				const systemPrompt = this.buildSystemPrompt(userInput, contextPrompt)
 
 				// Create messages
 				const messages: ClineStorageMessage[] = this.config.messages
-					? [...this.config.messages, { role: "user", content: userInput }]
+					? [...(this.config.messages as ClineStorageMessage[]), { role: "user", content: userInput }]
 					: [{ role: "user", content: userInput }]
 
 				// Stream the LLM response
-				const stream = this.client.createMessage(systemPrompt, messages)
+				const stream = this.client.createMessage(systemPrompt, messages) as ApiStream
 				const fullResponse = await this.processStream(stream)
 
 				// Check for cancellation after streaming completes
@@ -435,13 +514,100 @@ export abstract class ClineAgent {
 		return this.formatResult(context)
 	}
 
+	private async onIterationUpdate(update: AgentIterationUpdate) {
+		// Create status entries based on the update
+		const entries = this.createStatusEntries(update)
+		this.statusHistory.push(...entries)
+
+		const partialMessage: ClineSayTool = {
+			tool: "subagent",
+			path: undefined,
+			content: JSON.stringify(this.statusHistory),
+			regex: undefined,
+			filePattern: this.prompt,
+			operationIsLocatedInWorkspace: true,
+		}
+
+		// Try to replace existing message content by call id
+		const replaced = await this.taskConfig?.callbacks.replaceMessageContentByUid(
+			this.config.callId,
+			JSON.stringify(partialMessage),
+			!update.actions?.isReadyToAnswer,
+		)
+		// Fall back to creating a new partial message if ts not found
+		if (!replaced) {
+			await this.taskConfig?.callbacks.say(
+				"tool",
+				JSON.stringify(partialMessage),
+				undefined,
+				undefined,
+				update.actions?.isReadyToAnswer,
+				this.config.callId,
+			)
+		}
+	}
+
 	/**
-	 * Formats tool calls into a human-readable status string.
-	 * Shows the actual queries/paths/commands being executed.
+	 * Creates status entries from an AgentIterationUpdate
 	 */
-	private formatToolCallsStatus(toolCalls: unknown[]): string {
+	private createStatusEntries(update: AgentIterationUpdate): SubagentStatusEntry[] {
+		const entries: SubagentStatusEntry[] = []
+		const baseEntry = {
+			iteration: this.currentIteration + 1,
+			maxIterations: this.maxIterations,
+			timestamp: Date.now(),
+		}
+
+		if (update.message) {
+			entries.push({
+				...baseEntry,
+				status: update.message,
+				type: "message",
+			})
+		}
+
+		if (update.cost !== undefined) {
+			entries.push({
+				...baseEntry,
+				status: `Cost: $${update.cost.toFixed(4)}`,
+				type: "cost",
+			})
+		}
+
+		if (update.actions) {
+			const contextFileCount = update.actions.resultContent.length
+
+			if (update.actions.isReadyToAnswer) {
+				let status = "Ready to answer"
+				if (contextFileCount > 0) {
+					status += ` with ${contextFileCount} file${contextFileCount > 1 ? "s" : ""}`
+				}
+				entries.push({
+					...baseEntry,
+					status,
+					type: "ready",
+				})
+			} else if (update.actions.toolCalls.length > 0) {
+				// Create individual entries for each tool call type
+				const toolEntries = this.createToolCallEntries(update.actions.toolCalls, baseEntry)
+				entries.push(...toolEntries)
+			}
+		}
+
+		return entries
+	}
+
+	/**
+	 * Creates status entries for tool calls, grouped by type
+	 */
+	private createToolCallEntries(
+		toolCalls: unknown[],
+		baseEntry: { iteration: number; maxIterations: number; timestamp: number },
+	): SubagentStatusEntry[] {
 		const MAX_INPUT_LENGTH = 50
 		const truncate = (str: string, maxLen: number) => (str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str)
+
+		const entries: SubagentStatusEntry[] = []
 
 		// Group tool calls by type
 		const searches: string[] = []
@@ -469,101 +635,37 @@ export abstract class ClineAgent {
 			}
 		}
 
-		const parts: string[] = []
-
-		// Show the most relevant action first with its actual input
 		if (searches.length > 0) {
 			const firstQuery = truncate(searches[0], MAX_INPUT_LENGTH)
-			if (searches.length === 1) {
-				parts.push(`Searching: "${firstQuery}"`)
-			} else {
-				parts.push(`Searching: "${firstQuery}" +${searches.length - 1} more`)
-			}
+			const status =
+				searches.length === 1 ? `Searching: "${firstQuery}"` : `Searching: "${firstQuery}" +${searches.length - 1} more`
+			entries.push({ ...baseEntry, status, type: "searching" })
 		}
 
 		if (files.length > 0) {
-			// Show just filename, not full path
 			const fileName = files[0].split("/").pop() || files[0]
-			if (files.length === 1) {
-				parts.push(`Reading: ${fileName}`)
-			} else {
-				parts.push(`Reading: ${fileName} +${files.length - 1} more`)
-			}
+			const status = files.length === 1 ? `Reading: ${fileName}` : `Reading: ${fileName} +${files.length - 1} more`
+			entries.push({ ...baseEntry, status, type: "reading" })
 		}
 
 		if (commands.length > 0) {
 			const firstCmd = truncate(commands[0], MAX_INPUT_LENGTH)
-			if (commands.length === 1) {
-				parts.push(`Running: ${firstCmd}`)
-			} else {
-				parts.push(`Running: ${firstCmd} +${commands.length - 1} more`)
-			}
+			const status = commands.length === 1 ? `Running: ${firstCmd}` : `Running: ${firstCmd} +${commands.length - 1} more`
+			entries.push({ ...baseEntry, status, type: "running" })
 		}
 
 		if (webFetches.length > 0) {
+			let status: string
 			try {
 				const parsed = JSON.parse(webFetches[0])
 				const url = new URL(parsed.url).hostname
-				if (webFetches.length === 1) {
-					parts.push(`Fetching: ${url}`)
-				} else {
-					parts.push(`Fetching: ${url} +${webFetches.length - 1} more`)
-				}
+				status = webFetches.length === 1 ? `Fetching: ${url}` : `Fetching: ${url} +${webFetches.length - 1} more`
 			} catch {
-				parts.push(`Fetching ${webFetches.length} URL${webFetches.length > 1 ? "s" : ""}`)
+				status = `Fetching ${webFetches.length} URL${webFetches.length > 1 ? "s" : ""}`
 			}
+			entries.push({ ...baseEntry, status, type: "fetching" })
 		}
 
-		return parts.join(" | ")
-	}
-
-	private async onIterationUpdate(update: AgentIterationUpdate) {
-		// Build a partial message showing the progress
-		const progress = `[${this.currentIteration + 1}/${this.maxIterations}]`
-		let statusText = progress
-
-		if (update.message) {
-			statusText += ` ${update.message}`
-		}
-
-		if (update.actions) {
-			const contextFileCount = update.actions.resultContent.length
-
-			if (update.actions.isReadyToAnswer) {
-				statusText += ` Ready to answer`
-				if (contextFileCount > 0) {
-					statusText += ` with ${contextFileCount} file${contextFileCount > 1 ? "s" : ""}`
-				}
-			} else if (update.actions.toolCalls.length > 0) {
-				statusText += ` ${this.formatToolCallsStatus(update.actions.toolCalls)}`
-			}
-		}
-
-		const partialMessage: ClineSayTool = {
-			tool: "subagent",
-			path: undefined,
-			content: statusText,
-			regex: undefined,
-			filePattern: this.prompt,
-			operationIsLocatedInWorkspace: true,
-		}
-
-		// Try to replace existing message content by call id
-		const replaced = await this.taskConfig?.callbacks.replaceMessageContentByUid(
-			this.config.callId,
-			JSON.stringify(partialMessage),
-			!update.actions?.isReadyToAnswer,
-		)
-		// Fall back to creating a new partial message if ts not found
-		if (!replaced) {
-			await this.taskConfig?.callbacks.say(
-				"tool",
-				JSON.stringify(partialMessage),
-				undefined,
-				undefined,
-				update.actions?.isReadyToAnswer,
-				this.config.callId,
-			)
-		}
+		return entries
 	}
 }
