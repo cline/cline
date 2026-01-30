@@ -242,6 +242,7 @@ async function runTask(
 		config?: string
 		thinking?: boolean
 		yolo?: boolean
+		timeout?: string
 		images?: string[]
 		json?: boolean
 		stdinWasPiped?: boolean
@@ -345,6 +346,7 @@ async function runTask(
 			imageDataUrls: imageDataUrls.length > 0 ? imageDataUrls : undefined,
 			verbose: options.verbose,
 			jsonOutput: options.json,
+			timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
 		})
 
 		// Cleanup
@@ -540,7 +542,8 @@ program
 	.argument("<prompt>", "The task prompt")
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
-	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
+	.option("-t, --timeout <seconds>", "Timeout in seconds for yes/yolo mode (default: 600)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
@@ -687,6 +690,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+	.option("-t, --timeout <seconds>", "Timeout in seconds for yolo mode (default: 600)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
