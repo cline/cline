@@ -142,7 +142,8 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 			// Combine secrets and options for the API handler
-			const apiConfigForHandler = { ...secrets, ...options, ulid: controller.task.ulid }
+			const updatedConfiguration = controller.stateManager.getApiConfiguration()
+			const apiConfigForHandler = { ...updatedConfiguration, ulid: controller.task.ulid }
 			controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
 		}
 
