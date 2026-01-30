@@ -316,17 +316,20 @@ export class AuthService {
 				await this.sendAuthStatusUpdate()
 			} else {
 				Logger.warn("No user found after restoring auth token")
-				this._authenticated = false
-				this._clineAuthInfo = null
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+				await this.handleNoUserFound()
 			}
 		} catch (error) {
 			Logger.error("Error restoring auth token:", error)
-			this._authenticated = false
-			this._clineAuthInfo = null
-			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+			await this.handleNoUserFound()
 			return
 		}
+	}
+
+	private async handleNoUserFound() {
+		this._authenticated = false
+		this._clineAuthInfo = null
+		telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+		await featureFlagsService.poll(null)
 	}
 
 	private async retrieveAuthInfo(): Promise<ClineAuthInfo | null> {

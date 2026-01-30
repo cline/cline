@@ -1,4 +1,5 @@
 import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
+import { type FeatureFlagsCacheData, readFeatureFlagsCacheFromDisk, writeFeatureFlagsCacheToDisk } from "@/core/storage/disk"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
@@ -12,6 +13,14 @@ type CacheInfo = {
 	updateTime: number
 	userId: string | null
 	flagsPayload?: FeatureFlagsAndPayloads
+}
+
+function areAllFlagsCached(cachedFlagKeys: string[]): boolean {
+	if (cachedFlagKeys.length !== FEATURE_FLAGS.length) {
+		return false
+	}
+	const cachedSet = new Set(cachedFlagKeys)
+	return FEATURE_FLAGS.every((flag) => cachedSet.has(flag))
 }
 
 /**
@@ -28,32 +37,36 @@ export class FeatureFlagsService {
 	public constructor(private provider: IFeatureFlagsProvider) {}
 
 	private cache: Map<FeatureFlag, FeatureFlagPayload> = new Map()
-	/**
-	 * Tracks cache update time and user ID for cache validity
-	 */
 	private cacheInfo: CacheInfo = { updateTime: 0, userId: null }
 
 	/**
 	 * Poll all known feature flags to update their cached values
 	 */
 	public async poll(userId: string | null): Promise<void> {
-		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
-		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
+
+		// Check if memory cache is still valid
+		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL) {
 			// Skip fetch if within TTL and user context is unchanged
 			if (this.cacheInfo.userId === userId) {
 				return
 			}
 		}
 
-		// Only update timestamp after successfully populating cache
-		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
+		this.cacheInfo.updateTime = timesNow
+		this.cacheInfo.userId = userId || null
 
 		try {
-			const values = await this.provider.getAllFlagsAndPayloads({
-				flagKeys: FEATURE_FLAGS,
-			})
-			this.cacheInfo.flagsPayload = values
+			const isCacheValid = await this.loadFromDiskCache(userId, timesNow)
+			if (!isCacheValid) {
+				const values = await this.provider.getAllFlagsAndPayloads({
+					flagKeys: FEATURE_FLAGS,
+				})
+
+				this.cacheInfo.flagsPayload = values
+
+				await this.writeToDiskCache()
+			}
 
 			for (const flag of FEATURE_FLAGS) {
 				const payload = await this.getFeatureFlag(flag).catch(() => false)
@@ -66,6 +79,53 @@ export class FeatureFlagsService {
 		}
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
+	}
+
+	private async loadFromDiskCache(userId: string | null, currentTime: number): Promise<boolean> {
+		try {
+			const diskCache = await readFeatureFlagsCacheFromDisk()
+			if (!diskCache) {
+				return false
+			}
+
+			if (!diskCache.cachedFlags || !areAllFlagsCached(diskCache.cachedFlags)) {
+				return false
+			}
+
+			if (currentTime - diskCache.updateTime >= DEFAULT_CACHE_TTL) {
+				return false
+			}
+
+			if (diskCache.userId !== userId) {
+				return false
+			}
+
+			this.cacheInfo = {
+				updateTime: diskCache.updateTime,
+				userId: diskCache.userId,
+				flagsPayload: diskCache.flagsPayload,
+			}
+
+			return true
+		} catch (error) {
+			Logger.error("Failed to load feature flags from disk cache:", error)
+			return false
+		}
+	}
+
+	private async writeToDiskCache(): Promise<void> {
+		try {
+			const cacheData: FeatureFlagsCacheData = {
+				updateTime: this.cacheInfo.updateTime,
+				userId: this.cacheInfo.userId,
+				cachedFlags: [...FEATURE_FLAGS],
+				flagsPayload: this.cacheInfo.flagsPayload,
+			}
+
+			await writeFeatureFlagsCacheToDisk(cacheData)
+		} catch (error) {
+			Logger.error("Failed to write feature flags to disk cache:", error)
+		}
 	}
 
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<FeatureFlagPayload | undefined> {
@@ -98,7 +158,7 @@ export class FeatureFlagsService {
 	 * Cache is updated periodically via poll(), and is generated on extension startup,
 	 * and whenever the user logs in.
 	 */
-	public getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
+	private getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
 		return this.cache.get(flagName) === true
 	}
 
@@ -118,39 +178,6 @@ export class FeatureFlagsService {
 		}
 		clearOnboardingModelsCache()
 		return undefined
-	}
-
-	/**
-	 * Get the feature flags provider instance
-	 * @returns The current feature flags provider
-	 */
-	public getProvider(): IFeatureFlagsProvider {
-		return this.provider
-	}
-
-	/**
-	 * Check if feature flags are currently enabled
-	 * @returns Boolean indicating whether feature flags are enabled
-	 */
-	public isEnabled(): boolean {
-		return this.provider.isEnabled()
-	}
-
-	/**
-	 * Get current feature flags settings
-	 * @returns Current feature flags settings
-	 */
-	public getSettings() {
-		return this.provider.getSettings()
-	}
-
-	/**
-	 * For testing: directly set a feature flag in the cache
-	 */
-	public test(flagName: FeatureFlag, value: boolean) {
-		if (process.env.NODE_ENV === "true") {
-			this.cache.set(flagName, value)
-		}
 	}
 
 	/**
