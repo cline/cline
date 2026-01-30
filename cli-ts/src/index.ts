@@ -48,6 +48,22 @@ let isShuttingDown = false
 // Track if we're in plain text mode (no Ink UI) - set by runTask when piped stdin detected
 let isPlainTextMode = false
 
+/**
+ * Wait for stdout to fully drain before exiting.
+ * Critical for piping - ensures data is flushed to the next command in the pipe.
+ */
+async function drainStdout(): Promise<void> {
+	return new Promise<void>((resolve) => {
+		// Check if stdout needs draining
+		if (process.stdout.writableNeedDrain) {
+			process.stdout.once("drain", resolve)
+		} else {
+			// Give a small delay to ensure any pending writes complete
+			setImmediate(resolve)
+		}
+	})
+}
+
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
 		if (isShuttingDown) {
@@ -335,6 +351,9 @@ async function runTask(
 		await ctx.controller.stateManager.flushPendingState()
 		await ctx.controller.dispose()
 		await ErrorService.get().dispose()
+
+		// Ensure stdout is fully drained before exiting - critical for piping
+		await drainStdout()
 		exit(success ? 0 : 1)
 	}
 
