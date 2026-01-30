@@ -11,11 +11,10 @@
 /* eslint-disable no-console */
 // Console output is intentional here for plain text mode
 
-import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
+import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { Controller } from "@/core/controller"
-import { setTerminalTitle } from "./display"
+import { getRequestRegistry } from "@/core/controller/grpc-handler"
+import { subscribeToState } from "@/core/controller/state/subscribeToState"
 
 export interface PlainTextTaskOptions {
 	controller: Controller
@@ -38,150 +37,91 @@ export interface PlainTextTaskOptions {
 export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<boolean> {
 	const { controller, prompt, imageDataUrls, verbose, jsonOutput } = options
 
-	// Track completion state
-	let isComplete = false
+	let completionResolve: () => void
+	let completionReject: (reason?: any) => void
+	const completionPromise = new Promise<void>((res, rej) => {
+		completionResolve = res
+		completionReject = rej
+	})
+
 	let hasError = false
 	// Track which messages have been processed (by timestamp)
-	const processedMessages = new Map<number, number>()
-	// Store the assistant's response text (from say: "text" messages)
-	// This is the actual AI response that should be piped to the next command
-	let assistantResponseText: string | null = null
+	const processedMessages = new Map<number, string>()
 
 	// Helper to process a message and track completion state
 	const processMessage = (message: ClineMessage) => {
 		const ts = message.ts || 0
-
-		// Only process complete messages (not partial streaming updates)
-		// Skip if we've already processed this message
-		// This prevents duplicate processing and ensures clean, final content
 		if (message.partial || processedMessages.has(ts)) {
 			return
 		}
-
-		processedMessages.set(ts, message.text?.length ?? 0)
 
 		// JSON mode: stream all messages to stdout (existing behavior)
 		if (jsonOutput) {
 			process.stdout.write(JSON.stringify(message) + "\n")
 		} else {
-			// Non-JSON mode: buffer assistant response, send verbose/errors to stderr
-			handleMessageForPipeMode(message, verbose || false, (text) => {
-				assistantResponseText = text
-			})
+			handleMessageForPipeMode(message, verbose || false)
 		}
+
+		processedMessages.set(ts, message.text ?? "")
 
 		// Check for completion (only on non-partial messages)
-		if (
-			message.say === "completion_result" ||
-			message.ask === "completion_result" ||
-			message.say === "error" ||
-			message.ask === "api_req_failed"
-		) {
-			isComplete = true
-			if (message.say === "error" || message.ask === "api_req_failed") {
-				hasError = true
-			}
+		if (message.say === "completion_result" || message.ask === "completion_result") {
+			completionResolve()
+		} else if (message.say === "error" || message.ask === "api_req_failed") {
+			completionReject(message.text ?? "message.say error || message.ask api_req_failed")
 		}
 	}
 
-	// Subscribe to state updates
-	const originalPostState = controller.postStateToWebview.bind(controller)
-
-	const handleStateUpdate = async () => {
-		try {
-			const state = await controller.getStateToPostToWebview()
-			const messages = state.clineMessages || []
-
-			// Process all messages
-			for (const message of messages) {
-				processMessage(message)
+	const requestId = "cline-cli-plain-text-task"
+	subscribeToState(
+		controller,
+		{},
+		async ({ stateJson }) => {
+			try {
+				const state = JSON.parse(stateJson) as ExtensionState
+				for (const message of state.clineMessages ?? []) {
+					processMessage(message)
+				}
+			} catch (error) {
+				if (jsonOutput) {
+					process.stdout.write(
+						JSON.stringify({ type: "error", message: error instanceof Error ? error.message : String(error) }) + "\n",
+					)
+				} else {
+					process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
+				}
+				completionReject(error)
 			}
-		} catch (error) {
-			if (jsonOutput) {
-				process.stdout.write(
-					JSON.stringify({ type: "error", message: error instanceof Error ? error.message : String(error) }) + "\n",
-				)
-			} else {
-				process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
-			}
-			hasError = true
-			isComplete = true
-		}
-	}
-
-	// Override postStateToWebview to capture state updates
-	controller.postStateToWebview = async () => {
-		await originalPostState()
-		await handleStateUpdate()
-	}
-
-	// Subscribe to message updates to detect when messages become complete
-	// This callback is called frequently during LLM streaming, but we only
-	// process messages when partial=false (complete)
-	const unsubscribePartial = registerPartialMessageCallback((protoMessage) => {
-		try {
-			const message = convertProtoToClineMessage(protoMessage) as ClineMessage
-			processMessage(message)
-		} catch {
-			// Ignore conversion errors for partial messages
-		}
-	})
+		},
+		requestId,
+	)
 
 	try {
-		// Get initial state
-		await handleStateUpdate()
-
-		// Set terminal title to the task prompt
-		setTerminalTitle(prompt)
-
 		// Start the task
 		await controller.initTask(prompt, imageDataUrls)
-
-		// Wait for completion with timeout
 		const timeout = 10 * 60 * 1000 // 10 minutes
-		const startTime = Date.now()
-
-		while (!isComplete && Date.now() - startTime < timeout) {
-			await new Promise((resolve) => setTimeout(resolve, 100))
-		}
-
-		if (!isComplete) {
-			if (jsonOutput) {
-				process.stdout.write(JSON.stringify({ type: "error", message: "Task timeout" }) + "\n")
-			} else {
-				process.stderr.write("Error: Task timeout\n")
-			}
-			hasError = true
-		}
+		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeout))
+		await Promise.race([completionPromise, timeoutPromise])
 	} catch (error) {
+		const errMsg = error instanceof Error ? error.message : String(error)
 		if (jsonOutput) {
-			process.stdout.write(
-				JSON.stringify({ type: "error", message: error instanceof Error ? error.message : String(error) }) + "\n",
-			)
+			process.stdout.write(JSON.stringify({ type: "error", message: errMsg }) + "\n")
 		} else {
-			process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
+			process.stderr.write(`Error: ${errMsg}\n`)
 		}
 		hasError = true
 	} finally {
-		// Restore original postStateToWebview
-		controller.postStateToWebview = originalPostState
-		unsubscribePartial()
+		getRequestRegistry().cancelRequest(requestId)
 	}
 
-	// In non-JSON mode, write the assistant's response to stdout
-	// This is the ONLY thing written to stdout, making it perfect for piping
-	if (!jsonOutput && assistantResponseText && !hasError) {
-		// Write to stdout and wait for it to drain before returning
-		// This is critical for piping to work correctly - the next command
-		// in the pipe won't receive data until stdout is flushed
-		await new Promise<void>((resolve) => {
-			const flushed = process.stdout.write(assistantResponseText + "\n")
-			if (flushed) {
-				resolve()
-			} else {
-				process.stdout.once("drain", resolve)
-			}
-		})
+	// non json mode outputs only the final complete message
+	// (it should be the completion_result message)
+	if (!jsonOutput && !verbose) {
+		const msg = Array.from(processedMessages.entries())
+			.sort(([aTs], [bTs]) => aTs - bTs)
+			.map(([_, msg]) => msg)
+			.at(-1)
+		process.stdout.write(msg + "\n")
 	}
 
 	return !hasError
@@ -194,31 +134,27 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
  * - Verbose output goes to stderr
  * - Nothing else goes to stdout (stdout is reserved for final result only)
  */
-function handleMessageForPipeMode(message: ClineMessage, verbose: boolean, onAssistantResponse: (text: string) => void): void {
+function handleMessageForPipeMode(message: ClineMessage, verbose: boolean): void {
 	const fullText = message.text ?? ""
 
 	if (message.type === "say") {
-		if (message.say === "text" && fullText) {
-			// Buffer the assistant's response text - this is what gets piped to stdout
-			// Each new "text" message overwrites the previous one, so we get the latest response
-			onAssistantResponse(fullText)
-		} else if (message.say === "error") {
+		if (message.say === "error") {
 			// Errors always go to stderr
 			process.stderr.write(`Error: ${fullText}\n`)
 		} else if (verbose) {
 			// Verbose output goes to stderr so it doesn't interfere with piped stdout
 			if (message.say === "task") {
-				process.stderr.write(`[verbose] Task: ${fullText}\n`)
+				process.stderr.write(`${fullText}\n`)
 			} else if (message.say === "text" && fullText) {
-				process.stderr.write(`[verbose] ${fullText}\n`)
+				process.stderr.write(`${fullText}\n`)
 			} else if (message.say === "api_req_started") {
-				process.stderr.write(`[verbose] API request started\n`)
+				process.stderr.write(`API request started\n`)
 			} else if (message.say === "api_req_finished") {
-				process.stderr.write(`[verbose] API request finished\n`)
+				process.stderr.write(`API request finished\n`)
 			} else if (message.say === "completion_result" && fullText) {
-				process.stderr.write(`[verbose] Completed: ${fullText}\n`)
+				process.stderr.write(`${fullText}\n`)
 			} else if (fullText) {
-				process.stderr.write(`[verbose] ${message.say}: ${fullText}\n`)
+				process.stderr.write(`${message.say}: ${fullText}\n`)
 			}
 		}
 	} else if (message.type === "ask") {
@@ -232,12 +168,12 @@ function handleMessageForPipeMode(message: ClineMessage, verbose: boolean, onAss
 			// Verbose output goes to stderr
 			if (message.ask === "plan_mode_respond" || message.ask === "act_mode_respond") {
 				if (fullText) {
-					process.stderr.write(`[verbose] ${fullText}\n`)
+					process.stderr.write(`${fullText}\n`)
 				}
 			} else if (message.ask === "completion_result") {
-				process.stderr.write(`[verbose] Task completed\n`)
+				process.stderr.write(`Task completed\n`)
 			} else if (fullText) {
-				process.stderr.write(`[verbose] Question: ${fullText}\n`)
+				process.stderr.write(`Question: ${fullText}\n`)
 			}
 		}
 	}
