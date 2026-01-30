@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.55.1
+
+### Patch Changes
+
+- 03aac0c: added social icons and appropriate links to the new version modal
+- 808dd42: Lock the LiteLLM Api Key input when it's remotely configured
+- 2670a4a: updated welcome card content and added ability to close each card
+- 35ecf3e: Adding promp optimization for Trinity models including tool calling optimizations!
+- e018199: Fix LiteLLM thinking configuration not showing for models (#8342)
+- e8bc6b9: Added changes to the feature settings UI
+- 741bea5: feat(hooks): Run hooks from cwd of the workspace repo root.
+- 7adfcab: Add Vercel AI Gateway and Cline API key support to CLI authentication
+
 ## [3.55.0]
 
 - Add new model: Arcee Trinity Large Preview
