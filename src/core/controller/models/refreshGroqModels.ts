@@ -11,17 +11,40 @@ import { Logger } from "@/shared/services/Logger"
 import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
 
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
+
 /**
  * Core function: Refreshes the Groq models and returns application types
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshGroqModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("groq")
 	if (cache) {
 		return cache
 	}
 
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels(controller)
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 
 	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
@@ -89,11 +112,12 @@ export async function refreshGroqModels(controller: Controller): Promise<Record<
 
 					models[rawModel.id] = modelInfo
 				}
+
+				await fs.writeFile(groqModelsFilePath, JSON.stringify(models))
+				Logger.log("Groq models fetched and saved", models)
 			} else {
 				Logger.error("Invalid response from Groq API")
 			}
-			await fs.writeFile(groqModelsFilePath, JSON.stringify(models))
-			Logger.log("Groq models fetched and saved", models)
 		}
 	} catch (error) {
 		Logger.error("Error fetching Groq models:", error)

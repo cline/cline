@@ -76,17 +76,40 @@ function deriveTemperature(modelId: string): number | undefined {
 	return undefined
 }
 
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
+
 /**
  * Core function: Refreshes Vercel AI Gateway models and returns application types
  * @param _controller The controller instance (unused)
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshVercelAiGatewayModels(_controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("vercel")
 	if (cache) {
 		return cache
 	}
 
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels()
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(): Promise<Record<string, ModelInfo>> {
 	const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 
 	let models: Record<string, ModelInfo> = {}
