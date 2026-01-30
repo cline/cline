@@ -73,4 +73,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "clear",
+		description: "Clear the current task and start fresh",
+		section: "default",
+		cliCompatible: true,
+	},
 ]

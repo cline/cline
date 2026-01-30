@@ -329,7 +329,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Get task state from context
 	const taskState = useTaskState()
-	const { controller: taskController } = useTaskContext()
+	const { controller: taskController, clearState } = useTaskContext()
 	const { isActive: isSpinnerActive, startTime: spinnerStartTime } = useIsSpinnerActive()
 
 	// Prefer prop controller over context controller (memoized for stable reference in callbacks)
@@ -957,6 +957,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					}
 					if (cmd.name === "history") {
 						setActivePanel({ type: "history" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
+					if (cmd.name === "clear") {
+						// Clear current task and start fresh (same pattern as task switch from /history)
+						process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback, cursor home
+						setTaskSwitchKey((k) => k + 1) // Force remount for fresh Static instance
+						clearState() // Force clear React state (bypasses empty messages check)
+						if (ctrl) {
+							ctrl.clearTask().then(() => ctrl.postStateToWebview())
+						}
 						setTextInput("")
 						setCursorPos(0)
 						setSelectedSlashIndex(0)

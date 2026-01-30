@@ -15,6 +15,7 @@ interface TaskContextType {
 	setIsComplete: (complete: boolean) => void
 	lastError: string | null
 	setLastError: (error: string | null) => void
+	clearState: () => void
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined)
@@ -91,6 +92,14 @@ export const TaskContextProvider: React.FC<TaskContextProviderProps> = ({ contro
 		}
 	}, [controller])
 
+	// Force clear state (bypasses the empty messages check for intentional clears like /clear)
+	const clearState = () => {
+		setState({
+			clineMessages: [],
+			currentTaskItem: null,
+		} as unknown as Partial<ExtensionState>)
+	}
+
 	const value: TaskContextType = {
 		state,
 		controller,
@@ -98,6 +107,7 @@ export const TaskContextProvider: React.FC<TaskContextProviderProps> = ({ contro
 		setIsComplete,
 		lastError,
 		setLastError,
+		clearState,
 	}
 
 	return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
