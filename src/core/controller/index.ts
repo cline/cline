@@ -35,7 +35,6 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
-import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -875,7 +874,7 @@ export class Controller {
 		const version = ExtensionRegistryInfo.version
 		const clineConfig = ClineEnv.config()
 		const environment = clineConfig.environment
-		const banners = await this.getBanners()
+		const banners = await BannerService.get().getActiveBanners()
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
@@ -1011,14 +1010,5 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
-	}
-
-	async getBanners(): Promise<BannerCardData[]> {
-		try {
-			return BannerService.get().getActiveBanners()
-		} catch (err) {
-			Logger.log(err)
-			return []
-		}
 	}
 }

@@ -20,6 +20,9 @@ export class BannerService {
 	// Promise deduplication to prevent concurrent requests
 	private _fetchPromise: Promise<Banner[]> | null = null
 
+	// AbortController for cancelling in-progress fetch requests
+	private _fetchAbortController: AbortController | null = null
+
 	// Circuit breaker state to prevent hammering API after failures
 	private _consecutiveFailures: number = 0
 	private readonly MAX_CONSECUTIVE_FAILURES = 3
@@ -28,10 +31,11 @@ export class BannerService {
 	// Unified backoff timestamp for rate limiting, server errors, and circuit breaker
 	private _backoffUntil: number = 0
 
-	private authToken: string | null = null
+	private authToken: string | null = "init" // "init" to force initial fetch
 
 	private constructor(private readonly hostInfo: HostInfo) {
 		this.actionTypes = new Set<string>(Object.values(BannerActionType))
+		Logger.log("[BannerService] initialized")
 	}
 
 	/**
@@ -40,7 +44,7 @@ export class BannerService {
 	 * @returns The initialized BannerService instance
 	 * @throws Error if already initialized
 	 */
-	public static async initialize(): Promise<BannerService> {
+	public static initialize(): BannerService {
 		if (BannerService.instance) {
 			throw new Error("[BannerService] Already initialized.")
 		}
@@ -49,7 +53,6 @@ export class BannerService {
 			throw new Error("[BannerService] Ensure HostRegistryInfo is initialized before BannerService.")
 		}
 		BannerService.instance = new BannerService(hostInfo)
-		await BannerService.instance.getActiveBanners(true) // Initial fetch
 		return BannerService.instance
 	}
 
@@ -64,27 +67,39 @@ export class BannerService {
 		return BannerService.instance
 	}
 
-	public static onAuthUpdate(newToken: string | null): void {
-		if (!BannerService.instance) {
-			return
+	public static async onAuthUpdate(newToken: string | null) {
+		const instance = BannerService.instance ?? BannerService.initialize()
+
+		if (instance.authToken !== newToken) {
+			// Update the auth token
+			instance.authToken = newToken
+
+			// Reset circuit breaker and backoff state
+			instance._consecutiveFailures = 0
+			instance._backoffUntil = 0
+
+			// Abort any in-progress fetch request
+			if (instance._fetchAbortController) {
+				instance._fetchAbortController.abort()
+				instance._fetchAbortController = null
+			}
+			instance._fetchPromise = null
+
+			// Fetch new banners immediately (don't clear cache before fetch completes)
+			instance._fetchPromise = instance.fetchBanners()
+			try {
+				await instance._fetchPromise
+			} finally {
+				instance._fetchPromise = null
+			}
 		}
-		const instance = BannerService.instance
-
-		// Update the auth token
-		instance.authToken = newToken
-
-		// Reset circuit breaker and backoff state
-		instance._consecutiveFailures = 0
-		instance._backoffUntil = 0
-
-		// Fetch new banners immediately (don't clear cache before fetch completes)
-		void instance.fetchBanners()
 	}
 
 	/**
 	 * Resets the BannerService instance (primarily for testing)
 	 */
 	public static reset(): void {
+		BannerService.instance?._fetchAbortController?.abort()
 		BannerService.instance = null
 	}
 
@@ -93,6 +108,13 @@ export class BannerService {
 	 * Called once on init, then every 24 hours via cache expiry.
 	 */
 	private async fetchBanners(): Promise<Banner[]> {
+		// Create a new AbortController for this fetch request
+		this._fetchAbortController = new AbortController()
+		const signal = this._fetchAbortController.signal
+
+		// Set up timeout to abort after 10 seconds
+		const timeoutId = setTimeout(() => this._fetchAbortController?.abort(), 10000)
+
 		try {
 			const urlObj = new URL("/banners/v1/messages", ClineEnv.config().apiBaseUrl)
 			urlObj.searchParams.set("ide", this.getIdeType(this.hostInfo.ide))
@@ -110,13 +132,10 @@ export class BannerService {
 				headers["Authorization"] = `Bearer ${token}`
 			}
 
-			const controller = new AbortController()
-			const timeoutId = setTimeout(() => controller.abort(), 10000)
-
 			const response = await fetch(url, {
 				method: "GET",
 				headers,
-				signal: controller.signal,
+				signal,
 			})
 
 			clearTimeout(timeoutId)
@@ -147,8 +166,16 @@ export class BannerService {
 			this._consecutiveFailures = 0
 
 			Logger.log(`BannerService: Fetched ${matchingBanners.length} banner(s)`)
+
 			return matchingBanners
 		} catch (error) {
+			clearTimeout(timeoutId)
+
+			// Don't count aborted requests as failures (e.g., cancelled due to auth update)
+			if (error instanceof Error && error.name === "AbortError") {
+				return this._cachedBanners
+			}
+
 			this._consecutiveFailures++
 
 			// Track when circuit breaker trips or resets timeout after failed half-open recovery
@@ -165,10 +192,10 @@ export class BannerService {
 			const typedError = error as Error & { status?: number; headers?: { get(name: string): string | null } }
 			const status = typedError.status
 
+			let backoffMs = 60 * 60 * 1000 // Default: 1 hour backoff
 			if (status === 429) {
 				// Check for Retry-After header (can be in seconds or HTTP date)
 				const retryAfter = typedError.headers?.get("retry-after")
-				let backoffMs = 60 * 60 * 1000 // Default: 1 hour backoff
 
 				if (retryAfter) {
 					const retrySeconds = Number.parseInt(retryAfter, 10)
@@ -182,37 +209,21 @@ export class BannerService {
 						}
 					}
 				}
-
-				this._backoffUntil = Date.now() + backoffMs
-				const backoffMinutes = Math.ceil(backoffMs / 60000)
-				Logger.error(
-					`BannerService: Rate limited (429), backing off for ${backoffMinutes} minutes. Consecutive failures: ${this._consecutiveFailures}`,
-					error,
-				)
 			} else if (status && status >= 500 && status < 600) {
 				// Use shorter backoff for server errors (15 minutes)
-				const backoffMs = 15 * 60 * 1000
-				this._backoffUntil = Date.now() + backoffMs
-				const backoffMinutes = Math.ceil(backoffMs / 60000)
-				Logger.error(
-					`BannerService: Server error (${status}), backing off for ${backoffMinutes} minutes. Consecutive failures: ${this._consecutiveFailures}`,
-					error,
-				)
-			} else if (status) {
-				Logger.error(
-					`BannerService: HTTP error ${status} fetching banners (failure ${this._consecutiveFailures}/${this.MAX_CONSECUTIVE_FAILURES})`,
-					error,
-				)
-			} else {
-				Logger.error(
-					`BannerService: Error fetching banners (failure ${this._consecutiveFailures}/${this.MAX_CONSECUTIVE_FAILURES})`,
-					error,
-				)
+				backoffMs = 15 * 60 * 1000
 			}
+
+			this._backoffUntil = Date.now() + backoffMs
+			const backoffMinutes = Math.ceil((this._backoffUntil - Date.now()) / 60000)
+			Logger.error(
+				`[BannerService] Failed ${this._consecutiveFailures}/${this.MAX_CONSECUTIVE_FAILURES} at ${new Date().toLocaleTimeString()}. Backing off for ${backoffMinutes} minutes due to ${status}`,
+				error,
+			)
 
 			return this._cachedBanners
 		} finally {
-			this._fetchPromise = null
+			this._fetchAbortController = null
 		}
 	}
 
@@ -300,6 +311,9 @@ export class BannerService {
 	 * Clears the banner cache and resets circuit breaker state
 	 */
 	public clearCache(): void {
+		// Abort any in-progress fetch
+		this._fetchAbortController?.abort()
+		this._fetchAbortController = null
 		this._cachedBanners = []
 		this._lastFetchTime = 0
 		this._consecutiveFailures = 0
@@ -365,9 +379,7 @@ export class BannerService {
 	public async dismissBanner(bannerId: string): Promise<void> {
 		try {
 			const dismissedBanners = StateManager.get().getGlobalStateKey("dismissedBanners") || []
-
 			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
-				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
 				return
 			}
 			const newDismissal = {
@@ -380,8 +392,6 @@ export class BannerService {
 			await this.sendBannerEvent(bannerId, "dismiss")
 
 			this.clearCache()
-
-			Logger.log(`BannerService: Banner ${bannerId} dismissed`)
 		} catch (error) {
 			Logger.error(`BannerService: Error dismissing banner`, error)
 		}
@@ -397,7 +407,6 @@ export class BannerService {
 			const dismissedBanners = StateManager.get().getGlobalStateKey("dismissedBanners") || []
 			return dismissedBanners.some((b) => b.bannerId === bannerId)
 		} catch (error) {
-			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
 			return false
 		}
 	}
@@ -437,39 +446,23 @@ export class BannerService {
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of non-dismissed banners converted to BannerCardData format
 	 */
-	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
+	public getActiveBanners(): BannerCardData[] {
 		const now = Date.now()
 		const cacheExpired = now - this._lastFetchTime >= this.CACHE_DURATION_MS
+		const inBackoff = now < this._backoffUntil
 
-		if (forceRefresh || this._cachedBanners.length === 0 || cacheExpired) {
-			// Check if we're still in backoff period (from rate limiting, server errors, or circuit breaker)
-			if (now < this._backoffUntil) {
-				const remainingMs = this._backoffUntil - now
-				if (remainingMs > 60000) {
-					Logger.log(`BannerService: Backoff active, will retry in ${Math.ceil(remainingMs / 60000)}m`)
-				} else {
-					Logger.log(`BannerService: Backoff active, will retry in ${Math.ceil(remainingMs / 1000)}s`)
-				}
-				// Return cached banners without fetching
-				return this._cachedBanners
-					.filter((b) => !this.isBannerDismissed(b.id))
-					.map((banner) => this.convertToBannerCardData(banner))
-					.filter((b): b is BannerCardData => b !== null)
-			}
+		// NOTE: Do not log here - this method is called frequently and logging would be too verbose
 
-			// If we had consecutive failures, log that we're attempting recovery
-			if (this._consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
-				Logger.log("BannerService: Attempting recovery request after backoff")
-			}
-			// Promise deduplication: Prevent concurrent requests
-			if (this._fetchPromise && !forceRefresh) {
-				Logger.log("BannerService: Reusing in-flight request")
-			} else {
-				this._fetchPromise = this.fetchBanners()
-			}
+		// Fetch new banners if cache is empty or expired
+		// Only start a new fetch if there isn't one already in progress
+		if (!inBackoff && cacheExpired && !this._fetchPromise) {
+			this._fetchPromise = this.fetchBanners()
 
-			// Perform the fetch (or await the in-flight one)
-			await this._fetchPromise
+			// Perform the fetch without awaiting - callers get cached data immediately
+			// The promise is kept alive until it completes (success or failure)
+			this._fetchPromise.finally(() => {
+				this._fetchPromise = null
+			})
 		}
 
 		return this._cachedBanners

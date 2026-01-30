@@ -112,8 +112,11 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				const banners = bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
 
 				expect(mockFetch.calledOnce).to.be.true
 				expect(banners).to.have.lengthOf(1)
@@ -127,8 +130,12 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.rejects(new Error("Network error"))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				const banners = bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
 				expect(banners).to.have.lengthOf(0)
 			})
 		})
@@ -154,33 +161,36 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
+				const bannerService = BannerService.initialize()
 
-				// First call fetches from API (called during initialize)
+				// Trigger initial fetch by calling getActiveBanners (fires background fetch)
+				bannerService.getActiveBanners()
+				// Wait for the background fetch to complete
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Second call within cache window uses cache (no new API call)
-				await bannerService.getActiveBanners()
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// After 1 hour, still uses cache
-				clock.tick(60 * 60 * 1000)
-				await bannerService.getActiveBanners()
+				await clock.tickAsync(60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// After 23 hours total, still uses cache
-				clock.tick(22 * 60 * 60 * 1000)
-				await bannerService.getActiveBanners()
+				await clock.tickAsync(22 * 60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
-				// After 25 hours total, cache expired, makes new API call
-				clock.tick(2 * 60 * 60 * 1000)
-				await bannerService.getActiveBanners()
+				// After 25 hours total, cache expired, triggers new background fetch
+				await clock.tickAsync(2 * 60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(2)
-
-				// Force refresh always bypasses cache
-				await bannerService.getActiveBanners(true)
-				expect(mockFetch.callCount).to.equal(3)
 			})
 
 			clock.restore()
@@ -210,9 +220,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_openai")
 			})
@@ -240,9 +254,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_anthropic")
 			})
@@ -270,9 +288,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
 			})
 		})
@@ -299,9 +321,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_multi")
 			})
@@ -329,9 +355,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
 			})
 		})
@@ -357,9 +387,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 			})
 		})
@@ -383,9 +417,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_norules")
 			})
@@ -412,12 +450,18 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
 				expect(mockFetch.calledOnce).to.be.true
 
 				bannerService.clearCache()
 
-				await bannerService.getActiveBanners()
+				bannerService.getActiveBanners()
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
 				expect(mockFetch.calledTwice).to.be.true
 			})
 		})
@@ -443,7 +487,11 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				await BannerService.initialize()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
 
 				expect(mockFetch.calledOnce).to.be.true
 				const call = mockFetch.getCall(0)
@@ -478,9 +526,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_valid_actions")
 				expect(banners[0].title).to.equal("Valid Actions Banner")
@@ -515,9 +567,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
 			})
 		})
@@ -559,9 +615,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(2)
 				expect(banners[0].id).to.equal("bnr_valid")
 				expect(banners[1].id).to.equal("bnr_also_valid")
@@ -587,9 +647,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_no_actions")
 				expect(banners[0].actions).to.have.lengthOf(0)
@@ -616,9 +680,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_empty_actions")
 				expect(banners[0].actions).to.have.lengthOf(0)
@@ -645,9 +713,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(0)
 			})
 		})
@@ -684,9 +756,13 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
-				const banners = await bannerService.getActiveBanners()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
 
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				const banners = bannerService.getActiveBanners()
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].actions).to.have.lengthOf(validActionTypes.length)
 				banners[0].actions!.forEach((action, index) => {
@@ -719,17 +795,24 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(successResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Expire cache
-				clock.tick(25 * 60 * 60 * 1000)
+				await clock.tickAsync(25 * 60 * 60 * 1000)
 
 				// Simulate 429 error
 				mockFetch.resolves(createErrorResponse(429))
 
 				// This call triggers 429
-				const banners1 = await bannerService.getActiveBanners()
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
+
+				const banners1 = bannerService.getActiveBanners()
 				expect(banners1).to.have.lengthOf(1) // Returns cached
 				expect(mockFetch.callCount).to.equal(2)
 			})
@@ -759,14 +842,15 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 
 			await mockFetchForTesting(mockFetch, async () => {
 				// Initialize the service
-				await BannerService.initialize()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Call onAuthUpdate with a new token
-				BannerService.onAuthUpdate("new-auth-token")
-
-				// Wait for the fetch to complete (it's fire-and-forget)
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await BannerService.onAuthUpdate("new-auth-token")
 
 				// Should have triggered a new fetch
 				expect(mockFetch.callCount).to.equal(2)
@@ -799,39 +883,47 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(successResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = await BannerService.initialize()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Expire cache and trigger a rate limit
-				clock.tick(25 * 60 * 60 * 1000)
+				await clock.tickAsync(25 * 60 * 60 * 1000)
 				mockFetch.resolves(createErrorResponse(429))
-				await bannerService.getActiveBanners()
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(2)
 
 				// Now update auth - should clear the retry timeout
 				mockFetch.resolves(createSuccessResponse(successResponse))
-				BannerService.onAuthUpdate("new-token")
+				await BannerService.onAuthUpdate("new-token")
 
-				// Wait for the immediate fetch
-				await new Promise((resolve) => setTimeout(resolve, 10))
 				expect(mockFetch.callCount).to.equal(3)
 
 				// The scheduled retry (1 hour later) should have been cancelled
 				// If we advance time, there shouldn't be another fetch from the old retry
-				clock.tick(2 * 60 * 60 * 1000) // 2 hours
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await clock.tickAsync(2 * 60 * 60 * 1000) // 2 hours
 				expect(mockFetch.callCount).to.equal(3) // No additional fetch from old retry
 			})
 
 			clock.restore()
 		})
 
-		it("should handle auth update when service is not initialized", () => {
+		it("should handle auth update when service is not initialized", async () => {
 			// Ensure service is not initialized
 			BannerService.reset()
 
-			// This should not throw
-			expect(() => BannerService.onAuthUpdate("some-token")).to.not.throw()
+			// This should not throw (onAuthUpdate will initialize the service)
+			let error: Error | null = null
+			try {
+				await BannerService.onAuthUpdate("some-token")
+			} catch (e) {
+				error = e as Error
+			}
+			expect(error).to.be.null
 		})
 
 		it("should handle null token (logout)", async () => {
@@ -853,17 +945,19 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				await BannerService.initialize()
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await new Promise((resolve) => setTimeout(resolve, 10))
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Set a token first
-				BannerService.onAuthUpdate("auth-token")
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await BannerService.onAuthUpdate("auth-token")
 				expect(mockFetch.callCount).to.equal(2)
 
 				// Now logout (null token)
-				BannerService.onAuthUpdate(null)
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await BannerService.onAuthUpdate(null)
 				expect(mockFetch.callCount).to.equal(3)
 
 				// Verify no auth header on last call

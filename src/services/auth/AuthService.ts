@@ -71,7 +71,6 @@ export class AuthService {
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
 	protected _refreshPromise: Promise<string | undefined> | null = null
-	private bannerService: BannerService | null = null
 
 	/**
 	 * Creates an instance of AuthService.
@@ -101,12 +100,12 @@ export class AuthService {
 			} else {
 				AuthService.instance = new AuthService(controller)
 			}
+			// Initialize BannerService after AuthService is created
+			BannerService.initialize()
 		}
 		if (controller !== undefined && AuthService.instance) {
 			AuthService.instance.controller = controller
 		}
-		// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
-		BannerService.initialize()
 		return AuthService.instance!
 	}
 
