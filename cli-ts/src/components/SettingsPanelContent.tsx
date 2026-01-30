@@ -850,8 +850,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
 			if (keyField) {
 				// Provider needs an API key - go to API key entry mode
+				// Pre-fill with existing key if configured
+				const apiConfig = stateManager.getApiConfiguration()
+				const fieldName = Array.isArray(keyField) ? keyField[0] : keyField
+				const existingKey = (apiConfig as Record<string, string>)[fieldName] || ""
 				setPendingProvider(providerId)
-				setApiKeyValue("")
+				setApiKeyValue(existingKey)
 				setIsPickingProvider(false)
 				setIsEnteringApiKey(true)
 			} else {
