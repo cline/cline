@@ -21,6 +21,12 @@ import { isMouseEscapeSequence } from "../utils/input"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
+import {
+	FeaturedModelPicker,
+	getFeaturedModelAtIndex,
+	getFeaturedModelMaxIndex,
+	isBrowseAllSelected,
+} from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { getProviderLabel, getProviderOrder } from "./ProviderPicker"
@@ -792,50 +798,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				)
 
 			case "cline_model": {
-				const allModels = featuredModels
 				return (
 					<Box flexDirection="column">
 						<Text color="white">Choose a model</Text>
 						<Text> </Text>
-
-						{/* Model list */}
-						{allModels.map((model, i) => (
-							<Box flexDirection="column" key={model.id} marginBottom={1}>
-								<Box>
-									<Text color={i === clineModelIndex ? COLORS.primaryBlue : undefined}>
-										{i === clineModelIndex ? "❯ " : "  "}
-									</Text>
-									<Text bold color={i === clineModelIndex ? COLORS.primaryBlue : "white"}>
-										{model.name}
-									</Text>
-									{model.label && (
-										<>
-											<Text> </Text>
-											<Text
-												backgroundColor={model.label === "FREE" ? "gray" : COLORS.primaryBlue}
-												color="black">
-												{" "}
-												{model.label}{" "}
-											</Text>
-										</>
-									)}
-								</Box>
-								<Box paddingLeft={2}>
-									<Text color="gray">{model.description}</Text>
-								</Box>
-							</Box>
-						))}
-
-						{/* Browse all option */}
-						<Box>
-							<Text color={clineModelIndex === allModels.length ? COLORS.primaryBlue : "gray"}>
-								{clineModelIndex === allModels.length ? "❯ " : "  "}
-								Browse all models...
-							</Text>
-						</Box>
-
-						<Text> </Text>
-						<Text color="gray">Arrows to navigate, Enter to select</Text>
+						<FeaturedModelPicker selectedIndex={clineModelIndex} />
 					</Box>
 				)
 			}
@@ -923,20 +890,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setProviderSearch((prev) => prev + input)
 				}
 			} else if (step === "cline_model") {
-				const allModels = featuredModels
-				const maxIndex = allModels.length // includes "Browse all" option
+				const maxIndex = getFeaturedModelMaxIndex()
 
 				if (key.upArrow) {
 					setClineModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
 				} else if (key.downArrow) {
 					setClineModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
 				} else if (key.return) {
-					if (clineModelIndex === allModels.length) {
-						// "Browse all models" selected
+					if (isBrowseAllSelected(clineModelIndex)) {
 						setStep("modelid")
 					} else {
-						// Featured model selected
-						handleClineModelSelect(allModels[clineModelIndex].id)
+						const selectedModel = getFeaturedModelAtIndex(clineModelIndex)
+						if (selectedModel) {
+							handleClineModelSelect(selectedModel.id)
+						}
 					}
 				}
 			}
