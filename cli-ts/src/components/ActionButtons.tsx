@@ -279,10 +279,10 @@ interface ActionButtonsProps {
 
 /**
  * Determine which buttons are actually visible based on config
- * Some actions (cancel, new_task) are hidden in the CLI
+ * Cancel is hidden in the CLI (ThinkingIndicator handles that with esc)
  */
 export function getVisibleButtons(config: ButtonConfig) {
-	const hiddenActions = ["cancel", "new_task"]
+	const hiddenActions = ["cancel"]
 	const hasPrimary = !!config.primaryText && !hiddenActions.includes(config.primaryAction || "")
 	const hasSecondary = !!config.secondaryText && !hiddenActions.includes(config.secondaryAction || "")
 	return { hasPrimary, hasSecondary }
