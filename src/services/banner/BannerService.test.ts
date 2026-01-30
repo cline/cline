@@ -865,6 +865,113 @@ describe.skip("BannerService (SKIPPED - Banner API temporarily disabled)", () =>
 			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(callCountBefore) // No new call
 		})
+
+		it("should enter half-open state and allow recovery attempt after 1 hour timeout", async () => {
+			const clock = sandbox.useFakeTimers()
+
+			// First, successfully fetch and cache a banner
+			const successResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_cached",
+								titleMd: "Cached Banner",
+								bodyMd: "This is cached",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(successResponse)
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(1)
+
+			// Expire the cache
+			clock.tick(25 * 60 * 60 * 1000) // 25 hours
+
+			// Trip the circuit breaker with 3 failures
+			axiosGetStub.rejects(new Error("Network error"))
+			await bannerService.getActiveBanners() // Fail 1
+			await bannerService.getActiveBanners() // Fail 2
+			await bannerService.getActiveBanners() // Fail 3 - circuit breaker trips
+			expect(axiosGetStub.callCount).to.equal(4)
+
+			// Circuit breaker should be OPEN - no new requests
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(4) // Still blocked
+
+			// After 30 minutes - still blocked (OPEN state)
+			clock.tick(30 * 60 * 1000)
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(4) // Still blocked
+
+			// After 1 hour total - should enter HALF-OPEN state and try one request
+			clock.tick(31 * 60 * 1000) // Now at 61 minutes total
+			axiosGetStub.resolves(successResponse) // API recovers
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(5) // Made recovery attempt!
+
+			// Circuit breaker should now be CLOSED (reset on success)
+			// Expire cache and verify normal operation
+			clock.tick(25 * 60 * 60 * 1000)
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(6) // Normal operation
+		})
+
+		it("should stay open if recovery attempt fails in half-open state", async () => {
+			const clock = sandbox.useFakeTimers()
+
+			const successResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_cached",
+								titleMd: "Cached Banner",
+								bodyMd: "This is cached",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+							},
+						],
+					},
+				},
+			}
+
+			// Cache a banner
+			axiosGetStub.resolves(successResponse)
+			await bannerService.getActiveBanners()
+
+			// Expire cache and trip circuit breaker
+			clock.tick(25 * 60 * 60 * 1000)
+			axiosGetStub.rejects(new Error("Network error"))
+			await bannerService.getActiveBanners() // Fail 1
+			await bannerService.getActiveBanners() // Fail 2
+			await bannerService.getActiveBanners() // Fail 3 - trips
+			const callCountAfterTrip = axiosGetStub.callCount
+
+			// Wait for 1 hour to enter half-open state
+			clock.tick(61 * 60 * 1000)
+
+			// Recovery attempt fails
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(callCountAfterTrip + 1) // Made one attempt
+
+			// Should go back to OPEN state - no more requests
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(callCountAfterTrip + 1) // Blocked again
+
+			// Wait another hour for another half-open attempt
+			clock.tick(61 * 60 * 1000)
+			axiosGetStub.resolves(successResponse) // Now API recovers
+			await bannerService.getActiveBanners()
+			expect(axiosGetStub.callCount).to.equal(callCountAfterTrip + 2) // Second recovery attempt succeeds
+		})
 	})
 
 	describe("Rate Limit Backoff (429)", () => {

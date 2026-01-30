@@ -26,9 +26,11 @@ export class BannerService {
 	// Circuit breaker state to prevent hammering API after failures
 	private consecutiveFailures: number = 0
 	private readonly MAX_CONSECUTIVE_FAILURES = 3
+	private circuitBreakerOpenedAt: number = 0 // Timestamp when circuit breaker was tripped
+	private readonly CIRCUIT_BREAKER_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour - allow recovery attempt after this
 	private rateLimitBackoffUntil: number = 0 // Timestamp when we can retry after 429
-	
-  private get _baseUrl(): string {
+
+	private get _baseUrl(): string {
 		return ClineEnv.config().apiBaseUrl
 	}
 
@@ -98,12 +100,18 @@ export class BannerService {
 				return this._cachedBanners
 			}
 
-			// Circuit breaker: Stop trying after consecutive failures
+			// Circuit breaker: Stop trying after consecutive failures, but allow recovery after timeout (half-open state)
 			if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
-				Logger.log(
-					`BannerService: Circuit breaker active after ${this.consecutiveFailures} failures, returning cached banners`,
-				)
-				return this._cachedBanners
+				const timeSinceOpen = now - this.circuitBreakerOpenedAt
+				if (timeSinceOpen < this.CIRCUIT_BREAKER_TIMEOUT_MS) {
+					const remainingMinutes = Math.ceil((this.CIRCUIT_BREAKER_TIMEOUT_MS - timeSinceOpen) / 60000)
+					Logger.log(
+						`BannerService: Circuit breaker open after ${this.consecutiveFailures} failures, will attempt recovery in ${remainingMinutes}m, returning cached banners`,
+					)
+					return this._cachedBanners
+				}
+				// Half-open state: timeout expired, allow one request to test if service recovered
+				Logger.log("BannerService: Circuit breaker half-open, attempting recovery request")
 			}
 
 			// Rate limit backoff: Check if we're still in backoff period
@@ -193,6 +201,12 @@ export class BannerService {
 			return matchingBanners
 		} catch (error) {
 			this.consecutiveFailures++
+
+			// Track when circuit breaker trips for half-open timeout
+			if (this.consecutiveFailures === this.MAX_CONSECUTIVE_FAILURES) {
+				this.circuitBreakerOpenedAt = Date.now()
+				Logger.log("BannerService: Circuit breaker tripped, will allow recovery attempt after 1 hour")
+			}
 
 			// Handle rate limiting (429) and server errors (5xx) with backoff
 			if (axios.isAxiosError(error) && error.response?.status) {
@@ -406,6 +420,7 @@ export class BannerService {
 		this._cachedBanners = []
 		this._lastFetchTime = 0
 		this.consecutiveFailures = 0
+		this.circuitBreakerOpenedAt = 0
 		this.rateLimitBackoffUntil = 0
 		this._fetchPromise = null
 		Logger.log("BannerService: Cache cleared and circuit breaker reset")
