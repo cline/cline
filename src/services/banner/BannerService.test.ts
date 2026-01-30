@@ -11,6 +11,7 @@ import type { BannerRules } from "@shared/ClineBanner"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
+import { ClineEnv, Environment } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostRegistryInfo } from "@/registry"
 import { mockFetchForTesting } from "@/shared/net"
@@ -60,6 +61,14 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 			os: "darwin",
 			ide: "vscode",
 			distinctId: "test-distinct-id",
+		})
+
+		// Mock ClineEnv.config() to return a valid config
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
 		})
 
 		// Create mock fetch
@@ -113,12 +122,13 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 
 			await mockFetchForTesting(mockFetch, async () => {
 				const bannerService = BannerService.initialize()
-				const banners = bannerService.getActiveBanners()
+				bannerService.getActiveBanners() // Triggers background fetch
 
 				// Wait for background fetch to complete
 				await new Promise((resolve) => setTimeout(resolve, 10))
 
 				expect(mockFetch.calledOnce).to.be.true
+				const banners = bannerService.getActiveBanners() // Get banners after fetch completes
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].id).to.equal("bnr_test1")
 				expect(banners[0].title).to.equal("Test Banner")
@@ -141,7 +151,7 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 		})
 
 		it("should cache banners for 24 hours", async () => {
-			const clock = sandbox.useFakeTimers()
+			const clock = sandbox.useFakeTimers(Date.now())
 
 			const mockResponse = {
 				data: {
@@ -774,7 +784,7 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 
 	describe("Rate Limit Backoff (429)", () => {
 		it("should trigger backoff on 429 response and return cached banners during backoff", async () => {
-			const clock = sandbox.useFakeTimers()
+			const clock = sandbox.useFakeTimers(Date.now())
 
 			// First, cache a banner
 			const successResponse = {
@@ -863,7 +873,7 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 		})
 
 		it("should clear pending retry timeout on auth update", async () => {
-			const clock = sandbox.useFakeTimers()
+			const clock = sandbox.useFakeTimers(Date.now())
 
 			const successResponse = {
 				data: {
