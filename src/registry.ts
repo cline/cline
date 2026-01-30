@@ -1,4 +1,5 @@
 import { name, publisher, version } from "../package.json"
+import { HostProvider } from "./hosts/host-provider"
 
 const prefix = name === "claude-dev" ? "cline" : name
 
@@ -50,4 +51,26 @@ export const ExtensionRegistryInfo = {
 	publisher,
 	commands: ClineCommands,
 	views: ClineViewIds,
+}
+
+export interface HostInfo {
+	extensionVersion: string
+	platform: string
+	os: string
+	ide: string
+	distinctId: string
+}
+
+let hostInfo = null as HostInfo | null
+
+export const HostRegistryInfo = {
+	init: async (distinctId: string) => {
+		const host = await HostProvider.env.getHostVersion({})
+		const extensionVersion = host.clineVersion || ExtensionRegistryInfo.version
+		const platform = host.platform || "unknown"
+		const os = process.platform || "unknown"
+		const ide = host.clineType || "unknown"
+		hostInfo = { extensionVersion, platform, os, ide, distinctId }
+	},
+	get: () => hostInfo,
 }

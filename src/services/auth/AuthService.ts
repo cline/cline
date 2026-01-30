@@ -8,6 +8,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
+import { BannerService } from "../banner/BannerService"
 import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
 import { ClineAuthProvider } from "./providers/ClineAuthProvider"
@@ -70,6 +71,7 @@ export class AuthService {
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
 	protected _refreshPromise: Promise<string | undefined> | null = null
+	private bannerService: BannerService | null = null
 
 	/**
 	 * Creates an instance of AuthService.
@@ -103,6 +105,8 @@ export class AuthService {
 		if (controller !== undefined && AuthService.instance) {
 			AuthService.instance.controller = controller
 		}
+		// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
+		BannerService.initialize()
 		return AuthService.instance!
 	}
 
@@ -414,6 +418,8 @@ export class AuthService {
 			// Poll feature flags for unauthenticated state
 			await featureFlagsService.poll(null)
 		}
+
+		BannerService.onAuthUpdate(this._clineAuthInfo?.userInfo?.id || null)
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))

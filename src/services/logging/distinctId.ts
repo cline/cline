@@ -1,6 +1,7 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
 import { ExtensionContext } from "vscode"
+import { HostRegistryInfo } from "@/registry"
 import { Logger } from "@/shared/services/Logger"
 
 /*
@@ -31,6 +32,8 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 	}
 
 	setDistinctId(distinctId)
+
+	await HostRegistryInfo.init(distinctId)
 
 	Logger.log("[DistinctId] initialized:", distinctId)
 }
