@@ -34,22 +34,50 @@ jobs:
               id: root-cache
               with:
                   path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  key: ${{ runner.os }}-npm-dev-v2-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-webview-dev-v2-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
+
+            - name: Ensure root dev dependencies
+              shell: bash
+              run: |
+                  if [ ! -f node_modules/typescript/package.json ]; then
+                    npm ci
+                  fi
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
+
+            - name: Ensure webview-ui dev dependencies
+              shell: bash
+              run: |
+                  if [ ! -f webview-ui/node_modules/typescript/package.json ] || \
+                     [ ! -f webview-ui/node_modules/vitest/package.json ] || \
+                     [ ! -f webview-ui/node_modules/@testing-library/jest-dom/package.json ]; then
+                    cd webview-ui && npm ci
+                  fi
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -79,22 +107,50 @@ jobs:
               id: root-cache
               with:
                   path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  key: ${{ runner.os }}-npm-dev-v2-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-webview-dev-v2-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
+
+            - name: Ensure root dev dependencies
+              shell: bash
+              run: |
+                  if [ ! -f node_modules/typescript/package.json ]; then
+                    npm ci
+                  fi
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
+
+            - name: Ensure webview-ui dev dependencies
+              shell: bash
+              run: |
+                  if [ ! -f webview-ui/node_modules/typescript/package.json ] || \
+                     [ ! -f webview-ui/node_modules/vitest/package.json ] || \
+                     [ ! -f webview-ui/node_modules/@testing-library/jest-dom/package.json ]; then
+                    cd webview-ui && npm ci
+                  fi
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -162,14 +218,14 @@ jobs:
               id: root-cache
               with:
                   path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  key: ${{ runner.os }}-npm-dev-v2-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-webview-dev-v2-${{ hashFiles('webview-ui/package-lock.json') }}
 
             # Cache testing-platform dependencies
             - name: Cache testing-platform dependencies
@@ -182,10 +238,38 @@ jobs:
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
 
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
+
+            - name: Ensure root dev dependencies
+              shell: bash
+              run: |
+                  if [ ! -f node_modules/typescript/package.json ]; then
+                    npm ci
+                  fi
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
+
+            - name: Ensure webview-ui dev dependencies
+              shell: bash
+              run: |
+                  if [ ! -f webview-ui/node_modules/typescript/package.json ] || \
+                     [ ! -f webview-ui/node_modules/vitest/package.json ] || \
+                     [ ! -f webview-ui/node_modules/@testing-library/jest-dom/package.json ]; then
+                    cd webview-ui && npm ci
+                  fi
+              env:
+                  NODE_ENV: development
+                  NPM_CONFIG_PRODUCTION: "false"
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
