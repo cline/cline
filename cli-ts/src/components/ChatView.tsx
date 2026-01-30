@@ -367,7 +367,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Settings panel state
 	const [activePanel, setActivePanel] = useState<
-		{ type: "settings"; initialMode?: "model-picker" } | { type: "history" } | null
+		{ type: "settings"; initialMode?: "model-picker" | "featured-models" } | { type: "history" } | null
 	>(null)
 
 	// Track when we're exiting to hide UI elements before exit
@@ -959,7 +959,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					if (cmd.name === "models") {
 						// If separate models for plan/act is enabled, just open settings (user picks which mode)
 						const hasSeparateModels = StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")
-						setActivePanel({ type: "settings", initialMode: hasSeparateModels ? undefined : "model-picker" })
+						const apiConfig = StateManager.get().getApiConfiguration()
+						const provider = apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
+						const initialMode =
+							hasSeparateModels || !provider ? undefined : provider === "cline" ? "featured-models" : "model-picker"
+						setActivePanel({ type: "settings", initialMode })
 						setTextInput("")
 						setCursorPos(0)
 						setSelectedSlashIndex(0)

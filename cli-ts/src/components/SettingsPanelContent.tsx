@@ -38,7 +38,7 @@ import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
 interface SettingsPanelContentProps {
 	onClose: () => void
 	controller?: Controller
-	initialMode?: "model-picker"
+	initialMode?: "model-picker" | "featured-models"
 }
 
 type SettingsTab = "api" | "auto-approve" | "features" | "other" | "account"
@@ -122,10 +122,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isEditing, setIsEditing] = useState(false)
 	const [isPickingModel, setIsPickingModel] = useState(initialMode === "model-picker")
-	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
-		initialMode === "model-picker" ? "actModelId" : null,
-	)
-	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(false)
+	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(initialMode ? "actModelId" : null)
+	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(initialMode === "featured-models")
 	const [featuredModelIndex, setFeaturedModelIndex] = useState(0)
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
