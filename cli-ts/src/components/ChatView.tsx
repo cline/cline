@@ -435,6 +435,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		await ctrl.togglePlanActMode(newMode)
 	}, [mode, ctrl])
 
+	// Clear the terminal view and reset task state (used by /clear and "Start New Task" button)
+	const clearViewAndResetTask = useCallback(() => {
+		process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback, cursor home
+		setTaskSwitchKey((k) => k + 1) // Force remount for fresh Static instance
+		clearState() // Force clear React state (bypasses empty messages check)
+		if (ctrl) {
+			ctrl.clearTask().then(() => ctrl.postStateToWebview())
+		}
+		setTextInput("")
+		setCursorPos(0)
+	}, [ctrl, clearState])
+
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
 		lastQuery: "",
@@ -760,11 +772,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setCursorPos(0)
 						await ctrl.initTask(pendingAsk.text || "")
 					} else {
-						// From resume_completed_task - just clear and let user type new prompt
-						setRespondedToAsk(pendingAsk?.ts || null)
-						setTextInput("")
-						setCursorPos(0)
-						await ctrl.clearTask()
+						// From completion_result or resume_completed_task - full clear
+						clearViewAndResetTask()
 					}
 					break
 				case "cancel":
@@ -964,15 +973,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						return
 					}
 					if (cmd.name === "clear") {
-						// Clear current task and start fresh (same pattern as task switch from /history)
-						process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback, cursor home
-						setTaskSwitchKey((k) => k + 1) // Force remount for fresh Static instance
-						clearState() // Force clear React state (bypasses empty messages check)
-						if (ctrl) {
-							ctrl.clearTask().then(() => ctrl.postStateToWebview())
-						}
-						setTextInput("")
-						setCursorPos(0)
+						clearViewAndResetTask()
 						setSelectedSlashIndex(0)
 						setSlashMenuDismissed(true)
 						return
