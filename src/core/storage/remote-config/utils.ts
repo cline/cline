@@ -93,6 +93,12 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.openTelemetryOtlpHeaders !== undefined) {
 		transformed.openTelemetryOtlpHeaders = remoteConfig.openTelemetryOtlpHeaders
 	}
+	if (remoteConfig.openTelemetryOtlpMetricsHeaders !== undefined) {
+		transformed.otlpMetricsHeaders = remoteConfig.openTelemetryOtlpMetricsHeaders
+	}
+	if (remoteConfig.openTelemetryOtlpLogsHeaders !== undefined) {
+		transformed.otlpLogsHeaders = remoteConfig.openTelemetryOtlpLogsHeaders
+	}
 
 	// Map provider settings
 	const providers: ApiProvider[] = []

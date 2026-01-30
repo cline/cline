@@ -14,9 +14,9 @@ type BYOProviderOption struct {
 }
 
 // GetBYOProviderList returns the list of supported BYO providers for CLI configuration.
-// This list excludes Cline provider which is handled separately.
 func GetBYOProviderList() []BYOProviderOption {
 	return []BYOProviderOption{
+		{Name: "Cline (API Key)", Provider: cline.ApiProvider_CLINE},
 		{Name: "Anthropic", Provider: cline.ApiProvider_ANTHROPIC},
 		{Name: "OpenAI Compatible", Provider: cline.ApiProvider_OPENAI},
 		{Name: "OpenAI (Official)", Provider: cline.ApiProvider_OPENAI_NATIVE},
@@ -28,6 +28,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
 		{Name: "NousResearch", Provider: cline.ApiProvider_NOUSRESEARCH},
 		{Name: "Oracle Code Assist", Provider: cline.ApiProvider_OCA},
+		{Name: "Vercel AI Gateway", Provider: cline.ApiProvider_VERCEL_AI_GATEWAY},
 	}
 }
 
@@ -105,6 +106,10 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., Hermes-4-405B"
 	case cline.ApiProvider_OCA:
 		return "e.g., oca/llama4"
+	case cline.ApiProvider_VERCEL_AI_GATEWAY:
+		return "e.g., anthropic/claude-sonnet-4.5"
+	case cline.ApiProvider_CLINE:
+		return "e.g., anthropic/claude-sonnet-4.5"
 	default:
 		return "Enter model ID"
 	}

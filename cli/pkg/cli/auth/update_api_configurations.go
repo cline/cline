@@ -174,6 +174,17 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
 		}, nil
 
+	case cline.ApiProvider_VERCEL_AI_GATEWAY:
+		return ProviderFields{
+			APIKeyField:                          "vercelAiGatewayApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeModelInfoField:               "planModeVercelAiGatewayModelInfo",
+			ActModeModelInfoField:                "actModeVercelAiGatewayModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeVercelAiGatewayModelId",
+			ActModeProviderSpecificModelIDField:  "actModeVercelAiGatewayModelId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
@@ -291,6 +302,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.HicapApiKey = value
 	case "nousResearchApiKey":
 		apiConfig.NousResearchApiKey = value
+	case "vercelAiGatewayApiKey":
+		apiConfig.VercelAiGatewayApiKey = value
 	}
 }
 
@@ -318,6 +331,9 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeNousResearchModelId":
 		apiConfig.PlanModeNousResearchModelId = value
 		apiConfig.ActModeNousResearchModelId = value
+	case "planModeVercelAiGatewayModelId":
+		apiConfig.PlanModeVercelAiGatewayModelId = value
+		apiConfig.ActModeVercelAiGatewayModelId = value
 	}
 }
 
