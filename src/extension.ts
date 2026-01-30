@@ -74,6 +74,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	const testModeWatchers = await initializeTestMode(webview)
 	context.subscriptions.push(...testModeWatchers)
 
+	// Perform storage migrations that does not block extension activation
+	performStorageMigrations(context)
+
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
 		context as any, // Adapt VSCode ExtensionContext to generic interface
@@ -590,9 +593,6 @@ function setupHostProvider(context: ExtensionContext) {
 		context.extensionUri.fsPath,
 		context.globalStorageUri.fsPath,
 	)
-
-	// Perform storage migrations that does not block extension activation
-	performStorageMigrations(context)
 }
 
 async function getBinaryLocation(name: string): Promise<string> {
