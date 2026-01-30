@@ -566,7 +566,7 @@ export class ClineAgent implements acp.Agent {
 			if (!promptResolved.value) {
 				promptResolved.value = true
 				// Send error as session update before returning
-				await this.sendSessionUpdate(params.sessionId, {
+				await this.emitSessionUpdate(params.sessionId, {
 					sessionUpdate: "agent_message_chunk",
 					content: {
 						type: "text",
@@ -668,14 +668,14 @@ export class ClineAgent implements acp.Agent {
 			// Update tool call status based on permission result
 			if (sessionState.currentToolCallId) {
 				if (result.cancelled) {
-					await this.sendSessionUpdate(sessionId, {
+					await this.emitSessionUpdate(sessionId, {
 						sessionUpdate: "tool_call_update",
 						toolCallId: sessionState.currentToolCallId,
 						status: "failed",
 						rawOutput: { reason: "cancelled" },
 					})
 				} else if (result.response === "noButtonClicked") {
-					await this.sendSessionUpdate(sessionId, {
+					await this.emitSessionUpdate(sessionId, {
 						sessionUpdate: "tool_call_update",
 						toolCallId: sessionState.currentToolCallId,
 						status: "failed",
@@ -683,7 +683,7 @@ export class ClineAgent implements acp.Agent {
 					})
 				} else {
 					// Permission granted - mark as in_progress
-					await this.sendSessionUpdate(sessionId, {
+					await this.emitSessionUpdate(sessionId, {
 						sessionUpdate: "tool_call_update",
 						toolCallId: sessionState.currentToolCallId,
 						status: "in_progress",
@@ -704,7 +704,7 @@ export class ClineAgent implements acp.Agent {
 
 			// Update tool call status to failed
 			if (sessionState.currentToolCallId) {
-				await this.sendSessionUpdate(sessionId, {
+				await this.emitSessionUpdate(sessionId, {
 					sessionUpdate: "tool_call_update",
 					toolCallId: sessionState.currentToolCallId,
 					status: "failed",
@@ -826,7 +826,7 @@ export class ClineAgent implements acp.Agent {
 					(message.type === "ask" && message.ask === "completion_result")
 				const needsNewline = isCompletionResult && lastText === ""
 
-				await this.sendSessionUpdate(sessionId, {
+				await this.emitSessionUpdate(sessionId, {
 					sessionUpdate,
 					content: { type: "text", text: needsNewline ? "\n" + textDelta : textDelta },
 				})
@@ -845,7 +845,7 @@ export class ClineAgent implements acp.Agent {
 
 			// Send all updates produced by the translator
 			for (const update of result.updates) {
-				await this.sendSessionUpdate(sessionId, update)
+				await this.emitSessionUpdate(sessionId, update)
 			}
 
 			// Track the toolCallId for this message so subsequent updates reuse it
@@ -1035,58 +1035,20 @@ export class ClineAgent implements acp.Agent {
 	// ============================================================
 
 	/**
-	 * Emit a session update via the session's event emitter.
+	 * Emit a session update to the client.
 	 *
-	 * This method translates ACP SessionUpdate objects into typed events
-	 * that are emitted on the session's ClineSessionEmitter.
-	 *
-	 * @param sessionId - The session ID
-	 * @param update - The ACP session update to emit
+	 * This method emits the update via the session's event emitter.
+	 * Consumers (e.g. AcpAgent) subscribe to these events
 	 */
-	protected emitSessionUpdate(sessionId: string, update: acp.SessionUpdate): void {
+	private async emitSessionUpdate(sessionId: string, update: acp.SessionUpdate): Promise<void> {
 		const emitter = this.emitterForSession(sessionId)
 
 		try {
-			switch (update.sessionUpdate) {
-				case "agent_message_chunk":
-					emitter.emit("agent_message_chunk", update.content as acp.TextContent)
-					break
-				case "agent_thought_chunk":
-					emitter.emit("agent_thought_chunk", update.content as acp.TextContent)
-					break
-				case "tool_call":
-					emitter.emit("tool_call", update as acp.ToolCallUpdate)
-					break
-				case "tool_call_update":
-					emitter.emit("tool_call_update", update as acp.ToolCallUpdate)
-					break
-				case "available_commands_update":
-					emitter.emit("available_commands_update", update.availableCommands ?? [])
-					break
-				case "plan":
-					emitter.emit("plan", update.entries ?? [])
-					break
-				case "current_mode_update":
-					emitter.emit("current_mode_update", update.currentModeId ?? "")
-					break
-				default:
-					Logger.debug("[ClineAgent] Unknown session update type:", update)
-			}
+			emitter.emit(update.sessionUpdate, update)
 		} catch (error) {
 			Logger.debug("[ClineAgent] Error emitting session update:", error)
 			emitter.emit("error", error instanceof Error ? error : new Error(String(error)))
 		}
-	}
-
-	/**
-	 * Send a session update to the client.
-	 *
-	 * This method emits the update via the session's event emitter.
-	 * The AcpAgent wrapper subscribes to these events and forwards them
-	 * to the connection.
-	 */
-	private async sendSessionUpdate(sessionId: string, update: acp.SessionUpdate): Promise<void> {
-		this.emitSessionUpdate(sessionId, update)
 	}
 
 	/**
@@ -1167,7 +1129,7 @@ export class ClineAgent implements acp.Agent {
 			}))
 
 			// Send the available_commands_update notification
-			await this.sendSessionUpdate(sessionId, {
+			await this.emitSessionUpdate(sessionId, {
 				sessionUpdate: "available_commands_update",
 				availableCommands,
 			})

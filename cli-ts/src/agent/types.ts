@@ -8,6 +8,24 @@ import type * as acp from "@agentclientprotocol/sdk"
 import type { Controller } from "@/core/controller"
 
 // ============================================================
+// Session Update Type Utilities
+// ============================================================
+
+/**
+ * Extract the sessionUpdate discriminator value from a SessionUpdate variant.
+ */
+export type SessionUpdateType = acp.SessionUpdate["sessionUpdate"]
+
+/**
+ * Extract the payload type for a given sessionUpdate discriminator value.
+ * This removes the `sessionUpdate` discriminator field from the type.
+ */
+export type SessionUpdatePayload<T extends SessionUpdateType> = Omit<
+	Extract<acp.SessionUpdate, { sessionUpdate: T }>,
+	"sessionUpdate"
+>
+
+// ============================================================
 // Permission Handler Callback Types
 // ============================================================
 
@@ -28,16 +46,13 @@ export type PermissionHandler = (request: Omit<acp.RequestPermissionRequest, "se
 // ============================================================
 
 /**
- * Event types emitted by ClineSessionEmitter for per-session ACP events.
+ * Maps ACP SessionUpdate types to their event listener signatures.
+ * Uses the sessionUpdate discriminator to derive event names and payload types.
  */
-export interface ClineSessionEvents {
-	available_commands_update: (commands: acp.AvailableCommand[]) => void
-	agent_message_chunk: (content: acp.TextContent) => void
-	agent_thought_chunk: (content: acp.TextContent) => void
-	tool_call: (toolCall: acp.ToolCallUpdate) => void
-	tool_call_update: (update: acp.ToolCallUpdate) => void
-	plan: (entries: acp.PlanEntry[]) => void
-	current_mode_update: (modeId: string) => void
+export type ClineSessionEvents = {
+	[K in SessionUpdateType]: (payload: SessionUpdatePayload<K>) => void
+} & {
+	/** Error event for session-level errors (not part of ACP SessionUpdate) */
 	error: (error: Error) => void
 }
 

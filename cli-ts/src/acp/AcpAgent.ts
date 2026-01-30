@@ -15,7 +15,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { Logger } from "@/shared/services/Logger.js"
 import { ClineAgent } from "../agent/ClineAgent.js"
-import type { AcpAgentOptions, ClineSessionEvents } from "../agent/types.js"
+import type { AcpAgentOptions, SessionUpdateType } from "../agent/types.js"
 
 /**
  * ACP Agent wrapper that bridges stdio connection to ClineAgent.
@@ -80,76 +80,34 @@ export class AcpAgent implements acp.Agent {
 
 		const emitter = this.clineAgent.emitterForSession(sessionId)
 
-		// Forward all session events to the connection
-		const forwardEvent = <K extends keyof ClineSessionEvents>(
-			eventName: K,
-			createUpdate: (data: Parameters<ClineSessionEvents[K]>[0]) => acp.SessionUpdate,
-		) => {
-			emitter.on(eventName, (data: Parameters<ClineSessionEvents[K]>[0]) => {
-				const update = createUpdate(data)
+		// Forward session update by adding the sessionUpdate discriminator
+		const forwardSessionUpdate = <K extends SessionUpdateType>(eventName: K) => {
+			emitter.on(eventName, (payload: Record<string, unknown>) => {
+				const update = {
+					sessionUpdate: eventName,
+					...payload,
+				} as acp.SessionUpdate
 				this.connection.sessionUpdate({ sessionId, update }).catch((error) => {
-					Logger.debug(`[AcpAgent] Error forwarding ${eventName}:`, error)
+					Logger.error(`[AcpAgent] Error forwarding ${eventName}:`, error)
 				})
 			})
 		}
 
-		forwardEvent("agent_message_chunk", (content) => ({
-			sessionUpdate: "agent_message_chunk",
-			content: { ...content, type: "text" },
-		}))
+		// Forward all standard session updates
+		forwardSessionUpdate("agent_message_chunk")
+		forwardSessionUpdate("agent_thought_chunk")
+		forwardSessionUpdate("tool_call")
+		forwardSessionUpdate("tool_call_update")
+		forwardSessionUpdate("available_commands_update")
+		forwardSessionUpdate("plan")
+		forwardSessionUpdate("current_mode_update")
+		forwardSessionUpdate("user_message_chunk")
+		forwardSessionUpdate("config_option_update")
+		forwardSessionUpdate("session_info_update")
 
-		forwardEvent("agent_thought_chunk", (content) => ({
-			sessionUpdate: "agent_thought_chunk",
-			content: { ...content, type: "text" },
-		}))
-
-		// Handle tool_call events - forward directly as the type matches
-		emitter.on("tool_call", (toolCall) => {
-			// Cast to SessionUpdate since tool_call events already have the right shape
-			const update = {
-				sessionUpdate: "tool_call" as const,
-				...toolCall,
-			} as acp.SessionUpdate
-			this.connection.sessionUpdate({ sessionId, update }).catch((error) => {
-				Logger.debug("[AcpAgent] Error forwarding tool_call:", error)
-			})
-		})
-
-		// Handle tool_call_update events - forward directly
-		emitter.on("tool_call_update", (toolCallUpdate) => {
-			const update = {
-				sessionUpdate: "tool_call_update" as const,
-				...toolCallUpdate,
-			} as acp.SessionUpdate
-			this.connection.sessionUpdate({ sessionId, update }).catch((error) => {
-				Logger.debug("[AcpAgent] Error forwarding tool_call_update:", error)
-			})
-		})
-
-		forwardEvent("available_commands_update", (commands) => ({
-			sessionUpdate: "available_commands_update",
-			availableCommands: commands,
-		}))
-
-		forwardEvent("plan", (entries) => ({
-			sessionUpdate: "plan",
-			entries,
-		}))
-
-		// Handle current_mode_update - use currentModeId property
-		emitter.on("current_mode_update", (modeId) => {
-			const update: acp.SessionUpdate = {
-				sessionUpdate: "current_mode_update",
-				currentModeId: modeId,
-			}
-			this.connection.sessionUpdate({ sessionId, update }).catch((error) => {
-				Logger.debug("[AcpAgent] Error forwarding current_mode_update:", error)
-			})
-		})
-
-		// Handle errors specially
+		// Handle errors specially (not part of ACP SessionUpdate)
 		emitter.on("error", (error) => {
-			Logger.debug("[AcpAgent] Session error:", error)
+			Logger.error("[AcpAgent] Session error:", error)
 		})
 
 		this.subscribedSessions.add(sessionId)
