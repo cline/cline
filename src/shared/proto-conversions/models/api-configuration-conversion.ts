@@ -160,6 +160,7 @@ function convertLiteLLMModelInfoToProto(info: AppLiteLLMModelInfo | undefined): 
 		description: info.description,
 		tiers: info.tiers || [],
 		temperature: info.temperature,
+		supportsReasoning: info.supportsReasoning,
 	}
 }
 
@@ -183,6 +184,7 @@ function convertProtoToLiteLLMModelInfo(info: LiteLLMModelInfo | undefined): App
 		description: info.description,
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
+		supportsReasoning: info.supportsReasoning,
 	}
 }
 
