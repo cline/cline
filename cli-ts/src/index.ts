@@ -2,7 +2,6 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
-import path from "node:path"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
@@ -34,7 +33,7 @@ import { restoreConsole } from "./utils/console"
 import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
 import { printInfo, printWarning } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
-import { CLINE_CLI_DIR } from "./utils/path"
+import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { printSessionSummary } from "./utils/session-summary"
@@ -153,7 +152,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		createCliHostBridgeProvider(workspacePath),
 		logToChannel,
 		async () => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl() : ""),
-		async (name: string) => path.join(process.cwd(), name),
+		getCliBinaryPath,
 		EXTENSION_DIR,
 		DATA_DIR,
 	)
