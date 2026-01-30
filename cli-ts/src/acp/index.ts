@@ -14,6 +14,7 @@
  */
 
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
+import { Logger } from "@/shared/services/Logger"
 import { version as CLI_VERSION } from "../../../package.json"
 import { AcpAgent } from "./AcpAgent.js"
 import { nodeToWebReadable, nodeToWebWritable } from "./streamUtils.js"
@@ -115,7 +116,7 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
 			await agent?.shutdown()
 			restoreConsole()
 		} catch (error) {
-			console.error("[ACP] Error during shutdown:", error)
+			Logger.error("[ACP] Error during shutdown:", error)
 		}
 
 		process.exit(0)
@@ -134,9 +135,9 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
 
 	// Handle stdin errors
 	process.stdin.on("error", async (error) => {
-		console.error("[ACP] stdin error:", error)
+		Logger.error("[ACP] stdin error:", error)
 		await shutdown()
 	})
 
-	console.error("[ACP] Process is now listening for ACP requests on stdin")
+	Logger.info("[ACP] Process is now listening for ACP requests on stdin")
 }
