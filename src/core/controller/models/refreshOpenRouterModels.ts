@@ -269,7 +269,7 @@ const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
 	"stealth/giga-potato": {
 		name: "Giga Potato",
 		maxTokens: 8192,
-		contextWindow: 128_000,
+		contextWindow: 224_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0,
