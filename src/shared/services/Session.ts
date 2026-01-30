@@ -2,9 +2,9 @@ import { nanoid } from "nanoid"
 
 export interface ToolCallRecord {
 	name: string
-	success: boolean
+	success?: boolean
 	startTime: number
-	endTime?: number
+	lastUpdateTime: number
 }
 
 export interface ResourceUsage {
@@ -48,8 +48,7 @@ export class Session {
 
 	// Track in-flight operations
 	private currentApiCallStart: number | null = null
-	private currentToolCallStart: number | null = null
-	private currentToolName: string | null = null
+	private inFlightToolCalls: Map<string, ToolCallRecord> = new Map()
 
 	// Resource tracking
 	private initialCpuUsage: NodeJS.CpuUsage
@@ -134,30 +133,30 @@ export class Session {
 	}
 
 	/**
-	 * Record the start of a tool call.
+	 * Update a tool call - starts tracking if new, updates lastUpdateTime if existing.
+	 * @param callId - Unique identifier for this tool call
+	 * @param toolName - The name of the tool (required when starting a new call)
+	 * @param success - Optional success status (only set when finalizing)
 	 */
-	startToolCall(toolName: string): void {
-		this.currentToolCallStart = Date.now()
-		this.currentToolName = toolName
-	}
+	updateToolCall(callId: string, toolName: string, success?: boolean): void {
+		const now = Date.now()
+		const existing = this.inFlightToolCalls.get(callId)
 
-	/**
-	 * Record the end of a tool call with success/failure status.
-	 */
-	endToolCall(success: boolean): void {
-		const endTime = Date.now()
-		if (this.currentToolCallStart !== null && this.currentToolName !== null) {
-			const duration = endTime - this.currentToolCallStart
-			this.toolTimeMs += duration
-			this.toolCalls.push({
-				name: this.currentToolName,
-				success,
-				startTime: this.currentToolCallStart,
-				endTime,
-			})
-			this.currentToolCallStart = null
-			this.currentToolName = null
+		if (existing) {
+			// Update existing tool call
+			existing.lastUpdateTime = now
+			if (success !== undefined) {
+				existing.success = success
+			}
+			return
 		}
+
+		// Start tracking new tool call
+		this.inFlightToolCalls.set(callId, {
+			name: toolName,
+			startTime: now,
+			lastUpdateTime: now,
+		})
 	}
 
 	/**
@@ -168,38 +167,38 @@ export class Session {
 	}
 
 	/**
-	 * Add tool time directly (useful when timing is tracked elsewhere).
+	 * Finalize a request - moves all in-flight tool calls to completed and calculates durations.
+	 * Call this when an API request completes to close out all pending tool calls.
 	 */
-	addToolTime(ms: number): void {
-		this.toolTimeMs += ms
-	}
-
-	/**
-	 * Record a completed tool call with known duration.
-	 */
-	recordToolCall(toolName: string, success: boolean, durationMs?: number): void {
-		const now = Date.now()
-		this.toolCalls.push({
-			name: toolName,
-			success,
-			startTime: durationMs ? now - durationMs : now,
-			endTime: now,
-		})
-		if (durationMs) {
-			this.toolTimeMs += durationMs
+	finalizeRequest(): void {
+		for (const [callId, record] of this.inFlightToolCalls) {
+			const duration = record.lastUpdateTime - record.startTime
+			this.toolTimeMs += duration
+			this.toolCalls.push({
+				name: record.name,
+				success: record.success,
+				startTime: record.startTime,
+				lastUpdateTime: record.lastUpdateTime,
+			})
+			this.inFlightToolCalls.delete(callId)
 		}
 	}
 
 	/**
 	 * Get all session statistics.
+	 * Includes in-flight tool calls in the totals using their lastUpdateTime as end time.
 	 */
 	getStats(): SessionStats {
-		const successful = this.toolCalls.filter((t) => t.success).length
-		const failed = this.toolCalls.filter((t) => !t.success).length
+		this.finalizeRequest()
+
+		// Combine completed and in-flight for totals
+		const allToolCalls = this.toolCalls
+		const successful = allToolCalls.filter((t) => t.success === true).length
+		const failed = allToolCalls.filter((t) => t.success === false).length
 
 		return {
 			sessionId: this.sessionId,
-			totalToolCalls: this.toolCalls.length,
+			totalToolCalls: allToolCalls.length,
 			successfulToolCalls: successful,
 			failedToolCalls: failed,
 			sessionStartTime: this.sessionStartTime,
@@ -245,46 +244,22 @@ export class Session {
 
 	/**
 	 * Get the agent active time (API time + tool time) in milliseconds.
+	 * Includes in-flight tool calls.
 	 */
 	getAgentActiveTimeMs(): number {
-		return this.apiTimeMs + this.toolTimeMs
+		const stats = this.getStats()
+		return this.apiTimeMs + stats.toolTimeMs
 	}
 
 	/**
 	 * Get the success rate as a percentage (0-100).
+	 * Includes in-flight tool calls.
 	 */
 	getSuccessRate(): number {
-		if (this.toolCalls.length === 0) {
+		const stats = this.getStats()
+		if (stats.totalToolCalls === 0) {
 			return 0
 		}
-		const successful = this.toolCalls.filter((t) => t.success).length
-		return (successful / this.toolCalls.length) * 100
-	}
-
-	/**
-	 * Get a formatted summary string for display.
-	 */
-	getFormattedSummary(): string {
-		const stats = this.getStats()
-		const wallTimeSeconds = (this.getWallTimeMs() / 1000).toFixed(1)
-		const agentActiveSeconds = (this.getAgentActiveTimeMs() / 1000).toFixed(0)
-		const apiTimeSeconds = (stats.apiTimeMs / 1000).toFixed(0)
-		const toolTimeSeconds = (stats.toolTimeMs / 1000).toFixed(0)
-		const agentActiveTotal = this.getAgentActiveTimeMs()
-		const apiPercent = agentActiveTotal > 0 ? ((stats.apiTimeMs / agentActiveTotal) * 100).toFixed(1) : "0.0"
-		const toolPercent = agentActiveTotal > 0 ? ((stats.toolTimeMs / agentActiveTotal) * 100).toFixed(1) : "0.0"
-
-		return [
-			"Interaction Summary",
-			`Session ID:          ${stats.sessionId}`,
-			`Tool Calls:          ${stats.totalToolCalls} ( ✓ ${stats.successfulToolCalls} ✗ ${stats.failedToolCalls} )`,
-			`Success Rate:        ${this.getSuccessRate().toFixed(1)}%`,
-			"",
-			"Performance",
-			`Wall Time:           ${wallTimeSeconds}s`,
-			`Agent Active:        ${agentActiveSeconds}s`,
-			`  » API Time:        ${apiTimeSeconds}s (${apiPercent}%)`,
-			`  » Tool Time:       ${toolTimeSeconds}s (${toolPercent}%)`,
-		].join("\n")
+		return (stats.successfulToolCalls / stats.totalToolCalls) * 100
 	}
 }

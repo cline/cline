@@ -2146,6 +2146,7 @@ export class Task {
 					}
 				}
 				await this.toolExecutor.executeTool(block)
+				Session.get().updateToolCall(block.call_id, block.name)
 				break
 		}
 
@@ -2488,6 +2489,8 @@ export class Task {
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				Session.get().finalizeRequest()
+
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
 				}

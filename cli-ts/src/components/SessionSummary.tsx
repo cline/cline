@@ -95,20 +95,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ width }) => {
 				<Box width={20}>
 					<Text color="gray">Tool Calls:</Text>
 				</Box>
-				<Text>
-					{stats.totalToolCalls} ( <Text color="green">✓ {stats.successfulToolCalls}</Text>{" "}
-					<Text color="red">✗ {stats.failedToolCalls}</Text> )
-				</Text>
-			</Box>
-
-			{/* Success Rate */}
-			<Box marginBottom={1}>
-				<Box width={20}>
-					<Text color="gray">Success Rate:</Text>
-				</Box>
-				<Text color={session.getSuccessRate() >= 80 ? "green" : session.getSuccessRate() >= 50 ? "yellow" : "red"}>
-					{session.getSuccessRate().toFixed(1)}%
-				</Text>
+				<Text>{stats.totalToolCalls}</Text>
 			</Box>
 
 			{/* Performance Header */}
