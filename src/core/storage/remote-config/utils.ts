@@ -107,7 +107,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	// An empty object {} shouldn't force the provider, only allow it as an option.
 	// This prevents users from being forced to a provider when the admin only
 	// intended to enable it, not require it.
-	const hasProviderConfig = (settings: object | undefined): boolean =>
+	const hasProviderConfig = <T extends object>(settings: T | undefined): settings is T =>
 		settings !== undefined && Object.keys(settings).length > 0
 
 	// Map OpenAiCompatible provider settings
