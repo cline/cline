@@ -1,6 +1,9 @@
 /**
  * Tests for BannerService
  * Tests API fetching, caching, and client-side provider filtering
+ *
+ * NOTE: Tests temporarily disabled while banner API fetching is disabled
+ * to prevent blocking the extension. Tests will be re-enabled when API is stable.
  */
 
 import type { BannerRules } from "@shared/ClineBanner"
@@ -9,10 +12,10 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import type { Controller } from "@/core/controller"
-import { Logger } from "../logging/Logger"
+import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "./BannerService"
 
-describe("BannerService", () => {
+describe.skip("BannerService (TEMPORARILY DISABLED - Banner API fetch disabled)", () => {
 	let sandbox: sinon.SinonSandbox
 	let bannerService: BannerService
 	let axiosGetStub: sinon.SinonStub
@@ -66,16 +69,18 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(axiosGetStub.calledOnce).to.be.true
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_test1")
+			expect(banners[0].title).to.equal("Test Banner")
+			expect(banners[0].description).to.equal("This is a test")
 		})
 
 		it("should handle API errors gracefully", async () => {
 			axiosGetStub.rejects(new Error("Network error"))
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 			expect(banners).to.have.lengthOf(0)
 		})
 
@@ -102,37 +107,37 @@ describe("BannerService", () => {
 			axiosGetStub.resolves(mockResponse)
 
 			// First call fetches from API
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
 			// Second call within cache window uses cache (no new API call)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
 			// After 4 minutes, still uses cache
 			clock.tick(4 * 60 * 1000)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(1)
 
 			// After 6 minutes total, cache expired, makes new API call
 			clock.tick(2 * 60 * 1000)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.callCount).to.equal(2)
 
 			// Force refresh always bypasses cache
-			await bannerService.fetchActiveBanners(true)
+			await bannerService.getActiveBanners(true)
 			expect(axiosGetStub.callCount).to.equal(3)
 		})
 	})
 
 	describe("API Provider Rule Evaluation (Client-Side)", () => {
-		it("should show banner when user has the required API provider configured", async () => {
+		it("should show banner when user has selected the required API provider in act mode", async () => {
 			const controllerWithOpenAI: Partial<Controller> = {
 				stateManager: {
 					getApiConfiguration: () => ({
-						openAiApiKey: "sk-test-key",
+						actModeApiProvider: "openai",
 					}),
-					getGlobalSettingsKey: () => undefined,
+					getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : undefined),
 					getGlobalStateKey: () => [],
 				} as any,
 			}
@@ -158,25 +163,63 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_openai")
 		})
 
-		it("should NOT show banner when user doesn't have the required API provider", async () => {
-			const controllerWithoutOpenAI: Partial<Controller> = {
+		it("should show banner when user has selected the required API provider in plan mode", async () => {
+			const controllerWithAnthropic: Partial<Controller> = {
 				stateManager: {
 					getApiConfiguration: () => ({
-						apiKey: "sk-ant-test", // Has Anthropic key but not OpenAI
+						planModeApiProvider: "anthropic",
 					}),
-					getGlobalSettingsKey: () => undefined,
+					getGlobalSettingsKey: (key: string) => (key === "mode" ? "plan" : undefined),
 					getGlobalStateKey: () => [],
 				} as any,
 			}
 			// Reinitialize with new controller
 			BannerService.reset()
-			bannerService = BannerService.initialize(controllerWithoutOpenAI as Controller)
+			bannerService = BannerService.initialize(controllerWithAnthropic as Controller)
+
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_anthropic",
+								titleMd: "Anthropic Users",
+								bodyMd: "For Anthropic API",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: JSON.stringify({ providers: ["anthropic"] } as BannerRules),
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(1)
+			expect(banners[0].id).to.equal("bnr_anthropic")
+		})
+
+		it("should NOT show banner when user has selected a different API provider", async () => {
+			const controllerWithAnthropic: Partial<Controller> = {
+				stateManager: {
+					getApiConfiguration: () => ({
+						actModeApiProvider: "anthropic",
+					}),
+					getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : undefined),
+					getGlobalStateKey: () => [],
+				} as any,
+			}
+			// Reinitialize with new controller
+			BannerService.reset()
+			bannerService = BannerService.initialize(controllerWithAnthropic as Controller)
 
 			const mockResponse = {
 				data: {
@@ -196,18 +239,18 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(0)
 		})
 
-		it("should show banner if user has ANY of multiple specified providers", async () => {
+		it("should show banner if user has selected ANY of multiple specified providers", async () => {
 			const controllerWithAnthropic: Partial<Controller> = {
 				stateManager: {
 					getApiConfiguration: () => ({
-						apiKey: "sk-ant-test", // Has Anthropic key
+						actModeApiProvider: "anthropic",
 					}),
-					getGlobalSettingsKey: () => undefined,
+					getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : undefined),
 					getGlobalStateKey: () => [],
 				} as any,
 			}
@@ -233,10 +276,45 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_multi")
+		})
+
+		it("should NOT show banner when no provider is selected", async () => {
+			const controllerWithNoProvider: Partial<Controller> = {
+				stateManager: {
+					getApiConfiguration: () => ({}),
+					getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : undefined),
+					getGlobalStateKey: () => [],
+				} as any,
+			}
+			// Reinitialize with new controller
+			BannerService.reset()
+			bannerService = BannerService.initialize(controllerWithNoProvider as Controller)
+
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_openai",
+								titleMd: "OpenAI Users",
+								bodyMd: "For OpenAI API",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: JSON.stringify({ providers: ["openai"] } as BannerRules),
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(0)
 		})
 	})
 
@@ -260,7 +338,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 		})
@@ -284,7 +362,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			expect(banners).to.have.lengthOf(1)
 			expect(banners[0].id).to.equal("bnr_norules")
@@ -312,12 +390,12 @@ describe("BannerService", () => {
 
 			axiosGetStub.resolves(mockResponse)
 
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.calledOnce).to.be.true
 
 			bannerService.clearCache()
 
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 			expect(axiosGetStub.calledTwice).to.be.true
 		})
 	})
@@ -342,7 +420,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			await bannerService.fetchActiveBanners()
+			await bannerService.getActiveBanners()
 
 			expect(axiosGetStub.calledOnce).to.be.true
 			const call = axiosGetStub.getCall(0)
@@ -377,7 +455,7 @@ describe("BannerService", () => {
 			}
 
 			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
+			const banners = await bannerService.getActiveBanners()
 
 			Object.defineProperty(process, "platform", {
 				value: originalPlatform,
@@ -428,7 +506,7 @@ describe("BannerService", () => {
 				// Clear cache to ensure fresh API call for each platform test
 				bannerService.clearCache()
 
-				await bannerService.fetchActiveBanners()
+				await bannerService.getActiveBanners()
 
 				expect(axiosGetStub.called).to.be.true
 				const call = axiosGetStub.lastCall
@@ -443,6 +521,235 @@ describe("BannerService", () => {
 
 				axiosGetStub.resetHistory()
 			}
+		})
+	})
+
+	describe("Banner to BannerCardData Conversion", () => {
+		it("should convert banner with valid action types", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_valid_actions",
+								titleMd: "Valid Actions Banner",
+								bodyMd: "Has valid actions",
+								icon: "lightbulb",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: [
+									{ title: "Link", action: "link", arg: "https://example.com" },
+									{ title: "Settings", action: "show-api-settings" },
+								],
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(1)
+			expect(banners[0].id).to.equal("bnr_valid_actions")
+			expect(banners[0].title).to.equal("Valid Actions Banner")
+			expect(banners[0].description).to.equal("Has valid actions")
+			expect(banners[0].icon).to.equal("lightbulb")
+			expect(banners[0].actions).to.have.lengthOf(2)
+			expect(banners[0].actions![0].title).to.equal("Link")
+			expect(banners[0].actions![0].action).to.equal("link")
+			expect(banners[0].actions![0].arg).to.equal("https://example.com")
+			expect(banners[0].actions![1].title).to.equal("Settings")
+			expect(banners[0].actions![1].action).to.equal("show-api-settings")
+		})
+
+		it("should drop banner with invalid action type and log error", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_invalid_action",
+								titleMd: "Invalid Action Banner",
+								bodyMd: "Has invalid action type",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: [{ title: "Invalid", action: "unknown-action-type", arg: "test" }],
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(0)
+		})
+
+		it("should keep valid banners and drop only invalid ones", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_valid",
+								titleMd: "Valid Banner",
+								bodyMd: "This one is valid",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: [{ title: "Link", action: "link", arg: "https://example.com" }],
+							},
+							{
+								id: "bnr_invalid",
+								titleMd: "Invalid Banner",
+								bodyMd: "This one has invalid action",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: [{ title: "Bad", action: "not-a-real-action" }],
+							},
+							{
+								id: "bnr_also_valid",
+								titleMd: "Also Valid Banner",
+								bodyMd: "This one is also valid",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(2)
+			expect(banners[0].id).to.equal("bnr_valid")
+			expect(banners[1].id).to.equal("bnr_also_valid")
+		})
+
+		it("should convert banner with no actions", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_no_actions",
+								titleMd: "No Actions Banner",
+								bodyMd: "Has no actions",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(1)
+			expect(banners[0].id).to.equal("bnr_no_actions")
+			expect(banners[0].actions).to.have.lengthOf(0)
+		})
+
+		it("should convert banner with empty actions array", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_empty_actions",
+								titleMd: "Empty Actions Banner",
+								bodyMd: "Has empty actions array",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: [],
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(1)
+			expect(banners[0].id).to.equal("bnr_empty_actions")
+			expect(banners[0].actions).to.have.lengthOf(0)
+		})
+
+		it("should drop banner when action has undefined action type", async () => {
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_undefined_action",
+								titleMd: "Undefined Action Type",
+								bodyMd: "Action has no type defined",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: [{ title: "Just a label" }],
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(0)
+		})
+
+		it("should accept all valid BannerActionType values", async () => {
+			const validActionTypes = [
+				"link",
+				"show-api-settings",
+				"show-feature-settings",
+				"show-account",
+				"set-model",
+				"install-cli",
+			]
+
+			const mockResponse = {
+				data: {
+					data: {
+						items: [
+							{
+								id: "bnr_all_valid_types",
+								titleMd: "All Valid Types",
+								bodyMd: "Has all valid action types",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: "{}",
+								actions: validActionTypes.map((type, index) => ({
+									title: `Action ${index}`,
+									action: type,
+								})),
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.getActiveBanners()
+
+			expect(banners).to.have.lengthOf(1)
+			expect(banners[0].actions).to.have.lengthOf(validActionTypes.length)
+			banners[0].actions!.forEach((action, index) => {
+				expect(action.action).to.equal(validActionTypes[index])
+			})
 		})
 	})
 })

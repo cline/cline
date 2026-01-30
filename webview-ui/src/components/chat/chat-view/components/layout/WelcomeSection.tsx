@@ -1,21 +1,22 @@
-import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { Megaphone, Terminal } from "lucide-react"
+import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import type { Worktree } from "@shared/proto/cline/worktree"
+import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
+import { GitBranch } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
-import { CURRENT_CLI_BANNER_VERSION } from "@/components/common/CliInstallBanner"
-import { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
-import { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
+import BannerCarousel from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import CreateWorktreeModal from "@/components/worktrees/CreateWorktreeModal"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { isMacOSOrLinux } from "@/utils/platformUtils"
+import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
+import { convertBannerData } from "@/utils/bannerUtils"
+import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
@@ -30,23 +31,42 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
-	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion } = useExtensionState()
+	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, dismissedBanners } =
+		useExtensionState()
 
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
 
-	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
-	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
+	// Quick launch worktree modal
+	const [showCreateWorktreeModal, setShowCreateWorktreeModal] = useState(false)
+	const [isGitRepo, setIsGitRepo] = useState<boolean | null>(null)
+	const [currentWorktree, setCurrentWorktree] = useState<Worktree | null>(null)
 
-	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
-	const shouldShowCliBanner =
-		isMacOSOrLinux() &&
-		PLATFORM_CONFIG.type === PlatformType.VSCODE &&
-		lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
+	// Check if we're in a git repo and get current worktree info on mount
+	useEffect(() => {
+		WorktreeServiceClient.listWorktrees(EmptyRequest.create({}))
+			.then((result) => {
+				const canUseWorktrees = result.isGitRepo && !result.isMultiRoot && !result.isSubfolder
+				setIsGitRepo(canUseWorktrees)
+				if (canUseWorktrees) {
+					const current = result.worktrees.find((w) => w.isCurrent)
+					setCurrentWorktree(current || null)
+				}
+			})
+			.catch(() => setIsGitRepo(false))
+	}, [])
 
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, navigateToSettings, subagentsEnabled } = useExtensionState()
+	const {
+		openRouterModels,
+		setShowChatModelSelector,
+		navigateToSettings,
+		navigateToWorktrees,
+		subagentsEnabled,
+		worktreesEnabled,
+		banners,
+	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Show modal when there's a new announcement and we haven't shown it this session
@@ -63,183 +83,233 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		hideAnnouncement()
 	}, [hideAnnouncement])
 
-	// Build array of active banners for carousel
-	const activeBanners = useMemo((): BannerData[] => {
-		const banners: BannerData[] = []
+	// Handle click on home page worktree element with telemetry
+	const handleWorktreeClick = useCallback(() => {
+		WorktreeServiceClient.trackWorktreeViewOpened(TrackWorktreeViewOpenedRequest.create({ source: "home_page" })).catch(
+			console.error,
+		)
+		navigateToWorktrees()
+	}, [navigateToWorktrees])
 
-		if (shouldShowInfoBanner) {
-			banners.push({
-				id: "info-banner",
-				icon: <span>💡</span>,
-				title: "Use Cline in Right Sidebar",
-				description: (
-					<>
-						For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and
-						editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in
-						real-time.{" "}
-						<VSCodeLink
-							className="cursor-pointer"
-							href="https://docs.cline.bot/features/customization/opening-cline-in-sidebar"
-							style={{ display: "inline" }}>
-							See how →
-						</VSCodeLink>
-					</>
-				),
-				onDismiss: () => {
-					StateServiceClient.updateInfoBannerVersion({ value: CURRENT_INFO_BANNER_VERSION }).catch(console.error)
-				},
-			})
-		}
-
-		if (shouldShowNewModelBanner) {
-			const setNewModel = () => {
-				const modelId = "anthropic/claude-opus-4.5"
-				handleFieldsChange({
-					planModeOpenRouterModelId: modelId,
-					actModeOpenRouterModelId: modelId,
-					planModeOpenRouterModelInfo: openRouterModels[modelId],
-					actModeOpenRouterModelInfo: openRouterModels[modelId],
-					planModeApiProvider: "cline",
-					actModeApiProvider: "cline",
-				})
-				setTimeout(() => setShowChatModelSelector(true), 10)
+	/**
+	 * Check if a banner has been dismissed based on its ID or legacy version
+	 */
+	const isBannerDismissed = useCallback(
+		(bannerId: string): boolean => {
+			// Check if banner is in the dismissed banners list (new approach)
+			if (
+				dismissedBanners?.some((dismissed: { bannerId: string; dismissedAt: number }) => dismissed.bannerId === bannerId)
+			) {
+				return true
 			}
 
-			const handleShowAccount = () => {
-				AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-					console.error("Failed to get login URL:", err),
-				)
+			// Legacy version-based tracking (deprecated)
+			if (bannerId.startsWith("info-banner")) {
+				return (lastDismissedInfoBannerVersion ?? 0) >= 1
+			}
+			if (bannerId.startsWith("new-model")) {
+				return (lastDismissedModelBannerVersion ?? 0) >= 1
+			}
+			if (bannerId.startsWith("cli-")) {
+				return (lastDismissedCliBannerVersion ?? 0) >= 1
+			}
+			return false
+		},
+		[dismissedBanners, lastDismissedInfoBannerVersion, lastDismissedModelBannerVersion, lastDismissedCliBannerVersion],
+	)
+
+	/**
+	 * Banner configuration from backend
+	 * In production, this would come from an API/gRPC call
+	 * For now, using EXAMPLE_BANNER_DATA with version-based filtering
+	 */
+	const bannerConfig = useMemo((): BannerCardData[] => {
+		// Filter banners based on version tracking and user status
+		return BANNER_DATA.filter((banner) => {
+			if (isBannerDismissed(banner.id)) {
+				return false
 			}
 
-			banners.push({
-				id: "new-model",
-				icon: <Megaphone className="w-5 h-5" />,
-				title: "Claude Opus 4.5 Now Available",
-				description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
-				actions: [
-					{
-						label: clineUser ? "Try Now" : "Get Started",
-						onClick: clineUser ? setNewModel : handleShowAccount,
-						variant: "primary",
-					},
-				],
-				onDismiss: () => {
-					StateServiceClient.updateModelBannerVersion(
-						Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION }),
-					).catch(console.error)
-				},
-			})
-		}
+			if (banner.isClineUserOnly !== undefined) {
+				return banner.isClineUserOnly === !!clineUser
+			}
 
-		if (shouldShowCliBanner) {
-			const handleInstallCli = async () => {
-				try {
-					await StateServiceClient.installClineCli(EmptyRequest.create())
-				} catch (error) {
-					console.error("Failed to initiate CLI installation:", error)
+			if (banner.platforms && !banner.platforms.includes(getCurrentPlatform())) {
+				return false
+			}
+
+			return true
+		})
+	}, [isBannerDismissed, clineUser])
+
+	/**
+	 * Action handler - maps action types to actual implementations
+	 */
+	const handleBannerAction = useCallback(
+		(action: BannerAction) => {
+			switch (action.action) {
+				case BannerActionType.Link:
+					if (action.arg) {
+						UiServiceClient.openUrl({ value: action.arg }).catch(console.error)
+					}
+					break
+
+				case BannerActionType.SetModel: {
+					const modelId = action.arg || "anthropic/claude-opus-4.5"
+					handleFieldsChange({
+						planModeOpenRouterModelId: modelId,
+						actModeOpenRouterModelId: modelId,
+						planModeOpenRouterModelInfo: openRouterModels[modelId],
+						actModeOpenRouterModelInfo: openRouterModels[modelId],
+						planModeApiProvider: "cline",
+						actModeApiProvider: "cline",
+					})
+					setTimeout(() => setShowChatModelSelector(true), 10)
+					break
 				}
-			}
 
-			const handleEnableSubagents = () => {
-				if (!subagentsEnabled) {
+				case BannerActionType.ShowAccount:
+					AccountServiceClient.accountLoginClicked({}).catch((err) => console.error("Failed to get login URL:", err))
+					break
+
+				case BannerActionType.ShowApiSettings:
+					if (action.arg) {
+						// Pre-select the provider before navigating
+						handleFieldsChange({
+							planModeApiProvider: action.arg as any,
+							actModeApiProvider: action.arg as any,
+						})
+					}
+					navigateToSettings("api-config")
+					break
+
+				case BannerActionType.ShowFeatureSettings:
 					navigateToSettings("features")
-				}
-			}
+					break
 
-			banners.push({
-				id: "cli-install",
-				icon: <Terminal className="w-5 h-5" />,
-				title: isMacOSOrLinux() ? "CLI & Subagents Available" : "Cline CLI Info",
-				description: isMacOSOrLinux() ? (
-					<>
-						Use Cline in your terminal and enable subagent capabilities.{" "}
-						<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
-							Learn more
-						</VSCodeLink>
-					</>
-				) : (
-					<>
-						Available for macOS and Linux. Coming soon to other platforms.{" "}
-						<VSCodeLink href="https://docs.cline.bot/cline-cli/overview" style={{ display: "inline" }}>
-							Learn more
-						</VSCodeLink>
-					</>
-				),
-				actions: isMacOSOrLinux()
-					? [
-							{ label: "Install", onClick: handleInstallCli, variant: "primary" },
-							{
-								label: "Enable Subagents",
-								onClick: handleEnableSubagents,
-								variant: "primary",
-								disabled: subagentsEnabled,
-							},
-						]
-					: [
-							{ label: "Install CLI", onClick: handleInstallCli, variant: "primary" },
-							{ label: "Subagents (Windows coming soon)", onClick: () => {}, variant: "secondary", disabled: true },
-						],
-				onDismiss: () => {
-					StateServiceClient.updateCliBannerVersion(Int64Request.create({ value: CURRENT_CLI_BANNER_VERSION })).catch(
-						console.error,
+				case BannerActionType.InstallCli:
+					StateServiceClient.installClineCli({}).catch((error) =>
+						console.error("Failed to initiate CLI installation:", error),
 					)
-				},
-			})
-		}
+					break
 
-		return banners
-	}, [
-		shouldShowInfoBanner,
-		shouldShowNewModelBanner,
-		shouldShowCliBanner,
-		clineUser,
-		openRouterModels,
-		setShowChatModelSelector,
-		handleFieldsChange,
-		navigateToSettings,
-		subagentsEnabled,
-	])
+				default:
+					console.warn("Unknown banner action:", action.action)
+			}
+		},
+		[handleFieldsChange, openRouterModels, setShowChatModelSelector, navigateToSettings],
+	)
+
+	/**
+	 * Dismissal handler - updates version tracking
+	 */
+	const handleBannerDismiss = useCallback((bannerId: string) => {
+		// !! Do not continue use these version numbers or add new banners that don't have unique IDs. !!
+		// Banner versions are **deprecated**. Going forward, we are tracking which banners have
+		// been dismissed using the **banner ID**.
+		if (bannerId.startsWith("info-banner")) {
+			StateServiceClient.updateInfoBannerVersion({ value: 1 }).catch(console.error)
+		} else if (bannerId.startsWith("new-model")) {
+			StateServiceClient.updateModelBannerVersion({ value: 1 }).catch(console.error)
+		} else if (bannerId.startsWith("cli-")) {
+			StateServiceClient.updateCliBannerVersion({ value: 1 }).catch(console.error)
+		} else {
+			// Mark the banner as dismissed by its ID.
+			StateServiceClient.dismissBanner({ value: bannerId }).catch(console.error)
+		}
+	}, [])
+
+	/**
+	 * Build array of active banners for carousel
+	 * Combines hardcoded banners (bannerConfig) with dynamic banners from extension state
+	 */
+	const activeBanners = useMemo(() => {
+		// Start with the hardcoded banners (bannerConfig)
+		const hardcodedBanners = bannerConfig.map((banner) =>
+			convertBannerData(banner, {
+				onAction: handleBannerAction,
+				onDismiss: handleBannerDismiss,
+			}),
+		)
+
+		// Add banners from extension state (if any)
+		const extensionStateBanners = (banners ?? []).map((banner) =>
+			convertBannerData(banner, {
+				onAction: handleBannerAction,
+				onDismiss: handleBannerDismiss,
+			}),
+		)
+
+		// Combine both sources: extension state banners first, then hardcoded banners
+		return [...extensionStateBanners, ...hardcodedBanners]
+	}, [bannerConfig, banners, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
-			<style>
-				{`
-					@keyframes fadeIn {
-						from {
-							opacity: 0;
-							transform: scale(0.98);
-						}
-						to {
-							opacity: 1;
-							transform: scale(1);
-						}
-					}
-					.fade-in-cards {
-						animation: fadeIn 0.4s ease-out forwards;
-					}
-					.fade-in-history {
-						animation: fadeIn 0.4s ease-out forwards;
-						opacity: 0;
-					}
-				`}
-			</style>
 			<WhatsNewModal onClose={handleCloseWhatsNewModal} open={showWhatsNewModal} version={version} />
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!showWhatsNewModal && (
 					<>
-						<div className="fade-in-cards">
-							<BannerCarousel banners={activeBanners} />
-						</div>
-						{!shouldShowQuickWins && taskHistory.length > 0 && (
-							<div className="fade-in-history">
-								<HistoryPreview showHistoryView={showHistoryView} />
+						<BannerCarousel banners={activeBanners} />
+						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+						{/* Quick launch worktree button */}
+						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
+							<div className="flex flex-col items-center gap-3 mt-2 mb-4 px-5">
+								{/* TODO: Re-enable once worktree creation is stable
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--vscode-foreground)]/30 text-[var(--vscode-foreground)] bg-transparent hover:bg-[var(--vscode-list-hoverBackground)] active:opacity-80 text-sm font-medium cursor-pointer"
+											onClick={() => setShowCreateWorktreeModal(true)}
+											type="button">
+											<span className="codicon codicon-empty-window"></span>
+											New Worktree Window
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										Create a new git worktree and open it in a separate window. Great for running parallel
+										Cline tasks.
+									</TooltipContent>
+								</Tooltip>
+								*/}
+								{currentWorktree && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<button
+												className="flex flex-col items-center gap-0.5 text-xs text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] cursor-pointer bg-transparent border-none p-1 rounded"
+												onClick={handleWorktreeClick}
+												type="button">
+												<div className="flex items-center gap-1.5 text-xs">
+													<GitBranch className="w-3 h-3 stroke-[2.5] flex-shrink-0" />
+													<span className="break-all text-center">
+														<span className="font-semibold">Current:</span>{" "}
+														{currentWorktree.branch || "detached HEAD"}
+													</span>
+												</div>
+												<span className="break-all text-center max-w-[300px]">
+													{currentWorktree.path}
+												</span>
+											</button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">
+											View and manage git worktrees. Great for running parallel Cline tasks.
+										</TooltipContent>
+									</Tooltip>
+								)}
 							</div>
 						)}
 					</>
 				)}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
+
+			{/* Quick launch worktree modal */}
+			<CreateWorktreeModal
+				onClose={() => setShowCreateWorktreeModal(false)}
+				open={showCreateWorktreeModal}
+				openAfterCreate={true}
+			/>
 		</div>
 	)
 }

@@ -1,3 +1,4 @@
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
@@ -161,11 +162,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 					<span className="whitespace-nowrap">Auto-approve:</span>
 					{getEnabledActionsText()}
 				</div>
-				{isModalVisible ? (
-					<span className="codicon codicon-chevron-down" />
-				) : (
-					<span className="codicon codicon-chevron-up" />
-				)}
+				{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
 			</div>
 
 			<AutoApproveModal

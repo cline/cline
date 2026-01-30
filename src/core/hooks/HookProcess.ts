@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { Logger } from "@/shared/services/Logger"
 import { HookProcessRegistry } from "./HookProcessRegistry"
 import { escapeShellPath } from "./shell-escape"
 
@@ -42,6 +43,7 @@ export class HookProcess extends EventEmitter {
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
 		private readonly abortSignal?: AbortSignal,
+		private readonly cwd?: string,
 	) {
 		super()
 	}
@@ -107,6 +109,7 @@ export class HookProcess extends EventEmitter {
 					stdio: ["pipe", "pipe", "pipe"],
 					shell: true, // Use shell on all platforms for shebang interpretation
 					detached: process.platform !== "win32", // Create process group on Unix
+					cwd: this.cwd, // Execute from the determined workspace root
 				})
 
 				let didEmitEmptyLine = false
@@ -230,7 +233,7 @@ export class HookProcess extends EventEmitter {
 				this.outputTruncated = true
 				const truncationMsg = "\n\n[Output truncated: exceeded 1MB limit]"
 				this.emit("line", truncationMsg, stream)
-				console.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
+				Logger.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
 			}
 			return // Drop further output
 		}
@@ -362,7 +365,7 @@ export class HookProcess extends EventEmitter {
 			}
 		} catch (error) {
 			// Process might already be dead, which is fine
-			console.debug(`[HookProcess] Error during termination: ${error}`)
+			Logger.debug(`[HookProcess] Error during termination: ${error}`)
 		} finally {
 			// Clear timeout regardless
 			if (this.timeoutHandle) {

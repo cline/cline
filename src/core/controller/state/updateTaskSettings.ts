@@ -149,7 +149,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update task settings:", error)
 		throw error
 	}
 }

@@ -8,10 +8,10 @@ import {
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { Logger } from "@/services/logging/Logger"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -41,9 +41,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 				throw new Error("OpenAI API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					apiKey: this.options.openAiNativeApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenAI client: ${error.message}`)
@@ -123,7 +122,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -135,7 +134,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				try {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				} catch (error) {
-					console.error("Error processing tool call delta:", error, delta.tool_calls)
+					Logger.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
 			}
 
@@ -159,7 +158,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
-			?.filter((tool) => tool.type === "function")
+			?.filter((tool) => tool?.type === "function")
 			.map((tool: any) => ({
 				type: "function" as const,
 				name: tool.function.name,
@@ -316,11 +315,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 				chunk.response?.status === "incomplete" &&
 				chunk.response?.incomplete_details?.reason === "max_output_tokens"
 			) {
-				console.log("Ran out of tokens")
+				Logger.log("Ran out of tokens")
 				if (chunk.response?.output_text?.length > 0) {
-					console.log("Partial output:", chunk.response.output_text)
+					Logger.log("Partial output:", chunk.response.output_text)
 				} else {
-					console.log("Ran out of tokens during reasoning")
+					Logger.log("Ran out of tokens during reasoning")
 				}
 			}
 

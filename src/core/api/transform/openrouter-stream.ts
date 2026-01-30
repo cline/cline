@@ -9,7 +9,7 @@ import {
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
-import { convertToOpenAiMessages } from "./openai-format"
+import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
 import { getOpenAIToolParams } from "./tool-call-processor"
 
@@ -35,6 +35,9 @@ export async function createOpenRouterStream(
 		// remove the custom :1m suffix, to create the model id openrouter API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
+
+	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
+	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
@@ -65,13 +68,16 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3-haiku:beta":
 		case "anthropic/claude-3-opus":
 		case "anthropic/claude-3-opus:beta":
+		case "minimax/minimax-m2":
+		case "minimax/minimax-m2.1":
+		case "minimax/minimax-m2.1-lightning":
 			openAiMessages[0] = {
 				role: "system",
 				content: [
 					{
 						type: "text",
 						text: systemPrompt,
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						cache_control: { type: "ephemeral" },
 					},
 				],
@@ -91,7 +97,7 @@ export async function createOpenRouterStream(
 						lastTextPart = { type: "text", text: "..." }
 						msg.content.push(lastTextPart)
 					}
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}
 			})
@@ -174,7 +180,7 @@ export async function createOpenRouterStream(
 				thinkingBudgetTokens &&
 				model.info?.thinkingConfig &&
 				thinkingBudgetTokens > 0 &&
-				!(model.id.includes("gemini") && geminiThinkingLevel)
+				!(model.id.includes("gemini-3") && geminiThinkingLevel)
 			) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
@@ -190,7 +196,7 @@ export async function createOpenRouterStream(
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4)
 	const includeReasoning = !shouldSkipReasoningForModel(model.id)
 
-	// @ts-ignore-next-line
+	// @ts-expect-error-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: maxTokens,
@@ -206,7 +212,7 @@ export async function createOpenRouterStream(
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini") && geminiThinkingLevel
+		...(model.id.includes("gemini-3") && geminiThinkingLevel
 			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
 			: {}),
 	})

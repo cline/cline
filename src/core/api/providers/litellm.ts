@@ -2,8 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import { StateManager } from "@/core/storage/StateManager"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient, fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { isAnthropicModelId } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
@@ -63,6 +65,7 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 			headers: {
 				accept: "application/json",
 				"x-litellm-api-key": apiKey,
+				...buildExternalBasicHeaders(),
 			},
 		})
 
@@ -70,13 +73,14 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 			const data: LiteLlmModelInfoResponse = await response.json()
 			return data
 		} else {
-			console.error("Failed to fetch LiteLLM model info:", response.statusText)
+			Logger.error("Failed to fetch LiteLLM model info:", response.statusText)
 			// Try with Authorization header instead
 			const retryResponse = await fetch(url, {
 				method: "GET",
 				headers: {
 					accept: "application/json",
 					Authorization: `Bearer ${apiKey}`,
+					...buildExternalBasicHeaders(),
 				},
 			})
 
@@ -84,12 +88,12 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 				const data: LiteLlmModelInfoResponse = await retryResponse.json()
 				return data
 			} else {
-				console.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
+				Logger.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
 				throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
 			}
 		}
 	} catch (error) {
-		console.error("Error fetching LiteLLM model info:", error)
+		Logger.error("Error fetching LiteLLM model info:", error)
 		throw error
 	}
 }
@@ -111,10 +115,9 @@ export class LiteLlmHandler implements ApiHandler {
 				throw new Error("LiteLLM API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
 					apiKey: this.options.liteLlmApiKey || "noop",
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating LiteLLM client: ${error.message}`)
@@ -169,7 +172,7 @@ export class LiteLlmHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.warn("Error getting LiteLLM model cost info:", error)
+			Logger.warn("Error getting LiteLLM model cost info:", error)
 		}
 
 		// Fallback to zero costs if we can't get the information
@@ -200,7 +203,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 			return totalCost
 		} catch (error) {
-			console.error("Error calculating spend:", error)
+			Logger.error("Error calculating spend:", error)
 			return undefined
 		}
 	}
@@ -307,7 +310,7 @@ export class LiteLlmHandler implements ApiHandler {
 		} as LiteLlmChatCompletionCreateParams)
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 
 			// Handle normal text content
 			if (delta?.content) {

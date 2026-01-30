@@ -1,4 +1,6 @@
+import { ClineEndpoint } from "@/config"
 import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { Logger } from "@/shared/services/Logger"
 import { ClineError } from "./ClineError"
 import { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
@@ -47,9 +49,16 @@ export class ErrorProviderFactory {
 
 	/**
 	 * Gets the default error provider configuration
-	 * @returns Default configuration using PostHog
+	 * @returns Default configuration using PostHog, or no-op for self-hosted mode
 	 */
 	public static getDefaultConfig(): ErrorProviderConfig {
+		// Use no-op provider in self-hosted mode to avoid external network calls
+		if (ClineEndpoint.isSelfHosted()) {
+			return {
+				type: "no-op",
+				config: posthogConfig,
+			}
+		}
 		return {
 			type: "posthog",
 			config: posthogConfig,
@@ -63,8 +72,8 @@ export class ErrorProviderFactory {
  */
 class NoOpErrorProvider implements IErrorProvider {
 	public logException(error: Error | ClineError, _properties?: Record<string, unknown>): void {
-		// Use console.error directly to avoid potential infinite recursion through Logger
-		console.error("[NoOpErrorProvider]", error.message || String(error))
+		// Use Logger.error directly to avoid potential infinite recursion through Logger
+		Logger.error("[NoOpErrorProvider]", error.message || String(error))
 	}
 
 	public logMessage(
@@ -72,7 +81,7 @@ class NoOpErrorProvider implements IErrorProvider {
 		level?: "error" | "warning" | "log" | "debug" | "info",
 		properties?: Record<string, unknown>,
 	): void {
-		console.log("[NoOpErrorProvider]", { message, level, properties })
+		Logger.log("[NoOpErrorProvider]", { message, level, properties })
 	}
 
 	public isEnabled(): boolean {
@@ -88,6 +97,6 @@ class NoOpErrorProvider implements IErrorProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		console.info("[NoOpErrorProvider] Disposing")
+		Logger.info("[NoOpErrorProvider] Disposing")
 	}
 }

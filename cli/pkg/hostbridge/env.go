@@ -104,14 +104,18 @@ func (s *EnvService) Shutdown(ctx context.Context, req *cline.EmptyRequest) (*cl
 	return &cline.Empty{}, nil
 }
 
+func (s *EnvService) isTelemetryEnabled() bool {
+	// In CLI mode, check the CLINE_TELEMETRY_DISABLED environment variable
+	return os.Getenv("CLINE_TELEMETRY_DISABLED") != "true"
+}
+
 // GetTelemetrySettings returns the telemetry settings for CLI mode
 func (s *EnvService) GetTelemetrySettings(ctx context.Context, req *cline.EmptyRequest) (*host.GetTelemetrySettingsResponse, error) {
 	if s.verbose {
 		log.Printf("GetTelemetrySettings called")
 	}
 
-	// In CLI mode, check the POSTHOG_TELEMETRY_ENABLED environment variable
-	telemetryEnabled := os.Getenv("POSTHOG_TELEMETRY_ENABLED") == "true"
+	telemetryEnabled := s.isTelemetryEnabled()
 
 	var setting host.Setting
 	if telemetryEnabled {
@@ -133,8 +137,7 @@ func (s *EnvService) SubscribeToTelemetrySettings(req *cline.EmptyRequest, strea
 		log.Printf("SubscribeToTelemetrySettings called")
 	}
 
-	// Send initial telemetry state
-	telemetryEnabled := os.Getenv("POSTHOG_TELEMETRY_ENABLED") == "true"
+	telemetryEnabled := s.isTelemetryEnabled()
 
 	var setting host.Setting
 	if telemetryEnabled {

@@ -47,7 +47,10 @@ func (s *DiffService) generateDiffID() string {
 	return fmt.Sprintf("diff_%d_%d", os.Getpid(), id)
 }
 
-// splitLines splits content into lines, preserving line ending information
+// splitLines splits content into lines, preserving trailing newlines.
+// This matches the behavior of JavaScript's String.split("\n"):
+// - "hello\nworld\n" -> ["hello", "world", ""]
+// - "hello\nworld" -> ["hello", "world"]
 func splitLines(content string) []string {
 	if content == "" {
 		return []string{}
@@ -65,10 +68,9 @@ func splitLines(content string) []string {
 		}
 	}
 
-	// Add the last line if it doesn't end with newline
-	if current != "" {
-		lines = append(lines, current)
-	}
+	// Always add the last segment - if content ends with newline, this will be
+	// an empty string which preserves the trailing newline when joined back
+	lines = append(lines, current)
 
 	return lines
 }
@@ -176,8 +178,18 @@ func (s *DiffService) ReplaceText(ctx context.Context, req *proto.ReplaceTextReq
 		endLine = startLine
 	}
 
+	// Check if we're replacing to the end of the document
+	replacingToEnd := endLine >= len(session.lines)
+
 	// Split new content into lines
 	newLines := splitLines(newContent)
+
+	// Remove trailing empty line for proper splicing, BUT only when NOT replacing
+	// to the end of the document. When replacing to the end, keep the trailing
+	// empty string to preserve trailing newlines from the content.
+	if !replacingToEnd && len(newLines) > 0 && newLines[len(newLines)-1] == "" {
+		newLines = newLines[:len(newLines)-1]
+	}
 
 	// Ensure we have enough lines in the current content
 	for len(session.lines) < endLine {

@@ -1,27 +1,35 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
+import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
+import { buildBasicClineHeaders } from "../EnvUtils"
 import { getDistinctId } from "../logging/distinctId"
-import { Logger } from "../logging/Logger"
 
 /**
  * Service for fetching and evaluating banner messages
  */
 export class BannerService {
 	private static instance: BannerService | null = null
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 	private _controller: Controller
 	private _authService?: AuthService
+	private actionTypes: Set<string>
+	private _fetchPromise: Promise<Banner[]> | null = null
+
+	private get _baseUrl(): string {
+		return ClineEnv.config().apiBaseUrl
+	}
 
 	private constructor(controller: Controller) {
 		this._controller = controller
+		this.actionTypes = new Set<string>(Object.values(BannerActionType))
 	}
 
 	/**
@@ -78,7 +86,7 @@ export class BannerService {
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
 	 * @returns Array of banners that match current environment
 	 */
-	public async fetchActiveBanners(forceRefresh = false): Promise<Banner[]> {
+	private async internalGetActiveBanners(forceRefresh = false): Promise<Banner[]> {
 		try {
 			// Return cached banners if still valid
 			const now = Date.now()
@@ -87,6 +95,22 @@ export class BannerService {
 				return this._cachedBanners
 			}
 
+			if (this._fetchPromise && !forceRefresh) {
+				return this._fetchPromise
+			}
+
+			this._fetchPromise = this.fetchActiveBanners()
+			return this._fetchPromise
+		} catch (error) {
+			// Log error but don't throw - banner fetching shouldn't break the extension
+			Logger.error("BannerService: Error getting internal banners", error)
+			return []
+		}
+	}
+
+	private async fetchActiveBanners(): Promise<Banner[]> {
+		try {
+			const now = Date.now()
 			const ideType = await this.getIdeType()
 			const extensionVersion = await this.getExtensionVersion()
 			const osType = await this.getOSType()
@@ -102,13 +126,11 @@ export class BannerService {
 			Logger.log(`BannerService: Fetching banners from ${url}`)
 
 			const authService = this.getAuthServiceInstance()
-			let token: string | null = null
-			if (authService) {
-				token = await authService.getAuthToken()
-			}
+			const token: string | null = (await authService?.getAuthToken()) || null
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
 			}
 			if (token) {
 				headers["Authorization"] = `Bearer ${token}`
@@ -136,11 +158,16 @@ export class BannerService {
 			this._cachedBanners = matchingBanners
 			this._lastFetchTime = now
 
+			if (matchingBanners.length > 0) {
+				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
+			}
 			return matchingBanners
 		} catch (error) {
 			// Log error but don't throw - banner fetching shouldn't break the extension
 			Logger.error("BannerService: Error fetching banners", error)
 			return []
+		} finally {
+			this._fetchPromise = null
 		}
 	}
 
@@ -173,51 +200,40 @@ export class BannerService {
 			}
 
 			const apiConfiguration = this._controller.stateManager.getApiConfiguration()
-			const hasAnyProvider = rules.providers.some((provider) => {
+			const currentMode = this._controller.stateManager.getGlobalSettingsKey("mode")
+			const selectedProvider =
+				currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+
+			if (!selectedProvider) {
+				Logger.log(`BannerService: Banner ${banner.id} filtered by client - no provider selected for ${currentMode} mode`)
+				return false
+			}
+
+			const hasMatchingProvider = rules.providers.some((provider) => {
+				// Normalize provider names for comparison
 				switch (provider) {
 					case "anthropic":
 					case "claude-code":
-						return !!apiConfiguration?.apiKey
+						return selectedProvider === "anthropic"
 					case "openai":
 					case "openai-native":
-						return !!apiConfiguration?.openAiApiKey || !!apiConfiguration?.openAiNativeApiKey
-					case "openrouter":
-						return !!apiConfiguration?.openRouterApiKey
-					case "bedrock":
-						return !!apiConfiguration?.awsAccessKey || !!apiConfiguration?.awsBedrockApiKey
-					case "gemini":
-						return !!apiConfiguration?.geminiApiKey
-					case "deepseek":
-						return !!apiConfiguration?.deepSeekApiKey
+						return selectedProvider === "openai" || selectedProvider === "openai-native"
 					case "qwen":
 					case "qwen-code":
-						return !!apiConfiguration?.qwenApiKey
-					case "mistral":
-						return !!apiConfiguration?.mistralApiKey
-					case "ollama":
-						return !!apiConfiguration?.ollamaApiKey
-					case "xai":
-						return !!apiConfiguration?.xaiApiKey
-					case "cerebras":
-						return !!apiConfiguration?.cerebrasApiKey
-					case "groq":
-						return !!apiConfiguration?.groqApiKey
-					case "cline":
-						return (
-							apiConfiguration?.planModeApiProvider === "cline" || apiConfiguration?.actModeApiProvider === "cline"
-						)
+						return selectedProvider === "qwen"
 					default:
-						return false
+						// For any other providers, do a direct string comparison
+						return selectedProvider === provider
 				}
 			})
 
-			if (!hasAnyProvider) {
+			if (!hasMatchingProvider) {
 				Logger.log(
-					`BannerService: Banner ${banner.id} filtered by client - user doesn't have any of these providers configured: ${rules.providers.join(", ")}`,
+					`BannerService: Banner ${banner.id} filtered by client - selected provider '${selectedProvider}' doesn't match any of these required providers: ${rules.providers.join(", ")}`,
 				)
 			}
 
-			return hasAnyProvider
+			return hasMatchingProvider
 		} catch (error) {
 			Logger.log(
 				`BannerService: Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
@@ -336,6 +352,7 @@ export class BannerService {
 				timeout: 10000,
 				headers: {
 					"Content-Type": "application/json",
+					...(await buildBasicClineHeaders()),
 				},
 				...getAxiosSettings(),
 			})
@@ -391,13 +408,48 @@ export class BannerService {
 	}
 
 	/**
+	 * Converts a Banner (API response format) to BannerCardData (UI format)
+	 * @param banner The banner from the API
+	 * @returns BannerCardData suitable for the carousel, or null if banner is invalid.
+	 */
+	private convertToBannerCardData(banner: Banner): BannerCardData | null {
+		// Validate all action types before conversion
+		// Each action must have a valid action type - undefined is not allowed
+		for (const action of banner.actions || []) {
+			if (!action.action || !this.actionTypes.has(action.action)) {
+				Logger.error(`BannerService: ${banner.id} has invalid or missing action type '${action.action ?? "undefined"}'.`)
+				return null
+			}
+			if (!action.title) {
+				Logger.error(`BannerService: ${banner.id} is missing an action title: ${JSON.stringify(action)}`)
+				return null
+			}
+		}
+
+		const actions = (banner.actions || []).map((action) => ({
+			title: action.title || "",
+			action: action.action as BannerActionType,
+			arg: action.arg,
+		}))
+		return {
+			id: banner.id,
+			title: banner.titleMd,
+			description: banner.bodyMd,
+			icon: banner.icon,
+			actions,
+		}
+	}
+
+	/**
 	 * Gets banners that haven't been dismissed by the user
 	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of non-dismissed banners
+	 * @returns Array of non-dismissed banners converted to BannerCardData format
+	 *
+	 * TEMPORARILY DISABLED: Returning empty array to prevent API calls
 	 */
-	public async getNonDismissedBanners(forceRefresh = false): Promise<Banner[]> {
-		const allBanners = await this.fetchActiveBanners(forceRefresh)
-		return allBanners.filter((banner) => !this.isBannerDismissed(banner.id))
+	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
+		// Disable all banner fetching to prevent blocking the extension
+		return []
 	}
 
 	/**

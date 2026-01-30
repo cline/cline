@@ -200,6 +200,7 @@ const modelTestCases = [
 	{ family: ModelFamily.NATIVE_GPT_5, modelId: "gpt-5-codex", providerId: "openai" },
 	{ family: ModelFamily.NATIVE_GPT_5_1, modelId: "gpt-5-1", providerId: "openai" },
 	{ family: ModelFamily.GEMINI_3, modelId: "gemini-3", providerId: "vertex" },
+	{ family: ModelFamily.TRINITY, modelId: "arcee-ai/trinity-large-preview", providerId: "openrouter" },
 ]
 
 // ============================================================================

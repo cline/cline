@@ -67,6 +67,10 @@ enum ClineSay {
   TASK_PROGRESS = 27;
   ERROR_RETRY = 28;
   GENERATE_EXPLANATION = 29;
+  HOOK_STATUS = 30;
+  HOOK_OUTPUT_STREAM = 31;
+  COMMAND_PERMISSION_DENIED = 32;
+  CONDITIONAL_RULES_APPLIED = 33;
 }
 
 // Enum for ClineSayTool tool types
@@ -220,6 +224,10 @@ message ClineMessage {
   ClineModelInfo model_info = 23;
 }
 
+message ShowWebviewEvent {
+  bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -249,6 +257,9 @@ service UiService {
   // Subscribe to settings button clicked events
   rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
 
+  // Subscribe to worktrees button clicked events
+  rpc subscribeToWorktreesButtonClicked(EmptyRequest) returns (stream Empty);
+
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
 
@@ -258,11 +269,8 @@ service UiService {
   // Subscribe to relinquish control events
   rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
 
-  // Subscribe to focus chat input events
-  rpc subscribeToFocusChatInput(EmptyRequest) returns (stream Empty);
-
-  // Subscribe to webview visibility change events
-  rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
+  // Subscribe to show webview events
+  rpc subscribeToShowWebview(EmptyRequest) returns (stream ShowWebviewEvent);
 
   // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
   rpc getWebviewHtml(EmptyRequest) returns (String);

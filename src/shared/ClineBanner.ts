@@ -9,11 +9,22 @@ export interface Banner {
 	id: string
 	titleMd: string
 	bodyMd: string
-	severity: BannerSeverity
-	placement: BannerPlacement
+	icon?: string
+	actions?: BannerAction[]
+
 	rulesJson: string
 	activeFrom?: string
 	activeTo?: string
+
+	// Severity and placement are not used in the extension
+	severity?: BannerSeverity
+	placement?: BannerPlacement
+}
+
+export interface BannerAction {
+	action?: string
+	arg?: string
+	title?: string
 }
 
 export interface BannersResponse {

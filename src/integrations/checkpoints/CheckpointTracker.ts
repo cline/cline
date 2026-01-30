@@ -1,9 +1,11 @@
 import { sendCheckpointEvent } from "@core/controller/checkpoints/subscribeToCheckpoints"
 import fs from "fs/promises"
+import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
 import simpleGit from "simple-git"
 import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { GitOperations } from "./CheckpointGitOperations"
 import { releaseCheckpointLock, tryAcquireCheckpointLockWithRetry } from "./CheckpointLockUtils"
 import { getShadowGitPath, hashWorkingDir } from "./CheckpointUtils"
@@ -81,7 +83,7 @@ class CheckpointTracker {
 				commitHash,
 			})
 		} catch (error) {
-			console.debug("Failed to send checkpoint event:", error)
+			Logger.debug("Failed to send checkpoint event:", error)
 		}
 	}
 
@@ -128,12 +130,12 @@ class CheckpointTracker {
 		workspacePaths: string | string[],
 	): Promise<CheckpointTracker | undefined> {
 		try {
-			console.info(`Creating new CheckpointTracker for task ${taskId}`)
+			Logger.info(`Creating new CheckpointTracker for task ${taskId}`)
 			const startTime = performance.now()
 
 			// Check if checkpoints are disabled by setting
 			if (!enableCheckpointsSetting) {
-				console.info(`Checkpoints disabled by setting for task ${taskId}`)
+				Logger.info(`Checkpoints disabled by setting for task ${taskId}`)
 				return undefined // Don't create tracker when disabled
 			}
 
@@ -160,7 +162,7 @@ class CheckpointTracker {
 			const workingDir = Array.isArray(workspacePaths) ? workspacePaths[0] : workspacePaths
 
 			const cwdHash = hashWorkingDir(workingDir)
-			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
+			Logger.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
 			const newTracker = new CheckpointTracker(taskId, workingDir, cwdHash)
 			await newTracker.sendCheckpointSubscriptionEvent("CHECKPOINT_INIT", true)
@@ -174,7 +176,7 @@ class CheckpointTracker {
 
 			return newTracker
 		} catch (error) {
-			console.error("Failed to create CheckpointTracker:", error)
+			Logger.error("Failed to create CheckpointTracker:", error)
 			throw error
 		}
 	}
@@ -212,7 +214,7 @@ class CheckpointTracker {
 
 		try {
 			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", true)
-			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
+			Logger.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const startTime = performance.now()
 
 			const lockResult: FolderLockWithRetryResult = await tryAcquireCheckpointLockWithRetry(this.cwdHash, this.taskId)
@@ -226,7 +228,7 @@ class CheckpointTracker {
 
 			// Locking skipped as we are in VS Code
 			if (!lockResult.acquired && lockResult.skipped) {
-				console.log("Skipping Checkpoints lock - VS Code")
+				Logger.log("Skipping Checkpoints lock - VS Code")
 			}
 
 			if (lockResult.acquired) {
@@ -236,22 +238,22 @@ class CheckpointTracker {
 			const gitPath = await getShadowGitPath(this.cwdHash)
 			const git = simpleGit(path.dirname(gitPath))
 
-			console.info(`Using shadow git at: ${gitPath}`)
+			Logger.info(`Using shadow git at: ${gitPath}`)
 
 			const addFilesResult = await this.gitOperations.addCheckpointFiles(git)
 			if (!addFilesResult.success) {
-				console.error("Failed to add at least one file(s) to checkpoints shadow git")
+				Logger.error("Failed to add at least one file(s) to checkpoints shadow git")
 			}
 
 			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
 
-			console.info(`Creating checkpoint commit with message: ${commitMessage}`)
+			Logger.info(`Creating checkpoint commit with message: ${commitMessage}`)
 			const result = await git.commit(commitMessage, {
 				"--allow-empty": null,
 				"--no-verify": null,
 			})
 			const commitHash = (result.commit || "").replace(/^HEAD\s+/, "")
-			console.warn(`Checkpoint commit created: `, commitHash)
+			Logger.warn(`Checkpoint commit created: `, commitHash)
 
 			const durationMs = Math.round(performance.now() - startTime)
 			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", false, commitHash)
@@ -259,14 +261,14 @@ class CheckpointTracker {
 
 			return commitHash
 		} catch (error) {
-			console.error("Failed to create checkpoint:", {
+			Logger.error("Failed to create checkpoint:", {
 				taskId: this.taskId,
 				error,
 			})
 			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
 		} finally {
 			if (lockAcquired) {
-				console.info("Releasing checkpoint folder lock")
+				Logger.info("Releasing checkpoint folder lock")
 				await releaseCheckpointLock(this.cwdHash, this.taskId)
 			}
 		}
@@ -304,7 +306,7 @@ class CheckpointTracker {
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
-			console.error("Failed to get shadow git config worktree:", error)
+			Logger.error("Failed to get shadow git config worktree:", error)
 			return undefined
 		}
 	}
@@ -335,7 +337,7 @@ class CheckpointTracker {
 		let lockAcquired: boolean = false
 
 		try {
-			console.info(`Resetting to checkpoint: ${commitHash}`)
+			Logger.info(`Resetting to checkpoint: ${commitHash}`)
 			const startTime = performance.now()
 			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_RESTORE", true, commitHash)
 			const lockResult: FolderLockWithRetryResult = await tryAcquireCheckpointLockWithRetry(this.cwdHash, this.taskId)
@@ -349,7 +351,7 @@ class CheckpointTracker {
 
 			// Locking skipped as we are in VS Code
 			if (!lockResult.acquired && lockResult.skipped) {
-				console.log("Skipping Checkpoints lock - VS Code")
+				Logger.log("Skipping Checkpoints lock - VS Code")
 			}
 
 			if (lockResult.acquired) {
@@ -358,15 +360,15 @@ class CheckpointTracker {
 
 			const gitPath = await getShadowGitPath(this.cwdHash)
 			const git = simpleGit(path.dirname(gitPath))
-			console.debug(`Using shadow git at: ${gitPath}`)
+			Logger.debug(`Using shadow git at: ${gitPath}`)
 			await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
-			console.debug(`Successfully reset to checkpoint: ${commitHash}`)
+			Logger.debug(`Successfully reset to checkpoint: ${commitHash}`)
 
 			const durationMs = Math.round(performance.now() - startTime)
 			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_RESTORE", false, commitHash)
 			telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
 		} catch (error) {
-			console.error("Failed to reset to checkpoint:", {
+			Logger.error("Failed to reset to checkpoint:", {
 				taskId: this.taskId,
 				commitHash,
 				error,
@@ -408,20 +410,37 @@ class CheckpointTracker {
 		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
-		console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
+		Logger.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
 
 		// Stage all changes so that untracked files appear in diff summary
 		await this.gitOperations.addCheckpointFiles(git)
 
 		const cleanRhs = rhsHash ? this.cleanCommitHash(rhsHash) : undefined
 		const diffRange = cleanRhs ? `${this.cleanCommitHash(lhsHash)}..${cleanRhs}` : this.cleanCommitHash(lhsHash)
-		console.info(`Diff range: ${diffRange}`)
+		Logger.info(`Diff range: ${diffRange}`)
 		const diffSummary = await git.diffSummary([diffRange])
 
 		const result = []
 		for (const file of diffSummary.files) {
 			const filePath = file.file
 			const absolutePath = path.join(this.cwd, filePath)
+
+			// For extensionless files or dotfiles: exclude from diff result if binary
+			const lastDotIndex = filePath.lastIndexOf(".")
+			const lastSlashIndex = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"))
+			const ext = lastDotIndex > lastSlashIndex ? filePath.substring(lastDotIndex).toLowerCase() : ""
+			const isDotfile = lastDotIndex !== -1 && lastDotIndex === lastSlashIndex + 1
+
+			if (!ext || isDotfile) {
+				try {
+					const isBinary = await isBinaryFile(absolutePath).catch(() => false)
+					if (isBinary) {
+						continue
+					}
+				} catch {
+					continue
+				}
+			}
 
 			let beforeContent = ""
 			try {
@@ -473,7 +492,7 @@ class CheckpointTracker {
 		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
-		console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
+		Logger.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
 
 		// Stage all changes so that untracked files appear in diff summary
 		await this.gitOperations.addCheckpointFiles(git)

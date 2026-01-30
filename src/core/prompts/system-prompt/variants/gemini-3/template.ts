@@ -22,6 +22,10 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
+{{${SystemPromptSection.SKILLS}}}
+
+====
+
 {{${SystemPromptSection.EDITING_FILES}}}
 
 

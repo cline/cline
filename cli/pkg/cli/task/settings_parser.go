@@ -290,12 +290,12 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 			return err
 		}
 		settings.ActModeAwsBedrockCustomSelected = boolPtr(val)
-	case "hooks_enabled":
+	case "azure_identity":
 		val, err := parseBool(value)
 		if err != nil {
 			return err
 		}
-		settings.HooksEnabled = boolPtr(val)
+		settings.AzureIdentity = boolPtr(val)
 
 	// Integer fields
 	case "request_timeout_ms":

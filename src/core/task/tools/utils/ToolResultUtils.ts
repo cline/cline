@@ -1,10 +1,9 @@
-import { ApiHandler } from "@core/api"
 import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
-import { Logger } from "@/services/logging/Logger"
 import { ClineAsk } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
@@ -20,7 +19,6 @@ export class ToolResultUtils {
 		block: ToolUse,
 		userMessageContent: any[],
 		toolDescription: (block: ToolUse) => string,
-		_api: ApiHandler,
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {

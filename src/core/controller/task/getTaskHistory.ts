@@ -1,4 +1,5 @@
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
+import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
 import { Controller } from ".."
 
@@ -111,7 +112,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			totalCount,
 		})
 	} catch (error) {
-		console.error("Error in getTaskHistory:", error)
+		Logger.error("Error in getTaskHistory:", error)
 		throw error
 	}
 }

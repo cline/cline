@@ -1,6 +1,8 @@
 import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -58,7 +60,7 @@ export class AskSageHandler implements ApiHandler {
 	private apiKey: string
 
 	constructor(options: AskSageHandlerOptions) {
-		console.log("init api url", options.asksageApiUrl, askSageDefaultURL)
+		Logger.log("init api url", options.asksageApiUrl, askSageDefaultURL)
 		this.options = options
 		this.apiKey = options.asksageApiKey || ""
 		this.apiUrl = options.asksageApiUrl || askSageDefaultURL
@@ -95,10 +97,7 @@ export class AskSageHandler implements ApiHandler {
 			// Make request to AskSage API
 			const response = await fetch(`${this.apiUrl}/query`, {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"x-access-tokens": this.apiKey,
-				},
+				headers: this.headers(),
 				body: JSON.stringify(request),
 			})
 
@@ -156,15 +155,12 @@ export class AskSageHandler implements ApiHandler {
 		try {
 			const response = await fetch(`${this.apiUrl}/count-monthly-tokens`, {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"x-access-tokens": this.apiKey,
-				},
+				headers: this.headers(),
 				body: JSON.stringify({ app_name: "asksage" }),
 			})
 
 			if (!response.ok) {
-				console.error("Failed to fetch AskSage usage", await response.text())
+				Logger.error("Failed to fetch AskSage usage", await response.text())
 				return undefined
 			}
 
@@ -177,7 +173,7 @@ export class AskSageHandler implements ApiHandler {
 				outputTokens: 0,
 			}
 		} catch (error) {
-			console.error("Error fetching AskSage usage:", error)
+			Logger.error("Error fetching AskSage usage:", error)
 			return undefined
 		}
 	}
@@ -191,6 +187,14 @@ export class AskSageHandler implements ApiHandler {
 		return {
 			id: askSageDefaultModelId,
 			info: askSageModels[askSageDefaultModelId],
+		}
+	}
+
+	private headers() {
+		return {
+			"Content-Type": "application/json",
+			"x-access-tokens": this.apiKey,
+			...buildExternalBasicHeaders(),
 		}
 	}
 }

@@ -2,8 +2,10 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GenerateContentConfig, GoogleGenAI } from "@google/genai"
 import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
+import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -43,6 +45,7 @@ export class AIhubmixHandler implements ApiHandler {
 					baseURL: this.options.baseURL,
 					defaultHeaders: {
 						"APP-Code": this.options.appCode,
+						...buildExternalBasicHeaders(),
 					},
 				})
 			} catch (error) {
@@ -63,6 +66,7 @@ export class AIhubmixHandler implements ApiHandler {
 					baseURL: `${this.options.baseURL}/v1`,
 					defaultHeaders: {
 						"APP-Code": this.options.appCode,
+						...buildExternalBasicHeaders(),
 					},
 				})
 			} catch (error) {
@@ -86,6 +90,7 @@ export class AIhubmixHandler implements ApiHandler {
 							// @ts-expect-error
 							"APP-Code": this.options.appCode,
 							Authorization: `Bearer ${this.options.apiKey ?? ""}`,
+							...buildExternalBasicHeaders(),
 						},
 					},
 				})
@@ -144,12 +149,15 @@ export class AIhubmixHandler implements ApiHandler {
 		const client = this.ensureAnthropicClient()
 		const modelId = this.options.modelId || "claude-3-5-sonnet-20241022"
 
+		// Sanitize messages to remove Cline-specific fields like call_id that are not allowed by Anthropic API
+		const sanitizedMessages = sanitizeAnthropicMessages(messages, false)
+
 		const stream = await client.messages.create({
 			model: modelId,
 			temperature: 0,
 			max_tokens: this.options.modelInfo?.maxTokens || 8192,
 			system: [{ text: systemPrompt, type: "text" }],
-			messages,
+			messages: sanitizedMessages,
 			stream: true,
 		})
 
@@ -255,7 +263,7 @@ export class AIhubmixHandler implements ApiHandler {
 		const stream = await client.chat.completions.create(fixedRequestBody)
 
 		for await (const chunk of stream as any) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",

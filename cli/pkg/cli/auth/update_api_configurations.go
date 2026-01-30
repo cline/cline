@@ -54,6 +54,7 @@ type ProviderFields struct {
 	// Provider-specific additional model ID fields
 	PlanModeProviderSpecificModelIDField string // e.g., "planModeOpenRouterModelId"
 	ActModeProviderSpecificModelIDField  string // e.g., "actModeOpenRouterModelId"
+	UseProfileField                      string // e.g., "awsUseProfile" (for bedrock) (optional, empty if not applicable)
 }
 
 // GetProviderFields returns the field mapping for a given provider
@@ -96,6 +97,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 
 	case cline.ApiProvider_BEDROCK:
 		return ProviderFields{
+			UseProfileField:                      "awsUseProfile",
 			APIKeyField:                          "awsAccessKey",
 			PlanModeModelIDField:                 "planModeApiModelId",
 			ActModeModelIDField:                  "actModeApiModelId",
@@ -170,6 +172,17 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeModelIDField:                  "actModeApiModelId",
 			PlanModeProviderSpecificModelIDField: "planModeNousResearchModelId",
 			ActModeProviderSpecificModelIDField:  "actModeNousResearchModelId",
+		}, nil
+
+	case cline.ApiProvider_VERCEL_AI_GATEWAY:
+		return ProviderFields{
+			APIKeyField:                          "vercelAiGatewayApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeModelInfoField:               "planModeVercelAiGatewayModelInfo",
+			ActModeModelInfoField:                "actModeVercelAiGatewayModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeVercelAiGatewayModelId",
+			ActModeProviderSpecificModelIDField:  "actModeVercelAiGatewayModelId",
 		}, nil
 
 	default:
@@ -289,6 +302,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.HicapApiKey = value
 	case "nousResearchApiKey":
 		apiConfig.NousResearchApiKey = value
+	case "vercelAiGatewayApiKey":
+		apiConfig.VercelAiGatewayApiKey = value
 	}
 }
 
@@ -316,6 +331,9 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeNousResearchModelId":
 		apiConfig.PlanModeNousResearchModelId = value
 		apiConfig.ActModeNousResearchModelId = value
+	case "planModeVercelAiGatewayModelId":
+		apiConfig.PlanModeVercelAiGatewayModelId = value
+		apiConfig.ActModeVercelAiGatewayModelId = value
 	}
 }
 
@@ -356,6 +374,9 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 		if openRouterInfo, ok := modelInfo.(*cline.OpenRouterModelInfo); ok {
 			apiConfig.PlanModeOpenRouterModelInfo = openRouterInfo
 			apiConfig.ActModeOpenRouterModelInfo = openRouterInfo
+		} else if ocaInfo, ok := modelInfo.(*cline.OcaModelInfo); ok {
+			apiConfig.PlanModeOcaModelInfo = ocaInfo
+			apiConfig.ActModeOcaModelInfo = ocaInfo
 		}
 	}
 
@@ -424,6 +445,9 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 		if openRouterInfo, ok := updates.ModelInfo.(*cline.OpenRouterModelInfo); ok {
 			apiConfig.PlanModeOpenRouterModelInfo = openRouterInfo
 			apiConfig.ActModeOpenRouterModelInfo = openRouterInfo
+		} else if ocaInfo, ok := updates.ModelInfo.(*cline.OcaModelInfo); ok {
+			apiConfig.PlanModeOcaModelInfo = ocaInfo
+			apiConfig.ActModeOcaModelInfo = ocaInfo
 		}
 	}
 
