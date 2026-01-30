@@ -421,7 +421,7 @@ const HistoryViewItem = ({
 					<div
 						className="p-3 rounded text-[10px]"
 						style={{
-							backgroundColor: "color-mix(in srgb, var(--vscode-input-background) 50%, transparent)",
+							backgroundColor: "#212121",
 						}}>
 						<div className="flex flex-col gap-1 text-[10px]">
 							<div className="flex justify-between items-center text-[10px]">
