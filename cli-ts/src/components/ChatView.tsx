@@ -525,7 +525,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					section: cmd.section || "default",
 					cliCompatible: true,
 				}))
-				setAvailableCommands(sortCommandsWorkflowsFirst([...cliCommands, ...cliOnlyCommands]))
+				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(cliCommands)])
 			} catch {
 				// Fallback: commands will be empty, menu won't show
 			}

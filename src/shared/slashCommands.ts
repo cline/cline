@@ -13,8 +13,20 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "deep-planning",
+		description: "Create a comprehensive implementation plan before coding",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "smol",
 		description: "Condenses your current context window",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "subagent",
+		description: "Invoke a Cline CLI subagent for focused research tasks",
 		section: "default",
 		cliCompatible: true,
 	},
@@ -27,18 +39,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "reportbug",
 		description: "Create a Github issue with Cline",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
 		section: "default",
 		cliCompatible: true,
 	},
@@ -81,7 +81,7 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 	},
 	{
 		name: "exit",
-		description: "Exit the CLI",
+		description: "Alternative to Ctrl+C",
 		section: "default",
 		cliCompatible: true,
 	},
