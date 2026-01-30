@@ -23,6 +23,12 @@ import { applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
+import {
+	FeaturedModelPicker,
+	getFeaturedModelAtIndex,
+	getFeaturedModelMaxIndex,
+	isBrowseAllSelected,
+} from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OrganizationPicker } from "./OrganizationPicker"
@@ -119,6 +125,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
 		initialMode === "model-picker" ? "actModelId" : null,
 	)
+	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(false)
+	const [featuredModelIndex, setFeaturedModelIndex] = useState(0)
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
@@ -638,7 +646,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			// For model ID fields, check if we should use the model picker
 			if ((item.key === "actModelId" || item.key === "planModelId") && hasModelPicker(provider)) {
 				setPickingModelKey(item.key as "actModelId" | "planModelId")
-				setIsPickingModel(true)
+				// For Cline provider, show featured models first
+				if (provider === "cline") {
+					setFeaturedModelIndex(0)
+					setIsPickingFeaturedModel(true)
+				} else {
+					setIsPickingModel(true)
+				}
 				return
 			}
 			// For language field, use the language picker
@@ -998,6 +1012,34 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 				return
 			}
 
+			// Featured model picker mode (Cline provider)
+			if (isPickingFeaturedModel) {
+				const maxIndex = getFeaturedModelMaxIndex()
+
+				if (key.escape) {
+					setIsPickingFeaturedModel(false)
+					setPickingModelKey(null)
+				} else if (key.upArrow) {
+					setFeaturedModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
+				} else if (key.downArrow) {
+					setFeaturedModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
+				} else if (key.return) {
+					if (isBrowseAllSelected(featuredModelIndex)) {
+						// Switch to full ModelPicker
+						setIsPickingFeaturedModel(false)
+						setIsPickingModel(true)
+					} else {
+						const selectedModel = getFeaturedModelAtIndex(featuredModelIndex)
+						if (selectedModel && pickingModelKey) {
+							handleModelSelect(selectedModel.id)
+							setIsPickingFeaturedModel(false)
+							setPickingModelKey(null)
+						}
+					}
+				}
+				return
+			}
+
 			// Model picker mode - escape to close, input is handled by ModelPicker
 			if (isPickingModel) {
 				if (key.escape) {
@@ -1174,6 +1216,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						<Text color="gray">Press any key to continue</Text>
 					</Box>
 				</Box>
+			)
+		}
+
+		if (isPickingFeaturedModel && pickingModelKey) {
+			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
+			return (
+				<FeaturedModelPicker
+					helpText="Arrows to navigate, Enter to select, Esc to cancel"
+					selectedIndex={featuredModelIndex}
+					title={`Select: ${label}`}
+				/>
 			)
 		}
 
