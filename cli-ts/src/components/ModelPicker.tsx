@@ -6,7 +6,9 @@
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React, { useEffect, useMemo, useState } from "react"
+import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
 import {
+	type ApiProvider,
 	anthropicDefaultModelId,
 	anthropicModels,
 	bedrockDefaultModelId,
@@ -19,19 +21,23 @@ import {
 	groqModels,
 	mistralDefaultModelId,
 	mistralModels,
+	openAiCodexDefaultModelId,
+	openAiCodexModels,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	xaiDefaultModelId,
 	xaiModels,
 } from "@/shared/api"
+import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
-import { fetchOpenRouterModels, getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
+import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
 import { SearchableList, SearchableListItem } from "./SearchableList"
 
 // Map providers to their static model lists and defaults
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
 	anthropic: { models: anthropicModels, defaultId: anthropicDefaultModelId },
 	"openai-native": { models: openAiNativeModels, defaultId: openAiNativeDefaultModelId },
+	"openai-codex": { models: openAiCodexModels, defaultId: openAiCodexDefaultModelId },
 	gemini: { models: geminiModels, defaultId: geminiDefaultModelId },
 	bedrock: { models: bedrockModels, defaultId: bedrockDefaultModelId },
 	deepseek: { models: deepSeekModels, defaultId: deepSeekDefaultModelId },
@@ -62,28 +68,31 @@ export function getModelList(provider: string): string[] {
 
 interface ModelPickerProps {
 	provider: string
+	controller: any
 	onChange: (modelId: string) => void
 	onSubmit: (modelId: string) => void
 	isActive?: boolean
 }
 
-export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, onChange, onSubmit, isActive = true }) => {
+export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, onChange, onSubmit, isActive = true }) => {
 	const [isLoading, setIsLoading] = useState(false)
 	const [asyncModels, setAsyncModels] = useState<string[]>([])
 
-	// Fetch OpenRouter models when needed
+	// Fetch OpenRouter models when needed using shared core function
 	useEffect(() => {
 		if (usesOpenRouterModels(provider)) {
 			setIsLoading(true)
-			fetchOpenRouterModels()
+			refreshOpenRouterModels(controller)
 				.then((models) => {
-					setAsyncModels(models)
+					const modelIds = Object.keys(models).sort((a, b) => a.localeCompare(b))
+					const filtered = filterOpenRouterModelIds(modelIds, provider as ApiProvider)
+					setAsyncModels(filtered)
 				})
 				.finally(() => {
 					setIsLoading(false)
 				})
 		}
-	}, [provider])
+	}, [provider, controller])
 
 	const modelList = useMemo(() => {
 		if (usesOpenRouterModels(provider)) {

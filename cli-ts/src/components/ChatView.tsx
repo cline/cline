@@ -126,7 +126,6 @@ import {
 	checkAndWarnRipgrepMissing,
 	extractMentionQuery,
 	type FileSearchResult,
-	getRipgrepInstallInstructions,
 	insertMention,
 	searchWorkspaceFiles,
 } from "../utils/file-search"
@@ -135,7 +134,7 @@ import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { shutdownEvent } from "../vscode-shim"
-import { ActionButtons, type ButtonActionType, getButtonConfig } from "./ActionButtons"
+import { ActionButtons, type ButtonActionType, getButtonConfig, getVisibleButtons } from "./ActionButtons"
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
@@ -371,6 +370,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Track when we're exiting to hide UI elements before exit
 	const [isExiting, setIsExiting] = useState(false)
 
+	// Task switch handling: when switching tasks via /history, we clear the terminal and
+	// increment a counter used as the root Box's key. This forces React to remount the tree,
+	// giving us a fresh Static instance. Mirrors how App.tsx handles resize with resizeKey.
+	const [taskSwitchKey, setTaskSwitchKey] = useState(0)
+	const prevFirstMessageTs = useRef<number | null>(null)
+
 	// Listen for shutdown event (Ctrl+C) to hide UI before exit
 	useEffect(() => {
 		const subscription = shutdownEvent.event(() => {
@@ -414,12 +419,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
 	}, [mode, activePanel])
 
-	const toggleMode = useCallback(() => {
+	const toggleMode = useCallback(async () => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
 		setMode(newMode)
-		const stateManager = StateManager.get()
-		stateManager.setGlobalState("mode", newMode)
-	}, [mode])
+		await ctrl.togglePlanActMode(newMode)
+	}, [mode, ctrl])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
@@ -429,7 +433,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const { prompt, imagePaths } = parseImagesFromInput(textInput)
 	const mentionInfo = useMemo(() => extractMentionQuery(textInput), [textInput])
-	const slashInfo = useMemo(() => extractSlashQuery(textInput), [textInput])
+	const slashInfo = useMemo(() => extractSlashQuery(textInput, cursorPos), [textInput, cursorPos])
 	const filteredCommands = useMemo(
 		() => filterCommands(availableCommands, slashInfo.query),
 		[availableCommands, slashInfo.query],
@@ -465,8 +469,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Load existing task when taskId is provided
 	useEffect(() => {
 		if (!taskId) return
-
 		if (!ctrl) return
+		// Prevent duplicate loads after resize. The resize fix remounts components via
+		// resizeKey, but the controller's task persists. Skip if already loaded.
+		if (ctrl.task?.taskId === taskId) return
 
 		// Load the task by ID
 		showTaskWithId(ctrl, StringRequest.create({ value: taskId })).catch((error) => {
@@ -530,6 +536,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// Combine command messages with their output (like webview does)
 		return combineCommandSequences(filtered)
 	}, [messages])
+
+	// Detect task switches by watching first message timestamp change.
+	// When user selects a different task from /history, the messages array updates with
+	// the new task's messages. We clear the terminal first, then increment the key to
+	// trigger a re-render. The clear must happen before setState so the new render isn't wiped.
+	const firstMessageTs = displayMessages[0]?.ts ?? null
+	useEffect(() => {
+		if (prevFirstMessageTs.current !== null && firstMessageTs !== null && prevFirstMessageTs.current !== firstMessageTs) {
+			process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback, cursor home
+			setTaskSwitchKey((k) => k + 1) // Trigger remount after clear
+		}
+		prevFirstMessageTs.current = firstMessageTs
+	}, [firstMessageTs])
 
 	// Split messages into completed (for Static) and current (for dynamic region)
 	const { completedMessages, currentMessage } = useMemo(() => {
@@ -1026,11 +1045,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			textInput === "" &&
 			!isYoloSuppressed(yolo, pendingAsk?.ask as ClineAsk | undefined)
 		) {
-			if (input === "1" && buttonConfig.primaryAction) {
-				handleButtonAction(buttonConfig.primaryAction, true)
-				return
+			const { hasPrimary, hasSecondary } = getVisibleButtons(buttonConfig)
+
+			if (input === "1") {
+				// "1" triggers primary if shown, otherwise secondary if it's the only button
+				if (hasPrimary && buttonConfig.primaryAction) {
+					handleButtonAction(buttonConfig.primaryAction, true)
+					return
+				} else if (hasSecondary && !hasPrimary && buttonConfig.secondaryAction) {
+					handleButtonAction(buttonConfig.secondaryAction, false)
+					return
+				}
 			}
-			if (input === "2" && buttonConfig.secondaryAction) {
+			if (input === "2" && hasPrimary && hasSecondary && buttonConfig.secondaryAction) {
+				// "2" only works when both buttons are shown
 				handleButtonAction(buttonConfig.secondaryAction, false)
 				return
 			}
@@ -1206,7 +1234,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}
 
 	return (
-		<Box flexDirection="column" width="100%">
+		<Box flexDirection="column" key={taskSwitchKey} width="100%">
 			{/* Static content - rendered once, stays above dynamic region */}
 			<Static items={staticItems}>
 				{(item) => {
@@ -1250,14 +1278,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				{currentMessage && (
 					<Box paddingX={1} width="100%">
 						<ChatMessage isStreaming message={currentMessage} mode={mode} />
-					</Box>
-				)}
-
-				{/* Ripgrep warning if needed */}
-				{showRipgrepWarning && (
-					<Box marginTop={1}>
-						<Text color="yellow">Warning: ripgrep not found - file search will be slower. </Text>
-						<Text color="gray">Install: {getRipgrepInstallInstructions()}</Text>
 					</Box>
 				)}
 
@@ -1329,6 +1349,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							query={mentionInfo.query}
 							results={fileResults}
 							selectedIndex={selectedIndex}
+							showRipgrepWarning={showRipgrepWarning}
 						/>
 					</Box>
 				)}
