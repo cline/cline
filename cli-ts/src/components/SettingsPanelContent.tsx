@@ -93,12 +93,6 @@ const FEATURE_SETTINGS = {
 		label: "Skills",
 		description: "Enable reusable agent instructions",
 	},
-	autoApproveAll: {
-		stateKey: "yoloModeToggled" as const,
-		default: false,
-		label: "Auto-approve all",
-		description: "Automatically approve all actions (Shift+Tab)",
-	},
 } as const
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS
