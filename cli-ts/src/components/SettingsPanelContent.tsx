@@ -24,7 +24,7 @@ import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
 import { LanguagePicker } from "./LanguagePicker"
-import { hasModelPicker, ModelPicker } from "./ModelPicker"
+import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -886,7 +886,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 
 	// Handle Bedrock configuration complete
 	const handleBedrockComplete = useCallback(
-		async (bedrockConfig: BedrockConfig) => {
+		(bedrockConfig: BedrockConfig) => {
 			const config: Record<string, unknown> = {
 				actModeApiProvider: "bedrock",
 				planModeApiProvider: "bedrock",
@@ -908,17 +908,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
 
 			stateManager.setApiConfiguration(config as Record<string, string>)
-			await stateManager.flushPendingState()
 
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
-
+			// Close Bedrock config first, then flush state async
 			setProvider("bedrock")
 			setIsConfiguringBedrock(false)
 			setPendingProvider(null)
+
+			// Flush state and rebuild API handler in background
+			stateManager.flushPendingState().then(() => {
+				if (controller?.task) {
+					const currentMode = stateManager.getGlobalSettingsKey("mode")
+					const apiConfig = stateManager.getApiConfiguration()
+					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+				}
+			})
 		},
 		[stateManager, controller],
 	)
