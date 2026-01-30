@@ -73,13 +73,16 @@ const CredentialInput: React.FC<{
 
 	const displayValue = isPassword && value ? "•".repeat(value.length) : value
 
+	// Combine hint and placeholder into description shown above input
+	const description = hint || (placeholder ? `e.g. ${placeholder}` : undefined)
+
 	return (
 		<Box flexDirection="column">
 			<Text color="white">{label}</Text>
-			{hint && <Text color="gray">{hint}</Text>}
+			{description && <Text color="gray">{description}</Text>}
 			<Text> </Text>
 			<Box>
-				<Text color="white">{displayValue || placeholder || ""}</Text>
+				<Text color="white">{displayValue}</Text>
 				<Text inverse> </Text>
 			</Box>
 			<Text> </Text>
@@ -217,14 +220,17 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 			} else if (step === "options") {
 				if (key.escape) {
 					goBack()
-				} else if (key.return) {
-					finish()
-				} else if (input === " ") {
-					if (optionIndex === 0) setCrossRegion((prev) => !prev)
+				} else if (key.tab || key.return || input === " ") {
+					// Tab/Enter/Space on checkbox toggles it, on Done button finishes
+					if (optionIndex === 0) {
+						setCrossRegion((prev) => !prev)
+					} else {
+						finish()
+					}
 				} else if (key.upArrow) {
-					setOptionIndex(0)
+					setOptionIndex((prev) => (prev > 0 ? prev - 1 : 1))
 				} else if (key.downArrow) {
-					setOptionIndex(0)
+					setOptionIndex((prev) => (prev < 1 ? prev + 1 : 0))
 				}
 			}
 		},
@@ -242,7 +248,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 							{i === authMethodIndex ? "❯ " : "  "}
 							{method.label}
 						</Text>
-						<Box paddingLeft={4}>
+						<Box paddingLeft={2}>
 							<Text color="gray">{method.description}</Text>
 						</Box>
 					</Box>
@@ -361,7 +367,12 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 					{crossRegion ? "[x]" : "[ ]"} Use cross-region inference
 				</Text>
 				<Text> </Text>
-				<Text color="gray">Space to toggle, Enter to continue, Esc to go back</Text>
+				<Text color={optionIndex === 1 ? COLORS.primaryBlue : undefined}>
+					{optionIndex === 1 ? "❯ " : "  "}
+					Done
+				</Text>
+				<Text> </Text>
+				<Text color="gray">Arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
 		)
 	}
