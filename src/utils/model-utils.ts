@@ -18,6 +18,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai-codex",
 		"baseten",
 		"vercel-ai-gateway",
+		"deepseek",
 		"oca",
 	].some((id) => providerId === id)
 }
@@ -130,6 +131,12 @@ export function isDevstralModelFamily(id: string): boolean {
 	return modelId.includes("devstral")
 }
 
+export function isTrinityModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	// OpenRouter: arcee-ai/trinity-large-preview:free and other trinity variants
+	return modelId.includes("arcee-ai/trinity") || modelId.includes("trinity")
+}
+
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
@@ -138,6 +145,11 @@ export function isGemini3ModelFamily(id: string): boolean {
 function isDeepSeek32ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("deepseek") && modelId.includes("3.2") && !modelId.includes("speciale")
+}
+
+export function isDeepSeekNativeModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
 }
 
 export function isNextGenModelFamily(id: string): boolean {
@@ -150,7 +162,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
-		isDeepSeek32ModelFamily(modelId)
+		isDeepSeek32ModelFamily(modelId) ||
+		isDeepSeekNativeModelFamily(modelId)
 	)
 }
 

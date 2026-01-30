@@ -31,7 +31,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
-	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion } = useExtensionState()
+	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, dismissedBanners } =
+		useExtensionState()
 
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
@@ -91,11 +92,18 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [navigateToWorktrees])
 
 	/**
-	 * Check if a banner has been dismissed based on its version
+	 * Check if a banner has been dismissed based on its ID or legacy version
 	 */
 	const isBannerDismissed = useCallback(
 		(bannerId: string): boolean => {
-			// !! Do not keep tracking the banner versions like this. !!
+			// Check if banner is in the dismissed banners list (new approach)
+			if (
+				dismissedBanners?.some((dismissed: { bannerId: string; dismissedAt: number }) => dismissed.bannerId === bannerId)
+			) {
+				return true
+			}
+
+			// Legacy version-based tracking (deprecated)
 			if (bannerId.startsWith("info-banner")) {
 				return (lastDismissedInfoBannerVersion ?? 0) >= 1
 			}
@@ -107,7 +115,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			}
 			return false
 		},
-		[lastDismissedInfoBannerVersion, lastDismissedModelBannerVersion, lastDismissedCliBannerVersion],
+		[dismissedBanners, lastDismissedInfoBannerVersion, lastDismissedModelBannerVersion, lastDismissedCliBannerVersion],
 	)
 
 	/**
@@ -165,6 +173,13 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.ShowApiSettings:
+					if (action.arg) {
+						// Pre-select the provider before navigating
+						handleFieldsChange({
+							planModeApiProvider: action.arg as any,
+							actModeApiProvider: action.arg as any,
+						})
+					}
 					navigateToSettings("api-config")
 					break
 

@@ -4,7 +4,7 @@ import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -31,10 +31,9 @@ export class XAIHandler implements ApiHandler {
 				throw new Error("xAI API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://api.x.ai/v1",
 					apiKey: this.options.xaiApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating xAI client: ${error.message}`)
@@ -86,7 +85,7 @@ export class XAIHandler implements ApiHandler {
 				if (!shouldSkipReasoningForModel(modelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						reasoning: delta.reasoning_content,
 					}
 				}
@@ -97,9 +96,8 @@ export class XAIHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

@@ -9,6 +9,7 @@ import {
 	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -63,6 +64,7 @@ export class GeminiHandler implements ApiHandler {
 	private ensureClient(): GoogleGenAI {
 		if (!this.client) {
 			const options = this.options as GeminiHandlerOptions
+			const externalHeaders = buildExternalBasicHeaders()
 
 			if (options.isVertex) {
 				// Initialize with Vertex AI configuration
@@ -74,6 +76,9 @@ export class GeminiHandler implements ApiHandler {
 						vertexai: true,
 						project,
 						location,
+						httpOptions: {
+							headers: externalHeaders,
+						},
 					})
 				} catch (error) {
 					throw new Error(`Error creating Gemini Vertex AI client: ${error.message}`)
@@ -85,7 +90,12 @@ export class GeminiHandler implements ApiHandler {
 				}
 
 				try {
-					this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+					this.client = new GoogleGenAI({
+						apiKey: options.geminiApiKey,
+						httpOptions: {
+							headers: externalHeaders,
+						},
+					})
 				} catch (error) {
 					throw new Error(`Error creating Gemini client: ${error.message}`)
 				}

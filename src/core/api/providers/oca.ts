@@ -8,6 +8,7 @@ import {
 	OCI_HEADER_OPC_REQUEST_ID,
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { OcaModelInfo } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -35,12 +36,14 @@ export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 export class OcaHandler implements ApiHandler {
 	protected options: OcaHandlerOptions
 	protected client: OpenAI | undefined
+	protected externalHeaders: Record<string, string> = {}
 
 	constructor(options: OcaHandlerOptions) {
 		this.options = options
 	}
 
-	protected initializeClient(options: OcaHandlerOptions) {
+	protected initializeClient(options: OcaHandlerOptions): OpenAI {
+		const externalHeaders = buildExternalBasicHeaders()
 		return new (class OCIOpenAI extends OpenAI {
 			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
@@ -50,7 +53,7 @@ export class OcaHandler implements ApiHandler {
 				opts.headers ??= {}
 				// OCA Headers
 				const ociHeaders = await createOcaHeaders(token, options.taskId!)
-				opts.headers = { ...opts.headers, ...ociHeaders }
+				opts.headers = { ...opts.headers, ...externalHeaders, ...ociHeaders }
 				Logger.log(`Making request with customer opc-request-id: ${opts.headers?.["opc-request-id"]}`)
 				return super.prepareOptions(opts)
 			}
@@ -113,12 +116,13 @@ export class OcaHandler implements ApiHandler {
 		if (!token) {
 			throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
 		}
+		const externalHeaders = buildExternalBasicHeaders()
 		const ociHeaders = await createOcaHeaders(token, this.options.taskId!)
 		Logger.log(`Making calculate cost request with customer opc-request-id: ${ociHeaders["opc-request-id"]}`)
 		try {
 			const response = await fetch(`${client.baseURL}/spend/calculate`, {
 				method: "POST",
-				headers: ociHeaders,
+				headers: { ...externalHeaders, ...ociHeaders },
 				body: JSON.stringify({
 					completion_response: {
 						model: modelId,

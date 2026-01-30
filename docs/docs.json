@@ -117,7 +117,13 @@
 							"features/auto-compact",
 							"features/background-edit",
 							"features/checkpoints",
-							"features/cline-rules",
+							{
+								"group": "Cline Rules",
+								"pages": [
+									"features/cline-rules/overview",
+									"features/cline-rules/conditional-rules"
+								]
+							},
 							{
 								"group": "Commands & Shortcuts",
 								"pages": [
@@ -424,6 +430,14 @@
 		{
 			"source": "/enterprise-solutions/team-management/roles-and-permissions",
 			"destination": "/enterprise-solutions/team-management/managing-members"
+		},
+		{
+			"source": "/features/cline-rules",
+			"destination": "/features/cline-rules/overview"
+		},
+		{
+			"source": "/features/conditional-rules",
+			"destination": "/features/cline-rules/conditional-rules"
 		}
 	],
 	"search": {

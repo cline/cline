@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { MinimaxModelId, ModelInfo, minimaxDefaultModelId, minimaxModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -30,12 +31,14 @@ export class MinimaxHandler implements ApiHandler {
 				throw new Error("MiniMax API key is required")
 			}
 			try {
+				const externalHeaders = buildExternalBasicHeaders()
 				this.client = new Anthropic({
 					apiKey: this.options.minimaxApiKey,
 					baseURL:
 						this.options.minimaxApiLine === "china"
 							? "https://api.minimaxi.com/anthropic"
 							: "https://api.minimax.io/anthropic",
+					defaultHeaders: externalHeaders,
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
