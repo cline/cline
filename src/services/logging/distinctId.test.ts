@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import * as nodeMachineId from "node-machine-id"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { _GENERATED_MACHINE_ID_KEY, getDistinctId, initializeDistinctId, setDistinctId } from "@/services/logging/distinctId"
 
 describe("distinctId", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockContext: vscode.ExtensionContext
 	let mockGlobalState: any
+	let hostProviderInitialized: boolean = false
 
 	const MOCK_GLOBAL_STATE_ID = "existing-distinct-id-123"
 	const MOCK_MACHINE_ID = "machine-id-456"
@@ -19,6 +21,36 @@ describe("distinctId", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
+
+		// Initialize HostProvider if not already done
+		if (!HostProvider.isInitialized()) {
+			const mockHostBridge: any = {
+				workspaceClient: {},
+				envClient: {
+					getHostVersion: sandbox.stub().resolves({
+						clineVersion: "1.0.0",
+						platform: "darwin",
+						clineType: "vscode",
+					}),
+				},
+				windowClient: {},
+				diffClient: {},
+			}
+
+			HostProvider.initialize(
+				() => null as any, // createWebviewProvider
+				() => null as any, // createDiffViewProvider
+				() => null as any, // createCommentReviewController
+				() => null as any, // createTerminalManager
+				mockHostBridge,
+				() => {}, // logToChannel
+				async () => "http://localhost", // getCallbackUrl
+				async () => "", // getBinaryLocation
+				"/test/extension", // extensionFsPath
+				"/test/storage", // globalStorageFsPath
+			)
+			hostProviderInitialized = true
+		}
 
 		// Mock global state
 		mockGlobalState = { get: sandbox.stub(), update: sandbox.stub() }
@@ -32,6 +64,12 @@ describe("distinctId", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+
+		// Reset HostProvider if we initialized it
+		if (hostProviderInitialized) {
+			HostProvider.reset()
+			hostProviderInitialized = false
+		}
 	})
 
 	it("should use id from extension globalstate if it exists", async () => {
