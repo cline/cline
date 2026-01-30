@@ -33,15 +33,21 @@ export const FEATURED_MODELS = {
 	] as FeaturedModel[],
 	free: [
 		{
+			id: "moonshotai/kimi-k2.5",
+			name: "MoonshotAI Kimi K2.5",
+			description: "Topping benchmarks leading open source",
+			label: "FREE",
+		},
+		{
 			id: "kwaipilot/kat-coder-pro",
 			name: "KAT Coder Pro",
 			description: "Advanced agentic coding model",
 			label: "FREE",
 		},
 		{
-			id: "mistralai/devstral-2512:free",
-			name: "Devstral",
-			description: "Mistral's coding model",
+			id: "arcee-ai/trinity-large-preview:free",
+			name: "Trinity Large Preview",
+			description: "US built open source coding model",
 			label: "FREE",
 		},
 	] as FeaturedModel[],
