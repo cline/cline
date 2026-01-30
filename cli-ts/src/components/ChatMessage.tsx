@@ -528,6 +528,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		}
 	}
 
+	// New task request from assistant
+	if (type === "ask" && ask === "new_task" && text) {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={COLORS.primaryBlue}>
+					<Text bold color={COLORS.primaryBlue}>
+						Cline wants to start a new task:
+					</Text>
+				</DotRow>
+				<Box flexDirection="column" paddingLeft={2}>
+					<Text color="gray">{text}</Text>
+				</Box>
+			</Box>
+		)
+	}
+
 	// Skip other message types
 	return null
 }

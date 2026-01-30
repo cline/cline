@@ -260,6 +260,7 @@ const YOLO_INTERACTIVE_ASKS = new Set<ClineAsk>([
 	"plan_mode_respond",
 	"resume_task",
 	"resume_completed_task",
+	"new_task",
 ])
 
 function isYoloSuppressed(yolo: boolean, ask: ClineAsk | undefined): boolean {
@@ -752,10 +753,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					sendAskResponse("yesButtonClicked")
 					break
 				case "new_task":
-					// For now, signal to start a new task (user can type new prompt)
-					setRespondedToAsk(pendingAsk?.ts || null)
-					setTextInput("")
-					setCursorPos(0)
+					if (pendingAsk?.ask === "new_task") {
+						// Model called new_task tool - create new task with context
+						setRespondedToAsk(pendingAsk.ts)
+						setTextInput("")
+						setCursorPos(0)
+						await ctrl.initTask(pendingAsk.text || "")
+					} else {
+						// From resume_completed_task - just clear and let user type new prompt
+						setRespondedToAsk(pendingAsk?.ts || null)
+						setTextInput("")
+						setCursorPos(0)
+						await ctrl.clearTask()
+					}
 					break
 				case "cancel":
 					handleCancel()
