@@ -149,9 +149,31 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
-							model.{" "}
-							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
+							5M installs, <strong>$1M Open Source Grant program</strong>, and the story of how we got here{" "}
+							<a
+								href="https://cline.bot/blog/5m-installs-1m-open-source-grant-program"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								Read it
+							</a>
+						</li>
+						<li className="mb-2">
+							New free models:
+							<ul className="list-none pl-5 mt-1">
+								<li>
+									<strong>Arcee Trinity Large open weight</strong>{" "}
+									<InlineModelLink
+										label="Try free"
+										modelId="cline:arcee-ai/trinity-large-preview:free"
+										type="model"
+									/>
+								</li>
+								<li>
+									<strong>Omega Potato stealth</strong>{" "}
+									<InlineModelLink label="Try free" modelId="cline:stealth/omega-potato" type="model" />
+								</li>
+							</ul>
 						</li>
 						<li className="mb-2">
 							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
@@ -166,11 +188,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 								Connect
 							</span>
-						</li>
-						<li>
-							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
-							there are plenty models in our free tier.{" "}
-							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
 						</li>
 					</ul>
 
