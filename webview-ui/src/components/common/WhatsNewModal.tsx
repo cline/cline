@@ -54,16 +54,24 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	)
 
 	const navigateToModelPicker = useCallback(
-		(initialModelTab: "recommended" | "free") => {
+		(initialModelTab: "recommended" | "free", modelId?: string) => {
 			// Switch to Cline provider first so the model picker tab works
-			handleFieldsChange({
+			// Optionally also set the model if provided
+			const updates: Record<string, any> = {
 				planModeApiProvider: "cline",
 				actModeApiProvider: "cline",
-			})
+			}
+			if (modelId) {
+				updates.planModeOpenRouterModelId = modelId
+				updates.actModeOpenRouterModelId = modelId
+				updates.planModeOpenRouterModelInfo = openRouterModels[modelId]
+				updates.actModeOpenRouterModelInfo = openRouterModels[modelId]
+			}
+			handleFieldsChange(updates)
 			onClose()
 			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 		},
-		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
 	const setOpenAiCodexProvider = useCallback(() => {
@@ -105,13 +113,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 	type InlineModelLinkProps =
 		| { type: "model"; modelId: string; label: string }
-		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
+		| { type: "picker"; pickerTab: "recommended" | "free"; modelId: string; label: string }
 
 	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
 		if (props.type === "picker") {
 			return (
 				<span
-					onClick={() => navigateToModelPicker(props.pickerTab)}
+					onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
 					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 					{props.label}
 				</span>
@@ -165,20 +173,31 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 									<strong>Arcee Trinity Large open weight</strong>{" "}
 									<InlineModelLink
 										label="Try free"
-										modelId="cline:arcee-ai/trinity-large-preview:free"
-										type="model"
+										modelId="arcee-ai/trinity-large-preview:free"
+										pickerTab="free"
+										type="picker"
 									/>
 								</li>
 								<li>
-									<strong>Omega Potato stealth</strong>{" "}
-									<InlineModelLink label="Try free" modelId="cline:stealth/omega-potato" type="model" />
+									<strong>Giga Potato stealth</strong>{" "}
+									<InlineModelLink
+										label="Try free"
+										modelId="stealth/giga-potato"
+										pickerTab="free"
+										type="picker"
+									/>
 								</li>
 							</ul>
 						</li>
 						<li className="mb-2">
 							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
 							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+							<InlineModelLink
+								label="Try now"
+								modelId="moonshotai/kimi-k2.5"
+								pickerTab="recommended"
+								type="picker"
+							/>
 						</li>
 						<li className="mb-2">
 							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
