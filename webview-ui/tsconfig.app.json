@@ -9,6 +9,7 @@
 			"DOM",
 			"DOM.Iterable"
 		],
+		"types": [],
 		"module": "ESNext",
 		"skipLibCheck": true,
 
