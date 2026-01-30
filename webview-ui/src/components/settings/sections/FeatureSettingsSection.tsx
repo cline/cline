@@ -122,6 +122,7 @@ const experimentalFeatures: FeatureToggle[] = [
 		stateKey: "focusChainEnabled",
 		settingKey: "focusChainSettings",
 		nestedKey: "enabled",
+		isExperimental: true,
 	},
 	{
 		id: "parallel-tasks",
@@ -265,6 +266,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
+		parallelTasksEnabled,
 	}
 
 	// Visibility lookup for features with feature flags

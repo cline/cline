@@ -20,7 +20,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 
 		// Check if this task is already active (running in background)
 		const activeTask = controller.getActiveTask(id)
-		if (activeTask) {
+		if (activeTask && !historyItem) {
 			// Task is already running - just switch to it without showing resume message
 			await controller.switchTask(id)
 
@@ -28,7 +28,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			await sendChatButtonClickedEvent()
 
 			// Return task data from history
-			const taskData = historyItem || (await controller.getTaskWithId(id)).historyItem
+			const taskData = (await controller.getTaskWithId(id)).historyItem
 			return TaskResponse.create({
 				id,
 				task: taskData.task || "",

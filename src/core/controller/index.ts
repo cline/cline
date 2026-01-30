@@ -268,9 +268,14 @@ export class Controller {
 		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
 		if (!isParallelTasksEnabled) {
 			// ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-			await this.clearTask()
-			// Don't track active tasks when PARALLEL_TASKS is not enabled
+			if (this.task) {
+				// Clear task settings cache when task ends
+				await this.stateManager.clearTaskSettings()
+				await this.task.abortTask()
+			}
 			this.activeTasks.clear()
+			this.task = undefined
+			await this.postStateToWebview()
 		}
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -357,9 +362,7 @@ export class Controller {
 		})
 
 		// Track the task in the active tasks map
-		if (isParallelTasksEnabled) {
-			this.activeTasks.set(taskId, this.task)
-		}
+		this.activeTasks.set(this.task.taskId, this.task)
 
 		if (historyItem) {
 			this.task.resumeTaskFromHistory()
@@ -453,9 +456,9 @@ export class Controller {
 		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
 
 		// Determine which task to cancel
-		const targetTaskId = taskId || this.task?.taskId
+		const targetTaskId = this.task?.taskId || taskId
 
-		if (!isParallelTasksEnabled && targetTaskId && !this.activeTasks.has(targetTaskId) && this.task) {
+		if (targetTaskId && !this.activeTasks.has(targetTaskId) && this.task) {
 			this.activeTasks.set(targetTaskId, this.task)
 		}
 
@@ -508,13 +511,17 @@ export class Controller {
 				Logger.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
-			// Remove from active tasks
-			if (targetTaskId) {
-				this.activeTasks.delete(targetTaskId)
+			if (isParallelTasksEnabled) {
+				// Remove from active tasks
+				this.activeTasks.delete(targetTask.taskId)
+			} else {
+				await this.clearTask()
+				// Abort the task as only one task can be run when parallel task is not enabled.
+				await this.task?.abortTask()
 			}
 
 			// Only re-initialize if we found a history item and this is the current task, otherwise just clear
-			if (historyItem && targetTask === this.task) {
+			if (historyItem) {
 				// Re-initialize task to keep it visible in UI with resume button
 				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
 			} else if (targetTask === this.task) {
@@ -914,10 +921,10 @@ export class Controller {
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
 		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
-		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
+		const parallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
 		const currentTaskId = this.task?.taskId
 		const currentTaskItem = currentTaskId ? (taskHistory || []).find((item) => item.id === currentTaskId) : undefined
-		const currentTask = currentTaskItem && isParallelTasksEnabled ? this.activeTasks.get(currentTaskId!) : this.task
+		const currentTask = currentTaskItem && parallelTasksEnabled ? this.activeTasks.get(currentTaskId!) : this.task
 		const clineMessages = currentTask?.messageStateHandler.getClineMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
@@ -1001,13 +1008,15 @@ export class Controller {
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
 			// Multi-task support: include all active tasks with status
-			activeTasks: Array.from(this.activeTasks.entries()).map(([taskId, task]) => {
-				const lastMessage = task?.messageStateHandler?.getClineMessages()?.at(-1)
-				return {
-					taskId,
-					status: getTaskStatus(task?.taskState, lastMessage),
-				}
-			}),
+			activeTasks: parallelTasksEnabled
+				? Array.from(this.activeTasks.entries()).map(([taskId, task]) => {
+						const lastMessage = task?.messageStateHandler?.getClineMessages()?.at(-1)
+						return {
+							taskId,
+							status: getTaskStatus(task?.taskState, lastMessage),
+						}
+					})
+				: [],
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
@@ -1038,6 +1047,7 @@ export class Controller {
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			banners,
 			openAiCodexIsAuthenticated,
+			parallelTasksEnabled,
 		}
 	}
 
@@ -1051,6 +1061,7 @@ export class Controller {
 				this.activeTasks.delete(this.task.taskId)
 			}
 		}
+
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
 	}
 
@@ -1060,15 +1071,19 @@ export class Controller {
 	 * @returns true if switch was successful, false otherwise
 	 */
 	async switchTask(taskId: string): Promise<boolean> {
-		const targetTask = this.activeTasks.get(taskId)
+		if (this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")) {
+			const targetTask = this.activeTasks.get(taskId)
 
-		if (!targetTask) {
-			Logger.error(`[Controller.switchTask] Task ${taskId} not found in active tasks`)
-			return false
+			if (!targetTask) {
+				Logger.error(`[Controller.switchTask] Task ${taskId} not found in active tasks`)
+				return false
+			}
+
+			// Update current task reference
+			this.task = targetTask
+		} else {
+			await this.getTaskWithId(taskId)
 		}
-
-		// Update current task reference
-		this.task = targetTask
 
 		await this.postStateToWebview()
 		return true
@@ -1080,7 +1095,10 @@ export class Controller {
 	 * @returns The Task instance or undefined if not found
 	 */
 	getActiveTask(taskId: string): Task | undefined {
-		return this.activeTasks.get(taskId) || this.task
+		if (this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")) {
+			return this.activeTasks.get(taskId) || this.task
+		}
+		return undefined
 	}
 
 	/**
@@ -1088,9 +1106,15 @@ export class Controller {
 	 * Keeps the current task active in the background (parallel task support)
 	 */
 	async prepareNewTask() {
-		// Just clear the current task reference without aborting
-		// The task remains in activeTasks and can be switched back to
-		this.task = undefined
+		if (this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")) {
+			// Just clear the current task reference without aborting
+			// The task remains in activeTasks and can be switched back to
+			this.task = undefined
+		} else {
+			// Abort current task as only one task can be run
+			// when parallel task is not enabled.
+			await this.clearTask()
+		}
 		await this.postStateToWebview()
 	}
 
@@ -1100,6 +1124,11 @@ export class Controller {
 	 * This is called automatically when posting state to webview to keep the map clean.
 	 */
 	private cleanupInactiveTasks(): void {
+		if (!this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")) {
+			this.activeTasks.clear()
+			return
+		}
+
 		// Store the task IDs that needs to be removed
 		// to avoid modifying the activeTasks map while iterating
 		const tasksToRemove: string[] = []
@@ -1122,6 +1151,15 @@ export class Controller {
 		for (const taskId of tasksToRemove) {
 			this.activeTasks.delete(taskId)
 		}
+	}
+
+	public async clearBackgroundActiveTasks() {
+		for (const [taskId, task] of this.activeTasks) {
+			if (!this.task || taskId !== this.task.taskId) {
+				await task.abortTask()
+			}
+		}
+		this.activeTasks.clear()
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance

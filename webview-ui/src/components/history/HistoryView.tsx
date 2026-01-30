@@ -200,7 +200,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
 
 		// Create a map of taskId to its index in activeTasks for quick lookup
-		const reversedActiveTasks = activeTasks ? [...activeTasks].reverse() : []
+		const reversedActiveTasks = activeTasks?.length ? [...activeTasks].reverse() : []
 		const activeTaskIndexMap = new Map(reversedActiveTasks?.map((task, index) => [task.taskId, index]) || [])
 
 		results.sort((a, b) => {

@@ -382,6 +382,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.enableParallelToolCalling !== undefined) {
 			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
+			if (request.enableParallelToolCalling === false) {
+				await controller.clearBackgroundActiveTasks()
+			}
 		}
 
 		if (request.optOutOfRemoteConfig !== undefined) {
