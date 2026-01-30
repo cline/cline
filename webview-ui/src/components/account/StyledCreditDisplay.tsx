@@ -44,7 +44,7 @@ const useAnimatedCredits = (targetValue: number, duration: number = 660) => {
 // Custom component to handle styled credit display
 export const StyledCreditDisplay = ({ balance }: { balance: number }) => {
 	const animatedValue = useAnimatedCredits(formatCreditsBalance(balance))
-	const formatted = (animatedValue ?? 0).toFixed(4)
+	const formatted = animatedValue.toFixed(4)
 	const parts = formatted.split(".")
 	const wholePart = parts[0]
 	const decimalPart = parts[1] || "0000"

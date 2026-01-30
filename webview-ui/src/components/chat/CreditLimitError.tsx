@@ -56,14 +56,12 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 				<div className="mb-3">
 					{currentBalance != null ? (
 						<div className="text-foreground">
-							Current Balance: <span className="font-bold">{(currentBalance ?? 0).toFixed(2)}</span>
+							Current Balance: <span className="font-bold">{currentBalance.toFixed(2)}</span>
 						</div>
 					) : null}
-					{totalSpent != null ? (
-						<div className="text-foreground">Total Spent: {(totalSpent ?? 0).toFixed(2)}</div>
-					) : null}
+					{totalSpent != null ? <div className="text-foreground">Total Spent: {totalSpent.toFixed(2)}</div> : null}
 					{totalPromotions != null ? (
-						<div className="text-foreground">Total Promotions: {(totalPromotions ?? 0).toFixed(2)}</div>
+						<div className="text-foreground">Total Promotions: {totalPromotions.toFixed(2)}</div>
 					) : null}
 				</div>
 			</div>
