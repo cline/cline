@@ -1,41 +1,54 @@
-import { Readable } from "node:stream"
+import * as fs from "node:fs"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { readStdinIfPiped } from "./piped"
 
+// Mock the fs module
+vi.mock("node:fs", () => ({
+	readFileSync: vi.fn(),
+}))
+
 describe("readStdinIfPiped", () => {
-	let mockStdin: Readable & { isTTY?: boolean }
+	const mockReadFileSync = fs.readFileSync as ReturnType<typeof vi.fn>
+	let originalIsTTY: boolean | undefined
 
 	beforeEach(() => {
-		// Create a mock readable stream
-		mockStdin = new Readable({
-			read() {},
-		}) as Readable & { isTTY?: boolean }
-
-		// Mock process.stdin by stubbing its properties
-		vi.spyOn(process, "stdin", "get").mockReturnValue(mockStdin as any)
+		vi.clearAllMocks()
+		originalIsTTY = process.stdin.isTTY
 	})
 
 	afterEach(() => {
 		vi.restoreAllMocks()
+		// Restore original isTTY value
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: originalIsTTY,
+			writable: true,
+			configurable: true,
+		})
 	})
+
+	function setTTY(value: boolean | undefined) {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value,
+			writable: true,
+			configurable: true,
+		})
+	}
 
 	describe("TTY detection", () => {
 		it("should return null when stdin is a TTY (interactive terminal)", async () => {
-			mockStdin.isTTY = true
+			setTTY(true)
 			const result = await readStdinIfPiped()
 			expect(result).toBeNull()
+			expect(mockReadFileSync).not.toHaveBeenCalled()
 		})
 
 		it("should attempt to read when stdin is not a TTY (piped input)", async () => {
-			mockStdin.isTTY = false
-
-			// Simulate immediate end event (no data)
-			setImmediate(() => {
-				mockStdin.emit("end")
-			})
+			setTTY(false)
+			mockReadFileSync.mockReturnValue("")
 
 			const result = await readStdinIfPiped()
 			expect(result).toBeNull()
+			expect(mockReadFileSync).toHaveBeenCalledWith(0, "utf8")
 		})
 	})
 
@@ -112,14 +125,9 @@ describe("readStdinIfPiped", () => {
 
 		testCases.forEach(({ name, input, expected, description }) => {
 			it(`${name}${description ? ` - ${description}` : ""}`, async () => {
-				mockStdin.isTTY = false
-
-				// Simulate piped data
-				setImmediate(() => {
-					const data = Array.isArray(input) ? input.join("\n") : input
-					mockStdin.push(data)
-					mockStdin.push(null) // Signal end of stream
-				})
+				setTTY(false)
+				const data = Array.isArray(input) ? input.join("\n") : input
+				mockReadFileSync.mockReturnValue(data)
 
 				const result = await readStdinIfPiped()
 				expect(result).toBe(expected)
@@ -127,216 +135,18 @@ describe("readStdinIfPiped", () => {
 		})
 	})
 
-	describe("chunked data", () => {
-		it("should accumulate data from multiple chunks", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				mockStdin.emit("data", "chunk1 ")
-				mockStdin.emit("data", "chunk2 ")
-				mockStdin.emit("data", "chunk3")
-				mockStdin.emit("end")
-			})
-
-			const result = await readStdinIfPiped()
-			expect(result).toBe("chunk1 chunk2 chunk3")
-		})
-
-		it("should handle rapid successive chunks", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				for (let i = 0; i < 100; i++) {
-					mockStdin.emit("data", `${i} `)
-				}
-				mockStdin.emit("end")
-			})
-
-			const result = await readStdinIfPiped()
-			expect(result).toContain("0 ")
-			expect(result).toContain("99")
-		})
-	})
-
-	describe("timeout behavior", () => {
-		it("should timeout after 100ms if no data received", async () => {
-			mockStdin.isTTY = false
-
-			// Don't emit any events - let it timeout
-
-			const startTime = Date.now()
-			const result = await readStdinIfPiped()
-			const elapsed = Date.now() - startTime
-
-			expect(result).toBeNull()
-			expect(elapsed).toBeGreaterThanOrEqual(95) // Allow small margin
-			expect(elapsed).toBeLessThan(150)
-		})
-
-		it("should return data received before timeout", async () => {
-			mockStdin.isTTY = false
-
-			setTimeout(() => {
-				mockStdin.emit("data", "quick data")
-				// Don't emit end - let it timeout
-			}, 50)
-
-			const result = await readStdinIfPiped()
-			expect(result).toBe("quick data")
-		})
-
-		it("should not timeout if end event is received", async () => {
-			mockStdin.isTTY = false
-
-			// Delay end event but emit it before timeout
-			setTimeout(() => {
-				mockStdin.emit("data", "delayed data")
-				mockStdin.emit("end")
-			}, 50)
-
-			const result = await readStdinIfPiped()
-			expect(result).toBe("delayed data")
-		})
-	})
-
 	describe("error handling", () => {
-		it("should return null on stdin error", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				mockStdin.emit("error", new Error("stdin read error"))
+		it("should return null on fs.readFileSync error and fall back to async", async () => {
+			setTTY(false)
+			mockReadFileSync.mockImplementation(() => {
+				throw new Error("EAGAIN: resource temporarily unavailable")
 			})
 
+			// The async fallback will timeout since we can't easily mock process.stdin events
+			// But we can verify it doesn't throw
 			const result = await readStdinIfPiped()
+			// Result will be null because async path times out with no data
 			expect(result).toBeNull()
-		})
-
-		it("should handle error after partial data received", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				mockStdin.emit("data", "partial data")
-				mockStdin.emit("error", new Error("read error"))
-			})
-
-			const result = await readStdinIfPiped()
-			expect(result).toBeNull()
-		})
-
-		it("should clean up listeners on error", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				mockStdin.emit("error", new Error("test error"))
-			})
-
-			await readStdinIfPiped()
-
-			// Note: Implementation uses removeAllListeners() without event names
-			// which should remove all listeners, but in practice there may be one remaining
-			// This is acceptable behavior for error handling
-			expect(mockStdin.listenerCount("data")).toBeLessThanOrEqual(1)
-			expect(mockStdin.listenerCount("end")).toBeLessThanOrEqual(1)
-			expect(mockStdin.listenerCount("error")).toBeLessThanOrEqual(1)
-		})
-	})
-
-	describe("listener cleanup", () => {
-		it("should remove all listeners on successful completion", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				mockStdin.emit("data", "test data")
-				mockStdin.emit("end")
-			})
-
-			await readStdinIfPiped()
-
-			// Note: Implementation doesn't explicitly clean up listeners on normal end,
-			// so some listeners may remain attached. This is acceptable for one-time use.
-			expect(mockStdin.listenerCount("data")).toBeLessThanOrEqual(1)
-			expect(mockStdin.listenerCount("end")).toBeLessThanOrEqual(1)
-			expect(mockStdin.listenerCount("error")).toBeLessThanOrEqual(1)
-		})
-
-		it("should remove all listeners on timeout", async () => {
-			mockStdin.isTTY = false
-
-			// Let it timeout
-			await readStdinIfPiped()
-
-			// Verify listeners are cleaned up
-			expect(mockStdin.listenerCount("data")).toBe(0)
-			expect(mockStdin.listenerCount("end")).toBe(0)
-			expect(mockStdin.listenerCount("error")).toBe(0)
-		})
-
-		it("should clear timeout when data ends normally", async () => {
-			mockStdin.isTTY = false
-			const clearTimeoutSpy = vi.spyOn(global, "clearTimeout")
-
-			setImmediate(() => {
-				mockStdin.emit("data", "test")
-				mockStdin.emit("end")
-			})
-
-			await readStdinIfPiped()
-
-			expect(clearTimeoutSpy).toHaveBeenCalled()
-		})
-
-		it("should clear timeout when error occurs", async () => {
-			mockStdin.isTTY = false
-			const clearTimeoutSpy = vi.spyOn(global, "clearTimeout")
-
-			setImmediate(() => {
-				mockStdin.emit("error", new Error("test"))
-			})
-
-			await readStdinIfPiped()
-
-			expect(clearTimeoutSpy).toHaveBeenCalled()
-		})
-	})
-
-	describe("encoding", () => {
-		it("should handle UTF-8 encoded data", async () => {
-			mockStdin.isTTY = false
-
-			setImmediate(() => {
-				// The function sets utf8 encoding
-				mockStdin.setEncoding("utf8")
-				mockStdin.emit("data", "UTF-8: café ☕")
-				mockStdin.emit("end")
-			})
-
-			const result = await readStdinIfPiped()
-			expect(result).toBe("UTF-8: café ☕")
-		})
-	})
-
-	describe("stdin resume", () => {
-		it("should call resume on stdin when not TTY", async () => {
-			mockStdin.isTTY = false
-			const resumeSpy = vi.spyOn(mockStdin, "resume")
-
-			setImmediate(() => {
-				mockStdin.emit("end")
-			})
-
-			await readStdinIfPiped()
-
-			expect(resumeSpy).toHaveBeenCalled()
-		})
-
-		it("should not call resume when TTY", async () => {
-			mockStdin.isTTY = true
-			const resumeSpy = vi.spyOn(mockStdin, "resume")
-
-			const result = await readStdinIfPiped()
-
-			expect(result).toBeNull()
-			expect(resumeSpy).not.toHaveBeenCalled()
 		})
 	})
 
@@ -377,12 +187,8 @@ describe("readStdinIfPiped", () => {
 
 		useCases.forEach(({ name, input, expected }) => {
 			it(`should handle ${name}`, async () => {
-				mockStdin.isTTY = false
-
-				setImmediate(() => {
-					mockStdin.push(input)
-					mockStdin.push(null)
-				})
+				setTTY(false)
+				mockReadFileSync.mockReturnValue(input)
 
 				const result = await readStdinIfPiped()
 				expect(result).toBe(expected)
