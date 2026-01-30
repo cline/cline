@@ -35,16 +35,15 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 				const showDescription = cmd.section === "default" || !cmd.section
 
 				return (
-					<Box flexDirection="column" key={cmd.name}>
-						<Box>
-							<Text color={isSelected ? COLORS.primaryBlue : undefined}>
-								{isSelected ? "❯" : " "} /{cmd.name}
-							</Text>
-						</Box>
+					<Box flexWrap="nowrap" key={cmd.name}>
+						<Text color={isSelected ? COLORS.primaryBlue : undefined} wrap="truncate">
+							{isSelected ? "❯" : " "} /{cmd.name}
+						</Text>
 						{showDescription && cmd.description && (
-							<Box paddingLeft={3}>
-								<Text color="gray">{cmd.description}</Text>
-							</Box>
+							<Text color="gray" wrap="truncate">
+								{" "}
+								- {cmd.description}
+							</Text>
 						)}
 					</Box>
 				)
