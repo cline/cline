@@ -170,8 +170,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 									/>
 								</li>
 								<li>
-									<strong>Omega Potato stealth</strong>{" "}
-									<InlineModelLink label="Try free" modelId="cline:stealth/omega-potato" type="model" />
+									<strong>Giga Potato stealth</strong>{" "}
+									<InlineModelLink label="Try free" modelId="cline:stealth/giga-potato" type="model" />
 								</li>
 							</ul>
 						</li>
