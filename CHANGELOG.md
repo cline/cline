@@ -1,15 +1,26 @@
 # Changelog
 
-## 3.55.1
+## [3.56.0]
 
-- 03aac0c: added social icons and appropriate links to the new version modal
-- 808dd42: Lock the LiteLLM Api Key input when it's remotely configured
-- 2670a4a: updated welcome card content and added ability to close each card
-- 35ecf3e: Adding promp optimization for Trinity models including tool calling optimizations!
-- e018199: Fix LiteLLM thinking configuration not showing for models (#8342)
-- e8bc6b9: Added changes to the feature settings UI
-- 741bea5: feat(hooks): Run hooks from cwd of the workspace repo root.
-- 7adfcab: Add Vercel AI Gateway and Cline API key support to CLI authentication
+### Added
+
+- __CLI authentication:__ Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- __New model:__ Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- __Prompt variant:__ Added Trinity Large prompt variant for improved tool-calling support
+- __OpenTelemetry:__ Added support for custom headers on metrics and logs endpoints
+- __Social links:__ Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+
+### Fixed
+
+- __LiteLLM:__ Fixed thinking configuration not appearing for reasoning-capable models
+- __OpenTelemetry:__ Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
+- __CLI auth:__ Fixed `cline auth` displaying incorrect provider information after configuration
+
+### Changed
+
+- __Hooks:__ Hook scripts now run from the workspace repository root instead of filesystem root
+- __Default settings:__ Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- __Settings UI:__ Refreshed feature settings section with collapsible design
 
 ## [3.55.0]
 
