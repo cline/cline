@@ -8,7 +8,7 @@
 
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineAskUseMcpServer, ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
@@ -336,7 +336,98 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		)
 	}
 
+	// MCP approval (ask) or acknowledgment (say)
+	if ((type === "ask" && ask === "use_mcp_server") || say === "use_mcp_server") {
+		const isAsk = type === "ask"
+		const parsed = text
+			? jsonParseSafe<ClineAskUseMcpServer>(text, {
+					type: undefined as ClineAskUseMcpServer["type"] | undefined,
+					serverName: "unknown server",
+					toolName: undefined as string | undefined,
+					arguments: undefined as string | undefined,
+					uri: undefined as string | undefined,
+				})
+			: undefined
+
+		const serverName = parsed?.serverName || "unknown server"
+		const actionLabel = isAsk ? "Cline wants to use MCP" : "Cline used MCP"
+		const targetLine =
+			parsed?.type === "access_mcp_resource"
+				? `resource: ${parsed?.uri || "unknown"}`
+				: parsed?.type === "use_mcp_tool"
+					? `tool: ${parsed?.toolName || "unknown"}`
+					: "tool: unknown"
+
+		let argsLines: string[] = []
+		if (parsed?.arguments && parsed.arguments.trim() && parsed.arguments !== "{}") {
+			let formattedArgs = parsed.arguments
+			try {
+				formattedArgs = JSON.stringify(JSON.parse(parsed.arguments), null, 2)
+			} catch {
+				// Keep raw string if not valid JSON
+			}
+			argsLines = formatToolResult(formattedArgs, 10)
+		}
+
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text>
+						<Text color={toolColor}>{actionLabel}</Text>
+						<Text>{`: ${serverName}`}</Text>
+					</Text>
+				</DotRow>
+				<Box flexDirection="column" marginLeft={2} width="100%">
+					<ResultRow isFirst>
+						<Text color="gray">{targetLine}</Text>
+					</ResultRow>
+					{argsLines.length > 0 && (
+						<Box flexDirection="column" paddingLeft={3} width="100%">
+							<Text color="gray">args:</Text>
+							{argsLines.map((line, idx) => (
+								<Text color="gray" key={`mcp-args-${idx}`}>
+									{line}
+								</Text>
+							))}
+						</Box>
+					)}
+				</Box>
+			</Box>
+		)
+	}
+
+	// MCP response
+	if (say === "mcp_server_response" && text) {
+		const lines = formatToolResult(text, 8)
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text color={toolColor}>MCP response</Text>
+				</DotRow>
+				<Box flexDirection="column" marginLeft={2} width="100%">
+					{lines.map((line, idx) => (
+						<ResultRow isFirst={idx === 0} key={idx}>
+							<Text color="gray">{line}</Text>
+						</ResultRow>
+					))}
+				</Box>
+			</Box>
+		)
+	}
+
 	// Error messages
+	if (say === "clineignore_error") {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="red">
+					<Text color="red" wrap="wrap">
+						Cline tried to access <Text bold>{text}</Text> which is blocked by the .clineignore file.
+					</Text>
+				</DotRow>
+			</Box>
+		)
+	}
+
 	if (say === "error" || (type === "ask" && ask === "api_req_failed")) {
 		// Try to parse error message if it's JSON
 		let errorMessage = text || "Unknown error"
@@ -485,6 +576,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		)
 	}
 
+	// MCP notifications
+	if (say === "mcp_notification" && text) {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<Text>
+						<Text color={toolColor}>MCP Notification</Text>
+						<Text>: {truncate(text, 120)}</Text>
+					</Text>
+				</DotRow>
+			</Box>
+		)
+	}
+
 	// Info messages
 	if (say === "info") {
 		return (
@@ -526,6 +631,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		}
 	}
 
+	// Act mode response (non-blocking progress update)
+	if (type === "ask" && ask === "act_mode_respond" && text) {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={toolColor}>
+					<MarkdownText color={toolColor}>{text}</MarkdownText>
+				</DotRow>
+			</Box>
+		)
+	}
+
 	// Plan mode response
 	if (type === "ask" && ask === "plan_mode_respond" && text) {
 		const parsed = jsonParseSafe(text, { response: undefined as string | undefined })
@@ -540,6 +656,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		}
 	}
 
+	// Mistake limit reached (ask)
+	if (type === "ask" && ask === "mistake_limit_reached") {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color="red">
+					<Text color="red" wrap="wrap">
+						<Text bold>Error</Text>: {text || "Mistake limit reached."}
+					</Text>
+				</DotRow>
+			</Box>
+		)
+	}
+
 	// New task request from assistant
 	if (type === "ask" && ask === "new_task" && text) {
 		return (
@@ -547,6 +676,54 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				<DotRow color={COLORS.primaryBlue}>
 					<Text bold color={COLORS.primaryBlue}>
 						Cline wants to start a new task:
+					</Text>
+				</DotRow>
+				<Box flexDirection="column" paddingLeft={2}>
+					<Text color="gray">{text}</Text>
+				</Box>
+			</Box>
+		)
+	}
+
+	// Condense conversation request
+	if (type === "ask" && ask === "condense" && text) {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={COLORS.primaryBlue}>
+					<Text bold color={COLORS.primaryBlue}>
+						Cline wants to condense your conversation:
+					</Text>
+				</DotRow>
+				<Box flexDirection="column" paddingLeft={2}>
+					<Text color="gray">{text}</Text>
+				</Box>
+			</Box>
+		)
+	}
+
+	// Summarize task request
+	if (type === "ask" && ask === "summarize_task" && text) {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={COLORS.primaryBlue}>
+					<Text bold color={COLORS.primaryBlue}>
+						Cline wants to summarize the task:
+					</Text>
+				</DotRow>
+				<Box flexDirection="column" paddingLeft={2}>
+					<Text color="gray">{text}</Text>
+				</Box>
+			</Box>
+		)
+	}
+
+	// Report bug request
+	if (type === "ask" && ask === "report_bug" && text) {
+		return (
+			<Box flexDirection="column" marginBottom={1} width="100%">
+				<DotRow color={COLORS.primaryBlue}>
+					<Text bold color={COLORS.primaryBlue}>
+						Cline wants to create a Github issue:
 					</Text>
 				</DotRow>
 				<Box flexDirection="column" paddingLeft={2}>
