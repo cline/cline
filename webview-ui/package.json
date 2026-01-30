@@ -5,8 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"build": "vite build",
-		"build:test": "vite build -- --dev-build",
+		"build": "tsc -b && vite build",
+		"build:test": "tsc -b && vite build -- --dev-build",
 		"preview": "vite preview",
 		"lint": "biome lint --changed --no-errors-on-unmatched",
 		"test": "vitest run",
