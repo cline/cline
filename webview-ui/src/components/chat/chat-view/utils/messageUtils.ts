@@ -16,7 +16,6 @@ const LOW_STAKES_TOOLS = new Set([
 	"listFilesRecursive",
 	"listCodeDefinitionNames",
 	"searchFiles",
-	"subagent",
 ])
 
 /**

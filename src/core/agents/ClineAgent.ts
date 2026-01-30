@@ -27,7 +27,9 @@ export abstract class ClineAgent {
 	private static activeAgents = new Set<ClineAgent>()
 
 	constructor(private config: ClineAgentConfig) {
-		this.client = config.client ?? new ClineHandler({ openRouterModelId: config.modelId, ...config.apiParams })
+		const modelClient = new ClineHandler({ openRouterModelId: config.modelId, ...config.apiParams })
+		const mainClient = config.client ?? modelClient
+		this.client = !config.modelId ? modelClient : mainClient
 		this.maxIterations = config.maxIterations ?? 3
 		this.prompt = config.prompt
 		this.abortSignal = config.abortSignal
@@ -156,7 +158,6 @@ export abstract class ClineAgent {
 
 		return {
 			toolCalls,
-			contextFiles: [], // Deprecated, kept for compatibility
 			resultContent,
 			isReadyToAnswer,
 		}
@@ -181,8 +182,6 @@ export abstract class ClineAgent {
 		const totalCalls = entries.reduce((sum, [, inputs]) => sum + inputs.length, 0)
 		const duration = performance.now() - startTime
 		await this.onIterationUpdate({
-			iteration: this.currentIteration,
-			maxIterations: this.maxIterations,
 			message: `Executed ${totalCalls} tool calls in ${duration.toFixed(0)}ms`,
 		})
 
@@ -195,37 +194,42 @@ export abstract class ClineAgent {
 	 * @returns Promise resolving to array of tool results
 	 */
 	async executeTools(toolCalls: unknown[]): Promise<unknown[]> {
-		// Group tool calls by toolTag
-		const toolsByTag = new Map<string, string[]>()
-		for (const toolCall of toolCalls) {
-			if (typeof toolCall === "object" && toolCall !== null) {
-				const { toolTag, input } = toolCall as { toolTag: string; input: string }
-				const existing = toolsByTag.get(toolTag)
-				if (existing) {
-					existing.push(input)
-				} else {
-					toolsByTag.set(toolTag, [input])
+		try {
+			// Group tool calls by toolTag
+			const toolsByTag = new Map<string, string[]>()
+			for (const toolCall of toolCalls) {
+				if (typeof toolCall === "object" && toolCall !== null) {
+					const { toolTag, input } = toolCall as { toolTag: string; input: string }
+					const existing = toolsByTag.get(toolTag)
+					if (existing) {
+						existing.push(input)
+					} else {
+						toolsByTag.set(toolTag, [input])
+					}
 				}
 			}
-		}
 
-		// Execute all tools in parallel
-		const resultsByTag = await this.executeToolsByTag(toolsByTag)
+			// Execute all tools in parallel
+			const resultsByTag = await this.executeToolsByTag(toolsByTag)
 
-		// Reconstruct results in original order
-		const results: unknown[] = []
-		const indexByTag = new Map<string, number>()
-		for (const toolCall of toolCalls) {
-			if (typeof toolCall === "object" && toolCall !== null) {
-				const { toolTag } = toolCall as { toolTag: string; input: string }
-				const index = indexByTag.get(toolTag) ?? 0
-				const toolResults = resultsByTag.get(toolTag) as unknown[]
-				results.push(toolResults[index])
-				indexByTag.set(toolTag, index + 1)
+			// Reconstruct results in original order
+			const results: unknown[] = []
+			const indexByTag = new Map<string, number>()
+			for (const toolCall of toolCalls) {
+				if (typeof toolCall === "object" && toolCall !== null) {
+					const { toolTag } = toolCall as { toolTag: string; input: string }
+					const index = indexByTag.get(toolTag) ?? 0
+					const toolResults = resultsByTag.get(toolTag) as unknown[]
+					results.push(toolResults[index])
+					indexByTag.set(toolTag, index + 1)
+				}
 			}
-		}
 
-		return results
+			return results
+		} catch (error) {
+			Logger.error(`[ClineAgent] failed with ${error.toString()}`)
+			return []
+		}
 	}
 
 	/**
@@ -305,7 +309,6 @@ export abstract class ClineAgent {
 		for await (const msg of stream) {
 			// Check for cancellation during streaming
 			if (this.isAborted()) {
-				Logger.debug("Agent stream processing aborted")
 				break
 			}
 
@@ -316,8 +319,6 @@ export abstract class ClineAgent {
 			if (msg.type === "usage" && msg.totalCost) {
 				this.cost += msg.totalCost
 				await this.onIterationUpdate({
-					iteration: this.currentIteration,
-					maxIterations: this.maxIterations,
 					cost: msg.totalCost,
 				})
 			}
@@ -338,94 +339,93 @@ export abstract class ClineAgent {
 		for (let iteration = 0; iteration < this.maxIterations; iteration++) {
 			// Check for cancellation at the start of each iteration
 			if (this.isAborted()) {
-				Logger.debug("Agent execution aborted before iteration " + (iteration + 1))
+				Logger.debug("[ClineAgent] execution aborted before iteration " + (iteration + 1))
 				break
 			}
+			try {
+				this.currentIteration = iteration
 
-			this.currentIteration = iteration + 1
+				// Build context prompt and system prompt
+				const contextPrompt = this.buildContextPrompt(context, iteration)
+				const systemPrompt = this.buildSystemPrompt(userInput, contextPrompt)
 
-			// Build context prompt and system prompt
-			const contextPrompt = this.buildContextPrompt(context, iteration)
-			const systemPrompt = this.buildSystemPrompt(userInput, contextPrompt)
+				// Create messages
+				const messages: ClineStorageMessage[] = this.config.messages
+					? [...this.config.messages, { role: "user", content: userInput }]
+					: [{ role: "user", content: userInput }]
 
-			// Create messages
-			const messages: ClineStorageMessage[] = this.config.messages
-				? [...this.config.messages, { role: "user", content: userInput }]
-				: [{ role: "user", content: userInput }]
+				// Stream the LLM response
+				const stream = this.client.createMessage(systemPrompt, messages)
+				const fullResponse = await this.processStream(stream)
 
-			// Stream the LLM response
-			const stream = this.client.createMessage(systemPrompt, messages)
-			const fullResponse = await this.processStream(stream)
-
-			// Check for cancellation after streaming completes
-			if (this.isAborted()) {
-				Logger.debug("Agent execution aborted after streaming")
-				break
-			}
-
-			Logger.log(`Iteration ${this.currentIteration} response: ${fullResponse.substring(0, 200)}`)
-
-			// Extract actions from response
-			const actions = this.extractActions(fullResponse)
-
-			// Send iteration update
-			await this.onIterationUpdate({
-				iteration,
-				maxIterations: this.maxIterations,
-				actions,
-				context,
-			})
-
-			// If ready to answer and has context files, read them first
-			if (actions.isReadyToAnswer && actions.contextFiles.length > 0) {
-				Logger.log(
-					`Reading ${actions.contextFiles.length} context files before answering: ${actions.contextFiles.join(", ")}`,
-				)
-				// Add context files to filePaths so they're available in formatResult
-				for (const file of actions.contextFiles) {
-					context.filePaths.add(file)
+				// Check for cancellation after streaming completes
+				if (this.isAborted()) {
+					Logger.debug("[ClineAgent] execution aborted after streaming")
+					break
 				}
-				const fileContents = await this.readContextFiles(actions.contextFiles)
-				this.updateContextWithFiles(context, fileContents)
-				Logger.log("Agent determined it has enough context to answer.")
-				break
-			}
 
-			// If ready to answer without context files, break immediately
-			if (actions.isReadyToAnswer) {
-				Logger.log("Agent determined it has enough context to answer.")
-				break
-			}
+				Logger.debug(`[ClineAgent] ${this.config.callId} Iteration ${this.currentIteration} response:`, fullResponse)
 
-			// If no tool calls, end the loop
-			if (actions.toolCalls.length === 0) {
-				Logger.log("No tool calls generated, ending loop.")
-				break
-			}
+				// Extract actions from response
+				const actions = this.extractActions(fullResponse)
 
-			// Check for cancellation before tool execution
-			if (this.isAborted()) {
-				Logger.debug("Agent execution aborted before tool execution")
-				break
-			}
+				// Send iteration update
+				await this.onIterationUpdate({
+					actions,
+					context,
+				})
 
-			// Execute tools in parallel
-			Logger.log(`Executing ${actions.toolCalls.length} tool calls`)
-			const toolResults = await this.executeTools(actions.toolCalls)
+				// If ready to answer and has context files, read them first
+				if (actions.isReadyToAnswer && actions.resultContent.length > 0) {
+					Logger.debug(
+						`[ClineAgent] Reading ${actions.resultContent.length} files: ${actions.resultContent.join(", ")}`,
+					)
+					// Add context files to filePaths so they're available in formatResult
+					for (const file of actions.resultContent) {
+						context.filePaths.add(file)
+					}
+					const fileContents = await this.readContextFiles(actions.resultContent)
+					this.updateContextWithFiles(context, fileContents)
+					break
+				}
 
-			// Check for cancellation after tool execution
-			if (this.isAborted()) {
-				Logger.debug("Agent execution aborted after tool execution")
-				break
-			}
+				// If ready to answer without context files, break immediately
+				if (actions.isReadyToAnswer) {
+					Logger.log("Agent determined it has enough context to answer.")
+					break
+				}
 
-			// Update context with tool results
-			const foundNewContext = this.updateContextWithToolResults(context, actions.toolCalls, toolResults)
+				// If no tool calls, end the loop
+				if (actions.toolCalls.length === 0) {
+					Logger.log("No tool calls generated, ending loop.")
+					break
+				}
 
-			// Check if we should continue
-			if (!this.shouldContinue(context, foundNewContext, false)) {
-				Logger.log("Agent determined it should stop iterating.")
-				break
+				// Check for cancellation before tool execution
+				if (this.isAborted()) {
+					Logger.debug("Agent execution aborted before tool execution")
+					break
+				}
+
+				// Execute tools in parallel
+				const toolResults = await this.executeTools(actions.toolCalls)
+
+				// Check for cancellation after tool execution
+				if (this.isAborted()) {
+					Logger.debug("Agent execution aborted after tool execution")
+					break
+				}
+
+				// Update context with tool results
+				const foundNewContext = this.updateContextWithToolResults(context, actions.toolCalls, toolResults)
+
+				// Check if we should continue
+				if (!this.shouldContinue(context, foundNewContext, false)) {
+					Logger.log("Agent determined it should stop iterating.")
+					break
+				}
+			} catch (error) {
+				Logger.error("[ClineAgent] Error during agent iteration: ", error as Error)
 			}
 		}
 		const duration = performance.now() - startTime
@@ -435,28 +435,110 @@ export abstract class ClineAgent {
 		return this.formatResult(context)
 	}
 
+	/**
+	 * Formats tool calls into a human-readable status string.
+	 * Shows the actual queries/paths/commands being executed.
+	 */
+	private formatToolCallsStatus(toolCalls: unknown[]): string {
+		const MAX_INPUT_LENGTH = 50
+		const truncate = (str: string, maxLen: number) => (str.length > maxLen ? str.slice(0, maxLen - 1) + "…" : str)
+
+		// Group tool calls by type
+		const searches: string[] = []
+		const files: string[] = []
+		const commands: string[] = []
+		const webFetches: string[] = []
+
+		for (const call of toolCalls) {
+			if (typeof call === "object" && call !== null) {
+				const { toolTag, input } = call as { toolTag: string; input: string }
+				switch (toolTag) {
+					case "TOOLSEARCH":
+						searches.push(input)
+						break
+					case "TOOLFILE":
+						files.push(input)
+						break
+					case "TOOLBASH":
+						commands.push(input)
+						break
+					case "TOOLWEBFETCH":
+						webFetches.push(input)
+						break
+				}
+			}
+		}
+
+		const parts: string[] = []
+
+		// Show the most relevant action first with its actual input
+		if (searches.length > 0) {
+			const firstQuery = truncate(searches[0], MAX_INPUT_LENGTH)
+			if (searches.length === 1) {
+				parts.push(`Searching: "${firstQuery}"`)
+			} else {
+				parts.push(`Searching: "${firstQuery}" +${searches.length - 1} more`)
+			}
+		}
+
+		if (files.length > 0) {
+			// Show just filename, not full path
+			const fileName = files[0].split("/").pop() || files[0]
+			if (files.length === 1) {
+				parts.push(`Reading: ${fileName}`)
+			} else {
+				parts.push(`Reading: ${fileName} +${files.length - 1} more`)
+			}
+		}
+
+		if (commands.length > 0) {
+			const firstCmd = truncate(commands[0], MAX_INPUT_LENGTH)
+			if (commands.length === 1) {
+				parts.push(`Running: ${firstCmd}`)
+			} else {
+				parts.push(`Running: ${firstCmd} +${commands.length - 1} more`)
+			}
+		}
+
+		if (webFetches.length > 0) {
+			try {
+				const parsed = JSON.parse(webFetches[0])
+				const url = new URL(parsed.url).hostname
+				if (webFetches.length === 1) {
+					parts.push(`Fetching: ${url}`)
+				} else {
+					parts.push(`Fetching: ${url} +${webFetches.length - 1} more`)
+				}
+			} catch {
+				parts.push(`Fetching ${webFetches.length} URL${webFetches.length > 1 ? "s" : ""}`)
+			}
+		}
+
+		return parts.join(" | ")
+	}
+
 	private async onIterationUpdate(update: AgentIterationUpdate) {
 		// Build a partial message showing the progress
-		const progress = `[${update.iteration + 1}/${update.maxIterations}]`
+		const progress = `[${this.currentIteration + 1}/${this.maxIterations}]`
 		let statusText = progress
 
 		if (update.message) {
-			statusText += ` - ${update.message}`
+			statusText += ` ${update.message}`
 		}
 
 		if (update.actions) {
-			const toolCallCount = update.actions.toolCalls.length
-			const contextFileCount = update.actions.contextFiles.length
+			const contextFileCount = update.actions.resultContent.length
 
 			if (update.actions.isReadyToAnswer) {
-				statusText += ` - Ready to answer`
+				statusText += ` Ready to answer`
 				if (contextFileCount > 0) {
-					statusText += ` with ${contextFileCount} context${contextFileCount > 1 ? "s" : ""}`
+					statusText += ` with ${contextFileCount} file${contextFileCount > 1 ? "s" : ""}`
 				}
-			} else if (toolCallCount > 0) {
-				statusText += ` - Exploring ${toolCallCount} result${toolCallCount > 1 ? "s" : ""}`
+			} else if (update.actions.toolCalls.length > 0) {
+				statusText += ` ${this.formatToolCallsStatus(update.actions.toolCalls)}`
 			}
 		}
+
 		const partialMessage: ClineSayTool = {
 			tool: "subagent",
 			path: undefined,
@@ -465,14 +547,23 @@ export abstract class ClineAgent {
 			filePattern: this.prompt,
 			operationIsLocatedInWorkspace: true,
 		}
-		// Try to replace existing message content by ts, fall back to say if not found
-		const replaced = await this.taskConfig?.callbacks.replaceMessageContentByTs(
-			this.config.call_id,
+
+		// Try to replace existing message content by call id
+		const replaced = await this.taskConfig?.callbacks.replaceMessageContentByUid(
+			this.config.callId,
 			JSON.stringify(partialMessage),
+			!update.actions?.isReadyToAnswer,
 		)
+		// Fall back to creating a new partial message if ts not found
 		if (!replaced) {
-			// Fall back to creating a new partial message if ts not found
-			await this.taskConfig?.callbacks.say("tool", JSON.stringify(partialMessage), undefined, undefined, true)
+			await this.taskConfig?.callbacks.say(
+				"tool",
+				JSON.stringify(partialMessage),
+				undefined,
+				undefined,
+				update.actions?.isReadyToAnswer,
+				this.config.callId,
+			)
 		}
 	}
 }

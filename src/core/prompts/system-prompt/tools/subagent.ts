@@ -20,7 +20,12 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 2. Whether the agent should write code or just do research (search, file reads, etc.)
 3. Exactly what information should be returned in the agent's final response
 
-IMPORTANT: Each agent invocation is stateless - you cannot send follow-up messages. Make your prompt comprehensive and self-contained.`,
+IMPORTANT:
+- Each agent invocation is stateless - you cannot send follow-up messages. Make your prompt comprehensive and self-contained.
+- Each agent should have a UNIQUE, non-overlapping mission. Do NOT launch multiple agents that could search for the same things or perform similar work.
+- Before launching an agent, consider what other agents you're launching in parallel - ensure their tasks are distinct and won't duplicate effort.
+- Bad example: Agent 1 "find auth code", Agent 2 "find login handlers" - these overlap and will do redundant searches.
+- Good example: Agent 1 "find frontend auth components", Agent 2 "find backend API auth middleware" - distinct, non-overlapping scopes.`,
 		},
 		TASK_PROGRESS_PARAMETER,
 	],

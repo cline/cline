@@ -1,5 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
+import { nanoid } from "nanoid"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import {
@@ -225,8 +226,9 @@ class ToolUseHandler {
 		this.pendingToolUses.clear()
 	}
 
-	private createPendingToolUse(id: string, name: string, call_id?: string): PendingToolUse {
+	private createPendingToolUse(id: string, name: string, callId?: string): PendingToolUse {
 		const jsonParser = new JSONParser()
+		const call_id = callId || nanoid(8)
 		const pending: PendingToolUse = {
 			id,
 			name,

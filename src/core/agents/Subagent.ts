@@ -18,7 +18,7 @@ export const TASK_ACTIONS_TAGS = {
  */
 export class Subagent extends ClineAgent {
 	constructor(
-		call_id: number,
+		callId: string,
 		prompt: string,
 		taskConfig: TaskConfig,
 		maxIterations: number = 30,
@@ -27,9 +27,9 @@ export class Subagent extends ClineAgent {
 		abortSignal?: AbortSignal,
 	) {
 		super({
-			call_id,
+			callId,
 			client,
-			modelId: "", // Not used when client is provided
+			modelId: "moonshotai/kimi-k2.5", // Not used when client is provided
 			maxIterations,
 			prompt,
 			systemPrompt,
@@ -53,8 +53,9 @@ export class Subagent extends ClineAgent {
 		const MAX_RESULTS_TO_SHOW = 10
 		const contextParts: string[] = []
 		const successfulSearches: string[] = []
-		const unsuccessfulSearches: string[] = []
+		const failedSearches: { query: string; error?: string }[] = []
 		const successfulCommands: string[] = []
+		const failedCommands: { query: string; error?: string }[] = []
 
 		// Process search results
 		let shownSearchResults = 0
@@ -69,12 +70,14 @@ export class Subagent extends ClineAgent {
 						contextParts.push(`### Search: "${query}"\nFound results (truncated)`)
 					}
 				} else {
-					unsuccessfulSearches.push(query)
+					failedSearches.push({ query, error: result.error })
 				}
 			} else if (result.agent === "TOOLBASH") {
 				if (result.success) {
 					successfulCommands.push(query)
 					contextParts.push(`### Command: \`${query}\`\n\`\`\`\n${result.result}\n\`\`\``)
+				} else {
+					failedCommands.push({ query, error: result.error })
 				}
 			}
 		}
@@ -85,23 +88,28 @@ export class Subagent extends ClineAgent {
 		}
 
 		// Build header
-		const totalSearches = successfulSearches.length + unsuccessfulSearches.length
+		const totalSearches = successfulSearches.length + failedSearches.length
 		const totalFiles = context.fileContents.size
-		const totalCommands = successfulCommands.length
+		const totalCommands = successfulCommands.length + failedCommands.length
 		const parts = [`## Retrieved Context\nSearches: ${totalSearches} | Files: ${totalFiles} | Commands: ${totalCommands}\n`]
 
 		// Add search history
-		if (successfulSearches.length > 0 || unsuccessfulSearches.length > 0) {
+		if (successfulSearches.length > 0 || failedSearches.length > 0) {
 			parts.push("\n**Previously executed searches (avoid duplicating):**")
 			successfulSearches.forEach((q) => parts.push(`- "${q}" ✓`))
-			unsuccessfulSearches.forEach((q) => parts.push(`- "${q}" ✗ (no results)`))
+			failedSearches.forEach(({ query, error }) =>
+				parts.push(`- "${query}" ✗ ${error ? `(error: ${error})` : "(no results)"}`),
+			)
 			parts.push("")
 		}
 
 		// Add command history
-		if (successfulCommands.length > 0) {
+		if (successfulCommands.length > 0 || failedCommands.length > 0) {
 			parts.push("\n**Previously executed commands:**")
-			successfulCommands.forEach((cmd) => parts.push(`- \`${cmd}\``))
+			successfulCommands.forEach((cmd) => parts.push(`- \`${cmd}\` ✓`))
+			failedCommands.forEach(({ query, error }) =>
+				parts.push(`- \`${query}\` ✗ ${error ? `(error: ${error})` : "(failed)"}`),
+			)
 			parts.push("")
 		}
 
@@ -134,10 +142,11 @@ export class Subagent extends ClineAgent {
 
 				if (toolTag === "TOOLSEARCH" && toolResult) {
 					const result = toolResult as GeneralToolResult
+					// Store both successful and failed results so the agent knows what was tried
 					if (result.success) {
 						this.extractFilePathsFromResult(result).forEach((fp) => context.filePaths.add(fp))
-						context.searchResults.set(input, result)
 					}
+					context.searchResults.set(input, result)
 				} else if (toolTag === "TOOLFILE" && toolResult) {
 					const fileResult = toolResult as GeneralToolResult
 					if (fileResult.success && !context.fileContents.has(fileResult.query)) {

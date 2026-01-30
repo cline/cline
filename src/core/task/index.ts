@@ -719,6 +719,7 @@ export class Task {
 		images?: string[],
 		files?: string[],
 		partial?: boolean,
+		uid?: string,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
 		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
@@ -734,10 +735,32 @@ export class Task {
 
 		if (partial !== undefined) {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+
+			// For tool messages, check if the content matches to distinguish between parallel tool executions
+			let isUpdatingPreviousPartial = false
+			if (lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type) {
+				if (type === "tool" && text && lastMessage.text) {
+					// For tool messages, parse and compare the tool identifier (e.g., filePattern for subagents)
+					try {
+						const newToolData = JSON.parse(text)
+						const lastToolData = JSON.parse(lastMessage.text)
+						// Check if this is the same tool execution by comparing identifying fields
+						// For subagents, filePattern is the unique identifier (the prompt)
+						if (newToolData.tool === lastToolData.tool && newToolData.filePattern === lastToolData.filePattern) {
+							isUpdatingPreviousPartial = true
+						}
+					} catch {
+						// If parsing fails, fall back to basic check (non-tool messages)
+						isUpdatingPreviousPartial = true
+					}
+				} else {
+					// For non-tool messages, use the basic check
+					isUpdatingPreviousPartial = true
+				}
+			}
+
 			if (partial) {
-				if (isUpdatingPreviousPartial) {
+				if (isUpdatingPreviousPartial && lastMessage) {
 					// existing partial message, so update it
 					lastMessage.text = text
 					lastMessage.images = images
@@ -759,13 +782,14 @@ export class Task {
 						files,
 						partial,
 						modelInfo,
+						uid,
 					})
 					await this.postStateToWebview()
 					return sayTs
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
+				if (isUpdatingPreviousPartial && lastMessage) {
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
 					this.taskState.lastMessageTs = lastMessage.ts
 					// lastMessage.ts = sayTs
@@ -792,6 +816,7 @@ export class Task {
 						images,
 						files,
 						modelInfo,
+						uid,
 					})
 					await this.postStateToWebview()
 					return sayTs
@@ -809,6 +834,7 @@ export class Task {
 				images,
 				files,
 				modelInfo,
+				uid,
 			})
 			await this.postStateToWebview()
 			return sayTs
@@ -847,6 +873,42 @@ export class Task {
 	private isParallelToolCallingEnabled(): boolean {
 		const modelId = this.api.getModel().id
 		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+	}
+
+	/**
+	 * Tools that can be executed in parallel when multiple appear consecutively.
+	 * These are tools that don't have side effects that would conflict with each other.
+	 */
+	private static readonly PARALLELIZABLE_TOOLS: ClineDefaultTool[] = [ClineDefaultTool.SUBAGENT]
+
+	/**
+	 * Check if a tool block can be executed in parallel with other parallelizable tools.
+	 * Only complete (non-partial) blocks of specific tool types are parallelizable.
+	 */
+	private isParallelizableToolBlock(block: AssistantMessageContent): boolean {
+		return block.type === "tool_use" && !block.partial && Task.PARALLELIZABLE_TOOLS.includes(block.name as ClineDefaultTool)
+	}
+
+	/**
+	 * Collect consecutive parallelizable tool blocks starting from the current index.
+	 * Returns an array of tool blocks that can be executed in parallel.
+	 */
+	private collectParallelizableBlocks(): ToolUse[] {
+		const blocks: ToolUse[] = []
+		const startIndex = this.taskState.currentStreamingContentIndex
+		const content = this.taskState.assistantMessageContent
+
+		for (let i = startIndex; i < content.length; i++) {
+			const block = content[i]
+			if (this.isParallelizableToolBlock(block)) {
+				blocks.push(cloneDeep(block) as ToolUse)
+			} else {
+				// Stop at first non-parallelizable block
+				break
+			}
+		}
+
+		return blocks
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
@@ -2132,7 +2194,7 @@ export class Task {
 				await this.say("text", content, undefined, undefined, block.partial)
 				break
 			}
-			case "tool_use":
+			case "tool_use": {
 				// If we have a pending initial commit, we must block unsafe tools until it finishes.
 				// Safe tools (read-only) can run in parallel.
 				if (this.initialCheckpointCommitPromise) {
@@ -2141,8 +2203,20 @@ export class Task {
 						this.initialCheckpointCommitPromise = undefined
 					}
 				}
-				await this.toolExecutor.executeTool(block)
+
+				// Check if we can execute multiple parallelizable tool blocks (e.g., subagents) in parallel
+				const parallelBlocks = this.collectParallelizableBlocks()
+				if (parallelBlocks.length > 1) {
+					// Execute all parallelizable blocks concurrently
+					await Promise.all(parallelBlocks.map((b) => this.toolExecutor.executeTool(b)))
+					// Skip past all the blocks we just executed (minus 1 since the normal flow will increment once)
+					this.taskState.currentStreamingContentIndex += parallelBlocks.length - 1
+				} else {
+					// Single tool or non-parallelizable - execute normally
+					await this.toolExecutor.executeTool(block)
+				}
 				break
+			}
 		}
 
 		/*
@@ -2152,8 +2226,13 @@ export class Task {
 		this.taskState.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
 		// NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
 		// Also advance when a tool was used and parallel calling is disabled
+		// For parallel blocks, we use the last block in the batch to determine completion
+		const effectiveBlock =
+			block.type === "tool_use"
+				? (this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex] ?? block)
+				: block
 		if (
-			!block.partial ||
+			!effectiveBlock.partial ||
 			this.taskState.didRejectTool ||
 			(!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool)
 		) {

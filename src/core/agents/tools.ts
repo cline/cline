@@ -76,11 +76,13 @@ const TOOLFILE: SubAgentToolDefinition = {
 	},
 }
 
+const MAX_CONCURRENT_SEARCHES = 3
+
 const TOOLSEARCH: SubAgentToolDefinition = {
 	title: "TOOLSEARCH",
 	tag: "query",
 	instruction:
-		"Perform regex pattern searches across the codebase. Supports multiple parallel searches by including multiple query tags. All searches will execute simultaneously for faster results",
+		"Perform regex pattern searches across the codebase. Supports multiple parallel searches by including multiple query tags. Searches execute with controlled concurrency for optimal performance",
 	placeholder: "SEARCH_QUERY",
 	examples: [
 		`Single search: \`<TOOLSEARCH><query>symbol name</query></TOOLSEARCH>\``,
@@ -112,36 +114,48 @@ const TOOLSEARCH: SubAgentToolDefinition = {
 					success: resultCount > 0,
 				}
 			} catch (error) {
-				Logger.error(`Search failed in ${absolutePath}: ${error instanceof Error ? error.message : String(error)}`)
+				const errorMsg = error instanceof Error ? error.message : String(error)
+				Logger.error(`Search failed in ${absolutePath}: ${errorMsg}`)
 				return {
 					agent: "TOOLSEARCH",
 					query,
-					result: "",
-					error: error instanceof Error ? error.message : String(error),
+					result: errorMsg,
+					error: errorMsg,
 					success: false,
 				}
 			}
 		}
 
-		const searchPromises = queries.map(async (query): Promise<GeneralToolResult> => {
-			try {
-				const searchPath = taskConfig.cwd
-				return await executeSearch(searchPath, query)
-			} catch (error) {
-				Logger.error(`Search failed for query "${query}": ${error instanceof Error ? error.message : String(error)}`)
-				return {
-					agent: "TOOLSEARCH",
-					query,
-					result: "",
-					error: error instanceof Error ? error.message : String(error),
-					success: false,
-				}
-			}
-		})
-
-		return await Promise.all(searchPromises)
+		// Execute searches with concurrency limit to prevent too many ripgrep processes
+		const results: GeneralToolResult[] = []
+		for (let i = 0; i < queries.length; i += MAX_CONCURRENT_SEARCHES) {
+			const batch = queries.slice(i, i + MAX_CONCURRENT_SEARCHES)
+			const batchResults = await Promise.all(
+				batch.map(async (query): Promise<GeneralToolResult> => {
+					try {
+						const searchPath = taskConfig.cwd
+						return await executeSearch(searchPath, query)
+					} catch (error) {
+						Logger.error(
+							`Search failed for query "${query}": ${error instanceof Error ? error.message : String(error)}`,
+						)
+						return {
+							agent: "TOOLSEARCH",
+							query,
+							result: "",
+							error: error instanceof Error ? error.message : String(error),
+							success: false,
+						}
+					}
+				}),
+			)
+			results.push(...batchResults)
+		}
+		return results
 	},
 }
+
+const MAX_CONCURRENT_BASH_COMMANDS = 3
 
 const TOOLBASH: SubAgentToolDefinition = {
 	title: "TOOLBASH",
@@ -154,30 +168,36 @@ const TOOLBASH: SubAgentToolDefinition = {
 		`Multiple commands: \`<TOOLBASH>ls -la</TOOLBASH><TOOLBASH>gh pr list</TOOLBASH>\``,
 	],
 	execute: async (commands: string[], taskConfig: TaskConfig): Promise<SubAgentToolResult> => {
-		const results = await Promise.all(
-			commands.map(async (command): Promise<GeneralToolResult> => {
-				try {
-					const result = await runShellCommand(command, { cwd: taskConfig.cwd })
-					return {
-						agent: "TOOLBASH",
-						query: command,
-						result: result.stdout,
-						success: true,
+		// Execute commands with concurrency limit to prevent too many parallel processes
+		const results: GeneralToolResult[] = []
+		for (let i = 0; i < commands.length; i += MAX_CONCURRENT_BASH_COMMANDS) {
+			const batch = commands.slice(i, i + MAX_CONCURRENT_BASH_COMMANDS)
+			const batchResults = await Promise.all(
+				batch.map(async (command): Promise<GeneralToolResult> => {
+					try {
+						const result = await runShellCommand(command, { cwd: taskConfig.cwd })
+						return {
+							agent: "TOOLBASH",
+							query: command,
+							result: result.stdout,
+							success: true,
+						}
+					} catch (error) {
+						Logger.error(
+							`Bash command failed for "${command}": ${error instanceof Error ? error.message : String(error)}`,
+						)
+						return {
+							agent: "TOOLBASH",
+							query: command,
+							result: "",
+							error: `Command failed: ${error instanceof Error ? error.message : String(error)}`,
+							success: false,
+						}
 					}
-				} catch (error) {
-					Logger.error(
-						`Bash command failed for "${command}": ${error instanceof Error ? error.message : String(error)}`,
-					)
-					return {
-						agent: "TOOLBASH",
-						query: command,
-						result: "",
-						error: `Command failed: ${error instanceof Error ? error.message : String(error)}`,
-						success: false,
-					}
-				}
-			}),
-		)
+				}),
+			)
+			results.push(...batchResults)
+		}
 		return results satisfies SubAgentToolResult
 	},
 }
@@ -205,9 +225,30 @@ export async function runShellCommand(
 		let stdout = ""
 		let stderr = ""
 		let killed = false
+		let sigkillTimeout: NodeJS.Timeout | null = null
+
+		// Cleanup function to properly terminate the process and all its children
+		const cleanup = () => {
+			if (sigkillTimeout) {
+				clearTimeout(sigkillTimeout)
+				sigkillTimeout = null
+			}
+			if (childProcess && !childProcess.killed) {
+				// First try SIGTERM for graceful shutdown
+				childProcess.kill("SIGTERM")
+				// Force kill if still running after a short delay
+				sigkillTimeout = setTimeout(() => {
+					if (childProcess && !childProcess.killed) {
+						childProcess.kill("SIGKILL")
+					}
+					sigkillTimeout = null
+				}, 1000)
+			}
+		}
+
 		const timeoutId = setTimeout(() => {
 			killed = true
-			childProcess.kill()
+			cleanup()
 			reject(new Error(`Command timed out after ${timeout}ms`))
 		}, timeout)
 
@@ -219,7 +260,7 @@ export async function runShellCommand(
 			stdoutLength += chunk.length
 			if (stdoutLength > maxBuffer) {
 				killed = true
-				childProcess.kill()
+				cleanup()
 				reject(new Error("stdout maxBuffer exceeded"))
 				return
 			}
@@ -231,7 +272,7 @@ export async function runShellCommand(
 			stderrLength += chunk.length
 			if (stderrLength > maxBuffer) {
 				killed = true
-				childProcess.kill()
+				cleanup()
 				reject(new Error("stderr maxBuffer exceeded"))
 				return
 			}
@@ -240,11 +281,17 @@ export async function runShellCommand(
 
 		childProcess.on("error", (error: Error) => {
 			clearTimeout(timeoutId)
+			if (sigkillTimeout) {
+				clearTimeout(sigkillTimeout)
+			}
 			reject(new Error(`Failed to start process: ${error.message}`))
 		})
 
 		childProcess.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
 			clearTimeout(timeoutId)
+			if (sigkillTimeout) {
+				clearTimeout(sigkillTimeout)
+			}
 			if (killed) {
 				return
 			}

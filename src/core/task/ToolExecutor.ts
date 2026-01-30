@@ -193,7 +193,7 @@ export class ToolExecutor {
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
 				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
-				replaceMessageContentByTs: this.messageStateHandler.replaceMessageContentByTs.bind(this.messageStateHandler),
+				replaceMessageContentByUid: this.messageStateHandler.replaceMessageContentByUid.bind(this.messageStateHandler),
 			},
 			coordinator: this.coordinator,
 		}

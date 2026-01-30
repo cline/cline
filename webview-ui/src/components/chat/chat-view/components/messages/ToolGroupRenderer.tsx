@@ -22,13 +22,7 @@ interface ToolWithReasoning {
 	activityText?: string
 }
 
-const EXPANDABLE_TOOLS = new Set([
-	"listFilesTopLevel",
-	"listFilesRecursive",
-	"listCodeDefinitionNames",
-	"searchFiles",
-	"subagent",
-])
+const EXPANDABLE_TOOLS = new Set(["listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"])
 
 // Helper to format activity text for active items (from RequestStartRow logic)
 const getActivityText = (tool: ClineSayTool): string | null => {

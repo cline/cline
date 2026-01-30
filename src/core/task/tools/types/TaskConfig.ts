@@ -84,7 +84,14 @@ export interface TaskServices {
  * All callback functions available to tool handlers
  */
 export interface TaskCallbacks {
-	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+		uid?: string,
+	) => Promise<number | undefined>
 
 	ask: (
 		type: ClineAsk,
@@ -134,7 +141,7 @@ export interface TaskCallbacks {
 	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
 
 	// Message content replacement by timestamp
-	replaceMessageContentByTs: (ts: number, content: string) => Promise<boolean>
+	replaceMessageContentByUid: (uid: string, content: string, partial?: boolean) => Promise<boolean>
 }
 
 /**

@@ -228,26 +228,25 @@ export class MessageStateHandler {
 	 * @param content - The new content to set
 	 * @returns true if the message was found and updated, false otherwise
 	 */
-	async replaceMessageContentByTs(ts: number, content: string): Promise<boolean> {
-		return await this.withStateLock(async () => {
-			const index = this.clineMessages.findIndex((m) => m.ts === ts)
-			if (index === -1) {
-				return false
-			}
+	async replaceMessageContentByUid(uid: string, content: string, partial = true): Promise<boolean> {
+		const index = this.clineMessages.findIndex((m) => m.uid === uid)
+		if (index === -1) {
+			return false
+		}
 
-			// Update the message content
-			this.clineMessages[index].text = content
+		// Update the message content
+		this.clineMessages[index].text = content
+		this.clineMessages[index].partial = partial
 
-			// Save changes and update history
-			await this.saveClineMessagesAndUpdateHistoryInternal()
+		// // Save changes and update history
+		// await this.saveClineMessagesAndUpdateHistoryInternal()
 
-			// Send partial message event to update the webview in real-time
-			// This is necessary because replaceMessageContentByTs is used for streaming updates
-			// (e.g., Subagent progress updates) that need to be reflected in the UI immediately
-			const protoMessage = convertClineMessageToProto(this.clineMessages[index])
-			await sendPartialMessageEvent(protoMessage)
+		// Send partial message event to update the webview in real-time
+		// This is necessary because replaceMessageContentByUid is used for streaming updates
+		// (e.g., Subagent progress updates) that need to be reflected in the UI immediately
+		const protoMessage = convertClineMessageToProto(this.clineMessages[index])
+		sendPartialMessageEvent(protoMessage)
 
-			return true
-		})
+		return true
 	}
 }

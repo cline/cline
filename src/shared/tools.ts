@@ -51,4 +51,5 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.WEB_SEARCH,
 	ClineDefaultTool.WEB_FETCH,
 	ClineDefaultTool.USE_SKILL,
+	ClineDefaultTool.SUBAGENT,
 ] as const
