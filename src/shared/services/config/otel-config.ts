@@ -44,6 +44,8 @@ export interface OpenTelemetryClientConfig {
 	 */
 	otlpMetricsEndpoint?: string
 
+	otlpMetricsHeaders?: Record<string, string>
+
 	/**
 	 * Logs-specific OTLP protocol
 	 */
@@ -53,6 +55,8 @@ export interface OpenTelemetryClientConfig {
 	 * Logs-specific OTLP endpoint
 	 */
 	otlpLogsEndpoint?: string
+
+	otlpLogsHeaders?: Record<string, string>
 
 	/**
 	 * Metric export interval in milliseconds (for console exporter)
@@ -105,8 +109,10 @@ export function remoteConfigToOtelConfig(settings: Partial<RemoteConfigFields>):
 
 		otlpMetricsEndpoint: settings.openTelemetryOtlpMetricsEndpoint,
 		otlpMetricsProtocol: settings.openTelemetryOtlpMetricsProtocol,
+		otlpMetricsHeaders: settings.otlpMetricsHeaders,
 		otlpLogsEndpoint: settings.openTelemetryOtlpLogsEndpoint,
 		otlpLogsProtocol: settings.openTelemetryOtlpLogsProtocol,
+		otlpLogsHeaders: settings.otlpLogsHeaders,
 
 		logBatchSize: settings.openTelemetryLogBatchSize,
 		logBatchTimeout: settings.openTelemetryLogBatchTimeout,

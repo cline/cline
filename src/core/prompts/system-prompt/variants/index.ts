@@ -16,6 +16,7 @@ export { config as NativeGPT5Config } from "./native-gpt-5/config"
 export { config as NativeGPT51Config } from "./native-gpt-5-1/config"
 export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
+export { config as trinityConfig, type TrinityVariantConfig } from "./trinity/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
@@ -29,6 +30,7 @@ import { config as NativeGPT5Config } from "./native-gpt-5/config"
 import { config as NativeGPT51Config } from "./native-gpt-5-1/config"
 import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
 import { config as nextGenConfig } from "./next-gen/config"
+import { config as trinityConfig } from "./trinity/config"
 import { config as xsConfig } from "./xs/config"
 
 /**
@@ -76,6 +78,11 @@ export const VARIANT_CONFIGS = {
 	 * Includes additional features like feedback loops and web fetching
 	 */
 	[ModelFamily.NEXT_GEN]: nextGenConfig,
+	/**
+	 * Trinity variant - Optimized for Trinity models
+	 * Tool-use optimizations: explicit ask_followup_question question parameter, anti-looping reminder
+	 */
+	[ModelFamily.TRINITY]: trinityConfig,
 	/**
 	 * XS variant - Compact models with limited context windows
 	 * Streamlined for efficiency with essential tools only

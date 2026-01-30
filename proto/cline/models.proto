@@ -485,6 +485,7 @@ message LiteLLMModelInfo {
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
   optional ApiFormat api_format = 14;
+  optional bool supports_reasoning = 15;
 }
 
 // Main ApiConfiguration message

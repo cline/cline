@@ -1,44 +1,25 @@
-import {
-	isGLMModelFamily,
-	isLocalModel,
-	isNextGenModelFamily,
-	isNextGenModelProvider,
-	isTrinityModelFamily,
-} from "@utils/model-utils"
+import { isTrinityModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
+import { trinityComponentOverrides } from "./overrides"
 import { baseTemplate } from "./template"
 
-export const config = createVariant(ModelFamily.GENERIC)
-	.description("The fallback prompt for generic use cases and models.")
+export const config = createVariant(ModelFamily.TRINITY)
+	.description(
+		"Prompt optimized for Trinity models with tool-use optimizations (explicit ask_followup_question question parameter, anti-looping reminder).",
+	)
 	.version(1)
-	.tags("fallback", "stable")
+	.tags("trinity", "stable")
 	.labels({
 		stable: 1,
-		fallback: 1,
+		production: 1,
 	})
-	// Generic matcher - fallback for everything that doesn't match other variants
-	// This will match anything that doesn't match the other specific variants
 	.matcher((context) => {
-		const providerInfo = context.providerInfo
-		if (!providerInfo.providerId || !providerInfo.model.id) {
-			return true
-		}
-		const modelId = providerInfo.model.id.toLowerCase()
-		return (
-			// Not a local model with compact prompt enabled
-			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
-			// Not a next-gen model
-			!(isNextGenModelProvider(providerInfo) && isNextGenModelFamily(modelId)) &&
-			// Not a GLM model
-			!isGLMModelFamily(modelId) &&
-			// Not a Trinity model
-			!isTrinityModelFamily(modelId)
-		)
+		return isTrinityModelFamily(context.providerInfo.model.id)
 	})
 	.template(baseTemplate)
 	.components(
@@ -76,21 +57,22 @@ export const config = createVariant(ModelFamily.GENERIC)
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
-		MODEL_FAMILY: "generic",
+		MODEL_FAMILY: ModelFamily.TRINITY,
 	})
 	.config({})
+	.overrideComponent(SystemPromptSection.TOOL_USE, trinityComponentOverrides[SystemPromptSection.TOOL_USE]!)
+	.overrideComponent(SystemPromptSection.RULES, trinityComponentOverrides[SystemPromptSection.RULES]!)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "generic" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: "trinity" }, { strict: true })
 if (!validationResult.isValid) {
-	Logger.error("Generic variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid generic variant configuration: ${validationResult.errors.join(", ")}`)
+	Logger.error("Trinity variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid Trinity variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	Logger.warn("Generic variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Trinity variant configuration warnings:", validationResult.warnings)
 }
 
-// Export type information for better IDE support
-export type GenericVariantConfig = typeof config
+export type TrinityVariantConfig = typeof config

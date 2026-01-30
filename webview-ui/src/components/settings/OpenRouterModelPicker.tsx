@@ -86,6 +86,11 @@ export const freeModels = [
 		description: "Arcee AI's advanced large preview model in the Trinity series",
 		label: "FREE",
 	},
+	{
+		id: "stealth/giga-potato",
+		description: "A stealth model for coding(may underperform in quality and have longer latency)",
+		label: "FREE",
+	},
 ]
 
 const FREE_CLINE_MODELS = freeModels.map((m) => m.id)

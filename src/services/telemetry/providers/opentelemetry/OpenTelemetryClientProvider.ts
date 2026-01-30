@@ -101,7 +101,7 @@ export class OpenTelemetryClientProvider {
 						const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
 						const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
 						const insecure = this.config!.otlpInsecure || false
-						const headers = this.config!.otlpHeaders
+						const headers = this.config!.otlpMetricsHeaders || this.config!.otlpHeaders
 
 						if (endpoint) {
 							const reader = createOTLPMetricReader(protocol, endpoint, insecure, interval, timeout, headers)
@@ -157,7 +157,7 @@ export class OpenTelemetryClientProvider {
 						const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
 						const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
 						const insecure = this.config!.otlpInsecure || false
-						const headers = this.config!.otlpHeaders
+						const headers = this.config!.otlpLogsHeaders || this.config!.otlpHeaders
 
 						if (endpoint) {
 							exporter = createOTLPLogExporter(protocol, endpoint, insecure, headers)

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/huh"
 	"github.com/cline/cli/pkg/cli/display"
@@ -45,8 +46,15 @@ const (
 // RunAuthFlow is the entry point for the entire auth flow with instance management
 // It spawns a fresh instance for auth operations and cleans it up when done
 func RunAuthFlow(ctx context.Context, args []string) error {
-	// Spawn a fresh instance for auth operations
-	instanceInfo, err := global.Instances.StartNewInstance(ctx)
+	// Get current working directory to use as workspace
+	// This ensures auth operations use the same state database as the main cline command
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Spawn a fresh instance for auth operations with the current workspace
+	instanceInfo, err := global.Instances.StartNewInstance(ctx, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to start auth instance: %w", err)
 	}
@@ -187,9 +195,12 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 	var title string
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 
-	// Always show Cline authentication status
+	// Show authentication status - distinguish between OAuth and API key auth
 	if isClineAuthenticated {
 		title = fmt.Sprintf("Cline Account: %s Authenticated\n", renderer.Green("✓"))
+	} else if currentProvider == "Cline (Official)" {
+		// Using Cline provider with API key (not OAuth)
+		title = fmt.Sprintf("Cline API Key: %s Configured\n", renderer.Green("✓"))
 	} else {
 		title = fmt.Sprintf("Cline Account: %s Not authenticated\n", renderer.Red("✗"))
 	}

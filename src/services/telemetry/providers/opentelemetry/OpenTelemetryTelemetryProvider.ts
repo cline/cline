@@ -301,6 +301,10 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Get the current telemetry level from VS Code settings
 	 */
 	private async getTelemetryLevel(): Promise<TelemetrySettings["level"]> {
+		if (this.bypassUserSettings) {
+			return "all"
+		}
+
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"
