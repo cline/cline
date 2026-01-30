@@ -62,7 +62,7 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 
 			{showBrowseAll && (
 				<Box>
-					<Text color={selectedIndex === featuredModels.length ? COLORS.primaryBlue : "gray"}>
+					<Text color={selectedIndex === featuredModels.length ? COLORS.primaryBlue : "white"}>
 						{selectedIndex === featuredModels.length ? "❯ " : "  "}
 						Browse all models...
 					</Text>
