@@ -244,6 +244,12 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					/>
 				))}
 
+			{apiReqState === "final" && hasCost && !hasCompletionResult && (
+				<div className="flex items-center text-description text-xs ml-1 mt-1">
+					<span className="opacity-70">${Number(cost || 0).toFixed(4)}</span>
+				</div>
+			)}
+
 			{apiReqState === "error" && (
 				<ErrorRow
 					apiReqStreamingFailedMessage={apiReqStreamingFailedMessage}
