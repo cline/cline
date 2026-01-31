@@ -7,6 +7,7 @@ class Cline < Formula
   license "Apache-2.0"
 
   depends_on "node@20"
+  depends_on "ripgrep"
 
   def install
     system "npm", "install", *std_npm_args(prefix: false)

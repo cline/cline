@@ -234,6 +234,7 @@ const config: esbuild.BuildOptions = {
 		"aws4fetch",
 		"pino",
 		"pino-roll",
+		"@vscode/ripgrep", // Uses __dirname to locate the binary
 	],
 	supported: { "top-level-await": true },
 	banner: {
