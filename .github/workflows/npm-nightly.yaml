@@ -51,22 +51,22 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
-      # Cache cli-ts dependencies
-      - name: Cache cli-ts dependencies
+      # Cache cli dependencies
+      - name: Cache cli dependencies
         if: steps.check_commits.outputs.skip != 'true'
         uses: actions/cache@v4
-        id: cli-ts-cache
+        id: cli-cache
         with:
-          path: cli-ts/node_modules
-          key: ${{ runner.os }}-npm-cli-ts-${{ hashFiles('cli-ts/package-lock.json') }}
+          path: cli/node_modules
+          key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
 
       - name: Install root dependencies
         if: steps.check_commits.outputs.skip != 'true' && steps.root-cache.outputs.cache-hit != 'true'
         run: npm ci --include=optional
 
-      - name: Install cli-ts dependencies
-        if: steps.check_commits.outputs.skip != 'true' && steps.cli-ts-cache.outputs.cache-hit != 'true'
-        run: cd cli-ts && npm ci
+      - name: Install cli dependencies
+        if: steps.check_commits.outputs.skip != 'true' && steps.cli-cache.outputs.cache-hit != 'true'
+        run: cd cli && npm ci
 
       - name: Generate Protos
         if: steps.check_commits.outputs.skip != 'true'
@@ -76,8 +76,8 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          # Read base version from cli-ts/package.json (e.g., "2.0.0")
-          BASE_VERSION=$(node -p "require('./cli-ts/package.json').version")
+          # Read base version from cli/package.json (e.g., "2.0.0")
+          BASE_VERSION=$(node -p "require('./cli/package.json').version")
 
           # Generate timestamp (Unix epoch seconds)
           TIMESTAMP=$(date +%s)
@@ -89,19 +89,19 @@ jobs:
           echo "Generated nightly version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update cli-ts/package.json with nightly version
+      - name: Update cli/package.json with nightly version
         if: steps.check_commits.outputs.skip != 'true'
         run: |
           # Update version with timestamp-based nightly version
           node -e "
             const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('cli-ts/package.json', 'utf8'));
+            const pkg = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
             pkg.version = '${{ steps.version.outputs.version }}';
-            fs.writeFileSync('cli-ts/package.json', JSON.stringify(pkg, null, '\t'));
+            fs.writeFileSync('cli/package.json', JSON.stringify(pkg, null, '\t'));
           "
 
           echo "Using version ${{ steps.version.outputs.version }} for build"
-          cat cli-ts/package.json | grep '"version"'
+          cat cli/package.json | grep '"version"'
 
       - name: Clean previous builds
         if: steps.check_commits.outputs.skip != 'true'

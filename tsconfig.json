@@ -64,7 +64,7 @@
 		".vscode-test",
 		"webview-ui",
 		"src/test/e2e/**/*",
-		"cli-ts",
+		"cli",
 		"src/test/scenarios/**/*"
 	]
 }

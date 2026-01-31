@@ -171,7 +171,7 @@
 				"!**/*.tsx",
 				"!**/testing-platform/**",
 				// ACP mode must redirect console to stderr - this is intentional
-				"!cli-ts/src/acp/index.ts"
+				"!cli/src/acp/index.ts"
 			]
 		},
 		{

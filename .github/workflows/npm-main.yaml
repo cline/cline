@@ -41,21 +41,21 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
-      # Cache cli-ts dependencies
-      - name: Cache cli-ts dependencies
+      # Cache cli dependencies
+      - name: Cache cli dependencies
         uses: actions/cache@v4
-        id: cli-ts-cache
+        id: cli-cache
         with:
-          path: cli-ts/node_modules
-          key: ${{ runner.os }}-npm-cli-ts-${{ hashFiles('cli-ts/package-lock.json') }}
+          path: cli/node_modules
+          key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
 
       - name: Install root dependencies
         if: steps.root-cache.outputs.cache-hit != 'true'
         run: npm ci --include=optional
 
-      - name: Install cli-ts dependencies
-        if: steps.cli-ts-cache.outputs.cache-hit != 'true'
-        run: cd cli-ts && npm ci
+      - name: Install cli dependencies
+        if: steps.cli-cache.outputs.cache-hit != 'true'
+        run: cd cli && npm ci
 
       - name: Generate Protos
         run: npm run protos
@@ -63,8 +63,8 @@ jobs:
       - name: Read release version
         id: version
         run: |
-          # Read version from cli-ts/package.json
-          VERSION=$(node -p "require('./cli-ts/package.json').version")
+          # Read version from cli/package.json
+          VERSION=$(node -p "require('./cli/package.json').version")
           echo "Release version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
