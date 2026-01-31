@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { safeParseFloat } from "@/utils/validate"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -334,7 +335,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.inputPrice = Number(value)
+								modelInfo.inputPrice = safeParseFloat(value, openAiModelInfoSaneDefaults.inputPrice ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -353,7 +354,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.outputPrice = Number(value)
+								modelInfo.outputPrice = safeParseFloat(value, openAiModelInfoSaneDefaults.outputPrice ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -382,7 +383,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 										? openAiModelInfoSaneDefaults.temperature
 										: shouldPreserveFormat
 											? (value as any)
-											: parseFloat(value)
+											: safeParseFloat(value, openAiModelInfoSaneDefaults.temperature ?? 0)
 
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
