@@ -1432,7 +1432,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 1: Instructions (left, can wrap) | Plan/Act toggle (right, no wrap) */}
 						<Box justifyContent="space-between" paddingLeft={1} paddingRight={1} width="100%">
 							<Box flexShrink={1} flexWrap="wrap">
-								<Text color="gray">@ for files · / for commands</Text>
+								<Text color="gray">/ for commands · @ for files</Text>
 							</Box>
 							<Box flexShrink={0} gap={1}>
 								<Box>
