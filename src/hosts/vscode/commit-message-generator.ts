@@ -160,6 +160,12 @@ async function performCommitMsgGeneration(stateManager: StateManager, gitDiff: s
 
 		const prompts = [PROMPT.instruction]
 
+		// Add preferred language instruction if set and not English
+		const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
+		if (preferredLanguage && preferredLanguage !== "English") {
+			prompts.push(`IMPORTANT: Generate the commit message in ${preferredLanguage}.`)
+		}
+
 		const currentInput = inputBox.value?.trim() || ""
 		if (currentInput) {
 			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput))
