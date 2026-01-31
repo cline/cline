@@ -1496,7 +1496,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						{/* Row 4: Auto-approve toggle */}
 						<Box paddingLeft={1} paddingRight={1}>
 							{autoApproveAll ? (
-								<Text color="green">⏵⏵ Auto-approve all enabled (Shift+Tab)</Text>
+								<Text>
+									<Text color="green">⏵⏵ Auto-approve all enabled</Text>
+									<Text color="gray"> (Shift+Tab)</Text>
+								</Text>
 							) : (
 								<Text color="gray">Auto-approve all disabled (Shift+Tab)</Text>
 							)}
