@@ -103,6 +103,7 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
+import { Evaluator } from "./Evaluator"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { StreamResponseHandler } from "./StreamResponseHandler"
@@ -225,6 +226,7 @@ export class Task {
 
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
+	private evaluator: Evaluator
 
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
@@ -364,6 +366,8 @@ export class Task {
 				focusChainSettings: focusChainSettings,
 			})
 		}
+
+		this.evaluator = new Evaluator()
 
 		// Check for multiroot workspace and warn about checkpoints
 		const isMultiRootWorkspace = this.workspaceManager && this.workspaceManager.getRoots().length > 1
@@ -2916,8 +2920,25 @@ export class Task {
 				// Reset auto-retry counter for each new API request
 				this.taskState.autoRetryAttempts = 0
 
-				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.taskState.userMessageContent)
-				didEndLoop = recDidEndLoop
+				// Reset auto-retry counter for each new API request
+				this.taskState.autoRetryAttempts = 0
+
+				// Evaluator Logic
+				const context = {
+					consecutiveMistakeCount: this.taskState.consecutiveMistakeCount,
+					apiRequestsCount: this.taskState.apiRequestCount,
+				}
+				const decision = this.evaluator.evaluate(this.taskState.currentEvaluatorSignals || undefined, context)
+
+				if (decision === "stop") {
+					const rawReasoning = this.taskState.currentEvaluatorSignals?.reasoning || "Safety constraints exceeded."
+					const safeReasoning = rawReasoning.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+					await this.say("error", "Task stopped by Evaluator: " + safeReasoning)
+					didEndLoop = true
+				} else {
+					const recDidEndLoop = await this.recursivelyMakeClineRequests(this.taskState.userMessageContent)
+					didEndLoop = recDidEndLoop
+				}
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				const { model, providerId } = this.getCurrentProviderInfo()

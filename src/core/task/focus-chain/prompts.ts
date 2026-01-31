@@ -16,7 +16,19 @@ const initial = `
       "status": "pending" | "in_progress" | "completed" | "failed"
     }
   ]
+    }
+  ],
+  "signals": {
+    "decision": "continue" | "replan" | "stop",
+    "reasoning": "Reasoning for the decision",
+    "confidence": 0.9
+  }
 }
+
+**IMPORTANT:**
+- You MUST provided "signals" in every task_progress update.
+- If you encountered a tool failure or ambiguity, use "replan" (for minor adjustments) or "stop" (if critical).
+- Explain your decision in "reasoning".
 
 **Your plan should include:**
    - All major implementation steps
@@ -43,6 +55,13 @@ const listInstructionsRecommended = `
   "steps": [
     { "id": "1", "description": "Step 1", "status": "pending" }
   ]
+    { "id": "1", "description": "Step 1", "status": "pending" }
+  ],
+  "signals": {
+    "decision": "continue",
+    "reasoning": "Standard execution",
+    "confidence": 1.0
+  }
 }
 
 **Benefits of creating a plan now:**
@@ -63,6 +82,8 @@ const reminder = `
 3. Ensure the JSON structure is valid
 {
   "steps": [...]
+  "steps": [...],
+  "signals": { "decision": "...", "reasoning": "..." }
 }
 
 **Remember:** Keeping the task_progress plan updated helps track progress and ensures nothing is missed.`

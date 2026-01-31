@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import { EvaluatorSignals, StructuredPlan } from "./focus-chain/types"
 import type { HookExecution } from "./types/HookExecution"
-import { StructuredPlan } from "./focus-chain/types"
 
 export class TaskState {
 	// Streaming flags
@@ -58,6 +58,7 @@ export class TaskState {
 	apiRequestsSinceLastTodoUpdate: number = 0
 	currentFocusChainChecklist: string | null = null
 	currentStructuredPlan: StructuredPlan | null = null
+	currentEvaluatorSignals: EvaluatorSignals | null = null
 	todoListWasUpdatedByUser: boolean = false
 
 	// Task Abort / Cancellation

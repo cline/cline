@@ -12,7 +12,7 @@ import { main as generateHostBridgeClient } from "./generate-host-bridge-client.
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const PROTOC = "protoc"
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
@@ -66,6 +66,7 @@ async function compileProtos() {
 		PROTOC,
 		`--proto_path="${PROTO_DIR}"`,
 		`--descriptor_set_out="${descriptorFile}"`,
+		"--experimental_allow_proto3_optional",
 		"--include_imports",
 		...protoFiles,
 	].join(" ")
@@ -89,6 +90,7 @@ async function tsProtoc(outDir, protoFiles, protoOptions) {
 		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
 		`--ts_proto_out="${outDir}"`,
 		`--ts_proto_opt=${protoOptions.join(",")} `,
+		"--experimental_allow_proto3_optional",
 		...protoFiles.map((s) => `"${s}"`),
 	].join(" ")
 	try {

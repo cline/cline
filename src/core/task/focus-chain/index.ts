@@ -11,11 +11,11 @@ import { ensureTaskDirectoryExists } from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
 import { TaskState } from "../TaskState"
 import {
-    createFocusChainMarkdownContent,
-    extractFocusChainItemsFromText,
-    extractFocusChainListFromText,
-    getFocusChainFilePath,
-    getFocusChainJsonFilePath,
+	createFocusChainMarkdownContent,
+	extractFocusChainItemsFromText,
+	extractFocusChainListFromText,
+	getFocusChainFilePath,
+	getFocusChainJsonFilePath,
 } from "./file-utils"
 
 import { FocusChainPrompts } from "./prompts"
@@ -152,7 +152,7 @@ export class FocusChainManager {
 			const planJson = JSON.stringify(this.taskState.currentStructuredPlan, null, 2)
 			const introUpdateRequired =
 				"# TODO LIST UPDATE REQUIRED - You MUST include the task_progress parameter in your NEXT tool call."
-			
+
 			return `\n
 ${introUpdateRequired}\n
 **Current Plan:**
@@ -319,19 +319,32 @@ ${FocusChainPrompts.reminder}
 
 				// Try to parse as JSON first
 				const structuredPlan = tryParseJSON(trimmedProgress)
-				if (structuredPlan && typeof structuredPlan === "object" && Array.isArray(structuredPlan.steps)) {
-					this.taskState.currentStructuredPlan = structuredPlan
-					
-					// Convert to markdown for UI and legacy persistence
-					finalMarkdownForUI = planToMarkdown(structuredPlan)
+				if (structuredPlan && typeof structuredPlan === "object") {
+					if (Array.isArray(structuredPlan.steps)) {
+						this.taskState.currentStructuredPlan = structuredPlan
 
-					// Write structure plan to disk
-					await this.writeStructuredPlanToDisk(structuredPlan)
+						// Convert to markdown for UI and legacy persistence
+						finalMarkdownForUI = planToMarkdown(structuredPlan)
+
+						// Write structure plan to disk
+						await this.writeStructuredPlanToDisk(structuredPlan)
+					}
+
+					// Extract Evaluator Signals if present
+					if (structuredPlan.signals && typeof structuredPlan.signals === "object") {
+						this.taskState.currentEvaluatorSignals = structuredPlan.signals
+						Logger.debug(
+							`[Task ${this.taskId}] Evaluator signals received: ${JSON.stringify(structuredPlan.signals)}`,
+						)
+					} else {
+						this.taskState.currentEvaluatorSignals = null
+					}
 				} else {
 					// Fallback: it's not JSON, or invalid format. Treat as plain text/markdown
 					// If we previously had a structured plan, we might be losing it here if the model switched to markdown
 					// But usually if prompts are good, it sticks to JSON.
 					this.taskState.currentStructuredPlan = null
+					this.taskState.currentEvaluatorSignals = null
 				}
 
 				const previousList = this.taskState.currentFocusChainChecklist
