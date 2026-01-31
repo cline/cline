@@ -139,6 +139,7 @@ import { ActionButtons, type ButtonActionType, getButtonConfig, getVisibleButton
 import { AsciiMotionCli, StaticRobotFrame } from "./AsciiMotionCli"
 import { ChatMessage } from "./ChatMessage"
 import { FileMentionMenu } from "./FileMentionMenu"
+import { HelpPanelContent } from "./HelpPanelContent"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
 import { providerModels } from "./ModelPicker"
@@ -365,9 +366,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
 	const lastSlashIndexRef = useRef<number>(-1)
 
-	// Settings panel state
+	// Panel state
 	const [activePanel, setActivePanel] = useState<
-		{ type: "settings"; initialMode?: "model-picker" | "featured-models" } | { type: "history" } | null
+		{ type: "settings"; initialMode?: "model-picker" | "featured-models" } | { type: "history" } | { type: "help" } | null
 	>(null)
 
 	// Track when we're exiting to hide UI elements before exit
@@ -951,6 +952,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				const cmd = filteredCommands[selectedSlashIndex]
 				if (cmd) {
 					// Handle CLI-only commands locally
+					if (cmd.name === "help") {
+						setActivePanel({ type: "help" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
 					if (cmd.name === "settings") {
 						setActivePanel({ type: "settings" })
 						setTextInput("")
@@ -1392,6 +1401,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						onSelectTask={() => setActivePanel(null)}
 					/>
 				)}
+
+				{/* Help panel */}
+				{activePanel?.type === "help" && <HelpPanelContent onClose={() => setActivePanel(null)} />}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}
 				{showSlashMenu && !activePanel && (

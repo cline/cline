@@ -56,6 +56,12 @@ export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
 // CLI-only slash commands (handled locally, not sent to backend)
 export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 	{
+		name: "help",
+		description: "Learn how to use Cline CLI",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "settings",
 		description: "Change API provider, auto-approve, and feature settings",
 		section: "default",
