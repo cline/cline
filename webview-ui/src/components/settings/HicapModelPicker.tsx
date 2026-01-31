@@ -168,7 +168,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 					<span className="font-medium">Model ID</span>
 				</label>
 
-				<div className="relative w-full" ref={dropdownRef}>
+				<div className="relative w-full" ref={dropdownRef} style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX }}>
 					<VSCodeTextField
 						className="w-full relative"
 						disabled={apiConfiguration?.hicapApiKey?.length !== 32 || Object.keys(hicapModels).length === 0}
@@ -180,7 +180,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
-						style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX }}
+						style={{ position: "relative" }}
 						value={searchTerm}>
 						{searchTerm && (
 							<div
