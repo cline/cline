@@ -78,7 +78,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 							)}
 							onScroll={checkScrollable}
 							ref={scrollRef}>
-							<span className="pb-2 block text-xs">{reasoningContent}</span>
+							<span className="pb-2 block text-sm">{reasoningContent}</span>
 						</div>
 						{canScrollDown && (
 							<div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-t from-background to-transparent" />
