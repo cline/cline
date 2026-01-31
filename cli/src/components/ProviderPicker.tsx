@@ -16,6 +16,12 @@ const providerLabels: Record<string, string> = Object.fromEntries(
 // Get provider order from providers.json (same order as webview)
 const providerOrder: string[] = providersData.list.map((p: { value: string }) => p.value)
 
+/**
+ * Providers that are not supported in CLI.
+ * - vscode-lm: Requires VS Code's Language Model API (see ENG-1490 for OAuth-based support)
+ */
+const CLI_EXCLUDED_PROVIDERS = new Set<string>(["vscode-lm"])
+
 export function getProviderLabel(providerId: string): string {
 	return providerLabels[providerId] || providerId
 }
@@ -137,10 +143,10 @@ export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActi
 	// Get API configuration to check which providers are configured
 	const apiConfig = StateManager.get().getApiConfiguration()
 
-	// Use providers.json order, filtered to only available providers
+	// Use providers.json order, filtered to available providers (excluding CLI-incompatible ones)
 	const items: SearchableListItem[] = useMemo(() => {
 		const availableProviders = new Set(API_PROVIDERS_LIST)
-		const sorted = providerOrder.filter((p) => availableProviders.has(p))
+		const sorted = providerOrder.filter((p) => availableProviders.has(p) && !CLI_EXCLUDED_PROVIDERS.has(p))
 
 		return sorted.map((providerId) => ({
 			id: providerId,
