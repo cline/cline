@@ -95,8 +95,8 @@ function parseInput(text: string, availableCommands?: string[]): Segment[] {
 		})
 	}
 
-	// If no segments (empty or whitespace only), add a single normal segment
-	if (segments.length === 0 && text.length > 0) {
+	// Always ensure at least one segment exists for stable cursor rendering
+	if (segments.length === 0) {
 		segments.push({
 			text: text,
 			type: "normal",
