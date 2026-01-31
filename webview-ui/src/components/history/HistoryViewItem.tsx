@@ -101,7 +101,10 @@ const HistoryViewItem = ({
 					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
-							className="p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+							className={cn("p-0 transition-opacity", {
+								"opacity-0 group-hover:opacity-100": !isFavoritedItem,
+								"opacity-0 pointer-events-none": isFavoritedItem,
+							})}
 							disabled={isFavoritedItem}
 							onClick={(e) => {
 								e.stopPropagation()
