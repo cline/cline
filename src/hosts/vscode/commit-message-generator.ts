@@ -220,8 +220,12 @@ export function abortCommitGeneration() {
  * @returns The extracted commit message
  */
 function extractCommitMessage(str: string): string {
+	// Remove thinking blocks (e.g., <think>...</think>) that some models output
+	let result = str.replace(/<think>[\s\S]*?<\/think>/gi, "")
+	// Also handle unclosed thinking blocks (still being streamed)
+	result = result.replace(/<think>[\s\S]*$/gi, "")
 	// Remove any markdown formatting or extra text
-	return str
+	return result
 		.trim()
 		.replace(/^```[^\n]*\n?|```$/g, "")
 		.trim()
