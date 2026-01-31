@@ -285,7 +285,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
 		backgroundEditEnabled: false,
-		skillsEnabled: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 
