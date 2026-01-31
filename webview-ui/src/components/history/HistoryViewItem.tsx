@@ -94,7 +94,7 @@ const HistoryViewItem = ({
 					e.stopPropagation()
 					handleShowTaskWithId(item.id)
 				}}>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 min-w-0">
 					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
 						<span className="ph-no-capture">{item.task}</span>
 					</div>
