@@ -400,6 +400,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	})
 
 	const [yolo, setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
+	const [autoApproveAll, setAutoApproveAll] = useState<boolean>(
+		() => StateManager.get().getGlobalSettingsKey("autoApproveAllToggled") ?? false,
+	)
 
 	// Sync mode from core state updates (e.g. yolo auto-switching plan to act)
 	useEffect(() => {
@@ -408,11 +411,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	}, [taskState.mode])
 
-	const toggleYolo = useCallback(() => {
-		const newValue = !yolo
-		setYolo(newValue)
-		StateManager.get().setGlobalState("yoloModeToggled", newValue)
-	}, [yolo])
+	const toggleAutoApproveAll = useCallback(() => {
+		const newValue = !autoApproveAll
+		setAutoApproveAll(newValue)
+		StateManager.get().setGlobalState("autoApproveAllToggled", newValue)
+	}, [autoApproveAll])
 
 	// Get model ID based on current mode
 	// Re-read when activePanel changes (settings panel closes) to pick up changes
@@ -1222,7 +1225,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		// Normal input handling
 		if (key.shift && key.tab) {
-			toggleYolo()
+			toggleAutoApproveAll()
 			return
 		}
 		if (key.tab && !mentionInfo.inMentionMode && !slashInfo.inSlashMode) {
@@ -1481,7 +1484,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 						{/* Row 4: Auto-approve toggle */}
 						<Box paddingLeft={1} paddingRight={1}>
-							{yolo ? (
+							{autoApproveAll ? (
 								<Text color="green">⏵⏵ Auto-approve all enabled (Shift+Tab)</Text>
 							) : (
 								<Text color="gray">Auto-approve all disabled (Shift+Tab)</Text>
