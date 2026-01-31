@@ -33,12 +33,6 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-          cache-dependency-path: cli/go.sum
-
       # Cache root dependencies - only reuse if package-lock.json exactly matches
       - name: Cache root dependencies
         uses: actions/cache@v4
@@ -55,6 +49,14 @@ jobs:
           path: webview-ui/node_modules
           key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
+      # Cache cli dependencies
+      - name: Cache cli dependencies
+        uses: actions/cache@v4
+        id: cli-cache
+        with:
+          path: cli/node_modules
+          key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
+
       - name: Install root dependencies
         if: steps.root-cache.outputs.cache-hit != 'true'
         run: npm ci --include=optional
@@ -63,10 +65,17 @@ jobs:
         if: steps.webview-cache.outputs.cache-hit != 'true'
         run: cd webview-ui && npm ci --include=optional
 
+      - name: Install cli dependencies
+        if: steps.cli-cache.outputs.cache-hit != 'true'
+        run: cd cli && npm ci
+
+      - name: Generate Protos
+        run: npm run protos
+
       - name: Read release version
         id: version
         run: |
-          # Read version from cli/package.json (stable version)
+          # Read version from cli/package.json
           VERSION=$(node -p "require('./cli/package.json').version")
           echo "Release version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -76,9 +85,6 @@ jobs:
 
       - name: Clean previous builds
         run: rm -rf dist-standalone
-
-      - name: Generate Protos (First Pass)
-        run: npm run protos && npm run protos-go
 
       - name: Compile CLI
         run: npm run compile-cli
@@ -99,17 +105,14 @@ jobs:
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         run: npm run compile-standalone-npm
 
-      - name: Generate Protos (Second Pass - Bug Workaround)
-        run: npm run protos && npm run protos-go
-
       - name: Verify build output
         run: |
           echo "Checking dist-standalone directory..."
           ls -la dist-standalone/
-          
+
           echo "Verifying CLI binaries..."
           ls -lh cli/bin/cline-* || echo "Warning: CLI binaries not found"
-          
+
           echo "Checking package.json in dist-standalone..."
           cat dist-standalone/package.json | grep version
 

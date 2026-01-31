@@ -102,7 +102,7 @@ const esbuildProblemMatcherPlugin: esbuild.Plugin = {
 	name: "esbuild-problem-matcher",
 	setup(build) {
 		build.onStart(() => {
-			console.log("[cli-ts esbuild] Build started...")
+			console.log("[cli esbuild] Build started...")
 		})
 		build.onEnd((result) => {
 			result.errors.forEach(({ text, location }) => {
@@ -111,7 +111,7 @@ const esbuildProblemMatcherPlugin: esbuild.Plugin = {
 					console.error(`    ${location.file}:${location.line}:${location.column}:`)
 				}
 			})
-			console.log("[cli-ts esbuild] Build finished")
+			console.log("[cli esbuild] Build finished")
 		})
 	},
 }
@@ -199,7 +199,7 @@ const buildTimeEnvs = [
 
 buildTimeEnvs.forEach((envVar) => {
 	if (process.env[envVar]) {
-		console.log(`[cli-ts esbuild] ${envVar} env var is set`)
+		console.log(`[cli esbuild] ${envVar} env var is set`)
 		buildEnvVars[`process.env.${envVar}`] = JSON.stringify(process.env[envVar])
 	}
 })
@@ -254,7 +254,7 @@ async function main() {
 	const ctx = await esbuild.context(config)
 	if (watch) {
 		await ctx.watch()
-		console.log("[cli-ts] Watching for changes...")
+		console.log("[cli] Watching for changes...")
 	} else {
 		await ctx.rebuild()
 		await ctx.dispose()

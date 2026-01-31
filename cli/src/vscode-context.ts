@@ -140,7 +140,7 @@ export function initializeCliContext(config: CliContextConfig = {}): CliContextR
 	mkdirSync(DATA_DIR, { recursive: true })
 	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
 
-	// For CLI, extension dir is the root of the project (parent of cli-ts)
+	// For CLI, extension dir is the root of the project (parent of cli)
 	const EXTENSION_DIR = path.resolve(__dirname, "..", "..")
 	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 

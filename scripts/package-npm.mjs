@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * NPM Package Builder for Cline CLI (TypeScript)
+ * NPM Package Builder for Cline CLI
  *
  * This script builds the Cline CLI NPM package (dist-standalone/).
- * It packages the TypeScript CLI from cli-ts/.
+ * It packages the CLI from cli/.
  *
  * Usage: node scripts/package-npm.mjs
  *
  * Prerequisites:
- *   - cd cli-ts && npm run build:production
+ *   - cd cli && npm run build:production
  */
 
 import { execSync } from "child_process"
@@ -18,7 +18,7 @@ import { cp } from "fs/promises"
 import path from "path"
 
 const BUILD_DIR = "dist-standalone"
-const CLI_TS_DIR = "cli-ts"
+const CLI_DIR = "cli"
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
 async function main() {
@@ -53,13 +53,13 @@ async function buildTypeScriptCli() {
 	console.log("Building TypeScript CLI...")
 
 	// Install dependencies if needed
-	if (!fs.existsSync(path.join(CLI_TS_DIR, "node_modules"))) {
-		console.log("Installing cli-ts dependencies...")
-		execSync("npm install", { stdio: "inherit", cwd: CLI_TS_DIR })
+	if (!fs.existsSync(path.join(CLI_DIR, "node_modules"))) {
+		console.log("Installing cli dependencies...")
+		execSync("npm install", { stdio: "inherit", cwd: CLI_DIR })
 	}
 
 	// Build production bundle
-	execSync("npm run build:production", { stdio: "inherit", cwd: CLI_TS_DIR })
+	execSync("npm run build:production", { stdio: "inherit", cwd: CLI_DIR })
 	console.log("✓ TypeScript CLI built")
 }
 
@@ -69,12 +69,12 @@ async function buildTypeScriptCli() {
 async function copyCliDist() {
 	console.log("Copying CLI distribution files...")
 
-	const distSource = path.join(CLI_TS_DIR, "dist")
+	const distSource = path.join(CLI_DIR, "dist")
 	const distDest = path.join(BUILD_DIR, "dist")
 
 	if (!fs.existsSync(distSource)) {
 		console.error(`Error: CLI dist not found at ${distSource}`)
-		console.error(`Please run: cd cli-ts && npm run build:production`)
+		console.error(`Please run: cd cli && npm run build:production`)
 		process.exit(1)
 	}
 
@@ -91,12 +91,12 @@ async function copyCliDist() {
 
 /**
  * Create package.json for NPM publication
- * Reads from cli-ts/package.json and modifies for publication
+ * Reads from cli/package.json and modifies for publication
  */
 async function createNpmPackageJson() {
 	console.log("Creating NPM package.json...")
 
-	const sourcePackageJson = path.join(CLI_TS_DIR, "package.json")
+	const sourcePackageJson = path.join(CLI_DIR, "package.json")
 
 	if (!fs.existsSync(sourcePackageJson)) {
 		console.error(`Error: package.json not found at ${sourcePackageJson}`)
@@ -132,13 +132,13 @@ async function createNpmPackageJson() {
 }
 
 /**
- * Copy README.md from cli-ts/ directory
+ * Copy README.md from cli/ directory
  */
 async function copyReadme() {
 	console.log("Copying README...")
 
-	// Try cli-ts README first, fall back to cli/ README
-	let readmeSource = path.join(CLI_TS_DIR, "README.md")
+	// Try cli README first, fall back to cli/ README
+	let readmeSource = path.join(CLI_DIR, "README.md")
 
 	if (!fs.existsSync(readmeSource)) {
 		readmeSource = path.join("cli", "README.md")
