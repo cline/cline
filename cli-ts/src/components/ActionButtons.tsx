@@ -131,9 +131,9 @@ const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Start New Task",
-		secondaryText: undefined,
+		secondaryText: "Exit",
 		primaryAction: "new_task",
-		secondaryAction: undefined,
+		secondaryAction: "reject",
 	},
 	resume_task: {
 		sendingDisabled: false,
@@ -155,9 +155,9 @@ const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Start New Task with Context",
-		secondaryText: undefined,
+		secondaryText: "Exit",
 		primaryAction: "new_task",
-		secondaryAction: undefined,
+		secondaryAction: "reject",
 	},
 
 	// Streaming/partial states

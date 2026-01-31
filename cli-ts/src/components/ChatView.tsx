@@ -764,8 +764,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					sendAskResponse("yesButtonClicked")
 					break
 				case "reject":
-					// Check for resume states that should trigger exit
-					if (pendingAsk?.ask === "resume_task" || pendingAsk?.ask === "resume_completed_task") {
+					// Check for states that should trigger exit (all end-of-task states with Exit button)
+					if (
+						pendingAsk?.ask === "resume_task" ||
+						pendingAsk?.ask === "resume_completed_task" ||
+						pendingAsk?.ask === "completion_result" ||
+						pendingAsk?.ask === "new_task"
+					) {
 						handleExit()
 					} else {
 						sendAskResponse("noButtonClicked")
