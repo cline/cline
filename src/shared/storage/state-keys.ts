@@ -250,6 +250,7 @@ const USER_SETTINGS_FIELDS = {
 	subagentTerminalOutputLineLimit: { default: 2000 as number },
 	strictPlanModeEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
+	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },

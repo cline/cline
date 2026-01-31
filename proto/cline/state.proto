@@ -277,6 +277,7 @@ message Settings {
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
   map<string, string> open_ai_headers = 173;
+  optional bool auto_approve_all_toggled = 174;
 }
 
 message DictationSettings {
