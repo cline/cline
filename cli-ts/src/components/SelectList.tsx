@@ -4,7 +4,8 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import { useState } from "react"
+// biome-ignore lint/correctness/noUnusedImports: React is needed for JSX transform (tsconfig uses jsx: react)
+import React, { useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 
