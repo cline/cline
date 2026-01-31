@@ -39,6 +39,18 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		onRecordingStateChange?.(isRecording)
 	}, [isRecording, onRecordingStateChange])
 
+	// Cleanup on unmount - cancel recording and reset state
+	useEffect(() => {
+		return () => {
+			// Cancel any active recording when component unmounts
+			DictationServiceClient.cancelRecording(EmptyRequest.create({})).catch((error) => {
+				console.error("Error canceling recording on unmount:", error)
+			})
+			// Notify parent that recording has stopped
+			onRecordingStateChange?.(false)
+		}
+	}, [onRecordingStateChange])
+
 	// Auto-clear authentication errors when user signs in
 	useEffect(() => {
 		if (isAuthenticated && error) {
