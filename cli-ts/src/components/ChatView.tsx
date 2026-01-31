@@ -143,7 +143,6 @@ import { HelpPanelContent } from "./HelpPanelContent"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
 import { providerModels } from "./ModelPicker"
-import { SessionSummary } from "./SessionSummary"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
@@ -1504,9 +1503,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						</Box>
 					</Box>
 				)}
-
-				{/* Session summary - shown when exiting */}
-				{isExiting && <SessionSummary />}
 			</Box>
 		</Box>
 	)
