@@ -12,7 +12,16 @@ import { main as generateHostBridgeClient } from "./generate-host-bridge-client.
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = "protoc"
+let PROTOC = "protoc"
+
+try {
+	const protocPath = require.resolve("grpc-tools/bin/protoc.js")
+	// Verify that the grpc-tools protoc can actually run
+	execSync(`node "${protocPath}" --version`, { stdio: "ignore" })
+	PROTOC = `node "${protocPath}"`
+} catch (e) {
+	console.warn("grpc-tools protoc not found or not working, falling back to system protoc")
+}
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
