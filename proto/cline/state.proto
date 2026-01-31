@@ -260,7 +260,6 @@ message Settings {
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
-  optional bool skills_enabled = 156;
   optional bool opt_out_of_remote_config = 157;
   optional bool open_telemetry_enabled = 158;
   optional string open_telemetry_metrics_exporter = 159;
@@ -385,6 +384,7 @@ message UpdateTaskSettingsRequest {
 // Message for updating settings
 message UpdateSettingsRequest {
   reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
+  reserved 38; // was skills_enabled (removed - now always enabled)
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -421,7 +421,6 @@ message UpdateSettingsRequest {
   optional bool enable_parallel_tool_calling = 35;
   optional bool background_edit_enabled = 36;
   optional string oca_reasoning_effort = 37;
-  optional bool skills_enabled = 38;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
 }
