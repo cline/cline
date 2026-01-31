@@ -250,13 +250,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 				)
 			}
 
-			// Show result content for completed tools, or file path for pending asks
-			const contentLines =
-				isToolSay && toolInfo.result?.trim()
-					? formatToolResult(toolInfo.result, 5)
-					: isToolAsk && filePath
-						? [filePath as string]
-						: []
+			// Show result content for completed tools (both say and ask), or file path for pending asks
+			const contentLines = toolInfo.result?.trim()
+				? formatToolResult(toolInfo.result, 5)
+				: (isToolAsk || isToolSay) && filePath
+					? [filePath as string]
+					: []
 
 			return (
 				<Box flexDirection="column" marginBottom={1} width="100%">
