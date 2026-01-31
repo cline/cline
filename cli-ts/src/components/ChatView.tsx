@@ -432,8 +432,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const toggleMode = useCallback(async () => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
 		setMode(newMode)
-		await ctrl.togglePlanActMode(newMode)
-	}, [mode, ctrl])
+
+		// When switching from plan to act, include any text in the input box
+		// Text stays visible in the input - don't clear it
+		if (newMode === "act" && textInput.trim()) {
+			const expandedText = expandPastedTexts(textInput, pastedTexts)
+			await ctrl.togglePlanActMode(newMode, { message: expandedText.trim() })
+		} else {
+			await ctrl.togglePlanActMode(newMode)
+		}
+	}, [mode, ctrl, textInput, pastedTexts])
 
 	// Clear the terminal view and reset task state (used by /clear and "Start New Task" button)
 	const clearViewAndResetTask = useCallback(() => {
