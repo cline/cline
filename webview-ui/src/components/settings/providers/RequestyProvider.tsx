@@ -57,18 +57,20 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 					Get Requesty API Key
 				</VSCodeButton>
 			)}
-			<VSCodeCheckbox
-				checked={requestyEndpointSelected}
-				onChange={(e: any) => {
-					const isChecked = e.target.checked === true
-					setRequestyEndpointSelected(isChecked)
+			<div style={{ display: "inline-flex" }}>
+				<VSCodeCheckbox
+					checked={requestyEndpointSelected}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked === true
+						setRequestyEndpointSelected(isChecked)
 
-					if (!isChecked) {
-						handleFieldChange("requestyBaseUrl", undefined)
-					}
-				}}>
-				Use custom base URL
-			</VSCodeCheckbox>
+						if (!isChecked) {
+							handleFieldChange("requestyBaseUrl", undefined)
+						}
+					}}>
+					Use custom base URL
+				</VSCodeCheckbox>
+			</div>
 			{requestyEndpointSelected && (
 				<DebouncedTextField
 					initialValue={apiConfiguration?.requestyBaseUrl ?? ""}
