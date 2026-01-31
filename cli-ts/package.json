@@ -65,6 +65,7 @@
 	},
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^0.13.1",
+		"@vscode/ripgrep": "^1.15.9",
 		"aws4fetch": "^1.0.20",
 		"chalk": "^5.3.0",
 		"commander": "^12.1.0",

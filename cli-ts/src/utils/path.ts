@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
+// @ts-expect-error - @vscode/ripgrep has no type declarations
+import { rgPath } from "@vscode/ripgrep"
 
 const data = process.env.CLINE_DATA_DIR ?? path.join(os.homedir(), ".cline", "data")
 
@@ -13,8 +15,7 @@ export const CLINE_CLI_DIR = {
 
 /**
  * Find binary location for CLI.
- * Uses 'which' (Unix) or 'where' (Windows) to locate binaries in the system PATH.
- * This is needed for tools like ripgrep that the search_files tool uses.
+ * First checks system PATH (for brew users), then falls back to bundled @vscode/ripgrep.
  */
 export async function getCliBinaryPath(name: string): Promise<string> {
 	// The only binary currently supported is ripgrep (rg)
@@ -25,22 +26,20 @@ export async function getCliBinaryPath(name: string): Promise<string> {
 	const isWindows = process.platform === "win32"
 	const whichCommand = isWindows ? "where" : "which"
 
+	// First try system PATH (for brew users who have ripgrep installed)
 	try {
 		const result = execFileSync(whichCommand, [name], {
 			encoding: "utf-8",
 			stdio: ["pipe", "pipe", "pipe"],
 		})
-		// 'which' returns the path, 'where' on Windows may return multiple lines
 		const binPath = result.trim().split("\n")[0].trim()
 		if (binPath) {
 			return binPath
 		}
 	} catch {
-		// Binary not found in PATH
+		// Binary not found in PATH, fall back to bundled version
 	}
 
-	throw new Error(
-		`Could not find '${name}' in system PATH. ` +
-			`Please install ripgrep: https://github.com/BurntSushi/ripgrep#installation`,
-	)
+	// Fall back to bundled @vscode/ripgrep (for npm users)
+	return rgPath
 }
