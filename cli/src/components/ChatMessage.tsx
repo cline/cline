@@ -244,7 +244,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 							<ToolCallText args={toolInfo.args} isAsk={isToolAsk} mode={mode} toolName={toolInfo.toolName} />
 						</DotRow>
 						<Box marginLeft={2}>
-							<DiffView content={toolInfo.args.content} />
+							<DiffView content={toolInfo.args.content} filePath={filePath as string | undefined} />
 						</Box>
 					</Box>
 				)
