@@ -1245,7 +1245,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			toggleMode()
 			return
 		}
-		if (key.return && !mentionInfo.inMentionMode && !slashInfo.inSlashMode && !pendingAsk) {
+		if (key.return && !mentionInfo.inMentionMode && !slashInfo.inSlashMode && !pendingAsk && !isSpinnerActive) {
 			if (prompt.trim() || imagePaths.length > 0) {
 				handleSubmit(prompt.trim(), imagePaths)
 			}
