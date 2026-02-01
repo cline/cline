@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check for recent commits
         id: check_commits
@@ -37,14 +37,14 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup Go
         if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.24'
           cache-dependency-path: cli/go.sum
@@ -52,7 +52,7 @@ jobs:
       # Cache root dependencies - only reuse if package-lock.json exactly matches
       - name: Cache root dependencies
         if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: root-cache
         with:
           path: node_modules
@@ -61,7 +61,7 @@ jobs:
       # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
       - name: Cache webview-ui dependencies
         if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: webview-cache
         with:
           path: webview-ui/node_modules
