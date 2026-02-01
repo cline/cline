@@ -447,15 +447,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [mode, ctrl, textInput, pastedTexts])
 
 	// Clear the terminal view and reset task state (used by /clear and "Start New Task" button)
-	const clearViewAndResetTask = useCallback(() => {
+	// This is async to ensure clearTask() completes before we remount, preventing race conditions
+	// where the old messages get fetched and restored before the controller clears them.
+	const clearViewAndResetTask = useCallback(async () => {
+		// First, clear the task on the controller and wait for it to finish
+		// This ensures the controller has no messages before we remount
+		if (ctrl) {
+			await ctrl.clearTask()
+		}
+
+		// Now clear the terminal and reset React state
 		process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback, cursor home
 		setTaskSwitchKey((k) => k + 1) // Force remount for fresh Static instance
 		clearState() // Force clear React state (bypasses empty messages check)
-		if (ctrl) {
-			ctrl.clearTask().then(() => ctrl.postStateToWebview())
-		}
 		setTextInput("")
 		setCursorPos(0)
+
+		// Post the now-empty state
+		if (ctrl) {
+			ctrl.postStateToWebview()
+		}
 	}, [ctrl, clearState])
 
 	const refs = useRef({
@@ -789,7 +800,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						await ctrl.initTask(pendingAsk.text || "")
 					} else {
 						// From completion_result or resume_completed_task - full clear
-						clearViewAndResetTask()
+						await clearViewAndResetTask()
 					}
 					break
 				case "cancel":
@@ -797,7 +808,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					break
 			}
 		},
-		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel],
+		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask],
 	)
 
 	// Handle task submission (new task)
