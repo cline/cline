@@ -177,8 +177,8 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		DATA_DIR,
 	)
 
-	await ErrorService.initialize()
 	await StateManager.initialize(extensionContext as any)
+	await ErrorService.initialize()
 
 	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
 	openAiCodexOAuthManager.initialize(extensionContext)
