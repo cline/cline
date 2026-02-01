@@ -9,11 +9,11 @@ import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { Command } from "commander"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
 import { BannerService } from "@/services/banner/BannerService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { CliCommentReviewController } from "./cli-comment-review"
-import { CliDiffViewProvider } from "./cli-diff-provider"
 import { createCliHostBridgeProvider } from "./cli-host-bridge"
 import { CliWebviewProvider } from "./cli-webview-provider"
 // IMPORTANT: Import console module FIRST - it suppresses console.log before core imports
@@ -35,7 +35,7 @@ function setupHostProvider(
 	verbose: boolean = false,
 ) {
 	const createWebview = () => new CliWebviewProvider(extensionContext)
-	const createDiffView = () => new CliDiffViewProvider()
+	const createDiffView = () => new FileEditProvider()
 	const createCommentReview = () => new CliCommentReviewController()
 	const createTerminalManager = () => new StandaloneTerminalManager()
 
@@ -336,7 +336,7 @@ async function listHistory(options: { config?: string; limit?: number }) {
  * Show current configuration
  */
 async function showConfig(options: { config?: string }) {
-	const { extensionContext, DATA_DIR } = initializeCliContext({
+	const { DATA_DIR } = initializeCliContext({
 		clineDir: options.config,
 	})
 
