@@ -191,6 +191,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	BannerService.initialize(webview.controller)
 
+	telemetryService.captureExtensionActivated()
 	telemetryService.captureHostEvent("cline_cli", "initialized")
 
 	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
