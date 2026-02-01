@@ -83,7 +83,9 @@ export class MoonshotHandler implements ApiHandler {
 			if (chunk.usage) {
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
+					cacheWriteTokens: 0,
+					cacheReadTokens: (chunk.usage as any).cached_tokens ?? 0,
+					inputTokens: (chunk.usage.prompt_tokens || 0) - ((chunk.usage as any).cached_tokens ?? 0),
 					outputTokens: chunk.usage.completion_tokens || 0,
 				}
 			}
