@@ -4,7 +4,7 @@ import * as path from "path"
 import { executeTool, getController, getWorkspaceDirectory, TOOL_DEFINITIONS } from "./delegates"
 import { getExecuteDoPrompt } from "./prompts/execute-do"
 import { getExecuteTestPrompt } from "./prompts/execute-test"
-import { EnforcementRequest, EnforcementResponse } from "./types"
+import { EnforcementRequest, EnforcementResponse, TestExecutionResult, IndividualTestResult } from "./types"
 import { runVerification } from "./verification-engine"
 
 export async function executeAndVerify(request: EnforcementRequest): Promise<EnforcementResponse> {
@@ -68,7 +68,7 @@ async function captureState(): Promise<SystemState> {
 	}
 }
 
-async function executeThroughCline(task: string): Promise<void> {
+async function executeThroughCline(task: string, maxIterations: number = 10, existingMessages?: any[]): Promise<any[]> {
 	console.log("[execution-engine] 🚀 START executeThroughCline")
 
 	try {
@@ -83,12 +83,12 @@ async function executeThroughCline(task: string): Promise<void> {
 		}
 
 		const systemPrompt = "You are a code execution assistant. Use tools to make targeted changes to fix the gaps identified."
-		const messages: any[] = [{ role: "user", content: task }]
+		const messages: any[] = existingMessages || [{ role: "user", content: task }]
 
-		console.log("[execution-engine] PHASE 1: Tool-enabled execution (10 iterations max)")
+		console.log(`[execution-engine] PHASE 1: Tool-enabled execution (${maxIterations} iterations max)`)
 
-		for (let i = 0; i < 5; i++) {
-			console.log(`[execution-engine] Iteration ${i + 1}/10`)
+		for (let i = 0; i < maxIterations; i++) {
+			console.log(`[execution-engine] Iteration ${i + 1}/${maxIterations}`)
 
 			const stream = api.createMessage(systemPrompt, messages, TOOL_DEFINITIONS)
 
@@ -189,6 +189,18 @@ async function executeThroughCline(task: string): Promise<void> {
 				})
 			}
 
+			// Add iteration tracking after tool results
+			if (toolCalls.length > 0 && i < maxIterations - 1) {
+				const iterationMsg = i >= maxIterations - 2 
+					? `[System: Iteration ${i + 1} of ${maxIterations}. ⚠️ FINAL ITERATION - complete your task now!]`
+					: `[System: Iteration ${i + 1} of ${maxIterations}]`
+				
+				messages.push({
+					role: "user",
+					content: iterationMsg,
+				})
+			}
+
 			if (toolCalls.length === 0) {
 				console.log("[execution-engine] No more tools requested, stopping")
 				break
@@ -196,6 +208,7 @@ async function executeThroughCline(task: string): Promise<void> {
 		}
 
 		console.log("[execution-engine] ✅ Execution complete")
+		return messages
 	} catch (error) {
 		console.error("[execution-engine] Error:", error)
 		throw error
@@ -244,12 +257,58 @@ export async function generateAndRunTests(request: EnforcementRequest, cachedVer
 			substepId,
 		)
 
-		// Step 4: PHASE 1 - Tool-enabled test generation and execution
-		console.log("[execution-engine] PHASE 1: Generate and run tests (with tools)")
-		await executeThroughCline(testPrompt)
+		// Step 4: PHASE 1 - Three-stage test generation (like verification's two phases)
+		console.log("[execution-engine] PHASE 1: Three-stage test generation")
+		
+		// Stage 1: Research (3 iterations)
+		console.log("[execution-engine] Stage 1: Research implementation (3 iterations)")
+		let messages = await executeThroughCline(testPrompt, 3)
+		
+		// Stage 2: Write test file (3 iterations)
+		console.log("[execution-engine] Stage 2: Write test file (3 iterations)")
+		messages.push({
+			role: "user",
+			content: `Now you MUST write the test file to: ${testFilePath}
 
-		// Step 5: PHASE 2 - Force structured JSON response
-		console.log("[execution-engine] PHASE 2: Extract structured test results")
+Use the write_to_file tool. This is CRITICAL - the file must be created at this exact path.`
+		})
+		messages = await executeThroughCline("", 3, messages)
+		
+		// Stage 3: Run test (1 iteration)
+		console.log("[execution-engine] Stage 3: Run test (1 iteration)")
+		messages.push({
+			role: "user",
+			content: `Now run the test file: python ${testFilePath}`
+		})
+		messages = await executeThroughCline("", 1, messages)
+		
+		// Fallback: If file doesn't exist, create minimal test
+		if (!fs.existsSync(absoluteTestPath)) {
+			console.log("[execution-engine] ⚠️ Test file not created, creating minimal fallback test")
+			fs.mkdirSync(path.dirname(absoluteTestPath), { recursive: true })
+			const minimalTest = `import sys
+import json
+import unittest
+
+sys.path.insert(0, '${workspaceDir}')
+
+def print_test_result(name, status, description):
+    result = {"name": name, "status": status, "description": description, "category": "general"}
+    print(f"TEST_RESULT: {json.dumps(result)}")
+
+class FallbackTest(unittest.TestCase):
+    def test_generation_failed(self):
+        print_test_result("test_generation_failed", "fail", "LLM did not generate test file")
+        self.fail("Test file was not created by LLM")
+
+if __name__ == '__main__':
+    unittest.main()
+`
+			fs.writeFileSync(absoluteTestPath, minimalTest)
+		}
+
+		// Step 5: PHASE 2 - Extract test results
+		console.log("[execution-engine] PHASE 2: Extract test results")
 		const testResults = await extractTestResults(absoluteTestPath)
 
 		console.log("[execution-engine] ✅ TEST Flow complete")

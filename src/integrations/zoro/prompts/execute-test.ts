@@ -102,16 +102,18 @@ ${filesSummary
    sys.path.insert(0, '${workspaceDir}/backend')  # or /src, /app, etc.
    
    # Helper function to print structured test results
-   def print_test_result(name, status, description, rule_id=None, feature_name=None):
+   def print_test_result(name, status, description, category="general", rule_description=None, feature_name=None):
        """Print test result in format that Zoro can parse"""
        result = {
            "name": name,
            "status": status,  # Must be 'pass', 'fail', or 'error'
            "description": description,
-           "category": rule_id or feature_name or "general"  # REQUIRED field
+           "category": category,  # REQUIRED field (e.g., "rule", "substep", "feature")
+           "output": "",
+           "test_code": ""
        }
-       if rule_id:
-           result["rule_id"] = rule_id
+       if rule_description:
+           result["rule_description"] = rule_description
        if feature_name:
            result["feature_name"] = feature_name
        print(f"TEST_RESULT: {json.dumps(result)}")
@@ -142,15 +144,17 @@ ${filesSummary
                name="test_feature_works",
                status="pass",
                description="Feature works as expected",
-               rule_id="rule-abc-123",  # Optional: if testing a rule
-               feature_name="Feature Name"  # Optional
+               category="feature",  # Required: "rule", "feature", "substep", etc.
+               rule_description="Keep REST endpoint formatting consistent",  # Optional: if testing a rule
+               feature_name="Feature Name"  # Optional: name of feature being tested
            )
        except AssertionError as e:
            # ❌ REQUIRED: Print on failure
            print_test_result(
                name="test_feature_works",
                status="fail",
-               description=f"Test failed: {str(e)}"
+               description=f"Test failed: {str(e)}",
+               category="feature"
            )
            raise  # Re-raise so unittest marks it as failed
    \`\`\`

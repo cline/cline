@@ -68,6 +68,23 @@ export interface ExecuteTaskResponse {
 	status: 'submitted' | 'running' | 'completed' | 'failed'
 }
 
+export interface IndividualTestResult {
+	name: string
+	category: string
+	description: string
+	status: 'pass' | 'fail' | 'error'
+	output: string
+	rule_description?: string
+	feature_name?: string
+	test_code: string
+}
+
+export interface TestExecutionResult {
+	test_file: string
+	results: IndividualTestResult[]
+	error?: string
+}
+
 export function validateEnforcementRequest(body: any): {
 	valid: boolean
 	error?: string
