@@ -718,6 +718,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 			const newTelemetry: TelemetrySetting = newValue ? "enabled" : "disabled"
 			setTelemetry(newTelemetry)
 			stateManager.setGlobalState("telemetrySetting", newTelemetry)
+			// Update telemetry providers to respect the new setting
+			controller?.updateTelemetrySetting(newTelemetry)
 			return
 		}
 
