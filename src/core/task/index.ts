@@ -2150,7 +2150,9 @@ export class Task {
 					}
 				}
 				await this.toolExecutor.executeTool(block)
-				Session.get().updateToolCall(block.call_id, block.name)
+				if (block.call_id) {
+					Session.get().updateToolCall(block.call_id, block.name)
+				}
 				break
 		}
 
