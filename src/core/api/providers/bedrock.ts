@@ -116,6 +116,7 @@ const JP_SUPPORTED_CRIS_MODELS = [
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",
+	"amazon.nova-2-lite-v1:0",
 ]
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
