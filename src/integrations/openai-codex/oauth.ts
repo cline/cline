@@ -5,6 +5,7 @@ import type { ExtensionContext } from "vscode"
 import { z } from "zod"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 
 /**
  * OpenAI Codex OAuth Configuration
@@ -394,7 +395,7 @@ export class OpenAiCodexOAuthManager {
 		}
 
 		try {
-			const credentialsJson = await this.context.secrets.get(OPENAI_CODEX_CREDENTIALS_KEY)
+			const credentialsJson = await secretStorage.get(OPENAI_CODEX_CREDENTIALS_KEY)
 			if (!credentialsJson) {
 				return null
 			}
@@ -416,7 +417,7 @@ export class OpenAiCodexOAuthManager {
 			throw new Error("OAuth manager not initialized")
 		}
 
-		await this.context.secrets.store(OPENAI_CODEX_CREDENTIALS_KEY, JSON.stringify(credentials))
+		await secretStorage.store(OPENAI_CODEX_CREDENTIALS_KEY, JSON.stringify(credentials))
 		this.credentials = credentials
 	}
 
@@ -428,7 +429,7 @@ export class OpenAiCodexOAuthManager {
 			return
 		}
 
-		await this.context.secrets.delete(OPENAI_CODEX_CREDENTIALS_KEY)
+		await secretStorage.delete(OPENAI_CODEX_CREDENTIALS_KEY)
 		this.credentials = null
 	}
 

@@ -18,6 +18,7 @@ import {
 import chokidar, { FSWatcher } from "chokidar"
 import { ClineExtensionContext } from "@/shared/clients"
 import { Logger } from "@/shared/services/Logger"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -102,6 +103,7 @@ export class StateManager {
 
 	private constructor(context: ClineExtensionContext) {
 		this.context = context
+		secretStorage.init(context.secrets)
 	}
 
 	/**
@@ -119,7 +121,7 @@ export class StateManager {
 		try {
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(context)
-			const secrets = await readSecretsFromDisk(context)
+			const secrets = await readSecretsFromDisk()
 			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
@@ -770,9 +772,9 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					const value = this.secretsCache[key]
 					if (value) {
-						return this.context.secrets.store(key, value)
+						return secretStorage.store(key, value)
 					} else {
-						return this.context.secrets.delete(key)
+						return secretStorage.delete(key)
 					}
 				}),
 			)

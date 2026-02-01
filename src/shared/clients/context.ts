@@ -28,7 +28,7 @@ enum ExtensionMode {
 }
 
 export interface ClineExtensionContext {
-	readonly name: ClineClient
+	readonly name?: ClineClient
 	/**
 	 * An array to which disposables can be added. When this
 	 * extension is deactivated the disposables will be disposed.
