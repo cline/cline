@@ -11,6 +11,7 @@ import type {
 } from "@generated/hosts/host-bridge-client-types"
 import type { HostBridgeClientProvider, StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
+import { StateManager } from "@/core/storage/StateManager"
 import { ClineClient } from "@/shared/cline"
 import { version as CLI_VERSION } from "../../package.json"
 import { printError, printInfo, printWarning } from "../utils/display"
@@ -80,7 +81,11 @@ export class CliDiffServiceClient implements DiffServiceClientInterface {
 export class CliEnvServiceClient implements EnvServiceClientInterface {
 	private clipboardContent: string = ""
 
-	private telemetrySetting = proto.host.Setting.ENABLED
+	private getTelemetrySetting(): proto.host.Setting {
+		// Read from StateManager - defaults to ENABLED if not set or "unset"
+		const setting = StateManager.get().getGlobalSettingsKey("telemetrySetting")
+		return setting === "disabled" ? proto.host.Setting.DISABLED : proto.host.Setting.ENABLED
+	}
 
 	async clipboardWriteText(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
 		this.clipboardContent = request.value || ""
@@ -107,7 +112,7 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 
 	async getTelemetrySettings(_request: proto.cline.EmptyRequest): Promise<proto.host.GetTelemetrySettingsResponse> {
 		return proto.host.GetTelemetrySettingsResponse.create({
-			isEnabled: this.telemetrySetting,
+			isEnabled: this.getTelemetrySetting(),
 		})
 	}
 
@@ -118,7 +123,7 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 		// Send initial settings
 		callbacks.onResponse(
 			proto.host.TelemetrySettingsEvent.create({
-				isEnabled: this.telemetrySetting,
+				isEnabled: this.getTelemetrySetting(),
 			}),
 		)
 		// Return unsubscribe function
