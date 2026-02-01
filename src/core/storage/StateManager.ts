@@ -16,7 +16,7 @@ import {
 	SettingsKey,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
-import { ClineExtensionContext } from "@/shared/cline"
+import type { ExtensionContext } from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
@@ -59,7 +59,7 @@ export class StateManager {
 	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
-	private context: ClineExtensionContext
+	private context: ExtensionContext
 	private isInitialized = false
 
 	// In-memory model info cache (not persisted to disk)
@@ -101,7 +101,7 @@ export class StateManager {
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
 
-	private constructor(context: ClineExtensionContext) {
+	private constructor(context: ExtensionContext) {
 		this.context = context
 		secretStorage.init(context.secrets)
 	}
@@ -109,7 +109,7 @@ export class StateManager {
 	/**
 	 * Initialize the cache by loading data from disk
 	 */
-	public static async initialize(context: ClineExtensionContext): Promise<StateManager> {
+	public static async initialize(context: ExtensionContext): Promise<StateManager> {
 		if (!StateManager.instance) {
 			StateManager.instance = new StateManager(context)
 		}
@@ -519,7 +519,6 @@ export class StateManager {
 		// Automatically categorize the API configuration keys
 		const { settingsUpdates, secretsUpdates } = Object.entries(apiConfiguration).reduce(
 			(acc, [key, value]) => {
-				Logger.debug("Processing API config key:", key, value)
 				if (key === undefined || value === undefined) {
 					return acc // Skip undefined values
 				}
@@ -773,9 +772,9 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					const value = this.secretsCache[key]
 					if (value) {
-						return secretStorage.store(key, value)
+						return this.context.secrets.store(key, value)
 					} else {
-						return secretStorage.delete(key)
+						return this.context.secrets.delete(key)
 					}
 				}),
 			)
@@ -857,7 +856,7 @@ export class StateManager {
 	/**
 	 * Get all global state entries (for debugging/inspection)
 	 */
-	getAllGlobalStateEntries(): Record<string, unknown> {
+	public getAllGlobalStateEntries(): Record<string, unknown> {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -867,7 +866,7 @@ export class StateManager {
 	/**
 	 * Get all workspace state entries (for debugging/inspection)
 	 */
-	getAllWorkspaceStateEntries(): Record<string, unknown> {
+	public getAllWorkspaceStateEntries(): Record<string, unknown> {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
