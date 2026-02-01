@@ -2,7 +2,7 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
-const AUTO_FORMATTING_SECTION_IDE = `# Auto-formatting Considerations
+const AUTO_FORMATTING_SECTION = `# Auto-formatting Considerations
 
 - After using either write_to_file or replace_in_file, the user's editor may automatically format the file
 - This auto-formatting may modify the file contents, for example:
@@ -15,11 +15,6 @@ const AUTO_FORMATTING_SECTION_IDE = `# Auto-formatting Considerations
   - Standardizing semicolon usage (adding or removing based on style)
 - The write_to_file and replace_in_file tool responses will include the final state of the file after any auto-formatting
 - Use this final state as your reference point for any subsequent edits. This is ESPECIALLY important when crafting SEARCH blocks for replace_in_file which require the content to match what's in the file exactly.`
-
-const AUTO_FORMATTING_SECTION_CLI = `# Formatting Considerations
-
-- Files are saved exactly as written. Ensure proper formatting, indentation, and style consistency in your edits.
-- When crafting SEARCH blocks for replace_in_file, match exactly what you wrote previously.`
 
 const EDITING_FILES_TEMPLATE_TEXT = `EDITING FILES
 
@@ -85,9 +80,8 @@ By thoughtfully selecting between write_to_file and replace_in_file, you can mak
 export async function getEditingFilesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const template = variant.componentOverrides?.[SystemPromptSection.EDITING_FILES]?.template || EDITING_FILES_TEMPLATE_TEXT
 
-	// Use CLI-specific auto-formatting section when running in CLI mode
-	// CLI has no IDE to auto-format files
-	const autoFormattingSection = context.isCliEnvironment ? AUTO_FORMATTING_SECTION_CLI : AUTO_FORMATTING_SECTION_IDE
+	// Skip auto-formatting section for CLI since there's no IDE to auto-format files
+	const autoFormattingSection = context.isCliEnvironment ? "" : AUTO_FORMATTING_SECTION
 
 	return new TemplateEngine().resolve(template, context, {
 		AUTO_FORMATTING_SECTION: autoFormattingSection,
