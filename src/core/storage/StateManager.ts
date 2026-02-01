@@ -16,7 +16,7 @@ import {
 	SettingsKey,
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
-import { ClineExtensionContext } from "@/shared/clients"
+import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
