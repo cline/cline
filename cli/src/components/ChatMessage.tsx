@@ -114,6 +114,11 @@ const ResultRow: React.FC<{ children: React.ReactNode; isFirst?: boolean }> = ({
  * Get the primary argument to display for a tool (file path, command, url, etc.)
  */
 function getToolMainArg(_toolName: string, args: Record<string, unknown>): string {
+	// Search files: show 'regex' in path
+	if (typeof args.regex === "string" && typeof args.path === "string") {
+		return `'${args.regex}' in ${args.path}`
+	}
+
 	// File path
 	if (typeof args.path === "string") return args.path
 	if (typeof args.file_path === "string") return args.file_path
@@ -122,9 +127,6 @@ function getToolMainArg(_toolName: string, args: Record<string, unknown>): strin
 	if (typeof args.command === "string") {
 		return args.command.length > 120 ? args.command.substring(0, 117) + "..." : args.command
 	}
-
-	// Search regex
-	if (typeof args.regex === "string") return args.regex
 
 	// URL
 	if (typeof args.url === "string") return args.url
