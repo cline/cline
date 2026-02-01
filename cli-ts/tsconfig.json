@@ -4,6 +4,8 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
+		"jsx": "react",
+		"jsxFactory": "React.createElement",
 		"lib": [
 			"es2022"
 		],
@@ -21,6 +23,7 @@
 		"target": "es2022",
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
+		"ignoreDeprecations": "6.0",
 		"baseUrl": "..",
 		"paths": {
 			"@/*": [

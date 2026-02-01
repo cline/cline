@@ -248,9 +248,8 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 	if (protoMessage.files.length > 0) {
 		message.files = protoMessage.files
 	}
-	if (protoMessage.partial) {
-		message.partial = protoMessage.partial
-	}
+	// Always set partial - it's needed for ask message completion detection
+	message.partial = protoMessage.partial
 	if (protoMessage.lastCheckpointHash !== "") {
 		message.lastCheckpointHash = protoMessage.lastCheckpointHash
 	}

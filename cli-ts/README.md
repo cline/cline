@@ -20,8 +20,11 @@ A TypeScript CLI implementation of Cline that reuses the core TypeScript codebas
 From the repository root:
 
 ```bash
-# Install root dependencies first
-npm install
+# Install all dependencies first
+npm run install:all
+
+# Ensure protos are generated
+npm run protos
 
 # Build the CLI
 npm run compile-cli-ts
@@ -32,8 +35,7 @@ Or install the CLI globally:
 ```bash
 cd cli-ts
 npm install
-npm run build
-npm link
+npm run link
 ```
 
 ## Usage
@@ -42,42 +44,42 @@ npm link
 
 ```bash
 # Run a task with a prompt
-cline-ts task "Create a hello world function in Python"
+clinedev task "Create a hello world function in Python"
 
 # Or use the shorthand
-cline-ts t "Create a hello world function"
+clinedev t "Create a hello world function"
 
 # Run directly without the 'task' command
-cline-ts "Create a hello world function"
+clinedev "Create a hello world function"
 ```
 
 ### Options
 
 ```bash
 # Show verbose output (including reasoning)
-cline-ts task -v "Your prompt"
+clinedev task -v "Your prompt"
 
 # Specify working directory
-cline-ts task -c /path/to/project "Your prompt"
+clinedev task -c /path/to/project "Your prompt"
 
 # Use custom config directory
-cline-ts task --config ~/.my-cline "Your prompt"
+clinedev task --config ~/.my-cline "Your prompt"
 ```
 
 ### View Task History
 
 ```bash
 # List recent tasks
-cline-ts history
+clinedev history
 
 # Show more tasks
-cline-ts history -n 20
+clinedev history -n 20
 ```
 
 ### Show Configuration
 
 ```bash
-cline-ts config
+clinedev config
 ```
 
 ## Development

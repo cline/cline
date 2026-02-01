@@ -15,43 +15,59 @@ import { printError, printInfo, printWarning } from "./display"
 
 /**
  * CLI implementation of DiffService - handles diff operations for terminal
+ *
+ * In CLI mode, actual file editing is handled by FileEditProvider (which extends DiffViewProvider).
+ * This service client handles the host bridge interface for UI-related diff operations.
+ * Most operations are no-ops since the CLI doesn't have a visual diff editor.
  */
 export class CliDiffServiceClient implements DiffServiceClientInterface {
-	async openDiff(request: proto.host.OpenDiffRequest): Promise<proto.host.OpenDiffResponse> {
-		printInfo(`📝 Opening diff for: ${request.leftUri || request.rightUri}`)
+	async openDiff(_request: proto.host.OpenDiffRequest): Promise<proto.host.OpenDiffResponse> {
+		// In CLI mode, diff operations are handled by FileEditProvider directly.
+		// This is a no-op since we don't have a visual diff editor.
 		return proto.host.OpenDiffResponse.create({})
 	}
 
-	async getDocumentText(request: proto.host.GetDocumentTextRequest): Promise<proto.host.GetDocumentTextResponse> {
-		// In CLI mode, we'd read from the file system directly
-		return proto.host.GetDocumentTextResponse.create({ text: "" })
+	async getDocumentText(_request: proto.host.GetDocumentTextRequest): Promise<proto.host.GetDocumentTextResponse> {
+		// In CLI mode, document text is managed by FileEditProvider directly.
+		// Return empty content since we don't track document state here.
+		return proto.host.GetDocumentTextResponse.create({ content: "" })
 	}
 
-	async replaceText(request: proto.host.ReplaceTextRequest): Promise<proto.host.ReplaceTextResponse> {
-		printInfo(`✏️  Replacing text in document`)
+	async replaceText(_request: proto.host.ReplaceTextRequest): Promise<proto.host.ReplaceTextResponse> {
+		// No-op in CLI - actual file editing is handled by FileEditProvider
 		return proto.host.ReplaceTextResponse.create({})
 	}
 
-	async scrollDiff(request: proto.host.ScrollDiffRequest): Promise<proto.host.ScrollDiffResponse> {
-		// No-op in CLI
+	async scrollDiff(_request: proto.host.ScrollDiffRequest): Promise<proto.host.ScrollDiffResponse> {
+		// No-op in CLI - no visual editor to scroll
 		return proto.host.ScrollDiffResponse.create({})
 	}
 
-	async truncateDocument(request: proto.host.TruncateDocumentRequest): Promise<proto.host.TruncateDocumentResponse> {
+	async truncateDocument(_request: proto.host.TruncateDocumentRequest): Promise<proto.host.TruncateDocumentResponse> {
+		// No-op in CLI - actual file editing is handled by FileEditProvider
 		return proto.host.TruncateDocumentResponse.create({})
 	}
 
-	async saveDocument(request: proto.host.SaveDocumentRequest): Promise<proto.host.SaveDocumentResponse> {
-		printInfo(`💾 Saving document`)
+	async saveDocument(_request: proto.host.SaveDocumentRequest): Promise<proto.host.SaveDocumentResponse> {
+		// No-op in CLI - actual file saving is handled by FileEditProvider
 		return proto.host.SaveDocumentResponse.create({})
 	}
 
-	async closeAllDiffs(request: proto.host.CloseAllDiffsRequest): Promise<proto.host.CloseAllDiffsResponse> {
+	async closeAllDiffs(_request: proto.host.CloseAllDiffsRequest): Promise<proto.host.CloseAllDiffsResponse> {
+		// No-op in CLI - no visual diff views to close
 		return proto.host.CloseAllDiffsResponse.create({})
 	}
 
 	async openMultiFileDiff(request: proto.host.OpenMultiFileDiffRequest): Promise<proto.host.OpenMultiFileDiffResponse> {
-		printInfo(`📝 Opening multi-file diff`)
+		// In CLI mode, we display a summary of the multi-file diff
+		const title = request.title || "Multi-file diff"
+		const diffs = request.diffs || []
+		if (diffs.length > 0) {
+			printInfo(`📝 ${title}: ${diffs.length} file(s) changed`)
+			for (const diff of diffs) {
+				printInfo(`   - ${diff.filePath}`)
+			}
+		}
 		return proto.host.OpenMultiFileDiffResponse.create({})
 	}
 }
@@ -68,45 +84,43 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 		return proto.cline.Empty.create()
 	}
 
-	async clipboardReadText(request: proto.cline.EmptyRequest): Promise<proto.cline.String> {
+	async clipboardReadText(_request: proto.cline.EmptyRequest): Promise<proto.cline.String> {
 		return proto.cline.String.create({ value: this.clipboardContent })
 	}
 
-	async getHostVersion(request: proto.cline.EmptyRequest): Promise<proto.host.GetHostVersionResponse> {
+	async getHostVersion(_request: proto.cline.EmptyRequest): Promise<proto.host.GetHostVersionResponse> {
 		return proto.host.GetHostVersionResponse.create({
 			version: "1.0.0",
 			platform: "Cline CLI",
 		})
 	}
 
-	async getIdeRedirectUri(request: proto.cline.EmptyRequest): Promise<proto.cline.String> {
+	async getIdeRedirectUri(_request: proto.cline.EmptyRequest): Promise<proto.cline.String> {
 		// CLI doesn't have IDE redirect
 		return proto.cline.String.create({ value: "" })
 	}
 
-	async getTelemetrySettings(request: proto.cline.EmptyRequest): Promise<proto.host.GetTelemetrySettingsResponse> {
+	async getTelemetrySettings(_request: proto.cline.EmptyRequest): Promise<proto.host.GetTelemetrySettingsResponse> {
 		return proto.host.GetTelemetrySettingsResponse.create({
-			isTelemetryEnabled: false,
-			isCrashReporterEnabled: false,
+			isEnabled: proto.host.Setting.DISABLED,
 		})
 	}
 
 	subscribeToTelemetrySettings(
-		request: proto.cline.EmptyRequest,
+		_request: proto.cline.EmptyRequest,
 		callbacks: StreamingCallbacks<proto.host.TelemetrySettingsEvent>,
 	): () => void {
 		// Send initial settings
 		callbacks.onResponse(
 			proto.host.TelemetrySettingsEvent.create({
-				isTelemetryEnabled: false,
-				isCrashReporterEnabled: false,
+				isEnabled: proto.host.Setting.DISABLED,
 			}),
 		)
 		// Return unsubscribe function
 		return () => {}
 	}
 
-	async shutdown(request: proto.cline.EmptyRequest): Promise<proto.cline.Empty> {
+	async shutdown(_request: proto.cline.EmptyRequest): Promise<proto.cline.Empty> {
 		printInfo("Shutting down...")
 		return proto.cline.Empty.create()
 	}
@@ -119,13 +133,13 @@ export class CliWindowServiceClient implements WindowServiceClientInterface {
 	async showTextDocument(request: proto.host.ShowTextDocumentRequest): Promise<proto.host.TextEditorInfo> {
 		printInfo(`📄 Opening file: ${request.path}`)
 		return proto.host.TextEditorInfo.create({
-			path: request.path,
+			documentPath: request.path,
 		})
 	}
 
-	async showOpenDialogue(request: proto.host.ShowOpenDialogueRequest): Promise<proto.host.SelectedResources> {
+	async showOpenDialogue(_request: proto.host.ShowOpenDialogueRequest): Promise<proto.host.SelectedResources> {
 		printWarning("Open dialog not available in CLI mode")
-		return proto.host.SelectedResources.create({ uris: [] })
+		return proto.host.SelectedResources.create({ paths: [] })
 	}
 
 	async showMessage(request: proto.host.ShowMessageRequest): Promise<proto.host.SelectedResponse> {
@@ -148,37 +162,37 @@ export class CliWindowServiceClient implements WindowServiceClientInterface {
 		return proto.host.SelectedResponse.create({})
 	}
 
-	async showInputBox(request: proto.host.ShowInputBoxRequest): Promise<proto.host.ShowInputBoxResponse> {
+	async showInputBox(_request: proto.host.ShowInputBoxRequest): Promise<proto.host.ShowInputBoxResponse> {
 		// In CLI mode, we could use readline, but for now return empty
 		printWarning("Input box not available in CLI mode")
-		return proto.host.ShowInputBoxResponse.create({ value: "" })
+		return proto.host.ShowInputBoxResponse.create({ response: "" })
 	}
 
-	async showSaveDialog(request: proto.host.ShowSaveDialogRequest): Promise<proto.host.ShowSaveDialogResponse> {
+	async showSaveDialog(_request: proto.host.ShowSaveDialogRequest): Promise<proto.host.ShowSaveDialogResponse> {
 		printWarning("Save dialog not available in CLI mode")
-		return proto.host.ShowSaveDialogResponse.create({ uri: "" })
+		return proto.host.ShowSaveDialogResponse.create({ selectedPath: "" })
 	}
 
 	async openFile(request: proto.host.OpenFileRequest): Promise<proto.host.OpenFileResponse> {
-		printInfo(`📂 Opening: ${request.path}`)
+		printInfo(`📂 Opening: ${request.filePath}`)
 		return proto.host.OpenFileResponse.create({})
 	}
 
-	async openSettings(request: proto.host.OpenSettingsRequest): Promise<proto.host.OpenSettingsResponse> {
+	async openSettings(_request: proto.host.OpenSettingsRequest): Promise<proto.host.OpenSettingsResponse> {
 		printInfo("Settings can be configured in ~/.cline/data/globalState.json")
 		return proto.host.OpenSettingsResponse.create({})
 	}
 
-	async getOpenTabs(request: proto.host.GetOpenTabsRequest): Promise<proto.host.GetOpenTabsResponse> {
+	async getOpenTabs(_request: proto.host.GetOpenTabsRequest): Promise<proto.host.GetOpenTabsResponse> {
 		// CLI doesn't have tabs
-		return proto.host.GetOpenTabsResponse.create({ tabs: [] })
+		return proto.host.GetOpenTabsResponse.create({ paths: [] })
 	}
 
-	async getVisibleTabs(request: proto.host.GetVisibleTabsRequest): Promise<proto.host.GetVisibleTabsResponse> {
-		return proto.host.GetVisibleTabsResponse.create({ tabs: [] })
+	async getVisibleTabs(_request: proto.host.GetVisibleTabsRequest): Promise<proto.host.GetVisibleTabsResponse> {
+		return proto.host.GetVisibleTabsResponse.create({ paths: [] })
 	}
 
-	async getActiveEditor(request: proto.host.GetActiveEditorRequest): Promise<proto.host.GetActiveEditorResponse> {
+	async getActiveEditor(_request: proto.host.GetActiveEditorRequest): Promise<proto.host.GetActiveEditorResponse> {
 		return proto.host.GetActiveEditorResponse.create({})
 	}
 }
@@ -197,24 +211,24 @@ export class CliWorkspaceServiceClient implements WorkspaceServiceClientInterfac
 		this.workspacePath = path
 	}
 
-	async getWorkspacePaths(request: proto.host.GetWorkspacePathsRequest): Promise<proto.host.GetWorkspacePathsResponse> {
+	async getWorkspacePaths(_request: proto.host.GetWorkspacePathsRequest): Promise<proto.host.GetWorkspacePathsResponse> {
 		return proto.host.GetWorkspacePathsResponse.create({
 			paths: [this.workspacePath],
 		})
 	}
 
 	async saveOpenDocumentIfDirty(
-		request: proto.host.SaveOpenDocumentIfDirtyRequest,
+		_request: proto.host.SaveOpenDocumentIfDirtyRequest,
 	): Promise<proto.host.SaveOpenDocumentIfDirtyResponse> {
 		return proto.host.SaveOpenDocumentIfDirtyResponse.create({})
 	}
 
-	async getDiagnostics(request: proto.host.GetDiagnosticsRequest): Promise<proto.host.GetDiagnosticsResponse> {
+	async getDiagnostics(_request: proto.host.GetDiagnosticsRequest): Promise<proto.host.GetDiagnosticsResponse> {
 		// In CLI mode, we could run linters here
-		return proto.host.GetDiagnosticsResponse.create({ diagnostics: [] })
+		return proto.host.GetDiagnosticsResponse.create({ fileDiagnostics: [] })
 	}
 
-	async openProblemsPanel(request: proto.host.OpenProblemsPanelRequest): Promise<proto.host.OpenProblemsPanelResponse> {
+	async openProblemsPanel(_request: proto.host.OpenProblemsPanelRequest): Promise<proto.host.OpenProblemsPanelResponse> {
 		printInfo("Run linters to see problems")
 		return proto.host.OpenProblemsPanelResponse.create({})
 	}
@@ -227,13 +241,13 @@ export class CliWorkspaceServiceClient implements WorkspaceServiceClientInterfac
 	}
 
 	async openClineSidebarPanel(
-		request: proto.host.OpenClineSidebarPanelRequest,
+		_request: proto.host.OpenClineSidebarPanelRequest,
 	): Promise<proto.host.OpenClineSidebarPanelResponse> {
 		// No sidebar in CLI
 		return proto.host.OpenClineSidebarPanelResponse.create({})
 	}
 
-	async openTerminalPanel(request: proto.host.OpenTerminalRequest): Promise<proto.host.OpenTerminalResponse> {
+	async openTerminalPanel(_request: proto.host.OpenTerminalRequest): Promise<proto.host.OpenTerminalResponse> {
 		printInfo("Terminal is already available in CLI mode")
 		return proto.host.OpenTerminalResponse.create({})
 	}
