@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
-import { API_PROVIDERS_LIST, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
 import { ProviderToApiKeyMap } from "@/shared/storage"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
@@ -29,7 +29,7 @@ import {
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
-import { getProviderLabel, getProviderOrder } from "./ProviderPicker"
+import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "./ProviderPicker"
 
 type AuthStep =
 	| "menu"
@@ -172,10 +172,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
 
-	// Use providers.json order, filtered to only available providers
+	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const sortedProviders = useMemo(() => {
-		const availableProviders = new Set(API_PROVIDERS_LIST)
-		return getProviderOrder().filter((p) => availableProviders.has(p))
+		return getProviderOrder().filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
 	}, [])
 
 	// Main menu items - conditionally include import options
