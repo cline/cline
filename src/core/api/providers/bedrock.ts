@@ -84,7 +84,7 @@ interface ContentBlockDelta {
 }
 
 // Define types for supported content types
-type SupportedContentType = "text" | "image" | "thinking"
+type SupportedContentType = "text" | "image" | "thinking" | "tool_use" | "tool_result" | "redacted_thinking"
 
 interface ContentItem {
 	type: SupportedContentType
@@ -122,7 +122,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	@withRetry({ maxRetries: 4 })
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: any[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
@@ -142,7 +142,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Check if this is an Amazon Nova model
 		if (baseModelId.includes("amazon.nova")) {
-			yield* this.createNovaMessage(systemPrompt, messages, modelId, model)
+			yield* this.createNovaMessage(systemPrompt, messages, modelId, model, tools)
 			return
 		}
 
@@ -164,7 +164,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 
 		// Default: Use Anthropic Converse API for all Anthropic models
-		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model, enable1mContextWindow)
+		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model, enable1mContextWindow, tools)
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -546,7 +546,9 @@ export class AwsBedrockHandler implements ApiHandler {
 			if (response.stream) {
 				// Buffer content by contentBlockIndex to handle multi-block responses correctly
 				const contentBuffers: Record<number, string> = {}
-				const blockTypes = new Map<number, "reasoning" | "text">()
+				const blockTypes = new Map<number, "reasoning" | "text" | "tool_use">()
+				// Track tool use blocks for conversion to tool_calls format
+				const toolUseBlocks = new Map<number, { id: string; name: string; input: string }>()
 
 				for await (const chunk of response.stream) {
 					// Debug logging to see actual response structure
@@ -593,7 +595,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 					// Handle content block start - check if Bedrock uses Anthropic SDK format
 					if (chunk.contentBlockStart) {
-						const blockStart = chunk.contentBlockStart as ContentBlockStart
+						const blockStart = chunk.contentBlockStart as any
 						const blockIndex = chunk.contentBlockStart.contentBlockIndex
 
 						// Check for thinking block in various possible formats
@@ -615,6 +617,25 @@ export class AwsBedrockHandler implements ApiHandler {
 								}
 							}
 						}
+
+						// Check for tool_use block (Bedrock returns this in Anthropic format)
+						if (
+							blockStart.start?.toolUse ||
+							blockStart.contentBlock?.toolUse ||
+							(blockStart.start?.type === "tool_use" && blockStart.start)
+						) {
+							if (blockIndex !== undefined) {
+								blockTypes.set(blockIndex, "tool_use")
+								const toolUse = blockStart.start?.toolUse || blockStart.contentBlock?.toolUse || blockStart.start
+								if (toolUse?.toolUseId && toolUse?.name) {
+									toolUseBlocks.set(blockIndex, {
+										id: toolUse.toolUseId,
+										name: toolUse.name,
+										input: "",
+									})
+								}
+							}
+						}
 					}
 
 					// Handle content block delta - accumulate content by block index
@@ -629,7 +650,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 							// Check if this is a thinking block
 							const blockType = blockTypes.get(blockIndex)
-							const delta = chunk.contentBlockDelta.delta as ContentBlockDelta["delta"]
+							const delta = chunk.contentBlockDelta.delta as any
 
 							// Handle thinking delta (Anthropic SDK format)
 							if (delta?.type === "thinking_delta" || delta?.thinking) {
@@ -648,6 +669,12 @@ export class AwsBedrockHandler implements ApiHandler {
 										type: "reasoning",
 										reasoning: reasoningText,
 									}
+								}
+							} else if (blockType === "tool_use" && delta?.toolUse?.input) {
+								// Accumulate tool input (JSON string)
+								const toolBlock = toolUseBlocks.get(blockIndex)
+								if (toolBlock) {
+									toolBlock.input += delta.toolUse.input
 								}
 							} else if (chunk.contentBlockDelta.delta?.text) {
 								// Handle regular text content
@@ -670,11 +697,28 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 					}
 
-					// Handle content block stop - clean up buffers
+					// Handle content block stop - clean up buffers and yield completed tool calls
 					if (chunk.contentBlockStop) {
 						const blockIndex = chunk.contentBlockStop.contentBlockIndex
 
 						if (blockIndex !== undefined) {
+							// If this was a tool_use block, yield it as a tool_calls chunk
+							const toolBlock = toolUseBlocks.get(blockIndex)
+							if (toolBlock) {
+								// Convert Bedrock tool_use format to OpenAI-compatible tool_calls format
+								yield {
+									type: "tool_calls",
+									tool_call: {
+										function: {
+											id: toolBlock.id,
+											name: toolBlock.name,
+											arguments: toolBlock.input,
+										},
+									},
+								}
+								toolUseBlocks.delete(blockIndex)
+							}
+
 							// Clean up buffers and tracking for this block
 							delete contentBuffers[blockIndex]
 							blockTypes.delete(blockIndex)
@@ -779,6 +823,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 		enable1mContextWindow: boolean,
+		tools?: any[],
 	): ApiStream {
 		// Format messages for Anthropic model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
@@ -800,12 +845,27 @@ export class AwsBedrockHandler implements ApiHandler {
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
 
+		// Convert tools to Bedrock format if provided
+		const { convertToBedrockTools } = await import("../transform/bedrock-tools")
+		const bedrockTools = tools ? convertToBedrockTools(tools as any) : undefined
+
+		// Debug: Log tool conversion for verification
+		if (bedrockTools) {
+			console.log(
+				`[Bedrock Anthropic] Sending ${bedrockTools.length} tools to API:`,
+				bedrockTools.map((t) => t.toolSpec?.name).join(", "),
+			)
+		} else {
+			console.log("[Bedrock Anthropic] No tools provided to API")
+		}
+
 		// Prepare request for Anthropic model using Converse API
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
 			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			toolConfig: bedrockTools ? { tools: bedrockTools } : undefined,
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
 				...(reasoningOn && {
@@ -853,7 +913,42 @@ export class AwsBedrockHandler implements ApiHandler {
 							return this.processImageContent(item)
 						}
 
-						// Log unsupported content types for debugging
+						// Thinking/reasoning blocks - skip silently (not supported in input messages)
+						if (item.type === "thinking") {
+							return null
+						}
+
+						// Tool use blocks - convert Anthropic format to Bedrock format
+						if (item.type === "tool_use") {
+							return {
+								toolUse: {
+									toolUseId: item.id,
+									name: item.name,
+									input: item.input,
+								},
+							}
+						}
+
+						// Tool result blocks - convert Anthropic format to Bedrock format
+						if (item.type === "tool_result") {
+							// Handle both string and array content
+							const contentArray =
+								typeof item.content === "string"
+									? [{ text: item.content }]
+									: Array.isArray(item.content)
+										? item.content.map((c: any) => ({ text: typeof c === "string" ? c : c.text || "" }))
+										: [{ text: "" }]
+
+							return {
+								toolResult: {
+									toolUseId: item.tool_use_id,
+									content: contentArray,
+									status: item.is_error ? "error" : "success",
+								},
+							}
+						}
+
+						// Log truly unsupported content types
 						console.warn(`Unsupported content type: ${(item as ContentItem).type}`)
 						return null
 					})
@@ -964,6 +1059,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		tools?: any[],
 	): ApiStream {
 		// Format messages for Nova model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
@@ -983,12 +1079,27 @@ export class AwsBedrockHandler implements ApiHandler {
 		const enableCaching = this.options.awsBedrockUsePromptCache && model.info.supportsPromptCache
 		const systemMessages = this.prepareSystemMessages(systemPrompt, enableCaching || false)
 
+		// Convert tools to Bedrock format if provided
+		const { convertToBedrockTools } = await import("../transform/bedrock-tools")
+		const bedrockTools = tools ? convertToBedrockTools(tools as any) : undefined
+
+		// Debug: Log tool conversion for verification
+		if (bedrockTools) {
+			console.log(
+				`[Bedrock Nova] Sending ${bedrockTools.length} tools to API:`,
+				bedrockTools.map((t) => t.toolSpec?.name).join(", "),
+			)
+		} else {
+			console.log("[Bedrock Nova] No tools provided to API")
+		}
+
 		// Prepare request for Nova model
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
 			inferenceConfig: this.getInferenceConfig(model.info, "nova"),
+			toolConfig: bedrockTools ? { tools: bedrockTools } : undefined,
 		})
 
 		// Execute the streaming request using unified handler

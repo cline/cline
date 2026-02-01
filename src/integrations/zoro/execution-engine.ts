@@ -4,7 +4,7 @@ import * as path from "path"
 import { executeTool, getController, getWorkspaceDirectory, TOOL_DEFINITIONS } from "./delegates"
 import { getExecuteDoPrompt } from "./prompts/execute-do"
 import { getExecuteTestPrompt } from "./prompts/execute-test"
-import { EnforcementRequest, EnforcementResponse, TestExecutionResult, IndividualTestResult } from "./types"
+import { EnforcementRequest, EnforcementResponse } from "./types"
 import { runVerification } from "./verification-engine"
 
 export async function executeAndVerify(request: EnforcementRequest): Promise<EnforcementResponse> {
@@ -140,21 +140,44 @@ async function executeThroughCline(task: string, maxIterations: number = 10, exi
 				assistantContent.push({ type: "text", text: assistantText.trim() })
 			}
 
+			// CRITICAL FIX: Execute tools once and store results to guarantee tool_use/tool_result ID matching
+			const toolExecutions: Array<{
+				id: string
+				name: string
+				input: any
+				result: string
+			}> = []
+
 			for (const toolCall of toolCalls) {
-				let toolInput: any = {}
 				try {
-					toolInput = JSON.parse(toolCall.function?.arguments || "{}")
-				} catch {
-					continue
+					const toolInput = JSON.parse(toolCall.function?.arguments || "{}")
+					const toolResult = await executeTool(toolCall.function.name, toolInput)
+
+					toolExecutions.push({
+						id: toolCall.function.id,
+						name: toolCall.function.name,
+						input: toolInput,
+						result: toolResult,
+					})
+				} catch (error) {
+					// Log error but continue - handle gracefully
+					console.error("[execution-engine] Tool execution failed:", error)
+					toolExecutions.push({
+						id: toolCall.function.id,
+						name: toolCall.function.name || "unknown",
+						input: {},
+						result: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+					})
 				}
+			}
 
-				const toolResult = await executeTool(toolCall.function.name, toolInput)
-
+			// Add tool_use blocks to assistant message
+			for (const execution of toolExecutions) {
 				assistantContent.push({
 					type: "tool_use",
-					id: toolCall.function.id,
-					name: toolCall.function.name,
-					input: toolInput,
+					id: execution.id,
+					name: execution.name,
+					input: execution.input,
 				})
 			}
 
@@ -167,34 +190,25 @@ async function executeThroughCline(task: string, maxIterations: number = 10, exi
 				messages.push({ role: "assistant", content: assistantContent })
 			}
 
-			for (const toolCall of toolCalls) {
-				let toolInput: any = {}
-				try {
-					toolInput = JSON.parse(toolCall.function?.arguments || "{}")
-				} catch {
-					continue
-				}
-
-				const toolResult = await executeTool(toolCall.function.name, toolInput)
-
+			// Add ALL tool results in a SINGLE user message - Bedrock requires this
+			if (toolExecutions.length > 0) {
 				messages.push({
 					role: "user",
-					content: [
-						{
-							type: "tool_result",
-							tool_use_id: toolCall.function.id,
-							content: toolResult,
-						},
-					],
+					content: toolExecutions.map((execution) => ({
+						type: "tool_result",
+						tool_use_id: execution.id,
+						content: execution.result,
+					})),
 				})
 			}
 
 			// Add iteration tracking after tool results
 			if (toolCalls.length > 0 && i < maxIterations - 1) {
-				const iterationMsg = i >= maxIterations - 2 
-					? `[System: Iteration ${i + 1} of ${maxIterations}. ⚠️ FINAL ITERATION - complete your task now!]`
-					: `[System: Iteration ${i + 1} of ${maxIterations}]`
-				
+				const iterationMsg =
+					i >= maxIterations - 2
+						? `[System: Iteration ${i + 1} of ${maxIterations}. ⚠️ FINAL ITERATION - complete your task now!]`
+						: `[System: Iteration ${i + 1} of ${maxIterations}]`
+
 				messages.push({
 					role: "user",
 					content: iterationMsg,
@@ -259,29 +273,29 @@ export async function generateAndRunTests(request: EnforcementRequest, cachedVer
 
 		// Step 4: PHASE 1 - Three-stage test generation (like verification's two phases)
 		console.log("[execution-engine] PHASE 1: Three-stage test generation")
-		
+
 		// Stage 1: Research (3 iterations)
 		console.log("[execution-engine] Stage 1: Research implementation (3 iterations)")
 		let messages = await executeThroughCline(testPrompt, 3)
-		
+
 		// Stage 2: Write test file (3 iterations)
 		console.log("[execution-engine] Stage 2: Write test file (3 iterations)")
 		messages.push({
 			role: "user",
 			content: `Now you MUST write the test file to: ${testFilePath}
 
-Use the write_to_file tool. This is CRITICAL - the file must be created at this exact path.`
+Use the write_to_file tool. This is CRITICAL - the file must be created at this exact path.`,
 		})
 		messages = await executeThroughCline("", 3, messages)
-		
+
 		// Stage 3: Run test (1 iteration)
 		console.log("[execution-engine] Stage 3: Run test (1 iteration)")
 		messages.push({
 			role: "user",
-			content: `Now run the test file: python ${testFilePath}`
+			content: `Now run the test file: python ${testFilePath}`,
 		})
 		messages = await executeThroughCline("", 1, messages)
-		
+
 		// Fallback: If file doesn't exist, create minimal test
 		if (!fs.existsSync(absoluteTestPath)) {
 			console.log("[execution-engine] ⚠️ Test file not created, creating minimal fallback test")
