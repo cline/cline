@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs"
 import { basename, dirname, join, relative } from "node:path"
 import { createInterface } from "node:readline"
 import type { Fzf, FzfResultItem } from "fzf"
+import { Logger } from "@/shared/services/Logger"
 
 export interface FileSearchResult {
 	path: string
@@ -228,7 +229,7 @@ export async function searchWorkspaceFiles(
 			.slice(0, limit)
 			.map((r) => r.item)
 	} catch (error) {
-		console.error("File search error:", error)
+		Logger.error("File search error:", error)
 		return []
 	}
 }
