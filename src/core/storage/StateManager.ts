@@ -519,6 +519,7 @@ export class StateManager {
 		// Automatically categorize the API configuration keys
 		const { settingsUpdates, secretsUpdates } = Object.entries(apiConfiguration).reduce(
 			(acc, [key, value]) => {
+				Logger.debug("Processing API config key:", key, value)
 				if (key === undefined || value === undefined) {
 					return acc // Skip undefined values
 				}
