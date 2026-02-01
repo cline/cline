@@ -15,7 +15,7 @@ import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { ClineRulesToggles } from "@/shared/cline-rules"
 import { Logger } from "@/shared/services/Logger"
-import { secretStorage } from "@/shared/storage/ClineSecretStorage"
+import { secretStorage } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"
 
 export async function readSecretsFromDisk(): Promise<Secrets> {
