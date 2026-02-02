@@ -44,11 +44,11 @@ jobs:
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Run Quality Checks (Parallel)
@@ -89,11 +89,11 @@ jobs:
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Set up NPM on Windows
@@ -180,11 +180,11 @@ jobs:
                 key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Download ripgrep binaries
@@ -194,7 +194,6 @@ jobs:
               run: npm run compile-standalone
 
             - name: Install testing platform dependencies
-              if: steps.testing-platform-cache.outputs.cache-hit != 'true'
               run: cd testing-platform && npm ci
 
             - name: Running testing platform integration spec tests
