@@ -365,7 +365,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Panel state
 	const [activePanel, setActivePanel] = useState<
-		{ type: "settings"; initialMode?: "model-picker" | "featured-models" } | { type: "history" } | { type: "help" } | null
+		| { type: "settings"; initialMode?: "model-picker" | "featured-models"; initialModelKey?: "actModelId" | "planModelId" }
+		| { type: "history" }
+		| { type: "help" }
+		| null
 	>(null)
 
 	// Track when we're exiting to hide UI elements before exit
@@ -982,13 +985,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						return
 					}
 					if (cmd.name === "models") {
-						// If separate models for plan/act is enabled, just open settings (user picks which mode)
-						const hasSeparateModels = StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting")
 						const apiConfig = StateManager.get().getApiConfiguration()
-						const provider = apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
-						const initialMode =
-							hasSeparateModels || !provider ? undefined : provider === "cline" ? "featured-models" : "model-picker"
-						setActivePanel({ type: "settings", initialMode })
+						// Use current mode's provider to determine picker type
+						const provider =
+							mode === "act"
+								? apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
+								: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
+						const initialMode = !provider ? undefined : provider === "cline" ? "featured-models" : "model-picker"
+						// Set model for current mode (plan or act)
+						const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
+						setActivePanel({ type: "settings", initialMode, initialModelKey })
 						setTextInput("")
 						setCursorPos(0)
 						setSelectedSlashIndex(0)
@@ -1402,6 +1408,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					<SettingsPanelContent
 						controller={ctrl}
 						initialMode={activePanel.initialMode}
+						initialModelKey={activePanel.initialModelKey}
 						onClose={() => setActivePanel(null)}
 					/>
 				)}

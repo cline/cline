@@ -40,6 +40,7 @@ interface SettingsPanelContentProps {
 	onClose: () => void
 	controller?: Controller
 	initialMode?: "model-picker" | "featured-models"
+	initialModelKey?: "actModelId" | "planModelId"
 }
 
 type SettingsTab = "api" | "auto-approve" | "features" | "other" | "account"
@@ -114,7 +115,12 @@ function formatBalance(balance: number | null): string {
 	return `$${(balance / 1000000).toFixed(2)}`
 }
 
-export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onClose, controller, initialMode }) => {
+export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
+	onClose,
+	controller,
+	initialMode,
+	initialModelKey,
+}) => {
 	const { isRawModeSupported } = useStdinContext()
 	const stateManager = StateManager.get()
 
@@ -123,7 +129,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isEditing, setIsEditing] = useState(false)
 	const [isPickingModel, setIsPickingModel] = useState(initialMode === "model-picker")
-	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(initialMode ? "actModelId" : null)
+	const [pickingModelKey, setPickingModelKey] = useState<"actModelId" | "planModelId" | null>(
+		initialMode ? (initialModelKey ?? "actModelId") : null,
+	)
 	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(initialMode === "featured-models")
 	const [featuredModelIndex, setFeaturedModelIndex] = useState(0)
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
