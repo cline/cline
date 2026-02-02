@@ -10,8 +10,8 @@ on:
 
 permissions:
   contents: read
-  checks: write  # Required by test workflow
-  pull-requests: write  # Required by test workflow
+  checks: write # Required by test workflow
+  pull-requests: write # Required by test workflow
 
 jobs:
   test:
@@ -30,8 +30,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
 
       # Cache root dependencies - only reuse if package-lock.json exactly matches
       - name: Cache root dependencies
@@ -41,33 +41,9 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
-      # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-      - name: Cache webview-ui dependencies
-        uses: actions/cache@v4
-        id: webview-cache
-        with:
-          path: webview-ui/node_modules
-          key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-      # Cache cli dependencies
-      - name: Cache cli dependencies
-        uses: actions/cache@v4
-        id: cli-cache
-        with:
-          path: cli/node_modules
-          key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
-
-      - name: Install root dependencies
-        if: steps.root-cache.outputs.cache-hit != 'true'
-        run: npm ci --include=optional
-
-      - name: Install webview-ui dependencies
-        if: steps.webview-cache.outputs.cache-hit != 'true'
-        run: cd webview-ui && npm ci --include=optional
-
-      - name: Install cli dependencies
-        if: steps.cli-cache.outputs.cache-hit != 'true'
-        run: cd cli && npm ci
+      - name: Install root dependencies and CLI dependencies
+        if: steps.check_commits.outputs.skip != 'true' && steps.root-cache.outputs.cache-hit != 'true'
+        run: npm ci --include=optional # this will also install cli deps because "cli" in included in root package.json workspaces field
 
       - name: Generate Protos
         run: npm run protos
@@ -80,18 +56,6 @@ jobs:
           echo "Release version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download ripgrep binaries
-        run: npm run download-ripgrep
-
-      - name: Clean previous builds
-        run: rm -rf dist-standalone
-
-      - name: Compile CLI
-        run: npm run compile-cli
-
-      - name: Compile CLI for all platforms
-        run: npm run compile-cli-all-platforms
-
       - name: Build standalone NPM package
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -103,7 +67,7 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-        run: npm run compile-standalone-npm
+        run: node scripts/package-npm.mjs
 
       - name: Verify build output
         run: |
