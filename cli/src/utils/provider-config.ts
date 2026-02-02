@@ -3,7 +3,8 @@
  * Used by both AuthView (onboarding) and SettingsPanelContent (settings)
  */
 
-import { ProviderToApiKeyMap } from "@shared/storage"
+import type { ApiProvider } from "@shared/api"
+import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
@@ -30,10 +31,23 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	}
 
 	// Add model ID (use provided or fall back to default)
+	// Use provider-specific model ID keys (e.g., actModeOpenRouterModelId for cline/openrouter)
 	const finalModelId = modelId || getDefaultModelId(providerId)
 	if (finalModelId) {
-		config.actModeApiModelId = finalModelId
-		config.planModeApiModelId = finalModelId
+		const actModelKey = getProviderModelIdKey(providerId as ApiProvider, "act")
+		const planModelKey = getProviderModelIdKey(providerId as ApiProvider, "plan")
+		if (actModelKey) config[actModelKey] = finalModelId
+		if (planModelKey) config[planModelKey] = finalModelId
+
+		// For cline/openrouter, also set model info (required for getModel() to return correct model)
+		if ((providerId === "cline" || providerId === "openrouter") && controller) {
+			const openRouterModels = await controller.readOpenRouterModels()
+			const modelInfo = openRouterModels?.[finalModelId]
+			if (modelInfo) {
+				stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
+				stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+			}
+		}
 	}
 
 	// Add API key if provided (maps to provider-specific field like anthropicApiKey, openAiApiKey, etc.)

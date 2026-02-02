@@ -9,8 +9,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
+import type { ApiProvider } from "@/shared/api"
 import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
-import { ProviderToApiKeyMap } from "@/shared/storage"
+import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { getAllFeaturedModels } from "../constants/featured-models"
@@ -268,17 +269,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				const stateManager = StateManager.get()
 				const mode = stateManager.getGlobalSettingsKey("mode") || "act"
 				const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-				const modelIdKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+				// Use provider-specific model ID key (cline uses OpenRouterModelId)
+				const modelIdKey = getProviderModelIdKey("cline" as ApiProvider, mode as "act" | "plan")
 				const config: Record<string, string> = {
 					actModeApiProvider: "cline",
 					[providerKey]: "cline",
-					[modelIdKey]: openRouterDefaultModelId,
+				}
+				if (modelIdKey) {
+					config[modelIdKey] = openRouterDefaultModelId
 				}
 				stateManager.setApiConfiguration(config)
 				stateManager.flushPendingState()
 
 				setSelectedProvider("cline")
-				setModelId(config[modelIdKey])
+				setModelId(openRouterDefaultModelId)
 				setStep("cline_model")
 			}
 		}
@@ -331,12 +335,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 			// Save configuration
 			const stateManager = StateManager.get()
+			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
+			const actModelKey = getProviderModelIdKey(normalizedProvider as ApiProvider, "act")
+			const planModelKey = getProviderModelIdKey(normalizedProvider as ApiProvider, "plan")
 			const config: Record<string, string> = {
 				actModeApiProvider: normalizedProvider,
 				planModeApiProvider: normalizedProvider,
-				actModeApiModelId: modelid,
-				planModeApiModelId: modelid,
 			}
+			if (actModelKey) config[actModelKey] = modelid
+			if (planModelKey) config[planModelKey] = modelid
 
 			// Use provider-specific API key field
 			const keyField = ProviderToApiKeyMap[normalizedProvider]
@@ -383,12 +390,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			const stateManager = StateManager.get()
 			const mode = stateManager.getGlobalSettingsKey("mode") || "act"
 			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-			const modelIdKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
+			// Use provider-specific model ID key (openai-codex uses generic apiModelId)
+			const modelIdKey = getProviderModelIdKey("openai-codex" as ApiProvider, mode as "act" | "plan")
 			const config: Record<string, string> = {
 				actModeApiProvider: "openai-codex",
 				planModeApiProvider: "openai-codex",
 				[providerKey]: "openai-codex",
-				[modelIdKey]: openAiCodexDefaultModelId,
+			}
+			if (modelIdKey) {
+				config[modelIdKey] = openAiCodexDefaultModelId
 			}
 			stateManager.setApiConfiguration(config)
 			stateManager.setGlobalState("welcomeViewCompleted", true)
@@ -474,12 +484,25 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		async (model: string, base: string) => {
 			try {
 				const stateManager = StateManager.get()
+				// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
+				const actModelKey = getProviderModelIdKey(selectedProvider as ApiProvider, "act")
+				const planModelKey = getProviderModelIdKey(selectedProvider as ApiProvider, "plan")
 				const config: Record<string, string> = {
 					actModeApiProvider: selectedProvider,
 					planModeApiProvider: selectedProvider,
-					actModeApiModelId: model,
-					planModeApiModelId: model,
 					apiProvider: selectedProvider,
+				}
+				if (actModelKey) config[actModelKey] = model
+				if (planModelKey) config[planModelKey] = model
+
+				// For cline/openrouter, also set model info (required for getModel() to return correct model)
+				if (selectedProvider === "cline" || selectedProvider === "openrouter") {
+					const openRouterModels = await controller?.readOpenRouterModels()
+					const modelInfo = openRouterModels?.[model]
+					if (modelInfo) {
+						stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
+						stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+					}
 				}
 
 				// Add API key or Bedrock-specific config
@@ -515,7 +538,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("error")
 			}
 		},
-		[selectedProvider, apiKey, bedrockConfig],
+		[selectedProvider, apiKey, bedrockConfig, controller],
 	)
 
 	const handleModelIdSubmit = useCallback(

@@ -5,6 +5,7 @@
 import * as fs from "fs"
 import * as os from "os"
 import * as path from "path"
+import { anthropicDefaultModelId, geminiDefaultModelId, openAiNativeDefaultModelId } from "@/shared/api"
 import providersData from "@/shared/providers/providers.json"
 
 // Import source types
@@ -119,17 +120,17 @@ function findOpenCodeAuthPath(): string | null {
  * Map Codex key names to Cline providers
  */
 const CODEX_KEY_MAP: Record<string, { provider: string; keyField: string; modelId?: string }> = {
-	OPENAI_API_KEY: { provider: "openai-native", keyField: "openAiNativeApiKey", modelId: "gpt-4o" },
-	ANTHROPIC_API_KEY: { provider: "anthropic", keyField: "apiKey", modelId: "claude-sonnet-4-20250514" },
+	OPENAI_API_KEY: { provider: "openai-native", keyField: "openAiNativeApiKey", modelId: openAiNativeDefaultModelId },
+	ANTHROPIC_API_KEY: { provider: "anthropic", keyField: "apiKey", modelId: anthropicDefaultModelId },
 }
 
 /**
  * Map OpenCode provider IDs to Cline providers
  */
 const OPENCODE_PROVIDER_MAP: Record<string, { provider: string; keyField: string; modelId?: string }> = {
-	openai: { provider: "openai-native", keyField: "openAiNativeApiKey", modelId: "gpt-4o" },
-	anthropic: { provider: "anthropic", keyField: "apiKey", modelId: "claude-sonnet-4-20250514" },
-	gemini: { provider: "gemini", keyField: "geminiApiKey", modelId: "gemini-2.0-flash-001" },
+	openai: { provider: "openai-native", keyField: "openAiNativeApiKey", modelId: openAiNativeDefaultModelId },
+	anthropic: { provider: "anthropic", keyField: "apiKey", modelId: anthropicDefaultModelId },
+	gemini: { provider: "gemini", keyField: "geminiApiKey", modelId: geminiDefaultModelId },
 	mistral: { provider: "mistral", keyField: "mistralApiKey" },
 	groq: { provider: "groq", keyField: "groqApiKey" },
 	deepseek: { provider: "deepseek", keyField: "deepSeekApiKey" },

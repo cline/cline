@@ -101,13 +101,14 @@
  * - log-update: node_modules/ink/build/log-update.js (eraseLines logic)
  */
 
-import type { ModelInfo } from "@shared/api"
+import type { ApiProvider, ModelInfo } from "@shared/api"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
+import { getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
@@ -427,20 +428,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		StateManager.get().setGlobalState("autoApproveAllToggled", newValue)
 	}, [autoApproveAll])
 
-	// Get model ID based on current mode
-	// Re-read when activePanel changes (settings panel closes) to pick up changes
-	const modelId = useMemo(() => {
-		const stateManager = StateManager.get()
-		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
-		return (stateManager.getGlobalSettingsKey(modelKey) as string) || "claude-sonnet-4-20250514"
-	}, [mode, activePanel])
-
-	// Get provider based on current mode
+	// Get provider based on current mode (computed first since modelId depends on it)
 	const provider = useMemo(() => {
 		const stateManager = StateManager.get()
 		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		return (stateManager.getGlobalSettingsKey(providerKey) as string) || "anthropic"
+		return (stateManager.getGlobalSettingsKey(providerKey) as string) || ""
 	}, [mode, activePanel])
+
+	// Get model ID based on current mode and provider
+	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
+	// Re-read when activePanel changes (settings panel closes) to pick up changes
+	const modelId = useMemo(() => {
+		if (!provider) return ""
+		const stateManager = StateManager.get()
+		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
+		return (stateManager.getGlobalSettingsKey(modelKey as string) as string) || ""
+	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"

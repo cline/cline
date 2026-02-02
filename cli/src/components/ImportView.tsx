@@ -6,6 +6,8 @@
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
+import type { ApiProvider } from "@/shared/api"
+import { getProviderModelIdKey } from "@/shared/storage"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import {
@@ -69,10 +71,12 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 			// Set API key
 			config[selectedKey.keyField] = selectedKey.key
 
-			// Set model ID if available
+			// Set model ID if available (use provider-specific keys)
 			if (selectedKey.modelId) {
-				config.actModeApiModelId = selectedKey.modelId
-				config.planModeApiModelId = selectedKey.modelId
+				const actModelKey = getProviderModelIdKey(selectedKey.provider as ApiProvider, "act")
+				const planModelKey = getProviderModelIdKey(selectedKey.provider as ApiProvider, "plan")
+				if (actModelKey) config[actModelKey] = selectedKey.modelId
+				if (planModelKey) config[planModelKey] = selectedKey.modelId
 			}
 
 			stateManager.setApiConfiguration(config)

@@ -7,7 +7,8 @@
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import { getProviderDefaultModelId, Mode } from "@/shared/storage"
+import type { ApiProvider } from "@/shared/api"
+import { getProviderDefaultModelId, getProviderModelIdKey, Mode } from "@/shared/storage"
 import { useStdinContext } from "../context/StdinContext"
 import {
 	checkAndWarnRipgrepMissing,
@@ -73,11 +74,12 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 		return currentProvider || "cline"
 	}, [controller])
 
-	// Get model ID based on current mode
+	// Get model ID based on current mode and provider
+	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
 	const modelId = useMemo(() => {
 		const stateManager = StateManager.get()
-		const modelKey = mode === "act" ? "actModeApiModelId" : "planModeApiModelId"
-		return (stateManager.getGlobalSettingsKey(modelKey) as string) || getProviderDefaultModelId(provider)
+		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
+		return (stateManager.getGlobalSettingsKey(modelKey as string) as string) || getProviderDefaultModelId(provider)
 	}, [mode, provider])
 
 	const toggleMode = useCallback(() => {

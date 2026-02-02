@@ -5,7 +5,8 @@
 
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { ProviderToApiKeyMap } from "@shared/storage"
+import type { ApiProvider } from "@shared/api"
+import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -190,12 +191,30 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [accountChecked, setAccountChecked] = useState(false) // Tracks if we've already checked auth
 
 	// Get current provider and model info
-	const apiConfig = stateManager.getApiConfiguration()
 	const [provider, setProvider] = useState<string>(
-		() => apiConfig.actModeApiProvider || apiConfig.planModeApiProvider || "not configured",
+		() =>
+			stateManager.getApiConfiguration().actModeApiProvider ||
+			stateManager.getApiConfiguration().planModeApiProvider ||
+			"not configured",
 	)
-	const actModelId = (stateManager.getGlobalSettingsKey("actModeApiModelId") as string) || ""
-	const planModelId = (stateManager.getGlobalSettingsKey("planModeApiModelId") as string) || ""
+	// Refresh trigger to force re-reading model IDs from state
+	const [modelRefreshKey, setModelRefreshKey] = useState(0)
+	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
+
+	// Read model IDs from state (re-reads when refreshKey changes)
+	const { actModelId, planModelId } = useMemo(() => {
+		const apiConfig = stateManager.getApiConfiguration()
+		const currentProvider = apiConfig.actModeApiProvider
+		if (!currentProvider) {
+			return { actModelId: "", planModelId: "" }
+		}
+		const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
+		const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+		return {
+			actModelId: (stateManager.getGlobalSettingsKey(actKey as string) as string) || "",
+			planModelId: (stateManager.getGlobalSettingsKey(planKey as string) as string) || "",
+		}
+	}, [modelRefreshKey, stateManager])
 
 	// Toggle a feature setting
 	const toggleFeature = useCallback(
@@ -344,6 +363,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setAccountChecked(false) // Reset so fetchAccountInfo can run
 				await applyProviderConfig({ providerId: "cline", controller })
 				setProvider("cline")
+				refreshModelIds()
 				fetchAccountInfo()
 			}
 		}
@@ -695,8 +715,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			stateManager.setGlobalState("planActSeparateModelsSetting", newValue)
 			// When disabling separate models, sync plan model to act model
 			if (!newValue) {
-				const actModel = stateManager.getGlobalSettingsKey("actModeApiModelId")
-				stateManager.setGlobalState("planModeApiModelId", actModel)
+				const currentProvider = stateManager.getApiConfiguration().actModeApiProvider
+				if (currentProvider) {
+					const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
+					const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+					const actModel = stateManager.getGlobalSettingsKey(actKey as string)
+					if (planKey) stateManager.setGlobalState(planKey, actModel)
+				}
 			}
 			return
 		}
@@ -782,17 +807,42 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	// Handle model selection from picker
 	const handleModelSelect = useCallback(
-		(modelId: string) => {
+		async (modelId: string) => {
 			if (!pickingModelKey) return
+			const currentProvider = stateManager.getApiConfiguration().actModeApiProvider
+			if (!currentProvider) return
+			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
+			const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
+			const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+
+			// For cline/openrouter providers, also set model info (like webview does)
+			let modelInfo
+			if (currentProvider === "cline" || currentProvider === "openrouter") {
+				const openRouterModels = await controller?.readOpenRouterModels()
+				modelInfo = openRouterModels?.[modelId]
+			}
+
 			if (separateModels) {
 				// Only update the selected mode's model
-				const stateKey = pickingModelKey === "actModelId" ? "actModeApiModelId" : "planModeApiModelId"
-				stateManager.setGlobalState(stateKey, modelId)
+				const stateKey = pickingModelKey === "actModelId" ? actKey : planKey
+				if (stateKey) stateManager.setGlobalState(stateKey, modelId)
+				// Set model info for the selected mode
+				if (modelInfo) {
+					const infoKey =
+						pickingModelKey === "actModelId" ? "actModeOpenRouterModelInfo" : "planModeOpenRouterModelInfo"
+					stateManager.setGlobalState(infoKey, modelInfo)
+				}
 			} else {
 				// Update both modes to keep them in sync
-				stateManager.setGlobalState("actModeApiModelId", modelId)
-				stateManager.setGlobalState("planModeApiModelId", modelId)
+				if (actKey) stateManager.setGlobalState(actKey, modelId)
+				if (planKey) stateManager.setGlobalState(planKey, modelId)
+				// Set model info for both modes
+				if (modelInfo) {
+					stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
+					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+				}
 			}
+			refreshModelIds()
 			setIsPickingModel(false)
 			setPickingModelKey(null)
 
@@ -801,7 +851,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				onClose()
 			}
 		},
-		[pickingModelKey, separateModels, stateManager, initialMode, onClose],
+		[pickingModelKey, separateModels, stateManager, controller, refreshModelIds, initialMode, onClose],
 	)
 
 	// Handle language selection from picker
@@ -832,6 +882,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			// Success - apply provider config
 			await applyProviderConfig({ providerId: "openai-codex", controller })
 			setProvider("openai-codex")
+			refreshModelIds()
 			setIsWaitingForCodexAuth(false)
 		} catch (error) {
 			openAiCodexOAuthManager.cancelAuthorizationFlow()
@@ -840,7 +891,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 	}, [controller])
 
-	// Handle provider selection from picker
 	const handleProviderSelect = useCallback(
 		(providerId: string) => {
 			// Special handling for Cline - uses OAuth (but skip if already logged in)
@@ -852,6 +902,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					// Already logged in - just set the provider
 					applyProviderConfig({ providerId: "cline", controller })
 					setProvider("cline")
+					refreshModelIds()
 				} else {
 					// Not logged in - trigger OAuth
 					handleClineLogin()
@@ -890,10 +941,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				// Provider doesn't need an API key (rare) - just set it
 				applyProviderConfig({ providerId, controller })
 				setProvider(providerId)
+				refreshModelIds()
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, controller],
+		[stateManager, startCodexAuth, handleClineLogin, controller, refreshModelIds],
 	)
 
 	// Handle API key submission after provider selection
@@ -905,11 +957,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			await applyProviderConfig({ providerId: pendingProvider, apiKey: submittedValue.trim(), controller })
 			setProvider(pendingProvider)
+			refreshModelIds()
 			setIsEnteringApiKey(false)
 			setPendingProvider(null)
 			setApiKeyValue("")
 		},
-		[pendingProvider, controller],
+		[pendingProvider, controller, refreshModelIds],
 	)
 
 	// Handle Bedrock configuration complete
@@ -926,8 +979,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			const defaultModelId = getDefaultModelId("bedrock")
 			if (defaultModelId) {
-				config.actModeApiModelId = defaultModelId
-				config.planModeApiModelId = defaultModelId
+				// Use provider-specific model ID keys
+				const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
+				const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
+				if (actModelKey) config[actModelKey] = defaultModelId
+				if (planModelKey) config[planModelKey] = defaultModelId
 			}
 
 			if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
@@ -939,6 +995,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Close Bedrock config first, then flush state async
 			setProvider("bedrock")
+			refreshModelIds()
 			setIsConfiguringBedrock(false)
 			setPendingProvider(null)
 
@@ -961,17 +1018,24 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 		switch (item.key) {
 			case "actModelId":
-			case "planModelId":
+			case "planModelId": {
+				// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
+				const currentProvider = stateManager.getApiConfiguration().actModeApiProvider
+				if (!currentProvider) break
+				const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
+				const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+
 				if (separateModels) {
 					// Only update the selected mode's model
-					const stateKey = item.key === "actModelId" ? "actModeApiModelId" : "planModeApiModelId"
-					stateManager.setGlobalState(stateKey, editValue || undefined)
+					const stateKey = item.key === "actModelId" ? actKey : planKey
+					if (stateKey) stateManager.setGlobalState(stateKey, editValue || undefined)
 				} else {
 					// Update both modes to keep them in sync
-					stateManager.setGlobalState("actModeApiModelId", editValue || undefined)
-					stateManager.setGlobalState("planModeApiModelId", editValue || undefined)
+					if (actKey) stateManager.setGlobalState(actKey, editValue || undefined)
+					if (planKey) stateManager.setGlobalState(planKey, editValue || undefined)
 				}
 				break
+			}
 			case "language":
 				setPreferredLanguage(editValue)
 				stateManager.setGlobalState("preferredLanguage", editValue)

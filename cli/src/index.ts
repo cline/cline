@@ -275,14 +275,10 @@ async function runTask(
 		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
 
-		// Update the generic model ID for the current mode
-		const modelKey = selectedMode === "act" ? "actModeApiModelId" : "planModeApiModelId"
-		StateManager.get().setGlobalState(modelKey, options.model)
-
-		// Also update the provider-specific model ID key if applicable
-		const providerModelKey = getProviderModelIdKey(currentProvider, selectedMode)
-		if (providerModelKey) {
-			StateManager.get().setGlobalState(providerModelKey, options.model)
+		// Update model ID using provider-specific key (e.g., cline uses actModeOpenRouterModelId)
+		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
+		if (modelKey) {
+			StateManager.get().setGlobalState(modelKey, options.model)
 		}
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}

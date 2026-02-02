@@ -201,8 +201,10 @@ export class ClineHandler implements ApiHandler {
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
+					const modelId = this.getModel().id
+					const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(modelId)
 
-					if (["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(this.getModel().id)) {
+					if (isFreeModel) {
 						totalCost = 0
 					}
 
@@ -253,8 +255,10 @@ export class ClineHandler implements ApiHandler {
 
 				const generation = response.data
 				let totalCost = generation?.total_cost || 0
+				const modelId = this.getModel().id
+				const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(modelId)
 
-				if (["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(this.getModel().id)) {
+				if (isFreeModel) {
 					totalCost = 0
 				}
 
@@ -285,6 +289,11 @@ export class ClineHandler implements ApiHandler {
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
+		}
+		// If we have a model ID but no model info (e.g., CLI featured models),
+		// use the ID with default model info rather than falling back to a different model
+		if (modelId) {
+			return { id: modelId, info: openRouterDefaultModelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
