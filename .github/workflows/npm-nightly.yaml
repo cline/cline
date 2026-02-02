@@ -2,13 +2,13 @@ name: Publish NPM Nightly
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # 4 AM PST (UTC-8) = 12 UTC
+    - cron: "0 12 * * *" # 4 AM PST (UTC-8) = 12 UTC
   workflow_dispatch:
 
 permissions:
   contents: read
-  checks: write  # Required by test workflow
-  pull-requests: write  # Required by test workflow
+  checks: write # Required by test workflow
+  pull-requests: write # Required by test workflow
 
 jobs:
   test:
@@ -39,8 +39,8 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
 
       # Cache root dependencies - only reuse if package-lock.json exactly matches
       - name: Cache root dependencies
@@ -51,35 +51,9 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
-      # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-      - name: Cache webview-ui dependencies
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/cache@v4
-        id: webview-cache
-        with:
-          path: webview-ui/node_modules
-          key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-      # Cache cli dependencies
-      - name: Cache cli dependencies
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/cache@v4
-        id: cli-cache
-        with:
-          path: cli/node_modules
-          key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
-
-      - name: Install root dependencies
+      - name: Install root dependencies and CLI dependencies
         if: steps.check_commits.outputs.skip != 'true' && steps.root-cache.outputs.cache-hit != 'true'
-        run: npm ci --include=optional
-
-      - name: Install webview-ui dependencies
-        if: steps.check_commits.outputs.skip != 'true' && steps.webview-cache.outputs.cache-hit != 'true'
-        run: cd webview-ui && npm ci --include=optional
-
-      - name: Install cli dependencies
-        if: steps.check_commits.outputs.skip != 'true' && steps.cli-cache.outputs.cache-hit != 'true'
-        run: cd cli && npm ci
+        run: npm ci --include=optional # this will also install cli deps because "cli" in included in root package.json workspaces field
 
       - name: Generate Protos
         if: steps.check_commits.outputs.skip != 'true'
@@ -116,23 +90,7 @@ jobs:
           echo "Using version ${{ steps.version.outputs.version }} for build"
           cat cli/package.json | grep '"version"'
 
-      - name: Download ripgrep binaries
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run download-ripgrep
-
-      - name: Clean previous builds
-        if: steps.check_commits.outputs.skip != 'true'
-        run: rm -rf dist-standalone
-
-      - name: Compile CLI
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run compile-cli
-
-      - name: Compile CLI for all platforms
-        if: steps.check_commits.outputs.skip != 'true'
-        run: npm run compile-cli-all-platforms
-
-      - name: Build standalone NPM package
+      - name: Build and package CLI
         if: steps.check_commits.outputs.skip != 'true'
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -144,7 +102,7 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-        run: npm run compile-standalone-npm
+        run: node scripts/package-npm.mjs
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
