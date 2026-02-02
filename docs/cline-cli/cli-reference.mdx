@@ -74,6 +74,19 @@ INSTANT TASK OPTIONS
        When using the instant task syntax cline "prompt" the following options
        are available:
 
+       --config <path>
+              Path to Cline configuration directory.  Allows switching between
+              different provider configurations without changing global
+              settings.  Useful for multi-model workflows where different tasks
+              use different models.  Example: cline --config ~/.cline-haiku
+              "summarize this quickly"
+
+       --thinking
+              Enable extended thinking with 1024 token budget.  Activates deep
+              reasoning mode for complex planning tasks.  Best used when Cline
+              needs to analyze multiple approaches before implementation.
+              Example: cline --thinking "create a detailed implementation plan"
+
        -o, --oneshot
               Full autonomous mode.  Cline completes the task and stops
               following after completion.  Example: cline -o "what's 6 + 8?"
