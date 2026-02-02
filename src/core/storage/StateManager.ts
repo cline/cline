@@ -73,6 +73,7 @@ export class StateManager {
 		hicapModels: Record<string, ModelInfo> | null
 		aihubmixModels: Record<string, ModelInfo> | null
 		liteLlmModels: Record<string, ModelInfo> | null
+		vercelModels: Record<string, ModelInfo> | null
 	} = {
 		openRouterModels: null,
 		groqModels: null,
@@ -83,6 +84,7 @@ export class StateManager {
 		hicapModels: null,
 		aihubmixModels: null,
 		liteLlmModels: null,
+		vercelModels: null,
 	}
 
 	// Debounced persistence state
