@@ -24,7 +24,7 @@ function getPrompt(languageKey: string) {
 		instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
 
 The commit message should:
-1. Has a short title (50-72 characters)
+1. Have a short title (50-72 characters)
 2. The commit message should adhere to the conventional commit format
 3. Describe what was changed and why
 4. Be clear and informative${languageInstruction}`,
