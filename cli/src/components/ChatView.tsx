@@ -121,6 +121,7 @@ import { Session } from "@/shared/services/Session"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
+import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
 import { setTerminalTitle } from "../utils/display"
 import {
@@ -333,9 +334,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Prefer prop controller over context controller (memoized for stable reference in callbacks)
 	const ctrl = useMemo(() => controller || taskController, [controller, taskController])
 
-	// Input state
-	const [textInput, setTextInput] = useState("")
-	const [cursorPos, setCursorPos] = useState(0)
+	// Input state - using hook for text editing with keyboard shortcuts
+	const {
+		text: textInput,
+		cursorPos,
+		setText: setTextInput,
+		setCursorPos,
+		handleKeyboardSequence,
+		handleCtrlShortcut,
+		deleteCharBefore,
+		insertText: insertTextAtCursor,
+	} = useTextInput()
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0) // For file menu
 	const [historyIndex, setHistoryIndex] = useState(-1) // -1 = not browsing history, 0+ = history item index
@@ -946,6 +955,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
+		// Handle keyboard escape sequences (Option+arrows, Home/End, etc.)
+		if (handleKeyboardSequence(input)) {
+			return
+		}
+
+		// Handle Option+arrow via key.meta (how Ink reports it on Mac)
+		if (key.meta) {
+			if (key.leftArrow) {
+				setCursorPos(findWordStart(textInput, cursorPos))
+				return
+			}
+			if (key.rightArrow) {
+				setCursorPos(findWordEnd(textInput, cursorPos))
+				return
+			}
+		}
+
 		// When a panel is open, let the panel handle its own input
 		if (activePanel) {
 			return
@@ -1157,37 +1183,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle Ctrl+ shortcuts
-		const keydown = input?.toLowerCase()
-		if (key.ctrl && cursorPos && keydown) {
-			switch (keydown) {
-				case "u": // Ctrl+U, clear line before cursor
-					if (cursorPos > 0) {
-						setTextInput((prev) => prev.slice(cursorPos))
-						setCursorPos(0)
-					}
-					return
-				case "e": // Ctrl+E, move cursor to end
-					setCursorPos(textInput.length)
-					return
-				case "b": // Ctrl+B, move cursor left
-					setCursorPos((pos) => Math.max(0, pos - 1))
-					return
-				case "f": // Ctrl+F, move cursor right
-					setCursorPos((pos) => Math.min(textInput.length, pos + 1))
-					return
-				case "d": // Ctrl+D, delete character after cursor
-					if (cursorPos < textInput.length) {
-						setTextInput((prev) => prev.slice(0, cursorPos) + prev.slice(cursorPos + 1))
-					}
-					return
-				case "h": // Ctrl+H, delete character before cursor (like backspace)
-					if (cursorPos > 0) {
-						setTextInput((prev) => prev.slice(0, cursorPos - 1) + prev.slice(cursorPos))
-						setCursorPos((pos) => pos - 1)
-					}
-					return
-			}
+		// Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
+		if (key.ctrl && input && handleCtrlShortcut(input)) {
+			return
 		}
 
 		// Detect paste by checking if input length exceeds threshold
@@ -1267,10 +1265,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 		if (key.backspace || key.delete) {
-			if (cursorPos > 0) {
-				setTextInput((prev) => prev.slice(0, cursorPos - 1) + prev.slice(cursorPos))
-				setCursorPos((pos) => pos - 1)
-			}
+			deleteCharBefore()
 			return
 		}
 		// Cursor movement (when not in a menu)
@@ -1292,8 +1287,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 		// Normal input (single char or short paste)
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
-			setTextInput((prev) => prev.slice(0, cursorPos) + input + prev.slice(cursorPos))
-			setCursorPos((pos) => pos + input.length)
+			insertTextAtCursor(input)
 		}
 	})
 
