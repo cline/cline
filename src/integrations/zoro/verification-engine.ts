@@ -6,6 +6,8 @@ import { getCheckingWithUserVerificationPrompt } from "./prompts/verify-checking
 import { getCodeStyleVerificationPrompt } from "./prompts/verify-code-style"
 import { getPlanningVerificationPrompt } from "./prompts/verify-planning"
 import { getSubstepVerificationPrompt } from "./prompts/verify-substep"
+import type { ConversationMessage } from "./providers/base"
+import { getProviderAdapter } from "./providers/factory"
 import { EnforcementRequest, EnforcementResponse } from "./types"
 
 interface ChatMessage {
@@ -247,114 +249,86 @@ async function callLLM(prompt: string, verificationType: "step" | "substep" = "s
 			})
 		}
 
+		// 🎯 Get provider adapter for this API
+		const adapter = getProviderAdapter(api)
+		console.log(`[verification-engine] Using ${adapter.name} provider adapter`)
+
 		const systemPrompt = "You are a code verification assistant. Use tools to investigate, then provide a final JSON verdict."
-		const messages: any[] = [{ role: "user", content: prompt }]
+		const messages: ConversationMessage[] = [{ role: "user", content: [{ type: "text", text: prompt }] }]
 
 		console.log("[verification-engine] PHASE 1: Investigation (7 iterations max)")
 
 		for (let i = 0; i < 7; i++) {
 			console.log(`[verification-engine] Iteration ${i + 1}/7`)
 
-			const stream = api.createMessage(systemPrompt, messages, TOOL_DEFINITIONS)
+			// 🎯 Prepare messages using provider adapter
+			const preparedMessages = adapter.prepareMessages(messages)
 
-			let assistantText = ""
-			const toolCallsMap = new Map<string, { name: string; args: string }>()
-			let thinkingText = ""
-			let thinkingSignature: string | undefined
+			const stream = api.createMessage(systemPrompt, preparedMessages, TOOL_DEFINITIONS)
 
-			for await (const chunk of stream) {
-				if (chunk.type === "text") {
-					assistantText += chunk.text
-				}
-				if (chunk.type === "tool_calls") {
-					const toolCall = chunk.tool_call
-					const id = toolCall.function?.id || `tool_${Date.now()}`
-					const name = toolCall.function?.name || ""
-					const argsChunk = toolCall.function?.arguments || ""
+			// 🎯 Consume stream using provider adapter
+			const streamResult = await adapter.consumeStream(stream, {
+				onText: () => {
+					// Optional: log text chunks
+				},
+				onToolCall: (id, name) => {
+					console.log("[verification-engine] Tool:", name)
+				},
+				onThinking: () => {
+					// Optional: log thinking
+				},
+				onComplete: () => {
+					// Stream complete
+				},
+			})
 
-					if (!toolCallsMap.has(id)) {
-						console.log("[verification-engine] Tool:", name)
-						toolCallsMap.set(id, { name, args: "" })
-					}
+			// Execute tools and collect results
+			const toolExecutions: Array<{
+				id: string
+				name: string
+				input: any
+				result: string
+			}> = []
 
-					toolCallsMap.get(id)!.args += argsChunk
-				}
-				if (chunk.type === "reasoning") {
-					thinkingText += chunk.reasoning || ""
-					if (chunk.signature) {
-						thinkingSignature = chunk.signature
-					}
-				}
-			}
-
-			const toolCalls = Array.from(toolCallsMap.entries()).map(([id, data]) => ({
-				function: { id, name: data.name, arguments: data.args },
-			}))
-
-			const assistantContent: any[] = []
-
-			if (thinkingText) {
-				const thinkingBlock: any = { type: "thinking", thinking: thinkingText.trim() }
-				if (thinkingSignature) {
-					thinkingBlock.signature = thinkingSignature
-				}
-				assistantContent.push(thinkingBlock)
-			}
-
-			if (assistantText) {
-				assistantContent.push({ type: "text", text: assistantText.trim() })
-			}
-
-			for (const toolCall of toolCalls) {
-				let toolInput: any = {}
+			for (const toolCall of streamResult.toolCalls) {
 				try {
-					toolInput = JSON.parse(toolCall.function?.arguments || "{}")
-				} catch {
-					continue
+					const toolInput = JSON.parse(toolCall.arguments)
+					const toolResult = await executeTool(toolCall.name, toolInput)
+
+					toolExecutions.push({
+						id: toolCall.id,
+						name: toolCall.name,
+						input: toolInput,
+						result: toolResult,
+					})
+				} catch (error) {
+					console.error("[verification-engine] Tool execution failed:", error)
+					toolExecutions.push({
+						id: toolCall.id,
+						name: toolCall.name,
+						input: {},
+						result: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+					})
 				}
-
-				const toolResult = await executeTool(toolCall.function.name, toolInput)
-
-				assistantContent.push({
-					type: "tool_use",
-					id: toolCall.function.id,
-					name: toolCall.function.name,
-					input: toolInput,
-				})
 			}
 
-			// CRITICAL FIX: Anthropic API rejects if last content is a thinking block
-			if (assistantContent.length > 0 && assistantContent[assistantContent.length - 1].type === "thinking") {
-				assistantContent.push({ type: "text", text: "." })
+			// 🎯 Build assistant message using provider adapter
+			const assistantMessage = adapter.buildAssistantMessage(
+				streamResult.text,
+				streamResult.toolCalls,
+				streamResult.thinking,
+				streamResult.thinkingSignature,
+			)
+
+			messages.push(assistantMessage)
+
+			// 🎯 Add tool results using provider adapter
+			if (toolExecutions.length > 0) {
+				const toolResultMessage = adapter.buildToolResultMessage(toolExecutions)
+				messages.push(toolResultMessage)
 			}
 
-			if (assistantContent.length > 0) {
-				messages.push({ role: "assistant", content: assistantContent })
-			}
-
-			for (const toolCall of toolCalls) {
-				let toolInput: any = {}
-				try {
-					toolInput = JSON.parse(toolCall.function?.arguments || "{}")
-				} catch {
-					continue
-				}
-
-				const toolResult = await executeTool(toolCall.function.name, toolInput)
-
-				messages.push({
-					role: "user",
-					content: [
-						{
-							type: "tool_result",
-							tool_use_id: toolCall.function.id,
-							content: toolResult,
-						},
-					],
-				})
-			}
-
-			if (toolCalls.length === 0) {
+			if (streamResult.toolCalls.length === 0) {
 				break
 			}
 		}
@@ -419,17 +393,23 @@ Return ONLY the JSON object, nothing else.`
 
 		messages.push({
 			role: "user",
-			content: schemaPrompt,
+			content: [{ type: "text", text: schemaPrompt }],
 		})
 
-		const verdictStream = api.createMessage(systemPrompt, messages, [])
+		// 🎯 Prepare messages for final verdict using provider adapter
+		const finalPreparedMessages = adapter.prepareMessages(messages)
 
-		let verdictText = ""
-		for await (const chunk of verdictStream) {
-			if (chunk.type === "text") {
-				verdictText += chunk.text
-			}
-		}
+		const verdictStream = api.createMessage(systemPrompt, finalPreparedMessages, [])
+
+		// 🎯 Consume verdict stream using provider adapter
+		const verdictResult = await adapter.consumeStream(verdictStream, {
+			onText: () => {},
+			onToolCall: () => {},
+			onThinking: () => {},
+			onComplete: () => {},
+		})
+
+		const verdictText = verdictResult.text
 
 		console.log("[verification-engine] Verdict received")
 		return verdictText

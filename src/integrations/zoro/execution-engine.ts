@@ -4,6 +4,8 @@ import * as path from "path"
 import { executeTool, getController, getWorkspaceDirectory, TOOL_DEFINITIONS } from "./delegates"
 import { getExecuteDoPrompt } from "./prompts/execute-do"
 import { getExecuteTestPrompt } from "./prompts/execute-test"
+import type { ConversationMessage } from "./providers/base"
+import { getProviderAdapter } from "./providers/factory"
 import { EnforcementRequest, EnforcementResponse } from "./types"
 import { runVerification } from "./verification-engine"
 
@@ -68,7 +70,11 @@ async function captureState(): Promise<SystemState> {
 	}
 }
 
-async function executeThroughCline(task: string, maxIterations: number = 10, existingMessages?: any[]): Promise<any[]> {
+async function executeThroughCline(
+	task: string,
+	maxIterations: number = 10,
+	existingMessages?: ConversationMessage[],
+): Promise<ConversationMessage[]> {
 	console.log("[execution-engine] 🚀 START executeThroughCline")
 
 	try {
@@ -82,65 +88,40 @@ async function executeThroughCline(task: string, maxIterations: number = 10, exi
 			throw new Error("No LLM API available")
 		}
 
+		// 🎯 Get provider adapter for this API
+		const adapter = getProviderAdapter(api)
+		console.log(`[execution-engine] Using ${adapter.name} provider adapter`)
+
 		const systemPrompt = "You are a code execution assistant. Use tools to make targeted changes to fix the gaps identified."
-		const messages: any[] = existingMessages || [{ role: "user", content: task }]
+		const messages: ConversationMessage[] = existingMessages || [{ role: "user", content: [{ type: "text", text: task }] }]
 
 		console.log(`[execution-engine] PHASE 1: Tool-enabled execution (${maxIterations} iterations max)`)
 
 		for (let i = 0; i < maxIterations; i++) {
 			console.log(`[execution-engine] Iteration ${i + 1}/${maxIterations}`)
 
-			const stream = api.createMessage(systemPrompt, messages, TOOL_DEFINITIONS)
+			// 🎯 Prepare messages using provider adapter
+			const preparedMessages = adapter.prepareMessages(messages)
 
-			let assistantText = ""
-			const toolCallsMap = new Map<string, { name: string; args: string }>()
-			let thinkingText = ""
-			let thinkingSignature: string | undefined
+			const stream = api.createMessage(systemPrompt, preparedMessages, TOOL_DEFINITIONS)
 
-			for await (const chunk of stream) {
-				if (chunk.type === "text") {
-					assistantText += chunk.text
-				}
-				if (chunk.type === "tool_calls") {
-					const toolCall = chunk.tool_call
-					const id = toolCall.function?.id || `tool_${Date.now()}`
-					const name = toolCall.function?.name || ""
-					const argsChunk = toolCall.function?.arguments || ""
+			// 🎯 Consume stream using provider adapter
+			const streamResult = await adapter.consumeStream(stream, {
+				onText: () => {
+					// Optional: log text chunks
+				},
+				onToolCall: (id, name) => {
+					console.log("[execution-engine] Tool:", name)
+				},
+				onThinking: () => {
+					// Optional: log thinking
+				},
+				onComplete: () => {
+					// Stream complete
+				},
+			})
 
-					if (!toolCallsMap.has(id)) {
-						console.log("[execution-engine] Tool:", name)
-						toolCallsMap.set(id, { name, args: "" })
-					}
-
-					toolCallsMap.get(id)!.args += argsChunk
-				}
-				if (chunk.type === "reasoning") {
-					thinkingText += chunk.reasoning || ""
-					if (chunk.signature) {
-						thinkingSignature = chunk.signature
-					}
-				}
-			}
-
-			const toolCalls = Array.from(toolCallsMap.entries()).map(([id, data]) => ({
-				function: { id, name: data.name, arguments: data.args },
-			}))
-
-			const assistantContent: any[] = []
-
-			if (thinkingText && thinkingText.trim()) {
-				const thinkingBlock: any = { type: "thinking", thinking: thinkingText.trim() }
-				if (thinkingSignature) {
-					thinkingBlock.signature = thinkingSignature
-				}
-				assistantContent.push(thinkingBlock)
-			}
-
-			if (assistantText && assistantText.trim()) {
-				assistantContent.push({ type: "text", text: assistantText.trim() })
-			}
-
-			// CRITICAL FIX: Execute tools once and store results to guarantee tool_use/tool_result ID matching
+			// Execute tools and collect results
 			const toolExecutions: Array<{
 				id: string
 				name: string
@@ -148,62 +129,46 @@ async function executeThroughCline(task: string, maxIterations: number = 10, exi
 				result: string
 			}> = []
 
-			for (const toolCall of toolCalls) {
+			for (const toolCall of streamResult.toolCalls) {
 				try {
-					const toolInput = JSON.parse(toolCall.function?.arguments || "{}")
-					const toolResult = await executeTool(toolCall.function.name, toolInput)
+					const toolInput = JSON.parse(toolCall.arguments)
+					const toolResult = await executeTool(toolCall.name, toolInput)
 
 					toolExecutions.push({
-						id: toolCall.function.id,
-						name: toolCall.function.name,
+						id: toolCall.id,
+						name: toolCall.name,
 						input: toolInput,
 						result: toolResult,
 					})
 				} catch (error) {
-					// Log error but continue - handle gracefully
 					console.error("[execution-engine] Tool execution failed:", error)
 					toolExecutions.push({
-						id: toolCall.function.id,
-						name: toolCall.function.name || "unknown",
+						id: toolCall.id,
+						name: toolCall.name,
 						input: {},
 						result: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
 					})
 				}
 			}
 
-			// Add tool_use blocks to assistant message
-			for (const execution of toolExecutions) {
-				assistantContent.push({
-					type: "tool_use",
-					id: execution.id,
-					name: execution.name,
-					input: execution.input,
-				})
-			}
+			// 🎯 Build assistant message using provider adapter
+			const assistantMessage = adapter.buildAssistantMessage(
+				streamResult.text,
+				streamResult.toolCalls,
+				streamResult.thinking,
+				streamResult.thinkingSignature,
+			)
 
-			// CRITICAL FIX: Anthropic API rejects if last content is a thinking block
-			if (assistantContent.length > 0 && assistantContent[assistantContent.length - 1].type === "thinking") {
-				assistantContent.push({ type: "text", text: "." })
-			}
+			messages.push(assistantMessage)
 
-			if (assistantContent.length > 0) {
-				messages.push({ role: "assistant", content: assistantContent })
-			}
-
-			// Add ALL tool results in a SINGLE user message - Bedrock requires this
+			// 🎯 Add tool results using provider adapter
 			if (toolExecutions.length > 0) {
-				messages.push({
-					role: "user",
-					content: toolExecutions.map((execution) => ({
-						type: "tool_result",
-						tool_use_id: execution.id,
-						content: execution.result,
-					})),
-				})
+				const toolResultMessage = adapter.buildToolResultMessage(toolExecutions)
+				messages.push(toolResultMessage)
 			}
 
 			// Add iteration tracking after tool results
-			if (toolCalls.length > 0 && i < maxIterations - 1) {
+			if (streamResult.toolCalls.length > 0 && i < maxIterations - 1) {
 				const iterationMsg =
 					i >= maxIterations - 2
 						? `[System: Iteration ${i + 1} of ${maxIterations}. ⚠️ FINAL ITERATION - complete your task now!]`
@@ -211,11 +176,11 @@ async function executeThroughCline(task: string, maxIterations: number = 10, exi
 
 				messages.push({
 					role: "user",
-					content: iterationMsg,
+					content: [{ type: "text", text: iterationMsg }],
 				})
 			}
 
-			if (toolCalls.length === 0) {
+			if (streamResult.toolCalls.length === 0) {
 				console.log("[execution-engine] No more tools requested, stopping")
 				break
 			}
@@ -282,9 +247,14 @@ export async function generateAndRunTests(request: EnforcementRequest, cachedVer
 		console.log("[execution-engine] Stage 2: Write test file (3 iterations)")
 		messages.push({
 			role: "user",
-			content: `Now you MUST write the test file to: ${testFilePath}
+			content: [
+				{
+					type: "text",
+					text: `Now you MUST write the test file to: ${testFilePath}
 
 Use the write_to_file tool. This is CRITICAL - the file must be created at this exact path.`,
+				},
+			],
 		})
 		messages = await executeThroughCline("", 3, messages)
 
@@ -292,7 +262,7 @@ Use the write_to_file tool. This is CRITICAL - the file must be created at this 
 		console.log("[execution-engine] Stage 3: Run test (1 iteration)")
 		messages.push({
 			role: "user",
-			content: `Now run the test file: python ${testFilePath}`,
+			content: [{ type: "text", text: `Now run the test file: python ${testFilePath}` }],
 		})
 		messages = await executeThroughCline("", 1, messages)
 
