@@ -35,6 +35,8 @@ import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
+import { applyProviderConfig } from "./utils/provider-config"
+import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
@@ -463,6 +465,49 @@ async function showConfig(options: { config?: string }) {
 /**
  * Run authentication flow
  */
+/**
+ * Perform quick auth setup without UI - validates and saves configuration directly
+ */
+async function performQuickAuthSetup(
+	ctx: CliContext,
+	options: { provider: string; apikey: string; modelid: string; baseurl?: string },
+): Promise<{ success: boolean; error?: string }> {
+	const { provider, apikey, modelid, baseurl } = options
+
+	const normalizedProvider = provider.toLowerCase().trim()
+
+	if (!isValidCliProvider(normalizedProvider)) {
+		const validProviders = getValidCliProviders()
+		return { success: false, error: `Invalid provider '${provider}'. Supported providers: ${validProviders.join(", ")}` }
+	}
+
+	if (normalizedProvider === "bedrock") {
+		return {
+			success: false,
+			error: "Bedrock provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
+		}
+	}
+
+	if (baseurl && !["openai", "openai-native"].includes(normalizedProvider)) {
+		return { success: false, error: "Base URL is only supported for OpenAI and OpenAI-compatible providers" }
+	}
+
+	// Save configuration using shared utility
+	await applyProviderConfig({
+		providerId: normalizedProvider,
+		apiKey: apikey,
+		modelId: modelid,
+		baseUrl: baseurl,
+		controller: ctx.controller,
+	})
+
+	// Mark onboarding as complete
+	StateManager.get().setGlobalState("welcomeViewCompleted", true)
+	await StateManager.get().flushPendingState()
+
+	return { success: true }
+}
+
 async function runAuth(options: {
 	provider?: string
 	apikey?: string
@@ -474,13 +519,34 @@ async function runAuth(options: {
 }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
-	const hasQuickSetupFlags = options.provider || options.apikey || options.modelid || options.baseurl
-	const quickSetup = hasQuickSetupFlags
-		? { provider: options.provider, apikey: options.apikey, modelid: options.modelid, baseurl: options.baseurl }
-		: undefined
+	const hasQuickSetupFlags = options.provider && options.apikey && options.modelid
 
 	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
 
+	// Quick setup mode - no UI, just save configuration and exit
+	if (hasQuickSetupFlags) {
+		const result = await performQuickAuthSetup(ctx, {
+			provider: options.provider!,
+			apikey: options.apikey!,
+			modelid: options.modelid!,
+			baseurl: options.baseurl,
+		})
+
+		await ctx.controller.stateManager.flushPendingState()
+		await ctx.controller.dispose()
+		await ErrorService.get().dispose()
+
+		if (!result.success) {
+			printWarning(result.error || "Quick setup failed")
+			telemetryService.captureHostEvent("auth", "error")
+			exit(1)
+		}
+
+		telemetryService.captureHostEvent("auth", "completed")
+		exit(0)
+	}
+
+	// Interactive mode - show Ink UI
 	let authError = false
 
 	await runInkApp(
@@ -496,7 +562,6 @@ async function runAuth(options: {
 				telemetryService.captureHostEvent("auth", "error")
 				authError = true
 			},
-			authQuickSetup: quickSetup,
 		}),
 		async () => {
 			await ctx.controller.stateManager.flushPendingState()
