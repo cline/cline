@@ -794,8 +794,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			}
 			setIsPickingModel(false)
 			setPickingModelKey(null)
+
+			// If opened from /models command, close the entire settings panel
+			if (initialMode) {
+				onClose()
+			}
 		},
-		[pickingModelKey, separateModels, stateManager],
+		[pickingModelKey, separateModels, stateManager, initialMode, onClose],
 	)
 
 	// Handle language selection from picker
@@ -1033,6 +1038,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (key.escape) {
 					setIsPickingFeaturedModel(false)
 					setPickingModelKey(null)
+					// If opened from /models command, close the entire settings panel
+					if (initialMode) {
+						onClose()
+					}
 				} else if (key.upArrow) {
 					setFeaturedModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
 				} else if (key.downArrow) {
@@ -1059,6 +1068,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (key.escape) {
 					setIsPickingModel(false)
 					setPickingModelKey(null)
+					// If opened from /models command, close the entire settings panel
+					if (initialMode) {
+						onClose()
+					}
 				}
 				return
 			}
