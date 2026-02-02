@@ -4,8 +4,6 @@ export function getCodeStyleVerificationPrompt(
 	rules: Array<{ rule_id: string; name: string; description: string }>,
 	chatHistory: string,
 ): string {
-	const rulesComplianceTemplate = rules.map((r) => `    "${r.rule_id}": "followed" | "violated" | "not_applicable"`).join(",\n")
-
 	return `# Task: Verify Code-Style Step Implementation
 
 ## STEP TO VERIFY:

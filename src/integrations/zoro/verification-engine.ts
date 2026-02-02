@@ -83,12 +83,14 @@ async function loadChatHistory(chatId: string): Promise<string> {
 				formatted += msg.content + "\n\n"
 			} else if (Array.isArray(msg.content)) {
 				for (const block of msg.content) {
-					if (block.type === "text") {
-						formatted += block.text + "\n"
-					} else if (block.type === "tool_use") {
-						formatted += `[Tool: ${block.name}]\n`
-					} else if (block.type === "tool_result") {
-						formatted += `[Tool Result]\n`
+					if ("type" in block) {
+						if (block.type === "text" && "text" in block) {
+							formatted += block.text + "\n"
+						} else if (block.type === "tool_use" && "name" in block) {
+							formatted += `[Tool: ${block.name}]\n`
+						} else if (block.type === "tool_result") {
+							formatted += `[Tool Result]\n`
+						}
 					}
 				}
 				formatted += "\n"

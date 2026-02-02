@@ -1,7 +1,10 @@
 import cors from "cors"
 import express, { Request, Response } from "express"
 import type { Controller } from "../../core/controller"
-import { executeTask, setController, verifyRule, verifyStep, verifySubstep } from "./delegates"
+import { executeTask, verifyRule, verifyStep, verifySubstep } from "./delegates"
+import { verifySubstep as verifySubstepTest } from "./verify-engine"
+import { setController as setControllerTest } from "./cline-execution"
+import { generateAndRunTests as generateAndRunTestsTest } from "./test-engine"
 import { executeAndVerify, generateAndRunTests } from "./execution-engine"
 import { validateEnforcementRequest, validateExecuteTaskRequest } from "./types"
 
@@ -154,6 +157,89 @@ app.post("/test-step", async (req: Request, res: Response) => {
 	}
 })
 
+// app.post("/test-substep", async (req: Request, res: Response) => {
+// 	const validation = validateEnforcementRequest(req.body)
+// 	if (!validation.valid) {
+// 		return res.status(400).json({ error: validation.error })
+// 	}
+
+// 	const body = validation.data!
+// 	const cachedVerification = (req.body as any).cached_verification
+// 	console.log("POST /test-substep received:", {
+// 		chat_id: body.chat_id,
+// 		step_id: body.step_id,
+// 		substep_id: body.substep_id,
+// 		has_cached_verification: !!cachedVerification,
+// 	})
+
+// 	try {
+// 		const response = await generateAndRunTests(body, cachedVerification)
+// 		return res.status(200).json(response)
+// 	} catch (error) {
+// 		console.error("Error in /test-substep:", error)
+// 		return res.status(500).json({ error: "Internal server error" })
+// 	}
+// })
+
+/*=====================================New Endpoints=====================================================================*/
+// app.post("/verify-step", async (req: Request, res: Response) => {
+// 	const validation = validateEnforcementRequest(req.body)
+// 	if (!validation.valid) {
+// 		return res.status(400).json({ error: validation.error })
+// 	}
+
+// 	const body = validation.data!
+// 	console.log("POST /verify-step received:", { chat_id: body.chat_id, step_id: body.step_id })
+
+// 	try {
+// 		// const response = await verifyStep(body) THIS NEEDS TO BE REPLACED
+// 		return res.status(200).json(response)
+// 	} catch (error) {
+// 		console.error("Error in /verify-step:", error)
+// 		return res.status(500).json({ error: "Internal server error" })
+// 	}
+// })
+
+
+/** SUBSTEP LEVEL APIS */
+
+// app.post("/create-requirements", async (req: Request, res: Response) => {
+// 	const validation = validateEnforcementRequest(req.body)
+// 	if (!validation.valid) {
+// 		return res.status(400).json({ error: validation.error })
+// 	}
+
+// 	const body = validation.data!
+// 	console.log("POST /verify-step received:", { chat_id: body.chat_id, step_id: body.step_id })
+
+// 	try {
+// 		// const response = await verifyStep(body) THIS NEEDS TO BE REPLACED
+// 		return res.status(200).json(response)
+// 	} catch (error) {
+// 		console.error("Error in /verify-step:", error)
+// 		return res.status(500).json({ error: "Internal server error" })
+// 	}
+// })
+
+app.post("/verify-substep", async (req: Request, res: Response) => {
+	const validation = validateEnforcementRequest(req.body)
+	if (!validation.valid) {
+		return res.status(400).json({ error: validation.error })
+	}
+
+	const body = validation.data!
+	console.log("POST /verify-substep received:", { chat_id: body.chat_id, step_id: body.step_id })
+
+	try {
+		const response = await verifySubstepTest(body)
+		return res.status(200).json(response)
+	} catch (error) {
+		console.error("Error in /verify-substep:", error)
+		return res.status(500).json({ error: "Internal server error" })
+	}
+})
+
+
 app.post("/test-substep", async (req: Request, res: Response) => {
 	const validation = validateEnforcementRequest(req.body)
 	if (!validation.valid) {
@@ -170,7 +256,7 @@ app.post("/test-substep", async (req: Request, res: Response) => {
 	})
 
 	try {
-		const response = await generateAndRunTests(body, cachedVerification)
+		const response = await generateAndRunTestsTest(body, cachedVerification)
 		return res.status(200).json(response)
 	} catch (error) {
 		console.error("Error in /test-substep:", error)
@@ -183,7 +269,8 @@ app.get("/health", (req: Request, res: Response) => {
 })
 
 export function startEnforcementServer(controller: Controller) {
-	setController(controller)
+	// setController(controller)
+	setControllerTest(controller)
 
 	app.listen(PORT, "0.0.0.0", () => {
 		console.log(`🔧 Zoro Enforcement Server running on http://localhost:${PORT}`)

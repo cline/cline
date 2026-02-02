@@ -3,8 +3,6 @@ export function getCheckingWithUserVerificationPrompt(
 	rules: Array<{ rule_id: string; name: string; description: string }>,
 	chatHistory: string,
 ): string {
-	const rulesComplianceTemplate = rules.map((r) => `    "${r.rule_id}": "followed" | "violated" | "not_applicable"`).join(",\n")
-
 	return `# Task: Verify Checking-With-User Step Completion
 
 ## STEP TO VERIFY:

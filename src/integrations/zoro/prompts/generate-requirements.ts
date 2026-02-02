@@ -20,13 +20,13 @@ Categorize each requirement into one of these types:
 
 1. **feature** - Core functionality that must work (e.g., "JSON response returned", "Button clicks trigger action")
 2. **rule** - Code quality/style rules from the rules list above (e.g., "No inline imports", "Consistent naming")
-3. **integration** - How this substep integrates with existing code (e.g., "New endpoint registered in router", "Service properly imported")
+3. **integration** - How this substep integrates with existing code (e.g., "Visible on screen", "Endpoint is callable")
 4. **edge** - Edge cases and error handling (e.g., "Handles missing parameters", "Returns 400 on invalid input")
 
 ## GUIDELINES:
 - Be specific and testable (avoid vague requirements like "code works")
-- Include 3-7 requirements per substep (don't overdo it)
-- Focus on what's ACTUALLY part of this substep (not the whole system)
+- Include 3-10 requirements per substep (don't overdo it)
+- Focus on what's ACTUALLY part of this substep (not the whole step or whole system)
 - For rules: only include rules that are RELEVANT to this specific substep
 - Each requirement should be independently verifiable
 

@@ -54,22 +54,6 @@ export async function executeAndVerify(request: EnforcementRequest): Promise<Enf
 	}
 }
 
-interface SystemState {
-	gitDiff: string
-	fileHashes: Record<string, string>
-	timestamp: number
-}
-
-async function _captureState(): Promise<SystemState> {
-	console.log("[execution-engine] Capturing system state")
-
-	return {
-		gitDiff: "TODO: Run git diff HEAD to capture current state",
-		fileHashes: {},
-		timestamp: Date.now(),
-	}
-}
-
 async function executeThroughCline(
 	task: string,
 	maxIterations: number = 10,
