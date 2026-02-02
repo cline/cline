@@ -1,4 +1,3 @@
-import { useStdout } from "ink"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 /**
@@ -36,7 +35,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
  *   content wrapper to force full remount.
  */
 export function useTerminalSize() {
-	const { stdout } = useStdout()
 	const [size, setSize] = useState({
 		columns: process.stdout.columns || 80,
 		rows: process.stdout.rows || 24,
@@ -47,10 +45,14 @@ export function useTerminalSize() {
 	const refreshAfterResize = useCallback(() => {
 		// Clear terminal + scrollback to wipe stale content from old width
 		// \x1b[2J clears visible screen, \x1b[3J clears scrollback, \x1b[H moves cursor home
-		stdout?.write("\x1b[2J\x1b[3J\x1b[H")
-		// Increment key to force React remount
-		setResizeKey((prev) => prev + 1)
-	}, [stdout])
+		// Use process.stdout directly with callback to ensure clear completes before React re-renders.
+		// Without the callback, the state update can trigger a re-render that interleaves with
+		// the buffered escape sequences, causing visual artifacts in the scrollback.
+		process.stdout.write("\x1b[2J\x1b[3J\x1b[H", () => {
+			// Increment key to force React remount only after clear is flushed
+			setResizeKey((prev) => prev + 1)
+		})
+	}, [])
 
 	useEffect(() => {
 		function updateSize() {
