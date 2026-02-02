@@ -37,7 +37,8 @@ export function getProviderOrder(): string[] {
 function isProviderConfigured(providerId: string, config: ApiConfiguration): boolean {
 	switch (providerId) {
 		case "cline":
-			return true // Always available
+			// Check if user has Cline account auth data stored
+			return !!(config as Record<string, unknown>)["cline:clineAccountId"]
 		case "anthropic":
 			return !!config.apiKey
 		case "openrouter":
@@ -51,7 +52,9 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 		case "openai-native":
 			return !!config.openAiNativeApiKey
 		case "openai-codex":
-			return !!config.openAiCodexRefreshToken
+			// OpenAI Codex uses OAuth with credentials stored separately.
+			// Match webview behavior: always show as available option.
+			return true
 		case "deepseek":
 			return !!config.deepSeekApiKey
 		case "xai":

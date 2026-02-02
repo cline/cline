@@ -22,7 +22,6 @@ import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
-import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
@@ -591,43 +590,64 @@ devCommand
 	})
 
 /**
- * Check if the user has authentication configured.
- * Returns true if they have either:
- * - Cline provider with stored auth data
- * - OpenAI Codex provider with OAuth credentials
- * - BYO provider with an API key configured
+ * Check if the user has completed onboarding (has any provider configured).
+ *
+ * Uses `welcomeViewCompleted` as the single source of truth, matching the VS Code extension's approach.
+ * If `welcomeViewCompleted` is undefined (first run), checks if ANY provider has credentials
+ * and sets the flag accordingly.
  */
 async function isAuthConfigured(): Promise<boolean> {
 	const stateManager = StateManager.get()
-	const mode = stateManager.getGlobalSettingsKey("mode") as string
-	const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-	const currentProvider = (stateManager.getGlobalSettingsKey(providerKey) as string) || "cline"
 
-	if (currentProvider === "cline") {
-		// For Cline provider, check if we have stored auth data
-		const authData = await secretStorage.get("cline:clineAccountId")
-		return !!authData
+	// Check welcomeViewCompleted first - this is the single source of truth
+	const welcomeViewCompleted = stateManager.getGlobalStateKey("welcomeViewCompleted")
+	if (welcomeViewCompleted !== undefined) {
+		return welcomeViewCompleted
 	}
 
-	if (currentProvider === "openai-codex") {
-		// For OpenAI Codex, check if OAuth credentials are stored
-		const isAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
-		return isAuthenticated
-	}
+	// welcomeViewCompleted is undefined - run migration logic to check if ANY provider has credentials
+	// This mirrors the extension's migrateWelcomeViewCompleted behavior
+	const hasAnyAuth = await checkAnyProviderConfigured()
 
-	// For BYO providers, check if the API key is configured
-	const keyField = ProviderToApiKeyMap[currentProvider as keyof typeof ProviderToApiKeyMap]
-	if (!keyField) {
-		return false
-	}
+	// Set welcomeViewCompleted based on what we found
+	stateManager.setGlobalState("welcomeViewCompleted", hasAnyAuth)
+	await stateManager.flushPendingState()
 
-	const fields = Array.isArray(keyField) ? keyField : [keyField]
-	for (const field of fields) {
-		const value = await secretStorage.get(field)
-		if (value) {
-			return true
+	return hasAnyAuth
+}
+
+/**
+ * Check if ANY provider has valid credentials configured.
+ * Used for migration when welcomeViewCompleted is undefined.
+ */
+async function checkAnyProviderConfigured(): Promise<boolean> {
+	const stateManager = StateManager.get()
+	const config = stateManager.getApiConfiguration() as Record<string, unknown>
+
+	// Check Cline account (stored as "cline:clineAccountId" in secrets, loaded into config)
+	if (config["cline:clineAccountId"]) return true
+
+	// Check OpenAI Codex OAuth (stored separately, requires async check)
+	const codexAuth = await openAiCodexOAuthManager.isAuthenticated()
+	if (codexAuth) return true
+
+	// Check all BYO provider API keys (loaded into config from secrets)
+	for (const [provider, keyField] of Object.entries(ProviderToApiKeyMap)) {
+		// Skip cline - already checked above with the correct key
+		if (provider === "cline") continue
+
+		const fields = Array.isArray(keyField) ? keyField : [keyField]
+		for (const field of fields) {
+			if (config[field]) return true
 		}
 	}
+
+	// Check provider-specific settings that indicate configuration
+	// (for providers that don't require API keys like Bedrock with IAM, Ollama, LM Studio)
+	if (config.awsRegion) return true
+	if (config.vertexProjectId) return true
+	if (config.ollamaBaseUrl) return true
+	if (config.lmStudioBaseUrl) return true
 
 	return false
 }

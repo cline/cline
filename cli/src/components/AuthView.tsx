@@ -354,6 +354,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			}
 
 			stateManager.setApiConfiguration(config)
+			stateManager.setGlobalState("welcomeViewCompleted", true)
 
 			await stateManager.flushPendingState()
 			setSelectedProvider(normalizedProvider)
@@ -390,6 +391,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				[modelIdKey]: openAiCodexDefaultModelId,
 			}
 			stateManager.setApiConfiguration(config)
+			stateManager.setGlobalState("welcomeViewCompleted", true)
 			await stateManager.flushPendingState()
 
 			setSelectedProvider("openai-codex")
@@ -504,6 +506,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					config.openAiBaseUrl = base
 				}
 				stateManager.setApiConfiguration(config)
+				stateManager.setGlobalState("welcomeViewCompleted", true)
 				await stateManager.flushPendingState()
 
 				setStep("success")

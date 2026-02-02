@@ -76,6 +76,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 			}
 
 			stateManager.setApiConfiguration(config)
+			stateManager.setGlobalState("welcomeViewCompleted", true)
 			await stateManager.flushPendingState()
 
 			onComplete()
