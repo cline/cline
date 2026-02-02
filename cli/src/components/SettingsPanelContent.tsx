@@ -542,7 +542,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						description: "Help improve Cline by sending anonymous usage data",
 					},
 					{ key: "separator", label: "", type: "separator", value: "" },
-					{ key: "version", label: `Cline v${CLI_VERSION}`, type: "readonly", value: "" },
+					{ key: "version", label: "", type: "readonly", value: `Cline v${CLI_VERSION}` },
 				]
 
 			case "account":
@@ -1442,7 +1442,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 							<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
 								{isSelected ? "❯" : " "}{" "}
 							</Text>
-							<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
+							{item.label && <Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>}
 							<Text color={item.type === "readonly" ? "gray" : COLORS.primaryBlue}>
 								{typeof item.value === "string" ? item.value : String(item.value)}
 							</Text>
