@@ -38,6 +38,13 @@ export interface ProviderAdapter {
 	buildToolResultMessage(toolExecutions: ToolExecution[]): any
 
 	/**
+	 * Validates tool calls before execution (filters out malformed arguments)
+	 * Returns filtered list of valid tool calls
+	 * Optional - defaults to no validation if not implemented
+	 */
+	validateToolCalls?(toolCalls: ToolCall[]): ToolCall[]
+
+	/**
 	 * Determines if an error can be recovered from
 	 * Used to decide whether to retry or fail fast
 	 */

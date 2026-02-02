@@ -187,6 +187,25 @@ export class BedrockAdapter implements ProviderAdapter {
 	}
 
 	/**
+	 * QUIRK #9: Pre-validate tool calls to prevent mismatched counts
+	 * Bedrock requires tool_use count to match tool_result count exactly.
+	 * Filter out tool calls with malformed JSON arguments before execution.
+	 */
+	validateToolCalls(toolCalls: ToolCall[]): ToolCall[] {
+		return toolCalls.filter((call) => {
+			try {
+				JSON.parse(call.arguments)
+				return true
+			} catch (error) {
+				console.warn(
+					`[BedrockAdapter] Skipping malformed tool call: ${call.name} - ${error instanceof Error ? error.message : "Invalid JSON"}`,
+				)
+				return false
+			}
+		})
+	}
+
+	/**
 	 * QUIRK #7: Bedrock validation errors are often recoverable
 	 * - "content must not be empty" → Need to add placeholder text
 	 * - "ValidationException" → Usually a message format issue

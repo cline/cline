@@ -60,7 +60,7 @@ interface SystemState {
 	timestamp: number
 }
 
-async function captureState(): Promise<SystemState> {
+async function _captureState(): Promise<SystemState> {
 	console.log("[execution-engine] Capturing system state")
 
 	return {
@@ -110,7 +110,7 @@ async function executeThroughCline(
 				onText: () => {
 					// Optional: log text chunks
 				},
-				onToolCall: (id, name) => {
+				onToolCall: (_id, name) => {
 					console.log("[execution-engine] Tool:", name)
 				},
 				onThinking: () => {
@@ -121,7 +121,14 @@ async function executeThroughCline(
 				},
 			})
 
-			// Execute tools and collect results
+			// 🎯 Validate tool calls using provider adapter (e.g., filter malformed JSON)
+			const validToolCalls = adapter.validateToolCalls
+				? adapter.validateToolCalls(streamResult.toolCalls)
+				: streamResult.toolCalls
+
+			console.log(`[execution-engine] Valid tool calls: ${validToolCalls.length}/${streamResult.toolCalls.length}`)
+
+			// Execute tools and collect results (ONLY valid tools)
 			const toolExecutions: Array<{
 				id: string
 				name: string
@@ -129,7 +136,7 @@ async function executeThroughCline(
 				result: string
 			}> = []
 
-			for (const toolCall of streamResult.toolCalls) {
+			for (const toolCall of validToolCalls) {
 				try {
 					const toolInput = JSON.parse(toolCall.arguments)
 					const toolResult = await executeTool(toolCall.name, toolInput)
@@ -151,10 +158,10 @@ async function executeThroughCline(
 				}
 			}
 
-			// 🎯 Build assistant message using provider adapter
+			// 🎯 Build assistant message using provider adapter (SAME valid tools)
 			const assistantMessage = adapter.buildAssistantMessage(
 				streamResult.text,
-				streamResult.toolCalls,
+				validToolCalls,
 				streamResult.thinking,
 				streamResult.thinkingSignature,
 			)
@@ -180,8 +187,8 @@ async function executeThroughCline(
 				})
 			}
 
-			if (streamResult.toolCalls.length === 0) {
-				console.log("[execution-engine] No more tools requested, stopping")
+			if (validToolCalls.length === 0) {
+				console.log("[execution-engine] No more valid tools requested, stopping")
 				break
 			}
 		}
@@ -350,7 +357,7 @@ async function extractTestResults(testFilePath: string): Promise<any[]> {
 					const jsonStr = line.split("TEST_RESULT:")[1].trim()
 					const result = JSON.parse(jsonStr)
 					results.push(result)
-				} catch (parseError) {
+				} catch (_parseError) {
 					console.warn("[execution-engine] Failed to parse TEST_RESULT line:", line)
 				}
 			}
@@ -373,7 +380,7 @@ async function extractTestResults(testFilePath: string): Promise<any[]> {
 						const jsonStr = line.split("TEST_RESULT:")[1].trim()
 						const result = JSON.parse(jsonStr)
 						results.push(result)
-					} catch (parseError) {
+					} catch (_parseError) {
 						// Skip unparseable lines
 					}
 				}
@@ -390,37 +397,6 @@ async function extractTestResults(testFilePath: string): Promise<any[]> {
 	}
 }
 
-function stripMarkdownJson(text: string): string {
-	const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/)
-	if (jsonMatch) {
-		return jsonMatch[1].trim()
-	}
-
-	const codeMatch = text.match(/```\s*([\s\S]*?)\s*```/)
-	if (codeMatch) {
-		return codeMatch[1].trim()
-	}
-
-	return text.trim()
-}
-
-async function detectChanges(
-	beforeState: SystemState,
-	afterState: SystemState,
-): Promise<{
-	files_summary: Array<{ path: string; lines_changed: string; changes: string; impact: string; substeps_fulfilled: string[] }>
-	code_blocks: Array<{ file: string; lines: string; code: string; annotation: string }>
-}> {
-	console.log("[execution-engine] Detecting changes")
-	console.log("Before timestamp:", beforeState.timestamp)
-	console.log("After timestamp:", afterState.timestamp)
-
-	return {
-		files_summary: [],
-		code_blocks: [],
-	}
-}
-
 const executionCache = new Map<string, { timestamp: number; result: any }>()
 const CACHE_TTL = 60000
 
@@ -433,7 +409,9 @@ export function cacheExecution(requestId: string, result: any): void {
 
 export function getCachedExecution(requestId: string): any | null {
 	const cached = executionCache.get(requestId)
-	if (!cached) return null
+	if (!cached) {
+		return null
+	}
 
 	if (Date.now() - cached.timestamp > CACHE_TTL) {
 		executionCache.delete(requestId)

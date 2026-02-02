@@ -6,7 +6,7 @@ export function getCodeStyleVerificationPrompt(
 ): string {
 	const rulesComplianceTemplate = rules.map((r) => `    "${r.rule_id}": "followed" | "violated" | "not_applicable"`).join(",\n")
 
-	return `You are verifying whether a code-style step was completed correctly.
+	return `# Task: Verify Code-Style Step Implementation
 
 ## STEP TO VERIFY:
 ${stepDescription}
@@ -14,51 +14,62 @@ ${stepDescription}
 ## SUBSTEPS:
 ${substeps.map((s, i) => `${i + 1}. [${s.completed ? "x" : " "}] ${s.text}`).join("\n")}
 
-## RULES TO FOLLOW (CRITICAL - MUST CHECK EACH ONE):
-${rules.map((r, i) => `${i + 1}. [${r.rule_id}] ${r.name}: ${r.description}`).join("\n")}
-
 ## RECENT CHAT HISTORY:
 ${chatHistory}
 
-## YOUR VERIFICATION TOOLS:
-You have access to these tools - USE THEM to verify thoroughly:
-- **read_file**: Read any file to confirm the actual implementation matches expectations
-- **search_files**: Search the codebase for specific patterns, imports, or code structures
-- **list_files**: Check directory structure and verify files were created
-- **list_code_definition_names**: See what functions/classes were added
+## 🔍 VERIFICATION STEPS - FOLLOW IN ORDER
+
+**You MUST complete these steps before providing your verdict:**
+
+1. **Identify target files**: Based on the step description and substeps, determine which files should have been modified
+2. **Read those files**: Use read_file to check if the expected changes exist for each substep
+3. **Search for patterns**: Use search_files to find specific code patterns, imports, or structures mentioned
+4. **Check git history**: Use execute_command with 'git log --oneline -10' or 'git diff HEAD~1' to see recent changes
+5. **Verify substep completion**: Match each substep to actual code changes you found
+6. **Check rule compliance**: For EACH rule below, verify if the code follows it
+7. **Build evidence**: Collect concrete examples from the code for each rule
+
+**⚠️ CRITICAL: You MUST use tools in steps 2-4. Do NOT skip directly to the final verdict without investigating!**
+
+## 📋 RULES TO CHECK (CHECK EVERY SINGLE ONE)
+
+Apply these rules during step 6 above:
+
+${rules.map((r, i) => `${i + 1}. [${r.rule_id}] ${r.name}: ${r.description}`).join("\n")}
+
+**RULE VERIFICATION:**
+- **followed**: Code explicitly follows this rule (confirmed by tools)
+- **violated**: Code ignores or contradicts this rule  
+- **not_applicable**: This rule doesn't apply to code-style
+
+**CRITICAL:** You MUST check ALL ${rules.length} rules. No shortcuts!
 
 ## VERIFICATION CRITERIA:
 
-### 1. SUBSTEP COMPLETION (Use tools to verify!)
+### 1. SUBSTEP COMPLETION
 For each substep, actively investigate:
 - Use **read_file** to check actual implementation
 - Use **search_files** to find patterns/imports
 - Map each substep to specific code changes
 - Mark as: done, partial, or not_done
 
-### 2. RULE COMPLIANCE (MUST CHECK EVERY RULE)
-For EACH rule in the list above, verify:
-- **followed**: Code explicitly follows this rule (use tools to confirm!)
-- **violated**: Code ignores or contradicts this rule  
-- **not_applicable**: This rule doesn't apply to code-style
+### 2. RULE COMPLIANCE
+For EACH rule in the list above:
+- Use tools to verify actual code
+- Provide concrete evidence from code inspection
+- Don't rely on chat history alone
 
-**CRITICAL VERIFICATION RULES:**
-1. **NO SHORTCUTS**: Status flags mean nothing - USE TOOLS to verify actual code
-2. **RULES FIRST**: Check EVERY rule for compliance - this is non-negotiable
-3. **ALWAYS USE TOOLS**: Read files, search code, don't just analyze git diff
-4. **BE THOROUGH**: No tools = incomplete analysis = wrong verdict
+## 🛠️ AVAILABLE TOOLS
 
-## YOUR TASK:
-Actively investigate using your tools to determine:
-1. Was the step completed? (done/not_done/partial/unclear)
-2. Which substeps were actually completed? Verify with read_file/search_files
-3. Which rules were followed/violated? Check the actual code!
-4. What files were changed and what are the key changes? Read them to confirm!
-5. What tracking commands should be run?
+Use these tools during your investigation:
+- **read_file**: Read any file to confirm implementation
+- **search_files**: Search for patterns, imports, or structures
+- **list_files**: Check directory structure
+- **list_code_definition_names**: See what functions/classes exist
+- **execute_command**: Run git commands to check history
 
-**Use read_file, search_files, and other tools - don't just analyze the diff!**
+## 📤 OUTPUT FORMAT
 
-## OUTPUT FORMAT:
 After using tools to verify, return ONLY a JSON object with this exact structure:
 
 **NOTE:** Detailed file changes and code are captured in individual substep verifications. This step verification focuses on overall completion and rule compliance across all substeps.

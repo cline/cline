@@ -1,4 +1,3 @@
-import { execSync } from "child_process"
 import * as fs from "fs"
 import * as path from "path"
 import { executeTool, getController, getWorkspaceDirectory, TOOL_DEFINITIONS } from "./delegates"
@@ -100,83 +99,6 @@ async function loadChatHistory(chatId: string): Promise<string> {
 	} catch (error) {
 		console.error("[verification-engine] Error loading chat history:", error)
 		return `Error loading chat history: ${error instanceof Error ? error.message : "Unknown error"}`
-	}
-}
-
-async function loadGitDiff(): Promise<string> {
-	console.log("[verification-engine] Loading git diff")
-
-	try {
-		const cwd = getWorkspaceDirectory()
-
-		// Try git diff (works even without HEAD)
-		const diff = execSync("git diff", {
-			cwd,
-			encoding: "utf-8",
-			maxBuffer: 10 * 1024 * 1024,
-			timeout: 10000,
-		})
-
-		if (!diff || diff.trim().length === 0) {
-			return "No git changes detected (working directory is clean)"
-		}
-
-		return diff
-	} catch (error) {
-		console.error("[verification-engine] Error loading git diff:", error)
-		return `Error loading git diff: ${error instanceof Error ? error.message : "Unknown error"}`
-	}
-}
-
-async function loadRelevantFiles(gitDiff: string): Promise<string> {
-	console.log("[verification-engine] Loading relevant files")
-
-	try {
-		if (!gitDiff || gitDiff.includes("No git changes") || gitDiff.includes("Error")) {
-			return "No files to load"
-		}
-
-		const cwd = getWorkspaceDirectory()
-
-		const filePathRegex = /^diff --git a\/(.+) b\/(.+)$/gm
-		const matches = [...gitDiff.matchAll(filePathRegex)]
-		const filePaths = new Set(matches.map((m) => m[2]))
-
-		if (filePaths.size === 0) {
-			return "No file paths found in git diff"
-		}
-
-		let result = "=== CHANGED FILES ===\n\n"
-
-		for (const filePath of Array.from(filePaths).slice(0, 10)) {
-			const fullPath = path.join(cwd, filePath)
-
-			try {
-				if (fs.existsSync(fullPath)) {
-					const content = fs.readFileSync(fullPath, "utf-8")
-					const lines = content.split("\n")
-					const preview = lines.slice(0, 50).join("\n")
-
-					result += `--- ${filePath} (${lines.length} lines) ---\n`
-					result += preview
-					if (lines.length > 50) {
-						result += `\n... (${lines.length - 50} more lines)`
-					}
-					result += "\n\n"
-				}
-			} catch (err) {
-				result += `--- ${filePath} (error reading file) ---\n\n`
-			}
-		}
-
-		if (filePaths.size > 10) {
-			result += `\n(Showing 10 of ${filePaths.size} changed files)\n`
-		}
-
-		return result
-	} catch (error) {
-		console.error("[verification-engine] Error loading files:", error)
-		return `Error loading files: ${error instanceof Error ? error.message : "Unknown error"}`
 	}
 }
 
@@ -282,7 +204,14 @@ async function callLLM(prompt: string, verificationType: "step" | "substep" = "s
 				},
 			})
 
-			// Execute tools and collect results
+			// 🎯 Validate tool calls using provider adapter (e.g., filter malformed JSON)
+			const validToolCalls = adapter.validateToolCalls
+				? adapter.validateToolCalls(streamResult.toolCalls)
+				: streamResult.toolCalls
+
+			console.log(`[verification-engine] Valid tool calls: ${validToolCalls.length}/${streamResult.toolCalls.length}`)
+
+			// Execute tools and collect results (ONLY valid tools)
 			const toolExecutions: Array<{
 				id: string
 				name: string
@@ -290,7 +219,7 @@ async function callLLM(prompt: string, verificationType: "step" | "substep" = "s
 				result: string
 			}> = []
 
-			for (const toolCall of streamResult.toolCalls) {
+			for (const toolCall of validToolCalls) {
 				try {
 					const toolInput = JSON.parse(toolCall.arguments)
 					const toolResult = await executeTool(toolCall.name, toolInput)
@@ -312,10 +241,10 @@ async function callLLM(prompt: string, verificationType: "step" | "substep" = "s
 				}
 			}
 
-			// 🎯 Build assistant message using provider adapter
+			// 🎯 Build assistant message using provider adapter (SAME valid tools)
 			const assistantMessage = adapter.buildAssistantMessage(
 				streamResult.text,
-				streamResult.toolCalls,
+				validToolCalls,
 				streamResult.thinking,
 				streamResult.thinkingSignature,
 			)

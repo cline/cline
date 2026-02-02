@@ -2,9 +2,9 @@ export function getSubstepVerificationPrompt(
 	stepDescription: string,
 	substepDescription: string,
 	rules: Array<{ rule_id: string; name: string; description: string }>,
-	chatHistory: string
+	chatHistory: string,
 ): string {
-	return `You are verifying a single substep of a code-style implementation.
+	return `# Task: Verify Substep Implementation
 
 ## PARENT STEP:
 ${stepDescription}
@@ -12,26 +12,27 @@ ${stepDescription}
 ## SUBSTEP TO VERIFY:
 ${substepDescription}
 
-## RULES AVAILABLE (check which ones apply to this substep):
-${rules.map((r, i) => `${i + 1}. [${r.rule_id}] ${r.name}: ${r.description}`).join('\n')}
-
-## YOUR VERIFICATION TOOLS:
-You have access to these tools - USE THEM to verify thoroughly:
-- **read_file**: Read any file to check if changes were made
-- **search_files**: Search the codebase for specific code patterns
-- **execute_command**: Run git commands to check history (git log, git show, git diff HEAD~1)
-
-## YOUR TASK - ACTIVELY INVESTIGATE:
-1. **Find relevant files**: Based on the substep description and chat history, identify which files should have been modified
-2. **Use read_file**: Read those files to see if the changes exist
-3. **Use search_files**: Search for specific code patterns mentioned in the substep
-4. **Check git history**: Use execute_command with git log or git show to see recent changes
-5. **Verify rules**: Check if the code follows the specified rules
-
-**CRITICAL: Don't just say "no changes detected"! Use your tools to actively investigate the codebase.**
-
 ## RECENT CHAT HISTORY:
 ${chatHistory}
+
+## 🔍 VERIFICATION STEPS - FOLLOW IN ORDER
+
+**You MUST complete these steps before providing your verdict:**
+
+1. **Identify target files**: Based on the substep description and chat history, determine which files should have been modified
+2. **Read those files**: Use read_file to check if the expected changes exist
+3. **Search for patterns**: Use search_files to find specific code patterns mentioned in the substep
+4. **Check git history**: Use execute_command with 'git log --oneline -5' or 'git diff HEAD~1' to see recent changes
+5. **Verify rules**: Check if the code follows the specified rules below
+6. **Build evidence**: Collect concrete examples from the code
+
+**⚠️ CRITICAL: You MUST use tools in steps 2-4. Do NOT skip directly to the final verdict without investigating!**
+
+## 📋 RULES TO CHECK
+
+Apply these rules during step 5 above:
+
+${rules.map((r, i) => `${i + 1}. [${r.rule_id}] ${r.name}: ${r.description}`).join("\n")}
 
 ## VERIFICATION CRITERIA:
 
@@ -46,7 +47,14 @@ For each rule that was applied in this substep:
 - Explain HOW it was used specifically in this substep
 - Provide concrete evidence from the chat or code changes
 
-## OUTPUT FORMAT:
+## 🛠️ AVAILABLE TOOLS
+
+Use these tools during your investigation:
+- **read_file**: Read any file to check if changes were made
+- **search_files**: Search the codebase for specific code patterns
+- **execute_command**: Run git commands to check history (git log, git show, git diff HEAD~1)
+
+## 📤 OUTPUT FORMAT
 
 After using tools to investigate, return ONLY a JSON object with this exact structure:
 {
