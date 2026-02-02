@@ -107,7 +107,7 @@ export function createOTLPMetricReader(
 		const metricsUrl = new URL(endpoint)
 		if (!metricsUrl.pathname.endsWith("/v1/metrics")) {
 			const base = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint
-			metricsUrl.pathname = `${base}/v1/mtrics`
+			metricsUrl.pathname = `${base}/v1/metrics`
 		}
 
 		switch (protocol) {
