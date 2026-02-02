@@ -538,7 +538,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						key: "telemetry",
 						label: "Error/usage reporting",
 						type: "checkbox",
-						value: telemetry === "enabled",
+						value: telemetry !== "disabled",
 						description: "Help improve Cline by sending anonymous usage data",
 					},
 					{ key: "separator", label: "", type: "separator", value: "" },
