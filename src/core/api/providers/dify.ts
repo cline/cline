@@ -1,3 +1,4 @@
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -123,10 +124,7 @@ export class DifyHandler implements ApiHandler {
 		try {
 			response = await fetch(fullUrl, {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${this.apiKey}`,
-					"Content-Type": "application/json",
-				},
+				headers: this.jsonHeaders(),
 				body: JSON.stringify(requestBody),
 			})
 		} catch (error: any) {
@@ -438,9 +436,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/files/upload`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: this.headers(),
 			body: formData,
 		})
 
@@ -461,10 +457,7 @@ export class DifyHandler implements ApiHandler {
 	async stopGeneration(taskId: string, user: string = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/chat-messages/${taskId}/stop`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify({ user }),
 		})
 
@@ -494,9 +487,7 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}/messages?${params}`, {
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: this.headers(),
 		})
 
 		if (!response.ok) {
@@ -531,9 +522,7 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const response = await fetch(`${this.baseUrl}/conversations?${params}`, {
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: this.headers(),
 		})
 
 		if (!response.ok) {
@@ -553,10 +542,7 @@ export class DifyHandler implements ApiHandler {
 	async deleteConversation(conversationId: string, user: string = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}`, {
 			method: "DELETE",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify({ user }),
 		})
 
@@ -587,10 +573,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}/name`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify(body),
 		})
 
@@ -623,10 +606,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/messages/${messageId}/feedbacks`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify(body),
 		})
 
@@ -658,5 +638,20 @@ export class DifyHandler implements ApiHandler {
 	resetConversation(): void {
 		this.conversationId = null
 		this.currentTaskId = null
+	}
+
+	private jsonHeaders() {
+		return {
+			...this.headers(),
+			"Content-Type": "application/json",
+		}
+	}
+
+	private headers() {
+		const externalHeaders = buildExternalBasicHeaders()
+		return {
+			...externalHeaders,
+			Authorization: `Bearer ${this.apiKey}`,
+		}
 	}
 }

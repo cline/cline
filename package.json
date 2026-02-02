@@ -2,8 +2,11 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.55.0",
+	"version": "3.56.2",
 	"icon": "assets/icons/icon.png",
+	"workspaces": [
+		"cli"
+	],
 	"engines": {
 		"vscode": "^1.84.0"
 	},
@@ -379,12 +382,14 @@
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
 		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
-		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && node esbuild.mjs --standalone",
-		"compile-cli": "scripts/build-cli.sh",
-		"compile-cli-all-platforms": "scripts/build-cli-all-platforms.sh",
-		"compile-cli-man-page": "pandoc cli/man/cline.1.md -s -t man -o cli/man/cline.1",
+		"compile-standalone-npm": "npm run protos && npm run check-types && npm run lint && node esbuild.mjs --standalone",
+		"cli:link": "cd cli && npm run link",
+		"cli:build": "npm run protos && cd cli && npm run build",
+		"cli:build:production": "cd cli && npm run build:production",
+		"cli:watch": "cd cli && npm run watch",
+		"cli:test": "cd cli && npm run test",
 		"test:install": "bash scripts/test-install.sh",
-		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
+		"cli:dev": "cd cli && npm run dev",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"postcompile-standalone-npm": "node scripts/package-npm.mjs",
 		"dev": "npm run protos && npm run watch",
@@ -393,9 +398,7 @@
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
-		"protos-go": "node scripts/build-go-proto.mjs",
 		"protos-python": "node scripts/build-python-proto.mjs",
-		"cli-providers": "node scripts/cli-providers.mjs",
 		"download-ripgrep": "node scripts/download-ripgrep.mjs",
 		"postprotos": "biome format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
 		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
@@ -423,7 +426,7 @@
 		"test:e2e": "playwright install && npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:optimal": "npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:ui": "npx tsx scripts/interactive-playwright.ts",
-		"install:all": "npm install && cd webview-ui && npm install",
+		"install:all": "npm install && cd webview-ui && npm install && cd ../cli && npm install && cd ..",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
@@ -437,7 +440,8 @@
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
 		"report-issue": "node scripts/report-issue.js",
-		"storybook": "cd webview-ui && npm run storybook"
+		"storybook": "cd webview-ui && npm run storybook",
+		"cli:unlink": "cd cli && npm run unlink"
 	},
 	"lint-staged": {
 		"src/shared/storage/state-keys.ts": [
@@ -474,6 +478,7 @@
 		"chai": "^4.3.10",
 		"chalk": "5.6.2",
 		"cross-env": "^10.1.0",
+		"dotenv": "^17.2.3",
 		"esbuild": "^0.25.0",
 		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",

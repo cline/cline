@@ -15,10 +15,11 @@ import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { ClineRulesToggles } from "@/shared/cline-rules"
 import { Logger } from "@/shared/services/Logger"
+import { secretStorage } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"
 
-export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
-	const secrets = await Promise.all(SecretKeys.map((key) => context.secrets.get(key)))
+export async function readSecretsFromDisk(): Promise<Secrets> {
+	const secrets = await Promise.all(SecretKeys.map((key) => secretStorage.get(key)))
 
 	return SecretKeys.reduce((acc, key, index) => {
 		acc[key] = secrets[index]
@@ -131,7 +132,7 @@ export async function resetGlobalState(controller: Controller) {
 
 	await Promise.all(GlobalStateAndSettingKeys.map((key) => context.globalState.update(key, undefined)))
 
-	await Promise.all(SecretKeys.map((key) => context.secrets.delete(key)))
+	await Promise.all(SecretKeys.map((key) => secretStorage.delete(key)))
 
 	await controller.stateManager.reInitialize()
 }

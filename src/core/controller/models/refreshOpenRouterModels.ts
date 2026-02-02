@@ -265,7 +265,18 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 /**
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
-const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {}
+const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
+	"stealth/giga-potato": {
+		name: "Giga Potato",
+		maxTokens: 8192,
+		contextWindow: 224_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "A stealth model for testing purposes. Not a real potato.",
+	},
+}
 
 export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	// Create a shallow clone of the current models to avoid mutating the original object

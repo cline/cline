@@ -89,16 +89,16 @@ const HistoryViewItem = ({
 			/>
 
 			<div
-				className="flex flex-col gap-2 py-2 pl-2 pr-3 relative flex-grow w-full"
+				className="flex flex-col gap-2 py-2 pl-2 pr-3 relative flex-grow min-w-0"
 				onClick={(e) => {
 					e.stopPropagation()
 					handleShowTaskWithId(item.id)
 				}}>
-				<div className="flex justify-between items-center">
-					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap">
+				<div className="flex items-center gap-2">
+					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
 						<span className="ph-no-capture">{item.task}</span>
 					</div>
-					<div className="flex gap-2">
+					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
 							className="p-0 opacity-0 group-hover:opacity-100 transition-opacity"

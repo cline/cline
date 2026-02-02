@@ -2,6 +2,11 @@ import { Button } from "@components/ui/button"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import React, { useCallback, useRef } from "react"
 import { useMount } from "react-use"
+import DiscordIcon from "@/assets/DiscordIcon"
+import GitHubIcon from "@/assets/GitHubIcon"
+import LinkedInIcon from "@/assets/LinkedInIcon"
+import RedditIcon from "@/assets/RedditIcon"
+import XIcon from "@/assets/XIcon"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -49,16 +54,24 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	)
 
 	const navigateToModelPicker = useCallback(
-		(initialModelTab: "recommended" | "free") => {
+		(initialModelTab: "recommended" | "free", modelId?: string) => {
 			// Switch to Cline provider first so the model picker tab works
-			handleFieldsChange({
+			// Optionally also set the model if provided
+			const updates: Record<string, any> = {
 				planModeApiProvider: "cline",
 				actModeApiProvider: "cline",
-			})
+			}
+			if (modelId) {
+				updates.planModeOpenRouterModelId = modelId
+				updates.actModeOpenRouterModelId = modelId
+				updates.planModeOpenRouterModelInfo = openRouterModels[modelId]
+				updates.actModeOpenRouterModelInfo = openRouterModels[modelId]
+			}
+			handleFieldsChange(updates)
 			onClose()
 			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 		},
-		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
 	const setOpenAiCodexProvider = useCallback(() => {
@@ -100,13 +113,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 	type InlineModelLinkProps =
 		| { type: "model"; modelId: string; label: string }
-		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
+		| { type: "picker"; pickerTab: "recommended" | "free"; modelId: string; label: string }
 
 	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
 		if (props.type === "picker") {
 			return (
 				<span
-					onClick={() => navigateToModelPicker(props.pickerTab)}
+					onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
 					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 					{props.label}
 				</span>
@@ -144,14 +157,47 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
-							model.{" "}
-							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
+							5M installs, <strong>$1M Open Source Grant program</strong>, and the story of how we got here{" "}
+							<a
+								href="https://cline.bot/blog/5m-installs-1m-open-source-grant-program"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								Read it
+							</a>
+						</li>
+						<li className="mb-2">
+							New free models:
+							<ul className="list-none pl-5 mt-1">
+								<li>
+									<strong>Arcee Trinity Large open weight</strong>{" "}
+									<InlineModelLink
+										label="Try free"
+										modelId="arcee-ai/trinity-large-preview:free"
+										pickerTab="free"
+										type="picker"
+									/>
+								</li>
+								<li>
+									<strong>Giga Potato stealth</strong>{" "}
+									<InlineModelLink
+										label="Try free"
+										modelId="stealth/giga-potato"
+										pickerTab="free"
+										type="picker"
+									/>
+								</li>
+							</ul>
 						</li>
 						<li className="mb-2">
 							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
 							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+							<InlineModelLink
+								label="Try now"
+								modelId="moonshotai/kimi-k2.5"
+								pickerTab="recommended"
+								type="picker"
+							/>
 						</li>
 						<li className="mb-2">
 							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
@@ -162,12 +208,76 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								Connect
 							</span>
 						</li>
-						<li>
-							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
-							there are plenty models in our free tier.{" "}
-							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
-						</li>
 					</ul>
+
+					{/* Social Icons Section */}
+					<div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t border-[var(--vscode-widget-border)]">
+						{/* Icon Row */}
+						<div className="flex items-center gap-4">
+							{/* X/Twitter */}
+							<a
+								aria-label="Follow us on X"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://x.com/cline"
+								rel="noopener noreferrer"
+								target="_blank">
+								<XIcon />
+							</a>
+
+							{/* Discord */}
+							<a
+								aria-label="Join our Discord"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://discord.gg/cline"
+								rel="noopener noreferrer"
+								target="_blank">
+								<DiscordIcon />
+							</a>
+
+							{/* GitHub */}
+							<a
+								aria-label="Star us on GitHub"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://github.com/cline/cline"
+								rel="noopener noreferrer"
+								target="_blank">
+								<GitHubIcon />
+							</a>
+
+							{/* Reddit */}
+							<a
+								aria-label="Join our subreddit"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://www.reddit.com/r/cline/"
+								rel="noopener noreferrer"
+								target="_blank">
+								<RedditIcon />
+							</a>
+
+							{/* LinkedIn */}
+							<a
+								aria-label="Follow us on LinkedIn"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://www.linkedin.com/company/clinebot/"
+								rel="noopener noreferrer"
+								target="_blank">
+								<LinkedInIcon />
+							</a>
+						</div>
+
+						{/* GitHub Star CTA */}
+						<p className="text-sm text-center" style={{ color: "var(--vscode-descriptionForeground)" }}>
+							Please support Cline by{" "}
+							<a
+								href="https://github.com/cline/cline"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								starring us on GitHub
+							</a>
+							.
+						</p>
+					</div>
 				</div>
 			</DialogContent>
 		</Dialog>
