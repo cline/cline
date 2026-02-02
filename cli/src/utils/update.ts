@@ -1,10 +1,100 @@
 import { spawn } from "node:child_process"
+import { realpathSync } from "node:fs"
 import { exit } from "node:process"
 import { fetch } from "@/shared/net"
 import { printInfo, printWarning } from "./display"
 
 /**
- * Check for updates and install if available
+ * Check if cline was installed via npm global install.
+ * Only returns true for paths that look like npm global installs.
+ */
+function isNpmGlobalInstall(): boolean {
+	try {
+		// Resolve symlinks to get the real path
+		// npm global bin is a symlink: /usr/local/bin/cline -> ../lib/node_modules/cline/dist/cli.mjs
+		const scriptPath = realpathSync(process.argv[1] || "")
+
+		// npm global installs are in node_modules/cline/
+		// e.g. /usr/local/lib/node_modules/cline/dist/cli.mjs
+		// e.g. ~/.npm-global/lib/node_modules/cline/dist/cli.mjs
+		if (scriptPath.includes("/node_modules/cline/") || scriptPath.includes("\\node_modules\\cline\\")) {
+			return true
+		}
+	} catch {
+		// If we can't resolve the path, assume not npm global
+	}
+
+	return false
+}
+
+/**
+ * Auto-update check that runs on CLI startup.
+ * Runs completely in the background - no blocking, no latency impact.
+ * If a new version is found, it installs silently. User gets it next run.
+ *
+ * Only runs for npm global installs. Skipped for Homebrew, local dev, etc.
+ * Can be disabled with CLINE_NO_AUTO_UPDATE=1 environment variable.
+ */
+export function autoUpdateOnStartup(currentVersion: string): void {
+	// Skip in dev mode
+	if (process.env.IS_DEV === "true") {
+		return
+	}
+
+	// Skip if auto-update is disabled via env var
+	if (process.env.CLINE_NO_AUTO_UPDATE === "1") {
+		return
+	}
+
+	// Only auto-update for npm global installs
+	if (!isNpmGlobalInstall()) {
+		return
+	}
+
+	// Spawn a detached background process to check and install
+	// This runs completely independently - no impact on main CLI startup
+	const updateScript = `
+		const https = require('https');
+		const { execSync } = require('child_process');
+
+		const currentVersion = '${currentVersion}';
+
+		https.get('https://registry.npmjs.org/cline/latest', (res) => {
+			let data = '';
+			res.on('data', chunk => data += chunk);
+			res.on('end', () => {
+				try {
+					const latest = JSON.parse(data).version;
+					if (latest && latest !== currentVersion) {
+						// Compare versions
+						const cur = currentVersion.split('.').map(Number);
+						const lat = latest.split('.').map(Number);
+						let needsUpdate = false;
+						for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
+							if ((lat[i] || 0) > (cur[i] || 0)) { needsUpdate = true; break; }
+							if ((lat[i] || 0) < (cur[i] || 0)) { break; }
+						}
+						if (needsUpdate) {
+							execSync('npm install -g cline@latest', { stdio: 'ignore' });
+						}
+					}
+				} catch {}
+			});
+		}).on('error', () => {});
+	`
+
+	const child = spawn(process.execPath, ["-e", updateScript], {
+		detached: true,
+		stdio: "ignore",
+		env: process.env,
+	})
+
+	// Unref so the parent can exit independently
+	child.unref()
+}
+
+/**
+ * Check for updates and install if available (manual command)
  */
 export async function checkForUpdates(currentVersion: string, options?: { verbose?: boolean }) {
 	printInfo("Checking for updates...")

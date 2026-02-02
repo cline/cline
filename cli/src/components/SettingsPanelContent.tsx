@@ -16,6 +16,7 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
 import { openExternal } from "@/utils/env"
+import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -532,6 +533,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({ onCl
 						value: telemetry === "enabled",
 						description: "Help improve Cline by sending anonymous usage data",
 					},
+					{ key: "separator", label: "", type: "separator", value: "" },
+					{ key: "version", label: "CLI version", type: "readonly", value: CLI_VERSION },
 				]
 
 			case "account":

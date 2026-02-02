@@ -36,7 +36,7 @@ import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
-import { checkForUpdates } from "./utils/update"
+import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 
@@ -721,6 +721,9 @@ program
 			await showWelcome(options)
 		}
 	})
+
+// Background auto-update check (non-blocking)
+autoUpdateOnStartup(CLI_VERSION)
 
 // Parse and run
 program.parse()
