@@ -131,10 +131,20 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		const distinctId = getDistinctId()
 		// Only identify user if telemetry is enabled and user ID is different than the currently set distinct ID
 		if (this.isEnabled() && userInfo && userInfo?.id !== distinctId) {
+			// Find the active organization (only one can be active at a time)
+			const activeOrg = userInfo.organizations?.find((org) => org.active)
+
 			// Store user attributes for future events
 			this.userAttributes = {
 				user_id: userInfo.id,
 				user_name: userInfo.displayName || "",
+				// Add organization context if available
+				...(activeOrg && {
+					organization_id: activeOrg.organizationId,
+					organization_name: activeOrg.name,
+					member_id: activeOrg.memberId,
+					member_roles: activeOrg.roles.join(","), // Convert array to comma-separated string
+				}),
 				...this.flattenProperties(properties),
 			}
 
