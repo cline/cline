@@ -729,8 +729,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			const newTelemetry: TelemetrySetting = newValue ? "enabled" : "disabled"
 			setTelemetry(newTelemetry)
 			stateManager.setGlobalState("telemetrySetting", newTelemetry)
-			// Update telemetry providers to respect the new setting
-			controller?.updateTelemetrySetting(newTelemetry)
+			// Flush synchronously before continuing - must complete before app can exit
+			void stateManager.flushPendingState().then(() => {
+				// Update telemetry providers to respect the new setting
+				controller?.updateTelemetrySetting(newTelemetry)
+			})
 			return
 		}
 
