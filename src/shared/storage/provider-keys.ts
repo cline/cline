@@ -24,7 +24,6 @@ import {
 
 // Note: "cline" provider uses the same model ID key as "openrouter"
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
-	anthropic: "apiModelId",
 	openrouter: "OpenRouterModelId",
 	cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
 	openai: "OpenAiModelId",

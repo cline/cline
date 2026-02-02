@@ -204,15 +204,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Read model IDs from state (re-reads when refreshKey changes)
 	const { actModelId, planModelId } = useMemo(() => {
 		const apiConfig = stateManager.getApiConfiguration()
-		const currentProvider = apiConfig.actModeApiProvider
-		if (!currentProvider) {
+		const actProvider = apiConfig.actModeApiProvider
+		const planProvider = apiConfig.planModeApiProvider || actProvider
+		if (!actProvider && !planProvider) {
 			return { actModelId: "", planModelId: "" }
 		}
-		const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
-		const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+		const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
+		const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
 		return {
-			actModelId: (stateManager.getGlobalSettingsKey(actKey as string) as string) || "",
-			planModelId: (stateManager.getGlobalSettingsKey(planKey as string) as string) || "",
+			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey as string) as string) || "" : "",
+			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey as string) as string) || "" : "",
 		}
 	}, [modelRefreshKey, stateManager])
 
@@ -715,10 +716,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			stateManager.setGlobalState("planActSeparateModelsSetting", newValue)
 			// When disabling separate models, sync plan model to act model
 			if (!newValue) {
-				const currentProvider = stateManager.getApiConfiguration().actModeApiProvider
-				if (currentProvider) {
-					const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
-					const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+				const apiConfig = stateManager.getApiConfiguration()
+				const actProvider = apiConfig.actModeApiProvider
+				const planProvider = apiConfig.planModeApiProvider || actProvider
+				if (actProvider) {
+					const actKey = getProviderModelIdKey(actProvider as ApiProvider, "act")
+					const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
 					const actModel = stateManager.getGlobalSettingsKey(actKey as string)
 					if (planKey) stateManager.setGlobalState(planKey, actModel)
 				}
@@ -809,15 +812,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const handleModelSelect = useCallback(
 		async (modelId: string) => {
 			if (!pickingModelKey) return
-			const currentProvider = stateManager.getApiConfiguration().actModeApiProvider
-			if (!currentProvider) return
+			const apiConfig = stateManager.getApiConfiguration()
+			const actProvider = apiConfig.actModeApiProvider
+			const planProvider = apiConfig.planModeApiProvider || actProvider
+			const providerForSelection = separateModels
+				? pickingModelKey === "actModelId"
+					? actProvider
+					: planProvider
+				: actProvider || planProvider
+			if (!providerForSelection) return
 			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-			const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
-			const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+			const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
+			const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
 
 			// For cline/openrouter providers, also set model info (like webview does)
 			let modelInfo
-			if (currentProvider === "cline" || currentProvider === "openrouter") {
+			if (providerForSelection === "cline" || providerForSelection === "openrouter") {
 				const openRouterModels = await controller?.readOpenRouterModels()
 				modelInfo = openRouterModels?.[modelId]
 			}
@@ -847,10 +857,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			await stateManager.flushPendingState()
 
 			// Rebuild API handler if there's an active task
-			const apiConfig = stateManager.getApiConfiguration()
 			if (controller?.task) {
 				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+				const freshApiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...freshApiConfig, ulid: controller.task.ulid }, currentMode)
 			}
 
 			refreshModelIds()
@@ -1031,10 +1041,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			case "actModelId":
 			case "planModelId": {
 				// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-				const currentProvider = stateManager.getApiConfiguration().actModeApiProvider
-				if (!currentProvider) break
-				const actKey = getProviderModelIdKey(currentProvider as ApiProvider, "act")
-				const planKey = getProviderModelIdKey(currentProvider as ApiProvider, "plan")
+				const apiConfig = stateManager.getApiConfiguration()
+				const actProvider = apiConfig.actModeApiProvider
+				const planProvider = apiConfig.planModeApiProvider || actProvider
+				if (!actProvider && !planProvider) break
+				const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
+				const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
 
 				if (separateModels) {
 					// Only update the selected mode's model
