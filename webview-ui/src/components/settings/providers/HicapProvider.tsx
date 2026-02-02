@@ -1,6 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useEffect } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -22,6 +23,12 @@ interface HicapProviderProps {
 export const HicapProvider = ({ showModelOptions, isPopup, currentMode }: HicapProviderProps) => {
 	const { apiConfiguration, refreshHicapModels } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+
+	useEffect(() => {
+		if (apiConfiguration?.hicapApiKey && apiConfiguration?.hicapApiKey.length === 32) {
+			refreshHicapModels()
+		}
+	}, [apiConfiguration?.hicapApiKey])
 
 	return (
 		<div>
