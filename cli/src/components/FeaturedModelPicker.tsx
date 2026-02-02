@@ -7,7 +7,7 @@
 import { Box, Text } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
-import { type FeaturedModel, getAllFeaturedModels } from "../constants/featured-models"
+import { type FeaturedModel, getAllFeaturedModels, PROMOTED_MODEL_ID } from "../constants/featured-models"
 
 interface FeaturedModelPickerProps {
 	selectedIndex: number
@@ -35,30 +35,58 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 				</>
 			)}
 
-			{featuredModels.map((model, i) => (
-				<Box flexDirection="column" key={model.id} marginBottom={1}>
-					<Box>
-						<Text color={i === selectedIndex ? COLORS.primaryBlue : undefined}>
-							{i === selectedIndex ? "❯ " : "  "}
-						</Text>
-						<Text bold color={i === selectedIndex ? COLORS.primaryBlue : "white"}>
-							{model.name}
-						</Text>
-						{model.label && (
-							<>
+			{featuredModels.map((model, i) => {
+				const isPromoted = model.id === PROMOTED_MODEL_ID
+				const isSelected = i === selectedIndex
+
+				// Promoted model gets special yellow styling
+				if (isPromoted) {
+					return (
+						<Box flexDirection="column" key={model.id} marginBottom={1}>
+							<Box>
+								<Text color="yellow">{isSelected ? "❯ " : "  "}</Text>
+								<Text bold color="yellow">
+									{model.name}
+								</Text>
 								<Text> </Text>
-								<Text backgroundColor={model.label === "FREE" ? "gray" : COLORS.primaryBlue} color="black">
+								<Text backgroundColor="yellow" color="black">
 									{" "}
 									{model.label}{" "}
 								</Text>
-							</>
-						)}
+							</Box>
+							<Box paddingLeft={2}>
+								<Text color="yellow" dimColor>
+									{model.description}
+								</Text>
+							</Box>
+						</Box>
+					)
+				}
+
+				// Regular model rendering
+				return (
+					<Box flexDirection="column" key={model.id} marginBottom={1}>
+						<Box>
+							<Text color={isSelected ? COLORS.primaryBlue : undefined}>{isSelected ? "❯ " : "  "}</Text>
+							<Text bold color={isSelected ? COLORS.primaryBlue : "white"}>
+								{model.name}
+							</Text>
+							{model.label && (
+								<>
+									<Text> </Text>
+									<Text backgroundColor={model.label === "FREE" ? "gray" : COLORS.primaryBlue} color="black">
+										{" "}
+										{model.label}{" "}
+									</Text>
+								</>
+							)}
+						</Box>
+						<Box paddingLeft={2}>
+							<Text color="gray">{model.description}</Text>
+						</Box>
 					</Box>
-					<Box paddingLeft={2}>
-						<Text color="gray">{model.description}</Text>
-					</Box>
-				</Box>
-			))}
+				)
+			})}
 
 			{showBrowseAll && (
 				<Box>

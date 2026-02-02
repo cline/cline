@@ -10,6 +10,18 @@ export interface FeaturedModel {
 	label: string
 }
 
+/**
+ * Special promoted model - displayed at top with highlighted styling
+ */
+export const PROMOTED_MODEL: FeaturedModel = {
+	id: "moonshotai/kimi-k2.5",
+	name: "Kimi K2.5",
+	description: "State-of-the-art model topping benchmarks. Limited time promotion by Cline & Moonshot.",
+	label: "FREE",
+}
+
+export const PROMOTED_MODEL_ID = PROMOTED_MODEL.id
+
 export const FEATURED_MODELS = {
 	recommended: [
 		{
@@ -33,12 +45,6 @@ export const FEATURED_MODELS = {
 	] as FeaturedModel[],
 	free: [
 		{
-			id: "moonshotai/kimi-k2.5",
-			name: "MoonshotAI Kimi K2.5",
-			description: "Topping benchmarks leading open source",
-			label: "FREE",
-		},
-		{
 			id: "kwaipilot/kat-coder-pro",
 			name: "KAT Coder Pro",
 			description: "Advanced agentic coding model",
@@ -54,5 +60,5 @@ export const FEATURED_MODELS = {
 }
 
 export function getAllFeaturedModels(): FeaturedModel[] {
-	return [...FEATURED_MODELS.recommended, ...FEATURED_MODELS.free]
+	return [PROMOTED_MODEL, ...FEATURED_MODELS.recommended, ...FEATURED_MODELS.free]
 }

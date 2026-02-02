@@ -179,7 +179,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	// Main menu items - conditionally include import options
 	const mainMenuItems: SelectItem[] = useMemo(() => {
-		const items: SelectItem[] = [{ label: "Sign in with Cline account", value: "cline_auth" }]
+		const items: SelectItem[] = [{ label: "Sign in with Cline", value: "cline_auth" }]
 
 		// Add OpenAI Codex option for ChatGPT subscribers
 		items.push({ label: "Sign in with ChatGPT Subscription", value: "openai_codex_auth" })
@@ -939,9 +939,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text> </Text>
 						{mainMenuItems.map((item, index) => (
 							<Box key={item.value}>
-								<Text color={index === menuIndex ? COLORS.primaryBlue : undefined}>
-									{index === menuIndex ? "❯ " : "  "}
-									{item.label}
+								<Text>
+									<Text color={index === menuIndex ? COLORS.primaryBlue : undefined}>
+										{index === menuIndex ? "❯ " : "  "}
+										{item.label}
+									</Text>
+									{item.value === "cline_auth" && <Text color="yellow"> (try Kimi K2.5 free!)</Text>}
 								</Text>
 							</Box>
 						))}
