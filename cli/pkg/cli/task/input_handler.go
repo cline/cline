@@ -300,9 +300,12 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 	// Store the approval message for later use in determining auto-approval action
 	ih.approvalMessage = msg
 
+	// Generate a descriptive approval prompt
+	prompt := ih.getApprovalPrompt(msg)
+
 	model := output.NewInputModelWithRegistry(
 		output.InputTypeApproval,
-		"Let Cline use this tool?",
+		prompt,
 		"",
 		ih.manager.GetCurrentMode(),
 		ih.slashCommandRegistry,
@@ -319,6 +322,59 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 
 	// The approval and feedback are handled via the model state
 	return ih.feedbackApproved, message, nil
+}
+
+// getApprovalPrompt generates a descriptive approval prompt based on the message type
+func (ih *InputHandler) getApprovalPrompt(msg *types.ClineMessage) string {
+	if msg.Ask == string(types.AskTypeTool) {
+		// Parse tool message to get tool details
+		var tool types.ToolMessage
+		if err := json.Unmarshal([]byte(msg.Text), &tool); err == nil {
+			// Generate prompt based on tool type
+			switch tool.Tool {
+			case string(types.ToolTypeEditedExistingFile):
+				return fmt.Sprintf("Let Cline edit %s?", tool.Path)
+			case string(types.ToolTypeNewFileCreated):
+				return fmt.Sprintf("Let Cline write %s?", tool.Path)
+			case string(types.ToolTypeReadFile):
+				return fmt.Sprintf("Let Cline read %s?", tool.Path)
+			case string(types.ToolTypeFileDeleted):
+				return fmt.Sprintf("Let Cline delete %s?", tool.Path)
+			case string(types.ToolTypeListFilesTopLevel):
+				return fmt.Sprintf("Let Cline list files in %s?", tool.Path)
+			case string(types.ToolTypeListFilesRecursive):
+				return fmt.Sprintf("Let Cline recursively list files in %s?", tool.Path)
+			case string(types.ToolTypeSearchFiles):
+				if tool.Path != "" {
+					return fmt.Sprintf("Let Cline search for %s in %s?", tool.Regex, tool.Path)
+				}
+				return fmt.Sprintf("Let Cline search for %s?", tool.Regex)
+			case string(types.ToolTypeWebFetch):
+				return fmt.Sprintf("Let Cline fetch %s?", tool.Path)
+			case string(types.ToolTypeWebSearch):
+				return fmt.Sprintf("Let Cline search the web for %s?", tool.Path)
+			case string(types.ToolTypeListCodeDefinitionNames):
+				return fmt.Sprintf("Let Cline list code definitions in %s?", tool.Path)
+			case string(types.ToolTypeSummarizeTask):
+				return "Let Cline condense the conversation?"
+			default:
+				// For unknown tools, show the tool name
+				if tool.Tool != "" {
+					return fmt.Sprintf("Let Cline use %s?", tool.Tool)
+				}
+			}
+		}
+	} else if msg.Ask == string(types.AskTypeCommand) {
+		command := strings.TrimSpace(msg.Text)
+		if strings.HasSuffix(command, "REQ_APP") {
+			command = strings.TrimSuffix(command, "REQ_APP")
+			command = strings.TrimSpace(command)
+		}
+		return fmt.Sprintf("Let Cline run: %s?", command)
+	}
+
+	// Default fallback
+	return "Let Cline proceed?"
 }
 
 // runInputProgram runs the bubbletea program and waits for result
