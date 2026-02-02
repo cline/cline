@@ -87,6 +87,13 @@ INSTANT TASK OPTIONS
               needs to analyze multiple approaches before implementation.
               Example: cline --thinking "create a detailed implementation plan"
 
+       -c, --cwd <path>
+              Working directory for the task.  Run Cline in a specific
+              directory without changing your current location.  Essential for
+              worktree workflows where multiple Cline instances operate in
+              different folders simultaneously.  Example: cline --cwd
+              ~/worktree-a -y "refactor authentication code"
+
        -o, --oneshot
               Full autonomous mode.  Cline completes the task and stops
               following after completion.  Example: cline -o "what's 6 + 8?"

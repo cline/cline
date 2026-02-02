@@ -226,6 +226,24 @@ Worktrees are not available in certain workspace configurations:
 
 The Worktrees view will display a message explaining the limitation if either of these applies to your workspace.
 
+## Using Worktrees with Cline CLI
+
+Cline CLI's `--cwd` flag unlocks powerful command-line worktree workflows:
+
+- **Parallel execution**: Run multiple Cline instances simultaneously in different worktrees
+- **Context piping**: Pipe output from one worktree as input to another for iterative refinement
+- **Combined with other features**: Use with `--config` for different models per worktree, or `--thinking` for deep analysis
+
+Example:
+```bash
+# Run parallel tasks in different worktrees
+cline --cwd ~/worktree-a -y "refactor authentication" &
+cline --cwd ~/worktree-b -y "add unit tests" &
+wait
+```
+
+For complete CLI worktree patterns and examples, see [Worktree Workflows](/cline-cli/samples/worktree-workflows).
+
 ## Troubleshooting
 
 <AccordionGroup>
