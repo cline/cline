@@ -587,6 +587,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			if (m.say === "checkpoint_created") return false
 			if (m.say === "api_req_started") return false
 			if (m.say === "api_req_retried") return false // Redundant with error_retry messages
+			if (m.say === "reasoning") return false // Hide thinking traces - they clutter the UI
 			return true
 		})
 
