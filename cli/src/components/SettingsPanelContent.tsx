@@ -842,6 +842,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
 				}
 			}
+
+			// Flush pending state to ensure model ID is persisted
+			await stateManager.flushPendingState()
+
+			// Rebuild API handler if there's an active task
+			const apiConfig = stateManager.getApiConfiguration()
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			}
+
 			refreshModelIds()
 			setIsPickingModel(false)
 			setPickingModelKey(null)
