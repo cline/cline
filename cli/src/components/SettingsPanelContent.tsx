@@ -542,7 +542,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						description: "Help improve Cline by sending anonymous usage data",
 					},
 					{ key: "separator", label: "", type: "separator", value: "" },
-					{ key: "version", label: "CLI version", type: "readonly", value: CLI_VERSION },
+					{ key: "version", label: `Cline v${CLI_VERSION}`, type: "readonly", value: "" },
 				]
 
 			case "account":
