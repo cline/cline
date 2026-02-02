@@ -52,9 +52,8 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 		case "openai-native":
 			return !!config.openAiNativeApiKey
 		case "openai-codex":
-			// OpenAI Codex uses OAuth with credentials stored separately.
-			// Match webview behavior: always show as available option.
-			return true
+			// OpenAI Codex uses OAuth with credentials stored as JSON blob
+			return !!(config as Record<string, unknown>)["openai-codex-oauth-credentials"]
 		case "deepseek":
 			return !!config.deepSeekApiKey
 		case "xai":

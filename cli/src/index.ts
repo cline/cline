@@ -627,9 +627,8 @@ async function checkAnyProviderConfigured(): Promise<boolean> {
 	// Check Cline account (stored as "cline:clineAccountId" in secrets, loaded into config)
 	if (config["cline:clineAccountId"]) return true
 
-	// Check OpenAI Codex OAuth (stored separately, requires async check)
-	const codexAuth = await openAiCodexOAuthManager.isAuthenticated()
-	if (codexAuth) return true
+	// Check OpenAI Codex OAuth (stored in SECRETS_KEYS, loaded into config)
+	if (config["openai-codex-oauth-credentials"]) return true
 
 	// Check all BYO provider API keys (loaded into config from secrets)
 	for (const [provider, keyField] of Object.entries(ProviderToApiKeyMap)) {
