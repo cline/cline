@@ -75,6 +75,12 @@ message TaskCompleteData {
   map<string, string> task_metadata = 1;
 }
 
+// Message for deleted range tuple (start, end indices)
+message DeletedRange {
+  int32 start_index = 1;
+  int32 end_index = 2;
+}
+
 // Data for PreCompact hook
 message PreCompactData {
   // Task identification
@@ -100,9 +106,11 @@ message PreCompactData {
   int64 tokens_in_cache = 8;
   int64 tokens_out_cache = 9;
 
+  // DEPRECATED
   // Truncation information (if applicable)
-  int32 deleted_range_start = 10; // Start index of deleted conversation range
-  int32 deleted_range_end = 11; // End index of deleted conversation range
+  // int32 deleted_range_start = 10; // Start index of deleted conversation range
+  // int32 deleted_range_end = 11; // End index of deleted conversation range
+  reserved 10,11;
 
   // Context JSON file path
   // Path to a temporary JSON file containing the full API conversation history
@@ -118,4 +126,7 @@ message PreCompactData {
   // Use this to analyze total context size, overhead, and exactly what the model sees
   // This file will be automatically cleaned up after the hook completes
   string context_raw_path = 13;
+
+  // Multiple non-contiguous deleted ranges (for advanced context compaction)
+  repeated DeletedRange deleted_ranges = 14;
 }

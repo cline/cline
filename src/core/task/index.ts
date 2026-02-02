@@ -329,6 +329,16 @@ export class Task {
 			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			// Migration: if conversationHistoryDeletedRange exists but conversationHistoryDeletedRanges doesn't, convert
+			if (
+				historyItem.conversationHistoryDeletedRange !== undefined &&
+				historyItem.conversationHistoryDeletedRanges === undefined
+			) {
+				this.taskState.conversationHistoryDeletedRanges = [historyItem.conversationHistoryDeletedRange]
+			} else {
+				// Going forward we will no longer keep conversationHistoryDeletedRange up to date as it will not be used
+				this.taskState.conversationHistoryDeletedRanges = historyItem.conversationHistoryDeletedRanges
+			}
 			if (historyItem.checkpointManagerErrorMessage) {
 				this.taskState.checkpointManagerErrorMessage = historyItem.checkpointManagerErrorMessage
 			}
@@ -389,6 +399,7 @@ export class Task {
 					cancelTask: this.cancelTask,
 					postStateToWebview: this.postStateToWebview,
 					initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					initialConversationHistoryDeletedRanges: this.taskState.conversationHistoryDeletedRanges,
 					initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 					stateManager: this.stateManager,
 				})
@@ -876,18 +887,18 @@ export class Task {
 	}
 
 	/**
-	 * Calculate the new deleted range for PreCompact hook
+	 * Calculate the new deleted ranges for PreCompact hook
 	 * @param apiConversationHistory The full API conversation history
-	 * @returns Tuple with start and end indices for the deleted range
+	 * @returns Array of deleted ranges
 	 */
-	private calculatePreCompactDeletedRange(apiConversationHistory: ClineStorageMessage[]): [number, number] {
-		const newDeletedRange = this.contextManager.getNextTruncationRange(
+	private calculatePreCompactDeletedRanges(apiConversationHistory: ClineStorageMessage[]): Array<[number, number]> {
+		const newDeletedRanges = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
-			this.taskState.conversationHistoryDeletedRange,
+			this.taskState.conversationHistoryDeletedRanges,
 			"quarter", // Force aggressive truncation on error
 		)
 
-		return newDeletedRange || [0, 0]
+		return newDeletedRanges || []
 	}
 
 	private async runUserPromptSubmitHook(
@@ -1142,7 +1153,10 @@ export class Task {
 						previousState: {
 							lastMessageTs: lastClineMessage?.ts?.toString() || "",
 							messageCount: clineMessages.length.toString(),
-							conversationHistoryDeleted: (this.taskState.conversationHistoryDeletedRange !== undefined).toString(),
+							conversationHistoryDeleted: (
+								this.taskState.conversationHistoryDeletedRanges !== undefined &&
+								this.taskState.conversationHistoryDeletedRanges.length > 0
+							).toString(),
 						},
 					},
 				},
@@ -1639,8 +1653,8 @@ export class Task {
 		const hooksEnabled = getHooksEnabledSafe()
 		if (hooksEnabled) {
 			try {
-				// Calculate what the new deleted range will be
-				const deletedRange = this.calculatePreCompactDeletedRange(apiConversationHistory)
+				// Calculate what the new deleted ranges will be
+				const deletedRanges = this.calculatePreCompactDeletedRanges(apiConversationHistory)
 
 				// Execute hook - throws HookCancellationError if cancelled
 				await executePreCompactHookWithCleanup({
@@ -1648,11 +1662,12 @@ export class Task {
 					ulid: this.ulid,
 					apiConversationHistory,
 					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					conversationHistoryDeletedRanges: this.taskState.conversationHistoryDeletedRanges,
 					contextManager: this.contextManager,
 					clineMessages: this.messageStateHandler.getClineMessages(),
 					messageStateHandler: this.messageStateHandler,
 					compactionStrategy: "standard-truncation-lastquarter",
-					deletedRange,
+					deletedRanges,
 					say: this.say.bind(this),
 					setActiveHookExecution: async (hookExecution: HookExecution | undefined) => {
 						if (hookExecution) {
@@ -1677,13 +1692,13 @@ export class Task {
 		}
 
 		// Proceed with standard truncation
-		const newDeletedRange = this.contextManager.getNextTruncationRange(
+		const newDeletedRanges = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
-			this.taskState.conversationHistoryDeletedRange,
+			this.taskState.conversationHistoryDeletedRanges,
 			"quarter", // Force aggressive truncation
 		)
 
-		this.taskState.conversationHistoryDeletedRange = newDeletedRange
+		this.taskState.conversationHistoryDeletedRanges = newDeletedRanges
 
 		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
@@ -1843,16 +1858,16 @@ export class Task {
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
 			this.api,
-			this.taskState.conversationHistoryDeletedRange,
+			this.taskState.conversationHistoryDeletedRanges,
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.taskId),
 			this.stateManager.getGlobalSettingsKey("useAutoCondense") && isNextGenModelFamily(this.api.getModel().id),
 		)
 
-		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
-			this.taskState.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
+		if (contextManagementMetadata.updatedConversationHistoryDeletedRanges) {
+			this.taskState.conversationHistoryDeletedRanges = contextManagementMetadata.conversationHistoryDeletedRanges
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			// saves task history item which we use to keep track of conversation history deleted range
+			// saves task history item which we use to keep track of conversation history deleted ranges
 		}
 
 		// Response API requires native tool calls to be enabled
@@ -1883,7 +1898,7 @@ export class Task {
 				if (isContextWindowExceededError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
 						this.messageStateHandler.getApiConversationHistory(),
-						this.taskState.conversationHistoryDeletedRange,
+						this.taskState.conversationHistoryDeletedRanges,
 					)
 
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
@@ -2338,14 +2353,17 @@ export class Task {
 			if (this.taskState.currentlySummarizing) {
 				this.taskState.currentlySummarizing = false
 
-				if (this.taskState.conversationHistoryDeletedRange) {
-					const [start, end] = this.taskState.conversationHistoryDeletedRange
+				if (
+					this.taskState.conversationHistoryDeletedRanges &&
+					this.taskState.conversationHistoryDeletedRanges.length > 0
+				) {
+					const [start, end] = this.taskState.conversationHistoryDeletedRanges[0]
 					const apiHistory = this.messageStateHandler.getApiConversationHistory()
 
 					// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
 					const safeEnd = Math.min(end + 2, apiHistory.length - 1)
 					if (end + 2 <= safeEnd) {
-						this.taskState.conversationHistoryDeletedRange = [start, end + 2]
+						this.taskState.conversationHistoryDeletedRanges = [[start, end + 2]]
 						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					}
 				}
@@ -2363,9 +2381,13 @@ export class Task {
 				// Edge case: summarize_task tool call completes but user cancels next request before it finishes.
 				// This results in currentlySummarizing being false, and we fail to update the context window token estimate.
 				// Check active message count to avoid summarizing a summary (bad UX but doesn't break logic).
-				if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
+				if (
+					shouldCompact &&
+					this.taskState.conversationHistoryDeletedRanges &&
+					this.taskState.conversationHistoryDeletedRanges.length > 0
+				) {
 					const apiHistory = this.messageStateHandler.getApiConversationHistory()
-					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRanges[0][1] - 1
 
 					// IMPORTANT: We haven't appended the next user message yet, so the last message is an assistant message.
 					// That's why we compare to even numbers (0, 2) rather than odd (1, 3).
@@ -2378,7 +2400,7 @@ export class Task {
 				if (shouldCompact) {
 					shouldCompact = await this.contextManager.attemptFileReadOptimization(
 						this.messageStateHandler.getApiConversationHistory(),
-						this.taskState.conversationHistoryDeletedRange,
+						this.taskState.conversationHistoryDeletedRanges,
 						this.messageStateHandler.getClineMessages(),
 						previousApiReqIndex,
 						await ensureTaskDirectoryExists(this.taskId),

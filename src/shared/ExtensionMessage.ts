@@ -133,6 +133,7 @@ export interface ClineMessage {
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
+	conversationHistoryDeletedRanges?: Array<[number, number]> // for multiple non-contiguous deleted ranges
 	modelInfo?: ClineMessageModelInfo
 }
 

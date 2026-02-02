@@ -119,6 +119,7 @@ export class MessageStateHandler {
 				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
 				cwdOnTaskInitialization: cwd,
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+				conversationHistoryDeletedRanges: this.taskState.conversationHistoryDeletedRanges,
 				isFavorited: this.taskIsFavorited,
 				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 				modelId: lastModelInfo?.modelInfo?.modelId,
@@ -166,6 +167,7 @@ export class MessageStateHandler {
 			// it's important that apiConversationHistory is initialized before we add cline messages
 			message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
 			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			message.conversationHistoryDeletedRanges = this.taskState.conversationHistoryDeletedRanges
 			this.clineMessages.push(message)
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
