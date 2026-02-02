@@ -26,7 +26,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						<TooltipTrigger asChild>
 							<div className="flex items-center gap-2 mb-[5px]">
 								<VSCodeCheckbox
-									checked={telemetrySetting === "enabled"}
+									checked={telemetrySetting !== "disabled"}
 									disabled={remoteConfigSettings?.telemetrySetting === "disabled"}
 									onChange={(e: any) => {
 										const checked = e.target.checked === true

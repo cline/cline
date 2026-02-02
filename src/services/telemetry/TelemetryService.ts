@@ -322,6 +322,10 @@ export class TelemetryService {
 			// Tracks when a worktree merge is attempted
 			MERGE_ATTEMPTED: "worktree.merge_attempted",
 		},
+		HOST: {
+			// Tracks events detected from the host environment
+			DETECTED: "host.detected",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -2228,6 +2232,16 @@ export class TelemetryService {
 				workspaceCount,
 				totalCount: globalCount + workspaceCount,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	public captureHostEvent(name: string, content: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.HOST.DETECTED,
+			properties: {
+				name,
+				content,
 			},
 		})
 	}
