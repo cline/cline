@@ -15,6 +15,11 @@ interface MoonshotHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 }
 
+// Enhanced usage interface to support Moonshot's cached token field
+interface MoonshotUsage extends OpenAI.CompletionUsage {
+	cached_tokens?: number
+}
+
 export class MoonshotHandler implements ApiHandler {
 	private client: OpenAI | undefined
 
@@ -81,12 +86,13 @@ export class MoonshotHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
+				const usage = chunk.usage as MoonshotUsage
 				yield {
 					type: "usage",
 					cacheWriteTokens: 0,
-					cacheReadTokens: (chunk.usage as any).cached_tokens ?? 0,
-					inputTokens: (chunk.usage.prompt_tokens || 0) - ((chunk.usage as any).cached_tokens ?? 0),
-					outputTokens: chunk.usage.completion_tokens || 0,
+					cacheReadTokens: usage.cached_tokens ?? 0,
+					inputTokens: (usage.prompt_tokens || 0) - (usage.cached_tokens ?? 0),
+					outputTokens: usage.completion_tokens || 0,
 				}
 			}
 		}
