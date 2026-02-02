@@ -587,6 +587,8 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
 			const hicapApiKey = await context.secrets.get("hicapApiKey")
+			// OpenAI Codex OAuth credentials
+			const openAiCodexCredentials = await context.secrets.get("openai-codex-oauth-credentials")
 
 			// Fetch configuration values from global state
 			const awsRegion = context.globalState.get("awsRegion")
@@ -629,6 +631,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sapAiCoreClientId,
 				difyApiKey,
 				hicapApiKey,
+				openAiCodexCredentials,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys

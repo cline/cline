@@ -254,6 +254,7 @@ const USER_SETTINGS_FIELDS = {
 	subagentTerminalOutputLineLimit: { default: 2000 as number },
 	strictPlanModeEnabled: { default: false as boolean },
 	yoloModeToggled: { default: false as boolean },
+	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
@@ -343,6 +344,7 @@ const SECRETS_KEYS = [
 	"ocaApiKey",
 	"ocaRefreshToken",
 	"mcpOAuthSecrets",
+	"openai-codex-oauth-credentials", // JSON blob containing OAuth tokens for OpenAI Codex (ChatGPT subscription)
 ] as const
 
 export const LocalStateKeys = [

@@ -18,6 +18,7 @@ import {
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { Logger } from "@/shared/services/Logger"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -102,6 +103,7 @@ export class StateManager {
 
 	private constructor(context: ExtensionContext) {
 		this.context = context
+		secretStorage.init(context.secrets)
 	}
 
 	/**
@@ -119,7 +121,7 @@ export class StateManager {
 		try {
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(context)
-			const secrets = await readSecretsFromDisk(context)
+			const secrets = await readSecretsFromDisk()
 			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
@@ -849,5 +851,25 @@ export class StateManager {
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
 		return { ...secrets, ...settings } satisfies ApiConfiguration
+	}
+
+	/**
+	 * Get all global state entries (for debugging/inspection)
+	 */
+	public getAllGlobalStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.globalStateCache }
+	}
+
+	/**
+	 * Get all workspace state entries (for debugging/inspection)
+	 */
+	public getAllWorkspaceStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.workspaceStateCache }
 	}
 }
