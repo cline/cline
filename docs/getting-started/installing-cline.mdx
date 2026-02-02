@@ -145,7 +145,11 @@ description: "Get Cline up and running in your favorite IDE or terminal with the
 
 2. **Sign in** by clicking the **Sign Up** button in the Cline interface. You'll be redirected to [app.cline.bot](https://app.cline.bot) to authenticate.
 
-3. **Start building!** After signing in, you'll automatically return to your editor—Cline is ready to help.
+   <Tip>
+     Learn more about [authorizing with Cline](/getting-started/authorizing-with-cline), including how OAuth authentication works, using API keys with other providers, and troubleshooting auth issues.
+   </Tip>
+
+3. **Start building!** After signing in, you'll automatically return to your editor-Cline is ready to help.
 
 ## Setting Up Cline in the Right Sidebar
 
@@ -207,11 +211,11 @@ Sometimes Cline doesn't show up in search results if you're looking in the wrong
 
 ### Cline Icon Not Appearing After Install
 
-The most common fix is a full restart—close your IDE completely (File → Exit) and reopen it. In VS Code/Cursor/VSCodium, you can also open the Command Palette (`Ctrl/Cmd + Shift + P`) and type "Cline: Open In New Tab". In JetBrains, check **View** → **Tool Windows** → **Cline**. If it's still missing, verify the plugin is enabled in your Extensions/Plugins settings.
+The most common fix is a full restart-close your IDE completely (File → Exit) and reopen it. In VS Code/Cursor/VSCodium, you can also open the Command Palette (`Ctrl/Cmd + Shift + P`) and type "Cline: Open In New Tab". In JetBrains, check **View** → **Tool Windows** → **Cline**. If it's still missing, verify the plugin is enabled in your Extensions/Plugins settings.
 
 ### CLI: Node.js or Permission Errors
 
-Cline CLI requires Node.js 20 or higher. Run `node --version` to check—if you need to upgrade, use nvm (`nvm install 22 && nvm use 22`) or download from [nodejs.org](https://nodejs.org). For permission errors on `npm install -g`, either prefix with `sudo` on macOS/Linux or configure npm to use a user-owned directory for global packages.
+Cline CLI requires Node.js 20 or higher. Run `node --version` to check-if you need to upgrade, use nvm (`nvm install 22 && nvm use 22`) or download from [nodejs.org](https://nodejs.org). For permission errors on `npm install -g`, either prefix with `sudo` on macOS/Linux or configure npm to use a user-owned directory for global packages.
 
 ### Plugin Installed But Not Working
 
