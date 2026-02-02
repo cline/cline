@@ -252,6 +252,12 @@ export class ClineHandler implements ApiHandler {
 				})
 
 				const generation = response.data
+				let totalCost = generation?.total_cost || 0
+
+				if (["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(this.getModel().id)) {
+					totalCost = 0
+				}
+
 				return {
 					type: "usage",
 					cacheWriteTokens: 0,
@@ -259,7 +265,7 @@ export class ClineHandler implements ApiHandler {
 					// openrouter generation endpoint fails often
 					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
 					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+					totalCost,
 				}
 			} catch (error) {
 				// ignore if fails
