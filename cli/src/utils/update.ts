@@ -4,35 +4,91 @@ import { exit } from "node:process"
 import { fetch } from "@/shared/net"
 import { printInfo, printWarning } from "./display"
 
-/**
- * Check if cline was installed via npm global install.
- * Only returns true for paths that look like npm global installs.
- */
-function isNpmGlobalInstall(): boolean {
-	try {
-		// Resolve symlinks to get the real path
-		// npm global bin is a symlink: /usr/local/bin/cline -> ../lib/node_modules/cline/dist/cli.mjs
-		const scriptPath = realpathSync(process.argv[1] || "")
+export enum PackageManager {
+	NPM = "npm",
+	PNPM = "pnpm",
+	YARN = "yarn",
+	BUN = "bun",
+	NPX = "npx",
+	UNKNOWN = "unknown",
+}
 
-		// npm global installs are in node_modules/cline/
-		// e.g. /usr/local/lib/node_modules/cline/dist/cli.mjs
-		// e.g. ~/.npm-global/lib/node_modules/cline/dist/cli.mjs
-		if (scriptPath.includes("/node_modules/cline/") || scriptPath.includes("\\node_modules\\cline\\")) {
-			return true
+interface InstallationInfo {
+	packageManager: PackageManager
+	updateCommand?: string
+}
+
+/**
+ * Detect how the CLI was installed and return the appropriate update command.
+ */
+function getInstallationInfo(): InstallationInfo {
+	try {
+		const scriptPath = realpathSync(process.argv[1] || "").replace(/\\/g, "/")
+
+		// npx - skip auto-update (ephemeral execution)
+		if (scriptPath.includes("/.npm/_npx") || scriptPath.includes("/npm/_npx")) {
+			return { packageManager: PackageManager.NPX }
+		}
+
+		// pnpm global
+		if (scriptPath.includes("/.pnpm/global") || scriptPath.includes("/pnpm/global")) {
+			return {
+				packageManager: PackageManager.PNPM,
+				updateCommand: "pnpm add -g cline@latest",
+			}
+		}
+
+		// yarn global
+		if (scriptPath.includes("/.yarn/") || scriptPath.includes("/yarn/global")) {
+			return {
+				packageManager: PackageManager.YARN,
+				updateCommand: "yarn global add cline@latest",
+			}
+		}
+
+		// bun global
+		if (scriptPath.includes("/.bun/bin")) {
+			return {
+				packageManager: PackageManager.BUN,
+				updateCommand: "bun add -g cline@latest",
+			}
+		}
+
+		// npm global (node_modules/cline)
+		if (scriptPath.includes("/node_modules/cline/")) {
+			return {
+				packageManager: PackageManager.NPM,
+				updateCommand: "npm install -g cline@latest",
+			}
 		}
 	} catch {
-		// If we can't resolve the path, assume not npm global
+		// If we can't resolve the path, assume unknown
 	}
 
-	return false
+	return { packageManager: PackageManager.UNKNOWN }
+}
+
+/**
+ * Fetch the latest version from npm registry.
+ */
+async function getLatestVersion(): Promise<string | null> {
+	try {
+		const response = await fetch("https://registry.npmjs.org/cline/latest")
+		if (!response.ok) return null
+		const data = (await response.json()) as { version: string }
+		return data.version || null
+	} catch {
+		return null
+	}
 }
 
 /**
  * Auto-update check that runs on CLI startup.
- * Runs completely in the background - no blocking, no latency impact.
- * If a new version is found, it installs silently. User gets it next run.
+ * Checks for updates asynchronously (non-blocking), then spawns a detached
+ * process to install if a newer version is available.
  *
- * Only runs for npm global installs. Skipped for Homebrew, local dev, etc.
+ * Supports npm, pnpm, yarn, and bun global installs.
+ * Skipped for npx, local dev, and unknown installations.
  * Can be disabled with CLINE_NO_AUTO_UPDATE=1 environment variable.
  */
 export function autoUpdateOnStartup(currentVersion: string): void {
@@ -46,51 +102,34 @@ export function autoUpdateOnStartup(currentVersion: string): void {
 		return
 	}
 
-	// Only auto-update for npm global installs
-	if (!isNpmGlobalInstall()) {
+	const { updateCommand } = getInstallationInfo()
+	if (!updateCommand) {
 		return
 	}
 
-	// Spawn a detached background process to check and install
-	// This runs completely independently - no impact on main CLI startup
-	const updateScript = `
-		const https = require('https');
-		const { execSync } = require('child_process');
+	// Async version check - non-blocking, fire and forget
+	checkAndUpdate(currentVersion, updateCommand)
+}
 
-		const currentVersion = '${currentVersion}';
+async function checkAndUpdate(currentVersion: string, updateCommand: string): Promise<void> {
+	try {
+		const latestVersion = await getLatestVersion()
+		if (!latestVersion) return
 
-		https.get('https://registry.npmjs.org/cline/latest', (res) => {
-			let data = '';
-			res.on('data', chunk => data += chunk);
-			res.on('end', () => {
-				try {
-					const latest = JSON.parse(data).version;
-					if (latest && latest !== currentVersion) {
-						// Compare versions
-						const cur = currentVersion.split('.').map(Number);
-						const lat = latest.split('.').map(Number);
-						let needsUpdate = false;
-						for (let i = 0; i < Math.max(cur.length, lat.length); i++) {
-							if ((lat[i] || 0) > (cur[i] || 0)) { needsUpdate = true; break; }
-							if ((lat[i] || 0) < (cur[i] || 0)) { break; }
-						}
-						if (needsUpdate) {
-							execSync('npm install -g cline@latest', { stdio: 'ignore' });
-						}
-					}
-				} catch {}
-			});
-		}).on('error', () => {});
-	`
+		// Only update if latest is newer
+		if (compareVersions(currentVersion, latestVersion) >= 0) return
 
-	const child = spawn(process.execPath, ["-e", updateScript], {
-		detached: true,
-		stdio: "ignore",
-		env: process.env,
-	})
-
-	// Unref so the parent can exit independently
-	child.unref()
+		// Spawn detached process to run the update command
+		const child = spawn(updateCommand, {
+			shell: true,
+			detached: true,
+			stdio: "ignore",
+			env: process.env,
+		})
+		child.unref()
+	} catch {
+		// Silently ignore errors - auto-update is best-effort
+	}
 }
 
 /**
@@ -99,20 +138,19 @@ export function autoUpdateOnStartup(currentVersion: string): void {
 export async function checkForUpdates(currentVersion: string, options?: { verbose?: boolean }) {
 	printInfo("Checking for updates...")
 
+	const { updateCommand, packageManager } = getInstallationInfo()
+
 	try {
-		// Fetch latest version from npm registry
-		const response = await fetch("https://registry.npmjs.org/cline/latest")
-		if (!response.ok && response.statusText !== "OK") {
-			printWarning(`Failed to check for updates: ${response.statusText}`)
+		const latestVersion = await getLatestVersion()
+		if (!latestVersion) {
+			printWarning("Failed to check for updates: could not fetch latest version")
 			exit(1)
 		}
-
-		const data = (await response.json()) as { version: string }
-		const latestVersion = data.version
 
 		if (options?.verbose) {
 			printInfo(`Current version: ${currentVersion}`)
 			printInfo(`Latest version: ${latestVersion}`)
+			printInfo(`Package manager: ${packageManager}`)
 		}
 
 		// Compare versions
@@ -128,6 +166,13 @@ export async function checkForUpdates(currentVersion: string, options?: { verbos
 		}
 
 		printInfo(`New version available: ${latestVersion} (current: ${currentVersion})`)
+
+		if (!updateCommand) {
+			printInfo("Unable to determine update command for your installation.")
+			printInfo("Please update manually using your package manager.")
+			exit(0)
+		}
+
 		// Ask user to confirm update
 		const userConfirmed = new Promise<boolean>((resolve) => {
 			process.stdout.write("Do you want to update now? (y/N): ")
@@ -142,31 +187,28 @@ export async function checkForUpdates(currentVersion: string, options?: { verbos
 			exit(0)
 		}
 
-		printInfo("Installing update...")
+		printInfo(`Installing update via ${packageManager}...`)
 
-		// Run npm install -g cline@latest
-		const npmProcess = spawn("npm", ["install", "-g", "cline@latest"], {
+		const updateProcess = spawn(updateCommand, {
 			stdio: "inherit",
 			shell: true,
-			// Ensures the process uses the same environment
 			env: process.env,
-			detached: false,
 			windowsHide: true,
 		})
 
-		npmProcess.on("close", (code) => {
+		updateProcess.on("close", (code) => {
 			if (code === 0) {
 				printInfo(`Successfully updated to version ${latestVersion}`)
 				exit(0)
 			} else {
-				printWarning("Update failed. Please try running: npm install -g cline@latest")
+				printWarning(`Update failed. Please try running: ${updateCommand}`)
 				exit(1)
 			}
 		})
 
-		npmProcess.on("error", (err) => {
-			printWarning(`Failed to run npm install: ${err.message}`)
-			printInfo("Please try running manually: npm install -g cline@latest")
+		updateProcess.on("error", (err) => {
+			printWarning(`Failed to run update: ${err.message}`)
+			printInfo(`Please try running manually: ${updateCommand}`)
 			exit(1)
 		})
 	} catch (error) {
