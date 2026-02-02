@@ -197,13 +197,8 @@ jobs:
               run: cd testing-platform && npm ci
 
             - name: Running testing platform integration spec tests
-              continue-on-error: true
               timeout-minutes: 7
-              # Temporarily wrapping the test command to always return a neutral exit code.
-              # This prevents the job from showing as failed and avoids distracting developers
-              # until the integration tests are ready to be enforced.
-              run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
+              run: npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4

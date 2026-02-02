@@ -18,7 +18,7 @@
  *        npm run test:e2e:build
  *
  *   2. From the repo root, start the interactive session:
- *        npm run test:playwright:interactive
+ *        npm run test:e2e:ui
  *
  *   3. VS Code will launch with the Cline extension loaded and gRPC recording enabled.
  *
