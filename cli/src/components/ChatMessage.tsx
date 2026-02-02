@@ -18,12 +18,14 @@ import { getToolDescription, isFileEditTool, parseToolFromMessage } from "../uti
 import { DiffView } from "./DiffView"
 
 /**
- * Add "(Tab)" hint after "to Act Mode" mentions.
+ * Add "(Tab)" hint after "Act mode" mentions.
  * Case-insensitive, avoids double-adding if already present.
+ * Matches just "Act mode" without requiring "to " prefix because markdown
+ * processing may split "toggle to **Act mode**" into separate text chunks.
  */
 function addActModeHint(text: string): React.ReactNode[] {
-	// Match "to Act Mode" in various capitalizations, but not if already followed by (Tab)
-	const actModeRegex = /\bto\s+Act\s+Mode\b(?!\s*\(Tab\))/gi
+	// Match "Act mode" in various capitalizations, but not if already followed by (Tab)
+	const actModeRegex = /\bact\s+mode\b(?!\s*\(tab\))/gi
 	const parts = text.split(actModeRegex)
 	const matches = text.match(actModeRegex)
 
@@ -51,7 +53,7 @@ function addActModeHint(text: string): React.ReactNode[] {
 
 /**
  * Render inline markdown: **bold**, *italic*, `code`
- * Also adds "(Tab)" hints after "to Act Mode" mentions.
+ * Also adds "(Tab)" hints after "Act mode" mentions.
  * Returns array of React nodes with appropriate styling
  */
 function renderInlineMarkdown(text: string): React.ReactNode[] {
