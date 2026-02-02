@@ -66,6 +66,8 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 					</Text>
 				</Box>
 
+				<Text>Use Cline CLI in non-interactive mode, check cline --help for available options and commands.</Text>
+
 				<Text>
 					For more help: <Text color={COLORS.primaryBlue}>https://docs.cline.bot/cline-cli</Text>
 				</Text>
