@@ -248,7 +248,7 @@ interface ParsedVersion {
  * Handles both stable versions (2.0.0) and nightly versions (2.0.0-nightly.1736365200).
  */
 function parseVersion(version: string): ParsedVersion {
-	const nightlyMatch = version.match(/^(.+)-nightly\.(\d+)$/)
+	const nightlyMatch = version.match(/^(\d+\.\d+\.\d+)-nightly\.(\d+)$/)
 	if (nightlyMatch) {
 		return {
 			base: nightlyMatch[1].split(".").map(Number),
