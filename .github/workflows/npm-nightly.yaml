@@ -52,7 +52,7 @@ jobs:
           key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
 
       - name: Install root dependencies and CLI dependencies
-        if: steps.check_commits.outputs.skip != 'true' && steps.root-cache.outputs.cache-hit != 'true'
+        if: steps.check_commits.outputs.skip != 'true'
         run: npm ci --include=optional # this will also install cli deps because "cli" in included in root package.json workspaces field
 
       - name: Generate Protos
