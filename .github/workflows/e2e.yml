@@ -34,15 +34,15 @@ jobs:
             id-token: write
             contents: read
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: 22
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: root-cache
               with:
                   path: node_modules
@@ -50,7 +50,7 @@ jobs:
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: webview-cache
               with:
                   path: webview-ui/node_modules
@@ -58,7 +58,7 @@ jobs:
 
             # Cache VS Code installation
             - name: Cache VS Code
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: vscode-cache
               with:
                   path: .vscode-test
@@ -68,7 +68,7 @@ jobs:
 
             # Cache Playwright browsers
             - name: Cache Playwright browsers
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: playwright-cache
               with:
                   path: |
@@ -100,7 +100,7 @@ jobs:
               if: matrix.runner != 'ubuntu'
               run: npm run test:e2e:optimal
 
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v6
               if: ${{ failure() }}
               with:
                   name: playwright-recordings-${{ matrix.runner }}

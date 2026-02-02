@@ -23,7 +23,7 @@ jobs:
         environment: PublishNightly
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             - name: Check for recent commits
               run: |
@@ -34,13 +34,13 @@ jobs:
                 echo "Found recent commits, proceeding with build"
                 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   node-version: "lts/*"
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: root-cache
               with:
                   path: node_modules
@@ -48,7 +48,7 @@ jobs:
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               id: webview-cache
               with:
                   path: webview-ui/node_modules
