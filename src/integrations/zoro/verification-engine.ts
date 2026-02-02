@@ -257,7 +257,21 @@ async function callLLM(prompt: string, verificationType: "step" | "substep" = "s
 				messages.push(toolResultMessage)
 			}
 
-			if (streamResult.toolCalls.length === 0) {
+			// Add iteration tracking after tool results
+			if (streamResult.toolCalls.length > 0 && i < 6) {
+				const iterationMsg =
+					i >= 5
+						? `[System: Iteration ${i + 1} of 7. ⚠️ FINAL ITERATION - complete your task now!]`
+						: `[System: Iteration ${i + 1} of 7]`
+
+				messages.push({
+					role: "user",
+					content: [{ type: "text", text: iterationMsg }],
+				})
+			}
+
+			if (validToolCalls.length === 0) {
+				console.log("[verification-engine] No more valid tools requested, stopping")
 				break
 			}
 		}
@@ -328,7 +342,7 @@ Return ONLY the JSON object, nothing else.`
 		// 🎯 Prepare messages for final verdict using provider adapter
 		const finalPreparedMessages = adapter.prepareMessages(messages)
 
-		const verdictStream = api.createMessage(systemPrompt, finalPreparedMessages, [])
+		const verdictStream = api.createMessage(systemPrompt, finalPreparedMessages, TOOL_DEFINITIONS)
 
 		// 🎯 Consume verdict stream using provider adapter
 		const verdictResult = await adapter.consumeStream(verdictStream, {
