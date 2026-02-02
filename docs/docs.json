@@ -88,6 +88,7 @@
 							"cline-cli/overview",
 							"cline-cli/installation",
 							"cline-cli/three-core-flows",
+							"cline-cli/acp-editor-integrations",
 							{
 								"group": "CLI Samples",
 								"pages": [
