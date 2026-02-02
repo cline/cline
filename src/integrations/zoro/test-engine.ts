@@ -126,7 +126,6 @@ async function extractTestResults(testFilePath: string): Promise<any[]> {
         console.log("[test-engine] Working directory:", workspaceDir)
 
         // Execute test from workspace directory (so imports work!)
-        // Use same pattern as loadGitDiff in verification-engine.ts
         const output = execSync(`python "${testFilePath}"`, {
             cwd: workspaceDir,
             env: {

@@ -108,7 +108,7 @@ export async function runSubstepVerification(
     substepId: string,
     rules: Array<{ rule_id: string; name: string; description: string }>,
 ): Promise<EnforcementResponse> {
-    console.log("[verification-engine] 🔍 Verifying substep:", substepId)
+    console.log("[verify-engine] 🔍 Verifying substep:", substepId)
 
     try {
         // Load chat history only - let Cline use tools to investigate files
@@ -152,7 +152,7 @@ function parseVerificationResponse(llmResponse: string): EnforcementResponse {
             code_blocks: parsed.code_blocks || [],
         }
     } catch (error) {
-        console.error("[verification-engine] JSON parse error:", error)
+        console.error("[verify-engine] JSON parse error:", error)
         return {
             verdict: "unclear",
             overview: `## Parse Error\n- Failed to parse LLM response\n- Response: ${llmResponse.substring(0, 200)}...`,

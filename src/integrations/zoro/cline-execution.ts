@@ -202,7 +202,7 @@ export async function runFinalVerdict(
 
 
 export async function loadChatHistory(chatId: string): Promise<string> {
-    console.log("[verification-engine] Loading chat history for:", chatId)
+    console.log("[cline-execution] Loading chat history for:", chatId)
 
     try {
         const controller = getController()
@@ -253,7 +253,7 @@ export async function loadChatHistory(chatId: string): Promise<string> {
 
         return formatted
     } catch (error) {
-        console.error("[verification-engine] Error loading chat history:", error)
+        console.error("[cline-execution] Error loading chat history:", error)
         return `Error loading chat history: ${error instanceof Error ? error.message : "Unknown error"}`
     }
 }
