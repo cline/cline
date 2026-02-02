@@ -1,55 +1,41 @@
 /**
  * Text input hook with cursor management and keyboard shortcut handling.
+ *
  * Supports essential terminal shortcuts:
- * - Option+Left/Right: move by word
- * - Home/End (Fn+arrows): start/end of line
+ * - Option+Left/Right: move by word (via escape sequences)
  * - Ctrl+A/E: start/end of line
  * - Ctrl+W: delete word backwards
  * - Ctrl+U: delete to start of line
+ *
+ * Note: Home/End keys are handled by useHomeEndKeys hook because Ink doesn't
+ * expose them in useInput (it sets input='' for these keys).
  */
 
 import { useCallback, useRef, useState } from "react"
 
+import { OPTION_LEFT_SEQUENCES, OPTION_RIGHT_SEQUENCES } from "../constants/keyboard"
+
 /**
- * Keyboard escape sequence types for special key combinations
+ * Keyboard escape sequence types for special key combinations.
+ * Only includes sequences that Ink passes through in the input string.
  */
 type KeyboardSequence =
 	| "option-left" // Move word left
 	| "option-right" // Move word right
-	| "home" // Move to start of line
-	| "end" // Move to end of line
 	| null
 
 /**
  * Parse keyboard escape sequences for special key combinations.
+ * Only handles Option+arrow - Home/End are handled by useHomeEndKeys.
  */
 function parseKeyboardSequence(input: string): KeyboardSequence {
-	switch (input) {
-		// Option+Left (move word left)
-		case "\x1bb":
-		case "\x1b[1;3D":
-			return "option-left"
-
-		// Option+Right (move word right)
-		case "\x1bf":
-		case "\x1b[1;3C":
-			return "option-right"
-
-		// Home (move to start of line)
-		case "\x1b[H":
-		case "\x1b[1~":
-		case "\x1bOH":
-			return "home"
-
-		// End (move to end of line)
-		case "\x1b[F":
-		case "\x1b[4~":
-		case "\x1bOF":
-			return "end"
-
-		default:
-			return null
+	if (OPTION_LEFT_SEQUENCES.has(input)) {
+		return "option-left"
 	}
+	if (OPTION_RIGHT_SEQUENCES.has(input)) {
+		return "option-right"
+	}
+	return null
 }
 
 /**
@@ -179,17 +165,11 @@ export function useTextInput(): UseTextInputReturn {
 				case "option-right":
 					moveWordRight()
 					return true
-				case "home":
-					moveToStart()
-					return true
-				case "end":
-					moveToEnd()
-					return true
 				default:
 					return false
 			}
 		},
-		[moveWordLeft, moveWordRight, moveToStart, moveToEnd],
+		[moveWordLeft, moveWordRight],
 	)
 
 	const handleCtrlShortcut = useCallback(

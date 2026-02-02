@@ -121,6 +121,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
+import { useHomeEndKeys } from "../hooks/useHomeEndKeys"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
@@ -346,6 +347,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		deleteCharBefore,
 		insertText: insertTextAtCursor,
 	} = useTextInput()
+
+	// Ref for text input (used by useHomeEndKeys)
+	const textInputRef = useRef(textInput)
+	textInputRef.current = textInput
+
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0) // For file menu
 	const [historyIndex, setHistoryIndex] = useState(-1) // -1 = not browsing history, 0+ = history item index
@@ -380,6 +386,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		| { type: "help" }
 		| null
 	>(null)
+
+	// Handle Home/End keys from raw stdin (Ink doesn't expose these in useInput)
+	useHomeEndKeys({
+		onHome: useCallback(() => setCursorPos(0), [setCursorPos]),
+		onEnd: useCallback(() => setCursorPos(textInputRef.current.length), [setCursorPos]),
+		isActive: !activePanel, // Only active when no panel is open
+	})
 
 	// Track when we're exiting to hide UI elements before exit
 	const [isExiting, setIsExiting] = useState(false)
@@ -953,18 +966,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
 	// Handle keyboard input
+	//
+	// KEYBOARD PRIORITY ORDER (first match wins):
+	// 1. Mouse escape sequences -> filtered out (from AsciiMotionCli tracking)
+	// 2. Option+arrow escape sequences -> word navigation (handleKeyboardSequence)
+	// 3. Option+arrow via key.meta -> word navigation (backup for when Ink parses it)
+	// 4. Panel open -> bail (let panel handle its own input)
+	// 5. Slash menu open -> menu navigation (up/down/tab/return/escape)
+	// 6. File menu open -> menu navigation (up/down/tab/return/escape)
+	// 7. History navigation -> up/down when input empty or matches history item
+	// 8. Button actions -> "1"/"2" keys when buttons shown and no text typed
+	// 9. Ask responses -> return to send, numbers for option selection
+	// 10. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
+	// 11. Large paste detection -> collapse into placeholder
+	// 12. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
+	//
+	// Note: Home/End keys are handled separately by useHomeEndKeys hook because
+	// Ink doesn't expose them in useInput (it sets input='' for these keys).
+	//
 	useInput((input, key) => {
-		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
+		// 1. Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
 		if (isMouseEscapeSequence(input)) {
 			return
 		}
 
-		// Handle keyboard escape sequences (Option+arrows, Home/End, etc.)
+		// 2. Handle Option+arrow escape sequences for word navigation
 		if (handleKeyboardSequence(input)) {
 			return
 		}
 
-		// Handle Option+arrow via key.meta (how Ink reports it on Mac)
+		// 3. Handle Option+arrow via key.meta (backup - Ink sometimes parses these instead of passing raw sequence)
 		if (key.meta) {
 			if (key.leftArrow) {
 				setCursorPos(findWordStart(textInput, cursorPos))
@@ -976,7 +1007,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// When a panel is open, let the panel handle its own input
+		// 4. When a panel is open, let the panel handle its own input
 		if (activePanel) {
 			return
 		}
@@ -984,7 +1015,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
-		// Slash command menu navigation (takes priority over file menu)
+		// 5. Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
 			if (key.upArrow) {
 				setSelectedSlashIndex((i) => Math.max(0, i - 1))
@@ -1064,7 +1095,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// File mention menu navigation
+		// 6. File mention menu navigation
 		if (inFileMenu) {
 			if (key.upArrow) {
 				setSelectedIndex((i) => Math.max(0, i - 1))
@@ -1092,7 +1123,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// History navigation with up/down arrows
+		// 7. History navigation with up/down arrows
 		// Only works when: input is empty, or input matches the currently selected history item
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
 			const historyItems = getHistoryItems()
@@ -1142,7 +1173,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle button actions (1 for primary, 2 for secondary)
+		// 8. Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
 		if (
 			buttonConfig.enableButtons &&
@@ -1169,7 +1200,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle ask responses for options and text input
+		// 9. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as ClineAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
 			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
@@ -1187,12 +1218,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
+		// 10. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
 		if (key.ctrl && input && handleCtrlShortcut(input)) {
 			return
 		}
 
-		// Detect paste by checking if input length exceeds threshold
+		// 11. Detect paste by checking if input length exceeds threshold
 		// Large pastes mess up the terminal UI, so we collapse them into a placeholder
 		// Terminal sends large pastes in multiple chunks, so we combine chunks that arrive rapidly
 		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
@@ -1253,7 +1284,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return // Exit early - don't also add the raw input via normal handling below
 		}
 
-		// Normal input handling
+		// 12. Normal input handling
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
