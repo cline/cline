@@ -95,8 +95,6 @@ interface AppProps {
 	initialImages?: string[]
 	// Stdin support
 	isRawModeSupported?: boolean
-	// Robot position (calculated before Ink mounts)
-	robotTopRow?: number
 }
 
 export const App: React.FC<AppProps> = ({
@@ -141,7 +139,6 @@ export const App: React.FC<AppProps> = ({
 	initialPrompt,
 	initialImages,
 	isRawModeSupported = true,
-	robotTopRow,
 }) => {
 	const { resizeKey } = useTerminalSize()
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
@@ -259,7 +256,6 @@ export const App: React.FC<AppProps> = ({
 							onComplete={onComplete}
 							onError={onError}
 							onExit={onWelcomeExit}
-							robotTopRow={robotTopRow}
 							taskId={selectedTaskId}
 						/>
 					)}

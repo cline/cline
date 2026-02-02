@@ -31,7 +31,6 @@ import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
-import { calculateRobotTopRow, queryCursorPos } from "./utils/cursor-position"
 import { printInfo, printWarning } from "./utils/display"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
@@ -203,6 +202,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
  * Run an Ink app with proper cleanup handling
  */
 async function runInkApp(element: React.ReactElement, cleanup: () => Promise<void>): Promise<void> {
+	// Clear terminal for clean UI - robot will render at row 1
+	process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
+
 	// Note: incrementalRendering is disabled because it causes UI glitches on terminal resize.
 	// Ink's incremental rendering tries to erase N lines based on previous output height,
 	// but when the terminal shrinks, this leaves artifacts. Gemini CLI only enables
@@ -353,12 +355,6 @@ async function runTask(
 		exit(success ? 0 : 1)
 	}
 
-	// Use welcome view for consistent rendering (same as interactive mode)
-	// Query cursor position BEFORE Ink mounts to know where robot will render
-	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
-	const terminalRows = process.stdout.rows ?? 24
-	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
-
 	let taskError = false
 
 	// Render the welcome view with optional initial prompt/images
@@ -370,7 +366,6 @@ async function runTask(
 			verbose: options.verbose,
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
-			robotTopRow,
 			initialPrompt: taskPrompt || undefined,
 			initialImages: imageDataUrls.length > 0 ? imageDataUrls : undefined,
 			onError: () => {
@@ -647,11 +642,6 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
 
-	// Query cursor position BEFORE Ink mounts
-	const cursorPos = await queryCursorPos(process.stdin, process.stdout)
-	const terminalRows = process.stdout.rows ?? 24
-	const robotTopRow = calculateRobotTopRow(cursorPos, terminalRows)
-
 	let hadError = false
 
 	await runInkApp(
@@ -661,7 +651,6 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 			verbose: options.verbose,
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
-			robotTopRow,
 			onWelcomeExit: () => {
 				exit(0)
 			},

@@ -152,7 +152,6 @@ interface ChatViewProps {
 	onExit?: () => void
 	onComplete?: () => void
 	onError?: () => void
-	robotTopRow?: number
 	initialPrompt?: string
 	initialImages?: string[]
 	taskId?: string
@@ -319,7 +318,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	onExit,
 	onComplete: _onComplete,
 	onError,
-	robotTopRow,
 	initialPrompt,
 	initialImages,
 	taskId,
@@ -1353,7 +1351,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				{/* Animated robot and welcome text - only shown before messages start and user hasn't scrolled */}
 				{isWelcomeState && (
 					<Box flexDirection="column" marginBottom={1}>
-						<AsciiMotionCli onScroll={() => setUserScrolled(true)} robotTopRow={robotTopRow} />
+						<AsciiMotionCli onScroll={() => setUserScrolled(true)} />
 						<Text> </Text>
 						<Text bold color="white">
 							{centerText("What can I do for you?")}
