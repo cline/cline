@@ -18,7 +18,40 @@ import { getToolDescription, isFileEditTool, parseToolFromMessage } from "../uti
 import { DiffView } from "./DiffView"
 
 /**
+ * Add "(Tab)" hint after "to Act Mode" mentions.
+ * Case-insensitive, avoids double-adding if already present.
+ */
+function addActModeHint(text: string): React.ReactNode[] {
+	// Match "to Act Mode" in various capitalizations, but not if already followed by (Tab)
+	const actModeRegex = /\bto\s+Act\s+Mode\b(?!\s*\(Tab\))/gi
+	const parts = text.split(actModeRegex)
+	const matches = text.match(actModeRegex)
+
+	if (!matches || parts.length <= 1) {
+		return [text]
+	}
+
+	const nodes: React.ReactNode[] = []
+	parts.forEach((part, i) => {
+		if (part) {
+			nodes.push(part)
+		}
+		if (matches[i]) {
+			nodes.push(
+				<React.Fragment key={`act-mode-${i}`}>
+					{matches[i]}
+					<Text color="gray"> (Tab)</Text>
+				</React.Fragment>,
+			)
+		}
+	})
+
+	return nodes
+}
+
+/**
  * Render inline markdown: **bold**, *italic*, `code`
+ * Also adds "(Tab)" hints after "to Act Mode" mentions.
  * Returns array of React nodes with appropriate styling
  */
 function renderInlineMarkdown(text: string): React.ReactNode[] {
@@ -29,19 +62,22 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 	let match
 
 	while ((match = regex.exec(text)) !== null) {
-		// Add text before match
+		// Add text before match (with Act Mode hint processing)
 		if (match.index > lastIndex) {
-			nodes.push(text.slice(lastIndex, match.index))
+			const beforeText = text.slice(lastIndex, match.index)
+			nodes.push(...addActModeHint(beforeText))
 		}
 
 		const fullMatch = match[0]
 		const key = `md-${match.index}`
 
 		if (fullMatch.startsWith("**") && fullMatch.endsWith("**")) {
-			// Bold
+			// Bold - also process for Act Mode hints inside bold text
+			const boldContent = fullMatch.slice(2, -2)
+			const hintedContent = addActModeHint(boldContent)
 			nodes.push(
 				<Text bold key={key}>
-					{fullMatch.slice(2, -2)}
+					{hintedContent}
 				</Text>,
 			)
 		} else if (fullMatch.startsWith("*") && fullMatch.endsWith("*")) {
@@ -59,12 +95,12 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 		lastIndex = regex.lastIndex
 	}
 
-	// Add remaining text
+	// Add remaining text (with Act Mode hint processing)
 	if (lastIndex < text.length) {
-		nodes.push(text.slice(lastIndex))
+		nodes.push(...addActModeHint(text.slice(lastIndex)))
 	}
 
-	return nodes.length > 0 ? nodes : [text]
+	return nodes.length > 0 ? nodes : addActModeHint(text)
 }
 
 /**
@@ -224,7 +260,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 		return (
 			<Box flexDirection="column" marginBottom={1} width="100%">
 				<DotRow>
-					<Text>{text}</Text>
+					<MarkdownText>{text}</MarkdownText>
 				</DotRow>
 			</Box>
 		)
