@@ -45,6 +45,8 @@ jobs:
 
             - name: Install root dependencies
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
               run: cd webview-ui && npm ci
@@ -88,6 +90,8 @@ jobs:
 
             - name: Install root dependencies
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
               run: cd webview-ui && npm ci
@@ -177,6 +181,8 @@ jobs:
 
             - name: Install root dependencies
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
               run: cd webview-ui && npm ci
