@@ -36,8 +36,9 @@ export function createOTLPLogExporter(
 	try {
 		let exporter: any = null
 		const logsUrl = new URL(endpoint)
-		if (logsUrl.pathname === "/" || logsUrl.pathname === "") {
-			logsUrl.pathname = "/v1/logs"
+		if (!logsUrl.pathname.endsWith("/v1/logs")) {
+			const base = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint
+			logsUrl.pathname += `${base}/v1/logs`
 		}
 
 		switch (protocol) {
@@ -104,8 +105,9 @@ export function createOTLPMetricReader(
 		let exporter: any = null
 
 		const metricsUrl = new URL(endpoint)
-		if (metricsUrl.pathname === "/" || metricsUrl.pathname === "") {
-			metricsUrl.pathname = "/v1/metrics"
+		if (!metricsUrl.pathname.endsWith("/v1/metrics")) {
+			const base = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint
+			metricsUrl.pathname = `${base}/v1/mtrics`
 		}
 
 		switch (protocol) {
