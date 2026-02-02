@@ -257,19 +257,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
-			// Get organization info
-			const organizations = authService.getUserOrganizations()
+			const accountService = ClineAccountService.getInstance()
+
+			// Fetch fresh organization info from server (like webview's getUserOrganizations RPC)
+			// Don't use authService.getUserOrganizations() as it returns cached data
+			const organizations = await accountService.fetchUserOrganizationsRPC()
+			let activeOrgId: string | undefined
 			if (organizations) {
 				setAccountOrganizations(organizations)
 				const activeOrg = organizations.find((org) => org.active)
 				setAccountOrganization(activeOrg || null)
+				activeOrgId = activeOrg?.organizationId
 			}
 
 			// Fetch credit balance
 			try {
-				const accountService = ClineAccountService.getInstance()
-				const activeOrgId = authService.getActiveOrganizationId()
-
 				if (activeOrgId) {
 					const orgBalance = await accountService.fetchOrganizationCreditsRPC(activeOrgId)
 					if (orgBalance?.balance !== undefined) {
@@ -329,9 +331,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			setIsPickingOrganization(false)
 			try {
 				await ClineAccountService.getInstance().switchAccount(orgId || undefined)
-				// Refetch to get updated auth info with new active org
-				await AuthService.getInstance(controller).restoreRefreshTokenAndRetrieveAuthInfo()
-				fetchAccountInfo()
+				// Refetch fresh org data from server
+				await fetchAccountInfo()
 			} catch {
 				// Error switching organization
 			}
