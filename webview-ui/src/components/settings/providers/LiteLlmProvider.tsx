@@ -122,7 +122,13 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						className={`my-2 ${isLoading ? "animate-pulse" : ""}`}
 						disabled={isLoading}
 						onClick={onRefreshModels}>
-						Refresh models <RefreshCwIcon className="ml-1" />
+						{isLoading ? (
+							"Loading..."
+						) : (
+							<>
+								Refresh models <RefreshCwIcon className="ml-1" />
+							</>
+						)}
 					</VSCodeButton>
 
 					{selectedModelInfo?.supportsReasoning && <ThinkingBudgetSlider currentMode={currentMode} />}
