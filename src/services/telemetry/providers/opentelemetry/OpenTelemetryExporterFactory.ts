@@ -37,8 +37,9 @@ export function createOTLPLogExporter(
 		let exporter: any = null
 		const logsUrl = new URL(endpoint)
 		if (!logsUrl.pathname.endsWith("/v1/logs")) {
-			const base = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint
-			logsUrl.pathname += `${base}/v1/logs`
+			const pathname = logsUrl.pathname
+			const base = pathname.endsWith("/") ? logsUrl.pathname.slice(0, -1) : pathname
+			logsUrl.pathname = `${base}/v1/logs`
 		}
 
 		switch (protocol) {
@@ -68,7 +69,7 @@ export function createOTLPLogExporter(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapLogsExporterWithDiagnostics(exporter, protocol, endpoint)
+			wrapLogsExporterWithDiagnostics(exporter, protocol, logsUrl.toString())
 		}
 
 		return exporter
@@ -106,7 +107,8 @@ export function createOTLPMetricReader(
 
 		const metricsUrl = new URL(endpoint)
 		if (!metricsUrl.pathname.endsWith("/v1/metrics")) {
-			const base = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint
+			const pathname = metricsUrl.pathname
+			const base = pathname.endsWith("/") ? metricsUrl.pathname.slice(0, -1) : pathname
 			metricsUrl.pathname = `${base}/v1/metrics`
 		}
 
@@ -137,7 +139,7 @@ export function createOTLPMetricReader(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapMetricsExporterWithDiagnostics(exporter, protocol, endpoint)
+			wrapMetricsExporterWithDiagnostics(exporter, protocol, metricsUrl.toString())
 		}
 
 		return new PeriodicExportingMetricReader({
