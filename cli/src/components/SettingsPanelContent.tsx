@@ -930,7 +930,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	}, [controller])
 
 	const handleProviderSelect = useCallback(
-		(providerId: string) => {
+		async (providerId: string) => {
 			// Special handling for Cline - uses OAuth (but skip if already logged in)
 			if (providerId === "cline") {
 				setIsPickingProvider(false)
@@ -938,7 +938,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				const authInfo = AuthService.getInstance(controller).getInfo()
 				if (authInfo?.user?.email) {
 					// Already logged in - just set the provider
-					applyProviderConfig({ providerId: "cline", controller })
+					await applyProviderConfig({ providerId: "cline", controller })
 					setProvider("cline")
 					refreshModelIds()
 				} else {
@@ -961,7 +961,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				// Check if already logged in
 				if (isOcaAuthenticated) {
 					// Already logged in - just set the provider
-					applyProviderConfig({ providerId: "oca", controller })
+					await applyProviderConfig({ providerId: "oca", controller })
 					setProvider("oca")
 					refreshModelIds()
 				} else {
@@ -993,7 +993,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsEnteringApiKey(true)
 			} else {
 				// Provider doesn't need an API key (rare) - just set it
-				applyProviderConfig({ providerId, controller })
+				await applyProviderConfig({ providerId, controller })
 				setProvider(providerId)
 				refreshModelIds()
 				setIsPickingProvider(false)
