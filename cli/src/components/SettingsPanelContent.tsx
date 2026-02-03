@@ -23,7 +23,7 @@ import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
@@ -34,7 +34,7 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -1022,46 +1022,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Handle Bedrock configuration complete
 	const handleBedrockComplete = useCallback(
 		(bedrockConfig: BedrockConfig) => {
-			const config: Record<string, unknown> = {
-				actModeApiProvider: "bedrock",
-				planModeApiProvider: "bedrock",
-				awsAuthentication: bedrockConfig.awsAuthentication,
-				awsRegion: bedrockConfig.awsRegion,
-				awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
-			}
-
-			const defaultModelId = getDefaultModelId("bedrock")
-			if (defaultModelId) {
-				// Use provider-specific model ID keys
-				const actModelKey = getProviderModelIdKey("bedrock", "act")
-				const planModelKey = getProviderModelIdKey("bedrock", "plan")
-				if (actModelKey) config[actModelKey] = defaultModelId
-				if (planModelKey) config[planModelKey] = defaultModelId
-			}
-
-			if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
-			if (bedrockConfig.awsAccessKey) config.awsAccessKey = bedrockConfig.awsAccessKey
-			if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
-			if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
-
-			stateManager.setApiConfiguration(config as Record<string, string>)
-
-			// Close Bedrock config first, then flush state async
+			// Update UI state first for responsiveness
 			setProvider("bedrock")
 			refreshModelIds()
 			setIsConfiguringBedrock(false)
 			setPendingProvider(null)
 
-			// Flush state and rebuild API handler in background
-			stateManager.flushPendingState().then(() => {
-				if (controller?.task) {
-					const currentMode = stateManager.getGlobalSettingsKey("mode")
-					const apiConfig = stateManager.getApiConfiguration()
-					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-				}
-			})
+			// Apply config and rebuild API handler in background
+			applyBedrockConfig({ bedrockConfig, controller })
 		},
-		[stateManager, controller],
+		[controller, refreshModelIds],
 	)
 
 	// Handle saving edited value

@@ -9,9 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
-import type { ApiProvider } from "@/shared/api"
 import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { getAllFeaturedModels } from "../constants/featured-models"
@@ -20,7 +18,7 @@ import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
@@ -396,51 +394,23 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const saveConfiguration = useCallback(
 		async (model: string, base: string) => {
 			try {
-				const stateManager = StateManager.get()
-				// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-				const actModelKey = getProviderModelIdKey(selectedProvider as ApiProvider, "act")
-				const planModelKey = getProviderModelIdKey(selectedProvider as ApiProvider, "plan")
-				const config: Record<string, string> = {
-					actModeApiProvider: selectedProvider,
-					planModeApiProvider: selectedProvider,
-				}
-				if (actModelKey) config[actModelKey] = model
-				if (planModelKey) config[planModelKey] = model
-
-				// For cline/openrouter, also set model info (required for getModel() to return correct model)
-				if (selectedProvider === "cline" || selectedProvider === "openrouter") {
-					const openRouterModels = await controller?.readOpenRouterModels()
-					const modelInfo = openRouterModels?.[model]
-					if (modelInfo) {
-						stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
-						stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
-					}
-				}
-
-				// Add API key or Bedrock-specific config
 				if (selectedProvider === "bedrock" && bedrockConfig) {
-					const bedrockFields: Record<string, unknown> = {
-						awsAuthentication: bedrockConfig.awsAuthentication,
-						awsRegion: bedrockConfig.awsRegion,
-						awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
-					}
-					if (bedrockConfig.awsProfile !== undefined) bedrockFields.awsProfile = bedrockConfig.awsProfile
-					if (bedrockConfig.awsAccessKey) bedrockFields.awsAccessKey = bedrockConfig.awsAccessKey
-					if (bedrockConfig.awsSecretKey) bedrockFields.awsSecretKey = bedrockConfig.awsSecretKey
-					if (bedrockConfig.awsSessionToken) bedrockFields.awsSessionToken = bedrockConfig.awsSessionToken
-					Object.assign(config, bedrockFields)
-				} else if (apiKey) {
-					const keyField = ProviderToApiKeyMap[selectedProvider as keyof typeof ProviderToApiKeyMap]
-					if (keyField) {
-						const fields = Array.isArray(keyField) ? keyField : [keyField]
-						config[fields[0]] = apiKey
-					}
+					await applyBedrockConfig({
+						bedrockConfig,
+						modelId: model,
+						controller,
+					})
+				} else {
+					await applyProviderConfig({
+						providerId: selectedProvider,
+						apiKey,
+						modelId: model,
+						baseUrl: base,
+						controller,
+					})
 				}
 
-				if (base) {
-					config.openAiBaseUrl = base
-				}
-				stateManager.setApiConfiguration(config)
+				const stateManager = StateManager.get()
 				stateManager.setGlobalState("welcomeViewCompleted", true)
 				await stateManager.flushPendingState()
 
