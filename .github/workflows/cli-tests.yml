@@ -32,12 +32,24 @@ jobs:
               with:
                   node-version: 22
 
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
             - name: Cache CLI dependencies
               uses: actions/cache@v4
               id: cli-cache
               with:
                   path: cli/node_modules
                   key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
+
+            - name: Install root dependencies
+              run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install CLI dependencies
               run: cd cli && npm ci
