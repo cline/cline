@@ -220,6 +220,38 @@ app.use(express.json())
 // 	}
 // })
 
+app.post("/verify-step", async (req: Request, res: Response) => {
+	const { chat_id, node_id, node } = req.body
+
+	console.log("POST /verify-step received:", {
+		chat_id,
+		node_id,
+		node_type: node?.type,
+	})
+
+	try {
+		const { verifyStep } = await import("./verify-engine")
+		const response = await verifyStep(chat_id, node_id, node)
+		return res.status(200).json({
+			success: true,
+			...response
+		})
+	} catch (error) {
+		console.error("[enforcement-server] ❌ Error in /verify-step:")
+		console.error("  Request params:", { chat_id, node_id, node_type: node?.type })
+		console.error("  Error message:", error instanceof Error ? error.message : String(error))
+		console.error("  Stack trace:", error instanceof Error ? error.stack : "No stack")
+		console.error("  Full error object:", error)
+		
+		return res.status(500).json({
+			success: false,
+			error: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+			context: { chat_id, node_id, node_type: node?.type }
+		})
+	}
+})
+
 app.post("/verify-substep", async (req: Request, res: Response) => {
 	const validation = validateEnforcementRequest(req.body)
 	if (!validation.valid) {
@@ -276,10 +308,16 @@ app.post("/generate-requirements", async (req: Request, res: Response) => {
 		const response = await generateRequirements(step_description, substep_description, rules)
 		return res.status(200).json(response)
 	} catch (error) {
-		console.error("Error in /generate-requirements:", error)
+		console.error("[enforcement-server] ❌ Error in /generate-requirements:")
+		console.error("  Request params:", { rules_count: rules?.length || 0 })
+		console.error("  Error message:", error instanceof Error ? error.message : String(error))
+		console.error("  Stack trace:", error instanceof Error ? error.stack : "No stack")
+		console.error("  Full error object:", error)
+		
 		return res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
 		})
 	}
 })
@@ -303,10 +341,17 @@ app.post("/verify-substep-requirements", async (req: Request, res: Response) => 
 		)
 		return res.status(200).json(response)
 	} catch (error) {
-		console.error("Error in /verify-substep-requirements:", error)
+		console.error("[enforcement-server] ❌ Error in /verify-substep-requirements:")
+		console.error("  Request params:", { chat_id, requirements_count: requirements?.length || 0 })
+		console.error("  Error message:", error instanceof Error ? error.message : String(error))
+		console.error("  Stack trace:", error instanceof Error ? error.stack : "No stack")
+		console.error("  Full error object:", error)
+		
 		return res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+			context: { chat_id, requirements_count: requirements?.length || 0 }
 		})
 	}
 })
@@ -334,10 +379,17 @@ app.post("/test-substep-requirements", async (req: Request, res: Response) => {
 		)
 		return res.status(200).json(response)
 	} catch (error) {
-		console.error("Error in /test-substep-requirements:", error)
+		console.error("[enforcement-server] ❌ Error in /test-substep-requirements:")
+		console.error("  Request params:", { chat_id, node_id, target_id, requirements_count: requirements?.length || 0 })
+		console.error("  Error message:", error instanceof Error ? error.message : String(error))
+		console.error("  Stack trace:", error instanceof Error ? error.stack : "No stack")
+		console.error("  Full error object:", error)
+		
 		return res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+			context: { chat_id, node_id, target_id, requirements_count: requirements?.length || 0 }
 		})
 	}
 })
@@ -352,6 +404,7 @@ export function startEnforcementServer(controller: Controller) {
 
 	app.listen(PORT, "0.0.0.0", () => {
 		console.log(`🔧 Zoro Enforcement Server running on http://localhost:${PORT}`)
+		console.log(`   - POST /verify-step`)
 		console.log(`   - POST /verify-substep`)
 		console.log(`   - POST /test-substep`)
 		console.log(`   - POST /generate-requirements`)

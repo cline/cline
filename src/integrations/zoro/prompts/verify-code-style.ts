@@ -66,6 +66,24 @@ Use these tools during your investigation:
 - **list_code_definition_names**: See what functions/classes exist
 - **execute_command**: Run git commands to check history
 
+## Instructions - YOU MUST USE TOOLS
+
+⚠️ **DO NOT JUST RESPOND - YOU MUST USE TOOLS TO COMPLETE THIS TASK**
+
+### Phase 1: Investigate Implementation (use tools!)
+
+Before making any verdict, you MUST:
+- Use **read_file** to read files mentioned in substeps
+- Use **search_files** to find where features are implemented
+- Use **execute_command** to check git history if needed
+- Build concrete understanding of what was implemented
+
+### Phase 2: Build Verdict (after investigation)
+
+After using tools to investigate, provide your JSON verdict.
+
+**START NOW by using read_file or search_files to investigate the substeps!**
+
 ## 📤 OUTPUT FORMAT
 
 After using tools to verify, return ONLY a JSON object with this exact structure:

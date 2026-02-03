@@ -83,6 +83,27 @@ Use these tools if you need to verify claims:
 - **search_files**: Search for patterns mentioned in strategy
 - **execute_command**: Check git history if needed
 
+## Instructions - YOU MUST USE TOOLS IF NEEDED
+
+⚠️ **DO NOT JUST RESPOND - USE TOOLS TO VERIFY CLAIMS**
+
+### Phase 1: Extract Planning Discussion
+
+First, extract the complete planning discussion from chat history.
+
+### Phase 2: Verify Claims (use tools if planner made claims!)
+
+If the planner claimed to have:
+- Analyzed specific files → Use **read_file** to verify
+- Found specific patterns → Use **search_files** to confirm
+- Made architectural decisions based on code → Use tools to check
+
+### Phase 3: Build Verdict
+
+After verification (if needed), provide your JSON verdict.
+
+**START NOW by extracting the planning discussion from chat history!**
+
 ## 📤 OUTPUT FORMAT
 
 **CRITICAL**: The overview must extract the COMPLETE planning discussion from RECENT CHAT HISTORY. Show all files analyzed, the full strategy, rule-driven considerations (what rules made the planner think about that wouldn't have been considered otherwise), and user approval.

@@ -70,6 +70,23 @@ Tools are less relevant for this node type, but available if needed:
 - **read_file**: Read plan or requirements files if referenced
 - **search_files**: Search for related conversations
 
+## Instructions - EXTRACT FROM CHAT HISTORY
+
+⚠️ **DO NOT JUST RESPOND - EXTRACT THE ACTUAL Q&A**
+
+### Phase 1: Extract Q&A Rounds
+
+Go through the chat history and extract ALL rounds of questions and answers:
+- Identify each round where Cline asked questions
+- Extract the exact questions asked
+- Extract the user's exact responses
+
+### Phase 2: Build Verdict
+
+After extracting the complete conversation, provide your JSON verdict.
+
+**START NOW by extracting all Q&A rounds from the chat history!**
+
 ## 📤 OUTPUT FORMAT
 
 **CRITICAL**: The overview must extract ALL clarifying questions asked by Cline and ALL user responses from RECENT CHAT HISTORY. Show the complete conversation flow round-by-round, then include the final requirements output.

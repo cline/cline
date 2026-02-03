@@ -1,11 +1,12 @@
-import { executeThroughCline, loadChatHistory, runFinalVerdict } from "./cline-execution";
-import { getSubstepVerificationPrompt } from "./prompts/verify-substep";
-import { getVerifySubstepRequirementsPrompt } from "./prompts/verify-substep-requirements";
-import { EnforcementRequest, EnforcementResponse, RequirementVerificationsResponse } from "./types";
-import { stripMarkdownJson } from "./utils";
+import { executeThroughCline, loadChatHistory, runFinalVerdict } from "./cline-execution"
+import { getSubstepVerificationPrompt } from "./prompts/verify-substep"
+import { getVerifySubstepRequirementsPrompt } from "./prompts/verify-substep-requirements"
+import { EnforcementRequest, EnforcementResponse, RequirementVerificationsResponse } from "./types"
+import { stripMarkdownJson } from "./utils"
 
-const VERIFY_SUBSTEP_SYSTEM_PROMPT = "You are a code verification assistant. Use tools to investigate that the substep was completed properly.";
-const VERIFY_REQUIREMENTS_SYSTEM_PROMPT = "You are a requirements verification assistant. Use tools to investigate if each requirement is satisfied.";
+const VERIFY_SUBSTEP_SYSTEM_PROMPT = "You are a code verification assistant. Use tools to investigate that the substep was completed properly."
+const VERIFY_REQUIREMENTS_SYSTEM_PROMPT = "You are a requirements verification assistant. Use tools to investigate if each requirement is satisfied."
+const VERIFY_STEP_SYSTEM_PROMPT = "You are a step verification assistant. Use tools to investigate if the step was completed properly."
 const VERIFY_SUBSTEP_SCHEMA_PROMPT = `Based on your investigation above, return ONLY valid JSON:
 
 {
@@ -238,6 +239,74 @@ Return the complete JSON array for ALL ${requirements.length} requirements.`
             success: false,
             verifications: [],
             error: error instanceof Error ? error.message : "Unknown error",
+        }
+    }
+}
+
+export async function verifyStep(
+    chatId: string,
+    nodeId: string,
+    node: {
+        type: "checking-with-user" | "planning" | "code-style"
+        description: string
+        rules: Array<{ rule_id: string; name: string; description: string }>
+        substeps?: Array<{ id: string; text: string; completed: boolean }>
+    },
+): Promise<EnforcementResponse> {
+    console.log("[verify-engine] 🔍 Verifying step:", nodeId, "- Type:", node.type)
+
+    try {
+        // Load chat history
+        const chatHistory = await loadChatHistory(chatId)
+
+        // Import prompts dynamically to avoid formatter issues
+        const { getPlanningVerificationPrompt } = await import("./prompts/verify-planning")
+        const { getCheckingWithUserVerificationPrompt } = await import("./prompts/verify-checking")
+        const { getCodeStyleVerificationPrompt } = await import("./prompts/verify-code-style")
+
+        // Build prompt based on node type
+        let prompt: string
+        let schemaPrompt: string
+
+        if (node.type === "planning") {
+            prompt = getPlanningVerificationPrompt(node.description, node.rules, chatHistory, "")
+            schemaPrompt = VERIFY_STEP_SCHEMA_PROMPT
+        } else if (node.type === "checking-with-user") {
+            prompt = getCheckingWithUserVerificationPrompt(node.description, node.rules, chatHistory)
+            schemaPrompt = VERIFY_STEP_SCHEMA_PROMPT
+        } else {
+            // code-style
+            prompt = getCodeStyleVerificationPrompt(
+                node.description,
+                node.substeps || [],
+                node.rules,
+                chatHistory
+            )
+            schemaPrompt = VERIFY_SUBSTEP_SCHEMA_PROMPT // Use rich schema for code-style
+        }
+
+        // PHASE 1: Investigation (7 iterations)
+        console.log("[verify-engine] PHASE 1: Investigating step")
+        const messages = await executeThroughCline(prompt, VERIFY_STEP_SYSTEM_PROMPT, 7)
+
+        // PHASE 2: Get verdict
+        console.log("[verify-engine] PHASE 2: Generating step verdict")
+        const verdict = await runFinalVerdict(messages, schemaPrompt, VERIFY_STEP_SYSTEM_PROMPT)
+
+        // Parse response
+        const parsed = parseVerificationResponse(verdict)
+
+        console.log(`[verify-engine] ✅ Step verification complete: ${parsed.verdict}`)
+
+        return parsed
+    } catch (error) {
+        console.error("[verify-engine] Step verification error:", error)
+        return {
+            verdict: "unclear",
+            overview: `## Step Verification Failed\n- Step: ${node.description}\n- Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            rules_analysis: [],
+            files_summary: [],
+            code_blocks: [],
         }
     }
 }
