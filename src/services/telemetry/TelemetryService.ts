@@ -1976,7 +1976,6 @@ export class TelemetryService {
 		return this.providers.length > 0
 			? this.providers[0].getSettings()
 			: {
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off" as const,
 				}

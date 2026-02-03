@@ -212,7 +212,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.deepStrictEqual(
 				settings,
 				{
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off",
 				},
@@ -239,7 +238,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.deepStrictEqual(
 				unsupportedProvider.getSettings(),
 				{
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off",
 				},
