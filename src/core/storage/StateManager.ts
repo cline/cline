@@ -18,6 +18,7 @@ import {
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { Logger } from "@/shared/services/Logger"
+import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -61,18 +62,22 @@ export class StateManager {
 	private context: ExtensionContext
 	private isInitialized = false
 
+	// Cache TTL: 1 hour - long enough to prevent duplicate fetches, short enough to see new models
+	private readonly MODEL_CACHE_TTL_MS = 60 * 60 * 1000
+
 	// In-memory model info cache (not persisted to disk)
 	// These are for dynamic providers that fetch models from APIs
 	private modelInfoCache: {
-		openRouterModels: Record<string, ModelInfo> | null
-		groqModels: Record<string, ModelInfo> | null
-		basetenModels: Record<string, ModelInfo> | null
-		huggingFaceModels: Record<string, ModelInfo> | null
-		requestyModels: Record<string, ModelInfo> | null
-		huaweiCloudMaasModels: Record<string, ModelInfo> | null
-		hicapModels: Record<string, ModelInfo> | null
-		aihubmixModels: Record<string, ModelInfo> | null
-		liteLlmModels: Record<string, ModelInfo> | null
+		openRouterModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		groqModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		basetenModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		huggingFaceModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		requestyModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		huaweiCloudMaasModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		hicapModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		aihubmixModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		liteLlmModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		vercelModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 	} = {
 		openRouterModels: null,
 		groqModels: null,
@@ -83,6 +88,7 @@ export class StateManager {
 		hicapModels: null,
 		aihubmixModels: null,
 		liteLlmModels: null,
+		vercelModels: null,
 	}
 
 	// Debounced persistence state
@@ -102,6 +108,7 @@ export class StateManager {
 
 	private constructor(context: ExtensionContext) {
 		this.context = context
+		secretStorage.init(context.secrets)
 	}
 
 	/**
@@ -119,7 +126,7 @@ export class StateManager {
 		try {
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(context)
-			const secrets = await readSecretsFromDisk(context)
+			const secrets = await readSecretsFromDisk()
 			const workspaceState = await readWorkspaceStateFromDisk(context)
 
 			// Populate the cache with all extension state and secrets fields
@@ -415,11 +422,41 @@ export class StateManager {
 			| "huaweiCloudMaas"
 			| "hicap"
 			| "aihubmix"
-			| "liteLlm",
+			| "liteLlm"
+			| "vercel",
 		models: Record<string, ModelInfo>,
 	): void {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		this.modelInfoCache[cacheKey] = models
+		this.modelInfoCache[cacheKey] = { data: models, timestamp: Date.now() }
+	}
+
+	getModelsCache(
+		provider:
+			| "openRouter"
+			| "groq"
+			| "baseten"
+			| "huggingFace"
+			| "requesty"
+			| "huaweiCloudMaas"
+			| "hicap"
+			| "aihubmix"
+			| "liteLlm"
+			| "vercel",
+	): Record<string, ModelInfo> | null {
+		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
+		const cached = this.modelInfoCache[cacheKey]
+
+		if (!cached) {
+			return null
+		}
+
+		// Check if cache has expired
+		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
+			this.modelInfoCache[cacheKey] = null
+			return null
+		}
+
+		return cached.data
 	}
 
 	/**
@@ -439,7 +476,19 @@ export class StateManager {
 		modelId: string,
 	): ModelInfo | undefined {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		return this.modelInfoCache[cacheKey]?.[modelId]
+		const cached = this.modelInfoCache[cacheKey]
+
+		if (!cached) {
+			return undefined
+		}
+
+		// Check if cache has expired
+		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
+			this.modelInfoCache[cacheKey] = null
+			return undefined
+		}
+
+		return cached.data[modelId]
 	}
 
 	/**
@@ -849,5 +898,25 @@ export class StateManager {
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
 		return { ...secrets, ...settings } satisfies ApiConfiguration
+	}
+
+	/**
+	 * Get all global state entries (for debugging/inspection)
+	 */
+	public getAllGlobalStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.globalStateCache }
+	}
+
+	/**
+	 * Get all workspace state entries (for debugging/inspection)
+	 */
+	public getAllWorkspaceStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.workspaceStateCache }
 	}
 }

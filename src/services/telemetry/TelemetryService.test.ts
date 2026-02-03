@@ -171,7 +171,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Test provider methods directly
 			posthogProvider.log("test_event", { test: "property" })
 			posthogProvider.identifyUser(MOCK_USER_INFO, { additional: "data" })
-			posthogProvider.setOptIn(true)
 
 			// Verify provider state
 			const isEnabled = posthogProvider.isEnabled()
@@ -201,8 +200,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Test provider methods directly
 			noOpProvider.log("test_event", { test: "property" })
 			noOpProvider.identifyUser(MOCK_USER_INFO, { additional: "data" })
-			noOpProvider.setOptIn(true)
-			noOpProvider.setOptIn(false)
 
 			// Verify provider state
 			const isEnabled = noOpProvider.isEnabled()
@@ -215,7 +212,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.deepStrictEqual(
 				settings,
 				{
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off",
 				},
@@ -242,7 +238,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.deepStrictEqual(
 				unsupportedProvider.getSettings(),
 				{
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off",
 				},
