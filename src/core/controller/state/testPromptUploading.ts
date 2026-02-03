@@ -26,7 +26,7 @@ export async function testPromptUploading(_controller: Controller, _: EmptyReque
 			source: "remote_config_settings",
 		})
 
-		await blobStorage.store(testKey, testContent)
+		await blobStorage._dangerousStore(testKey, testContent)
 
 		return TestConnectionResult.create({
 			success: true,
