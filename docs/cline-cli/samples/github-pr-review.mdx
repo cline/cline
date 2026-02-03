@@ -83,7 +83,7 @@ jobs:
         run: |
           cline auth --provider anthropic \
             --apikey "${{ secrets.ANTHROPIC_API_KEY }}" \
-            --modelid claude-3-5-sonnet-20241022
+            --modelid claude-opus-4-5-20251101
 
       - name: Get PR number
         id: pr
