@@ -131,24 +131,17 @@ cline --cwd ~/worktree-refactor --config ~/.cline-opus --thinking -y \
 
 This optimizes costs while maintaining quality where it matters.
 
-### Instance Management
+### Task Isolation
 
-Create dedicated instances for long-running worktree sessions:
+Keep long-running worktree sessions isolated by running each task against a different worktree path:
 
 ```bash
-# Create instances for each worktree
-cline instance new --default  # For worktree-a
-INSTANCE_A=$(cline instance list | grep localhost | awk '{print $2}')
-
-cline instance new            # For worktree-b
-INSTANCE_B=$(cline instance list | grep localhost | tail -1 | awk '{print $2}')
-
-# Run tasks on specific instances
-cline --cwd ~/worktree-a task new -y "long-running task"
-cline --address $INSTANCE_B --cwd ~/worktree-b task new -y "another task"
+# Run tasks in dedicated worktrees
+cline --cwd ~/worktree-a -y "long-running task"
+cline --cwd ~/worktree-b -y "another task"
 ```
 
-This keeps task history and state separate per worktree.
+Each worktree has its own Git branch and working directory, so task history and changes stay separated without needing instance management.
 
 ### With YOLO Mode
 
@@ -277,6 +270,6 @@ git worktree remove ~/cline-worktrees/feature-auth
   </Card>
   
   <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
-    Learn about interactive mode, headless automation, and multi-instance workflows
+    Learn about interactive mode, task mode, and plain text workflows
   </Card>
 </Columns>
