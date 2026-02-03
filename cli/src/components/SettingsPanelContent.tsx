@@ -6,7 +6,7 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap, SettingsKey } from "@shared/storage"
+import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap, SettingsKey } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -68,40 +68,34 @@ const TABS: PanelTab[] = [
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
 	autoCondense: {
-		stateKey: "useAutoCondense" as SettingsKey,
+		stateKey: "useAutoCondense",
 		default: false,
 		label: "Auto-condense",
 		description: "Automatically summarize long conversations",
 	},
 	webTools: {
-		stateKey: "clineWebToolsEnabled" as SettingsKey,
+		stateKey: "clineWebToolsEnabled",
 		default: true,
 		label: "Web tools",
 		description: "Enable web search and fetch tools",
 	},
 	strictPlanMode: {
-		stateKey: "strictPlanModeEnabled" as SettingsKey,
+		stateKey: "strictPlanModeEnabled",
 		default: true,
 		label: "Strict plan mode",
 		description: "Require explicit mode switching",
 	},
 	nativeToolCall: {
-		stateKey: "nativeToolCallEnabled" as SettingsKey,
+		stateKey: "nativeToolCallEnabled",
 		default: true,
 		label: "Native tool call",
 		description: "Use model's native tool calling API",
 	},
 	parallelToolCalling: {
-		stateKey: "enableParallelToolCalling" as SettingsKey,
+		stateKey: "enableParallelToolCalling",
 		default: false,
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
-	},
-	skillsEnabled: {
-		stateKey: "skillsEnabled" as SettingsKey,
-		default: false,
-		label: "Skills",
-		description: "Enable reusable agent instructions",
 	},
 } as const
 
@@ -150,7 +144,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
 		const initial: Record<string, boolean> = {}
 		for (const [key, config] of Object.entries(FEATURE_SETTINGS)) {
-			initial[key] = (stateManager.getGlobalSettingsKey(config.stateKey) as boolean | undefined) ?? config.default
+			if (isSettingsKey(config.stateKey)) {
+				initial[key] = stateManager.getGlobalSettingsKey(config.stateKey)
+			} else {
+				initial[key] = stateManager.getGlobalStateKey(config.stateKey)
+			}
 		}
 		return initial as Record<FeatureKey, boolean>
 	})
