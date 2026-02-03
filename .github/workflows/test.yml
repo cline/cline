@@ -34,21 +34,21 @@ jobs:
               id: root-cache
               with:
                   path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Cache cli dependencies
               uses: actions/cache@v4
               id: cli-cache
               with:
                   path: cli/node_modules
-                  key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-cli-${{ hashFiles('cli/package-lock.json') }}
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
@@ -63,6 +63,14 @@ jobs:
             - name: Install cli dependencies
               if: steps.cli-cache.outputs.cache-hit != 'true'
               run: cd cli && npm ci
+
+            - name: Verify dependencies installed
+              run: |
+                  echo "Root cache hit: ${{ steps.root-cache.outputs.cache-hit }}"
+                  echo "Webview cache hit: ${{ steps.webview-cache.outputs.cache-hit }}"
+                  echo "CLI cache hit: ${{ steps.cli-cache.outputs.cache-hit }}"
+                  ls node_modules/.bin/biome || echo "biome not found"
+                  node -e "require('globby')" || echo "globby not found"
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -92,14 +100,14 @@ jobs:
               id: root-cache
               with:
                   path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
@@ -182,14 +190,14 @@ jobs:
               id: root-cache
               with:
                   path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-${{ hashFiles('package-lock.json') }}
 
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
                   path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  key: ${{ runner.os }}-npm-v1-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             # Cache testing-platform dependencies
             - name: Cache testing-platform dependencies
@@ -197,7 +205,7 @@ jobs:
               id: testing-platform-cache
               with:
                 path: testing-platform/node_modules
-                key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
+                key: ${{ runner.os }}-npm-v1-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
 
             - name: Install root dependencies
               if: steps.root-cache.outputs.cache-hit != 'true'
