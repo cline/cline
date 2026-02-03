@@ -15,7 +15,6 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -188,8 +187,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	BannerService.initialize(webview.controller)
 
 	telemetryService.captureExtensionActivated()
 	telemetryService.captureHostEvent("cline_cli", "initialized")
@@ -438,9 +435,6 @@ async function showConfig(options: { config?: string }) {
 	// Dynamically import the wrapper to avoid circular dependencies
 	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
 
-	// Check feature flags
-	const skillsEnabled = stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
-
 	telemetryService.captureHostEvent("config_command", "executed")
 
 	await runInkApp(
@@ -450,7 +444,7 @@ async function showConfig(options: { config?: string }) {
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
 			hooksEnabled: true,
-			skillsEnabled,
+			skillsEnabled: true,
 			isRawModeSupported: checkRawModeSupport(),
 		}),
 		async () => {

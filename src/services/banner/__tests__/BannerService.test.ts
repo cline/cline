@@ -1,10 +1,6 @@
 /**
  * Tests for BannerService
  * Tests API fetching, caching, auth updates, and rate limit backoff
- *
- * NOTE: Tests are skipped because banner API is temporarily disabled.
- * Circuit breaker and caching implementation is complete and tested.
- * Tests will be re-enabled in a future PR with feature flag.
  */
 
 import type { BannerRules } from "@shared/ClineBanner"
@@ -16,9 +12,9 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostRegistryInfo } from "@/registry"
 import { mockFetchForTesting } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { BannerService } from "./BannerService"
+import { BannerService } from "../BannerService"
 
-describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
+describe("BannerService", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockFetch: sinon.SinonStub
 
@@ -832,7 +828,9 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 	})
 
 	describe("onAuthUpdate", () => {
-		it("should update auth token and trigger immediate fetch", async () => {
+		it("should update auth token and trigger fetch after debounce", async () => {
+			const clock = sandbox.useFakeTimers(Date.now())
+
 			const mockResponse = {
 				data: {
 					items: [
@@ -856,11 +854,13 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Call onAuthUpdate with a new token
-				await BannerService.onAuthUpdate("new-auth-token")
+				const authPromise = BannerService.onAuthUpdate("new-auth-token")
+				await clock.tickAsync(1000) // Advance past debounce (AUTH_DEBOUNCE_MS)
+				await authPromise
 
 				// Should have triggered a new fetch
 				expect(mockFetch.callCount).to.equal(2)
@@ -870,6 +870,8 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 				const options = lastCall.args[1]
 				expect(options.headers.Authorization).to.equal("Bearer new-auth-token")
 			})
+
+			clock.restore()
 		})
 
 		it("should clear pending retry timeout on auth update", async () => {
@@ -908,8 +910,11 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 				expect(mockFetch.callCount).to.equal(2)
 
 				// Now update auth - should clear the retry timeout
+				// Note: onAuthUpdate has 1000ms debounce (AUTH_DEBOUNCE_MS), so we need to advance the clock
 				mockFetch.resolves(createSuccessResponse(successResponse))
-				await BannerService.onAuthUpdate("new-token")
+				const authPromise = BannerService.onAuthUpdate("new-token")
+				await clock.tickAsync(1000) // Advance past debounce
+				await authPromise
 
 				expect(mockFetch.callCount).to.equal(3)
 
@@ -937,6 +942,8 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 		})
 
 		it("should handle null token (logout)", async () => {
+			const clock = sandbox.useFakeTimers(Date.now())
+
 			const mockResponse = {
 				data: {
 					items: [
@@ -959,15 +966,19 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
-				await new Promise((resolve) => setTimeout(resolve, 10))
+				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Set a token first
-				await BannerService.onAuthUpdate("auth-token")
+				const authPromise1 = BannerService.onAuthUpdate("auth-token")
+				await clock.tickAsync(1000) // Advance past debounce
+				await authPromise1
 				expect(mockFetch.callCount).to.equal(2)
 
 				// Now logout (null token)
-				await BannerService.onAuthUpdate(null)
+				const authPromise2 = BannerService.onAuthUpdate(null)
+				await clock.tickAsync(1000) // Advance past debounce
+				await authPromise2
 				expect(mockFetch.callCount).to.equal(3)
 
 				// Verify no auth header on last call
@@ -975,6 +986,62 @@ describe("BannerService (SKIPPED - Banner API temporarily disabled)", () => {
 				const options = lastCall.args[1]
 				expect(options.headers.Authorization).to.be.undefined
 			})
+
+			clock.restore()
+		})
+
+		it("should debounce rapid auth updates", async () => {
+			const clock = sandbox.useFakeTimers(Date.now())
+
+			const mockResponse = {
+				data: {
+					items: [
+						{
+							id: "bnr_test",
+							titleMd: "Test Banner",
+							bodyMd: "Test",
+							severity: "info" as const,
+							placement: "top" as const,
+							rulesJson: "{}",
+						},
+					],
+				},
+			}
+
+			mockFetch.resolves(createSuccessResponse(mockResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				// Initialize the service
+				const bannerService = BannerService.initialize()
+				bannerService.getActiveBanners()
+
+				// Wait for background fetch to complete
+				await clock.tickAsync(0)
+				expect(mockFetch.callCount).to.equal(1)
+
+				// Simulate rapid auth updates during startup (common scenario)
+				const promise1 = BannerService.onAuthUpdate("token-1")
+				const promise2 = BannerService.onAuthUpdate("token-2")
+				const promise3 = BannerService.onAuthUpdate("token-3")
+
+				// Advance past debounce period and allow async callback to complete
+				// The debounce timer fires at 1000ms (AUTH_DEBOUNCE_MS), then we need additional ticks for the async fetch
+				await clock.tickAsync(1000)
+				await clock.tickAsync(0) // Allow microtasks/promises from the debounce callback to settle
+
+				// Wait for all promises to resolve
+				await Promise.all([promise1, promise2, promise3])
+
+				// Should only have made ONE additional fetch (debounced), not three
+				expect(mockFetch.callCount).to.equal(2)
+
+				// Verify the final token was used
+				const lastCall = mockFetch.getCall(1)
+				const options = lastCall.args[1]
+				expect(options.headers.Authorization).to.equal("Bearer token-3")
+			})
+
+			clock.restore()
 		})
 	})
 })
