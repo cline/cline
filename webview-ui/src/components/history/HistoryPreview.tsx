@@ -1,4 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
+import { StarIcon } from "lucide-react"
 import { memo, useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
@@ -137,21 +138,25 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							{displayItems.map((item) => (
 								<div className="history-preview-item" key={item.id} onClick={() => handleHistorySelect(item.id)}>
 									<div className="history-task-content">
-										<div
-											className={cn("w-0 h-0 rounded-full self-center", {
-												"w-2 h-2 bg-success":
-													activeTasks?.find((task) => task.taskId === item.id)?.status === "active",
-												"w-2 h-2 bg-warning":
-													activeTasks?.find((task) => task.taskId === item.id)?.status === "pending",
-												"w-2 h-2 bg-error":
-													activeTasks?.find((task) => task.taskId === item.id)?.status === "error",
-											})}
-										/>
+										{activeTasks?.length
+											? activeTasks.length > 0 && (
+													<div
+														className={cn("w-0 h-0 rounded-full self-center", {
+															"w-2 h-2 bg-success":
+																activeTasks?.find((task) => task.taskId === item.id)?.status ===
+																"active",
+															"w-2 h-2 bg-warning":
+																activeTasks?.find((task) => task.taskId === item.id)?.status ===
+																"pending",
+															"w-2 h-2 bg-error":
+																activeTasks?.find((task) => task.taskId === item.id)?.status ===
+																"error",
+														})}
+													/>
+												)
+											: null}
 										{item.isFavorited && (
-											<span
-												aria-label="Favorited"
-												className="codicon codicon-star-full shrink-0 bg-button-background"
-											/>
+											<StarIcon className="opacity-70 text-button-background fill-button-background !size-2 mt-1" />
 										)}
 										<div className="history-task-description ph-no-capture">{item.task}</div>
 									</div>

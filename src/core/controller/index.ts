@@ -187,14 +187,12 @@ export class Controller {
 
 		// Abort all active tasks before clearing
 		for (const [, task] of this.activeTasks) {
-			await task.abortTask().catch((error) => Logger.error("Failed to abort task during controller dispose:", error))
+			await this.clearTask(task, true)
 		}
-
-		await this.clearTask()
-		this.mcpHub.dispose()
 		this.activeTasks.clear()
-
 		this.task = undefined
+
+		this.mcpHub.dispose()
 
 		Logger.error("Controller disposed")
 	}
@@ -266,17 +264,7 @@ export class Controller {
 		fetchRemoteConfig(this)
 
 		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
-		if (!isParallelTasksEnabled) {
-			// ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-			if (this.task) {
-				// Clear task settings cache when task ends
-				await this.stateManager.clearTaskSettings()
-				await this.task.abortTask()
-			}
-			this.activeTasks.clear()
-			this.task = undefined
-			await this.postStateToWebview()
-		}
+		await this.clearTask(this.task, !isParallelTasksEnabled)
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
@@ -362,7 +350,9 @@ export class Controller {
 		})
 
 		// Track the task in the active tasks map
-		this.activeTasks.set(this.task.taskId, this.task)
+		if (isParallelTasksEnabled) {
+			this.activeTasks.set(this.task.taskId, this.task)
+		}
 
 		if (historyItem) {
 			this.task.resumeTaskFromHistory()
@@ -511,21 +501,13 @@ export class Controller {
 				Logger.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
-			if (isParallelTasksEnabled) {
-				// Remove from active tasks
-				this.activeTasks.delete(targetTask.taskId)
-			} else {
-				await this.clearTask()
-				// Abort the task as only one task can be run when parallel task is not enabled.
-				await this.task?.abortTask()
-			}
-
 			// Only re-initialize if we found a history item and this is the current task, otherwise just clear
 			if (historyItem) {
 				// Re-initialize task to keep it visible in UI with resume button
 				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
 			} else if (targetTask === this.task) {
-				await this.clearTask()
+				// Abort the task as only one task can be run when parallel task is not enabled.
+				await this.clearTask(this.task, !isParallelTasksEnabled)
 			}
 
 			await this.postStateToWebview()
@@ -1051,18 +1033,25 @@ export class Controller {
 		}
 	}
 
-	async clearTask() {
-		if (this.task) {
-			// Clear task settings cache when task ends
+	/**
+	 * Clears the current task and updates the webview state.
+	 * @param task - Optional task to clear. Defaults to the current active task.
+	 * @param abortTask - If true, aborts the task and removes it from active tasks.
+	 */
+	async clearTask(task?: Task, abortTask = false) {
+		task ??= this.task
+
+		if (task) {
 			await this.stateManager.clearTaskSettings()
 
-			// Remove from active tasks
-			if (this.task.taskId) {
-				this.activeTasks.delete(this.task.taskId)
+			if (abortTask) {
+				await task.abortTask()
+				this.activeTasks.delete(task.taskId)
 			}
 		}
 
-		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
+		this.task = undefined
+		await this.postStateToWebview()
 	}
 
 	/**
@@ -1106,16 +1095,10 @@ export class Controller {
 	 * Keeps the current task active in the background (parallel task support)
 	 */
 	async prepareNewTask() {
-		if (this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")) {
-			// Just clear the current task reference without aborting
-			// The task remains in activeTasks and can be switched back to
-			this.task = undefined
-		} else {
-			// Abort current task as only one task can be run
-			// when parallel task is not enabled.
-			await this.clearTask()
-		}
-		await this.postStateToWebview()
+		// Just clear the current task reference without aborting
+		// The task remains in activeTasks and can be switched back to
+		const forceAbort = !this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
+		await this.clearTask(this.task, forceAbort)
 	}
 
 	/**
