@@ -1,9 +1,8 @@
 ---
-title: "Use Cline in Other Editors via ACP"
-description: "Run Cline CLI as an ACP agent in JetBrains, Neovim, Zed, and more"
+title: "ACP: Editor Integrations"
+description: "Use Cline in JetBrains, Neovim, Zed, and other editors via the Agent Client Protocol"
 ---
 
-# Use Cline in Other Editors
 
 Cline CLI supports the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard that enables AI coding agents to work across different editors and IDEs. This means you can use the full Cline agent—with all its capabilities including Skills, Hooks, and MCP integrations—in your preferred development environment.
 
@@ -15,6 +14,8 @@ Cline CLI supports the [Agent Client Protocol (ACP)](https://agentclientprotocol
 - **Open standard**: Built on Zed's open Agent Client Protocol specification
 
 ## JetBrains IDEs
+
+[JetBrains](https://www.jetbrains.com) IDEs include IntelliJ IDEA, PyCharm, WebStorm, and more. They offer built-in AI Assistant with ACP support.
 
 <Note>
 **Recommended: Native JetBrains Plugin**
@@ -77,7 +78,7 @@ JetBrains AI Assistant can expose its built-in MCP server to Cline, giving Cline
 
 ## Neovim
 
-Use Cline in Neovim through the [agentic.nvim](https://github.com/carlos-algms/agentic.nvim) or [avante.nvim](https://github.com/yetone/avante.nvim) plugins, which provide ACP integration.
+[Neovim](https://neovim.io) is a hyperextensible Vim-based text editor loved by developers for its speed and flexibility. Use Cline in Neovim through the [agentic.nvim](https://github.com/carlos-algms/agentic.nvim) or [avante.nvim](https://github.com/yetone/avante.nvim) plugins, which provide ACP integration.
 
 <video
   src="https://storage.googleapis.com/cline_public_images/cline-acp-neovim-avante.mp4"
@@ -127,9 +128,9 @@ Use Cline in Neovim through the [agentic.nvim](https://github.com/carlos-algms/a
 
 Follow the [avante.nvim documentation](https://github.com/yetone/avante.nvim) for configuring external ACP agents and point it to `cline --acp`.
 
-## Zed Editor
+## Zed
 
-Cline works natively in Zed, the editor that created the Agent Client Protocol.
+[Zed](https://zed.dev) is a high-performance, multiplayer code editor built from the ground up for speed and collaboration. Zed's team created the Agent Client Protocol, making Cline a natural fit for this editor.
 
 ### Setup
 
