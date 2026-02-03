@@ -6,6 +6,7 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider } from "@shared/api"
+import type { OcaAuthState } from "@shared/proto/cline/oca_account"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
@@ -17,6 +18,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { openExternal } from "@/utils/env"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
@@ -188,6 +190,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isAccountLoading, setIsAccountLoading] = useState(false)
 	const [isPickingOrganization, setIsPickingOrganization] = useState(false)
 	const [isWaitingForClineAuth, setIsWaitingForClineAuth] = useState(false)
+	const [isWaitingForOcaAuth, setIsWaitingForOcaAuth] = useState(false)
 	const [accountChecked, setAccountChecked] = useState(false) // Tracks if we've already checked auth
 
 	// Get current provider and model info
@@ -309,6 +312,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			})
 	}, [controller])
 
+	// Handle OCA login - starts OAuth flow
+	const handleOcaLogin = useCallback(() => {
+		if (!controller) {
+			return
+		}
+		// Set waiting state first (synchronously) to show the waiting UI immediately
+		setIsWaitingForOcaAuth(true)
+		// Initialize and start the auth request
+		OcaAuthService.initialize(controller)
+		OcaAuthService.getInstance()
+			.createAuthRequest()
+			.catch(() => {
+				setIsWaitingForOcaAuth(false)
+			})
+	}, [controller])
+
 	// Handle Cline logout
 	const handleClineLogout = useCallback(async () => {
 		if (!controller) {
@@ -376,6 +395,33 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			cancelled = true
 		}
 	}, [isWaitingForClineAuth, controller, fetchAccountInfo])
+
+	// Subscribe to auth status updates when waiting for OCA auth
+	useEffect(() => {
+		if (!isWaitingForOcaAuth || !controller) {
+			return
+		}
+
+		let cancelled = false
+
+		const responseHandler = async (authState: OcaAuthState) => {
+			if (cancelled) {
+				return
+			}
+			if (authState.user?.uid) {
+				setIsWaitingForOcaAuth(false)
+				await applyProviderConfig({ providerId: "oca", controller })
+				setProvider("oca")
+				refreshModelIds()
+			}
+		}
+
+		OcaAuthService.getInstance().subscribeToAuthStatusUpdate({}, responseHandler, `settings-oca-auth-${Date.now()}`)
+
+		return () => {
+			cancelled = true
+		}
+	}, [isWaitingForOcaAuth, controller, refreshModelIds])
 
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
@@ -939,6 +985,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for OCA - uses OAuth (but skip if already logged in)
+			if (providerId === "oca") {
+				setIsPickingProvider(false)
+				// Check if already logged in
+				OcaAuthService.initialize(controller)
+				if (OcaAuthService.getInstance().isAuthenticated) {
+					// Already logged in - just set the provider
+					applyProviderConfig({ providerId: "oca", controller })
+					setProvider("oca")
+					refreshModelIds()
+				} else {
+					// Not logged in - trigger OAuth
+					handleOcaLogin()
+				}
+				return
+			}
+
 			// Special handling for Bedrock - needs multi-field configuration
 			if (providerId === "bedrock") {
 				setPendingProvider(providerId)
@@ -967,7 +1030,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, controller, refreshModelIds],
+		[stateManager, startCodexAuth, handleClineLogin, handleOcaLogin, controller, refreshModelIds],
 	)
 
 	// Handle API key submission after provider selection
@@ -1204,6 +1267,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// OCA OAuth waiting mode - escape to cancel
+			if (isWaitingForOcaAuth) {
+				if (key.escape) {
+					setIsWaitingForOcaAuth(false)
+				}
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -1424,6 +1495,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (isWaitingForOcaAuth) {
+			return (
+				<Box flexDirection="column">
+					<Box>
+						<Text color={COLORS.primaryBlue}>
+							<Spinner type="dots" />
+						</Text>
+						<Text color="white"> Waiting for OCA sign-in...</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Complete sign-in in your browser.</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		// Account tab - loading state
 		if (currentTab === "account" && isAccountLoading) {
 			return (
@@ -1571,6 +1661,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isPickingOrganization ||
 		isWaitingForClineAuth ||
+		isWaitingForOcaAuth ||
 		isEditing
 
 	return (
