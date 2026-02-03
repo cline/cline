@@ -1,6 +1,16 @@
 import { EventEmitter } from "node:events"
+import * as fs from "node:fs"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { readStdinIfPiped } from "./piped"
+
+// Mock fs.fstatSync to simulate pipe detection
+vi.mock("node:fs", async () => {
+	const actual = await vi.importActual("node:fs")
+	return {
+		...actual,
+		fstatSync: vi.fn(),
+	}
+})
 
 describe("readStdinIfPiped", () => {
 	let originalStdin: typeof process.stdin
@@ -20,6 +30,12 @@ describe("readStdinIfPiped", () => {
 			setEncoding: vi.fn(),
 			resume: vi.fn(),
 		})
+
+		// Default: simulate a real pipe (FIFO)
+		vi.mocked(fs.fstatSync).mockReturnValue({
+			isFIFO: () => true,
+			isFile: () => false,
+		} as fs.Stats)
 	})
 
 	afterEach(() => {
@@ -70,6 +86,60 @@ describe("readStdinIfPiped", () => {
 			expect(result).toBe("")
 			expect(mockStdin.setEncoding).toHaveBeenCalledWith("utf8")
 			expect(mockStdin.resume).toHaveBeenCalled()
+		})
+	})
+
+	describe("stdin type detection (fstat)", () => {
+		it("should return null when stdin is not a FIFO or file (spawned without TTY)", async () => {
+			setTTY(false)
+			// Simulate a character device or socket (not a pipe)
+			vi.mocked(fs.fstatSync).mockReturnValue({
+				isFIFO: () => false,
+				isFile: () => false,
+			} as fs.Stats)
+
+			const result = await readStdinIfPiped()
+			expect(result).toBeNull()
+		})
+
+		it("should return null when fstatSync throws (detached stdin)", async () => {
+			setTTY(false)
+			vi.mocked(fs.fstatSync).mockImplementation(() => {
+				throw new Error("EBADF: bad file descriptor")
+			})
+
+			const result = await readStdinIfPiped()
+			expect(result).toBeNull()
+		})
+
+		it("should read from stdin when it is a FIFO (pipe)", async () => {
+			setTTY(false)
+			vi.mocked(fs.fstatSync).mockReturnValue({
+				isFIFO: () => true,
+				isFile: () => false,
+			} as fs.Stats)
+
+			const promise = readStdinIfPiped()
+			emitData("piped content")
+			emitEnd()
+			const result = await promise
+
+			expect(result).toBe("piped content")
+		})
+
+		it("should read from stdin when it is a regular file (redirected)", async () => {
+			setTTY(false)
+			vi.mocked(fs.fstatSync).mockReturnValue({
+				isFIFO: () => false,
+				isFile: () => true,
+			} as fs.Stats)
+
+			const promise = readStdinIfPiped()
+			emitData("file content")
+			emitEnd()
+			const result = await promise
+
+			expect(result).toBe("file content")
 		})
 	})
 
