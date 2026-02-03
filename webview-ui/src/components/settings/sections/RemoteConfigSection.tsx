@@ -82,7 +82,7 @@ function SettingRow({ label, value, isSecret }: SettingRowProps) {
 		return <span className="font-mono text-xs break-all">{String(value)}</span>
 	})()
 
-	const isLongValue = typeof value === "string" && value.length > 30
+	const isLongValue = typeof value === "string" && value.length > 25
 	if (isLongValue) {
 		return (
 			<div className="flex flex-col gap-1 py-1.5 border-b border-vscode-widget-border last:border-b-0">
