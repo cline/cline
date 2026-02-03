@@ -77,15 +77,25 @@ function SettingRow({ label, value, isSecret }: SettingRowProps) {
 			return value ? <span className="text-green-500">Enabled</span> : <span className="text-description">Disabled</span>
 		}
 		if (isSecret && typeof value === "string" && value.length > 0) {
-			return <span className="font-mono">{"•".repeat(Math.min(value.length, 20))}</span>
+			return <span className="font-mono text-xs">{"•".repeat(Math.min(value.length, 20))}</span>
 		}
 		return <span className="font-mono text-xs break-all">{String(value)}</span>
 	})()
 
+	const isLongValue = typeof value === "string" && value.length > 30
+	if (isLongValue) {
+		return (
+			<div className="flex flex-col gap-1 py-1.5 border-b border-vscode-widget-border last:border-b-0">
+				<span className="text-description text-xs">{label}</span>
+				<div className="pl-2 overflow-hidden text-right">{displayValue}</div>
+			</div>
+		)
+	}
+
 	return (
-		<div className="flex justify-between items-start py-1.5 border-b border-vscode-widget-border last:border-b-0">
-			<span className="text-description text-xs">{label}</span>
-			<span className="text-right max-w-[60%]">{displayValue}</span>
+		<div className="flex justify-between items-center py-1.5 border-b border-vscode-widget-border last:border-b-0 gap-2">
+			<span className="text-description text-xs shrink-0">{label}</span>
+			<span className="text-right overflow-hidden text-ellipsis">{displayValue}</span>
 		</div>
 	)
 }
