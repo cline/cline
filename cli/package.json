@@ -21,7 +21,6 @@
 		"node": ">=20.0.0"
 	},
 	"scripts": {
-		"prepublishOnly": "npm run build:production",
 		"package:brew": "npx tsx ./scripts/update-brew-formula.mts",
 		"package": "npm pack --pack-destination ./dist",
 		"build": "npm run typecheck && npx tsx esbuild.mts",
