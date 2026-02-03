@@ -19,7 +19,7 @@
 		"watch": "npx tsx esbuild.mts --watch",
 		"dev": "IS_DEV=true && npm run link && npm run watch ; npm run unlink",
 		"clean": "rimraf dist",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "npx tsc --noEmit",
 		"link": "npm run build && npm link",
 		"unlink": "npm unlink -g cline",
 		"test": "vitest",
