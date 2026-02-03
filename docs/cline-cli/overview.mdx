@@ -1,84 +1,224 @@
 ---
 title: "Overview"
-description: "Install the CLI, run your first task, and learn to automate code reviews and integrate AI agents into your development workflow"
+description: "Run Cline AI coding agents directly in your terminal with an interactive CLI or automated workflows"
 ---
-
-<Warning>
-**Preview Release - macOS and Linux Only**
-
-Cline CLI is currently in preview and only available for macOS and Linux users. Windows support is coming soon.
-</Warning>
 
 ## What is Cline CLI?
 
-Cline CLI runs AI coding agents directly in your terminal. Pipe git diffs for automated code reviews in CI/CD, run multiple instances simultaneously for parallel development, or integrate Cline into your existing shell workflows.
+Cline CLI brings the full power of Cline to your terminal. Whether you prefer an interactive experience or automated workflows for CI/CD pipelines, the CLI adapts to your needs.
 
-The CLI tracks instances across your system and outputs in formats designed for both humans and scripts—JSON, plain text, or rich terminal output.
+The CLI supports macOS, Linux, and Windows, and works with all the same AI providers as the VS Code extension.
 
 <Tip>
 Ready to get started? Check out the [installation guide](/cline-cli/installation) to install Cline CLI and run your first task.
 </Tip>
 
-## Supported Model Providers
+## Two Ways to Use Cline CLI
 
-Cline CLI supports multiple AI model providers, giving you flexibility in choosing the best model for your needs:
+The CLI operates in two distinct modes, automatically selecting the appropriate one based on how you invoke it:
 
-- **Anthropic**
-- **OpenAI**
-- **OpenAI Compatible**
-- **OpenRouter**
-- **X AI (Grok)**
-- **AWS Bedrock**
-- **Google Gemini**
-- **Ollama**
-- **Cerebras**
+### Interactive Mode
 
-During installation, you'll authenticate and configure your preferred provider using the `cline auth` command.
+Interactive mode is designed for **hands-on development sessions** where you want to collaborate with Cline in real-time. It provides a rich terminal interface that feels like chatting with an AI assistant.
 
-## What you can build with this
-
-**Automated code maintenance**
-- Schedule daily runs to identify and fix linting issues across your codebase
-- Create tasks that scan for security vulnerabilities and automatically patch them
-- Build scripts that update deprecated dependencies and run tests
-
-**Multi-instance development**
-- Run separate Cline instances for frontend and backend simultaneously
-- Spawn instances for different feature branches, each with isolated state
-- Create parallel review processes for multiple PRs
-
-**Custom workflows**
-- Build shell scripts that combine Cline with git hooks for pre-commit analysis
-- Create custom commands that pipe complex data structures through Cline for processing
-- Integrate with your existing toolchain (jq, grep, awk) for sophisticated automation
-
-**CI/CD integration**
-- Add Cline to GitHub Actions for automatic code review on every PR
-- Create GitLab pipelines that generate migration scripts from schema changes
-- Build Jenkins jobs that use Cline to analyze test failures and suggest fixes
-
-## Hooks integration
-
-[Hooks](/features/hooks/index) let you inject custom logic into Cline's workflow to validate operations and enforce policies. You can enable hooks when running tasks from the command line:
+**When it activates:** Running `cline` without arguments, or when stdin is a TTY (terminal).
 
 ```bash
-# Enable hooks for a task
-cline "What does this repo do?" -s hooks_enabled=true
-
-# Configure hooks globally via CLI
-cline config set hooks-enabled=true
+cline
 ```
 
-This allows you to integrate hooks into automated workflows, CI/CD pipelines, and headless task execution for consistent enforcement across all environments.
+Key features:
 
-## Learn more
+- **Real-time conversation** - Type messages, see Cline's responses, and iterate on tasks
+- **Visual feedback** - Animated welcome screen, syntax-highlighted code, and progress indicators
+- **File mentions** with `@` - Reference workspace files with fuzzy search autocomplete
+- **Slash commands** with `/` - Quick access to `/settings`, `/history`, `/models`, and workflows
+- **Keyboard shortcuts** - `Tab` to toggle Plan/Act, `Shift+Tab` for auto-approve all
+- **Session summaries** - See tasks completed, files modified, and token usage on exit
+- **Settings panel** - Configure providers, models, and features without leaving the CLI
+
+Interactive mode keeps you in control. You review Cline's plan, approve or modify actions, and guide the conversation.
+
+[Learn more about interactive mode →](/cline-cli/interactive-mode)
+
+### Headless Mode (Non-Interactive)
+
+Headless mode is designed for **automation, scripting, and CI/CD pipelines** where human interaction isn't possible or desired.
+
+**When it activates:** Using the `-y`/`--yolo` flag, `--json` flag, piping input/output, or when stdin is not a TTY.
+
+```bash
+# Headless with auto-approval (YOLO mode)
+cline -y "Run tests and fix any failures"
+
+# Headless with JSON output for parsing
+cline --json "List all TODO comments" | jq '.text'
+
+# Headless via piped input
+cat README.md | cline "Summarize this document"
+
+# Chain multiple headless commands
+git diff | cline -y "explain these changes" | cline -y "write a commit message"
+```
+
+Key features:
+
+- **No visual interface** - Clean text or JSON output suitable for scripting
+- **Automatic execution** - With `-y`, Cline approves all actions and runs autonomously
+- **Process control** - Exits automatically when the task completes
+- **Piped workflows** - Read from stdin, write to stdout, chain with other commands
+- **Machine-readable output** - Use `--json` to get structured output for parsing
+
+<Warning>
+Headless mode with `-y` gives Cline full autonomy. Run on a clean git branch so you can easily revert changes if needed.
+</Warning>
+
+### Mode Detection Summary
+
+Cline automatically detects which mode to use based on your invocation. This table shows how different command patterns trigger each mode, helping you predict behavior in scripts and interactive sessions.
+
+| Invocation | Mode | Reason |
+|------------|------|--------|
+| `cline` | Interactive | No arguments, TTY connected |
+| `cline "task"` | Interactive | TTY connected |
+| `cline -y "task"` | Headless | YOLO flag forces headless |
+| `cline --json "task"` | Headless | JSON flag forces headless |
+| `cat file \| cline "task"` | Headless | stdin is piped |
+| `cline "task" > output.txt` | Headless | stdout is redirected |
+
+[Learn more about CLI workflows →](/cline-cli/three-core-flows)
+
+## Supported Model Providers
+
+Cline CLI supports all providers available in the VS Code extension:
+
+- **Anthropic** (Claude)
+- **OpenAI** (GPT-4o, GPT-4)
+- **OpenAI Codex** (ChatGPT subscription)
+- **OpenRouter**
+- **AWS Bedrock**
+- **Google Gemini**
+- **X AI (Grok)**
+- **Cerebras**
+- **DeepSeek**
+- **Ollama** (local models)
+- **LM Studio** (local models)
+- **OpenAI Compatible** (any compatible API)
+
+During setup, authenticate with `cline auth` to configure your preferred provider. [See setup guide →](/cline-cli/installation#authenticate)
+
+## What You Can Build
+
+### Automated Code Maintenance
+
+Keep your codebase healthy with automated fixes. Cline scans for issues and applies corrections across multiple files.
+
+```bash
+cline -y "Fix all ESLint errors in src/"
+```
+Finds and fixes linting violations throughout your source directory.
+
+```bash
+cline -y "Update all deprecated React lifecycle methods"
+```
+Migrates legacy code patterns to modern equivalents (e.g., `componentWillMount` → `useEffect`).
+
+```bash
+cline -y "Update dependencies with known vulnerabilities"
+```
+Identifies outdated packages with security issues and updates them to safe versions.
+
+### CI/CD Integration
+
+Integrate Cline into your continuous integration pipelines for automated code review and documentation.
+
+```bash
+git diff origin/main | cline -y "Review these changes for issues"
+```
+Pipes your PR diff to Cline for automated code review, catching bugs and style issues before merge.
+
+```bash
+git log --oneline v1.0..v1.1 | cline -y "Write release notes"
+```
+Generates human-readable release notes from your commit history between two tags.
+
+```bash
+cline -y "Run tests and fix failures" --timeout 600
+```
+Executes your test suite, analyzes failures, and attempts fixes with a 10-minute timeout.
+
+### Development Workflows
+
+From quick edits to complex refactors, Cline adapts to your workflow.
+
+```bash
+cline
+```
+Launches interactive mode for exploratory development and back-and-forth collaboration.
+
+```bash
+cline "Refactor this function to use async/await"
+```
+Executes a focused task directly from the command line with approval prompts at key steps.
+
+```bash
+cline "Based on @src/api.ts, add error handling to all endpoints"
+```
+Uses file mentions (`@`) to give Cline context about specific files in your workspace.
+
+### Custom Shell Pipelines
+
+Chain Cline with other CLI tools to build powerful automation workflows.
+
+```bash
+gh pr diff 123 | cline -y "Review this PR"
+```
+Fetches a GitHub PR diff and pipes it directly to Cline for review.
+
+```bash
+cline --json "List all TODO comments" | jq '.text'
+```
+Outputs structured JSON that you can process with tools like `jq` for scripting.
+
+```bash
+git diff | cline -y "explain" | cline -y "write a haiku about these changes"
+```
+Chains multiple Cline invocations together for creative multi-step workflows.
+
+## Features at a Glance
+
+| Feature | Interactive Mode | Non-Interactive Mode |
+|---------|------------------|----------------------|
+| Interactive chat | ✓ | - |
+| File mentions (@) | ✓ | ✓ (inline) |
+| Slash commands (/) | ✓ | - |
+| Settings panel | ✓ | `cline config` |
+| Plan/Act toggle | ✓ (Tab) | `-p` / `-a` flags |
+| Auto-approve | ✓ (Shift+Tab) | `-y` flag |
+| Session summary | ✓ | - |
+| JSON output | - | `--json` |
+| Piped input | - | ✓ |
+
+## Learn More
 
 <Columns cols={2}>
-  <Card title="Installation" icon="download" href="/cline-cli/installation">
-    Install Cline CLI and authenticate with your account to get started.
+  <Card title="Installation & Setup" icon="download" href="/cline-cli/installation">
+    Install Cline CLI and authenticate with your preferred provider.
   </Card>
   
-  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
-    Master the three ways to use Cline CLI: interactive mode, headless automation, and multi-instance parallelization.
+  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+    Master the interactive CLI with keyboard shortcuts and slash commands.
+  </Card>
+  
+  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
+    Learn interactive mode, direct execution, and automation patterns.
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+    Configure settings, rules, workflows, and environment variables.
+  </Card>
+  
+  <Card title="Use in Other Editors" icon="code" href="/cline-cli/acp-editor-integrations">
+    Run Cline as an ACP agent in JetBrains, Neovim, Zed, and more.
   </Card>
 </Columns>
