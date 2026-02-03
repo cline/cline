@@ -10,12 +10,13 @@ import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
 import type { ApiProvider } from "@/shared/api"
-import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
+import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -42,6 +43,7 @@ type AuthStep =
 	| "success"
 	| "error"
 	| "cline_auth"
+	| "oca_auth"
 	| "cline_model"
 	| "openai_codex_auth"
 	| "bedrock"
@@ -165,6 +167,41 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
+
+	// OCA auth hook - enabled when step is oca_auth
+	const handleOcaAuthSuccess = useCallback(async () => {
+		const stateManager = StateManager.get()
+		const mode = stateManager.getGlobalSettingsKey("mode") || "act"
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const modelIdKey = getProviderModelIdKey("oca" as ApiProvider, mode as "act" | "plan")
+		const config: Record<string, string> = {
+			actModeApiProvider: "oca",
+			planModeApiProvider: "oca",
+			[providerKey]: "oca",
+		}
+		if (modelIdKey) {
+			config[modelIdKey] = liteLlmDefaultModelId
+		}
+		stateManager.setApiConfiguration(config)
+		stateManager.setGlobalState("welcomeViewCompleted", true)
+		await stateManager.flushPendingState()
+
+		setSelectedProvider("oca")
+		setModelId(liteLlmDefaultModelId)
+		setStep("success")
+	}, [])
+
+	const handleOcaAuthError = useCallback((error: Error) => {
+		setErrorMessage(error.message)
+		setStep("error")
+	}, [])
+
+	const { startAuth: initiateOcaAuth } = useOcaAuth({
+		controller,
+		enabled: step === "oca_auth",
+		onSuccess: handleOcaAuthSuccess,
+		onError: handleOcaAuthError,
+	})
 
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const sortedProviders = useMemo(() => {
@@ -334,6 +371,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [controller])
 
+	const startOcaAuth = useCallback(() => {
+		setStep("oca_auth")
+		setAuthStatus("Starting authentication...")
+		initiateOcaAuth()
+	}, [initiateOcaAuth])
+
 	const handleMainMenuSelect = useCallback(
 		(value: string) => {
 			if (value === "exit") {
@@ -360,7 +403,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const handleProviderSelect = useCallback(
 		(value: string) => {
 			setSelectedProvider(value)
-			if (value === "openai-codex") {
+			if (value === "oca") {
+				startOcaAuth()
+			} else if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
 			} else if (value === "bedrock") {
@@ -369,7 +414,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("apikey")
 			}
 		},
-		[startOpenAiCodexAuth],
+		[startOcaAuth, startOpenAiCodexAuth],
 	)
 
 	const handleApiKeySubmit = useCallback(
@@ -564,6 +609,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setBaseUrl("")
 				setStep("modelid")
 				break
+			case "oca_auth":
+				setStep("provider")
+				break
 			case "cline_auth":
 				setStep("menu")
 				break
@@ -702,6 +750,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					</Box>
 				)
 
+			case "oca_auth":
 			case "cline_auth":
 				return (
 					<Box flexDirection="column">
@@ -791,6 +840,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"modelid",
 		"baseurl",
 		"cline_auth",
+		"oca_auth",
 		"cline_model",
 		"openai_codex_auth",
 		"bedrock",

@@ -21,6 +21,7 @@ import { openExternal } from "@/utils/env"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
@@ -198,6 +199,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Refresh trigger to force re-reading model IDs from state
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
+
+	// OCA auth hook
+	const handleOcaAuthSuccess = useCallback(async () => {
+		await applyProviderConfig({ providerId: "oca", controller })
+		setProvider("oca")
+		refreshModelIds()
+	}, [controller, refreshModelIds])
+
+	const {
+		isWaiting: isWaitingForOcaAuth,
+		startAuth: startOcaAuth,
+		cancelAuth: cancelOcaAuth,
+		isAuthenticated: isOcaAuthenticated,
+	} = useOcaAuth({
+		controller,
+		onSuccess: handleOcaAuthSuccess,
+	})
 
 	// Read model IDs from state (re-reads when refreshKey changes)
 	const { actModelId, planModelId } = useMemo(() => {
@@ -937,6 +955,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for OCA - uses OAuth (but skip if already logged in)
+			if (providerId === "oca") {
+				setIsPickingProvider(false)
+				// Check if already logged in
+				if (isOcaAuthenticated) {
+					// Already logged in - just set the provider
+					applyProviderConfig({ providerId: "oca", controller })
+					setProvider("oca")
+					refreshModelIds()
+				} else {
+					// Not logged in - trigger OAuth
+					startOcaAuth()
+				}
+				return
+			}
+
 			// Special handling for Bedrock - needs multi-field configuration
 			if (providerId === "bedrock") {
 				setPendingProvider(providerId)
@@ -965,7 +999,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, controller, refreshModelIds],
+		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds],
 	)
 
 	// Handle API key submission after provider selection
@@ -1202,6 +1236,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// OCA OAuth waiting mode - escape to cancel
+			if (isWaitingForOcaAuth) {
+				if (key.escape) {
+					cancelOcaAuth()
+				}
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -1422,6 +1464,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (isWaitingForOcaAuth) {
+			return (
+				<Box flexDirection="column">
+					<Box>
+						<Text color={COLORS.primaryBlue}>
+							<Spinner type="dots" />
+						</Text>
+						<Text color="white"> Waiting for OCA sign-in...</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Complete sign-in in your browser.</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		// Account tab - loading state
 		if (currentTab === "account" && isAccountLoading) {
 			return (
@@ -1569,6 +1630,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isPickingOrganization ||
 		isWaitingForClineAuth ||
+		isWaitingForOcaAuth ||
 		isEditing
 
 	return (
