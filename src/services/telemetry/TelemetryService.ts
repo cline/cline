@@ -394,11 +394,6 @@ export class TelemetryService {
 					})
 			}
 		}
-
-		// Update all providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
 	}
 
 	/**
