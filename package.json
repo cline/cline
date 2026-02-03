@@ -412,7 +412,7 @@
 		"format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
 		"format:fix": "biome check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write",
 		"fix:all": "biome check --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
-		"ci:check-all": "npm-run-all -p check-types lint format",
+		"ci:check-all": "npx npm-run-all -p check-types lint format",
 		"ci:build": "npm run protos && npm run build:webview && node esbuild.mjs && npm run compile-tests",
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npx npm-run-all test:unit test:integration",
