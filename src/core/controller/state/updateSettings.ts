@@ -359,10 +359,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
-		if (request.skillsEnabled !== undefined) {
-			controller.stateManager.setGlobalState("skillsEnabled", !!request.skillsEnabled)
-		}
-
 		if (request.nativeToolCallEnabled !== undefined) {
 			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
 			if (controller.task) {
