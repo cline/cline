@@ -6,6 +6,15 @@
 	"bin": {
 		"cline": "./dist/cli.mjs"
 	},
+	"os": [
+		"darwin",
+		"linux",
+		"win32"
+	],
+	"cpu": [
+		"x64",
+		"arm64"
+	],
 	"man": "./man/cline.1",
 	"type": "module",
 	"engines": {

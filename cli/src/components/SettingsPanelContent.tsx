@@ -21,8 +21,9 @@ import { openExternal } from "@/utils/env"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
@@ -33,7 +34,7 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -198,6 +199,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Refresh trigger to force re-reading model IDs from state
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
+
+	// OCA auth hook
+	const handleOcaAuthSuccess = useCallback(async () => {
+		await applyProviderConfig({ providerId: "oca", controller })
+		setProvider("oca")
+		refreshModelIds()
+	}, [controller, refreshModelIds])
+
+	const {
+		isWaiting: isWaitingForOcaAuth,
+		startAuth: startOcaAuth,
+		cancelAuth: cancelOcaAuth,
+		isAuthenticated: isOcaAuthenticated,
+	} = useOcaAuth({
+		controller,
+		onSuccess: handleOcaAuthSuccess,
+	})
 
 	// Read model IDs from state (re-reads when refreshKey changes)
 	const { actModelId, planModelId } = useMemo(() => {
@@ -937,6 +955,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for OCA - uses OAuth (but skip if already logged in)
+			if (providerId === "oca") {
+				setIsPickingProvider(false)
+				// Check if already logged in
+				if (isOcaAuthenticated) {
+					// Already logged in - just set the provider
+					applyProviderConfig({ providerId: "oca", controller })
+					setProvider("oca")
+					refreshModelIds()
+				} else {
+					// Not logged in - trigger OAuth
+					startOcaAuth()
+				}
+				return
+			}
+
 			// Special handling for Bedrock - needs multi-field configuration
 			if (providerId === "bedrock") {
 				setPendingProvider(providerId)
@@ -965,7 +999,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, controller, refreshModelIds],
+		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds],
 	)
 
 	// Handle API key submission after provider selection
@@ -988,47 +1022,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Handle Bedrock configuration complete
 	const handleBedrockComplete = useCallback(
 		(bedrockConfig: BedrockConfig) => {
-			const config: Record<string, unknown> = {
-				actModeApiProvider: "bedrock",
-				planModeApiProvider: "bedrock",
-				apiProvider: "bedrock",
-				awsAuthentication: bedrockConfig.awsAuthentication,
-				awsRegion: bedrockConfig.awsRegion,
-				awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
-			}
-
-			const defaultModelId = getDefaultModelId("bedrock")
-			if (defaultModelId) {
-				// Use provider-specific model ID keys
-				const actModelKey = getProviderModelIdKey("bedrock", "act")
-				const planModelKey = getProviderModelIdKey("bedrock", "plan")
-				if (actModelKey) config[actModelKey] = defaultModelId
-				if (planModelKey) config[planModelKey] = defaultModelId
-			}
-
-			if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
-			if (bedrockConfig.awsAccessKey) config.awsAccessKey = bedrockConfig.awsAccessKey
-			if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
-			if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
-
-			stateManager.setApiConfiguration(config as Record<string, string>)
-
-			// Close Bedrock config first, then flush state async
+			// Update UI state first for responsiveness
 			setProvider("bedrock")
 			refreshModelIds()
 			setIsConfiguringBedrock(false)
 			setPendingProvider(null)
 
-			// Flush state and rebuild API handler in background
-			stateManager.flushPendingState().then(() => {
-				if (controller?.task) {
-					const currentMode = stateManager.getGlobalSettingsKey("mode")
-					const apiConfig = stateManager.getApiConfiguration()
-					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-				}
-			})
+			// Apply config and rebuild API handler in background
+			applyBedrockConfig({ bedrockConfig, controller })
 		},
-		[stateManager, controller],
+		[controller, refreshModelIds],
 	)
 
 	// Handle saving edited value
@@ -1198,6 +1201,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (isWaitingForClineAuth) {
 				if (key.escape) {
 					setIsWaitingForClineAuth(false)
+				}
+				return
+			}
+
+			// OCA OAuth waiting mode - escape to cancel
+			if (isWaitingForOcaAuth) {
+				if (key.escape) {
+					cancelOcaAuth()
 				}
 				return
 			}
@@ -1422,6 +1433,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (isWaitingForOcaAuth) {
+			return (
+				<Box flexDirection="column">
+					<Box>
+						<Text color={COLORS.primaryBlue}>
+							<Spinner type="dots" />
+						</Text>
+						<Text color="white"> Waiting for OCA sign-in...</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Complete sign-in in your browser.</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		// Account tab - loading state
 		if (currentTab === "account" && isAccountLoading) {
 			return (
@@ -1569,6 +1599,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isPickingOrganization ||
 		isWaitingForClineAuth ||
+		isWaitingForOcaAuth ||
 		isEditing
 
 	return (
