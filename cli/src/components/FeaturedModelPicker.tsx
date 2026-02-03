@@ -27,12 +27,12 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 	return (
 		<Box flexDirection="column">
 			{title && (
-				<>
+				<Text>
 					<Text bold color={COLORS.primaryBlue}>
 						{title}
 					</Text>
 					<Text> </Text>
-				</>
+				</Text>
 			)}
 
 			{featuredModels.map((model, i) => {
@@ -46,13 +46,13 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 								{model.name}
 							</Text>
 							{model.label && (
-								<>
+								<Text>
 									<Text> </Text>
 									<Text backgroundColor={model.label === "FREE" ? "gray" : COLORS.primaryBlue} color="black">
 										{" "}
 										{model.label}{" "}
 									</Text>
-								</>
+								</Text>
 							)}
 						</Box>
 						<Box paddingLeft={2}>

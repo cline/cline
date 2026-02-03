@@ -1,96 +1,292 @@
 ---
-title: "Four Core Flows"
-description: "Learn the four ways to run Cline CLI: interactive, task, YOLO, and plain text modes"
+title: "CLI Workflows"
+description: "Learn the three ways to use Cline CLI: interactive mode, direct task execution, and automation"
 ---
 
-Use these four modes to decide how much interactivity you want when running the Cline CLI.
+Cline CLI supports three primary workflows, each optimized for different use cases. Choose the approach that best fits your needs.
 
-- **Interactive Mode**: Best for exploring new problems, learning how Cline works, or collaborating with the UI in real time.
-- **Task Mode**: Ideal when you want to start immediately with a prompt, while still getting the UI if you're in a TTY.
-- **YOLO Mode (-y)**: Use for one-shot autonomous runs that skip approvals (great for CI/CD).
-- **Plain Text Mode**: Perfect for automation, CI/CD, or any time you want clean output without the UI.
+<Note>
+**Migrating from an older CLI version?** Instance commands (`cline instance new/list/kill`) have been removed in Cline CLI 2.0. The new architecture is simpler. Just run `cline` for interactive mode or `cline "task"` for direct execution.
+</Note>
 
+## 1. Interactive Mode
 
-## 1. Interactive Mode: Rich terminal UI
+The interactive CLI provides the richest experience for interactive development.
 
-Start Cline without arguments to launch the interactive welcome prompt and terminal UI.
+### Getting Started
 
 ```bash
 cline
 ```
 
-You can type your task, review the conversation history, and interact with Cline in real time. This is the best way to explore new tasks, refine prompts, and stay in the loop during execution.
+This launches an interactive session in your current directory. Type your task, and Cline will analyze and execute it.
 
-Type `/` to see all the commands available throughout the terminal user experiences.
+### Key Features
 
-## 2. Task Mode: Start immediately with a prompt
+**Plan/Act Mode Toggle** - Press `Tab` to switch between modes:
+- **Plan Mode**: Cline analyzes your request and presents a strategy
+- **Act Mode**: Cline executes actions directly
 
-Run a prompt inline to kick off a task right away.
+**Auto-approve Toggle** - Press `Shift+Tab` to enable automatic approval for all actions.
 
-```bash
-cline "Draft release notes for version 1.4"
+**Slash Commands** - Type `/` for quick access to:
+- `/settings` - Configure providers, models, and features
+- `/models` - Quick model switching
+- `/history` - Browse and resume previous tasks
+- `/clear` - Start a fresh task
+- `/help` - Show available commands
 
-# Equivalent
-cline task "Draft release notes for version 1.4"
+**File Mentions** - Type `@` to reference workspace files:
+```
+@src/utils.ts add error handling to this file
 ```
 
-If you're running in an interactive terminal (stdin is a TTY), you still get the interactive UI. If stdin is piped or output is redirected, the CLI automatically switches to plain text output.
+**Session Summary** - When you exit with `Ctrl+C`, Cline displays a summary of your session including tasks completed, files modified, and token usage.
 
-## 3. YOLO Mode (-y): One-shot autonomous runs
+### When to Use Interactive Mode
 
-Use `-y` (yes/YOLO) to approve all steps automatically and get a one-shot response. This is the go-to mode for autonomous workflows like CI/CD.
+- Exploring a new codebase
+- Complex refactoring that requires back-and-forth
+- Learning how Cline approaches problems
+- Tasks where you want to review before executing
 
-```bash
-cline -y "Summarize flaky tests in this repo"
+[Full Interactive Mode Guide →](/cline-cli/interactive-mode)
 
-# With --cwd for a specific worktree or repo
-cline -y --cwd ~/repo "Generate release notes"
-```
+## 2. Direct Task Execution
 
-YOLO mode skips interactive approvals and runs the task end-to-end without pausing for confirmation.
+Execute tasks directly from the command line without entering interactive mode.
 
-## 4. Plain Text Mode: Clean output for scripts
-
-Plain text mode activates automatically when stdin is piped, output is redirected, or you use `--json` or `--yolo`.
+### Basic Usage
 
 ```bash
-# Pipe in input with YOLO for one-shot output
-echo "Summarize these logs" | cline -y
-
-# Redirect output with YOLO enabled
-cline -y "Generate changelog" > changelog.txt
-
-# Force structured output (also plain text mode)
-cline -y "List TODOs" --json
+cline "Add unit tests to utils.js"
 ```
 
-In this mode, Cline outputs clean text ideal for CI/CD pipelines, scripts, and automation.
+Cline analyzes your task, creates a plan, and executes it. You'll be prompted for approval at key decision points.
 
+### Piping Context
 
-<Tip>
-For in-depth commands and flags, check out the [CLI reference](/cline-cli/cli-reference) page for complete documentation on all available options.
-</Tip>
+Pipe file contents or command output into Cline:
 
-## Next steps
+```bash
+# Explain a file
+cat README.md | cline "Summarize this document"
+
+# Review git changes
+git diff | cline "Review these changes and suggest improvements"
+
+# Analyze command output
+npm test 2>&1 | cline "Analyze these test failures and fix them"
+```
+
+### Chaining Cline Commands
+
+Pipe Cline's output into another Cline instance for creative workflows:
+
+```bash
+# Explain changes, then write a commit message
+git diff | cline -y "explain these changes" | cline -y "write a commit message for this"
+
+# Generate code, then write tests
+cline -y "create a fibonacci function" | cline -y "write unit tests for this code"
+
+# Fun: Generate a poem about your code
+git diff | cline -y "explain" | cline -y "write a haiku about this"
+```
+
+### Including Images
+
+Attach images to your task:
+
+```bash
+cline task -i screenshot.png "Fix the layout issue shown in this screenshot"
+
+# Or reference inline
+cline "Fix the UI shown in @./design-mockup.png"
+```
+
+### Mode Selection
+
+```bash
+# Start in Plan mode (analyze before acting)
+cline -p "Design a REST API for user management"
+
+# Start in Act mode (default)
+cline -a "Fix the typo in README.md"
+```
+
+### When to Use Direct Execution
+
+- Quick, well-defined tasks
+- Tasks with sufficient context in the prompt
+- Scripting and shell workflows
+- When you don't need interactive conversation
+
+## 3. Automation & CI/CD
+
+For fully autonomous operation in scripts, CI/CD pipelines, and automated workflows.
+
+### YOLO Mode (Yes Mode)
+
+The `-y` or `--yolo` flag enables fully autonomous operation:
+
+```bash
+cline -y "Run the test suite and fix any failures"
+```
+
+In YOLO mode:
+- All actions are auto-approved
+- Output is plain text (non-interactive)
+- Process exits automatically when complete
+- Perfect for CI/CD and scripts
+
+<Warning>
+Run YOLO mode on a clean git branch or directory. You get speed in exchange for oversight, so be ready to revert if needed.
+</Warning>
+
+### JSON Output
+
+Use `--json` for machine-readable output:
+
+```bash
+cline --json "List all TODO comments in the codebase" | jq '.text'
+```
+
+JSON output follows the same format as task files in `~/.cline/data/tasks/<id>/ui_messages.json`.
+
+**JSON Message Schema:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `"ask"` or `"say"` | Message category |
+| `text` | `string` | Message content |
+| `ts` | `number` | Unix timestamp (ms) |
+| `reasoning` | `string` | (Optional) Model reasoning |
+| `partial` | `boolean` | (Optional) Streaming flag |
+
+### Timeout Control
+
+Set a maximum execution time:
+
+```bash
+cline -y --timeout 600 "Run full test suite"
+```
+
+### Environment Variables
+
+Control Cline behavior via environment variables:
+
+**CLINE_DIR** - Custom configuration directory:
+```bash
+export CLINE_DIR=/path/to/config
+cline -y "your task"
+```
+
+**CLINE_COMMAND_PERMISSIONS** - Restrict allowed commands:
+```bash
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *"]}'
+cline -y "your task"
+```
+
+See [Configuration](/cline-cli/configuration#environment-variables) for full documentation.
+
+### GitHub Actions Example
+
+Automate PR reviews with Cline:
+
+```yaml
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: Install Cline
+        run: npm install -g cline
+      
+      - name: Configure Cline
+        run: cline auth -p anthropic -k ${{ secrets.ANTHROPIC_API_KEY }}
+      
+      - name: Review PR
+        run: |
+          git diff origin/main...HEAD | cline -y "Review this PR for:
+          - Potential bugs
+          - Security issues  
+          - Performance concerns
+          - Code style violations
+          
+          Provide a summary of findings."
+```
+
+### Shell Script Example
+
+Create a code review script:
+
+```bash
+#!/bin/bash
+# review.sh - AI-powered code review
+
+set -e
+
+# Get the diff
+DIFF=$(git diff HEAD~1)
+
+if [ -z "$DIFF" ]; then
+  echo "No changes to review"
+  exit 0
+fi
+
+# Run Cline review
+echo "$DIFF" | cline -y --json "Review this code diff for issues" | jq -r '.text'
+```
+
+### When to Use Automation Mode
+
+- CI/CD pipelines
+- Scheduled maintenance tasks
+- Batch processing
+- Any workflow requiring non-interactive execution
+
+## Choosing the Right Flow
+
+| Use Case | Recommended Flow |
+|----------|------------------|
+| Exploring a new codebase | Interactive Mode |
+| Complex refactoring | Interactive Mode (Plan first) |
+| Quick file edits | Direct Execution |
+| Code review | Direct Execution with pipe |
+| CI/CD integration | Automation (`-y` flag) |
+| Scheduled tasks | Automation (`-y` flag) |
+| Learning Cline | Interactive Mode |
+
+## Next Steps
 
 <Columns cols={2}>
-  <Card title="Use in Other Editors" icon="code" href="/cline-cli/acp-editor-integrations">
-    Run Cline as an ACP agent in JetBrains, Neovim, Zed, and more.
+  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+    Master keyboard shortcuts, slash commands, and file mentions.
   </Card>
   
-  <Card title="CLI reference" icon="terminal" href="/cline-cli/cli-reference">
-    Complete command documentation including configuration, instance management, and task commands.
+  <Card title="CLI Reference" icon="book" href="/cline-cli/cli-reference">
+    Complete command documentation with all flags and options.
   </Card>
   
-  <Card title="Plan and Act" icon="brain" href="/features/plan-and-act">
-    Deep dive into Plan and Act modes, including when to use each and how to switch between them.
+  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+    Environment variables, rules, and advanced settings.
   </Card>
   
-  <Card title="YOLO mode" icon="zap" href="/features/yolo-mode">
-    Understand how YOLO mode works and when to use full automation versus manual approval.
-  </Card>
-  
-  <Card title="Task management" icon="clipboard-check" href="/features/tasks/task-management">
-    Learn how Cline tracks and manages tasks, including saving and restoring state from checkpoints.
+  <Card title="YOLO Mode" icon="zap" href="/features/yolo-mode">
+    Deep dive into autonomous execution and safety considerations.
   </Card>
 </Columns>

@@ -121,7 +121,7 @@ async function createNpmPackageJson() {
 		homepage: pkg.homepage,
 		bugs: pkg.bugs,
 		dependencies: pkg.dependencies,
-		os: ["darwin", "linux"],
+		os: ["darwin", "linux", "win32"],
 		cpu: ["x64", "arm64"],
 	}
 

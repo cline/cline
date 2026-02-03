@@ -5,8 +5,8 @@
 
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
+import type { ApiProvider, ModelInfo } from "@shared/api"
+import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -68,40 +68,34 @@ const TABS: PanelTab[] = [
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
 	autoCondense: {
-		stateKey: "useAutoCondense" as const,
+		stateKey: "useAutoCondense",
 		default: false,
 		label: "Auto-condense",
 		description: "Automatically summarize long conversations",
 	},
 	webTools: {
-		stateKey: "clineWebToolsEnabled" as const,
+		stateKey: "clineWebToolsEnabled",
 		default: true,
 		label: "Web tools",
 		description: "Enable web search and fetch tools",
 	},
 	strictPlanMode: {
-		stateKey: "strictPlanModeEnabled" as const,
+		stateKey: "strictPlanModeEnabled",
 		default: true,
 		label: "Strict plan mode",
 		description: "Require explicit mode switching",
 	},
 	nativeToolCall: {
-		stateKey: "nativeToolCallEnabled" as const,
+		stateKey: "nativeToolCallEnabled",
 		default: true,
 		label: "Native tool call",
 		description: "Use model's native tool calling API",
 	},
 	parallelToolCalling: {
-		stateKey: "enableParallelToolCalling" as const,
+		stateKey: "enableParallelToolCalling",
 		default: false,
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
-	},
-	skillsEnabled: {
-		stateKey: "skillsEnabled" as const,
-		default: false,
-		label: "Skills",
-		description: "Enable reusable agent instructions",
 	},
 } as const
 
@@ -150,7 +144,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
 		const initial: Record<string, boolean> = {}
 		for (const [key, config] of Object.entries(FEATURE_SETTINGS)) {
-			initial[key] = stateManager.getGlobalSettingsKey(config.stateKey) ?? config.default
+			if (isSettingsKey(config.stateKey)) {
+				initial[key] = stateManager.getGlobalSettingsKey(config.stateKey)
+			} else {
+				initial[key] = stateManager.getGlobalStateKey(config.stateKey)
+			}
 		}
 		return initial as Record<FeatureKey, boolean>
 	})
@@ -209,11 +207,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (!actProvider && !planProvider) {
 			return { actModelId: "", planModelId: "" }
 		}
-		const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
-		const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
+		const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
+		const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 		return {
-			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey as string) as string) || "" : "",
-			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey as string) as string) || "" : "",
+			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey) as string) || "" : "",
+			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey) as string) || "" : "",
 		}
 	}, [modelRefreshKey, stateManager])
 
@@ -477,7 +475,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						key: parentKey,
 						label: parentLabel,
 						type: "checkbox",
-						value: actions[parentKey as keyof typeof actions],
+						value: actions[parentKey as keyof typeof actions] ?? false,
 						description: parentDesc,
 					})
 					if (actions[parentKey as keyof typeof actions]) {
@@ -721,9 +719,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				const actProvider = apiConfig.actModeApiProvider
 				const planProvider = apiConfig.planModeApiProvider || actProvider
 				if (actProvider) {
-					const actKey = getProviderModelIdKey(actProvider as ApiProvider, "act")
-					const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
-					const actModel = stateManager.getGlobalSettingsKey(actKey as string)
+					const actKey = getProviderModelIdKey(actProvider, "act")
+					const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
+					const actModel = stateManager.getGlobalSettingsKey(actKey)
 					if (planKey) stateManager.setGlobalState(planKey, actModel)
 				}
 			}
@@ -823,11 +821,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				: actProvider || planProvider
 			if (!providerForSelection) return
 			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-			const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
-			const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
+			const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
+			const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 			// For cline/openrouter providers, also set model info (like webview does)
-			let modelInfo
+			let modelInfo: ModelInfo | undefined
 			if (providerForSelection === "cline" || providerForSelection === "openrouter") {
 				const openRouterModels = await controller?.readOpenRouterModels()
 				modelInfo = openRouterModels?.[modelId]
@@ -948,7 +946,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			}
 
 			// Check if this provider needs an API key
-			const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
+			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {
 				// Provider needs an API key - go to API key entry mode
 				// Pre-fill with existing key if configured
@@ -1002,8 +1000,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			const defaultModelId = getDefaultModelId("bedrock")
 			if (defaultModelId) {
 				// Use provider-specific model ID keys
-				const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
-				const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
+				const actModelKey = getProviderModelIdKey("bedrock", "act")
+				const planModelKey = getProviderModelIdKey("bedrock", "plan")
 				if (actModelKey) config[actModelKey] = defaultModelId
 				if (planModelKey) config[planModelKey] = defaultModelId
 			}
@@ -1046,8 +1044,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				const actProvider = apiConfig.actModeApiProvider
 				const planProvider = apiConfig.planModeApiProvider || actProvider
 				if (!actProvider && !planProvider) break
-				const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
-				const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
+				const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
+				const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 				if (separateModels) {
 					// Only update the selected mode's model

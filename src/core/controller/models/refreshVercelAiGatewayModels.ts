@@ -4,6 +4,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -75,12 +76,40 @@ function deriveTemperature(modelId: string): number | undefined {
 	return undefined
 }
 
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
+
 /**
  * Core function: Refreshes Vercel AI Gateway models and returns application types
  * @param _controller The controller instance (unused)
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshVercelAiGatewayModels(_controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
+	const cache = StateManager.get().getModelsCache("vercel")
+	if (cache) {
+		return cache
+	}
+
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels()
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(): Promise<Record<string, ModelInfo>> {
 	const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 
 	let models: Record<string, ModelInfo> = {}
@@ -122,7 +151,7 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			await fs.writeFile(vercelAiGatewayModelsFilePath, JSON.stringify(models))
 			Logger.log("Vercel AI Gateway models fetched and saved")
 		} else {
-			Logger.error("Invalid response from Vercel AI Gateway API")
+			throw new Error("Invalid response from Vercel AI Gateway API")
 		}
 	} catch (error) {
 		Logger.error("Error fetching Vercel AI Gateway models:", error)
@@ -133,6 +162,9 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			models = cachedModels
 		}
 	}
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("vercel", models)
 
 	return models
 }
