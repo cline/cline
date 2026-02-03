@@ -116,6 +116,31 @@ export function validateEnforcementRequest(body: any): {
 	}
 }
 
+export interface Requirement {
+	description: string
+	category: 'feature' | 'rule' | 'integration' | 'edge'
+}
+
+export interface RequirementsResponse {
+	success: boolean
+	requirements: Requirement[]
+	error?: string
+}
+
+export interface RequirementVerification {
+	requirement_id: string
+	verdict: 'pass' | 'fail' | 'unclear'
+	evidence: string
+	files_changed: FileSummary[]
+	code_changed: CodeBlock[]
+}
+
+export interface RequirementVerificationsResponse {
+	success: boolean
+	verifications: RequirementVerification[]
+	error?: string
+}
+
 export function validateExecuteTaskRequest(body: any): {
 	valid: boolean
 	error?: string

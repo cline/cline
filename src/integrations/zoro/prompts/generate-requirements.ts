@@ -25,7 +25,7 @@ Categorize each requirement into one of these types:
 
 ## GUIDELINES:
 - Be specific and testable (avoid vague requirements like "code works")
-- Include 3-10 requirements per substep (don't overdo it)
+- Include 3-10 requirements per substep (don't overdo it). There should be 2-4 feature requirements, 2-4 rule requirements, 1-3 integration requirements, and 1-2 edge requirements. 
 - Focus on what's ACTUALLY part of this substep (not the whole step or whole system)
 - For rules: only include rules that are RELEVANT to this specific substep
 - Each requirement should be independently verifiable

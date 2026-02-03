@@ -1,9 +1,10 @@
 import cors from "cors"
 import express, { Request, Response } from "express"
 import type { Controller } from "../../core/controller"
-import { verifySubstep } from "./verify-engine"
+import { verifySubstep, verifySubstepRequirements } from "./verify-engine"
 import { setController } from "./cline-execution"
 import { generateAndRunTests } from "./test-engine"
+import { generateRequirements } from "./requirements-engine"
 import { validateEnforcementRequest } from "./types"
 
 const app = express()
@@ -262,6 +263,54 @@ app.post("/test-substep", async (req: Request, res: Response) => {
 	}
 })
 
+app.post("/generate-requirements", async (req: Request, res: Response) => {
+	const { step_description, substep_description, rules } = req.body
+
+	console.log("POST /generate-requirements received:", {
+		step_description: step_description?.substring(0, 50) + "...",
+		substep_description: substep_description?.substring(0, 50) + "...",
+		rules_count: rules?.length || 0,
+	})
+
+	try {
+		const response = await generateRequirements(step_description, substep_description, rules)
+		return res.status(200).json(response)
+	} catch (error) {
+		console.error("Error in /generate-requirements:", error)
+		return res.status(500).json({
+			success: false,
+			error: error instanceof Error ? error.message : "Unknown error",
+		})
+	}
+})
+
+app.post("/verify-substep-requirements", async (req: Request, res: Response) => {
+	const { chat_id, step_description, substep_description, requirements } = req.body
+
+	console.log("POST /verify-substep-requirements received:", {
+		chat_id,
+		step_description: step_description?.substring(0, 50) + "...",
+		substep_description: substep_description?.substring(0, 50) + "...",
+		requirements_count: requirements?.length || 0,
+	})
+
+	try {
+		const response = await verifySubstepRequirements(
+			chat_id,
+			step_description,
+			substep_description,
+			requirements
+		)
+		return res.status(200).json(response)
+	} catch (error) {
+		console.error("Error in /verify-substep-requirements:", error)
+		return res.status(500).json({
+			success: false,
+			error: error instanceof Error ? error.message : "Unknown error",
+		})
+	}
+})
+
 app.get("/health", (req: Request, res: Response) => {
 	res.status(200).json({ status: "ok", service: "zoro-enforcement", port: PORT })
 })
@@ -272,14 +321,10 @@ export function startEnforcementServer(controller: Controller) {
 
 	app.listen(PORT, "0.0.0.0", () => {
 		console.log(`🔧 Zoro Enforcement Server running on http://localhost:${PORT}`)
-		console.log(`   - POST /execute-step`)
-		console.log(`   - POST /execute-substep`)
-		console.log(`   - POST /execute-rule`)
-		console.log(`   - POST /execute-task`)
-		console.log(`   - POST /do-step`)
-		console.log(`   - POST /do-substep`)
-		console.log(`   - POST /test-step`)
+		console.log(`   - POST /verify-substep`)
 		console.log(`   - POST /test-substep`)
+		console.log(`   - POST /generate-requirements`)
+		console.log(`   - POST /verify-substep-requirements`)
 		console.log(`   - GET  /health`)
 	})
 }

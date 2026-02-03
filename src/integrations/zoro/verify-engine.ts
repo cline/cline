@@ -1,9 +1,11 @@
 import { executeThroughCline, loadChatHistory, runFinalVerdict } from "./cline-execution";
 import { getSubstepVerificationPrompt } from "./prompts/verify-substep";
-import { EnforcementRequest, EnforcementResponse } from "./types";
+import { getVerifySubstepRequirementsPrompt } from "./prompts/verify-substep-requirements";
+import { EnforcementRequest, EnforcementResponse, RequirementVerificationsResponse } from "./types";
 import { stripMarkdownJson } from "./utils";
 
 const VERIFY_SUBSTEP_SYSTEM_PROMPT = "You are a code verification assistant. Use tools to investigate that the substep was completed properly.";
+const VERIFY_REQUIREMENTS_SYSTEM_PROMPT = "You are a requirements verification assistant. Use tools to investigate if each requirement is satisfied.";
 const VERIFY_SUBSTEP_SCHEMA_PROMPT = `Based on your investigation above, return ONLY valid JSON:
 
 {
@@ -159,6 +161,83 @@ function parseVerificationResponse(llmResponse: string): EnforcementResponse {
             rules_analysis: [],
             files_summary: [],
             code_blocks: [],
+        }
+    }
+}
+
+export async function verifySubstepRequirements(
+    chatId: string,
+    stepDescription: string,
+    substepDescription: string,
+    requirements: Array<{ id: string; description: string; category: string; source: string }>,
+): Promise<RequirementVerificationsResponse> {
+    console.log("[verify-engine] 📋 Verifying", requirements.length, "requirements for substep")
+
+    try {
+        // Load chat history
+        const chatHistory = await loadChatHistory(chatId)
+
+        // Build prompt with ALL requirements
+        const prompt = getVerifySubstepRequirementsPrompt(
+            stepDescription,
+            substepDescription,
+            requirements,
+            chatHistory
+        )
+
+        // PHASE 1: Investigation (7 iterations, same as verifySubstep)
+        console.log("[verify-engine] PHASE 1: Investigating requirements")
+        const messages = await executeThroughCline(prompt, VERIFY_REQUIREMENTS_SYSTEM_PROMPT, 7)
+
+        // PHASE 2: Get verdict for ALL requirements at once
+        console.log("[verify-engine] PHASE 2: Generating requirement verifications")
+        const schemaPrompt = `Based on your investigation above, return ONLY valid JSON array with verification for EACH requirement:
+
+[
+  {
+    "requirement_id": "req-1",
+    "verdict": "pass" | "fail" | "unclear",
+    "evidence": "Detailed evidence with code snippets showing this requirement is satisfied. Include file paths, line numbers, and specific code examples.",
+    "files_changed": [
+      {
+        "path": "path/to/file.ts",
+        "lines_changed": "45-50, 120-135",
+        "changes": "What changed in this file",
+        "impact": "Why this change matters for this requirement",
+        "substeps_fulfilled": []
+      }
+    ],
+    "code_changed": [
+      {
+        "file": "path/to/file.ts",
+        "lines": "125-130",
+        "code": "actual code snippet",
+        "annotation": "How this code satisfies the requirement"
+      }
+    ]
+  }
+]
+
+Return the complete JSON array for ALL ${requirements.length} requirements.`
+
+        const verdict = await runFinalVerdict(messages, schemaPrompt, VERIFY_REQUIREMENTS_SYSTEM_PROMPT)
+
+        // Parse JSON response
+        const cleaned = stripMarkdownJson(verdict)
+        const verifications = JSON.parse(cleaned)
+
+        console.log(`[verify-engine] ✅ Verified ${verifications.length} requirements`)
+
+        return {
+            success: true,
+            verifications,
+        }
+    } catch (error) {
+        console.error("[verify-engine] Requirements verification error:", error)
+        return {
+            success: false,
+            verifications: [],
+            error: error instanceof Error ? error.message : "Unknown error",
         }
     }
 }
