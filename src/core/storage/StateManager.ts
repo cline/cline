@@ -17,6 +17,7 @@ import {
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
+import { FeatureFlag } from "@/shared/services/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
@@ -871,5 +872,21 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return { ...this.workspaceStateCache }
+	}
+
+	public getEnrollmentHistory(flag: FeatureFlag): "treatment" | "control" | undefined {
+		return this.globalStateCache.enrollmenetHistory[flag] || undefined
+	}
+
+	public async setEnrollmentHistory(flag: FeatureFlag, value: "treatment" | "control"): Promise<boolean> {
+		try {
+			const updatedHistory = { ...this.globalStateCache.enrollmenetHistory, [flag]: value }
+			this.setGlobalState("enrollmenetHistory", updatedHistory)
+			// Immediately flush to ensure enrollment is recorded
+			await this.flushPendingState()
+			return true
+		} catch {
+			return false
+		}
 	}
 }

@@ -19,6 +19,7 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
+import { FeatureFlag } from "../services/feature-flags"
 import { BlobStoreSettings } from "./ClineBlobStorage"
 
 // ============================================================================
@@ -76,6 +77,7 @@ const GLOBAL_STATE_FIELDS = {
 		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
 	},
 	isNewUser: { default: true as boolean },
+	enrollmenetHistory: { default: {} as Record<FeatureFlag, "treatment" | "control"> },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
 	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },

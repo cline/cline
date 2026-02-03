@@ -1,4 +1,5 @@
 import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
+import { StateManager } from "@/core/storage/StateManager"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
@@ -32,11 +33,20 @@ export class FeatureFlagsService {
 	 * Tracks cache update time and user ID for cache validity
 	 */
 	private cacheInfo: CacheInfo = { updateTime: 0, userId: null }
+	/**
+	 * Tracks whether a poll is currently in progress to prevent race conditions
+	 */
+	private isPolling = false
 
 	/**
 	 * Poll all known feature flags to update their cached values
 	 */
 	public async poll(userId: string | null): Promise<void> {
+		// Prevent concurrent polling
+		if (this.isPolling) {
+			return
+		}
+
 		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
 		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
@@ -45,6 +55,8 @@ export class FeatureFlagsService {
 				return
 			}
 		}
+
+		this.isPolling = true
 
 		// Only update timestamp after successfully populating cache
 		this.cacheInfo = { updateTime: timesNow, userId: userId || null }
@@ -63,9 +75,37 @@ export class FeatureFlagsService {
 			// On error, clear cache info to force refresh on next poll
 			this.cacheInfo = { updateTime: 0, userId: null }
 			throw error
+		} finally {
+			this.isPolling = false
 		}
 
 		getClineOnboardingModels() // Refresh onboarding models cache if relevant flag changed
+	}
+
+	/**
+	 * Log an enrollment event for a feature flag experiment.
+	 *
+	 * Call this method when you need to enroll users in an A/B test. The enrollment
+	 * should happen at the point where the user first encounters the feature, not at
+	 * startup. This ensures accurate experiment tracking by only enrolling users who
+	 * actually reach the relevant code path.
+	 *
+	 * @param flag The feature flag being enrolled in
+	 * @returns True if the user was already enrolled, false if this is the first enrollment event
+	 */
+	public logEnrollmentEvent(flag: FeatureFlag): boolean {
+		const stateManager = StateManager.get()
+		const isEnrolled = stateManager.getEnrollmentHistory(flag)
+
+		// Only log if we haven't already enrolled this user for this flag
+		if (isEnrolled === undefined) {
+			const isEnabled = this.cache.get(flag) === true
+			const variant = isEnabled ? "treatment" : "control"
+			stateManager.setEnrollmentHistory(flag, variant)
+			telemetryService.captureRequired(`cline.experiment.${flag}`, { variant })
+		}
+
+		return isEnrolled !== undefined
 	}
 
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<FeatureFlagPayload | undefined> {
