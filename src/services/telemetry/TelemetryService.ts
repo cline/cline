@@ -395,11 +395,6 @@ export class TelemetryService {
 					})
 			}
 		}
-
-		// Update all providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
 	}
 
 	/**
@@ -1999,7 +1994,6 @@ export class TelemetryService {
 		return this.providers.length > 0
 			? this.providers[0].getSettings()
 			: {
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off" as const,
 				}

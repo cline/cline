@@ -2,6 +2,7 @@ import { Meter } from "@opentelemetry/api"
 import type { Logger as OTELLogger } from "@opentelemetry/api-logs"
 import { LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
@@ -38,7 +39,6 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		// Initialize telemetry settings
 		this.telemetrySettings = {
-			extensionEnabled: true,
 			hostEnabled: true,
 			level: "all",
 		}
@@ -165,13 +165,11 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
-	// Set extension-specific telemetry setting - opt-in/opt-out via UI
-	public setOptIn(optIn: boolean): void {
-		this.telemetrySettings.extensionEnabled = optIn
-	}
-
 	public isEnabled(): boolean {
-		return this.bypassUserSettings || (this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled)
+		return (
+			this.bypassUserSettings ||
+			(StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled" && this.telemetrySettings.hostEnabled)
+		)
 	}
 
 	public getSettings(): TelemetrySettings {
