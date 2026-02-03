@@ -89,7 +89,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		headerText: "Remote Config",
 		icon: HardDriveDownload,
 		hidden: ({ activeOrganization } = { activeOrganization: null }) =>
-			!!activeOrganization && isAdminOrOwner(activeOrganization),
+			!!activeOrganization && !isAdminOrOwner(activeOrganization),
 	},
 	{
 		id: "about",

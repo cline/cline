@@ -13,7 +13,7 @@ import { Controller } from ".."
  */
 export async function testOtelConnection(_controller: Controller, _: EmptyRequest): Promise<TestConnectionResult> {
 	try {
-		const providers = telemetryService.getProviders()
+		const providers = await telemetryService.getProviders()
 		const otelProvider = providers.find((p) => p.name === REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 		if (!otelProvider) {
@@ -29,7 +29,7 @@ export async function testOtelConnection(_controller: Controller, _: EmptyReques
 			source: "remote_config_settings",
 		})
 
-		otelProvider.recordCounter("test", 1)
+		otelProvider.recordCounter("cline.test.connection", 1)
 
 		await otelProvider.forceFlush()
 
