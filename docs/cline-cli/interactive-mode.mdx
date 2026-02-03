@@ -110,47 +110,17 @@ If you have [workflows](/features/slash-commands/workflows/index) configured, th
 
 Access the settings panel with `/settings`. Navigate between tabs using arrow keys.
 
-### API Tab
-
-Configure your AI provider and model:
-- Select provider (Anthropic, OpenAI, etc.)
-- Choose model
-- Enable/disable extended thinking
-- Configure thinking budget
-
-### Auto-approve Tab
-
-Control which actions Cline can perform without asking:
-- Read files
-- Write files
-- Execute commands
-- Browser actions
-- MCP tools
-
-### Features Tab
-
-Toggle Cline features:
-- Hooks
-- Skills
-- Auto-compact
-- Sound notifications
-
-### Account Tab
-
-Manage your Cline account:
-- View account status
-- Sign in/out
-- Manage subscription
-
-### Other Tab
-
-Additional settings:
-- Theme preferences
-- Debug options
+| Tab | Description | Settings |
+|-----|-------------|----------|
+| **API** | Configure your AI provider and model | Provider selection, model choice, extended thinking toggle, thinking budget |
+| **Auto-approve** | Control which actions Cline can perform without prompting | Read files, write files, execute commands, browser actions, MCP tools |
+| **Features** | Toggle Cline capabilities | Hooks, skills, auto-compact, sound notifications |
+| **Account** | Manage your Cline account | View account status, sign in/out, manage subscription |
+| **Other** | Additional preferences | Theme preferences, debug options |
 
 ## Plan and Act Modes
 
-Cline operates in two modes, toggled with `Tab`:
+Cline operates in two modes, toggled with `Tab`. These modes work the same way in the CLI as they do in the VS Code extension. For a deeper explanation of how Plan and Act modes work, see the [Plan and Act documentation](/features/plan-and-act).
 
 ### Plan Mode
 
@@ -172,13 +142,29 @@ Press `Tab` anytime to switch modes. Starting in Plan mode and switching to Act 
 
 ## Auto-approve Toggle
 
-Press `Shift+Tab` to toggle auto-approve for all actions. When enabled:
-- File reads happen automatically
-- File writes are applied without prompting
-- Commands execute without confirmation
+Press `Shift+Tab` to toggle auto-approve for all actions. This removes the approval prompts that appear before each action, letting Cline work continuously without interruption.
+
+### When to Enable Auto-approve
+
+Auto-approve is useful when:
+- **You trust the task** - Well-defined tasks where you're confident in the outcome
+- **Speed matters** - Long-running tasks where constant approvals slow you down
+- **You're watching anyway** - You can see Cline's work in real-time and can interrupt if needed
+- **Iterating quickly** - Rapid prototyping where you want to see results fast
+
+### What Gets Auto-approved
+
+When enabled, these actions happen without prompting:
+- File reads
+- File writes  
+- Command execution
+- Browser actions
+- MCP tool calls
+
+You can also configure granular auto-approve settings (e.g., auto-approve reads but not writes) via `/settings` → Auto-approve tab, or see the [Auto-approve documentation](/features/auto-approve) for more details.
 
 <Warning>
-Auto-approve gives Cline full autonomy. Use on a clean git branch so you can easily revert changes if needed.
+Auto-approve gives Cline full autonomy. Use on a clean git branch so you can easily revert changes if needed. You can always press `Ctrl+C` to stop Cline immediately.
 </Warning>
 
 ## Session Summary
@@ -193,18 +179,30 @@ This helps you track what was accomplished during your session.
 
 ## Running Multiple Instances
 
-By default, all CLI instances share the same settings and state. To run isolated instances with separate configurations:
+By default, all CLI instances share the same settings and state. However, you may want to run isolated instances with separate configurations for scenarios like:
+
+- **Different models for different tasks** - Use a fast, cheap model for quick questions in one terminal and a more capable model for complex refactoring in another
+- **Separate work and personal projects** - Keep API keys, rules, and task history isolated between contexts
+- **Testing configuration changes** - Experiment with new settings without affecting your main setup
+- **Team vs. individual settings** - Use shared team configuration for work projects and personal preferences for side projects
+
+To run isolated instances, use the `--config` flag with different directories:
 
 ```bash
-# Instance with custom config directory
-cline --config /path/to/config-1
+# Work instance with team configuration
+cline --config ~/.cline-work
 
-# Another instance with different config
-cline --config /path/to/config-2
+# Personal instance with different model/provider
+cline --config ~/.cline-personal
+
+# Experimental instance for testing new settings
+cline --config ~/.cline-test
 ```
 
+Each config directory maintains its own provider settings, API keys, task history, and preferences.
+
 <Tip>
-Use terminal multiplexers like tmux or split terminals to run multiple Cline instances in parallel, each working on different parts of your project.
+Use terminal multiplexers like tmux or split terminals to run multiple Cline instances in parallel, each working on different parts of your project with different models or settings.
 </Tip>
 
 ## Tips for Effective Usage
