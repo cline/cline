@@ -164,6 +164,7 @@ export class TelemetryService {
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			OPT_IN: "user.opt_in",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
@@ -399,6 +400,23 @@ export class TelemetryService {
 		this.providers.forEach((provider) => {
 			provider.setOptIn(didUserOptIn)
 		})
+	}
+
+	/**
+	 * Captures when a user explicitly opts out of telemetry.
+	 * Uses captureRequired to ensure the event is sent before telemetry is disabled.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptOut(): void {
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+	}
+
+	/**
+	 * Captures when a user explicitly opts back into telemetry.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptIn(): void {
+		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
 	}
 
 	/**

@@ -55,13 +55,6 @@ interface AuthViewProps {
 	onComplete?: () => void
 	onError?: () => void
 	onNavigateToWelcome?: () => void
-	// Quick setup options
-	quickSetup?: {
-		provider?: string
-		apikey?: string
-		modelid?: string
-		baseurl?: string
-	}
 }
 
 interface SelectItem {
@@ -153,9 +146,9 @@ const TextInput: React.FC<{
 	)
 }
 
-export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, onNavigateToWelcome, quickSetup }) => {
+export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, onNavigateToWelcome }) => {
 	const { exit } = useApp()
-	const [step, setStep] = useState<AuthStep>(quickSetup ? "saving" : "menu")
+	const [step, setStep] = useState<AuthStep>("menu")
 	const [selectedProvider, setSelectedProvider] = useState<string>(
 		StateManager.get().getApiConfiguration().actModeApiProvider ||
 			StateManager.get().getApiConfiguration().planModeApiProvider ||
@@ -243,13 +236,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [step, selectedProvider])
 
-	// Handle quick setup
-	useEffect(() => {
-		if (quickSetup && step === "saving") {
-			handleQuickSetup()
-		}
-	}, [quickSetup, step])
-
 	// Subscribe to auth status updates when in cline_auth step
 	useEffect(() => {
 		if (step !== "cline_auth") {
@@ -295,84 +281,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			cancelled = true
 		}
 	}, [step, controller])
-
-	const handleQuickSetup = async () => {
-		if (!quickSetup) {
-			return
-		}
-
-		try {
-			const { provider, apikey, modelid, baseurl } = quickSetup
-
-			// Validate required parameters
-			if (!provider || !apikey || !modelid) {
-				setErrorMessage("Quick setup requires --provider, --apikey, and --modelid flags")
-				setStep("error")
-				return
-			}
-
-			const normalizedProvider = provider.toLowerCase().trim()
-
-			if (!sortedProviders.includes(normalizedProvider)) {
-				setErrorMessage(`Invalid provider '${provider}'. Supported providers: ${sortedProviders.join(", ")}`)
-				setStep("error")
-				return
-			}
-
-			if (normalizedProvider === "bedrock") {
-				setErrorMessage(
-					"Bedrock provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
-				)
-				setStep("error")
-				return
-			}
-
-			if (baseurl && !["openai", "openai-native"].includes(normalizedProvider)) {
-				setErrorMessage("Base URL is only supported for OpenAI and OpenAI-compatible providers")
-				setStep("error")
-				return
-			}
-
-			// Save configuration
-			const stateManager = StateManager.get()
-			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-			const actModelKey = getProviderModelIdKey(normalizedProvider as ApiProvider, "act")
-			const planModelKey = getProviderModelIdKey(normalizedProvider as ApiProvider, "plan")
-			const config: Record<string, string> = {
-				actModeApiProvider: normalizedProvider,
-				planModeApiProvider: normalizedProvider,
-			}
-			if (actModelKey) config[actModelKey] = modelid
-			if (planModelKey) config[planModelKey] = modelid
-
-			// Use provider-specific API key field
-			const keyField = ProviderToApiKeyMap[normalizedProvider]
-			if (keyField) {
-				const fields = Array.isArray(keyField) ? keyField : [keyField]
-				// Set the first key field for the provider
-				config[fields[0]] = apikey
-			} else {
-				// Fallback to generic apiKey
-				config.apiKey = apikey
-			}
-
-			if (baseurl) {
-				config.openAiBaseUrl = baseurl
-			}
-
-			stateManager.setApiConfiguration(config)
-			stateManager.setGlobalState("welcomeViewCompleted", true)
-
-			await stateManager.flushPendingState()
-			setSelectedProvider(normalizedProvider)
-			setModelId(modelid)
-			setBaseUrl(baseurl || "")
-			setStep("success")
-		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : String(error))
-			setStep("error")
-		}
-	}
 
 	// Start OpenAI Codex OAuth flow
 	const startOpenAiCodexAuth = useCallback(async () => {
@@ -590,11 +498,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	}, [])
 
 	// Auto-navigate to welcome after success (immediate)
+	// For quick setup mode (no onNavigateToWelcome), exit the Ink app
 	useEffect(() => {
-		if (step === "success" && onNavigateToWelcome) {
-			onNavigateToWelcome()
+		if (step === "success") {
+			if (onNavigateToWelcome) {
+				onNavigateToWelcome()
+			} else {
+				// Quick setup mode - exit Ink app after successful configuration
+				// The cleanup handler in runInkApp will handle process exit
+				exit()
+			}
 		}
-	}, [step, onNavigateToWelcome])
+	}, [step, onNavigateToWelcome, exit])
 
 	// Error screen menu items
 	const errorMenuItems: SelectItem[] = useMemo(() => {
