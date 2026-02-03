@@ -26,10 +26,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build CLI
+  smoke-tests:
+    name: Smoke Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -41,135 +41,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build CLI and standalone
+      - name: Build and install CLI
         run: |
-          cd cli && npm install && npm run build
-          cd .. && npm run compile-standalone
+          npm run protos
+          cd cli && npm install && npm run build && npm link
+          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
 
-      - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cline-cli
-          path: |
-            cli/
-            dist-standalone/
-          retention-days: 1
+      - name: Verify CLI
+        run: cline --version
 
-  test:
-    name: Test ${{ matrix.scenario }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario:
-          - 01-create-file
-          - 02-edit-file
-          - 03-read-summarize
-          - 04-multi-file
-          - 05-typescript-function
-          - 06-apply-patch
-          - 07-edit-gemini
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download CLI artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: cline-cli
-
-      - name: Install CLI
-        run: |
-          # Link CLI globally from built artifacts
-          cd cli && npm link
-          
-          # Setup standalone runtime
-          mkdir -p $HOME/.cline/cli
-          cp -r dist-standalone/* $HOME/.cline/cli/
-          
-          # Install runtime dependencies
-          cd standalone/runtime-files
-          npm install --silent
-          cp -r node_modules $HOME/.cline/cli/
-          cp -r vscode $HOME/.cline/cli/node_modules/
-          
-          # Rebuild native modules for this platform
-          cd $HOME/.cline/cli
-          npm rebuild better-sqlite3 > /dev/null 2>&1
-          
-          # Verify CLI is available
-          cline --version
-
-      - name: Configure auth
+      - name: Run smoke tests
         env:
           CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
           cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
+          npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --parallel
 
-      - name: Run test
-        env:
-          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
-        run: |
-          npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --scenario ${{ matrix.scenario }}
+      - name: Generate summary
+        if: always()
+        run: cat evals/smoke-tests/results/latest/summary.md >> $GITHUB_STEP_SUMMARY
 
       - name: Upload results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-${{ matrix.scenario }}
-          path: evals/smoke-tests/results/latest/
-          retention-days: 30
-
-  summarize:
-    name: Summarize Results
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: test
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: results-*
-          path: all-results/
-          merge-multiple: false
-
-      - name: Generate summary
-        run: |
-          echo "## Smoke Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Scenario | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
-          
-          for dir in all-results/results-*/; do
-            scenario=$(basename "$dir" | sed 's/results-//')
-            if [ -f "$dir/report.json" ]; then
-              # Handle JSON with spaces after colon (e.g., "passed": 1)
-              failed=$(cat "$dir/report.json" | grep -o '"failed": *[0-9]*' | head -1 | sed 's/.*: *//')
-              if [ "$failed" = "0" ]; then
-                echo "| $scenario | ✅ PASS |" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "| $scenario | ❌ FAIL |" >> $GITHUB_STEP_SUMMARY
-              fi
-            else
-              echo "| $scenario | ⚠️ NO RESULTS |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-      - name: Upload combined results
-        uses: actions/upload-artifact@v4
-        with:
           name: smoke-test-results-${{ github.run_id }}
-          path: all-results/
+          path: evals/smoke-tests/results/latest/
           retention-days: 30

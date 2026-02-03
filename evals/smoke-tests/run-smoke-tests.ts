@@ -234,6 +234,7 @@ function runClineWithTimeout(args: string[], cwd: string, timeoutMs: number): Pr
 		const proc = spawn("cline", args, {
 			cwd,
 			env: { ...process.env },
+			stdio: ["ignore", "pipe", "pipe"], // stdin: ignore, stdout/stderr: pipe
 		})
 
 		const timeout = setTimeout(() => {
