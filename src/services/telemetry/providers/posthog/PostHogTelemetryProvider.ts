@@ -1,4 +1,5 @@
 import { PostHog } from "posthog-node"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
@@ -15,6 +16,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
+	private optInCache: boolean
 
 	readonly name = "PostHogTelemetryProvider"
 
@@ -35,8 +37,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 
 		// Initialize telemetry settings
+		this.optInCache = true
 		this.telemetrySettings = {
-			extensionEnabled: true,
 			hostEnabled: true,
 			level: "all",
 		}
@@ -111,19 +113,22 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
-	// Set extension-specific telemetry setting - opt-in/opt-out via UI
-	public setOptIn(optIn: boolean): void {
-		if (optIn && !this.telemetrySettings.extensionEnabled) {
-			this.client.optIn()
-		}
-		if (!optIn && this.telemetrySettings.extensionEnabled) {
-			this.client.optOut()
-		}
-		this.telemetrySettings.extensionEnabled = optIn
-	}
-
 	public isEnabled(): boolean {
-		return this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled
+		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
+		const wasOptedIn = this.optInCache
+		try {
+			if (isOptedIn && !wasOptedIn) {
+				this.client.optIn()
+			}
+			if (!isOptedIn && wasOptedIn) {
+				this.client.optOut()
+			}
+		} catch (err) {
+			Logger.error("Failed to update the PostHog telemetry state", err)
+		}
+		this.optInCache = isOptedIn
+
+		return isOptedIn && this.telemetrySettings.hostEnabled
 	}
 
 	public getSettings(): TelemetrySettings {

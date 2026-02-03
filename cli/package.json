@@ -6,6 +6,7 @@
 	"bin": {
 		"cline": "./dist/cli.mjs"
 	},
+	"man": "./man/cline.1",
 	"type": "module",
 	"engines": {
 		"node": ">=20.0.0"
