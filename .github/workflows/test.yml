@@ -60,19 +60,6 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            - name: Install cli dependencies
-              if: steps.cli-cache.outputs.cache-hit != 'true'
-              run: cd cli && npm ci
-
-            - name: Verify and fix root dependencies
-              run: |
-                  if ! node -e "require('globby')" 2>/dev/null || ! ls node_modules/.bin/biome >/dev/null 2>&1; then
-                    echo "Root dependencies incomplete, reinstalling..."
-                    npm ci
-                  fi
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
 
