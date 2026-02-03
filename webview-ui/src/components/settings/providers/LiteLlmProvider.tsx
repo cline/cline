@@ -1,6 +1,8 @@
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { RefreshCwIcon } from "lucide-react"
+import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -21,8 +23,10 @@ interface LiteLlmProviderProps {
 }
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration, remoteConfigSettings, liteLlmModels } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+
+	const [isLoading, setIsLoading] = useState(false)
 
 	// Get the normalized configuration with model info
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -43,6 +47,15 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			},
 			currentMode,
 		)
+	}
+
+	const onRefreshModels = async () => {
+		try {
+			setIsLoading(true)
+			await refreshLiteLlmModels()
+		} finally {
+			setIsLoading(false)
+		}
 	}
 
 	return (
@@ -105,6 +118,18 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						onChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>
+					<VSCodeButton
+						className={`my-2 ${isLoading ? "animate-pulse" : ""}`}
+						disabled={isLoading}
+						onClick={onRefreshModels}>
+						{isLoading ? (
+							"Loading..."
+						) : (
+							<>
+								Refresh models <RefreshCwIcon className="ml-1" />
+							</>
+						)}
+					</VSCodeButton>
 
 					{selectedModelInfo?.supportsReasoning && <ThinkingBudgetSlider currentMode={currentMode} />}
 
