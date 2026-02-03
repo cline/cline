@@ -172,7 +172,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
-		StateManager.get().setGlobalState("welcomeViewCompleted", true)
+		const stateManager = StateManager.get()
+		stateManager.setGlobalState("welcomeViewCompleted", true)
+		await stateManager.flushPendingState()
 		setSelectedProvider("oca")
 		setModelId(liteLlmDefaultModelId)
 		setStep("success")
@@ -306,7 +308,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 			// Success - save configuration
 			await applyProviderConfig({ providerId: "openai-codex", controller })
-			StateManager.get().setGlobalState("welcomeViewCompleted", true)
+			const stateManager = StateManager.get()
+			stateManager.setGlobalState("welcomeViewCompleted", true)
+			await stateManager.flushPendingState()
 			setSelectedProvider("openai-codex")
 			setModelId(openAiCodexDefaultModelId)
 			setStep("success")
