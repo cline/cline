@@ -72,12 +72,40 @@ interface OpenRouterRawModelInfo {
 	supported_parameters?: OpenRouterSupportedParams[] | null
 }
 
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
+
 /**
  * Core function: Refreshes the OpenRouter models and returns application types
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
+	const cache = StateManager.get().getModelsCache("openRouter")
+	if (cache) {
+		return cache
+	}
+
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels(controller)
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, ModelInfo> = {}
@@ -238,11 +266,12 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
 				}
 			}
+			// Save models and cache them in memory
+			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
+			Logger.log("OpenRouter models fetched and saved")
 		} else {
-			Logger.error("Invalid response from OpenRouter API")
+			throw new Error("Invalid response data when fetching OpenRouter models")
 		}
-		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		Logger.log("OpenRouter models fetched and saved")
 	} catch (error) {
 		Logger.error("Error fetching OpenRouter models:", error)
 
