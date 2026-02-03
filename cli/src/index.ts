@@ -438,9 +438,6 @@ async function showConfig(options: { config?: string }) {
 	// Dynamically import the wrapper to avoid circular dependencies
 	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
 
-	// Check feature flags
-	const skillsEnabled = stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
-
 	telemetryService.captureHostEvent("config_command", "executed")
 
 	await runInkApp(
@@ -450,7 +447,7 @@ async function showConfig(options: { config?: string }) {
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
 			hooksEnabled: true,
-			skillsEnabled,
+			skillsEnabled: true,
 			isRawModeSupported: checkRawModeSupport(),
 		}),
 		async () => {
