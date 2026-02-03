@@ -27,7 +27,7 @@ async function main() {
 	await cleanBuildDir()
 	await buildTypeScriptCli()
 	await copyCliDist()
-	await createNpmPackageJson()
+	await copyPackageJson()
 	await copyReadme()
 	await createNpmIgnoreFile()
 
@@ -90,45 +90,14 @@ async function copyCliDist() {
 }
 
 /**
- * Create package.json for NPM publication
- * Reads from cli/package.json and modifies for publication
+ * Copy package.json from cli/ directory
  */
-async function createNpmPackageJson() {
-	console.log("Creating NPM package.json...")
-
-	const sourcePackageJson = path.join(CLI_DIR, "package.json")
-
-	if (!fs.existsSync(sourcePackageJson)) {
-		console.error(`Error: package.json not found at ${sourcePackageJson}`)
-		process.exit(1)
-	}
-
-	const pkg = JSON.parse(fs.readFileSync(sourcePackageJson, "utf8"))
-
-	// Modify for NPM publication
-	const npmPkg = {
-		name: "cline", // Change from @cline/cli to cline for NPM
-		version: pkg.version,
-		description: pkg.description,
-		main: pkg.main,
-		bin: pkg.bin,
-		type: pkg.type,
-		engines: pkg.engines,
-		keywords: pkg.keywords,
-		author: pkg.author,
-		license: pkg.license,
-		repository: pkg.repository,
-		homepage: pkg.homepage,
-		bugs: pkg.bugs,
-		dependencies: pkg.dependencies,
-		os: ["darwin", "linux", "win32"],
-		cpu: ["x64", "arm64"],
-	}
-
-	const destPackageJson = path.join(BUILD_DIR, "package.json")
-	fs.writeFileSync(destPackageJson, JSON.stringify(npmPkg, null, "\t"))
-
-	console.log(`✓ package.json created (name: cline, version: ${pkg.version})`)
+async function copyPackageJson() {
+	console.log("Copying package.json...")
+	const source = path.join(CLI_DIR, "package.json")
+	const dest = path.join(BUILD_DIR, "package.json")
+	await cpr(source, dest)
+	console.log(`✓ package.json copied`)
 }
 
 /**
