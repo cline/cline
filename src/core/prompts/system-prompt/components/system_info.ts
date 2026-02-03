@@ -33,7 +33,7 @@ function getEffectiveShell(context: SystemPromptContext): string {
 }
 
 export async function getSystemEnv(context: SystemPromptContext, isTesting = false) {
-	const currentWorkDir = context.cwd || process.cwd()
+	const currentWorkDir = process.cwd()
 	const workspaces = (await getWorkspacePaths({}))?.paths || [currentWorkDir]
 	return isTesting
 		? {
