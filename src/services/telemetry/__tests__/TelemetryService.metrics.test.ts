@@ -55,6 +55,7 @@ class FakeProvider implements ITelemetryProvider {
 
 		nextSeries.set(attrKey, { value, attributes: attributes ?? {}, description })
 	}
+	async forceFlush() {}
 	async dispose(): Promise<void> {}
 }
 
