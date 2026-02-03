@@ -1,0 +1,46 @@
+name: CLI Tests
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'cli/**'
+            - '.github/workflows/cli-tests.yml'
+    workflow_dispatch:
+    pull_request:
+        branches:
+            - main
+        paths:
+            - 'cli/**'
+            - '.github/workflows/cli-tests.yml'
+
+# Set default permissions for all jobs
+permissions:
+    contents: read
+
+jobs:
+    cli-tests:
+        runs-on: ubuntu-latest
+        name: CLI Tests
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Cache CLI dependencies
+              uses: actions/cache@v4
+              id: cli-cache
+              with:
+                  path: cli/node_modules
+                  key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
+
+            - name: Install CLI dependencies
+              run: cd cli && npm ci
+
+            - name: Run CLI Tests
+              run: cd cli && npm run test:run

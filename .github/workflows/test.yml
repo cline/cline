@@ -32,7 +32,6 @@ jobs:
                   cache-dependency-path: |
                       package-lock.json
                       webview-ui/package-lock.json
-                      cli/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -68,7 +67,6 @@ jobs:
                   cache-dependency-path: |
                       package-lock.json
                       webview-ui/package-lock.json
-                      cli/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -116,15 +114,6 @@ jobs:
               run: |
                   cd webview-ui
                   npm run test:coverage
-
-            - name: Install CLI dependencies
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
-              run: cd cli && npm ci
-
-            - name: CLI Tests
-              id: cli_tests
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
-              run: cd cli && npm run test:run
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
