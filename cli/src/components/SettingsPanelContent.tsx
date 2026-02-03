@@ -1025,7 +1025,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			const config: Record<string, unknown> = {
 				actModeApiProvider: "bedrock",
 				planModeApiProvider: "bedrock",
-				apiProvider: "bedrock",
 				awsAuthentication: bedrockConfig.awsAuthentication,
 				awsRegion: bedrockConfig.awsRegion,
 				awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,

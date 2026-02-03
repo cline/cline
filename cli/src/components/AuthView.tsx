@@ -403,7 +403,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				const config: Record<string, string> = {
 					actModeApiProvider: selectedProvider,
 					planModeApiProvider: selectedProvider,
-					apiProvider: selectedProvider,
 				}
 				if (actModelKey) config[actModelKey] = model
 				if (planModelKey) config[planModelKey] = model
