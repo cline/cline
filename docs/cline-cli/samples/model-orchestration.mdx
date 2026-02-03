@@ -44,20 +44,25 @@ Use different models for different phases of work. Route simple tasks to cheap m
 ### Example: Issue Analysis Pipeline
 
 ```bash
-# Phase 1: Quick summarization (cheap model)
-gh issue view $(gh issue list -L 1 | awk '{print $1}') \
-    | cline -y --config ~/.cline-haiku "summarize this issue in 2-3 sentences"
+# Get latest issue content
+ISSUE_CONTENT=$(gh issue view $(gh issue list -L 1 | awk '{print $1}'))
 
-# Phase 2: Deep planning (expensive model with thinking)
-# ... (summary from phase 1 as context)
-echo "Issue summary: $SUMMARY" | cline -y --thinking \
-    "create a detailed implementation plan with edge cases"
+# Phase 1: Quick summary with cheap model
+SUMMARY=$(echo "$ISSUE_CONTENT" | cline -y --config ~/.cline-haiku \
+  "summarize this issue in 2-3 sentences")
 
-# Phase 3: Execution (mid-tier model)
-# ... (plan from phase 2)
-cline -y --config ~/.cline-sonnet \
-    "implement the plan from above"
+# Phase 2: Detailed plan with expensive model + thinking
+PLAN=$(echo "$SUMMARY" | cline -y --thinking --config ~/.cline-opus \
+  "create detailed implementation plan with edge cases")
+
+# Phase 3: Execute with mid-tier model
+echo "$PLAN" | cline -y --config ~/.cline-sonnet \
+  "implement the plan from above"
 ```
+
+<Note>
+Each cline invocation needs to complete before passing output to the next phase. Use shell variables to store intermediate results rather than piping cline commands directly.
+</Note>
 
 **Cost impact:**
 - Haiku: $0.80 per million input tokens
