@@ -64,13 +64,14 @@ jobs:
               if: steps.cli-cache.outputs.cache-hit != 'true'
               run: cd cli && npm ci
 
-            - name: Verify dependencies installed
+            - name: Verify and fix root dependencies
               run: |
-                  echo "Root cache hit: ${{ steps.root-cache.outputs.cache-hit }}"
-                  echo "Webview cache hit: ${{ steps.webview-cache.outputs.cache-hit }}"
-                  echo "CLI cache hit: ${{ steps.cli-cache.outputs.cache-hit }}"
-                  ls node_modules/.bin/biome || echo "biome not found"
-                  node -e "require('globby')" || echo "globby not found"
+                  if ! node -e "require('globby')" 2>/dev/null || ! ls node_modules/.bin/biome >/dev/null 2>&1; then
+                    echo "Root dependencies incomplete, reinstalling..."
+                    npm ci
+                  fi
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
