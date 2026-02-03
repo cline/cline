@@ -1,0 +1,275 @@
+---
+title: "Worktree Workflows"
+description: "Use Git worktrees with Cline CLI to run parallel tasks, test different approaches, and pipe context between isolated environments"
+---
+
+# Worktree Workflows
+
+Git worktrees let you have multiple branches checked out simultaneously in different folders. Combined with Cline CLI's `--cwd` flag, this enables powerful parallel development workflows and isolated experimentation.
+
+<Tip>
+New to Git worktrees? See our comprehensive [Worktrees guide](/features/worktrees) for the full concept explanation, VS Code integration, and best practices.
+</Tip>
+
+## Quick Worktree Setup
+
+If you haven't used Git worktrees before, here's the essentials:
+
+```bash
+# Create a new worktree in ~/worktree-a on branch feature-a
+git worktree add ~/worktree-a -b feature-a
+
+# Create another worktree for a different feature
+git worktree add ~/worktree-b -b feature-b
+
+# List all worktrees
+git worktree list
+
+# Remove a worktree when done
+git worktree remove ~/worktree-a
+```
+
+Each worktree is a separate folder with its own branch checked out. They all share the same Git history and `.git` directory, but have independent working directories.
+
+## The `--cwd` Flag
+
+The `-c, --cwd <path>` flag tells Cline to run in a specific directory without changing your current location:
+
+```bash
+# Run Cline in a different directory
+cline --cwd ~/worktree-a -y "refactor the authentication code"
+
+# Short form
+cline -c ~/worktree-b -y "add unit tests"
+```
+
+This is the key to worktree workflows—you can run multiple Cline instances in different worktrees simultaneously from a single terminal.
+
+## Pattern 1: Parallel Task Execution
+
+Run different tasks in parallel across multiple worktrees. Each task works on a separate branch in complete isolation.
+
+### Example: Parallel Feature Development
+
+```bash
+# Terminal 1: Update docs in worktree-a
+cline --cwd ~/worktree-a -y "read the last 10 changes using git show and update our README with them" &
+
+# Terminal 2: TypeScript migration in worktree-b
+cline --cwd ~/worktree-b -y "update the index.js to use typescript" &
+
+# Terminal 3: Refactoring in worktree-c
+cline --cwd ~/worktree-c -y "refactor the cli/ folder to be more modular" &
+
+# Wait for all to complete
+wait
+```
+
+The `&` runs each command in the background, allowing all three to execute simultaneously.
+
+### When to Use Parallel Execution
+
+**Perfect for:**
+- Multiple independent features
+- Bulk refactoring across different modules
+- Running tests in one worktree while developing in another
+- Trying multiple approaches to the same problem
+
+**Not ideal for:**
+- Tasks that modify the same files (merge conflicts likely)
+- Tasks that depend on each other's results
+- When you need to monitor progress closely
+
+## Pattern 2: Cross-Worktree Context Piping
+
+Pipe output from one worktree as input to another. Use when a task in one worktree needs context from attempts in another worktree.
+
+### Example: Learning from Failures
+
+```bash
+# Try approach A in worktree-a, capture only the failure summary
+cline --cwd ~/worktree-a -y \
+  "edit the index.ts to be better and then npm run. if it fails, output ONLY the failure summary. nothing else but the failure summary" \
+  | cline --cwd ~/worktree-b -y \
+  "i've tried to edit the index.ts in a different worktree but it failed. use a different approach for this work tree"
+```
+
+**How it works:**
+1. First Cline instance runs in `worktree-a`, attempts a change, tests it
+2. If it fails, outputs just the failure summary
+3. That summary is piped to a second Cline instance in `worktree-b`
+4. Second instance sees the failure and tries a different approach
+
+### When to Use Context Piping
+
+**Perfect for:**
+- A/B testing different solutions
+- Learning from failed attempts
+- Iterative refinement (try → analyze → try differently)
+- Comparing outputs across approaches
+
+**Not ideal for:**
+- Simple tasks that don't need cross-context
+- When both worktrees would succeed independently
+- Real-time collaboration (use parallel execution instead)
+
+## Combining with Other CLI Features
+
+### Different Models Per Worktree
+
+Use `--config` to run different models in different worktrees:
+
+```bash
+# Cheap model for simple docs update
+cline --cwd ~/worktree-docs --config ~/.cline-haiku -y \
+  "update README with latest changes"
+
+# Expensive model for complex refactoring
+cline --cwd ~/worktree-refactor --config ~/.cline-opus --thinking -y \
+  "refactor authentication system for better security"
+```
+
+This optimizes costs while maintaining quality where it matters.
+
+### Task Isolation
+
+Keep long-running worktree sessions isolated by running each task against a different worktree path:
+
+```bash
+# Run tasks in dedicated worktrees
+cline --cwd ~/worktree-a -y "long-running task"
+cline --cwd ~/worktree-b -y "another task"
+```
+
+Each worktree has its own Git branch and working directory, so task history and changes stay separated without needing instance management.
+
+### With YOLO Mode
+
+The `-y` (YOLO) flag is essential for worktree workflows:
+
+```bash
+# Without -y: Opens interactive chat (blocks other tasks)
+cline --cwd ~/worktree-a "refactor code"
+
+# With -y: Runs autonomously (doesn't block)
+cline --cwd ~/worktree-a -y "refactor code" &
+```
+
+For parallel execution, always use `-y` to avoid blocking on user approval.
+
+## Real-World Workflow Example
+
+Here's a complete workflow showing how these patterns work together:
+
+```bash
+# Setup: Create three worktrees
+git worktree add ~/cline-worktrees/feature-auth -b feature/authentication
+git worktree add ~/cline-worktrees/feature-api -b feature/api-endpoints
+git worktree add ~/cline-worktrees/fix-tests -b fix/failing-tests
+
+# Pattern 1: Run parallel independent tasks
+cline -c ~/cline-worktrees/feature-auth -y --config ~/.cline-sonnet \
+  "implement JWT authentication" &
+
+cline -c ~/cline-worktrees/feature-api -y --config ~/.cline-sonnet \
+  "create REST API endpoints for user management" &
+
+cline -c ~/cline-worktrees/fix-tests -y --config ~/.cline-haiku \
+  "fix all failing unit tests" &
+
+wait
+echo "All parallel tasks complete!"
+
+# Pattern 2: Use piping for iterative refinement
+cline -c ~/cline-worktrees/feature-auth -y \
+  "test the authentication with curl. output only errors if any" \
+  | cline -c ~/cline-worktrees/feature-auth -y \
+  "fix the authentication issues described in the input"
+
+# Merge successful changes back
+cd ~/cline-worktrees/feature-auth
+git checkout main
+git merge feature/authentication
+
+# Cleanup
+git worktree remove ~/cline-worktrees/feature-auth
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Worktree Organization">
+    - **Use a dedicated folder**: Create `~/cline-worktrees/` for all worktrees
+    - **Meaningful branch names**: Use `feature/`, `fix/`, `refactor/` prefixes
+    - **Clean up regularly**: Remove worktrees after merging branches
+  </Accordion>
+
+  <Accordion title="Task Isolation">
+    - **Independent features only**: Don't parallelize tasks that touch the same files
+    - **Test in isolation**: Each worktree should have its own test run
+    - **Separate configs**: Use `.worktreeinclude` to copy `node_modules` and build artifacts
+  </Accordion>
+
+  <Accordion title="Resource Management">
+    - **Monitor disk space**: Each worktree is a full checkout
+    - **Limit parallel tasks**: Running too many simultaneously can slow your system
+    - **Use background jobs wisely**: Track with `jobs` command, kill with `kill %1`, etc.
+  </Accordion>
+
+  <Accordion title="Error Handling">
+    - **Check exit codes**: Use `|| echo "Task failed"` to catch errors
+    - **Log outputs**: Redirect to files for debugging: `> worktree-a.log 2>&1`
+    - **Graceful cleanup**: Always remove worktrees after tasks complete
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="&quot;Branch already checked out&quot; error">
+    Git doesn't allow the same branch in multiple worktrees. Solutions:
+    - Use different branch names for each worktree
+    - Remove the existing worktree first: `git worktree remove <path>`
+  </Accordion>
+
+  <Accordion title="Tasks not running in parallel">
+    Make sure you're using:
+    - `&` at the end of each command to background it
+    - `-y` flag so Cline doesn't wait for approval
+    - Different worktrees (not the same path)
+  </Accordion>
+
+  <Accordion title="Pipe not working as expected">
+    Verify:
+    - First command outputs to stdout (not stderr)
+    - Second command reads from stdin (use `--` separator if needed)
+    - Both commands use correct `--cwd` paths
+  </Accordion>
+
+  <Accordion title="Changes not appearing in worktree">
+    Check:
+    - You're in the right worktree: `git worktree list`
+    - Files aren't gitignored
+    - You committed/staged changes if needed
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<Columns cols={2}>
+  <Card title="Worktrees Overview" icon="code-branch" href="/features/worktrees">
+    Complete guide to Git worktrees, VS Code integration, and .worktreeinclude
+  </Card>
+  
+  <Card title="Model Orchestration" icon="layer-group" href="/cline-cli/samples/model-orchestration">
+    Use different models strategically with --config and --thinking flags
+  </Card>
+  
+  <Card title="CLI Reference" icon="terminal" href="/cline-cli/cli-reference">
+    Complete documentation for --cwd and all other CLI flags
+  </Card>
+  
+  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
+    Learn about interactive mode, task mode, and plain text workflows
+  </Card>
+</Columns>
