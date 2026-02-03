@@ -329,6 +329,55 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return text
 	}, [task])
 
+	// Detect if we're waiting for initial content or if reasoning is active
+	const { isReasoningActive, isWaitingForContent } = useMemo(() => {
+		// Find the last api_req_started
+		for (let i = modifiedMessages.length - 1; i >= 0; i--) {
+			const msg = modifiedMessages[i]
+			if (msg.say === "api_req_started" && msg.text) {
+				try {
+					const info = JSON.parse(msg.text)
+					// If it doesn't have cost yet
+					if (info.cost == null) {
+						// Check if there's reasoning
+						let hasReasoning = false
+						for (let j = i + 1; j < modifiedMessages.length; j++) {
+							if (modifiedMessages[j].say === "reasoning") {
+								hasReasoning = true
+								break
+							}
+						}
+
+						if (hasReasoning) {
+							return { isReasoningActive: true, isWaitingForContent: false }
+						}
+
+						// No reasoning yet - check if any content exists
+						const hasAnyContent = modifiedMessages
+							.slice(i + 1)
+							.some(
+								(m) =>
+									m.say === "reasoning" ||
+									m.say === "text" ||
+									m.ask === "tool" ||
+									m.say === "tool" ||
+									m.say === "command" ||
+									m.ask === "command",
+							)
+
+						if (!hasAnyContent) {
+							return { isReasoningActive: false, isWaitingForContent: true }
+						}
+					}
+					break
+				} catch {
+					break
+				}
+			}
+		}
+		return { isReasoningActive: false, isWaitingForContent: false }
+	}, [modifiedMessages])
+
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
@@ -361,6 +410,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<MessagesArea
 						chatState={chatState}
 						groupedMessages={groupedMessages}
+						isReasoningActive={isReasoningActive}
+						isWaitingForContent={isWaitingForContent}
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
 						scrollBehavior={scrollBehavior}
