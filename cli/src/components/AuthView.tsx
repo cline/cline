@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import type { ApiProvider } from "@/shared/api"
 import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
@@ -42,6 +43,7 @@ type AuthStep =
 	| "success"
 	| "error"
 	| "cline_auth"
+	| "oca_auth"
 	| "cline_model"
 	| "openai_codex_auth"
 	| "bedrock"
@@ -334,6 +336,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [controller])
 
+	const startOcaAuth = useCallback(async () => {
+		try {
+			setStep("oca_auth")
+			setAuthStatus("Starting authentication...")
+			OcaAuthService.initialize(controller)
+			await OcaAuthService.getInstance().createAuthRequest()
+		} catch (error) {
+			setErrorMessage(error instanceof Error ? error.message : String(error))
+			setStep("error")
+		}
+	}, [controller])
+
 	const handleMainMenuSelect = useCallback(
 		(value: string) => {
 			if (value === "exit") {
@@ -362,6 +376,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			setSelectedProvider(value)
 			if (value === "cline") {
 				startClineAuth()
+			} else if (value === "oca") {
+				startOcaAuth()
 			} else if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
@@ -371,7 +387,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("apikey")
 			}
 		},
-		[startClineAuth, startOpenAiCodexAuth],
+		[startClineAuth, startOcaAuth, startOpenAiCodexAuth],
 	)
 
 	const handleApiKeySubmit = useCallback(
@@ -566,6 +582,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setBaseUrl("")
 				setStep("modelid")
 				break
+			case "oca_auth":
+				setStep("provider")
+				break
 			case "cline_auth":
 				setStep("menu")
 				break
@@ -704,6 +723,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					</Box>
 				)
 
+			case "oca_auth":
 			case "cline_auth":
 				return (
 					<Box flexDirection="column">
@@ -793,6 +813,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"modelid",
 		"baseurl",
 		"cline_auth",
+		"oca_auth",
 		"cline_model",
 		"openai_codex_auth",
 		"bedrock",
