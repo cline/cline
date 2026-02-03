@@ -1,6 +1,6 @@
 {
 	"name": "cline",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"main": "dist/cli.mjs",
 	"bin": {
