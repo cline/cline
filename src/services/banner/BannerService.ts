@@ -87,7 +87,6 @@ export class BannerService {
 		const instance = BannerService.instance
 
 		if (!instance || instance.authToken === newToken) return
-		Logger.log("[BannerService] Auth token updated, scheduling fetch")
 
 		// Clear existing debounce timer and resolve any pending promise
 		if (instance.debounceTimer) {
@@ -259,7 +258,7 @@ export class BannerService {
 			this.lastFetchTime = Date.now()
 			this.consecutiveFailures = 0
 
-			Logger.log(`[BannerService] Fetched ${banners.length} banner(s)`)
+			Logger.log(`[BannerService] Fetched ${banners.length} banner(s) at ${new Date(this.lastFetchTime).toISOString()}`)
 			return banners
 		} catch (error) {
 			clearTimeout(timeoutId)
