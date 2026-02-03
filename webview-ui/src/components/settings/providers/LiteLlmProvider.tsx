@@ -49,10 +49,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 		)
 	}
 
-	const onRefreshModels = () => {
+	const onRefreshModels = async () => {
 		try {
 			setIsLoading(true)
-			refreshLiteLlmModels()
+			await refreshLiteLlmModels()
 		} finally {
 			setIsLoading(false)
 		}
