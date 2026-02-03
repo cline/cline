@@ -103,6 +103,7 @@
 
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
@@ -604,8 +605,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return true
 		})
 
-		// Combine command messages with their output (like webview does)
-		return combineCommandSequences(filtered)
+		// Combine hook messages with their output, then command messages (like webview does)
+		// CLI always has hooks enabled, so we always apply combineHookSequences
+		const withHooks = combineHookSequences(filtered)
+		return combineCommandSequences(withHooks)
 	}, [messages])
 
 	// Detect task switches by watching first message timestamp change.
