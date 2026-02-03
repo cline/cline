@@ -324,6 +324,8 @@ async function main() {
 	let trials = 3
 	let selectedScenario: string | undefined
 	let outputFile: string | undefined
+	let parallel = false
+	let parallelLimit = 4
 
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === "--model" && args[i + 1]) {
@@ -334,6 +336,11 @@ async function main() {
 			selectedScenario = args[++i]
 		} else if (args[i] === "--output" && args[i + 1]) {
 			outputFile = args[++i]
+		} else if (args[i] === "--parallel") {
+			parallel = true
+			if (args[i + 1] && !args[i + 1].startsWith("--")) {
+				parallelLimit = parseInt(args[++i], 10)
+			}
 		}
 	}
 
@@ -404,39 +411,115 @@ async function main() {
 	console.log(`Models: ${resolvedModels.join(", ")}`)
 	console.log(`Scenarios: ${scenarios.map((s) => s.id).join(", ")}`)
 	console.log(`Results: ${resultsDir}`)
+	console.log(`Parallel: ${parallel ? `yes (limit: ${parallelLimit})` : "no"}`)
 	console.log("")
 
 	const metricsCalc = new MetricsCalculator()
 	const results: ScenarioResult[] = []
 
-	// Run tests
+	// Build list of all scenario+model combinations
+	interface TestJob {
+		scenario: Scenario
+		modelId: string
+	}
+	const jobs: TestJob[] = []
 	for (const scenario of scenarios) {
-		// Use scenario-specific models if defined, otherwise use global default
 		const scenarioModels = selectedModel ? [selectedModel] : scenario.models || models
 		for (const modelId of scenarioModels) {
-			console.log(`\n[${scenario.id}] ${scenario.name} (${modelId})`)
-			// Create log directory for this scenario/model
-			const logDir = path.join(resultsDir, scenario.id, modelId)
+			jobs.push({ scenario, modelId })
+		}
+	}
+
+	// Run a single job
+	async function runJob(job: TestJob): Promise<ScenarioResult> {
+		const { scenario, modelId } = job
+		const logDir = path.join(resultsDir, scenario.id, modelId)
+		fs.mkdirSync(logDir, { recursive: true })
+
+		const trialResults: TrialResult[] = []
+		const trialWorkdirs: string[] = []
+
+		for (let t = 0; t < trials; t++) {
+			const trialWorkdir = path.join(logDir, `workspace-trial-${t + 1}`)
+			trialWorkdirs.push(trialWorkdir)
+			const result = await runTrial(scenario, modelId, trialWorkdir)
+			trialResults.push(result)
+		}
+
+		trialResults.forEach((result, t) => {
+			const trialNum = t + 1
+			const logContent =
+				`# Trial ${trialNum}\n` +
+				`Status: ${result.passed ? "PASS" : "FAIL"}\n` +
+				`Duration: ${result.durationMs}ms\n` +
+				(result.error ? `Error: ${result.error}\n` : "") +
+				`\n## STDOUT\n${result.stdout || "(empty)"}\n` +
+				`\n## STDERR\n${result.stderr || "(empty)"}\n`
+			fs.writeFileSync(path.join(logDir, `trial-${trialNum}.log`), logContent)
+		})
+
+		const trialBools = trialResults.map((t) => t.passed)
+		const metrics = metricsCalc.calculateTaskMetrics(trialBools)
+		const status = metricsCalc.getTaskStatus(trialBools)
+
+		return {
+			scenarioId: scenario.id,
+			scenarioName: scenario.name,
+			model: modelId,
+			modelId: modelId,
+			trials: trialResults,
+			metrics,
+			status,
+		}
+	}
+
+	if (parallel) {
+		// Run jobs in parallel with concurrency limit
+		console.log(`Running ${jobs.length} jobs in parallel...`)
+		const executing: Promise<void>[] = []
+
+		for (const job of jobs) {
+			const p = runJob(job).then((result) => {
+				results.push(result)
+				const passMetric = trials >= 3 ? result.metrics.passAt3 : result.metrics.passAt1
+				const icon = result.status === "pass" ? "✓" : result.status === "flaky" ? "~" : "✗"
+				console.log(
+					`  ${icon} [${result.scenarioId}] ${result.model}: ${result.status.toUpperCase()} (${(passMetric * 100).toFixed(0)}%)`,
+				)
+			})
+			executing.push(p as unknown as Promise<void>)
+
+			if (executing.length >= parallelLimit) {
+				await Promise.race(executing)
+				// Remove settled promises
+				for (let i = executing.length - 1; i >= 0; i--) {
+					const settled = await Promise.race([executing[i].then(() => true).catch(() => true), Promise.resolve(false)])
+					if (settled) executing.splice(i, 1)
+				}
+			}
+		}
+		await Promise.all(executing)
+	} else {
+		// Sequential execution
+		for (const job of jobs) {
+			console.log(`\n[${job.scenario.id}] ${job.scenario.name} (${job.modelId})`)
+			const logDir = path.join(resultsDir, job.scenario.id, job.modelId)
 			fs.mkdirSync(logDir, { recursive: true })
 
-			// Run trials sequentially (Cline instance can only handle one task at a time)
 			const trialResults: TrialResult[] = []
 			const trialWorkdirs: string[] = []
 
 			for (let t = 0; t < trials; t++) {
-				const trialWorkdir = path.join(path.dirname(scenario.workdir), `workspace-trial-${t + 1}`)
+				const trialWorkdir = path.join(logDir, `workspace-trial-${t + 1}`)
 				trialWorkdirs.push(trialWorkdir)
-
 				process.stdout.write(`  Trial ${t + 1}/${trials}... `)
-				const result = await runTrial(scenario, modelId, trialWorkdir)
+				const result = await runTrial(job.scenario, job.modelId, trialWorkdir)
 				trialResults.push(result)
 				console.log(result.passed ? "✓ PASS" : `✗ FAIL: ${result.error}`)
 			}
 
-			// Save trial logs and handle workspaces
 			trialResults.forEach((result, t) => {
 				const trialNum = t + 1
-				// Save log
 				const logContent =
 					`# Trial ${trialNum}\n` +
 					`Status: ${result.passed ? "PASS" : "FAIL"}\n` +
@@ -445,24 +528,17 @@ async function main() {
 					`\n## STDOUT\n${result.stdout || "(empty)"}\n` +
 					`\n## STDERR\n${result.stderr || "(empty)"}\n`
 				fs.writeFileSync(path.join(logDir, `trial-${trialNum}.log`), logContent)
-
-				// Keep workspace for failed trials
-				if (!result.passed && fs.existsSync(trialWorkdirs[t])) {
-					const failedWorkspaceDir = path.join(logDir, `workspace-trial-${trialNum}`)
-					fs.cpSync(trialWorkdirs[t], failedWorkspaceDir, { recursive: true })
-				}
 			})
 
-			// Calculate metrics
 			const trialBools = trialResults.map((t) => t.passed)
 			const metrics = metricsCalc.calculateTaskMetrics(trialBools)
 			const status = metricsCalc.getTaskStatus(trialBools)
 
 			results.push({
-				scenarioId: scenario.id,
-				scenarioName: scenario.name,
-				model: modelId,
-				modelId: modelId,
+				scenarioId: job.scenario.id,
+				scenarioName: job.scenario.name,
+				model: job.modelId,
+				modelId: job.modelId,
 				trials: trialResults,
 				metrics,
 				status,
