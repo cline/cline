@@ -5,30 +5,11 @@
 import React, { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiConfiguration } from "@/shared/api"
-import providersData from "@/shared/providers/providers.json"
+import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "../utils/providers"
 import { SearchableList, SearchableListItem } from "./SearchableList"
 
-// Create a lookup map from provider value to display label
-const providerLabels: Record<string, string> = Object.fromEntries(
-	providersData.list.map((p: { value: string; label: string }) => [p.value, p.label]),
-)
-
-// Get provider order from providers.json (same order as webview)
-const providerOrder: string[] = providersData.list.map((p: { value: string }) => p.value)
-
-/**
- * Providers that are not supported in CLI.
- * - vscode-lm: Requires VS Code's Language Model API (see ENG-1490 for OAuth-based support)
- */
-export const CLI_EXCLUDED_PROVIDERS = new Set<string>(["vscode-lm"])
-
-export function getProviderLabel(providerId: string): string {
-	return providerLabels[providerId] || providerId
-}
-
-export function getProviderOrder(): string[] {
-	return providerOrder
-}
+// Re-export for backwards compatibility
+export { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder }
 
 /**
  * Check if a provider is configured (has required credentials/settings)
@@ -147,9 +128,9 @@ export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActi
 
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const items: SearchableListItem[] = useMemo(() => {
-		const sorted = providerOrder.filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
+		const sorted = getProviderOrder().filter((p: string) => !CLI_EXCLUDED_PROVIDERS.has(p))
 
-		return sorted.map((providerId) => ({
+		return sorted.map((providerId: string) => ({
 			id: providerId,
 			label: getProviderLabel(providerId),
 			suffix: isProviderConfigured(providerId, apiConfig) ? "(Configured)" : undefined,
