@@ -3,10 +3,12 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
+import { StateManager } from "@/core/storage/StateManager"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
+import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
@@ -365,40 +367,54 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Updates the telemetry state based on user preferences and VSCode settings
+	 * Updates the telemetry state based on user preferences and client settings
 	 * Only enables telemetry if both VSCode global telemetry is enabled and user has opted in
 	 * @param didUserOptIn Whether the user has explicitly opted into telemetry
 	 */
-	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
+	public async updateTelemetryState(telemetrySetting: TelemetrySetting): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
 		// We only enable telemetry if global host telemetry is enabled
 		const hostSetting = await HostProvider.env.getTelemetrySettings({})
-		if (hostSetting.isEnabled === Setting.DISABLED) {
-			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
-			if (didUserOptIn) {
-				void HostProvider.window
-					.showMessage({
-						type: ShowMessageType.WARNING,
-						message:
-							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
-						options: {
-							items: ["Open Settings"],
-						},
-					})
-					.then((response: { selectedOption?: string }) => {
-						if (response.selectedOption === "Open Settings") {
-							void HostProvider.window.openSettings({
-								query: "telemetry.telemetryLevel",
-							})
-						}
-					})
-			}
+		const isHostTelemetryDisabled = hostSetting.isEnabled === Setting.DISABLED
+		const stateManager = StateManager.get()
+
+		// Get previous setting to detect state changes
+		const previousSetting = stateManager.getGlobalSettingsKey("telemetrySetting")
+		const wasOptedIn = previousSetting !== "disabled"
+		const didUserOptIn = telemetrySetting !== "disabled"
+
+		// Capture opt-in/out events based on changes
+		if (wasOptedIn && !didUserOptIn) {
+			this.captureUserOptOut()
+		} else if (!wasOptedIn && didUserOptIn) {
+			this.captureUserOptIn()
 		}
 
-		this.providers.forEach(async (provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
+		// Update storage only if setting has changed
+		if (previousSetting !== telemetrySetting) {
+			stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		}
+
+		// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
+		if (isHostTelemetryDisabled && didUserOptIn) {
+			void HostProvider.window
+				.showMessage({
+					type: ShowMessageType.WARNING,
+					message:
+						"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+					options: {
+						items: ["Open Settings"],
+					},
+				})
+				.then((response: { selectedOption?: string }) => {
+					if (response.selectedOption === "Open Settings") {
+						void HostProvider.window.openSettings({
+							query: "telemetry.telemetryLevel",
+						})
+					}
+				})
+		}
 	}
 
 	/**
@@ -408,6 +424,9 @@ export class TelemetryService {
 	 */
 	public captureUserOptOut(): void {
 		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+		this.providers.forEach((provider) => {
+			provider.setOptIn(false)
+		})
 	}
 
 	/**
@@ -415,7 +434,10 @@ export class TelemetryService {
 	 * Should only be called on explicit user action, not on init/sync.
 	 */
 	public captureUserOptIn(): void {
-		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_IN, {})
+		this.providers.forEach(async (provider) => {
+			provider.setOptIn(true)
+		})
 	}
 
 	/**

@@ -345,23 +345,7 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
-		// Get previous setting to detect state changes
-		const previousSetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
-		const wasOptedIn = previousSetting !== "disabled"
-		const isOptedIn = telemetrySetting !== "disabled"
-
-		// Capture opt-out event BEFORE updating (so it gets sent while telemetry is still enabled)
-		if (wasOptedIn && !isOptedIn) {
-			telemetryService.captureUserOptOut()
-		}
-
-		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
-		await telemetryService.updateTelemetryState(isOptedIn)
-
-		// Capture opt-in event AFTER updating (so telemetry is enabled to receive it)
-		if (!wasOptedIn && isOptedIn) {
-			telemetryService.captureUserOptIn()
-		}
+		await telemetryService.updateTelemetryState(telemetrySetting)
 
 		await this.postStateToWebview()
 	}
