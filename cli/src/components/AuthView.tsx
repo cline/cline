@@ -360,9 +360,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const handleProviderSelect = useCallback(
 		(value: string) => {
 			setSelectedProvider(value)
-			if (value === "cline") {
-				startClineAuth()
-			} else if (value === "openai-codex") {
+			if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
 			} else if (value === "bedrock") {
@@ -371,7 +369,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("apikey")
 			}
 		},
-		[startClineAuth, startOpenAiCodexAuth],
+		[startOpenAiCodexAuth],
 	)
 
 	const handleApiKeySubmit = useCallback(
