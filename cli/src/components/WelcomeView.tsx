@@ -8,7 +8,7 @@ import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiProvider } from "@/shared/api"
-import { getProviderDefaultModelId, getProviderModelIdKey, Mode } from "@/shared/storage"
+import { getProviderDefaultModelId, getProviderModelIdKey, Mode, SettingsKey } from "@/shared/storage"
 import { useStdinContext } from "../context/StdinContext"
 import {
 	checkAndWarnRipgrepMissing,
@@ -79,7 +79,10 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 	const modelId = useMemo(() => {
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
-		return (stateManager.getGlobalSettingsKey(modelKey as string) as string) || getProviderDefaultModelId(provider)
+		return (
+			(stateManager.getGlobalSettingsKey(modelKey as SettingsKey) as string) ||
+			getProviderDefaultModelId(provider as ApiProvider)
+		)
 	}, [mode, provider])
 
 	const toggleMode = useCallback(() => {

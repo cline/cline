@@ -1,0 +1,252 @@
+---
+title: "Interactive Mode"
+description: "Master the interactive CLI with keyboard shortcuts, slash commands, and file mentions"
+---
+
+Interactive mode is the primary way to work with Cline CLI when you want a collaborative, conversational experience. Unlike headless mode (which runs a single task and exits), interactive mode keeps a session open where you can have back-and-forth conversations with Cline, refine your requests, and guide the AI as it works.
+
+## Why Use Interactive Mode?
+
+Interactive mode is ideal when you:
+
+- **Don't know exactly what you need yet** - Explore a codebase, ask questions, and let Cline help you understand the architecture before making changes
+- **Want to review before acting** - Toggle Plan mode to see Cline's strategy, then switch to Act mode when you're ready
+- **Need iterative refinement** - Build on previous responses, ask follow-up questions, and guide Cline to the right solution
+- **Prefer human oversight** - Review each action, approve file changes, and maintain control over what Cline does
+- **Working on complex tasks** - Multi-step refactoring, debugging sessions, or feature development that requires judgment calls
+
+For automated workflows, scripts, or CI/CD pipelines, see [headless mode](/cline-cli/overview#headless-mode-non-interactive) instead.
+
+## Prerequisites
+
+Before using interactive mode, you need to have Cline CLI installed and authenticated. If you haven't done this yet, follow the [Installation & Setup guide](/cline-cli/installation) first.
+
+## Launching Interactive Mode
+
+Start interactive mode by running `cline` without any arguments:
+
+```bash
+cline
+```
+
+You'll see an animated welcome screen with the Cline robot. Start typing your task in the input field at the bottom of the screen.
+
+## Keyboard Shortcuts
+
+Keyboard shortcuts are the primary way to navigate and control the interactive CLI. Since there's no mouse interaction in the terminal, learning these shortcuts will help you work efficiently and switch between modes, manage input, and control your session without breaking your flow.
+
+### Mode Controls
+
+| Shortcut | Action |
+|----------|--------|
+| `Tab` | Toggle between Plan and Act mode |
+| `Shift+Tab` | Toggle auto-approve all actions |
+| `Esc` | Exit or cancel current operation |
+
+### Input Controls
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Submit your message |
+| `↑` / `↓` | Navigate message history |
+| `Home` / `End` | Move cursor to start/end of line |
+| `Ctrl+A` | Move cursor to beginning |
+| `Ctrl+E` | Move cursor to end |
+| `Ctrl+W` | Delete word before cursor |
+| `Ctrl+U` | Delete entire line |
+
+### Session Controls
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+C` | Exit with session summary |
+
+## File Mentions with @
+
+Reference files from your workspace by typing `@` followed by the filename:
+
+```
+@src/utils.ts can you add error handling to this file?
+```
+
+As you type after `@`, Cline shows a fuzzy search dropdown of matching files. Use arrow keys to navigate and `Enter` to select.
+
+<Tip>
+File search uses ripgrep for fast, fuzzy matching. You can type partial paths like `@utils` to find `src/utils/helpers.ts`.
+</Tip>
+
+### Multiple File Mentions
+
+Include multiple files in a single message:
+
+```
+Compare @src/old-api.ts with @src/new-api.ts and list the breaking changes
+```
+
+## Slash Commands
+
+Type `/` to see available commands. Slash commands provide quick access to settings, history, and workflows.
+
+### Built-in Commands
+
+| Command | Description |
+|---------|-------------|
+| `/settings` | Open the settings panel |
+| `/models` | Quick model switching |
+| `/history` | Browse and resume previous tasks |
+| `/clear` | Start a fresh task (clears current conversation) |
+| `/help` | Show help and available commands |
+| `/exit` | Exit the CLI |
+
+### Workflow Commands
+
+If you have [workflows](/features/slash-commands/workflows/index) configured, they appear as additional slash commands. For example, if you have a workflow named `code-review`, you can invoke it with:
+
+```
+/code-review
+```
+
+## Settings Panel
+
+Access the settings panel with `/settings`. Navigate between tabs using arrow keys.
+
+| Tab | Description | Settings |
+|-----|-------------|----------|
+| **API** | Configure your AI provider and model | Provider selection, model choice, extended thinking toggle, thinking budget |
+| **Auto-approve** | Control which actions Cline can perform without prompting | Read files, write files, execute commands, browser actions, MCP tools |
+| **Features** | Toggle Cline capabilities | Hooks, skills, auto-compact, sound notifications |
+| **Account** | Manage your Cline account | View account status, sign in/out, manage subscription |
+| **Other** | Additional preferences | Theme preferences, debug options |
+
+## Plan and Act Modes
+
+Cline operates in two modes, toggled with `Tab`. These modes work the same way in the CLI as they do in the VS Code extension. For a deeper explanation of how Plan and Act modes work, see the [Plan and Act documentation](/features/plan-and-act).
+
+### Plan Mode
+
+In Plan mode, Cline analyzes your request and creates a strategy before making changes. Use this when:
+- Exploring a new codebase
+- Working on complex refactoring
+- You want to review the approach first
+
+### Act Mode
+
+In Act mode, Cline executes tasks directly. Use this when:
+- You're confident in the task
+- Making straightforward changes
+- Running quick operations
+
+<Tip>
+Press `Tab` anytime to switch modes. Starting in Plan mode and switching to Act after reviewing is a common workflow.
+</Tip>
+
+## Auto-approve Toggle
+
+Press `Shift+Tab` to toggle auto-approve for all actions. This removes the approval prompts that appear before each action, letting Cline work continuously without interruption.
+
+### When to Enable Auto-approve
+
+Auto-approve is useful when:
+- **You trust the task** - Well-defined tasks where you're confident in the outcome
+- **Speed matters** - Long-running tasks where constant approvals slow you down
+- **You're watching anyway** - You can see Cline's work in real-time and can interrupt if needed
+- **Iterating quickly** - Rapid prototyping where you want to see results fast
+
+### What Gets Auto-approved
+
+When enabled, these actions happen without prompting:
+- File reads
+- File writes  
+- Command execution
+- Browser actions
+- MCP tool calls
+
+You can also configure granular auto-approve settings (e.g., auto-approve reads but not writes) via `/settings` → Auto-approve tab, or see the [Auto-approve documentation](/features/auto-approve) for more details.
+
+<Warning>
+Auto-approve gives Cline full autonomy. Use on a clean git branch so you can easily revert changes if needed. You can always press `Ctrl+C` to stop Cline immediately.
+</Warning>
+
+## Session Summary
+
+When you exit with `Ctrl+C`, Cline displays a session summary showing:
+- Tasks completed
+- Files modified
+- Commands executed
+- Token usage
+
+This helps you track what was accomplished during your session.
+
+## Running Multiple Instances
+
+By default, all CLI instances share the same settings and state. However, you may want to run isolated instances with separate configurations for scenarios like:
+
+- **Different models for different tasks** - Use a fast, cheap model for quick questions in one terminal and a more capable model for complex refactoring in another
+- **Separate work and personal projects** - Keep API keys, rules, and task history isolated between contexts
+- **Testing configuration changes** - Experiment with new settings without affecting your main setup
+- **Team vs. individual settings** - Use shared team configuration for work projects and personal preferences for side projects
+
+To run isolated instances, use the `--config` flag with different directories:
+
+```bash
+# Work instance with team configuration
+cline --config ~/.cline-work
+
+# Personal instance with different model/provider
+cline --config ~/.cline-personal
+
+# Experimental instance for testing new settings
+cline --config ~/.cline-test
+```
+
+Each config directory maintains its own provider settings, API keys, task history, and preferences.
+
+<Tip>
+Use terminal multiplexers like tmux or split terminals to run multiple Cline instances in parallel, each working on different parts of your project with different models or settings.
+</Tip>
+
+## Tips for Effective Usage
+
+### Start with Context
+
+Give Cline context about what you're working on:
+
+```
+I'm building a REST API with Express. The routes are in @src/routes/ and models in @src/models/. Help me add user authentication.
+```
+
+### Use Plan Mode for Exploration
+
+When you're unsure about the best approach:
+
+```
+[Tab to Plan mode]
+How should I structure the database schema for a multi-tenant SaaS app?
+```
+
+### Iterate with Follow-ups
+
+The interactive CLI maintains conversation context. Build on previous messages:
+
+```
+> Add a login endpoint
+[Cline creates the endpoint]
+
+> Now add rate limiting to it
+[Cline modifies the same endpoint]
+
+> Add tests for both features
+[Cline creates test files]
+```
+
+## Next Steps
+
+<Columns cols={2}>
+  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
+    Learn about interactive mode, direct execution, and automation patterns.
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+    Explore `cline config` and advanced configuration options.
+  </Card>
+</Columns>

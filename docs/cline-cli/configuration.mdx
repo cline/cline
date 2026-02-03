@@ -1,0 +1,278 @@
+---
+title: "Configuration"
+description: "Manage Cline CLI settings with cline config, environment variables, and configuration files"
+---
+
+Cline CLI provides multiple ways to configure settings, from the interactive `cline config` command to environment variables for automation.
+
+## The Config Command
+
+Launch the configuration interface:
+
+```bash
+cline config
+```
+
+This opens an interactive view with tabs for different configuration categories.
+
+## Configuration Tabs
+
+Navigate between tabs using arrow keys.
+
+### Settings Tab
+
+View and edit global and workspace-specific settings:
+
+- **Global State**: Settings that apply across all workspaces
+- **Workspace State**: Settings specific to the current directory
+
+### Rules Tab
+
+Manage Cline rules that guide AI behavior:
+
+- **`.clinerules` files**: Project-specific rules in your workspace
+- **Cursor rules**: Import rules from Cursor editor format
+- **Windsurf rules**: Import rules from Windsurf editor format
+
+Rules help Cline understand your project's conventions, coding standards, and preferences.
+
+### Workflows Tab
+
+View and manage [workflows](/features/slash-commands/workflows/index):
+
+- List available workflows
+- View workflow definitions
+- Workflows appear as slash commands in interactive mode
+
+### Hooks Tab
+
+Configure [hooks](/features/hooks/index) for custom logic integration:
+
+- Enable/disable hooks globally
+- View configured hook scripts
+- Hooks run at key points in Cline's workflow
+
+<Note>
+Hooks must be enabled via settings. Use `cline config` to toggle `hooks-enabled`.
+</Note>
+
+### Skills Tab
+
+Manage [skills](/features/skills) that extend Cline's capabilities:
+
+- View available skills
+- Enable/disable specific skills
+- Skills provide specialized instructions for specific tasks
+
+## Configuration Directory
+
+Cline stores configuration in `~/.cline/data/`:
+
+```
+~/.cline/
+├── data/                    # Configuration directory
+│   ├── globalState.json     # Global settings
+│   ├── secrets.json         # API keys (encrypted)
+│   ├── workspace/           # Workspace-specific state
+│   └── tasks/               # Task history and data
+└── log/                     # Log files
+```
+
+### Viewing Logs
+
+For debugging, view the log file:
+
+```bash
+cline dev log
+```
+
+This opens the log file in your default editor.
+
+## Environment Variables
+
+### CLINE_DIR
+
+Override the default configuration directory:
+
+```bash
+export CLINE_DIR=/custom/path/to/cline
+cline "your task"
+```
+
+When set, all Cline data is stored in this directory instead of `~/.cline/data/`.
+
+**Use cases:**
+- Running multiple isolated Cline configurations
+- Team-shared configurations
+- CI/CD with custom state directories
+
+### CLINE_COMMAND_PERMISSIONS
+
+Restrict which shell commands Cline can execute:
+
+```bash
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *"]}'
+```
+
+**Format:**
+
+```json
+{
+  "allow": ["pattern1", "pattern2"],
+  "deny": ["pattern3"],
+  "allowRedirects": true
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allow` | `string[]` | Glob patterns for allowed commands. If set, only matching commands are permitted. |
+| `deny` | `string[]` | Glob patterns for denied commands. Deny rules take precedence over allow. |
+| `allowRedirects` | `boolean` | Whether to allow shell redirects (`>`, `>>`, `<`). Default: `false` |
+
+**Examples:**
+
+```bash
+# Allow only npm and git commands
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"]}'
+
+# Allow dev commands but deny dangerous ones
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *", "node *"], "deny": ["rm -rf *", "sudo *"]}'
+
+# Allow file operations with redirects
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["cat *", "echo *"], "allowRedirects": true}'
+```
+
+<Warning>
+When `allow` is set, all commands not matching the allow patterns are denied. Use this for security-sensitive environments.
+</Warning>
+
+## Using --config Flag
+
+Run Cline with a custom configuration directory:
+
+```bash
+cline --config /path/to/custom/config "your task"
+```
+
+This is useful for:
+- Running isolated Cline instances
+- Testing different configurations
+- Separating work and personal setups
+
+**Example: Multiple configurations**
+
+```bash
+# Work configuration
+cline --config ~/.cline-work "review this PR"
+
+# Personal projects
+cline --config ~/.cline-personal "help me with this side project"
+```
+
+## Configuration for Local Providers
+
+### Ollama
+
+Configure context window size for Ollama:
+
+```bash
+# In settings or via config
+cline config
+# Navigate to Settings tab, find ollama-api-options-ctx-num
+```
+
+Or set via environment:
+
+```bash
+# Set context window to 32K tokens
+cline -m ollama/llama3 "your task"
+```
+
+### LM Studio
+
+Configure max tokens for LM Studio:
+
+```bash
+cline config
+# Navigate to Settings tab, find lm-studio-max-tokens
+```
+
+## Importing Configuration
+
+### From VS Code Extension
+
+If you use the Cline VS Code extension, the CLI automatically detects and can share some settings. However, the CLI maintains its own configuration for terminal-specific features.
+
+### From Other CLI Tools
+
+See [Installation & Setup](/cline-cli/installation#option-3-import-from-existing-tools) for importing configurations from:
+- Codex CLI
+- OpenCode
+
+## Configuration Best Practices
+
+### For Development
+
+Use the default configuration with workspace-specific rules:
+
+```bash
+# Add project-specific rules
+echo "Use TypeScript strict mode" > .clinerules/typescript.md
+```
+
+### For CI/CD
+
+Use environment variables and `--yolo` mode:
+
+```bash
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm test", "npm run build"]}'
+cline -y "run tests and fix any failures"
+```
+
+### For Teams
+
+Share configuration via version control:
+
+```bash
+# Commit .clinerules/ to your repo
+git add .clinerules/
+git commit -m "Add Cline rules for team"
+```
+
+## Troubleshooting
+
+### Configuration Not Persisting
+
+1. Check write permissions on `~/.cline/data/`
+2. Ensure `CLINE_DIR` isn't set to a read-only location
+3. Verify the config directory exists
+
+### Environment Variables Not Working
+
+1. Ensure variables are exported: `export CLINE_DIR=/path`
+2. Check for typos in variable names
+3. Verify JSON syntax for `CLINE_COMMAND_PERMISSIONS`
+
+### Reset Configuration
+
+To start fresh, remove the configuration directory:
+
+```bash
+rm -rf ~/.cline/data/
+cline auth  # Re-authenticate
+```
+
+## Next Steps
+
+<Columns cols={2}>
+  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
+    Learn about interactive mode, direct execution, and automation patterns.
+  </Card>
+  
+  <Card title="CLI Reference" icon="terminal" href="/cline-cli/cli-reference">
+    Complete command documentation with all flags and options.
+  </Card>
+</Columns>

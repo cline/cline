@@ -423,7 +423,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return stateManager.getGlobalSettingsKey("mode") || "act"
 	})
 
-	const [yolo, setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
+	const [yolo, _setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
 	const [autoApproveAll, setAutoApproveAll] = useState<boolean>(
 		() => StateManager.get().getGlobalSettingsKey("autoApproveAllToggled") ?? false,
 	)
@@ -455,7 +455,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!provider) return ""
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
-		return (stateManager.getGlobalSettingsKey(modelKey as string) as string) || ""
+		return (stateManager.getGlobalSettingsKey(modelKey) as string) || ""
 	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {

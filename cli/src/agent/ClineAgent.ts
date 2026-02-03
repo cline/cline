@@ -337,9 +337,7 @@ export class ClineAgent implements acp.Agent {
 
 		// Use provider-specific model ID key (e.g., cline uses actModeOpenRouterModelId)
 		const modelKey = currentProvider ? getProviderModelIdKey(currentProvider, mode) : null
-		const currentModelId = modelKey
-			? (stateManager.getGlobalSettingsKey(modelKey as string) as string | undefined)
-			: undefined
+		const currentModelId = modelKey ? stateManager.getGlobalSettingsKey(modelKey) : undefined
 
 		// Build the current model ID in provider/model format
 		const currentFullModelId =

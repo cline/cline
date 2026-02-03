@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
-// @ts-expect-error - @vscode/ripgrep has no type declarations
 import { rgPath } from "@vscode/ripgrep"
 
 const data = process.env.CLINE_DATA_DIR ?? path.join(os.homedir(), ".cline", "data")
