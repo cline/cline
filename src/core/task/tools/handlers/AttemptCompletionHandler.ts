@@ -29,7 +29,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const result = uiHelpers.removeClosingTag(block, "result", block.params.result)
 		if (result) {
-			await uiHelpers.say("completion_result", result, undefined, undefined, true)
+			await uiHelpers.say("completion_result", result, undefined, undefined, block.partial)
 		}
 		// We will handle command in the final execution step
 	}
