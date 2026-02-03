@@ -157,9 +157,10 @@ export class OpenRouterHandler implements ApiHandler {
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-expect-error-next-line
 					totalCost:
+						// @ts-expect-error-next-line
 						(chunk.usage.cost || 0) +
+						// @ts-expect-error-next-line
 						(chunk.usage.is_byok ? chunk.usage.cost_details?.upstream_inference_cost || 0 : 0),
 				}
 				didOutputUsage = true
