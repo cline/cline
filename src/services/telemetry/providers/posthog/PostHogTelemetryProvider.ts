@@ -116,11 +116,15 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	public isEnabled(): boolean {
 		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") === "enabled"
 		const wasOptedIn = this.optInCache
-		if (isOptedIn && !wasOptedIn) {
-			this.client.optIn()
-		}
-		if (!isOptedIn && wasOptedIn) {
-			this.client.optOut()
+		try {
+			if (isOptedIn && !wasOptedIn) {
+				this.client.optIn()
+			}
+			if (!isOptedIn && wasOptedIn) {
+				this.client.optOut()
+			}
+		} catch (err) {
+			Logger.error("Failed to update the PostHog telemetry state", err)
 		}
 		this.optInCache = isOptedIn
 
