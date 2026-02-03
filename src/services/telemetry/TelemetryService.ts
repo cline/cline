@@ -395,26 +395,27 @@ export class TelemetryService {
 			}
 		}
 
-		// Capture telemetry state change events BEFORE updating providers
-		// This ensures we can track opt-out events before telemetry is disabled
-		const wasEnabled = this.isEnabled()
-
-		if (!didUserOptIn && wasEnabled) {
-			// User is opting OUT - use captureRequired to bypass the opt-out check
-			// since we need to send this event before telemetry is disabled
-			this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
-		}
-
 		// Update all providers
 		this.providers.forEach((provider) => {
 			provider.setOptIn(didUserOptIn)
 		})
+	}
 
-		// Capture opt-in event AFTER updating providers (telemetry is now enabled)
-		if (didUserOptIn && !wasEnabled) {
-			// User is opting back IN - capture after enabling so the event goes through
-			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		}
+	/**
+	 * Captures when a user explicitly opts out of telemetry.
+	 * Uses captureRequired to ensure the event is sent before telemetry is disabled.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptOut(): void {
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+	}
+
+	/**
+	 * Captures when a user explicitly opts back into telemetry.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptIn(): void {
+		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
 	}
 
 	/**
