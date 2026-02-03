@@ -73,6 +73,8 @@ export interface ITelemetryProvider {
 	 */
 	isEnabled(): boolean
 
+	setOptIn(optIn: boolean): Promise<void>
+
 	/**
 	 * Get current telemetry settings
 	 */

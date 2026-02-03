@@ -395,6 +395,10 @@ export class TelemetryService {
 					})
 			}
 		}
+
+		this.providers.forEach(async (provider) => {
+			provider.setOptIn(didUserOptIn)
+		})
 	}
 
 	/**

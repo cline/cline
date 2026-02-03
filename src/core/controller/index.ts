@@ -356,7 +356,7 @@ export class Controller {
 		}
 
 		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
-		telemetryService.updateTelemetryState(isOptedIn)
+		await telemetryService.updateTelemetryState(isOptedIn)
 
 		// Capture opt-in event AFTER updating (so telemetry is enabled to receive it)
 		if (!wasOptedIn && isOptedIn) {

@@ -1,4 +1,5 @@
 import { ClineEndpoint } from "@/config"
+import { StateManager } from "@/core/storage/StateManager"
 import {
 	getValidOpenTelemetryConfig,
 	getValidRuntimeOpenTelemetryConfig,
@@ -146,16 +147,34 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 	private isOptIn = true
 
 	log(_event: string, _properties?: TelemetryProperties): void {
-		Logger.log(`[NoOpTelemetryProvider] ${_event}: ${JSON.stringify(_properties)}`)
+		if (this.isEnabled()) {
+			Logger.log(`[NoOpTelemetryProvider] ${_event}: ${JSON.stringify(_properties)}`)
+		}
 	}
 	logRequired(_event: string, _properties?: TelemetryProperties): void {
 		Logger.log(`[NoOpTelemetryProvider] REQUIRED ${_event}: ${JSON.stringify(_properties)}`)
 	}
 	identifyUser(_userInfo: any, _properties?: TelemetryProperties): void {
-		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
+		if (this.isEnabled()) {
+			Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
+		}
 	}
 	isEnabled(): boolean {
-		return false
+		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
+		const wasOptedIn = this.isOptIn
+		try {
+			if (isOptedIn && !wasOptedIn) {
+				Logger.info("User opted in to PostHog telemetry")
+			}
+			if (!isOptedIn && wasOptedIn) {
+				Logger.info("User opted out to PostHog telemetry")
+			}
+		} catch (err) {
+			Logger.error("Failed to update the PostHog telemetry state", err)
+		}
+		this.isOptIn = isOptedIn
+
+		return isOptedIn
 	}
 	getSettings(): TelemetrySettings {
 		return {

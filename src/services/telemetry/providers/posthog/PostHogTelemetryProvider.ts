@@ -16,7 +16,6 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
-	private optInCache: boolean
 
 	readonly name = "PostHogTelemetryProvider"
 
@@ -33,11 +32,11 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			}
 			this.client = new PostHog(posthogConfig.apiKey, {
 				host: posthogConfig.host,
+				defaultOptIn: StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled",
 			})
 		}
 
 		// Initialize telemetry settings
-		this.optInCache = true
 		this.telemetrySettings = {
 			hostEnabled: true,
 			level: "all",
@@ -51,17 +50,16 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 				onResponse: (event: { isEnabled: Setting }) => {
 					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
 					this.telemetrySettings.hostEnabled = hostEnabled
+					this.telemetrySettings.level = hostEnabled ? this.telemetrySettings.level : "off"
 				},
 			},
 		)
 
 		// Check host-specific telemetry setting (e.g. VS Code setting)
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			this.telemetrySettings.hostEnabled = false
-		}
+		this.telemetrySettings.hostEnabled = hostSettings.isEnabled !== Setting.DISABLED
+		this.telemetrySettings.level = getErrorLevelFromString(hostSettings.errorLevel)
 
-		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
 	}
 
@@ -113,22 +111,24 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
-	public isEnabled(): boolean {
-		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
-		const wasOptedIn = this.optInCache
+	public async setOptIn(optIn: boolean): Promise<void> {
 		try {
-			if (isOptedIn && !wasOptedIn) {
-				this.client.optIn()
+			const wasOptedIn = !this.client.optedOut
+			if (wasOptedIn && !optIn) {
+				await this.client.optIn()
+				Logger.info("[PostHogTelemetryProvider] Client opted in")
 			}
-			if (!isOptedIn && wasOptedIn) {
-				this.client.optOut()
+			if (!wasOptedIn && optIn) {
+				await this.client.optOut()
+				Logger.info("[PostHogTelemetryProvider] Client opted out")
 			}
 		} catch (err) {
 			Logger.error("Failed to update the PostHog telemetry state", err)
 		}
-		this.optInCache = isOptedIn
+	}
 
-		return isOptedIn && this.telemetrySettings.hostEnabled
+	public isEnabled(): boolean {
+		return !this.client.optedOut && this.telemetrySettings.hostEnabled && this.telemetrySettings.level !== "off"
 	}
 
 	public getSettings(): TelemetrySettings {
@@ -141,8 +141,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 */
 	public recordCounter(
 		name: string,
-		value: number,
-		attributes?: TelemetryProperties,
+		_value: number,
+		_attributes?: TelemetryProperties,
 		_description?: string,
 		required = false,
 	): void {
@@ -204,16 +204,5 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 				Logger.error("Error shutting down PostHog client:", error)
 			}
 		}
-	}
-
-	/**
-	 * Get the current telemetry level from VS Code settings
-	 */
-	private async getTelemetryLevel(): Promise<TelemetrySettings["level"]> {
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			return "off"
-		}
-		return getErrorLevelFromString(hostSettings.errorLevel)
 	}
 }

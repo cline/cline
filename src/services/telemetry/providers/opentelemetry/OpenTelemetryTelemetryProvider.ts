@@ -19,6 +19,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private meter: Meter | null = null
 	private logger: OTELLogger | null = null
 	private telemetrySettings: TelemetrySettings
+	private optInCache: boolean
 	private userAttributes: Record<string, string> = {}
 	// Lazy instrument caches for metrics
 	private counters = new Map<string, ReturnType<Meter["createCounter"]>>()
@@ -42,6 +43,8 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			hostEnabled: true,
 			level: "all",
 		}
+
+		this.optInCache = StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
@@ -71,17 +74,16 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 				onResponse: (event: { isEnabled: Setting }) => {
 					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
 					this.telemetrySettings.hostEnabled = hostEnabled
+					this.telemetrySettings.level = hostEnabled ? this.telemetrySettings.level : "off"
 				},
 			},
 		)
 
 		// Check host-specific telemetry setting (e.g. VS Code setting)
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			this.telemetrySettings.hostEnabled = false
-		}
+		this.telemetrySettings.hostEnabled = hostSettings.isEnabled !== Setting.DISABLED
+		this.telemetrySettings.level = getErrorLevelFromString(hostSettings.errorLevel)
 
-		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
 	}
 
@@ -166,10 +168,18 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		return (
-			this.bypassUserSettings ||
-			(StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled" && this.telemetrySettings.hostEnabled)
-		)
+		if (this.telemetrySettings.hostEnabled === false || this.telemetrySettings.level === "off") {
+			return false
+		}
+
+		return this.bypassUserSettings || this.optInCache
+	}
+
+	public async setOptIn(optIn: boolean): Promise<void> {
+		this.optInCache = optIn
+		// OpenTelemetry does not have built-in opt-in/out handling.
+		// This method is a no-op to satisfy the interface.
+		return Promise.resolve()
 	}
 
 	public getSettings(): TelemetrySettings {
@@ -303,21 +313,6 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	public async dispose(): Promise<void> {
 		// OpenTelemetry client provider handles shutdown
 		// Individual providers don't need to do anything
-	}
-
-	/**
-	 * Get the current telemetry level from VS Code settings
-	 */
-	private async getTelemetryLevel(): Promise<TelemetrySettings["level"]> {
-		if (this.bypassUserSettings) {
-			return "all"
-		}
-
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			return "off"
-		}
-		return getErrorLevelFromString(hostSettings.errorLevel)
 	}
 
 	/**

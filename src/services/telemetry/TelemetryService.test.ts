@@ -176,8 +176,16 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const isEnabled = posthogProvider.isEnabled()
 			const settings = posthogProvider.getSettings()
 
-			console.log("PostHog Provider enabled:", isEnabled)
-			console.log("PostHog Provider settings:", settings)
+			// Check that PostHog provider is enabled based on configuration
+			assert.strictEqual(isEnabled, true, "PostHog provider should be enabled based on configuration")
+			assert.deepStrictEqual(
+				settings,
+				{
+					hostEnabled: true,
+					level: "info",
+				},
+				"PostHog provider should return correct settings",
+			)
 
 			await posthogProvider.dispose()
 		})
