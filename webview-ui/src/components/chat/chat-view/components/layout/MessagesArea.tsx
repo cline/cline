@@ -14,6 +14,8 @@ interface MessagesAreaProps {
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
+	isReasoningActive?: boolean
+	isWaitingForContent?: boolean
 }
 
 /**
@@ -27,6 +29,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	scrollBehavior,
 	chatState,
 	messageHandlers,
+	isReasoningActive,
+	isWaitingForContent,
 }) => {
 	const { clineMessages } = useExtensionState()
 
@@ -110,7 +114,21 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable grow overflow-y-scroll"
 					components={{
-						Footer: () => <div className="min-h-1" />, // Add empty padding at the bottom
+						Footer: () => (
+							<div>
+								{/* Show "Working..." or "Thinking..." at bottom of chat stream */}
+								{(isWaitingForContent || isReasoningActive) && (
+									<div className="pl-[16px] -mt-2">
+										<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
+											<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+												{isWaitingForContent ? "Working..." : "Thinking..."}
+											</span>
+										</div>
+									</div>
+								)}
+								<div className="min-h-1" />
+							</div>
+						),
 					}}
 					data={groupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row
