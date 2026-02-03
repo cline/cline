@@ -3,14 +3,12 @@
  * Handles interactive authentication and provider configuration
  */
 
-import type { OcaAuthState } from "@shared/proto/cline/oca_account"
 import { Box, Text, useApp, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
-import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import type { ApiProvider } from "@/shared/api"
 import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
@@ -18,6 +16,7 @@ import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
+import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -169,6 +168,41 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
 
+	// OCA auth hook - enabled when step is oca_auth
+	const handleOcaAuthSuccess = useCallback(async () => {
+		const stateManager = StateManager.get()
+		const mode = stateManager.getGlobalSettingsKey("mode") || "act"
+		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const modelIdKey = getProviderModelIdKey("oca" as ApiProvider, mode as "act" | "plan")
+		const config: Record<string, string> = {
+			actModeApiProvider: "oca",
+			planModeApiProvider: "oca",
+			[providerKey]: "oca",
+		}
+		if (modelIdKey) {
+			config[modelIdKey] = liteLlmDefaultModelId
+		}
+		stateManager.setApiConfiguration(config)
+		stateManager.setGlobalState("welcomeViewCompleted", true)
+		await stateManager.flushPendingState()
+
+		setSelectedProvider("oca")
+		setModelId(liteLlmDefaultModelId)
+		setStep("success")
+	}, [])
+
+	const handleOcaAuthError = useCallback((error: Error) => {
+		setErrorMessage(error.message)
+		setStep("error")
+	}, [])
+
+	const { startAuth: initiateOcaAuth } = useOcaAuth({
+		controller,
+		enabled: step === "oca_auth",
+		onSuccess: handleOcaAuthSuccess,
+		onError: handleOcaAuthError,
+	})
+
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const sortedProviders = useMemo(() => {
 		return getProviderOrder().filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
@@ -285,52 +319,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [step, controller])
 
-	// Subscribe to auth status updates when in oca_auth step
-	useEffect(() => {
-		if (step !== "oca_auth") {
-			return
-		}
-
-		let cancelled = false
-
-		// Create a streaming response handler that receives auth state updates
-		const responseHandler = async (authState: OcaAuthState, _isLast?: boolean) => {
-			if (cancelled) {
-				return
-			}
-
-			if (authState.user?.uid) {
-				// Auth succeeded - save configuration and transition to success
-				const stateManager = StateManager.get()
-				const mode = stateManager.getGlobalSettingsKey("mode") || "act"
-				const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-				const modelIdKey = getProviderModelIdKey("oca" as ApiProvider, mode as "act" | "plan")
-				const config: Record<string, string> = {
-					actModeApiProvider: "oca",
-					planModeApiProvider: "oca",
-					[providerKey]: "oca",
-				}
-				if (modelIdKey) {
-					config[modelIdKey] = liteLlmDefaultModelId
-				}
-				stateManager.setApiConfiguration(config)
-				stateManager.setGlobalState("welcomeViewCompleted", true)
-				await stateManager.flushPendingState()
-
-				setSelectedProvider("oca")
-				setModelId(liteLlmDefaultModelId)
-				setStep("success")
-			}
-		}
-
-		// Subscribe to OCA auth status updates
-		OcaAuthService.getInstance().subscribeToAuthStatusUpdate({}, responseHandler, `cli-oca-auth-${Date.now()}`)
-
-		return () => {
-			cancelled = true
-		}
-	}, [step])
-
 	// Start OpenAI Codex OAuth flow
 	const startOpenAiCodexAuth = useCallback(async () => {
 		try {
@@ -383,17 +371,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		}
 	}, [controller])
 
-	const startOcaAuth = useCallback(async () => {
-		try {
-			setStep("oca_auth")
-			setAuthStatus("Starting authentication...")
-			OcaAuthService.initialize(controller)
-			await OcaAuthService.getInstance().createAuthRequest()
-		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : String(error))
-			setStep("error")
-		}
-	}, [controller])
+	const startOcaAuth = useCallback(() => {
+		setStep("oca_auth")
+		setAuthStatus("Starting authentication...")
+		initiateOcaAuth()
+	}, [initiateOcaAuth])
 
 	const handleMainMenuSelect = useCallback(
 		(value: string) => {
