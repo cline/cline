@@ -177,6 +177,7 @@ export abstract class HookRunner<Name extends HookName> {
 	 * - timestamp: Execution time in milliseconds since epoch
 	 * - workspaceRoots: Array of workspace folder paths
 	 * - userId: Cline user ID, machine ID, or generated UUID
+	 * - modelId: Currently selected provider and model in "provider:modelId" format
 	 *
 	 * This separation allows hook scripts to receive consistent metadata without
 	 * requiring callers to manually provide it each time.
@@ -185,16 +186,31 @@ export abstract class HookRunner<Name extends HookName> {
 	 * @returns Complete HookInput ready to be serialized and sent to the hook script
 	 */
 	protected async completeParams(params: NamedHookInput<Name>): Promise<HookInput> {
-		const workspaceRoots =
-			StateManager.get()
-				.getGlobalStateKey("workspaceRoots")
-				?.map((root) => root.path) || []
+		const stateManager = StateManager.get()
+		const workspaceRoots = stateManager.getGlobalStateKey("workspaceRoots")?.map((root) => root.path) || []
+
+		// Build modelId in "provider:modelId" format (e.g., "cline:openai/gpt-5.2")
+		// The current mode determines which provider/model settings to use.
+		// Treat any unrecognized value as "act" to avoid surprising behavior.
+		const rawMode = stateManager.getGlobalSettingsKey("mode")
+		const mode = rawMode === "plan" || rawMode === "act" ? rawMode : "act"
+		const provider =
+			mode === "plan"
+				? stateManager.getGlobalSettingsKey("planModeApiProvider")
+				: stateManager.getGlobalSettingsKey("actModeApiProvider")
+		const modelIdValue =
+			mode === "plan"
+				? stateManager.getGlobalSettingsKey("planModeApiModelId")
+				: stateManager.getGlobalSettingsKey("actModeApiModelId")
+		const formattedModelId = provider && modelIdValue ? `${provider}:${modelIdValue}` : provider || modelIdValue || ""
+
 		return {
 			clineVersion,
 			hookName: this.hookName,
 			timestamp: Date.now().toString(),
 			workspaceRoots,
 			userId: getDistinctId(), // Always available: Cline User ID, machine ID, or generated UUID
+			modelId: formattedModelId,
 			...params,
 		}
 	}

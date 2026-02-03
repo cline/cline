@@ -47,6 +47,24 @@ describe("Hook System", () => {
 				}
 				return undefined
 			},
+			getGlobalSettingsKey: (key: string) => {
+				if (key === "mode") {
+					return "act"
+				}
+				if (key === "actModeApiProvider") {
+					return "anthropic"
+				}
+				if (key === "actModeApiModelId") {
+					return "claude-sonnet-4-20250514"
+				}
+				if (key === "planModeApiProvider") {
+					return "anthropic"
+				}
+				if (key === "planModeApiModelId") {
+					return "claude-sonnet-4-20250514"
+				}
+				return undefined
+			},
 		} as any)
 
 		// Reset hook discovery cache for clean test state
@@ -416,6 +434,135 @@ console.log(JSON.stringify({
 			})
 
 			result.contextModification!.should.equal("All fields present")
+		})
+	})
+
+	describe("Model ID in Hook Input", () => {
+		const restubStateManagerGet = (overrides: {
+			mode?: "plan" | "act"
+			actModeApiProvider?: string
+			actModeApiModelId?: string
+			planModeApiProvider?: string
+			planModeApiModelId?: string
+		}): void => {
+			// Replace only this stub; avoid sandbox.restore() which can unintentionally
+			// remove unrelated stubs/mocks within the test.
+			;(StateManager.get as sinon.SinonStub).restore()
+			sandbox.stub(StateManager, "get").returns({
+				getGlobalStateKey: (key: string) => {
+					if (key === "workspaceRoots") {
+						return [{ path: tempDir }]
+					}
+					if (key === "primaryRootIndex") {
+						return 0
+					}
+					return undefined
+				},
+				getGlobalSettingsKey: (key: string) => {
+					if (key === "mode") return overrides.mode ?? "act"
+					if (key === "actModeApiProvider") return overrides.actModeApiProvider ?? "anthropic"
+					if (key === "actModeApiModelId") return overrides.actModeApiModelId ?? "claude-sonnet-4-20250514"
+					if (key === "planModeApiProvider") return overrides.planModeApiProvider ?? "anthropic"
+					if (key === "planModeApiModelId") return overrides.planModeApiModelId ?? "claude-sonnet-4-20250514"
+					return undefined
+				},
+			} as any)
+		}
+
+		it("should include modelId in hook input with format provider:modelId", async () => {
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "Model ID: " + input.modelId
+}))`
+
+			await writeHookScript(hookPath, hookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			// Default mock returns anthropic:claude-sonnet-4-20250514
+			result.contextModification!.should.equal("Model ID: anthropic:claude-sonnet-4-20250514")
+		})
+
+		it("should include modelId with cline provider format (cline:anthropic/claude-sonnet-4.5)", async () => {
+			restubStateManagerGet({
+				mode: "act",
+				actModeApiProvider: "cline",
+				actModeApiModelId: "anthropic/claude-sonnet-4.5",
+				planModeApiProvider: "cline",
+				planModeApiModelId: "anthropic/claude-sonnet-4.5",
+			})
+
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "Model ID: " + input.modelId
+}))`
+
+			await writeHookScript(hookPath, hookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			result.contextModification!.should.equal("Model ID: cline:anthropic/claude-sonnet-4.5")
+		})
+
+		it("should use plan mode provider/model when in plan mode", async () => {
+			restubStateManagerGet({
+				mode: "plan",
+				actModeApiProvider: "anthropic",
+				actModeApiModelId: "claude-sonnet-4-20250514",
+				planModeApiProvider: "cline",
+				planModeApiModelId: "openai/gpt-5.2",
+			})
+
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "Model ID: " + input.modelId
+}))`
+
+			await writeHookScript(hookPath, hookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			// Should use plan mode provider/model since mode is "plan"
+			result.contextModification!.should.equal("Model ID: cline:openai/gpt-5.2")
 		})
 	})
 
