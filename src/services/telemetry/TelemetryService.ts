@@ -409,6 +409,12 @@ export class TelemetryService {
 		this.providers.forEach((provider) => {
 			provider.setOptIn(didUserOptIn)
 		})
+
+		// Capture opt-in event AFTER updating providers (telemetry is now enabled)
+		if (didUserOptIn && !wasEnabled) {
+			// User is opting back IN - capture after enabling so the event goes through
+			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		}
 	}
 
 	/**
