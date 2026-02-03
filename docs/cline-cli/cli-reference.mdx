@@ -3,6 +3,8 @@ title: "CLI Reference"
 description: "Complete command reference for Cline CLI including all commands, flags, and configuration options"
 ---
 
+# CLI Reference
+
 This page documents all available commands, flags, and configuration options for Cline CLI. For quick help in your terminal, use:
 
 ```bash
@@ -29,6 +31,27 @@ These options work with any command:
 | `-c, --cwd <path>` | Set the working directory for the task |
 | `-v, --verbose` | Show detailed output including model reasoning |
 | `--help` | Show help for the command |
+
+## Modes of Operation
+
+Cline CLI automatically detects the best output mode based on how you invoke it:
+
+| Mode | When Activated | Description |
+|------|----------------|-------------|
+| **Interactive** | `cline` with no args, TTY connected | Rich terminal UI with real-time streaming, keyboard shortcuts, and visual feedback. |
+| **Task** | `cline "prompt"` with TTY connected | Interactive UI starts immediately with your task. |
+| **Plain Text** | stdin piped, stdout redirected, or `--yolo`/`--json` flags | Clean text output without UI, suitable for scripting and CI/CD. |
+
+## Agent Behavior
+
+Cline operates in two primary modes that control how it approaches tasks:
+
+| Mode | Description |
+|------|-------------|
+| **Act Mode** (default) | Cline actively uses tools to accomplish tasks. It can read files, write code, execute commands, use a headless browser, and more. |
+| **Plan Mode** | Cline gathers information and creates a detailed plan before implementation. It explores the codebase, asks clarifying questions, and presents a strategy for your approval before switching to Act Mode. |
+
+Use `-a, --act` or `-p, --plan` flags to explicitly set the mode.
 
 ## Commands
 
