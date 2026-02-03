@@ -39,6 +39,7 @@ import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -118,6 +119,7 @@ export class Controller {
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
+		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
@@ -343,9 +345,24 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
-		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		// Get previous setting to detect state changes
+		const previousSetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+		const wasOptedIn = previousSetting !== "disabled"
 		const isOptedIn = telemetrySetting !== "disabled"
+
+		// Capture opt-out event BEFORE updating (so it gets sent while telemetry is still enabled)
+		if (wasOptedIn && !isOptedIn) {
+			telemetryService.captureUserOptOut()
+		}
+
+		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		telemetryService.updateTelemetryState(isOptedIn)
+
+		// Capture opt-in event AFTER updating (so telemetry is enabled to receive it)
+		if (!wasOptedIn && isOptedIn) {
+			telemetryService.captureUserOptIn()
+		}
+
 		await this.postStateToWebview()
 	}
 
@@ -851,7 +868,6 @@ export class Controller {
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
-		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -861,7 +877,8 @@ export class Controller {
 		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		// Spread to create new array reference - React needs this to detect changes in useEffect dependencies
+		const clineMessages = [...(this.task?.messageStateHandler.getClineMessages() || [])]
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
@@ -969,7 +986,6 @@ export class Controller {
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
-			skillsEnabled,
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			banners,
 			openAiCodexIsAuthenticated,

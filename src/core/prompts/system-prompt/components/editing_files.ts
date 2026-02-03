@@ -2,6 +2,20 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
+const AUTO_FORMATTING_SECTION = `# Auto-formatting Considerations
+
+- After using either write_to_file or replace_in_file, the user's editor may automatically format the file
+- This auto-formatting may modify the file contents, for example:
+  - Breaking single lines into multiple lines
+  - Adjusting indentation to match project style (e.g. 2 spaces vs 4 spaces vs tabs)
+  - Converting single quotes to double quotes (or vice versa based on project preferences)
+  - Organizing imports (e.g. sorting, grouping by type)
+  - Adding/removing trailing commas in objects and arrays
+  - Enforcing consistent brace style (e.g. same-line vs new-line)
+  - Standardizing semicolon usage (adding or removing based on style)
+- The write_to_file and replace_in_file tool responses will include the final state of the file after any auto-formatting
+- Use this final state as your reference point for any subsequent edits. This is ESPECIALLY important when crafting SEARCH blocks for replace_in_file which require the content to match what's in the file exactly.`
+
 const EDITING_FILES_TEMPLATE_TEXT = `EDITING FILES
 
 You have access to two tools for working with files: **write_to_file** and **replace_in_file**. Understanding their roles and selecting the right one for the job will help ensure efficient and accurate modifications.
@@ -52,19 +66,7 @@ You have access to two tools for working with files: **write_to_file** and **rep
   - The file is relatively small and the changes affect most of its content
   - You're generating boilerplate or template files
 
-# Auto-formatting Considerations
-
-- After using either write_to_file or replace_in_file, the user's editor may automatically format the file
-- This auto-formatting may modify the file contents, for example:
-  - Breaking single lines into multiple lines
-  - Adjusting indentation to match project style (e.g. 2 spaces vs 4 spaces vs tabs)
-  - Converting single quotes to double quotes (or vice versa based on project preferences)
-  - Organizing imports (e.g. sorting, grouping by type)
-  - Adding/removing trailing commas in objects and arrays
-  - Enforcing consistent brace style (e.g. same-line vs new-line)
-  - Standardizing semicolon usage (adding or removing based on style)
-- The write_to_file and replace_in_file tool responses will include the final state of the file after any auto-formatting
-- Use this final state as your reference point for any subsequent edits. This is ESPECIALLY important when crafting SEARCH blocks for replace_in_file which require the content to match what's in the file exactly.
+{{AUTO_FORMATTING_SECTION}}
 
 # Workflow Tips
 
@@ -78,5 +80,10 @@ By thoughtfully selecting between write_to_file and replace_in_file, you can mak
 export async function getEditingFilesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const template = variant.componentOverrides?.[SystemPromptSection.EDITING_FILES]?.template || EDITING_FILES_TEMPLATE_TEXT
 
-	return new TemplateEngine().resolve(template, context, {})
+	// Skip auto-formatting section for CLI since there's no IDE to auto-format files
+	const autoFormattingSection = context.isCliEnvironment ? "" : AUTO_FORMATTING_SECTION
+
+	return new TemplateEngine().resolve(template, context, {
+		AUTO_FORMATTING_SECTION: autoFormattingSection,
+	})
 }

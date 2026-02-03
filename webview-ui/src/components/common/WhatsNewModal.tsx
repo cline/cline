@@ -54,16 +54,24 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 	)
 
 	const navigateToModelPicker = useCallback(
-		(initialModelTab: "recommended" | "free") => {
+		(initialModelTab: "recommended" | "free", modelId?: string) => {
 			// Switch to Cline provider first so the model picker tab works
-			handleFieldsChange({
+			// Optionally also set the model if provided
+			const updates: Record<string, any> = {
 				planModeApiProvider: "cline",
 				actModeApiProvider: "cline",
-			})
+			}
+			if (modelId) {
+				updates.planModeOpenRouterModelId = modelId
+				updates.actModeOpenRouterModelId = modelId
+				updates.planModeOpenRouterModelInfo = openRouterModels[modelId]
+				updates.actModeOpenRouterModelInfo = openRouterModels[modelId]
+			}
+			handleFieldsChange(updates)
 			onClose()
 			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 		},
-		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
 	const setOpenAiCodexProvider = useCallback(() => {
@@ -105,13 +113,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 
 	type InlineModelLinkProps =
 		| { type: "model"; modelId: string; label: string }
-		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
+		| { type: "picker"; pickerTab: "recommended" | "free"; modelId: string; label: string }
 
 	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
 		if (props.type === "picker") {
 			return (
 				<span
-					onClick={() => navigateToModelPicker(props.pickerTab)}
+					onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
 					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 					{props.label}
 				</span>
@@ -149,14 +157,47 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
-							model.{" "}
-							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
+							5M installs, <strong>$1M Open Source Grant program</strong>, and the story of how we got here{" "}
+							<a
+								href="https://cline.bot/blog/5m-installs-1m-open-source-grant-program"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								Read it
+							</a>
+						</li>
+						<li className="mb-2">
+							New free models:
+							<ul className="list-none pl-5 mt-1">
+								<li>
+									<strong>Arcee Trinity Large open weight</strong>{" "}
+									<InlineModelLink
+										label="Try free"
+										modelId="arcee-ai/trinity-large-preview:free"
+										pickerTab="free"
+										type="picker"
+									/>
+								</li>
+								<li>
+									<strong>Giga Potato stealth</strong>{" "}
+									<InlineModelLink
+										label="Try free"
+										modelId="stealth/giga-potato"
+										pickerTab="free"
+										type="picker"
+									/>
+								</li>
+							</ul>
 						</li>
 						<li className="mb-2">
 							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
 							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+							<InlineModelLink
+								label="Try now"
+								modelId="moonshotai/kimi-k2.5"
+								pickerTab="recommended"
+								type="picker"
+							/>
 						</li>
 						<li className="mb-2">
 							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
@@ -166,11 +207,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 								Connect
 							</span>
-						</li>
-						<li>
-							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
-							there are plenty models in our free tier.{" "}
-							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
 						</li>
 					</ul>
 
