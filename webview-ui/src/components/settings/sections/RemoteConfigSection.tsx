@@ -1,6 +1,8 @@
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
+import { RemoteConfigToggle } from "@/components/account/RemoteConfigToggle"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
@@ -247,37 +249,21 @@ function PromptUploadingSection() {
 	)
 }
 
-function ConfiguredProvidersSection() {
-	const { remoteConfigSettings } = useExtensionState()
-
-	const providers = remoteConfigSettings?.remoteConfiguredProviders
-	if (!providers || providers.length === 0) {
-		return null
-	}
-
-	return (
-		<div className="mb-4">
-			<h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-				<i className="codicon codicon-server" />
-				Configured Providers
-			</h4>
-			<div className="bg-vscode-textBlockQuote-background rounded p-3">
-				<div className="flex flex-wrap gap-2">
-					{providers.map((provider) => (
-						<span
-							className="px-2 py-1 bg-vscode-badge-background text-vscode-badge-foreground rounded text-xs"
-							key={provider}>
-							{provider}
-						</span>
-					))}
-				</div>
-			</div>
-		</div>
-	)
-}
-
 export function RemoteConfigSection({ renderSectionHeader }: RemoteConfigSectionProps) {
-	const { remoteConfigSettings } = useExtensionState()
+	const { remoteConfigSettings, optOutOfRemoteConfig } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
+
+	if (optOutOfRemoteConfig) {
+		return (
+			<BaseRemoteConfigSection renderSectionHeader={renderSectionHeader}>
+				<div className="flex flex-col justify-center gap-4">
+					<h3>You have opted out of remote config. Opt back in to apply it and see it here.</h3>
+
+					<RemoteConfigToggle activeOrganization={activeOrganization} />
+				</div>
+			</BaseRemoteConfigSection>
+		)
+	}
 
 	if (!remoteConfigSettings || Object.keys(remoteConfigSettings).length === 0) {
 		return (
@@ -303,7 +289,6 @@ export function RemoteConfigSection({ renderSectionHeader }: RemoteConfigSection
 
 				<OtelSettingsSection />
 				<PromptUploadingSection />
-				<ConfiguredProvidersSection />
 
 				<div className="mt-2">
 					<RefreshButton />
