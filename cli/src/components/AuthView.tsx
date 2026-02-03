@@ -20,6 +20,7 @@ import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
+import { applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
@@ -170,26 +171,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
-		const stateManager = StateManager.get()
-		const mode = stateManager.getGlobalSettingsKey("mode") || "act"
-		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const modelIdKey = getProviderModelIdKey("oca" as ApiProvider, mode as "act" | "plan")
-		const config: Record<string, string> = {
-			actModeApiProvider: "oca",
-			planModeApiProvider: "oca",
-			[providerKey]: "oca",
-		}
-		if (modelIdKey) {
-			config[modelIdKey] = liteLlmDefaultModelId
-		}
-		stateManager.setApiConfiguration(config)
-		stateManager.setGlobalState("welcomeViewCompleted", true)
-		await stateManager.flushPendingState()
-
+		await applyProviderConfig({ providerId: "oca", controller })
+		StateManager.get().setGlobalState("welcomeViewCompleted", true)
 		setSelectedProvider("oca")
 		setModelId(liteLlmDefaultModelId)
 		setStep("success")
-	}, [])
+	}, [controller])
 
 	const handleOcaAuthError = useCallback((error: Error) => {
 		setErrorMessage(error.message)
@@ -288,22 +275,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			}
 
 			if (authState.user && authState.user.email) {
-				// Auth succeeded - save configuration and transition to success
-				const stateManager = StateManager.get()
-				const mode = stateManager.getGlobalSettingsKey("mode") || "act"
-				const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-				// Use provider-specific model ID key (cline uses OpenRouterModelId)
-				const modelIdKey = getProviderModelIdKey("cline" as ApiProvider, mode as "act" | "plan")
-				const config: Record<string, string> = {
-					actModeApiProvider: "cline",
-					[providerKey]: "cline",
-				}
-				if (modelIdKey) {
-					config[modelIdKey] = openRouterDefaultModelId
-				}
-				stateManager.setApiConfiguration(config)
-				stateManager.flushPendingState()
-
+				// Auth succeeded - save configuration and transition to model selection
+				await applyProviderConfig({ providerId: "cline", controller })
 				setSelectedProvider("cline")
 				setModelId(openRouterDefaultModelId)
 				setStep("cline_model")
@@ -332,23 +305,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			await openAiCodexOAuthManager.waitForCallback()
 
 			// Success - save configuration
-			const stateManager = StateManager.get()
-			const mode = stateManager.getGlobalSettingsKey("mode") || "act"
-			const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-			// Use provider-specific model ID key (openai-codex uses generic apiModelId)
-			const modelIdKey = getProviderModelIdKey("openai-codex" as ApiProvider, mode as "act" | "plan")
-			const config: Record<string, string> = {
-				actModeApiProvider: "openai-codex",
-				planModeApiProvider: "openai-codex",
-				[providerKey]: "openai-codex",
-			}
-			if (modelIdKey) {
-				config[modelIdKey] = openAiCodexDefaultModelId
-			}
-			stateManager.setApiConfiguration(config)
-			stateManager.setGlobalState("welcomeViewCompleted", true)
-			await stateManager.flushPendingState()
-
+			await applyProviderConfig({ providerId: "openai-codex", controller })
+			StateManager.get().setGlobalState("welcomeViewCompleted", true)
 			setSelectedProvider("openai-codex")
 			setModelId(openAiCodexDefaultModelId)
 			setStep("success")
