@@ -141,6 +141,22 @@ export interface RequirementVerificationsResponse {
 	error?: string
 }
 
+export interface RequirementTest {
+	requirement_id: string
+	test_name: string
+	test_description: string
+	test_code: string
+	status: 'pass' | 'fail' | 'error'
+	output: string
+}
+
+export interface RequirementTestsResponse {
+	success: boolean
+	tests: RequirementTest[]
+	test_file?: string
+	error?: string
+}
+
 export function validateExecuteTaskRequest(body: any): {
 	valid: boolean
 	error?: string

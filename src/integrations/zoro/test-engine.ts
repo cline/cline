@@ -1,11 +1,13 @@
 import { execSync } from "child_process"
 import * as path from "path"
 import * as fs from "fs"
-import { executeThroughCline, getWorkspaceDirectory } from "./cline-execution"
-import { EnforcementRequest, EnforcementResponse } from "./types"
+import { executeThroughCline, getWorkspaceDirectory, loadChatHistory } from "./cline-execution"
+import { EnforcementRequest, EnforcementResponse, RequirementTestsResponse, RequirementTest } from "./types"
 import { getExecuteTestPrompt } from "./prompts/generate-test"
+import { getTestSubstepRequirementsPrompt } from "./prompts/test-substep-requirements"
 
 const TEST_SUBSTEP_SYSTEM_PROMPT = "You are a code execution assistant. Use tools to make observations to fix the gaps identified. You will ultimately be writing unit tests."
+const TEST_REQUIREMENTS_SYSTEM_PROMPT = "You are a test generation assistant. Write comprehensive tests for specific requirements."
 
 export async function generateAndRunTests(request: EnforcementRequest, verification: EnforcementResponse): Promise<any> {
     try {
@@ -220,4 +222,204 @@ export function generateRequestId(request: any): string {
         timestamp: Math.floor(Date.now() / 10000),
     })
     return Buffer.from(key).toString("base64").substring(0, 32)
+}
+
+export async function testSubstepRequirements(
+    chatId: string,
+    nodeId: string,
+    targetId: string,
+    stepDescription: string,
+    substepDescription: string,
+    requirements: Array<{ id: string; description: string; category: string }>,
+): Promise<RequirementTestsResponse> {
+    console.log("[test-engine] 🧪 Testing", requirements.length, "requirements")
+
+    try {
+        // 1. Validate inputs
+        if (requirements.length === 0) {
+            return {
+                success: false,
+                error: "No requirements provided",
+                tests: [],
+            }
+        }
+
+        // 2. Build test file path
+        const workspaceDir = getWorkspaceDirectory()
+        const testFileName = `${nodeId}-${targetId}_test.py`
+        const testFilePath = path.join(".zoro", "generated", "assistant", chatId, "test", testFileName)
+        const absoluteTestPath = path.join(workspaceDir, testFilePath)
+
+        console.log("[test-engine] Test file:", testFilePath)
+
+        // 3. Read existing test file if exists
+        const existingTestFile = fs.existsSync(absoluteTestPath)
+            ? fs.readFileSync(absoluteTestPath, "utf-8")
+            : undefined
+
+        console.log(
+            "[test-engine]",
+            existingTestFile ? `Updating ${requirements.length} tests` : `Creating ${requirements.length} new tests`,
+        )
+
+        // 4. Load chat history
+        const chatHistory = await loadChatHistory(chatId)
+
+        // 5. Build prompt
+        const prompt = getTestSubstepRequirementsPrompt(
+            stepDescription,
+            substepDescription,
+            requirements,
+            workspaceDir,
+            testFilePath,
+            chatHistory,
+            existingTestFile,
+        )
+
+        // 6. PHASE 1: Investigation (3 iterations)
+        console.log("[test-engine] PHASE 1: Investigating implementation")
+        let messages = await executeThroughCline(prompt, TEST_REQUIREMENTS_SYSTEM_PROMPT, 3)
+
+        // 7. PHASE 2: Write/update test file (3 iterations)
+        console.log("[test-engine] PHASE 2: Writing test file")
+        messages.push({
+            role: "user",
+            content: [
+                {
+                    type: "text",
+                    text: `Now write the complete test file to: ${testFilePath}
+
+${existingTestFile ? "Update the existing test methods for the specified requirements and preserve all other code." : "Create a complete test file with all requirements."}
+
+Use the write_to_file tool. This is CRITICAL.`,
+                },
+            ],
+        })
+        messages = await executeThroughCline("", TEST_REQUIREMENTS_SYSTEM_PROMPT, 3, messages)
+
+        // 8. Validate syntax
+        if (!fs.existsSync(absoluteTestPath)) {
+            console.log("[test-engine] ⚠️ Test file was not created")
+            return {
+                success: false,
+                error: "Test file was not created",
+                tests: [],
+            }
+        }
+
+        console.log("[test-engine] PHASE 3: Validating syntax")
+        try {
+            execSync(`python -m py_compile "${absoluteTestPath}"`, {
+                cwd: workspaceDir,
+                encoding: "utf-8",
+            })
+            console.log("[test-engine] ✓ Syntax valid")
+        } catch (syntaxError: any) {
+            console.error("[test-engine] Syntax error:", syntaxError.message)
+            return {
+                success: false,
+                error: `Syntax error in generated test: ${syntaxError.message}`,
+                tests: [],
+                test_file: testFilePath,
+            }
+        }
+
+        // 9. Run selective tests
+        console.log("[test-engine] PHASE 4: Running selective tests")
+        const testResults = await runSelectiveTests(absoluteTestPath, workspaceDir, requirements)
+
+        console.log(`[test-engine] ✅ Completed ${testResults.length} tests`)
+
+        return {
+            success: true,
+            tests: testResults,
+            test_file: testFilePath,
+        }
+    } catch (error) {
+        console.error("[test-engine] Test requirements error:", error)
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+            tests: [],
+        }
+    }
+}
+
+async function runSelectiveTests(
+    testFilePath: string,
+    workspaceDir: string,
+    requirements: Array<{ id: string; description: string; category: string }>,
+): Promise<RequirementTest[]> {
+    console.log("[test-engine] Running tests for requirements:", requirements.map((r) => r.id).join(", "))
+
+    try {
+        // Build pytest filter pattern with exact matching
+        const pattern = requirements.map((r) => `test_${r.id.replace(/-/g, "_")}_`).join(" or ")
+
+        console.log("[test-engine] Test filter pattern:", pattern)
+
+        // Run pytest with filter
+        const output = execSync(`python "${testFilePath}"`, {
+            cwd: workspaceDir,
+            env: {
+                ...process.env,
+                PYTHONPATH: workspaceDir,
+            },
+            encoding: "utf-8",
+            maxBuffer: 10 * 1024 * 1024,
+            timeout: 120000,
+        })
+
+        // Parse results
+        return parseRequirementTestResults(output, requirements)
+    } catch (error: any) {
+        console.error("[test-engine] Test execution failed:", error)
+
+        // Try to extract partial results
+        const output = error.stdout || error.output?.[1] || ""
+        if (output) {
+            const partialResults = parseRequirementTestResults(output, requirements)
+            if (partialResults.length > 0) {
+                console.log("[test-engine] Extracted partial results:", partialResults.length)
+                return partialResults
+            }
+        }
+
+        // Return empty results on complete failure
+        return []
+    }
+}
+
+function parseRequirementTestResults(
+    output: string,
+    requirements: Array<{ id: string; description: string; category: string }>,
+): RequirementTest[] {
+    const results: RequirementTest[] = []
+    const lines = output.split("\n")
+
+    for (const line of lines) {
+        if (line.includes("TEST_RESULT:")) {
+            try {
+                const jsonStr = line.split("TEST_RESULT:")[1].trim()
+                const parsed = JSON.parse(jsonStr)
+
+                // Only include results that match our requirement IDs
+                if (parsed.requirement_id && requirements.some((r) => r.id === parsed.requirement_id)) {
+                    results.push({
+                        requirement_id: parsed.requirement_id,
+                        test_name: parsed.name || "unknown",
+                        test_description: parsed.description || "",
+                        test_code: parsed.test_code || "",
+                        status: parsed.status || "error",
+                        output: parsed.output || parsed.description || "",
+                    })
+                }
+            } catch (parseError) {
+                console.warn("[test-engine] Failed to parse TEST_RESULT line:", line)
+            }
+        }
+    }
+
+    console.log(`[test-engine] Parsed ${results.length} requirement test results`)
+    return results
 }
