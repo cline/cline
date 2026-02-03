@@ -775,6 +775,12 @@ program
 		// Always check for piped stdin content
 		const stdinInput = await readStdinIfPiped()
 
+		// Error if stdin was piped but empty (e.g., `echo "" | cline`)
+		if (stdinInput === "") {
+			printWarning("Empty input received from stdin. Please provide content to process.")
+			exit(1)
+		}
+
 		// If no prompt argument, check if input is piped via stdin
 		let effectivePrompt = prompt
 		if (stdinInput) {

@@ -40,7 +40,10 @@ export async function readStdinIfPiped(): Promise<string | null> {
 
 		process.stdin.on("end", () => {
 			clearTimeout(timeout)
-			resolve(data.trim() || null)
+			// Return empty string (not null) when stdin was piped but empty
+			// This allows callers to distinguish between "no piped input" (null)
+			// and "empty piped input" ("") for proper error handling
+			resolve(data.trim())
 		})
 
 		process.stdin.on("error", () => {
