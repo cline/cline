@@ -1559,8 +1559,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		)
 	}
 
+	// Determine if we're in a subpage (picker, editor, or waiting state)
+	const isSubpage =
+		isPickingProvider ||
+		isPickingModel ||
+		isPickingFeaturedModel ||
+		isPickingLanguage ||
+		isEnteringApiKey ||
+		isConfiguringBedrock ||
+		isWaitingForCodexAuth ||
+		!!codexAuthError ||
+		isPickingOrganization ||
+		isWaitingForClineAuth ||
+		isEditing
+
 	return (
-		<Panel currentTab={currentTab} label="Settings" tabs={TABS}>
+		<Panel currentTab={currentTab} isSubpage={isSubpage} label="Settings" tabs={TABS}>
 			{renderContent()}
 		</Panel>
 	)
