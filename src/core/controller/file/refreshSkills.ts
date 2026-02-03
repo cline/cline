@@ -1,5 +1,6 @@
 import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
 import fs from "fs/promises"
+import os from "os"
 import path from "path"
 import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
@@ -94,8 +95,11 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
 	const primaryWorkspace = workspacePaths.paths[0]
 
-	// Scan global skills
+	// Scan global skills from ~/.cline/skills and ~/.agents/skills
 	const globalSkills = await scanSkillsDirectory(globalSkillsDir)
+	const agentsGlobalDir = path.join(os.homedir(), ".agents", "skills")
+	const agentsGlobalSkills = await scanSkillsDirectory(agentsGlobalDir)
+	globalSkills.push(...agentsGlobalSkills)
 
 	// Get global toggles and apply them
 	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}
@@ -110,6 +114,7 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 			path.join(primaryWorkspace, ".clinerules", "skills"),
 			path.join(primaryWorkspace, ".cline", "skills"),
 			path.join(primaryWorkspace, ".claude", "skills"),
+			path.join(primaryWorkspace, ".agents", "skills"),
 		]
 
 		for (const dir of localDirs) {
