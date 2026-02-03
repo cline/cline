@@ -145,6 +145,11 @@ jobs:
                   cd webview-ui
                   npm run test:coverage
 
+            - name: CLI Tests
+              id: cli_tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: cd cli && npm run test:run
+
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
               # Only upload artifacts on Linux - We only need coverage from one OS

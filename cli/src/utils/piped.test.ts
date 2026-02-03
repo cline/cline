@@ -1,37 +1,56 @@
-import * as fs from "node:fs"
+import { EventEmitter } from "node:events"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { readStdinIfPiped } from "./piped"
 
-// Mock the fs module
-vi.mock("node:fs", () => ({
-	readFileSync: vi.fn(),
-}))
-
 describe("readStdinIfPiped", () => {
-	const mockReadFileSync = fs.readFileSync as ReturnType<typeof vi.fn>
-	let originalIsTTY: boolean | undefined
+	let originalStdin: typeof process.stdin
+	let mockStdin: EventEmitter & {
+		isTTY?: boolean
+		setEncoding: ReturnType<typeof vi.fn>
+		resume: ReturnType<typeof vi.fn>
+	}
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-		originalIsTTY = process.stdin.isTTY
+		originalStdin = process.stdin
+
+		// Create a mock stdin
+		mockStdin = Object.assign(new EventEmitter(), {
+			isTTY: undefined as boolean | undefined,
+			setEncoding: vi.fn(),
+			resume: vi.fn(),
+		})
 	})
 
 	afterEach(() => {
 		vi.restoreAllMocks()
-		// Restore original isTTY value
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: originalIsTTY,
+		// Restore original stdin
+		Object.defineProperty(process, "stdin", {
+			value: originalStdin,
 			writable: true,
 			configurable: true,
 		})
 	})
 
 	function setTTY(value: boolean | undefined) {
-		Object.defineProperty(process.stdin, "isTTY", {
-			value,
+		mockStdin.isTTY = value
+		Object.defineProperty(process, "stdin", {
+			value: mockStdin,
 			writable: true,
 			configurable: true,
 		})
+	}
+
+	function emitData(data: string) {
+		mockStdin.emit("data", data)
+	}
+
+	function emitEnd() {
+		mockStdin.emit("end")
+	}
+
+	function emitError(error: Error) {
+		mockStdin.emit("error", error)
 	}
 
 	describe("TTY detection", () => {
@@ -39,16 +58,18 @@ describe("readStdinIfPiped", () => {
 			setTTY(true)
 			const result = await readStdinIfPiped()
 			expect(result).toBeNull()
-			expect(mockReadFileSync).not.toHaveBeenCalled()
 		})
 
 		it("should attempt to read when stdin is not a TTY (piped input)", async () => {
 			setTTY(false)
-			mockReadFileSync.mockReturnValue("")
 
-			const result = await readStdinIfPiped()
-			expect(result).toBeNull()
-			expect(mockReadFileSync).toHaveBeenCalledWith(0, "utf8")
+			const promise = readStdinIfPiped()
+			emitEnd()
+			const result = await promise
+
+			expect(result).toBe("")
+			expect(mockStdin.setEncoding).toHaveBeenCalledWith("utf8")
+			expect(mockStdin.resume).toHaveBeenCalled()
 		})
 	})
 
@@ -76,14 +97,14 @@ describe("readStdinIfPiped", () => {
 			{
 				name: "empty string",
 				input: "",
-				expected: null,
-				description: "should return null for empty input",
+				expected: "",
+				description: "should return empty string for empty input",
 			},
 			{
 				name: "whitespace only",
 				input: "   \n  \t  \n   ",
-				expected: null,
-				description: "should return null for whitespace-only input",
+				expected: "",
+				description: "should return empty string for whitespace-only input",
 			},
 			{
 				name: "leading and trailing whitespace",
@@ -127,25 +148,25 @@ describe("readStdinIfPiped", () => {
 			it(`${name}${description ? ` - ${description}` : ""}`, async () => {
 				setTTY(false)
 				const data = Array.isArray(input) ? input.join("\n") : input
-				mockReadFileSync.mockReturnValue(data)
 
-				const result = await readStdinIfPiped()
+				const promise = readStdinIfPiped()
+				emitData(data)
+				emitEnd()
+				const result = await promise
+
 				expect(result).toBe(expected)
 			})
 		})
 	})
 
 	describe("error handling", () => {
-		it("should return null on fs.readFileSync error and fall back to async", async () => {
+		it("should return null on stdin error", async () => {
 			setTTY(false)
-			mockReadFileSync.mockImplementation(() => {
-				throw new Error("EAGAIN: resource temporarily unavailable")
-			})
 
-			// The async fallback will timeout since we can't easily mock process.stdin events
-			// But we can verify it doesn't throw
-			const result = await readStdinIfPiped()
-			// Result will be null because async path times out with no data
+			const promise = readStdinIfPiped()
+			emitError(new Error("EAGAIN: resource temporarily unavailable"))
+			const result = await promise
+
 			expect(result).toBeNull()
 		})
 	})
@@ -188,9 +209,12 @@ describe("readStdinIfPiped", () => {
 		useCases.forEach(({ name, input, expected }) => {
 			it(`should handle ${name}`, async () => {
 				setTTY(false)
-				mockReadFileSync.mockReturnValue(input)
 
-				const result = await readStdinIfPiped()
+				const promise = readStdinIfPiped()
+				emitData(input)
+				emitEnd()
+				const result = await promise
+
 				expect(result).toBe(expected)
 			})
 		})
