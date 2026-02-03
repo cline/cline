@@ -68,7 +68,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ width }) => {
 	return (
 		<Box borderColor="gray" borderStyle="single" flexDirection="column" paddingX={1} width={width}>
 			{/* Header */}
-			<Box marginBottom={1}>
+			<Box>
 				<Text bold>Interaction Summary</Text>
 			</Box>
 
@@ -99,7 +99,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ width }) => {
 			</Box>
 
 			{/* Performance Header */}
-			<Box marginBottom={0}>
+			<Box marginTop={1}>
 				<Text bold>Performance</Text>
 			</Box>
 
@@ -130,7 +130,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ width }) => {
 			</Box>
 
 			{/* Tool Time */}
-			<Box marginBottom={1}>
+			<Box>
 				<Box width={20}>
 					<Text color="gray"> » Tool Time:</Text>
 				</Box>
@@ -141,7 +141,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ width }) => {
 			</Box>
 
 			{/* Resources Header */}
-			<Box marginBottom={0}>
+			<Box marginTop={1}>
 				<Text bold>Resources</Text>
 			</Box>
 
