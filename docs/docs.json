@@ -87,6 +87,8 @@
 						"pages": [
 							"cline-cli/overview",
 							"cline-cli/installation",
+							"cline-cli/interactive-mode",
+							"cline-cli/configuration",
 							"cline-cli/three-core-flows",
 							{
 								"group": "CLI Samples",
@@ -438,6 +440,10 @@
 		{
 			"source": "/features/conditional-rules",
 			"destination": "/features/cline-rules/conditional-rules"
+		},
+		{
+			"source": "/cline-cli/authentication",
+			"destination": "/cline-cli/installation"
 		}
 	],
 	"search": {
