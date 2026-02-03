@@ -43,6 +43,13 @@ jobs:
                   path: webview-ui/node_modules
                   key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
+            - name: Cache cli dependencies
+              uses: actions/cache@v4
+              id: cli-cache
+              with:
+                  path: cli/node_modules
+                  key: ${{ runner.os }}-npm-cli-${{ hashFiles('cli/package-lock.json') }}
+
             - name: Install root dependencies
               run: npm ci
               env:
@@ -50,6 +57,9 @@ jobs:
 
             - name: Install webview-ui dependencies
               run: cd webview-ui && npm ci
+
+            - name: Install cli dependencies
+              run: cd cli && npm ci
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
