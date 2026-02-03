@@ -34,6 +34,7 @@ service StateService {
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
   rpc flushPendingState(EmptyRequest) returns (Empty);
+  rpc refreshRemoteConfig(EmptyRequest) returns (Empty);
 }
 
 message AutoApprovalActions {
