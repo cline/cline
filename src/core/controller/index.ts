@@ -266,6 +266,14 @@ export class Controller {
 		fetchRemoteConfig(this)
 
 		const isParallelTasksEnabled = this.stateManager.getGlobalSettingsKey("parallelTasksEnabled")
+
+		// If parallel tasks is enabled and this task is already active, just switch to it
+		// instead of creating a new Task instance and showing the resume prompt
+		if (isParallelTasksEnabled && historyItem?.id && this.activeTasks.has(historyItem.id)) {
+			await this.switchTask(historyItem.id)
+			return historyItem.id
+		}
+
 		await this.clearTask(this.task, !isParallelTasksEnabled)
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
