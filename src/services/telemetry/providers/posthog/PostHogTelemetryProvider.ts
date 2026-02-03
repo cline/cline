@@ -114,7 +114,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") === "enabled"
+		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
 		const wasOptedIn = this.optInCache
 		try {
 			if (isOptedIn && !wasOptedIn) {

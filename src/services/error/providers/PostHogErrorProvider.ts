@@ -124,7 +124,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 	}
 
 	public isEnabled(): boolean {
-		return StateManager.get().getGlobalSettingsKey("telemetrySetting") && this.errorSettings.hostEnabled
+		return StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled" && this.errorSettings.hostEnabled
 	}
 
 	public getSettings(): ErrorSettings {
