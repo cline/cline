@@ -98,17 +98,14 @@ async function runTrial(scenario: SmokeScenario, modelId: string, trialWorkdir: 
 		fs.cpSync(templateDir, trialWorkdir, { recursive: true })
 	}
 
-	// Build CLI command with explicit provider/model settings for determinism
-	// Note: prompt must come last per CLI usage: cline [prompt] [flags]
+	// Build CLI command with explicit model setting for determinism
+	// Provider is configured via `cline auth` before running tests
 	const args = [
-		"-y", // YOLO mode - auto-approve
-		"-o", // Oneshot - complete and exit
-		// Always pass provider and model explicitly to override any local config
-		"-s",
-		`plan_mode_api_provider=${DEFAULT_PROVIDER}`,
-		"-s",
-		`plan_mode_api_model_id=${modelId}`,
-		scenario.prompt, // Prompt must be last
+		"-y", // YOLO mode - auto-approve all actions, exits after completion
+		"-m",
+		modelId, // Model to use (overrides configured default)
+		"--json", // JSON output for CI parsing
+		scenario.prompt,
 	]
 
 	try {
@@ -308,11 +305,10 @@ async function main() {
 		console.error("ERROR: cline CLI not found in PATH")
 		console.error("")
 		console.error("For local development:")
-		console.error("  Install via: curl -fsSL https://cline.bot/install.sh | bash")
+		console.error("  cd cli && npm install && npm run build && npm link")
 		console.error("")
 		console.error("For CI:")
-		console.error("  Ensure 'npm run protos-go' and 'go build' steps completed")
-		console.error("  Ensure CLI directory is added to $GITHUB_PATH")
+		console.error("  Ensure CLI build and 'npm link' steps completed")
 		process.exit(1)
 	}
 

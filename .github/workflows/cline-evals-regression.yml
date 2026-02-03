@@ -38,27 +38,20 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-          cache-dependency-path: |
-            cli/go.sum
-            go.work.sum
-
       - name: Install dependencies
         run: npm ci
 
       - name: Build CLI and standalone
         run: |
-          npm run compile-cli
-          npm run compile-standalone
+          cd cli && npm install && npm run build
+          cd .. && npm run compile-standalone
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
           name: cline-cli
           path: |
-            cli/bin/
+            cli/
             dist-standalone/
           retention-days: 1
 
@@ -96,14 +89,11 @@ jobs:
 
       - name: Install CLI
         run: |
-          # Create install directory
-          mkdir -p $HOME/.cline/cli/bin
+          # Link CLI globally from built artifacts
+          cd cli && npm link
           
-          # Copy binaries
-          cp cli/bin/cline cli/bin/cline-host $HOME/.cline/cli/bin/
-          chmod +x $HOME/.cline/cli/bin/*
-          
-          # Copy standalone files
+          # Setup standalone runtime
+          mkdir -p $HOME/.cline/cli
           cp -r dist-standalone/* $HOME/.cline/cli/
           
           # Install runtime dependencies
@@ -112,29 +102,23 @@ jobs:
           cp -r node_modules $HOME/.cline/cli/
           cp -r vscode $HOME/.cline/cli/node_modules/
           
-          # Link system Node
-          ln -sf $(which node) $HOME/.cline/cli/bin/node
-          
-          # Rebuild native modules
+          # Rebuild native modules for this platform
           cd $HOME/.cline/cli
           npm rebuild better-sqlite3 > /dev/null 2>&1
           
-          # Verify
-          export PATH="$HOME/.cline/cli/bin:$PATH"
+          # Verify CLI is available
           cline --version
 
       - name: Configure auth
         env:
           CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
-          export PATH="$HOME/.cline/cli/bin:$PATH"
           cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
 
       - name: Run test
         env:
           CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
-          export PATH="$HOME/.cline/cli/bin:$PATH"
           npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --scenario ${{ matrix.scenario }}
 
       - name: Upload results
