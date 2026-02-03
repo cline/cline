@@ -1,6 +1,6 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
-import { ExtensionContext } from "vscode"
+import { ClineExtensionContext } from "@/shared/cline/context"
 import { Logger } from "@/shared/services/Logger"
 
 /*
@@ -14,7 +14,7 @@ let _distinctId: string = ""
  */
 export const _GENERATED_MACHINE_ID_KEY = "cline.generatedMachineId"
 
-export async function initializeDistinctId(context: ExtensionContext, uuid: () => string = uuidv4) {
+export async function initializeDistinctId(context: ClineExtensionContext, uuid: () => string = uuidv4) {
 	// Try to read the ID from storage.
 	let distinctId = context.globalState.get<string>(_GENERATED_MACHINE_ID_KEY)
 

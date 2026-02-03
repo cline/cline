@@ -19,10 +19,11 @@ const STATE_KEYS_PATH = "src/shared/storage/state-keys.ts"
 const STATE_PROTO_PATH = "proto/cline/state.proto"
 
 /**
- * Convert camelCase to snake_case for proto field names
+ * Convert field name to valid snake_case proto field name.
+ * Handles camelCase (apiKey -> api_key) and hyphens (openai-codex -> openai_codex).
  */
-function camelToSnake(str) {
-	return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+function toProtoFieldName(str) {
+	return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).replace(/-/g, "_")
 }
 
 // Fields that should use int64 instead of int32
@@ -321,7 +322,7 @@ function generateProtoMessage(messageName, fields, fieldNumbers) {
 	const sortedFields = [...fields].sort((a, b) => fieldNumbers[a.name] - fieldNumbers[b.name])
 
 	for (const field of sortedFields) {
-		const snakeName = camelToSnake(field.name)
+		const snakeName = toProtoFieldName(field.name)
 		const fieldNum = fieldNumbers[field.name]
 		// Map types cannot have the 'optional' modifier in proto3
 		const prefix = field.protoType.startsWith("map<") ? "" : "optional "

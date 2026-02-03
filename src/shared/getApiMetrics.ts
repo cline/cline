@@ -63,3 +63,30 @@ export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
 
 	return result
 }
+
+/**
+ * Gets the total token count from the last API request.
+ *
+ * This is used for context window progress display - it shows how much of the
+ * context window is used in the current/most recent request, not cumulative totals.
+ *
+ * @param messages - An array of ClineMessage objects to process.
+ * @returns The total tokens (tokensIn + tokensOut + cacheWrites + cacheReads) from the last api_req_started message, or 0 if none found.
+ */
+export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i]
+		if (msg.type === "say" && msg.say === "api_req_started" && msg.text) {
+			try {
+				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
+				const total = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+				if (total > 0) {
+					return total
+				}
+			} catch {
+				// Ignore JSON parse errors, continue searching
+			}
+		}
+	}
+	return 0
+}

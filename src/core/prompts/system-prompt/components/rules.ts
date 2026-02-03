@@ -6,6 +6,8 @@ const BROWSER_RULES = `- The user may ask generic non-development tasks, such as
 
 const BROWSER_WAIT_RULES = ` Then if you want to test your work, you might use browser_action to launch the site, wait for the user's response confirming the site was launched along with a screenshot, then perhaps e.g., click a button to test functionality if needed, wait for the user's response confirming the button was clicked along with a screenshot of the new state, before finally closing the browser.`
 
+const CLI_RULES = `- After making code changes, consider running any available validation tools for the project (such as type checkers, linters, or build scripts like \`npm run lint\`, \`npx tsc --noEmit\`, \`npm run build\`) to catch errors, since you won't receive automatic diagnostics after edits.\n`
+
 const getRulesTemplateText = (context: SystemPromptContext) => `RULES
 
 - Your current working directory is: {{CWD}}
@@ -22,7 +24,7 @@ const getRulesTemplateText = (context: SystemPromptContext) => `RULES
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly.${context.yoloModeToggled !== true ? " If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you." : ""}
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
-{{BROWSER_RULES}}- NEVER end attempt_completion result with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user.
+{{BROWSER_RULES}}{{CLI_RULES}}- NEVER end attempt_completion result with a question or request to engage in further conversation! Formulate the end of your result in a way that is final and does not require further input from the user.
 - You are STRICTLY FORBIDDEN from starting your messages with "Great", "Certainly", "Okay", "Sure". You should NOT be conversational in your responses, but rather direct and to the point. For example you should NOT say "Great, I've updated the CSS" but instead something like "I've updated the CSS". It is important you be clear and technical in your messages.
 - When presented with images, utilize your vision capabilities to thoroughly examine them and extract meaningful information. Incorporate these insights into your thought process as you accomplish the user's task.
 - At the end of each user message, you will automatically receive environment_details. This information is not written by the user themselves, but is auto-generated to provide potentially relevant context about the project structure and environment. While this information can be valuable for understanding the project context, do not treat it as a direct part of the user's request or response. Use it to inform your actions and decisions, but don't assume the user is explicitly asking about or referring to this information unless they clearly do so in their message. When using environment_details, explain your actions clearly to ensure the user understands, as they may not be aware of these details.
@@ -38,10 +40,12 @@ export async function getRulesSection(variant: PromptVariant, context: SystemPro
 
 	const browserRules = context.supportsBrowserUse ? BROWSER_RULES : ""
 	const browserWaitRules = context.supportsBrowserUse ? BROWSER_WAIT_RULES : ""
+	const cliRules = context.isCliEnvironment ? CLI_RULES : ""
 
 	return new TemplateEngine().resolve(template, context, {
 		CWD: context.cwd || process.cwd(),
 		BROWSER_RULES: browserRules,
 		BROWSER_WAIT_RULES: browserWaitRules,
+		CLI_RULES: cliRules,
 	})
 }

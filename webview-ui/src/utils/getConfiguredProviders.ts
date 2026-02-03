@@ -45,6 +45,9 @@ export function getConfiguredProviders(apiConfiguration: ApiConfiguration | unde
 		configured.push("openai-native")
 	}
 
+	// OpenAI Codex - subscription-based OAuth, always available
+	configured.push("openai-codex")
+
 	// DeepSeek - requires API key
 	if (apiConfiguration.deepSeekApiKey) {
 		configured.push("deepseek")

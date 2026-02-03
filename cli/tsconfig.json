@@ -1,0 +1,69 @@
+{
+	"compilerOptions": {
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"jsx": "react",
+		"jsxFactory": "React.createElement",
+		"lib": [
+			"es2022"
+		],
+		"module": "esnext",
+		"moduleResolution": "Bundler",
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": false,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"target": "es2022",
+		"useDefineForClassFields": true,
+		"useUnknownInCatchVariables": false,
+		"paths": {
+			"@/*": [
+				"../src/*"
+			],
+			"@api/*": [
+				"../src/core/api/*"
+			],
+			"@core/*": [
+				"../src/core/*"
+			],
+			"@generated/*": [
+				"../src/generated/*"
+			],
+			"@hosts/*": [
+				"../src/hosts/*"
+			],
+			"@integrations/*": [
+				"../src/integrations/*"
+			],
+			"@packages/*": [
+				"../src/packages/*"
+			],
+			"@services/*": [
+				"../src/services/*"
+			],
+			"@shared/*": [
+				"../src/shared/*"
+			],
+			"@utils/*": [
+				"../src/utils/*"
+			]
+		},
+		"rootDir": "..",
+		"outDir": "dist"
+	},
+	"include": [
+		"src/**/*",
+		"esbuild.mts"
+	],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"*.tgz"
+	]
+}

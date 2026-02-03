@@ -39,6 +39,7 @@ import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -134,6 +135,7 @@ export class Controller {
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
+		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		this.stateManager = StateManager.get()
 		StateManager.get().registerCallbacks({
@@ -894,7 +896,6 @@ export class Controller {
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
-		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -907,8 +908,8 @@ export class Controller {
 		const currentTaskId = this.task?.taskId
 		const currentTaskItem = currentTaskId ? (taskHistory || []).find((item) => item.id === currentTaskId) : undefined
 		const currentTask = currentTaskItem && parallelTasksEnabled ? this.activeTasks.get(currentTaskId!) : this.task
-		const clineMessages = currentTask?.messageStateHandler.getClineMessages() || []
-		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
+		const clineMessages = [...(currentTask?.messageStateHandler.getClineMessages() || [])]
+		const checkpointManagerErrorMessage = currentTask?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
@@ -1025,7 +1026,6 @@ export class Controller {
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
-			skillsEnabled,
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			banners,
 			openAiCodexIsAuthenticated,

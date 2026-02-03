@@ -48,6 +48,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Print HEAD commit
+        run: |
+          echo "HEAD is at: $(git rev-parse HEAD)"
+          echo "Short: $(git rev-parse --short HEAD)"
+          git log -1 --format="Commit: %H%nAuthor: %an <%ae>%nDate: %ad%nMessage: %s"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -269,7 +275,13 @@ jobs:
 
           After your investigation, post a single helpful comment that helps the author and gives maintainers context.
 
-          Start with a warm thank you for their contribution. Be conversational, not robotic.
+          Start by noting the commit hash you reviewed:
+          ```bash
+          git rev-parse --short HEAD
+          ```
+          Include this at the top of your comment: "Reviewed at commit: <short hash>"
+
+          Then thank them for their contribution. Be conversational, not robotic.
 
           Include what'\''s relevant:
           - In-depth explanation of what the PR does - Be comprehensive. A maintainer should be able to read this section and fully understand the author'\''s intent, why they made the changes, how they implemented it, and what files/systems are affected. Don'\''t just summarize - explain.

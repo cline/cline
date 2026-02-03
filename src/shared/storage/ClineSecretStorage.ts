@@ -48,6 +48,8 @@ export class ClineSecretStorage extends ClineStorage {
 		try {
 			if (value && value.length > 0) {
 				await this.storage.store(key, value)
+			} else {
+				await this.storage.delete(key)
 			}
 		} catch (error) {
 			Logger.error("[ClineSecretStorage] Failed to store", error)

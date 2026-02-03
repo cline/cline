@@ -24,10 +24,10 @@ export function isSubagentCommand(command: string): boolean {
  * Transforms simplified Cline CLI command syntax with subagent settings.
  *
  * Converts: cline "prompt" or cline 'prompt'
- * To: cline "prompt" -s yolo_mode_toggled=true -s max_consecutive_mistakes=6 -F plain -y --oneshot
+ * To: cline "prompt" --json -y
  *
- * Preserves additional flags like --workdir:
- * cline "prompt" --workdir ./path → cline "prompt" -s ... -F plain -y --oneshot --workdir ./path
+ * Preserves additional flags like --cwd:
+ * cline "prompt" --cwd ./path → cline "prompt" --json -y --cwd ./path
  *
  * This enables autonomous subagent execution with proper CLI flags for automation.
  *
@@ -56,7 +56,7 @@ function injectSubagentSettings(command: string): string {
 	const prePromptFlags: string[] = []
 
 	// Flags/settings to insert after the prompt
-	const postPromptFlags = ["-s yolo_mode_toggled=true", "-s max_consecutive_mistakes=6", "-F plain", "-y", "--oneshot"]
+	const postPromptFlags = ["--json", "-y"]
 
 	const match = command.match(CLINE_COMMAND_PATTERN)
 

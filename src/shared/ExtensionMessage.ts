@@ -118,7 +118,6 @@ export interface ExtensionState {
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
-	skillsEnabled?: boolean
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean

@@ -44,7 +44,7 @@
 			"style": {
 				"useNodejsImportProtocol": "off",
 				"useImportType": "off",
-				"useBlockStatements": "warn",
+				"useBlockStatements": "off",
 				"useNamingConvention": "off",
 				"useThrowOnlyError": "info",
 				"useConsistentArrayType": "off",
@@ -154,9 +154,12 @@
 			],
 			"includes": [
 				"**",
+				"!**/esbuild.*",
+				"!**/*.mts",
 				"!**/webview-ui/**",
 				"!**/evals/**",
 				"!**/standalone/**",
+				"!**/cli/**",
 				"!**/e2e/**",
 				"!**/test/**",
 				"!**/__tests__/**",
@@ -167,7 +170,9 @@
 				"!**/*.js",
 				"!**/scripts/**",
 				"!**/*.tsx",
-				"!**/testing-platform/**"
+				"!**/testing-platform/**",
+				// ACP mode must redirect console to stderr - this is intentional
+				"!cli/src/acp/index.ts"
 			]
 		},
 		{

@@ -98,13 +98,13 @@ const HistoryViewItem = ({
 					handleShowTaskWithId(item.id)
 				}}>
 				<div className="flex justify-between items-center">
-					<div className="overflow-hidden break-words whitespace-pre-wrap">
-						<span className="flex items-center line-clamp-1 " title={item.task}>
-							{isActive && <LoaderIcon className="animate-spin size-2 mr-1" />}
+					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
+						<span className="flex items-center" title={item.task}>
+							{isActive && <LoaderIcon className="animate-spin !size-2 mr-1" />}
 							<span className="line-clamp-1 ">{item.task}</span>
 						</span>
 					</div>
-					<div className="flex gap-2">
+					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
 							className="p-0 opacity-0 group-hover:opacity-100 transition-opacity"

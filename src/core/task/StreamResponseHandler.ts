@@ -1,5 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
+import { nanoid } from "nanoid"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import {
@@ -8,6 +9,7 @@ import {
 	ClineAssistantToolUseBlock,
 	ClineReasoningDetailParam,
 } from "@/shared/messages/content"
+import { Session } from "@/shared/services/Session"
 import { ClineDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
@@ -17,7 +19,7 @@ export interface PendingToolUse {
 	parsedInput?: unknown
 	signature?: string
 	jsonParser?: JSONParser
-	call_id?: string
+	call_id: string
 }
 
 interface ToolUseDeltaBlock {
@@ -225,18 +227,8 @@ class ToolUseHandler {
 		this.pendingToolUses.clear()
 	}
 
-	private createPendingToolUse(id: string, name: string, call_id?: string): PendingToolUse {
+	private createPendingToolUse(id: string, name: string, callId?: string): PendingToolUse {
 		const jsonParser = new JSONParser()
-		const pending: PendingToolUse = {
-			id,
-			name,
-			input: "",
-			parsedInput: undefined,
-			jsonParser,
-			call_id,
-			signature: undefined,
-		}
-
 		jsonParser.onValue = (info: any) => {
 			if (info.stack.length === 0 && info.value && typeof info.value === "object") {
 				pending.parsedInput = info.value
@@ -245,7 +237,21 @@ class ToolUseHandler {
 
 		jsonParser.onError = () => {}
 
+		const pending: PendingToolUse = {
+			id,
+			name,
+			input: "",
+			parsedInput: undefined,
+			jsonParser,
+			// Ensure call_id is always set for tracking
+			call_id: callId || id || nanoid(8),
+			signature: undefined,
+		}
+
 		this.pendingToolUses.set(id, pending)
+		// Initialize tool call in session tracking
+		Session.get().updateToolCall(pending.call_id, pending.name)
+
 		return pending
 	}
 
