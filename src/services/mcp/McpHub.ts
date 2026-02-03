@@ -171,6 +171,12 @@ export class McpHub {
 
 			let config: any
 
+			// Handle empty or minimal files silently - this is a valid state meaning "no MCP servers"
+			const trimmedContent = content.trim()
+			if (!trimmedContent || trimmedContent === "{}" || trimmedContent === '{"mcpServers":{}}') {
+				return { mcpServers: {} }
+			}
+
 			// Parse JSON file content
 			try {
 				config = JSON.parse(content)
