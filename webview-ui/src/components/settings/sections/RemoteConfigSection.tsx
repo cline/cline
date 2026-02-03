@@ -104,9 +104,10 @@ interface TestButtonProps {
 	label: string
 	onClick: () => Promise<void>
 	disabled?: boolean
+	successMessage?: string
 }
 
-function TestButton({ label, onClick, disabled }: TestButtonProps) {
+function TestButton({ label, onClick, disabled, successMessage }: TestButtonProps) {
 	const [isLoading, setIsLoading] = useState(false)
 	const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
 
@@ -115,7 +116,7 @@ function TestButton({ label, onClick, disabled }: TestButtonProps) {
 		setResult(null)
 		try {
 			await onClick()
-			setResult({ success: true, message: "Success!" })
+			setResult({ success: true, message: successMessage || "Success!" })
 		} catch (error) {
 			setResult({ success: false, message: error instanceof Error ? error.message : "Failed" })
 		} finally {
@@ -211,6 +212,7 @@ function OtelSettingsSection() {
 						disabled={!remoteConfigSettings?.openTelemetryMetricsExporter}
 						label="Test"
 						onClick={handleTestOtel}
+						successMessage="Flushed buffers! Please check the output channel for more detailed information"
 					/>
 				</div>
 			)}
