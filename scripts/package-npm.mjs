@@ -90,14 +90,43 @@ async function copyCliDist() {
 }
 
 /**
- * Copy package.json from cli/ directory
+ * Copy package.json from cli/ directory, removing dev-only scripts
  */
 async function copyPackageJson() {
 	console.log("Copying package.json...")
 	const source = path.join(CLI_DIR, "package.json")
 	const dest = path.join(BUILD_DIR, "package.json")
-	await cpr(source, dest)
-	console.log(`✓ package.json copied`)
+
+	// Read and parse package.json
+	const packageJson = JSON.parse(fs.readFileSync(source, "utf-8"))
+
+	// Remove dev-only scripts that don't make sense in the published package
+	// These scripts reference files (esbuild.mts, tsconfig.json) that aren't included
+	const scriptsToRemove = [
+		"prepublishOnly",
+		"build",
+		"build:production",
+		"watch",
+		"dev",
+		"clean",
+		"typecheck",
+		"link",
+		"unlink",
+		"test",
+		"test:run",
+		"package",
+		"package:brew",
+	]
+
+	if (packageJson.scripts) {
+		for (const script of scriptsToRemove) {
+			delete packageJson.scripts[script]
+		}
+	}
+
+	// Write the modified package.json
+	fs.writeFileSync(dest, JSON.stringify(packageJson, null, "\t") + "\n")
+	console.log(`✓ package.json copied (dev scripts removed)`)
 }
 
 /**
