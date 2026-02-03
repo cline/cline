@@ -110,6 +110,15 @@ interface TestButtonProps {
 function TestButton({ label, onClick, disabled, successMessage }: TestButtonProps) {
 	const [isLoading, setIsLoading] = useState(false)
 	const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+	const timeoutRef = useRef<NodeJS.Timeout>()
+
+	useEffect(() => {
+		return () => {
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+			}
+		}
+	}, [])
 
 	const handleClick = async () => {
 		setIsLoading(true)
@@ -121,8 +130,7 @@ function TestButton({ label, onClick, disabled, successMessage }: TestButtonProp
 			setResult({ success: false, message: error instanceof Error ? error.message : "Failed" })
 		} finally {
 			setIsLoading(false)
-			// Clear result after 5 seconds
-			setTimeout(() => setResult(null), 5000)
+			timeoutRef.current = setTimeout(() => setResult(null), 5000)
 		}
 	}
 
