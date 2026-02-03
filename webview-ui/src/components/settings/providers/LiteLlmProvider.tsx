@@ -118,7 +118,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						onChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>
-					<VSCodeButton className={`my-2 ${isLoading ? "animate-pulse" : ""}`} onClick={onRefreshModels}>
+					<VSCodeButton
+						className={`my-2 ${isLoading ? "animate-pulse" : ""}`}
+						disabled={isLoading}
+						onClick={onRefreshModels}>
 						Refresh models <RefreshCwIcon className="ml-1" />
 					</VSCodeButton>
 
