@@ -90,10 +90,13 @@
 							"cline-cli/interactive-mode",
 							"cline-cli/configuration",
 							"cline-cli/three-core-flows",
+							"cline-cli/acp-editor-integrations",
 							{
 								"group": "CLI Samples",
 								"pages": [
 									"cline-cli/samples/overview",
+									"cline-cli/samples/model-orchestration",
+									"cline-cli/samples/worktree-workflows",
 									"cline-cli/samples/github-issue-rca",
 									"cline-cli/samples/github-integration"
 								]
