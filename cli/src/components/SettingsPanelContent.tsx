@@ -6,7 +6,7 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
+import { getProviderModelIdKey, ProviderToApiKeyMap, SettingsKey } from "@shared/storage"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -68,37 +68,37 @@ const TABS: PanelTab[] = [
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
 	autoCondense: {
-		stateKey: "useAutoCondense" as const,
+		stateKey: "useAutoCondense" as SettingsKey,
 		default: false,
 		label: "Auto-condense",
 		description: "Automatically summarize long conversations",
 	},
 	webTools: {
-		stateKey: "clineWebToolsEnabled" as const,
+		stateKey: "clineWebToolsEnabled" as SettingsKey,
 		default: true,
 		label: "Web tools",
 		description: "Enable web search and fetch tools",
 	},
 	strictPlanMode: {
-		stateKey: "strictPlanModeEnabled" as const,
+		stateKey: "strictPlanModeEnabled" as SettingsKey,
 		default: true,
 		label: "Strict plan mode",
 		description: "Require explicit mode switching",
 	},
 	nativeToolCall: {
-		stateKey: "nativeToolCallEnabled" as const,
+		stateKey: "nativeToolCallEnabled" as SettingsKey,
 		default: true,
 		label: "Native tool call",
 		description: "Use model's native tool calling API",
 	},
 	parallelToolCalling: {
-		stateKey: "enableParallelToolCalling" as const,
+		stateKey: "enableParallelToolCalling" as SettingsKey,
 		default: false,
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
 	},
 	skillsEnabled: {
-		stateKey: "skillsEnabled" as const,
+		stateKey: "skillsEnabled" as SettingsKey,
 		default: false,
 		label: "Skills",
 		description: "Enable reusable agent instructions",
@@ -150,7 +150,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
 		const initial: Record<string, boolean> = {}
 		for (const [key, config] of Object.entries(FEATURE_SETTINGS)) {
-			initial[key] = stateManager.getGlobalSettingsKey(config.stateKey) ?? config.default
+			initial[key] = (stateManager.getGlobalSettingsKey(config.stateKey) as boolean | undefined) ?? config.default
 		}
 		return initial as Record<FeatureKey, boolean>
 	})
@@ -212,8 +212,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
 		const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
 		return {
-			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey as string) as string) || "" : "",
-			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey as string) as string) || "" : "",
+			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey as SettingsKey) as string) || "" : "",
+			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey as SettingsKey) as string) || "" : "",
 		}
 	}, [modelRefreshKey, stateManager])
 
@@ -477,7 +477,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						key: parentKey,
 						label: parentLabel,
 						type: "checkbox",
-						value: actions[parentKey as keyof typeof actions],
+						value: actions[parentKey as keyof typeof actions] ?? false,
 						description: parentDesc,
 					})
 					if (actions[parentKey as keyof typeof actions]) {
@@ -723,7 +723,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (actProvider) {
 					const actKey = getProviderModelIdKey(actProvider as ApiProvider, "act")
 					const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
-					const actModel = stateManager.getGlobalSettingsKey(actKey as string)
+					const actModel = stateManager.getGlobalSettingsKey(actKey as SettingsKey)
 					if (planKey) stateManager.setGlobalState(planKey, actModel)
 				}
 			}

@@ -36,7 +36,7 @@ import {
 } from "@shared/api"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
-import { ProviderToApiKeyMap } from "@shared/storage"
+import { ProviderToApiKeyMap, SettingsKey } from "@shared/storage"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
@@ -338,7 +338,7 @@ export class ClineAgent implements acp.Agent {
 		// Use provider-specific model ID key (e.g., cline uses actModeOpenRouterModelId)
 		const modelKey = currentProvider ? getProviderModelIdKey(currentProvider, mode) : null
 		const currentModelId = modelKey
-			? (stateManager.getGlobalSettingsKey(modelKey as string) as string | undefined)
+			? (stateManager.getGlobalSettingsKey(modelKey as SettingsKey) as string | undefined)
 			: undefined
 
 		// Build the current model ID in provider/model format

@@ -284,7 +284,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 							<ToolCallText args={toolInfo.args} isAsk={isToolAsk} mode={mode} toolName={toolInfo.toolName} />
 						</DotRow>
 						<Box marginLeft={2}>
-							<DiffView content={toolInfo.args.content} filePath={filePath as string | undefined} />
+							<DiffView content={toolInfo.args.content as string} filePath={filePath as string | undefined} />
 						</Box>
 					</Box>
 				)
@@ -379,12 +379,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode }) => {
 	if ((type === "ask" && ask === "use_mcp_server") || say === "use_mcp_server") {
 		const isAsk = type === "ask"
 		const parsed = text
-			? jsonParseSafe<ClineAskUseMcpServer>(text, {
-					type: undefined as ClineAskUseMcpServer["type"] | undefined,
+			? jsonParseSafe<Partial<ClineAskUseMcpServer> & { serverName: string }>(text, {
+					type: undefined,
 					serverName: "unknown server",
-					toolName: undefined as string | undefined,
-					arguments: undefined as string | undefined,
-					uri: undefined as string | undefined,
+					toolName: undefined,
+					arguments: undefined,
+					uri: undefined,
 				})
 			: undefined
 

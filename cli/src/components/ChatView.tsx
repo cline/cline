@@ -108,7 +108,7 @@ import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getProviderModelIdKey } from "@shared/storage"
+import { getProviderModelIdKey, SettingsKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
@@ -455,7 +455,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!provider) return ""
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
-		return (stateManager.getGlobalSettingsKey(modelKey as string) as string) || ""
+		return (stateManager.getGlobalSettingsKey(modelKey as SettingsKey) as string) || ""
 	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {
