@@ -1160,7 +1160,7 @@ export class ClineAgent implements acp.Agent {
 
 		if (currentProvider === "cline") {
 			// For Cline provider, check if we have stored auth data
-			const authData = await secretStorage.get("cline:clineAccountId")
+			const authData = await Promise.any(["clineApiKey", "clineAccountId"].map(async (key) => await secretStorage.get(key)))
 			return !!authData
 		}
 

@@ -18,8 +18,8 @@ export { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder }
 function isProviderConfigured(providerId: string, config: ApiConfiguration): boolean {
 	switch (providerId) {
 		case "cline":
-			// Check if user has Cline account auth data stored
-			return !!(config as Record<string, unknown>)["cline:clineAccountId"]
+			// Check if user has Cline API key or Cline account auth data stored
+			return !!(config.clineApiKey ?? config["cline:clineAccountId"])
 		case "anthropic":
 			return !!config.apiKey
 		case "openrouter":

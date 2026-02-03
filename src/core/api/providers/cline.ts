@@ -27,6 +27,7 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
+	clineApiKey?: string
 	geminiThinkingLevel?: string
 }
 
@@ -48,7 +49,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	private async ensureClient(): Promise<OpenAI> {
-		const clineAccountAuthToken = await this._authService.getAuthToken()
+		const clineAccountAuthToken = this.options.clineApiKey || (await this._authService.getAuthToken())
 		if (!clineAccountAuthToken) {
 			throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 		}

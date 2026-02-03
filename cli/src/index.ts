@@ -686,7 +686,7 @@ async function checkAnyProviderConfigured(): Promise<boolean> {
 	const config = stateManager.getApiConfiguration() as Record<string, unknown>
 
 	// Check Cline account (stored as "cline:clineAccountId" in secrets, loaded into config)
-	if (config["cline:clineAccountId"]) return true
+	if (config["clineApiKey"] || config["cline:clineAccountId"]) return true
 
 	// Check OpenAI Codex OAuth (stored in SECRETS_KEYS, loaded into config)
 	if (config["openai-codex-oauth-credentials"]) return true

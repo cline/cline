@@ -46,6 +46,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 } as const
 
 export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>> = {
+	cline: ["clineApiKey", "clineAccountId"],
 	anthropic: "apiKey",
 	openrouter: "openRouterApiKey",
 	bedrock: ["awsAccessKey", "awsBedrockApiKey"],
@@ -81,7 +82,6 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
-	cline: "clineAccountId",
 } as const
 
 const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
