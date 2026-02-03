@@ -25,22 +25,13 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 	/**
 	 * Handle partial block streaming for attempt_completion
-	 * Matches the original conditional logic structure for command vs no-command cases
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const result = block.params.result
-		const command = block.params.command
-
-		if (!command) {
-			// no command, still outputting partial result
-			await uiHelpers.say(
-				"completion_result",
-				uiHelpers.removeClosingTag(block, "result", result),
-				undefined,
-				undefined,
-				block.partial,
-			)
+		const result = uiHelpers.removeClosingTag(block, "result", block.params.result)
+		if (result) {
+			await uiHelpers.say("completion_result", result, undefined, undefined, block.partial)
 		}
+		// We will handle command in the final execution step
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
