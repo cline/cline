@@ -164,6 +164,7 @@ export class TelemetryService {
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			OPT_IN: "user.opt_in",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
@@ -415,7 +416,7 @@ export class TelemetryService {
 	 * Should only be called on explicit user action, not on init/sync.
 	 */
 	public captureUserOptIn(): void {
-		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
 	}
 
 	/**
