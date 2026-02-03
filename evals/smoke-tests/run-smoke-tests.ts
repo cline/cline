@@ -40,6 +40,40 @@ function checkClineCli(): boolean {
 	}
 }
 
+// Use user's existing Cline config (already has auth configured)
+// For CI, this would be set up by the auth step before tests run
+const CLINE_CONFIG_DIR = path.join(process.env.HOME || "", ".cline")
+
+// Configure authentication using CLINE_API_KEY environment variable
+// Returns success if auth is configured, error message otherwise
+function configureAuth(): { ok: boolean; error?: string } {
+	const apiKey = process.env.CLINE_API_KEY
+	if (!apiKey) {
+		return {
+			ok: false,
+			error: "CLINE_API_KEY environment variable not set",
+		}
+	}
+
+	// Ensure config directory exists
+	fs.mkdirSync(CLINE_CONFIG_DIR, { recursive: true })
+
+	try {
+		// Run quick auth setup (non-interactive when all flags provided)
+		execSync(`cline auth --config "${CLINE_CONFIG_DIR}" -p ${DEFAULT_PROVIDER} -k "${apiKey}" -m "${DEFAULT_MODEL}"`, {
+			encoding: "utf-8",
+			timeout: 10000,
+			stdio: "pipe",
+		})
+		return { ok: true }
+	} catch (err: any) {
+		return {
+			ok: false,
+			error: err.message || "Auth command failed",
+		}
+	}
+}
+
 // Smoke test scenario definition
 interface SmokeScenario {
 	id: string
@@ -101,10 +135,13 @@ async function runTrial(scenario: SmokeScenario, modelId: string, trialWorkdir: 
 	// Build CLI command with explicit model setting for determinism
 	// Provider is configured via `cline auth` before running tests
 	const args = [
+		"--config",
+		CLINE_CONFIG_DIR, // Use shared config directory for auth
 		"-y", // YOLO mode - auto-approve all actions, exits after completion
+		"-t",
+		String(scenario.timeout), // CLI timeout (matches our timeout)
 		"-m",
 		modelId, // Model to use (overrides configured default)
-		"--json", // JSON output for CI parsing
 		scenario.prompt,
 	]
 
@@ -311,6 +348,24 @@ async function main() {
 		console.error("  Ensure CLI build and 'npm link' steps completed")
 		process.exit(1)
 	}
+
+	// Configure authentication if CLINE_API_KEY is set
+	// Otherwise use existing auth from ~/.cline
+	if (process.env.CLINE_API_KEY) {
+		console.log("Configuring authentication from CLINE_API_KEY...")
+		const authResult = configureAuth()
+		if (!authResult.ok) {
+			console.error("")
+			console.error("ERROR: Authentication failed")
+			console.error(`  ${authResult.error}`)
+			console.error("")
+			process.exit(1)
+		}
+		console.log("Authentication configured")
+	} else {
+		console.log("Using existing authentication from ~/.cline")
+	}
+	console.log("")
 
 	// Load scenarios
 	const scenariosDir = path.join(__dirname, "scenarios")
