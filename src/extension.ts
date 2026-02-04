@@ -75,7 +75,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const testModeWatchers = await initializeTestMode(webview)
 	context.subscriptions.push(...testModeWatchers)
 
-	cleanupOldApiKey()
 	// Perform storage migrations that does not block extension activation
 	performStorageMigrations(context)
 
@@ -657,6 +656,7 @@ if (IS_DEV) {
 // VSCode-specific storage migrations
 async function performStorageMigrations(context: ExtensionContext): Promise<void> {
 	try {
+		cleanupOldApiKey()
 		// Migrate is not done if the new storage does not have the lastShownAnnouncementId flag
 		const hasMigrated = StateManager.get().getGlobalStateKey("lastShownAnnouncementId")
 		if (hasMigrated !== undefined) {
