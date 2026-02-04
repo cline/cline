@@ -24,6 +24,15 @@ export function createConsoleLogExporter(): ConsoleLogRecordExporter {
 	return new ConsoleLogRecordExporter()
 }
 
+export function ensurePathSuffix(url: URL, suffix: string): void {
+	const pathname = url.pathname
+	const normalizedPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname
+	url.pathname = normalizedPathname
+	if (!normalizedPathname.endsWith(suffix)) {
+		url.pathname = `${normalizedPathname}${suffix}`
+	}
+}
+
 /**
  * Create an OTLP log exporter based on protocol
  */
@@ -36,9 +45,7 @@ export function createOTLPLogExporter(
 	try {
 		let exporter: any = null
 		const logsUrl = new URL(endpoint)
-		if (logsUrl.pathname === "/" || logsUrl.pathname === "") {
-			logsUrl.pathname = "/v1/logs"
-		}
+		ensurePathSuffix(logsUrl, "/v1/logs")
 
 		switch (protocol) {
 			case "grpc": {
@@ -67,7 +74,7 @@ export function createOTLPLogExporter(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapLogsExporterWithDiagnostics(exporter, protocol, endpoint)
+			wrapLogsExporterWithDiagnostics(exporter, protocol, logsUrl.toString())
 		}
 
 		return exporter
@@ -104,9 +111,7 @@ export function createOTLPMetricReader(
 		let exporter: any = null
 
 		const metricsUrl = new URL(endpoint)
-		if (metricsUrl.pathname === "/" || metricsUrl.pathname === "") {
-			metricsUrl.pathname = "/v1/metrics"
-		}
+		ensurePathSuffix(metricsUrl, "/v1/metrics")
 
 		switch (protocol) {
 			case "grpc": {
@@ -135,7 +140,7 @@ export function createOTLPMetricReader(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapMetricsExporterWithDiagnostics(exporter, protocol, endpoint)
+			wrapMetricsExporterWithDiagnostics(exporter, protocol, metricsUrl.toString())
 		}
 
 		return new PeriodicExportingMetricReader({

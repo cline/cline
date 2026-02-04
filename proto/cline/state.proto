@@ -101,6 +101,7 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
+  optional string openai_codex_oauth_credentials = 46;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -276,7 +277,8 @@ message Settings {
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
-  map<string, string> open_ai_headers = 173;
+  optional bool auto_approve_all_toggled = 174;
+  map<string, string> open_ai_headers = 175;
 }
 
 message DictationSettings {

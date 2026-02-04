@@ -13,8 +13,20 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "deep-planning",
+		description: "Create a comprehensive implementation plan before coding",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "smol",
 		description: "Condenses your current context window",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "subagent",
+		description: "Invoke a Cline CLI subagent for focused research tasks",
 		section: "default",
 		cliCompatible: true,
 	},
@@ -30,18 +42,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
-	{
-		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
-		section: "default",
-		cliCompatible: true,
-	},
 ]
 
 // VS Code-only slash commands
@@ -50,5 +50,45 @@ export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
 		name: "explain-changes",
 		description: "Explain code changes between git refs (PRs, commits, branches, etc.)",
 		section: "default",
+	},
+]
+
+// CLI-only slash commands (handled locally, not sent to backend)
+export const CLI_ONLY_COMMANDS: SlashCommand[] = [
+	{
+		name: "help",
+		description: "Learn how to use Cline CLI",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "settings",
+		description: "Change API provider, auto-approve, and feature settings",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "models",
+		description: "Change the model used for the current mode",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "history",
+		description: "Browse and search task history",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "clear",
+		description: "Clear the current task and start fresh",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
+		name: "exit",
+		description: "Alternative to Ctrl+C",
+		section: "default",
+		cliCompatible: true,
 	},
 ]
