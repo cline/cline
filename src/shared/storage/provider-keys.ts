@@ -47,7 +47,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 } as const
 
 export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>> = {
-	cline: ["clineApiKey", "clineAccountId"],
+	cline: ["clineApiKeyv2", "clineAccountId"],
 	anthropic: "apiKey",
 	openrouter: "openRouterApiKey",
 	bedrock: ["awsAccessKey", "awsBedrockApiKey"],

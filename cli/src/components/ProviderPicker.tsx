@@ -19,7 +19,7 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 	switch (providerId) {
 		case "cline":
 			// Check if user has Cline API key or Cline account auth data stored
-			return !!(config.clineApiKey ?? config["cline:clineAccountId"])
+			return !!(config.clineApiKeyv2 ?? config["cline:clineAccountId"])
 		case "anthropic":
 			return !!config.apiKey
 		case "openrouter":
