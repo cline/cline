@@ -113,7 +113,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 	const [optionIndex, setOptionIndex] = useState(0)
 
 	// Filtered regions
-	const regionItems = useMemo(() => {
+	const filteredRegions = useMemo(() => {
 		const search = regionSearch.toLowerCase().trim()
 		if (!search) {
 			return AWS_REGIONS
@@ -121,7 +121,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 		return AWS_REGIONS.filter((r) => r.toLowerCase().includes(search))
 	}, [regionSearch])
 
-	const regionListLength = regionItems.length
+	const regionListLength = filteredRegions.length
 
 	const {
 		visibleStart: regionVisibleStart,
@@ -130,9 +130,9 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 		showBottomIndicator: showRegionBottom,
 	} = useScrollableList(regionListLength, regionIndex, REGION_ROWS)
 
-	const visibleRegionItems = useMemo(
-		() => regionItems.slice(regionVisibleStart, regionVisibleStart + regionVisibleCount),
-		[regionItems, regionVisibleStart, regionVisibleCount],
+	const visiblefilteredRegions = useMemo(
+		() => filteredRegions.slice(regionVisibleStart, regionVisibleStart + regionVisibleCount),
+		[filteredRegions, regionVisibleStart, regionVisibleCount],
 	)
 
 	const nextStepAfterAuth = useCallback((method: AuthMethod) => {
@@ -176,12 +176,12 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 	}, [step, authMethod, onCancel])
 
 	const getSelectedRegion = useCallback(() => {
-		if (regionItems.length > 0 && regionIndex >= 0 && regionIndex < regionItems.length) {
-			return regionItems[regionIndex]
+		if (filteredRegions.length > 0 && regionIndex >= 0 && regionIndex < filteredRegions.length) {
+			return filteredRegions[regionIndex]
 		}
 		// If no matches, use the search term as custom region
 		return regionSearch.trim() || "us-east-1"
-	}, [regionItems, regionIndex, regionSearch])
+	}, [filteredRegions, regionIndex, regionSearch])
 
 	const finish = useCallback(() => {
 		const config: BedrockConfig = {
@@ -223,7 +223,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 					setRegionIndex((prev) => (prev < regionListLength - 1 ? prev + 1 : 0))
 				} else if (key.return) {
 					// Allow Enter to proceed with selected region or custom search term
-					if (regionItems.length > 0 || regionSearch.trim()) {
+					if (filteredRegions.length > 0 || regionSearch.trim()) {
 						setStep("options")
 					}
 				} else if (key.backspace || key.delete) {
@@ -352,7 +352,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 				</Box>
 				<Text> </Text>
 				{showRegionTop && <Text color="gray">... {regionVisibleStart} more above</Text>}
-				{visibleRegionItems.map((region, i) => {
+				{visiblefilteredRegions.map((region, i) => {
 					const actualIndex = regionVisibleStart + i
 					return (
 						<Box key={region}>
@@ -366,7 +366,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 				{showRegionBottom && (
 					<Text color="gray">... {regionListLength - regionVisibleStart - regionVisibleCount} more below</Text>
 				)}
-				{regionItems.length === 0 && <Text color="gray">No regions match. Type a custom region name.</Text>}
+				{filteredRegions.length === 0 && <Text color="gray">No regions match. Type a custom region name.</Text>}
 				<Text> </Text>
 				<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
 			</Box>
