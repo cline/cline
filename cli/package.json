@@ -21,16 +21,16 @@
 		"node": ">=20.0.0"
 	},
 	"scripts": {
-		"package:brew": "bun x tsx ./scripts/update-brew-formula.mts",
-		"package": "bun pm pack --destination ./dist",
-		"build": "bun run typecheck && bun x tsx esbuild.mts",
-		"build:production": "bun run typecheck && bun x tsx esbuild.mts --production",
-		"watch": "bun x tsx esbuild.mts --watch",
+		"package:brew": "bunx tsx ./scripts/update-brew-formula.mts",
+		"package": "bun pm pack --pack-destination ./dist",
+		"build": "bun run typecheck && bunx tsx esbuild.mts",
+		"build:production": "bun run typecheck && bunx tsx esbuild.mts --production",
+		"watch": "bunx tsx esbuild.mts --watch",
 		"dev": "IS_DEV=true && bun run link && bun run watch ; bun run unlink",
 		"clean": "rimraf dist",
-		"typecheck": "bun x tsc --noEmit",
+		"typecheck": "bunx tsc --noEmit",
 		"link": "bun run build && bun link",
-		"unlink": "bun unlink cline",
+		"unlink": "bun unlink",
 		"test": "vitest",
 		"test:run": "vitest run"
 	},

@@ -34,7 +34,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 ### Local Development Instructions
 
-> **Note**: This project uses [Bun](https://bun.sh) as the package manager. See [BUN_MIGRATION.md](BUN_MIGRATION.md) for migration details.
+> **Note**: This project uses [Bun](https://bun.sh) as the package manager.
 
 1. Install Bun (if you haven't already):
     ```bash
