@@ -864,7 +864,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 										{index === menuIndex ? "❯ " : "  "}
 										{item.label}
 									</Text>
-									{item.value === "cline_auth" && <Text color="yellow"> (try Kimi K2.5 free!)</Text>}
+									{item.value === "cline_auth" && <Text color="yellow"> (try Sonnet 5 free!)</Text>}
 								</Text>
 							</Box>
 						))}

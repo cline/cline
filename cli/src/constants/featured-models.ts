@@ -13,6 +13,12 @@ export interface FeaturedModel {
 export const FEATURED_MODELS = {
 	recommended: [
 		{
+			id: "anthropic/claude-sonnet-5",
+			name: "Claude Sonnet 5",
+			description: "Anthropic's latest with frontier-level coding intelligence",
+			label: "LIMITED FREE",
+		},
+		{
 			id: "anthropic/claude-opus-4.5",
 			name: "Claude Opus 4.5",
 			description: "State-of-the-art for complex coding",
@@ -22,7 +28,7 @@ export const FEATURED_MODELS = {
 			id: "openai/gpt-5.2-codex",
 			name: "GPT 5.2 Codex",
 			description: "OpenAI's latest with strong coding abilities",
-			label: "New",
+			label: "Hot",
 		},
 		{
 			id: "google/gemini-3-pro-preview",
