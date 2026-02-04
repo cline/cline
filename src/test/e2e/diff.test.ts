@@ -17,7 +17,7 @@ e2e.describe("Diff Editor", () => {
 			await expect(inputbox).toHaveValue("")
 
 			// Back to home page with history
-			await sidebar.getByRole("button", { name: "Start New Task" }).click()
+			await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
 			await expect(sidebar.getByText("Recent")).toBeVisible()
 			await expect(sidebar.getByText("Hello, Cline!")).toBeVisible() // History with the previous sent message
 
