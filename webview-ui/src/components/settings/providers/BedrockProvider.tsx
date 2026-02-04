@@ -14,6 +14,7 @@ import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
@@ -35,9 +36,6 @@ export const SUPPORTED_BEDROCK_THINKING_MODELS = [
 
 const AWS_REGIONS = BedrockData.regions
 
-// Z-index constants for proper dropdown layering
-const DROPDOWN_Z_INDEX = 1000
-
 interface BedrockProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
@@ -52,7 +50,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 
-	// Region combobox state (matching ApiOptions.tsx pattern exactly)
+	// Region combobox state
 	const currentRegion = apiConfiguration?.awsRegion || ""
 	const [searchTerm, setSearchTerm] = useState("")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -68,18 +66,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		}
 	}, [currentRegion, isDropdownVisible])
 
-	// Create searchable items for regions
-	const searchableItems = useMemo(() => {
-		return AWS_REGIONS.map((region) => ({
-			value: region,
-			html: region,
-		}))
-	}, [])
+	const searchableItems = useMemo(() => AWS_REGIONS, [])
 
-	// Fuse.js for fuzzy search (matching ApiOptions.tsx config)
 	const fuse = useMemo(() => {
 		return new Fuse(searchableItems, {
-			keys: ["html"],
 			threshold: 0.3,
 			shouldSort: true,
 			isCaseSensitive: false,
@@ -89,28 +79,19 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		})
 	}, [searchableItems])
 
-	// Filter regions based on search term
 	const regionSearchResults = useMemo(() => {
-		if (!searchTerm || searchTerm === currentRegion) {
+		if (!searchTerm) {
 			return searchableItems
 		}
-		const results = fuse.search(searchTerm).map((r) => r.item)
-		// If search term doesn't match any region exactly, add it as a custom option
-		const exactMatch = results.some((r) => r.value.toLowerCase() === searchTerm.toLowerCase())
-		if (!exactMatch && searchTerm.trim()) {
-			return [...results, { value: searchTerm.trim(), html: `${searchTerm.trim()} (custom)` }]
-		}
-		return results
-	}, [searchableItems, searchTerm, fuse, currentRegion])
+		return fuse.search(searchTerm).map((r) => r.item)
+	}, [searchableItems, searchTerm, fuse])
 
-	// Handle region selection
 	const handleRegionChange = (newRegion: string) => {
 		handleFieldChange("awsRegion", newRegion)
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}
 
-	// Handle keyboard navigation (matching ApiOptions.tsx pattern)
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) {
 			return
@@ -128,8 +109,11 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 			case "Enter":
 				event.preventDefault()
 				if (selectedIndex >= 0 && selectedIndex < regionSearchResults.length) {
-					handleRegionChange(regionSearchResults[selectedIndex].value)
+					handleRegionChange(regionSearchResults[selectedIndex])
+				} else if (searchTerm.trim()) {
+					handleRegionChange(searchTerm.trim())
 				}
+				;(event.target as HTMLInputElement)?.blur()
 				break
 			case "Escape":
 				setIsDropdownVisible(false)
@@ -139,7 +123,6 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		}
 	}
 
-	// Close dropdown when clicking outside (matching ApiOptions.tsx pattern)
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
 			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -154,7 +137,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		}
 	}, [currentRegion])
 
-	// Reset selection when search term changes (matching ApiOptions.tsx pattern)
+	// Reset selection when search term changes
 	useEffect(() => {
 		setSelectedIndex(-1)
 		if (dropdownListRef.current) {
@@ -162,7 +145,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		}
 	}, [searchTerm])
 
-	// Scroll selected item into view (matching ApiOptions.tsx pattern)
+	// Scroll selected item into view
 	useEffect(() => {
 		if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
 			itemRefs.current[selectedIndex]?.scrollIntoView({
@@ -288,18 +271,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									/>
 								)}
 							</VSCodeTextField>
-							{isDropdownVisible && (
+							{isDropdownVisible && regionSearchResults.length > 0 && (
 								<RegionDropdownList ref={dropdownListRef}>
-									{regionSearchResults.map((item, index) => (
+									{regionSearchResults.map((region, index) => (
 										<RegionDropdownItem
 											isSelected={index === selectedIndex}
-											key={item.value}
-											onClick={() => handleRegionChange(item.value)}
+											key={region}
+											onClick={() => handleRegionChange(region)}
 											onMouseEnter={() => setSelectedIndex(index)}
 											ref={(el) => {
 												itemRefs.current[index] = el
 											}}>
-											<span>{item.html}</span>
+											<span>{region}</span>
 										</RegionDropdownItem>
 									))}
 								</RegionDropdownList>
@@ -536,7 +519,6 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	)
 }
 
-// Styled components for region combobox (matching ApiOptions.tsx pattern)
 const RegionDropdownWrapper = styled.div`
 	position: relative;
 	width: 100%;
