@@ -62,7 +62,8 @@ jobs:
 
       - name: Install and Verify Cline CLI
         run: |
-          npx cline version # verify installation
+          npm install -g cline
+          cline version # verify installation
 
       - name: Configure Cline with Anthropic
         run: |

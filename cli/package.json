@@ -1,26 +1,34 @@
 {
 	"name": "cline",
-	"version": "2.0.1",
+	"version": "2.0.3",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"main": "dist/cli.mjs",
 	"bin": {
 		"cline": "./dist/cli.mjs"
 	},
+	"os": [
+		"darwin",
+		"linux",
+		"win32"
+	],
+	"cpu": [
+		"x64",
+		"arm64"
+	],
 	"man": "./man/cline.1",
 	"type": "module",
 	"engines": {
 		"node": ">=20.0.0"
 	},
 	"scripts": {
-		"prepublishOnly": "npm run build:production",
 		"package:brew": "npx tsx ./scripts/update-brew-formula.mts",
 		"package": "npm pack --pack-destination ./dist",
-		"build": "npx tsx esbuild.mts",
-		"build:production": "npx tsx esbuild.mts --production",
+		"build": "npm run typecheck && npx tsx esbuild.mts",
+		"build:production": "npm run typecheck && npx tsx esbuild.mts --production",
 		"watch": "npx tsx esbuild.mts --watch",
 		"dev": "IS_DEV=true && npm run link && npm run watch ; npm run unlink",
 		"clean": "rimraf dist",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "npx tsc --noEmit",
 		"link": "npm run build && npm link",
 		"unlink": "npm unlink -g cline",
 		"test": "vitest",

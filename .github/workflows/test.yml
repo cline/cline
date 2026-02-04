@@ -28,20 +28,11 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  cache: 'npm'
+                  cache-dependency-path: |
+                      package-lock.json
+                      webview-ui/package-lock.json
+                      cli/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -73,20 +64,10 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  cache: 'npm'
+                  cache-dependency-path: |
+                      package-lock.json
+                      webview-ui/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -135,6 +116,11 @@ jobs:
                   cd webview-ui
                   npm run test:coverage
 
+            - name: CLI Tests
+              id: cli_tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: cd cli && npm run test:run
+
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
               # Only upload artifacts on Linux - We only need coverage from one OS
@@ -156,28 +142,11 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-            # Cache testing-platform dependencies
-            - name: Cache testing-platform dependencies
-              uses: actions/cache@v4
-              id: testing-platform-cache
-              with:
-                path: testing-platform/node_modules
-                key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
+                  cache: 'npm'
+                  cache-dependency-path: |
+                      package-lock.json
+                      webview-ui/package-lock.json
+                      testing-platform/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
