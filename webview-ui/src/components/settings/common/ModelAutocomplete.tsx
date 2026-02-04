@@ -1,7 +1,7 @@
 import { ModelInfo } from "@shared/api"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { highlight } from "../../history/HistoryView"
 
@@ -30,6 +30,12 @@ export const ModelAutocomplete = ({
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
+	const isSelectingRef = useRef(false) // Track if user is clicking a dropdown item
+
+	// Generate unique IDs for accessibility
+	const uniqueId = useId()
+	const inputId = `model-autocomplete-${uniqueId}`
+	const listboxId = `model-listbox-${uniqueId}`
 
 	useEffect(() => {
 		setSearchTerm(selectedModelId || "")
@@ -134,6 +140,8 @@ export const ModelAutocomplete = ({
 		}
 	}, [selectedIndex])
 
+	const activeDescendantId = selectedIndex >= 0 ? `${listboxId}-option-${selectedIndex}` : undefined
+
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
 			<style>
@@ -145,17 +153,25 @@ export const ModelAutocomplete = ({
 				`}
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
-				<label htmlFor="model-autocomplete">
+				<label htmlFor={inputId}>
 					<span style={{ fontWeight: 500 }}>{label}</span>
 				</label>
 
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
-						id="model-autocomplete"
+						aria-activedescendant={activeDescendantId}
+						aria-autocomplete="list"
+						aria-controls={isDropdownVisible ? listboxId : undefined}
+						aria-expanded={isDropdownVisible}
+						id={inputId}
 						onBlur={() => {
-							if (searchTerm !== selectedModelId) {
-								handleModelChange(searchTerm)
-							}
+							// Delay to allow click events on dropdown items to fire first
+							setTimeout(() => {
+								if (!isSelectingRef.current && searchTerm !== selectedModelId) {
+									handleModelChange(searchTerm)
+								}
+								isSelectingRef.current = false
+							}, 150)
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
@@ -188,18 +204,30 @@ export const ModelAutocomplete = ({
 							/>
 						)}
 					</VSCodeTextField>
-					{isDropdownVisible && modelSearchResults.length > 0 && (
-						<DropdownList ref={dropdownListRef} style={{ zIndex: zIndex - 1 }}>
+					{isDropdownVisible && (
+						<DropdownList
+							aria-label="Model suggestions"
+							id={listboxId}
+							ref={dropdownListRef}
+							role="listbox"
+							style={{ zIndex: zIndex - 1 }}>
 							{modelSearchResults.map((item, index) => (
 								<DropdownItem
+									aria-selected={index === selectedIndex}
+									id={`${listboxId}-option-${index}`}
 									isSelected={index === selectedIndex}
 									key={item.id}
 									onClick={() => {
 										handleModelChange(item.id)
 										setIsDropdownVisible(false)
+										isSelectingRef.current = false
+									}}
+									onMouseDown={() => {
+										isSelectingRef.current = true
 									}}
 									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el) => (itemRefs.current[index] = el)}>
+									ref={(el) => (itemRefs.current[index] = el)}
+									role="option">
 									<span dangerouslySetInnerHTML={{ __html: item.html }} />
 								</DropdownItem>
 							))}
