@@ -15,6 +15,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-sonnet-5-20260203",
 	`claude-sonnet-5-20260203${CLAUDE_SONNET_1M_SUFFIX}`,
+	"claude-opus-4-6-20260203",
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,

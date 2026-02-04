@@ -15,6 +15,7 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 export const SUPPORTED_BEDROCK_THINKING_MODELS = [
 	"anthropic.claude-sonnet-5-20260203-v1:0",
 	`anthropic.claude-sonnet-5-20260203-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
+	"anthropic.claude-opus-4-6-20260203-v1:0",
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,

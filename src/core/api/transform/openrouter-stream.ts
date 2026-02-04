@@ -48,6 +48,7 @@ export async function createOpenRouterStream(
 	// handles direct model.id match logic
 	switch (model.id) {
 		case "anthropic/claude-sonnet-5":
+		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
@@ -116,6 +117,7 @@ export async function createOpenRouterStream(
 	let maxTokens: number | undefined
 	switch (model.id) {
 		case "anthropic/claude-sonnet-5":
+		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
@@ -162,6 +164,7 @@ export async function createOpenRouterStream(
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
 		case "anthropic/claude-sonnet-5":
+		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":

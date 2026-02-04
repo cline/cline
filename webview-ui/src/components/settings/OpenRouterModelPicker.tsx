@@ -289,6 +289,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-5") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.6") ||
 			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||

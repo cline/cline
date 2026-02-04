@@ -165,6 +165,7 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
 						break
+					case "anthropic/claude-opus-4.6":
 					case "anthropic/claude-opus-4.5":
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 6.25
