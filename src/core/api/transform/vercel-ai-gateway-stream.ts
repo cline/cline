@@ -3,6 +3,7 @@ import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
 	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet51mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
@@ -28,7 +29,10 @@ export async function createVercelAIGatewayStream(
 		...convertToOpenAiMessages(messages),
 	]
 
-	const isClaudeSonnet1m = model.id === openRouterClaudeSonnet41mModelId || model.id === openRouterClaudeSonnet451mModelId
+	const isClaudeSonnet1m =
+		model.id === openRouterClaudeSonnet41mModelId ||
+		model.id === openRouterClaudeSonnet451mModelId ||
+		model.id === openRouterClaudeSonnet51mModelId
 	if (isClaudeSonnet1m) {
 		// remove the custom :1m suffix, to create the model id the API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)

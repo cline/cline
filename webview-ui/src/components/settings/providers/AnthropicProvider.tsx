@@ -13,6 +13,8 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
+	"claude-sonnet-5-20260203",
+	`claude-sonnet-5-20260203${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
@@ -80,6 +82,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 								currentMode,
 							)
 						}
+						selectedModelId={selectedModelId}
+					/>
+
+					{/* Context window switcher for Claude Sonnet 5 */}
+					<ContextWindowSwitcher
+						base1mModelId={`claude-sonnet-5-20260203${CLAUDE_SONNET_1M_SUFFIX}`}
+						base200kModelId="claude-sonnet-5-20260203"
+						onModelChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>
 
