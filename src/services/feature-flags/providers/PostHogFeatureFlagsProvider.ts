@@ -1,8 +1,8 @@
 import { PostHog } from "posthog-node"
 import { getDistinctId } from "@/services/logging/distinctId"
+import type { FeatureFlagsAndPayloads, FeatureFlagsSettings, IFeatureFlagsProvider } from "@/shared/services/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
-import type { FeatureFlagsAndPayloads, FeatureFlagsSettings, IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
 
 /**
  * PostHog implementation of the feature flags provider interface

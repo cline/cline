@@ -1,8 +1,8 @@
 import { ClineEndpoint } from "@/config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
+import type { FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "@/shared/services/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { PostHogClientProvider } from "../telemetry/providers/posthog/PostHogClientProvider"
-import type { FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 /**
