@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Add .agents/skills directory support for skill discovery (global and local)
+Add .agents/skills as default skill directory (global and local)
