@@ -123,7 +123,12 @@ export const fetch: typeof globalThis.fetch = (() => {
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
 
-	return (input: string | URL | Request, init?: RequestInit): Promise<Response> => (mockFetch || baseFetch)(input, init)
+	// Create a wrapper function that has the same signature as fetch
+	const wrapper = (input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+		(mockFetch || baseFetch)(input, init)
+
+	// Copy any additional properties from the base fetch (like Bun's preconnect)
+	return Object.assign(wrapper, baseFetch)
 })()
 
 /**

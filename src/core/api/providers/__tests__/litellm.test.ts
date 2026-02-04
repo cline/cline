@@ -46,7 +46,7 @@ describe("LiteLlmHandler", () => {
 	}
 
 	beforeEach(() => {
-		mockFetchForTesting(mockFetch, () => {
+		mockFetchForTesting(mockFetch as unknown as typeof globalThis.fetch, () => {
 			return new Promise((resolve) => {
 				doneMockingFetch = resolve
 			})
