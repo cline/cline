@@ -11,6 +11,7 @@ tmp
 .husky/_/
 
 pnpm-lock.yaml
+yarn.lock
 
 .clineignore
 .venv

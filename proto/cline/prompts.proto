@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for managing system prompts
+service PromptsService {
+  // List all available system prompts
+  rpc listPrompts(EmptyRequest) returns (PromptsListResponse);
+
+  // Get a specific prompt by ID
+  rpc getPrompt(StringRequest) returns (SystemPromptResponse);
+
+  // Get the currently active prompt ID
+  rpc getActivePromptId(EmptyRequest) returns (String);
+
+  // Activate a prompt by ID
+  rpc activatePrompt(StringRequest) returns (BooleanResponse);
+
+  // Create a new prompt
+  rpc createPrompt(CreatePromptRequest) returns (CreatePromptResponse);
+
+  // Update an existing prompt
+  rpc updatePrompt(UpdatePromptRequest) returns (BooleanResponse);
+
+  // Delete a prompt by ID
+  rpc deletePrompt(StringRequest) returns (BooleanResponse);
+
+  // Open prompts directory in file explorer
+  rpc openPromptsDirectory(EmptyRequest) returns (Empty);
+}
+
+// Tool configuration for prompts
+message ToolConfiguration {
+  repeated string enabled = 1;
+  repeated string disabled = 2;
+}
+
+// Prompt metadata from YAML frontmatter
+message PromptMetadata {
+  optional string name = 1;
+  optional string description = 2;
+  optional string version = 3;
+  optional string author = 4;
+  optional ToolConfiguration tools = 5;
+  optional bool include_tool_instructions = 6;
+  optional bool include_editing_guidelines = 7;
+  optional bool include_browser_rules = 8;
+  optional bool include_mcp_section = 9;
+  optional bool include_user_instructions = 10;
+  optional bool include_rules = 11;
+  optional bool include_system_info = 12;
+}
+
+// A system prompt entry
+message SystemPromptInfo {
+  string id = 1;
+  string filename = 2;
+  string name = 3;
+  optional string description = 4;
+  bool enabled = 5;
+  string filepath = 6;
+  optional PromptMetadata metadata = 7;
+}
+
+// Response containing list of prompts
+message PromptsListResponse {
+  repeated SystemPromptInfo prompts = 1;
+  string active_prompt_id = 2;
+  string prompts_directory = 3;
+}
+
+// Response for getting a single prompt
+message SystemPromptResponse {
+  optional SystemPromptInfo prompt = 1;
+  optional string content = 2;
+  optional string raw_content = 3;
+}
+
+// Request to create a new prompt
+message CreatePromptRequest {
+  string name = 1;
+  string content = 2;
+  optional string description = 3;
+  optional PromptMetadata metadata = 4;
+}
+
+// Response for creating a prompt
+message CreatePromptResponse {
+  bool success = 1;
+  string id = 2;
+  optional string error = 3;
+}
+
+// Request to update an existing prompt
+message UpdatePromptRequest {
+  string id = 1;
+  string content = 2;
+  optional PromptMetadata metadata = 3;
+}
