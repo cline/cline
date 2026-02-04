@@ -1,7 +1,7 @@
 import { buildApiHandler } from "@core/api"
 import * as path from "path"
 import * as vscode from "vscode"
-import { StateManager } from "@/core/storage/StateManager"
+import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -25,7 +25,7 @@ The commit message should:
 4. Be clear and informative`,
 }
 
-export async function generateCommitMsg(stateManager: StateManager, scm?: vscode.SourceControl) {
+export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
 	try {
 		const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
 		if (!gitExtension) {
@@ -45,11 +45,11 @@ export async function generateCommitMsg(stateManager: StateManager, scm?: vscode
 				throw new Error("Repository not found for provided SCM")
 			}
 
-			await generateCommitMsgForRepository(stateManager, repository)
+			await generateCommitMsgForRepository(controller, repository)
 			return
 		}
 
-		await orchestrateWorkspaceCommitMsgGeneration(stateManager, git.repositories)
+		await orchestrateWorkspaceCommitMsgGeneration(controller, git.repositories)
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
@@ -59,7 +59,7 @@ export async function generateCommitMsg(stateManager: StateManager, scm?: vscode
 	}
 }
 
-async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManager, repos: any[]) {
+async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, repos: any[]) {
 	const reposWithChanges = await filterForReposWithChanges(repos)
 
 	if (reposWithChanges.length === 0) {
@@ -73,7 +73,7 @@ async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManage
 	if (reposWithChanges.length === 1) {
 		// Only one repo with changes, generate for it
 		const repo = reposWithChanges[0]
-		await generateCommitMsgForRepository(stateManager, repo)
+		await generateCommitMsgForRepository(controller, repo)
 		return
 	}
 
@@ -88,14 +88,14 @@ async function orchestrateWorkspaceCommitMsgGeneration(stateManager: StateManage
 		// Generate for all repositories with changes
 		for (const repo of reposWithChanges) {
 			try {
-				await generateCommitMsgForRepository(stateManager, repo)
+				await generateCommitMsgForRepository(controller, repo)
 			} catch (error) {
 				Logger.error(`Failed to generate commit message for ${repo.rootUri.fsPath}:`, error)
 			}
 		}
 	} else {
 		// Generate for selected repository
-		await generateCommitMsgForRepository(stateManager, selection.repo)
+		await generateCommitMsgForRepository(controller, selection.repo)
 	}
 }
 
@@ -109,7 +109,7 @@ async function filterForReposWithChanges(repos: any[]) {
 			if (gitDiff) {
 				reposWithChanges.push(repo)
 			}
-		} catch (error) {
+		} catch {
 			// Skip repositories with errors (no changes, etc.)
 		}
 	}
@@ -135,7 +135,7 @@ async function promptRepoSelection(repos: any[]) {
 	})
 }
 
-async function generateCommitMsgForRepository(stateManager: StateManager, repository: any) {
+async function generateCommitMsgForRepository(controller: Controller, repository: any) {
 	const inputBox = repository.inputBox
 	const repoPath = repository.rootUri.fsPath
 	const gitDiff = await getGitDiff(repoPath)
@@ -150,15 +150,23 @@ async function generateCommitMsgForRepository(stateManager: StateManager, reposi
 			title: `Generating commit message for ${repoPath.split(path.sep).pop() || "repository"}...`,
 			cancellable: true,
 		},
-		() => performCommitMsgGeneration(stateManager, gitDiff, inputBox),
+		() => performCommitMsgGeneration(controller, gitDiff, inputBox),
 	)
 }
 
-async function performCommitMsgGeneration(stateManager: StateManager, gitDiff: string, inputBox: any) {
+async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
+
+		const workspaceManager = await controller.ensureWorkspaceManager()
+		if (workspaceManager) {
+			const workspacesJson = await workspaceManager.buildWorkspacesJson()
+			if (workspacesJson) {
+				prompts.push(`# Workspace Configuration\n${workspacesJson}`)
+			}
+		}
 
 		const currentInput = inputBox.value?.trim() || ""
 		if (currentInput) {
@@ -167,11 +175,12 @@ async function performCommitMsgGeneration(stateManager: StateManager, gitDiff: s
 
 		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
 		prompts.push(truncatedDiff)
+
 		const prompt = prompts.join("\n\n")
 
 		// Get the current API configuration
 		// Set to use Act mode for now by default
-		const apiConfiguration = stateManager.getApiConfiguration()
+		const apiConfiguration = controller.stateManager.getApiConfiguration()
 		const currentMode = "act"
 
 		// Build the API handler
