@@ -18,7 +18,7 @@
 			}
 		},
 		{
-			"label": "bun: protos",
+			"label": "bun:protos",
 			"type": "shell",
 			"command": "bun",
 			"args": [
@@ -39,11 +39,11 @@
 		{
 			"label": "watch",
 			"dependsOn": [
-				"bun: protos",
-				"bun: build:webview",
-				"bun: dev:webview",
-				"bun: watch:tsc",
-				"bun: watch:esbuild"
+				"bun:protos",
+				"bun:build:webview",
+				"bun:dev:webview",
+				"bun:watch:tsc",
+				"bun:watch:esbuild"
 			],
 			"presentation": {
 				"reveal": "always"
@@ -56,11 +56,11 @@
 		{
 			"label": "watch:test",
 			"dependsOn": [
-				"bun: protos",
-				"bun: build:webview:test",
-				"bun: dev:webview",
-				"bun: watch:tsc",
-				"bun: watch:esbuild:test"
+				"bun:protos",
+				"bun:build:webview:test",
+				"bun:dev:webview",
+				"bun:watch:tsc",
+				"bun:watch:esbuild:test"
 			],
 			"presentation": {
 				"reveal": "always"

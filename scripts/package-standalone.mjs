@@ -95,7 +95,11 @@ async function packageAllBinaryDeps() {
 			const v = IS_VERBOSE ? "--verbose" : ""
 			const cmd = `bunx prebuild-install --platform=${platform} --arch=${arch} --target=${TARGET_NODE_VERSION} ${v}`
 			log_verbose(`${module}: ${cmd}`)
-			execSync(cmd, { cwd: dest, stdio: "inherit" })
+			execSync(cmd, {
+				cwd: dest,
+				stdio: "inherit",
+				env: { ...process.env, NODE_NO_WARNINGS: "1" },
+			})
 			log_verbose("")
 		}
 		// Remove the original module with the host platform binaries installed directly into node_modules.
