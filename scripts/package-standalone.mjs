@@ -46,8 +46,8 @@ async function installNodeDependencies() {
 
 	await cpr(RUNTIME_DEPS_DIR, BUILD_DIR)
 
-	console.log("Running npm install in distribution directory...")
-	execSync("npm install", { stdio: "inherit", cwd: BUILD_DIR })
+	console.log("Running bun install in distribution directory...")
+	execSync("bun install", { stdio: "inherit", cwd: BUILD_DIR })
 
 	// Move the vscode directory into node_modules.
 	// It can't be installed using npm because it will create a symlink which cannot be unzipped correctly on windows.
@@ -93,7 +93,7 @@ async function packageAllBinaryDeps() {
 
 			// Download the binary libs
 			const v = IS_VERBOSE ? "--verbose" : ""
-			const cmd = `npx prebuild-install --platform=${platform} --arch=${arch} --target=${TARGET_NODE_VERSION} ${v}`
+			const cmd = `bunx prebuild-install --platform=${platform} --arch=${arch} --target=${TARGET_NODE_VERSION} ${v}`
 			log_verbose(`${module}: ${cmd}`)
 			execSync(cmd, { cwd: dest, stdio: "inherit" })
 			log_verbose("")

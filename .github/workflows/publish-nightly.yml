@@ -33,35 +33,16 @@ jobs:
                 fi
                 echo "Found recent commits, proceeding with build"
                 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: "lts/*"
+                  bun-version: latest
 
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-            - name: Install root dependencies
-              run: npm ci --include=optional
-
-            - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci --include=optional
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
 
             - name: Install Publishing Tools
-              run: npm install -g @vscode/vsce ovsx
+              run: bun add -g @vscode/vsce ovsx
 
             - name: Publish Extension as Pre-release
               env:
@@ -77,4 +58,4 @@ jobs:
                   OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
                   OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-              run: npm run publish:marketplace:nightly
+              run: bun run publish:marketplace:nightly

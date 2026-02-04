@@ -30,7 +30,7 @@ testing-platform/
 Generate proto files in the **root Cline project**:
 
 ```bash
-npm run protos
+bun run protos
 ```
 
 ## Setup
@@ -38,16 +38,16 @@ npm run protos
 From the root of the Cline project:
 
 ```bash
-npm run install:all
-npm run protos
+bun run install:all
+bun run protos
 ```
 
 Then install and build the testing platform:
 
 ```bash
 cd testing-platform
-npm install
-npm run build
+bun install
+bun run build
 ```
 
 ## Running Spec File Tests
@@ -55,11 +55,11 @@ npm run build
 Before running specs, make sure the standalone Cline Core gRPC server (that runs mocks and host gRPC as well) is running:
 
 ```bash
-npm run test:sca-server
+bun run test:sca-server
 ```
 
 Then finally you can run the cli as:
 
 ```bash
-npm run start:dev <spec-file-or-folder>
+bun run start:dev <spec-file-or-folder>
 ```bash

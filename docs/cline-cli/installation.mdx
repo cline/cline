@@ -22,7 +22,7 @@ If you need to install or update Node.js, visit [nodejs.org](https://nodejs.org)
 Install globally via npm:
 
 ```bash
-npm install -g cline
+bun install -g cline
 ```
 
 Verify the installation:
@@ -32,7 +32,7 @@ cline version
 ```
 
 <Tip>
-To install a specific version, use `npm install -g cline@2.0.0`. Check [npm](https://www.npmjs.com/package/cline) for available versions.
+To install a specific version, use `bun install -g cline@2.0.0`. Check [npm](https://www.npmjs.com/package/cline) for available versions.
 </Tip>
 
 ## Authenticate
@@ -186,7 +186,7 @@ cline update
 Or update manually via npm:
 
 ```bash
-npm update -g cline
+bun update -g cline
 ```
 
 ## Troubleshooting
@@ -195,14 +195,14 @@ npm update -g cline
 
 If `cline` is not found after installation:
 
-1. Ensure npm global bin is in your PATH:
+1. Ensure bun global bin is in your PATH:
    ```bash
-   npm bin -g
+   bun bin -g
    ```
 
 2. Add the path to your shell configuration (`.bashrc`, `.zshrc`, etc.):
    ```bash
-   export PATH="$PATH:$(npm bin -g)"
+   export PATH="$PATH:$(bun bin -g)"
    ```
 
 3. Restart your terminal or source your shell config.
@@ -215,7 +215,7 @@ If you get permission errors during installation:
 # Option 1: Use a Node version manager (recommended)
 # nvm, fnm, or volta handle permissions automatically
 
-# Option 2: Fix npm permissions
+# Option 2: Fix bun permissions
 # See: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally
 ```
 
@@ -244,7 +244,7 @@ If your API key is rejected:
 To remove Cline CLI:
 
 ```bash
-npm uninstall -g cline
+bun uninstall -g cline
 ```
 
 To also remove configuration data:

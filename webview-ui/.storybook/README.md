@@ -19,7 +19,7 @@ In Cline's webview, Storybook helps us develop and test React components that ma
 To launch the Storybook development server:
 
 ```bash
-npm run storybook
+bun run storybook
 ```
 
 This will start Storybook on `http://localhost:6006` where you can browse all available stories and interact with components.

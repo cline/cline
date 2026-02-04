@@ -39,37 +39,16 @@ jobs:
                   fetch-depth: 0
                   fetch-tags: true
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: "lts/*"
+                  bun-version: latest
 
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-            - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
-              run: npm install --include=optional
-
-            - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
-              run: cd webview-ui && npm install --include=optional
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
 
             - name: Install Publishing Tools
-              run: npm install -g @vscode/vsce ovsx
+              run: bun add -g @vscode/vsce ovsx
 
             - name: Get Version
               id: get_version
@@ -111,10 +90,10 @@ jobs:
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
-                    npm run publish:marketplace:prerelease
+                    bun run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else
-                    npm run publish:marketplace
+                    bun run publish:marketplace
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 

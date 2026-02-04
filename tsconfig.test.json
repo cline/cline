@@ -24,11 +24,11 @@
 		"rootDir": "."
 	},
 	"include": [
-		"src/**/*.test.ts"
+		"./src/**/*.test.ts"
 	],
 	"exclude": [
-		"src/test/**/*.js",
-		"src/**/__tests__/*",
-		"src/test/e2e/**/*.test.ts"
+		"./src/test/**/*.js",
+		"./src/**/__tests__/*",
+		"./src/test/e2e/**/*.test.ts"
 	]
 }

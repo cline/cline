@@ -23,43 +23,42 @@
 		"target": "es2022",
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
-		"baseUrl": ".",
 		"paths": {
 			"@/*": [
-				"src/*"
+				"./src/*"
 			],
 			"@api/*": [
-				"src/core/api/*"
+				"./src/core/api/*"
 			],
 			"@core/*": [
-				"src/core/*"
+				"./src/core/*"
 			],
 			"@generated/*": [
-				"src/generated/*"
+				"./src/generated/*"
 			],
 			"@hosts/*": [
-				"src/hosts/*"
+				"./src/hosts/*"
 			],
 			"@integrations/*": [
-				"src/integrations/*"
+				"./src/integrations/*"
 			],
 			"@packages/*": [
-				"src/packages/*"
+				"./src/packages/*"
 			],
 			"@services/*": [
-				"src/services/*"
+				"./src/services/*"
 			],
 			"@shared/*": [
-				"src/shared/*"
+				"./src/shared/*"
 			],
 			"@utils/*": [
-				"src/utils/*"
+				"./src/utils/*"
 			]
 		}
 	},
 	"include": [
-		"src/**/*",
-		"cli/src/**/*"
+		"./src/**/*",
+		"./cli/src/**/*"
 	],
 	"exclude": [
 		"node_modules",

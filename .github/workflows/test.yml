@@ -24,26 +24,18 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
-                      cli/package-lock.json
+                  bun-version: latest
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
-
             - name: Run Quality Checks (Parallel)
-              run: npm run ci:check-all
+              run: bun run ci:check-all
 
     test:
         needs: quality-checks
@@ -60,66 +52,54 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
+                  bun-version: latest
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
-
-            - name: Set up NPM on Windows
-              if: runner.os == 'Windows'
-              run: |
-                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
             # Build the extension and tests (without redundant checks)
             - name: Build Tests and Extension
               id: build_step
-              run: npm run ci:build
+              run: bun run ci:build
 
             - name: Unit Tests with coverage - Linux
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
               run: |
-                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
+                  bunx nyc --nycrc-path .nycrc.unit.json --reporter=lcov bun run test:unit
 
             - name: Unit Tests - Non-Linux
               id: unit_tests_non_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
               run: |
-                  npm run test:unit
+                  bun run test:unit
 
             - name: Extension Integration Tests - Linux
               id: integration_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
-              run: xvfb-run -a npm run test:coverage
+              run: xvfb-run -a bun run test:coverage
 
             - name: Extension Integration Tests - Non-Linux
               id: integration_tests_non_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
-              run: npm run test:integration
+              run: bun run test:integration
 
             - name: Webview Tests with Coverage
               id: webview_tests
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: |
                   cd webview-ui
-                  npm run test:coverage
+                  bun run test:coverage
 
             - name: CLI Tests
               id: cli_tests
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
-              run: cd cli && npm run test:run
+              run: cd cli && bun run test:run
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
@@ -138,36 +118,28 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
-                      testing-platform/package-lock.json
+                  bun-version: latest
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
-
             - name: Download ripgrep binaries
-              run: npm run download-ripgrep
+              run: bun run download-ripgrep
 
             - name: Compile Standalone
-              run: npm run compile-standalone
+              run: bun run compile-standalone
 
             - name: Install testing platform dependencies
-              run: cd testing-platform && npm ci
+              run: cd testing-platform && bun install
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
-              run: npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
+              run: bun run test:tp-orchestrator -- tests/specs/ --count=1 --coverage
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4

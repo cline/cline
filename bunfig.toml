@@ -1,0 +1,18 @@
+# Bun configuration for Cline monorepo
+
+[install]
+# Use npm for package resolution compatibility
+registry = "https://registry.npmjs.org/"
+
+# Cache configuration
+[install.cache]
+# Enable caching for faster installs
+disable = false
+
+[install.scopes]
+# Configure scoped registries if needed
+# "@myorg" = "https://registry.example.com/"
+
+[test]
+# Test configuration
+preload = []

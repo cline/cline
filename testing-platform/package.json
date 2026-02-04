@@ -5,7 +5,7 @@
 	"scripts": {
 		"build": "tsc",
 		"start:dev": "ts-node index.ts",
-		"start": "npm run build && node dist/runner.js"
+		"start": "bun run build && bun dist/runner.js"
 	},
 	"dependencies": {
 		"jest-diff": "^30.1.2"

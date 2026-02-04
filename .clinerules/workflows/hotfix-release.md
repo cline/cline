@@ -98,7 +98,7 @@ On the main branch, create a commit that updates:
 
    Each changeset file in `.changeset/` corresponds to a PR. Read them to identify which ones belong to the commits you're hotfixing, then delete those files.
 
-**Skip running `npm run install:all`** - the automation handles outdated lockfiles.
+**Skip running `bun run install:all`** - the automation handles outdated lockfiles.
 
 Commit with message format: `v{VERSION} Release Notes (hotfix)`
 

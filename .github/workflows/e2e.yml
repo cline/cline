@@ -35,26 +35,10 @@ jobs:
             contents: read
         steps:
             - uses: actions/checkout@v4
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: 22
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  bun-version: latest
 
             # Cache VS Code installation
             - name: Cache VS Code
@@ -75,20 +59,17 @@ jobs:
                       ~/.cache/ms-playwright
                       ~/Library/Caches/ms-playwright
                       ~/AppData/Local/ms-playwright
-                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('bun.lockb') }}
                   restore-keys: |
                       playwright-browsers-${{ runner.os }}-
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
-
             - name: Install vsce
-              run: npm install -g @vscode/vsce
+              run: bun add -g @vscode/vsce
 
             - name: Install xvfb on Linux
               if: matrix.runner == 'ubuntu'
@@ -97,11 +78,11 @@ jobs:
             # Run optimized E2E tests (eliminates redundant builds)
             - name: Run E2E tests - Linux
               if: matrix.runner == 'ubuntu'
-              run: xvfb-run -a npm run test:e2e:optimal
+              run: xvfb-run -a bun run test:e2e:optimal
 
             - name: Run E2E tests - Non-Linux
               if: matrix.runner != 'ubuntu'
-              run: npm run test:e2e:optimal
+              run: bun run test:e2e:optimal
 
             - uses: actions/upload-artifact@v4
               if: ${{ failure() }}

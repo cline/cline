@@ -33,7 +33,7 @@ async function main() {
 
 	console.log("\n✅ Build complete!")
 	console.log(`\n📦 NPM package ready in ${BUILD_DIR}/`)
-	console.log(`To publish: cd ${BUILD_DIR} && npm publish`)
+	console.log(`To publish: cd ${BUILD_DIR} && bun publish`)
 }
 
 /**
@@ -55,11 +55,11 @@ async function buildTypeScriptCli() {
 	// Install dependencies if needed
 	if (!fs.existsSync(path.join(CLI_DIR, "node_modules"))) {
 		console.log("Installing cli dependencies...")
-		execSync("npm install", { stdio: "inherit", cwd: CLI_DIR })
+		execSync("bun install", { stdio: "inherit", cwd: CLI_DIR })
 	}
 
 	// Build production bundle
-	execSync("npm run build:production", { stdio: "inherit", cwd: CLI_DIR })
+	execSync("bun run build:production", { stdio: "inherit", cwd: CLI_DIR })
 	console.log("✓ TypeScript CLI built")
 }
 
@@ -74,7 +74,7 @@ async function copyCliDist() {
 
 	if (!fs.existsSync(distSource)) {
 		console.error(`Error: CLI dist not found at ${distSource}`)
-		console.error(`Please run: cd cli && npm run build:production`)
+		console.error(`Please run: cd cli && bun run build:production`)
 		process.exit(1)
 	}
 

@@ -62,9 +62,9 @@ class TestCoverage(unittest.TestCase):
             
             # Use xvfb-run on Linux
             if sys.platform.startswith('linux'):
-                cmd = f"cd {root_dir} && xvfb-run -a npm run test:coverage > {cls.extension_coverage_file} 2>&1"
+                cmd = f"cd {root_dir} && xvfb-run -a bun run test:coverage > {cls.extension_coverage_file} 2>&1"
             else:
-                cmd = f"cd {root_dir} && npm run test:coverage > {cls.extension_coverage_file} 2>&1"
+                cmd = f"cd {root_dir} && bun run test:coverage > {cls.extension_coverage_file} 2>&1"
             
             log("Running extension tests...")
             log(f"Command: {cmd}")
@@ -73,7 +73,7 @@ class TestCoverage(unittest.TestCase):
             
             # Run webview tests with coverage
             log("Running webview tests...")
-            cmd = f"cd {webview_dir} && npm run test:coverage > {cls.webview_coverage_file} 2>&1"
+            cmd = f"cd {webview_dir} && bun run test:coverage > {cls.webview_coverage_file} 2>&1"
             log(f"Command: {cmd}")
             result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
             log(f"Webview tests exit code: {result.returncode}")

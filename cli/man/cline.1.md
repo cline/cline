@@ -116,7 +116,7 @@ Authenticate a provider and configure the model.
 
 Check for updates and install if available.
 
-**cline update** [*options*] :   Check npm for newer versions. Options:
+**cline update** [*options*] :   Check bun for newer versions. Options:
 
 **-v**, **\--verbose** :   Show verbose output
 
@@ -293,11 +293,11 @@ Format: `{"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirec
 **Examples:**
 
 ```bash
-# Allow only npm and git commands.
-export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"]}'
+# Allow only bun and git commands.
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["bun *", "git *"]}'
 
 # Allow development commands but deny dangerous ones. Deny not strictly required here since allow is set.
-export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *", "node *"], "deny": ["rm -rf *", "sudo *"]}'
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["bun *", "git *", "node *"], "deny": ["rm -rf *", "sudo *"]}'
 
 # Allow file operations with redirects
 export CLINE_COMMAND_PERMISSIONS='{"allow": ["cat *", "echo *"], "allowRedirects": true}'

@@ -62,7 +62,7 @@ Documentation should be verified for accuracy by cross-referencing with source c
 4. Verify slash commands against `cli/src/components/HelpPanelContent.tsx`
 5. Verify config options against `cli/src/components/ConfigView.tsx` and `SettingsPanelContent.tsx`
 6. Verify import sources against `cli/src/utils/import-configs.ts`
-7. Run `npm run docs:dev` (if available) to preview documentation locally
+7. Run `bun run docs:dev` (if available) to preview documentation locally
 
 **Content accuracy checks:**
 - [ ] All keyboard shortcuts match source code
@@ -218,7 +218,7 @@ Add new pages to the CLI navigation group:
 - Remove "Preview Release - macOS and Linux Only" warning (CLI is now GA and supports Windows)
 - Add note that CLI supports macOS, Linux, and Windows
 - Add Node.js version requirement (20+, recommend 22)
-- Add version specification (`npm install -g cline@2.0.0`)
+- Add version specification (`bun install -g cline@2.0.0`)
 - Add more detail on post-install authentication
 - Link to new authentication guide
 - Add troubleshooting tips
@@ -226,7 +226,7 @@ Add new pages to the CLI navigation group:
 
 **New structure:**
 1. Prerequisites (Node.js version)
-2. Installation: `npm install -g cline` (or `npm install -g cline@2.0.0`)
+2. Installation: `bun install -g cline` (or `bun install -g cline@2.0.0`)
 3. Authentication (`cline auth` - link to auth guide)
 4. Quick Start (two paths: TUI and CLI)
 5. Next Steps (links to guides)
@@ -302,7 +302,7 @@ Add a callout at the top noting that instance commands (`cline instance new/list
 After implementation, verify these user requirements are documented:
 
 - [x] New TUI experience explained
-- [x] NPM installation covered
+- [x] bun installation covered
 - [x] Authorization options:
   - [x] Sign in with Cline
   - [x] Sign in with ChatGPT Subscription (Codex OAuth)

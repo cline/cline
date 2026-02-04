@@ -13,7 +13,7 @@ The official CLI for Cline. Run Cline tasks directly from the terminal with the 
 ## Prerequisites
 
 - Node.js 20.x or later
-- npm or yarn
+- bun or npm or yarn
 - The parent Cline project dependencies installed
 
 ## Installation
@@ -22,13 +22,13 @@ From the repository root:
 
 ```bash
 # Install all dependencies first
-npm run install:all
+bun install
 
 # Ensure protos are generated
-npm run protos
+bun run protos
 
 # Build and link the CLI globally
-npm run cli:link
+bun run cli:link
 ```
 
 ## Usage
@@ -192,10 +192,10 @@ These options are available for the default command (running a task directly):
 
 ```bash
 # 1. Install all dependencies (root, webview-ui, cli)
-npm run install:all
+bun install
 
 # 2. Build and link globally so you can run `cline` from anywhere
-npm run cli:link
+bun run cli:link
 
 # 3. Test it
 cline --help
@@ -207,29 +207,29 @@ Run these from the repository root:
 
 | Script | Description |
 |--------|-------------|
-| `npm run install:all` | Install deps for root, webview-ui, and cli |
-| `npm run cli:build` | Generate protos and build CLI |
-| `npm run cli:build:production` | Production build (minified) |
-| `npm run cli:link` | Build and `npm link` so you can run `cline` from anywhere |
-| `npm run cli:unlink` | Remove the global `cline` symlink |
-| `npm run cli:dev` | Link + watch mode for development |
-| `npm run cli:watch` | Watch mode only (no initial build) |
-| `npm run cli:test` | Run CLI tests |
+| `bun install` | Install deps for root, webview-ui, and cli |
+| `bun run cli:build` | Generate protos and build CLI |
+| `bun run cli:build:production` | Production build (minified) |
+| `bun run cli:link` | Build and `bun link` so you can run `cline` from anywhere |
+| `bun run cli:unlink` | Remove the global `cline` symlink |
+| `bun run cli:dev` | Link + watch mode for development |
+| `bun run cli:watch` | Watch mode only (no initial build) |
+| `bun run cli:test` | Run CLI tests |
 
 ### Development Workflow
 
-1. Run `npm run cli:dev` - this links the CLI globally and starts watch mode
+1. Run `bun run cli:dev` - this links the CLI globally and starts watch mode
 2. Make changes to files in `cli/src/`
 3. The build automatically rebuilds on save
 4. Test your changes by running `cline` in another terminal
-5. When done, run `npm run cli:unlink` to clean up
+5. When done, run `bun run cli:unlink` to clean up
 
 ### Proto Generation
 
 The CLI uses proto-generated types for message passing (same as the VS Code extension). If you modify any `.proto` files, run:
 
 ```bash
-npm run protos
+bun run protos
 ```
 
 This generates TypeScript types in `src/generated/` that both the CLI and extension use.
@@ -238,12 +238,12 @@ This generates TypeScript types in `src/generated/` that both the CLI and extens
 
 #### 1. Publish to npm
 ```bash
-npm publish
+bun publish
 ```
 
 #### 2. Update the Homebrew formula
 ```bash
-npm run update-brew-formula
+bun run update-brew-formula
 ```
 
 #### 3. Test the formula locally
@@ -335,13 +335,13 @@ If you encounter build errors:
 
 ```bash
 # Make sure all deps are installed
-npm run install:all
+bun install
 
 # Regenerate proto types
-npm run protos
+bun run protos
 
 # Then rebuild
-npm run cli:build
+bun run cli:build
 ```
 
 ### "command not found: cline"
@@ -349,16 +349,16 @@ npm run cli:build
 The CLI isn't linked globally. Run:
 
 ```bash
-npm run cli:link
+bun run cli:link
 ```
 
 ### Changes Not Reflected
 
 If your code changes aren't showing up:
 
-1. Make sure watch mode is running (`npm run cli:dev`)
+1. Make sure watch mode is running (`bun run cli:dev`)
 2. Check for TypeScript errors in the watch output
-3. Try unlinking and relinking: `npm run cli:unlink && npm run cli:link`
+3. Try unlinking and relinking: `bun run cli:unlink && bun run cli:link`
 
 ### Import Errors from Core
 

@@ -5,8 +5,12 @@
 	"tasks": [
 		{
 			"label": "compile-standalone",
-			"type": "npm",
-			"script": "compile-standalone",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"compile-standalone"
+			],
 			"group": "build",
 			"problemMatcher": [],
 			"presentation": {
@@ -14,9 +18,13 @@
 			}
 		},
 		{
-			"label": "npm: protos",
-			"type": "npm",
-			"script": "protos",
+			"label": "bun: protos",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"protos"
+			],
 			"problemMatcher": [],
 			"isBackground": false,
 			"presentation": {
@@ -31,11 +39,11 @@
 		{
 			"label": "watch",
 			"dependsOn": [
-				"npm: protos",
-				"npm: build:webview",
-				"npm: dev:webview",
-				"npm: watch:tsc",
-				"npm: watch:esbuild"
+				"bun: protos",
+				"bun: build:webview",
+				"bun: dev:webview",
+				"bun: watch:tsc",
+				"bun: watch:esbuild"
 			],
 			"presentation": {
 				"reveal": "always"
@@ -48,11 +56,11 @@
 		{
 			"label": "watch:test",
 			"dependsOn": [
-				"npm: protos",
-				"npm: build:webview:test",
-				"npm: dev:webview",
-				"npm: watch:tsc",
-				"npm: watch:esbuild:test"
+				"bun: protos",
+				"bun: build:webview:test",
+				"bun: dev:webview",
+				"bun: watch:tsc",
+				"bun: watch:esbuild:test"
 			],
 			"presentation": {
 				"reveal": "always"
@@ -60,14 +68,18 @@
 			"group": "build"
 		},
 		{
-			"type": "npm",
-			"script": "build:webview",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"build:webview"
+			],
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
-			"label": "npm: build:webview",
+			"label": "bun:build:webview",
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"group": "watch",
@@ -80,14 +92,18 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "build:webview:test",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"build:webview:test"
+			],
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
-			"label": "npm: build:webview:test",
+			"label": "bun:build:webview:test",
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"group": "watch",
@@ -101,8 +117,12 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "dev:webview",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"dev:webview"
+			],
 			"group": "build",
 			"problemMatcher": [
 				{
@@ -122,9 +142,9 @@
 				}
 			],
 			"isBackground": true,
-			"label": "npm: dev:webview",
+			"label": "bun:dev:webview",
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"group": "watch",
@@ -137,8 +157,12 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"watch:esbuild"
+			],
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -160,9 +184,9 @@
 				}
 			},
 			"isBackground": true,
-			"label": "npm: watch:esbuild",
+			"label": "bun:watch:esbuild",
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"group": "watch",
@@ -175,8 +199,12 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild:test",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"watch:esbuild:test"
+			],
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -198,9 +226,9 @@
 				}
 			},
 			"isBackground": true,
-			"label": "npm: watch:esbuild:test",
+			"label": "bun:watch:esbuild:test",
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"group": "watch",
@@ -214,14 +242,18 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:tsc",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"watch:tsc"
+			],
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
-			"label": "npm: watch:tsc",
+			"label": "bun:watch:tsc",
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"group": "watch",
@@ -229,12 +261,17 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-tests",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"watch-tests"
+			],
+			"label": "bun:watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"dependsOn": [
-				"npm: protos"
+				"bun:protos"
 			],
 			"presentation": {
 				"reveal": "always",
@@ -245,9 +282,9 @@
 		{
 			"label": "tasks: watch-tests",
 			"dependsOn": [
-				"npm: protos",
-				"npm: watch",
-				"npm: watch-tests"
+				"bun:protos",
+				"bun:watch",
+				"bun:watch-tests"
 			],
 			"problemMatcher": []
 		},
@@ -265,15 +302,19 @@
 			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
 		},
 		{
-			"type": "npm",
-			"script": "storybook",
+			"type": "shell",
+			"command": "bun",
+			"args": [
+				"run",
+				"storybook"
+			],
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
-			"label": "npm: storybook",
+			"label": "bun:storybook",
 			"dependsOn": [
-				"npm: protos",
-				"npm: build:webview"
+				"bun:protos",
+				"bun:build:webview"
 			],
 			"presentation": {
 				"reveal": "always"

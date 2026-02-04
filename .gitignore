@@ -10,7 +10,10 @@ tmp
 .idea
 .husky/_/
 
+# Package manager lock files (we use Bun, so bun.lockb is NOT ignored)
 pnpm-lock.yaml
+package-lock.json
+yarn.lock
 
 .clineignore
 .venv

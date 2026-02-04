@@ -34,23 +34,38 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 ### Local Development Instructions
 
-1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
+> **Note**: This project uses [Bun](https://bun.sh) as the package manager. See [BUN_MIGRATION.md](BUN_MIGRATION.md) for migration details.
+
+1. Install Bun (if you haven't already):
+    ```bash
+    # macOS/Linux
+    curl -fsSL https://bun.sh/install | bash
+
+    # Windows
+    powershell -c "irm bun.sh/install.ps1 | iex"
+    ```
+
+2. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
     ```bash
     git clone https://github.com/cline/cline.git
     ```
-2. Open the project in VSCode:
+
+3. Open the project in VSCode:
     ```bash
     code cline
     ```
-3. Install the necessary dependencies for the extension and webview-gui:
+
+4. Install dependencies (installs for all workspaces):
     ```bash
-    npm run install:all
+    bun install
     ```
-4. Generate Protocol Buffer files (required before first build):
+
+5. Generate Protocol Buffer files (required before first build):
     ```bash
-    npm run protos
+    bun run protos
     ```
-5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+
+6. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
 
@@ -59,7 +74,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 1. Before creating a PR, generate a changeset entry:
     ```bash
-    npm run changeset
+    bun run changeset
     ```
    This will prompt you for:
    - Type of change (major, minor, patch)
@@ -75,9 +90,10 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
    - Changesetbot will create a comment showing the version impact
    - When merged to main, changesetbot will create a Version Packages PR
    - When the Version Packages PR is merged, a new release will be published
+
 4. Testing
-    - Run `npm run test` to run tests locally. 
-    - Before submitting PR, run `npm run format:fix` to format your code
+    - Run `bun run test` to run tests locally
+    - Before submitting PR, run `bun run format:fix` to format your code
 
 ### Extension
 
@@ -88,12 +104,12 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     - If you dismissed the prompts, you can install them manually from the Extensions panel
 
 2. **Local Development**
-    - Run `npm run install:all` to install dependencies
-    - Run `npm run protos` to generate Protocol Buffer files (required before first build)
-    - Run `npm run test` to run tests locally
+    - Run `bun run install:all` to install dependencies
+    - Run `bun run protos` to generate Protocol Buffer files (required before first build)
+    - Run `bun run test` to run tests locally
     - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
-    - **Terminal Workflow**: Use `npm run dev` (generates protos + runs watch mode) or `npm run watch` (if protos already generated)
-    - Before submitting PR, run `npm run format:fix` to format your code
+    - **Terminal Workflow**: Use `bun run dev` (generates protos + runs watch mode) or `bun run watch` (if protos already generated)
+    - Before submitting PR, run `bun run format:fix` to format your code
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
@@ -149,8 +165,8 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code
+    - Run `bun run lint` to check code style
+    - Run `bun run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
     - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
@@ -158,7 +174,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 3. **Testing**
 
     - Add tests for new features
-    - Run `npm test` to ensure all tests pass
+    - Run `bun test` to ensure all tests pass
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
@@ -168,9 +184,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     
     - **Running E2E tests:**
       ```bash
-      npm run test:e2e        # Build and run all E2E tests
-      npm run e2e             # Run tests without rebuilding
-      npm run test:e2e -- --debug  # Run with interactive debugger
+      bun run test:e2e        # Build and run all E2E tests
+      bun run e2e             # Run tests without rebuilding
+      bun run test:e2e -- --debug  # Run with interactive debugger
       ```
     
     - **Writing E2E tests:**
@@ -194,7 +210,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 4. **Version Management with Changesets**
 
-    - Create a changeset for any user-facing changes using `npm run changeset`
+    - Create a changeset for any user-facing changes using `bun run changeset`
     - Choose the appropriate version bump:
         - `major` for breaking changes (1.0.0 → 2.0.0)
         - `minor` for new features (1.0.0 → 1.1.0)

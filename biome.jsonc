@@ -124,7 +124,9 @@
 			"!**/webview-ui/build",
 			"!**/generated",
 			"!**/proto",
-			"!**/tests/specs"
+			"!**/tests/specs",
+			"!**/*.lock*",
+			"!**/*-lock.json"
 		]
 	},
 	"plugins": [
