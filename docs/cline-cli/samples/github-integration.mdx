@@ -88,26 +88,24 @@ jobs:
         if: steps.detect.outputs.hit == 'true'
         uses: actions/checkout@v4
 
-      # Node v20 is needed for Cline CLI on GitHub Actions Linux
+      # Node v20+ is needed for Cline CLI on GitHub Actions Linux
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
 
-      - name: Setup Cline CLI
+      - name: Install Cline CLI
         if: steps.detect.outputs.hit == 'true'
-        run: |
-          # Install the Cline CLI
-          sudo npm install -g cline
+        run: npm install -g cline
 
-      - name: Configure Cline CLI
+      - name: Configure Cline Authentication
         if: steps.detect.outputs.hit == 'true'
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CLINE_DIR: ${{ runner.temp }}/cline
         run: |
-          # Configure API key
-          cline config set open-router-api-key=$OPENROUTER_API_KEY -v
+          # Configure API key using the auth command
+          cline auth --provider openrouter --apikey "${{ secrets.OPENROUTER_API_KEY }}"
 
       - name: Download analyze script
         if: steps.detect.outputs.hit == 'true'
