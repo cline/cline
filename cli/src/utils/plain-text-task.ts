@@ -12,18 +12,23 @@
 // Console output is intentional here for plain text mode
 
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import { StringRequest } from "@shared/proto/cline/common"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
+import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 
 export interface PlainTextTaskOptions {
 	controller: Controller
-	prompt: string
+	/** Prompt for new task or message to send to resumed task */
+	prompt?: string
 	imageDataUrls?: string[]
 	verbose?: boolean
 	jsonOutput?: boolean
 	/** Timeout in seconds (default: 600 = 10 minutes) */
 	timeoutSeconds?: number
+	/** Task ID to resume an existing task */
+	taskId?: string
 }
 
 /**
@@ -39,9 +44,9 @@ export interface PlainTextTaskOptions {
 export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<boolean> {
 	const { controller, prompt, imageDataUrls, verbose, jsonOutput } = options
 
-	let completionResolve: () => void
+	let completionResolve: (reason?: any) => void
 	let completionReject: (reason?: any) => void
-	const completionPromise = new Promise<void>((res, rej) => {
+	const completionPromise = new Promise<string>((res, rej) => {
 		completionResolve = res
 		completionReject = rej
 	})
@@ -49,6 +54,13 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	let hasError = false
 	// Track which messages have been processed (by timestamp)
 	const processedMessages = new Map<number, string>()
+
+	const isViewTaskOnly = Boolean(options.taskId) && !prompt
+
+	// When resuming a task, we need to ignore completion_result messages that existed
+	// before we sent our new prompt. This timestamp marks the cutoff - only completion
+	// results AFTER this time should trigger task completion.
+	const completionCutoffTs = Date.now()
 
 	// Helper to process a message and track completion state
 	const processMessage = (message: ClineMessage) => {
@@ -67,8 +79,12 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		processedMessages.set(ts, message.text ?? "")
 
 		// Check for completion (only on non-partial messages)
+		// When resuming a task, only consider completion_result messages that appeared
+		// AFTER we sent our resume message (ts > completionCutoffTs)
 		if (message.say === "completion_result" || message.ask === "completion_result") {
-			completionResolve()
+			if (isViewTaskOnly || ts > completionCutoffTs) {
+				completionResolve()
+			}
 		} else if (message.say === "error" || message.ask === "api_req_failed") {
 			completionReject(message.text ?? "message.say error || message.ask api_req_failed")
 		}
@@ -99,8 +115,27 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	)
 
 	try {
-		// Start the task
-		await controller.initTask(prompt, imageDataUrls)
+		// Either resume an existing task or start a new one
+		if (options.taskId) {
+			// Load the existing task
+			await showTaskWithId(controller, StringRequest.create({ value: options.taskId }))
+
+			// If a prompt was provided, send it as a message to the resumed task
+			if (prompt && controller.task) {
+				// Wait a moment for the task to fully load
+				await new Promise((resolve) => setTimeout(resolve, 100))
+
+				// Send the prompt as a response to any pending ask, or as a new message
+				await controller.task.handleWebviewAskResponse("messageResponse", prompt)
+			}
+		} else if (prompt) {
+			// Start a new task with the prompt
+			await controller.initTask(prompt, imageDataUrls)
+		} else {
+			throw new Error("Either taskId or prompt must be provided")
+		}
+
+		// Normal mode: wait for task completion
 		const timeoutMs = (options.timeoutSeconds ?? 600) * 1000 // default 10 minutes
 		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
 		await Promise.race([completionPromise, timeoutPromise])
