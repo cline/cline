@@ -99,6 +99,16 @@ export const LiteLLMSchema = z.object({
 	baseUrl: z.string().optional(),
 })
 
+export const AnthropicModelSchema = z.object({
+	id: z.string(),
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+export const AnthropicSchema = z.object({
+	models: z.array(AnthropicModelSchema).optional(),
+	baseUrl: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
@@ -107,6 +117,7 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 	Vertex: VertexSettingsSchema.optional(),
 	LiteLLM: LiteLLMSchema.optional(),
+	Anthropic: AnthropicSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
@@ -234,6 +245,9 @@ export type VertexModel = z.infer<typeof VertexModelSchema>
 
 export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
 export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
+
+export type AnthropicSettings = z.infer<typeof AnthropicSchema>
+export type AnthropicModel = z.infer<typeof AnthropicModelSchema>
 
 export type APIKeySettings = z.infer<typeof APIKeySchema>
 
