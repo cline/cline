@@ -182,6 +182,17 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 	}
 
+	const anthropicSettings = remoteConfig.providerSettings?.Anthropic
+	if (anthropicSettings) {
+		transformed.planModeApiProvider = "anthropic"
+		transformed.actModeApiProvider = "anthropic"
+		providers.push("anthropic")
+
+		if (anthropicSettings.baseUrl) {
+			transformed.anthropicBaseUrl = anthropicSettings.baseUrl
+		}
+	}
+
 	// This line needs to stay here, it is order dependent on the above code checking the configured providers
 	if (providers.length > 0) {
 		transformed.remoteConfiguredProviders = providers
