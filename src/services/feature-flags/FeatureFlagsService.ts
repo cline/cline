@@ -1,10 +1,10 @@
 import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
 import { StateManager } from "@/core/storage/StateManager"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
+import type { FeatureFlagPayload, FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "@/shared/services/feature-flags"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../telemetry"
-import type { FeatureFlagPayload, FeatureFlagsAndPayloads, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 // Default cache time-to-live (TTL) for feature flags - an hour
 const DEFAULT_CACHE_TTL = 60 * 60 * 1000

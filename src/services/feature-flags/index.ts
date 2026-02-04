@@ -1,10 +1,10 @@
+export type { FeatureFlagsSettings, IFeatureFlagsProvider } from "@/shared/services/feature-flags"
 export {
 	type FeatureFlagsProviderConfig,
 	FeatureFlagsProviderFactory,
 	type FeatureFlagsProviderType,
 } from "./FeatureFlagsProviderFactory"
 export { FeatureFlagsService } from "./FeatureFlagsService"
-export type { FeatureFlagsSettings, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 export { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 
 import { FeatureFlagsProviderFactory } from "./FeatureFlagsProviderFactory"
