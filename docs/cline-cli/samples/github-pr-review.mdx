@@ -1,0 +1,198 @@
+---
+title: "GitHub PR Review"
+description: "Automatically review Pull Requests with AI using Cline CLI in GitHub Actions."
+---
+
+# GitHub PR Review Sample
+
+Automate code review for every Pull Request. Detailed analysis, security checks, and code suggestions provided by Cline running autonomously in GitHub Actions.
+
+<Frame>
+  <img src="https://storage.googleapis.com/cline_public_images/cli-pr-review.png" alt="Cline PR Review Comment" width="600" />
+</Frame>
+
+## The Workflow
+
+When a PR is opened or marked ready for review, this workflow:
+1.  **Checks out** the code.
+2.  **Installs** Node.js and Cline CLI.
+3.  **Configures** authentication (e.g., Anthropic, OpenAI).
+4.  **Runs Cline** with a comprehensive system prompt to analyze the diff, context, and related issues using GitHub CLI (`gh`).
+5.  **Posts** a detailed review comment with inline code suggestions.
+
+## Prerequisites
+
+-   **GitHub repository** with Actions enabled.
+-   **AI Provider API Key** (e.g., Anthropic, OpenRouter) added as a repository secret (e.g., `ANTHROPIC_API_KEY`).
+-   **GitHub Token** (automatically provided by Actions as `GITHUB_TOKEN`).
+
+## Setup
+
+### 1. Create the Workflow File
+
+Create a file named `.github/workflows/cline-pr-review.yml` in your repository:
+
+```yaml
+name: Cline PR Code Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        type: string
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  cline-pr-review:
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install Cline CLI
+        run: npm install -g cline
+
+      - name: Configure Cline Authentication
+        # Replace 'anthropic' with your provider of choice (openai, openrouter, etc.)
+        # and ensure the corresponding secret is set in your repo settings.
+        run: |
+          cline auth --provider anthropic \
+            --apikey "${{ secrets.ANTHROPIC_API_KEY }}" \
+            --modelid claude-opus-4-5-20251101
+
+      - name: Get PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Review PR with Cline
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          GITHUB_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          # Restrict Cline to only safe, read-only GitHub CLI commands
+          CLINE_COMMAND_PERMISSIONS: |
+            {
+              "allow": [
+                "gh pr diff *",
+                "gh pr view *",
+                "gh pr checks *",
+                "gh pr list *",
+                "gh issue list *",
+                "gh issue view *",
+                "git log *",
+                "gh pr comment ${{ steps.pr.outputs.number }} *",
+                "gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/comments *",
+                "gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/reviews *"
+              ]
+            }
+        run: |
+          cline --yolo 'You are a GitHub PR reviewer for this repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+
+          PR: #'"${PR_NUMBER}"'
+
+          ## Gather context
+          Use `gh` commands to fetch the PR diff, details, and checks.
+          
+          ```bash
+          # Get full PR details
+          gh pr view '"${PR_NUMBER}"' --json number,title,body,author,createdAt,updatedAt,isDraft,labels,commits,files,additions,deletions,changedFiles,baseRefName,headRefName,mergeable,reviewDecision
+
+          # Get the diff
+          gh pr diff '"${PR_NUMBER}"'
+
+          # Check CI status
+          gh pr checks '"${PR_NUMBER}"'
+          ```
+
+          ## Deep code review
+          Analyze the code changes. Look for:
+          - Logic errors and edge cases
+          - Security vulnerabilities
+          - Performance issues
+          - adherence to patterns in the codebase
+
+          ## Submit Review
+          Post a single comprehensive comment summarizing your review.
+          
+          If you have specific code suggestions, use the GitHub API to post inline comments:
+          
+          ```bash
+          gh api repos/'"${GITHUB_REPO}"'/pulls/'"${PR_NUMBER}"'/reviews \
+            -X POST \
+            -f event="COMMENT" \
+            -f body="" \
+            -F comments='[{"path": "src/file.ts", "line": 10, "body": "Suggestion: ..."}]'
+          ```
+          
+          Start your main comment with "Reviewed by Cline".'
+```
+
+### 2. Configure Secrets
+
+1.  Go to your repository settings -> **Secrets and variables** -> **Actions**.
+2.  Add a **New repository secret**.
+3.  Name: `ANTHROPIC_API_KEY` (or match the key used in your workflow).
+4.  Value: Your actual API key.
+
+## Key Components Explained
+
+### Permissions
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+```
+We grant `pull-requests: write` so Cline can post comments and inline reviews. `contents: read` ensures it can analyze the code but **cannot push changes directly**, providing a security boundary.
+
+### Authentication
+```bash
+cline auth --provider anthropic --apikey "..."
+```
+The `auth` command configures Cline in the CI environment without interactive prompts. You can switch providers (e.g., `openai`, `openrouter`) by changing the flags.
+
+### Autonomous Mode (`--yolo`)
+```bash
+cline --yolo '...'
+```
+The `--yolo` flag tells Cline to run autonomously, executing commands without waiting for user approval. This is essential for CI/CD workflows.
+
+### Command Permissions
+We explicitly restrict what commands Cline can run using `CLINE_COMMAND_PERMISSIONS`. This ensures Cline can only use `gh` and `git` commands relevant to reviewing, preventing any accidental or malicious system modifications.
+
+## Customizing the Reviewer
+
+The "System Prompt" passed to Cline in the final step is fully customizable. You can modify it to:
+-   Enforce specific style guides.
+-   Focus on security vs. performance.
+-   Ask for specific types of feedback (e.g., "Roast my code" vs. "Be gentle").

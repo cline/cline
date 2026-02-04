@@ -1,10 +1,12 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { SquareArrowOutUpRightIcon } from "lucide-react"
+import { marked } from "marked"
 import type { ComponentProps } from "react"
-import React, { memo, useEffect, useRef, useState } from "react"
-import { useRemark } from "react-remark"
+import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import ReactMarkdown from "react-markdown"
 import rehypeHighlight, { Options } from "rehype-highlight"
+import remarkGfm from "remark-gfm"
 import type { Node } from "unist"
 import { visit } from "unist-util-visit"
 import MermaidBlock from "@/components/common/MermaidBlock"
@@ -13,6 +15,102 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { WithCopyButton } from "./CopyButton"
+
+function parseMarkdownIntoBlocks(markdown: string): string[] {
+	try {
+		const tokens = marked.lexer(markdown)
+		return tokens?.map((token) => token.raw)
+	} catch {
+		return [markdown]
+	}
+}
+
+const MemoizedMarkdownBlock = memo(
+	({ content }: { content: string }) => {
+		return (
+			<ReactMarkdown
+				components={{
+					pre: ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
+						if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
+							const child = children[0] as React.ReactElement<{ className?: string }>
+							if (child.props?.className?.includes("language-mermaid")) {
+								return child
+							}
+						}
+						return <PreWithCopyButton {...preProps}>{children}</PreWithCopyButton>
+					},
+					code: (props: ComponentProps<"code"> & { [key: string]: any }) => {
+						const className = props.className || ""
+						if (className.includes("language-mermaid")) {
+							const codeText = String(props.children || "")
+							return <MermaidBlock code={codeText} />
+						}
+
+						// Use the async file check component for potential file paths
+						return <InlineCodeWithFileCheck {...props} />
+					},
+					strong: (props: ComponentProps<"strong">) => {
+						// Check if this is an "Act Mode" strong element by looking for the keyboard shortcut
+						// Handle both string children and array of children cases
+						const childrenText = React.Children.toArray(props.children)
+							.map((child) => {
+								if (typeof child === "string") {
+									return child
+								}
+								if (typeof child === "object" && "props" in child && child.props.children) {
+									return String(child.props.children)
+								}
+								return ""
+							})
+							.join("")
+
+						// Case-insensitive check for "Act Mode (⌘⇧A)" pattern
+						// This ensures we only style the exact "Act Mode" mentions with keyboard shortcut
+						// Using case-insensitive flag to catch all capitalization variations
+						if (/^act mode\s*\(⌘⇧A\)$/i.test(childrenText)) {
+							return <ActModeHighlight />
+						}
+
+						return <strong {...props} />
+					},
+				}}
+				rehypePlugins={[[rehypeHighlight as any, {} as Options]]}
+				remarkPlugins={[
+					[remarkGfm, { singleTilde: false }],
+					remarkPreventBoldFilenames,
+					remarkUrlToLink,
+					remarkHighlightActMode,
+					remarkMarkPotentialFilePaths,
+					() => {
+						return (tree: any) => {
+							visit(tree, "code", (node: any) => {
+								if (!node.lang) {
+									node.lang = "javascript"
+								} else if (node.lang.includes(".")) {
+									node.lang = node.lang.split(".").slice(-1)[0]
+								}
+							})
+						}
+					},
+				]}>
+				{content}
+			</ReactMarkdown>
+		)
+	},
+	(prevProps, nextProps) => {
+		if (prevProps.content !== nextProps.content) return false
+		return true
+	},
+)
+
+MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock"
+
+const MemoizedMarkdown = memo(({ content, id }: { content: string; id: string }) => {
+	const blocks = useMemo(() => parseMarkdownIntoBlocks(content), [content])
+	return blocks?.map((block, index) => <MemoizedMarkdownBlock content={block} key={`${id}-block_${index}`} />)
+})
+
+MemoizedMarkdown.displayName = "MemoizedMarkdown"
 
 /**
  * A component for Act Mode text that contains a clickable toggle and keyboard shortcut hint.
@@ -312,83 +410,6 @@ const InlineCodeWithFileCheck: React.FC<ComponentProps<"code"> & { [key: string]
 }
 
 const MarkdownBlock = memo(({ markdown, compact, showCursor }: MarkdownBlockProps) => {
-	const [reactContent, setMarkdown] = useRemark({
-		remarkPlugins: [
-			remarkPreventBoldFilenames,
-			remarkUrlToLink,
-			remarkHighlightActMode,
-			remarkMarkPotentialFilePaths,
-			() => {
-				return (tree) => {
-					visit(tree, "code", (node: any) => {
-						if (!node.lang) {
-							node.lang = "javascript"
-						} else if (node.lang.includes(".")) {
-							node.lang = node.lang.split(".").slice(-1)[0]
-						}
-					})
-				}
-			},
-		],
-		rehypePlugins: [
-			rehypeHighlight as any,
-			{
-				// languages: {},
-			} as Options,
-		],
-		rehypeReactOptions: {
-			components: {
-				pre: ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
-					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
-						const child = children[0] as React.ReactElement<{ className?: string }>
-						if (child.props?.className?.includes("language-mermaid")) {
-							return child
-						}
-					}
-					return <PreWithCopyButton {...preProps}>{children}</PreWithCopyButton>
-				},
-				code: (props: ComponentProps<"code"> & { [key: string]: any }) => {
-					const className = props.className || ""
-					if (className.includes("language-mermaid")) {
-						const codeText = String(props.children || "")
-						return <MermaidBlock code={codeText} />
-					}
-
-					// Use the async file check component for potential file paths
-					return <InlineCodeWithFileCheck {...props} />
-				},
-				strong: (props: ComponentProps<"strong">) => {
-					// Check if this is an "Act Mode" strong element by looking for the keyboard shortcut
-					// Handle both string children and array of children cases
-					const childrenText = React.Children.toArray(props.children)
-						.map((child) => {
-							if (typeof child === "string") {
-								return child
-							}
-							if (typeof child === "object" && "props" in child && child.props.children) {
-								return String(child.props.children)
-							}
-							return ""
-						})
-						.join("")
-
-					// Case-insensitive check for "Act Mode (⌘⇧A)" pattern
-					// This ensures we only style the exact "Act Mode" mentions with keyboard shortcut
-					// Using case-insensitive flag to catch all capitalization variations
-					if (/^act mode\s*\(⌘⇧A\)$/i.test(childrenText)) {
-						return <ActModeHighlight />
-					}
-
-					return <strong {...props} />
-				},
-			},
-		},
-	})
-
-	useEffect(() => {
-		setMarkdown(markdown || "")
-	}, [markdown, setMarkdown])
-
 	return (
 		<div className="inline-markdown-block">
 			<span
@@ -396,7 +417,7 @@ const MarkdownBlock = memo(({ markdown, compact, showCursor }: MarkdownBlockProp
 					"inline-cursor-container": showCursor,
 					"[&>p]:m-0": compact,
 				})}>
-				{reactContent}
+				{markdown ? <MemoizedMarkdown content={markdown} id="markdown-block" /> : markdown}
 			</span>
 		</div>
 	)

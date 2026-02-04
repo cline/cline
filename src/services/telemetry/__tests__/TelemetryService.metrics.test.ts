@@ -11,12 +11,11 @@ class FakeProvider implements ITelemetryProvider {
 	log(): void {}
 	logRequired(): void {}
 	identifyUser(): void {}
-	setOptIn(): void {}
 	isEnabled(): boolean {
 		return true
 	}
 	getSettings(): TelemetrySettings {
-		return { extensionEnabled: true, hostEnabled: true, level: "all" }
+		return { hostEnabled: true, level: "all" }
 	}
 	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, _required = false): void {
 		this.counters.push({ name, value, attributes: attributes ?? {}, description })

@@ -1,7 +1,7 @@
 /**
  * Tests for ChatView component exit and cleanup behavior
  *
- * These tests verify that when the user exits (via Ctrl+C or other means),
+ * These tests verify that when the user exits (via shutdown event or other means),
  * the input field is properly hidden before the app terminates.
  */
 
@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatView } from "./ChatView"
 
 // Helper to wait for async state updates
-// Using 60ms since handleExit has a 50ms setTimeout
 const delay = (ms: number = 60) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Type for our exit mock function
@@ -175,10 +174,19 @@ vi.mock("@shared/getApiMetrics", () => ({
 		totalTokensOut: 0,
 		totalCost: 0,
 	})),
+	getLastApiReqTotalTokens: vi.fn(() => 0),
 }))
 
 vi.mock("child_process", () => ({
+	exec: vi.fn(),
 	execSync: vi.fn(() => "main"),
+}))
+
+// Mock telemetry service to prevent HostProvider errors in shutdown handler
+vi.mock("@/services/telemetry", () => ({
+	telemetryService: {
+		captureHostEvent: vi.fn(),
+	},
 }))
 
 // Helper to create a typed mock for onExit
@@ -213,33 +221,6 @@ describe("ChatView Exit and Cleanup", () => {
 		})
 	})
 
-	describe("Ctrl+C exit handling", () => {
-		it("should hide input but keep footer, then call onExit", async () => {
-			const { lastFrame, stdin } = render(<ChatView onExit={mockOnExit} />)
-
-			// Verify UI visible before Ctrl+C
-			expect(lastFrame()).toContain("Input:")
-			expect(lastFrame()).toContain("@ for files")
-
-			// Simulate Ctrl+C
-			stdin.write("\x03")
-
-			// onExit should not be called immediately
-			expect(mockOnExit).not.toHaveBeenCalled()
-
-			// Wait for state update and callback
-			await delay()
-
-			// Input should be hidden, but footer should remain
-			const frameAfter = lastFrame()
-			expect(frameAfter).not.toContain("Input:")
-			expect(frameAfter).toContain("@ for files")
-
-			// onExit should have been called
-			expect(mockOnExit).toHaveBeenCalledTimes(1)
-		})
-	})
-
 	describe("Shutdown event handling", () => {
 		it("should subscribe on mount and unsubscribe on unmount", () => {
 			const { unmount } = render(<ChatView onExit={mockOnExit} />)
@@ -249,39 +230,59 @@ describe("ChatView Exit and Cleanup", () => {
 			expect(shutdownMockState.listeners.length).toBe(0)
 		})
 
-		it("should hide UI when shutdown event fires", async () => {
+		it("should hide input when shutdown event fires", async () => {
 			const { lastFrame } = render(<ChatView onExit={mockOnExit} />)
 
+			// Input should be visible initially
 			expect(lastFrame()).toContain("Input:")
 
+			// Fire shutdown event (simulates Ctrl+C)
 			shutdownMockState.fire()
 			await delay()
 
+			// Input should be hidden after shutdown
 			expect(lastFrame()).not.toContain("Input:")
+		})
+
+		it("should preserve footer when shutdown event fires", async () => {
+			const { lastFrame } = render(<ChatView onExit={mockOnExit} />)
+
+			// Footer should be visible initially
+			expect(lastFrame()).toContain("@ for files")
+
+			// Fire shutdown event
+			shutdownMockState.fire()
+			await delay()
+
+			// Footer should still be present (only input is hidden)
+			expect(lastFrame()).toContain("@ for files")
 		})
 	})
 
 	describe("Edge cases", () => {
-		it("should handle exit when onExit prop is undefined", async () => {
-			const { lastFrame, stdin } = render(<ChatView />)
+		it("should handle shutdown event when onExit prop is undefined", async () => {
+			const { lastFrame } = render(<ChatView />)
 
-			stdin.write("\x03")
+			// Fire shutdown event
+			shutdownMockState.fire()
 			await delay()
 
 			// Should not throw, UI should still hide
 			expect(lastFrame()).not.toContain("Input:")
 		})
 
-		it("should handle multiple Ctrl+C presses gracefully", async () => {
-			const { stdin } = render(<ChatView onExit={mockOnExit} />)
+		it("should handle multiple shutdown events gracefully", async () => {
+			const { lastFrame } = render(<ChatView onExit={mockOnExit} />)
 
-			stdin.write("\x03")
-			stdin.write("\x03")
-			stdin.write("\x03")
+			// Fire multiple shutdown events
+			shutdownMockState.fire()
+			shutdownMockState.fire()
+			shutdownMockState.fire()
 
 			await delay()
 
-			expect(mockOnExit).toHaveBeenCalled()
+			// UI should still hide properly
+			expect(lastFrame()).not.toContain("Input:")
 		})
 	})
 })
@@ -294,14 +295,15 @@ describe("ChatView UI State During Exit", () => {
 
 	it("should preserve static content and footer, only hide input during exit", async () => {
 		const onExit = createExitMock()
-		const { lastFrame, stdin } = render(<ChatView onExit={onExit} />)
+		const { lastFrame } = render(<ChatView onExit={onExit} />)
 
 		// Footer contains auto-approve toggle
 		expect(lastFrame()).toContain("Auto-approve")
 		expect(lastFrame()).toContain("What can I do for you?")
 		expect(lastFrame()).toContain("Input:")
 
-		stdin.write("\x03")
+		// Fire shutdown event
+		shutdownMockState.fire()
 		await delay()
 
 		const frameAfter = lastFrame()

@@ -35,8 +35,6 @@ export type TelemetryProperties = TelemetryObject
  * Telemetry settings that control when and how telemetry is collected
  */
 export interface TelemetrySettings {
-	/** Whether the extension's telemetry is enabled */
-	extensionEnabled: boolean
 	/** Whether the host environment's telemetry is enabled */
 	hostEnabled: boolean
 	/** The level of telemetry to collect */
@@ -69,12 +67,6 @@ export interface ITelemetryProvider {
 	 * @param properties Optional additional JSON-serializable properties
 	 */
 	identifyUser(userInfo: ClineAccountUserInfo, properties?: TelemetryProperties): void
-
-	/**
-	 * Update telemetry opt-in/out status
-	 * @param optIn Whether the user has opted into telemetry
-	 */
-	setOptIn(optIn: boolean): void
 
 	/**
 	 * Check if telemetry is currently enabled

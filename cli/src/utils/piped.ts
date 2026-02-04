@@ -1,3 +1,5 @@
+import * as fs from "node:fs"
+
 /**
  * Read piped input from stdin (non-blocking)
  *
@@ -9,8 +11,23 @@
  * for EOF which signals that the previous command has finished writing.
  */
 export async function readStdinIfPiped(): Promise<string | null> {
-	// Check if stdin is a TTY (interactive) or piped
+	// Check if stdin is a TTY (interactive) - no piped input
 	if (process.stdin.isTTY) {
+		return null
+	}
+
+	// When spawned as a child process without TTY (e.g., from spawn()), stdin.isTTY
+	// is false but there's no actual piped input. Check if stdin is a real pipe/file
+	// by testing if we can get stats on fd 0. A real pipe will have stats, while
+	// a detached stdin may throw or have unusual properties.
+	try {
+		const stats = fs.fstatSync(0)
+		// If it's not a FIFO (pipe) or regular file, treat as no input
+		if (!stats.isFIFO() && !stats.isFile()) {
+			return null
+		}
+	} catch {
+		// If we can't stat stdin, treat as no input
 		return null
 	}
 
