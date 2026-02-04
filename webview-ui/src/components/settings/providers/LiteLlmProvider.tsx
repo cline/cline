@@ -1,3 +1,4 @@
+import { ModelInfo } from "@shared/api"
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
@@ -6,8 +7,8 @@ import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -31,11 +32,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	// Get the normalized configuration with model info
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	// Handle model change
-	const handleModelChange = (e: any) => {
-		const newModelId = e.target.value
-		const modelInfo = liteLlmModels[newModelId]
-
+	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
 		handleModeFieldsChange(
 			{
 				liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
@@ -112,10 +109,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			</RemotelyConfiguredInputWrapper>
 			{showModelOptions && (
 				<>
-					<ModelSelector
+					<ModelAutocomplete
 						label="Model"
 						models={liteLlmModels}
 						onChange={handleModelChange}
+						placeholder="Search or enter a custom model ID..."
 						selectedModelId={selectedModelId}
 					/>
 					<VSCodeButton
