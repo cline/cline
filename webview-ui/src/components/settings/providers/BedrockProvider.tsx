@@ -1,8 +1,17 @@
 import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import BedrockData from "@shared/providers/bedrock.json"
 import { Mode } from "@shared/storage/types"
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import {
+	VSCodeCheckbox,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodeRadio,
+	VSCodeRadioGroup,
+	VSCodeTextField,
+} from "@vscode/webview-ui-toolkit/react"
+import Fuse from "fuse.js"
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import styled from "styled-components"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -42,6 +51,111 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
+
+	// Region combobox state
+	const currentRegion = apiConfiguration?.awsRegion || ""
+	const [searchTerm, setSearchTerm] = useState("")
+	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
+	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const dropdownRef = useRef<HTMLDivElement>(null)
+	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+	const dropdownListRef = useRef<HTMLDivElement>(null)
+
+	// Sync search term with current region when not searching
+	useEffect(() => {
+		if (!isDropdownVisible) {
+			setSearchTerm(currentRegion)
+		}
+	}, [currentRegion, isDropdownVisible])
+
+	const searchableItems = useMemo(() => AWS_REGIONS, [])
+
+	const fuse = useMemo(() => {
+		return new Fuse(searchableItems, {
+			threshold: 0.3,
+			shouldSort: true,
+			isCaseSensitive: false,
+			ignoreLocation: false,
+			includeMatches: true,
+			minMatchCharLength: 1,
+		})
+	}, [searchableItems])
+
+	const regionSearchResults = useMemo(() => {
+		if (!searchTerm) {
+			return searchableItems
+		}
+		return fuse.search(searchTerm).map((r) => r.item)
+	}, [searchableItems, searchTerm, fuse])
+
+	const handleRegionChange = (newRegion: string) => {
+		handleFieldChange("awsRegion", newRegion)
+		setIsDropdownVisible(false)
+		setSelectedIndex(-1)
+	}
+
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (!isDropdownVisible) {
+			return
+		}
+
+		switch (event.key) {
+			case "ArrowDown":
+				event.preventDefault()
+				setSelectedIndex((prev) => (prev < regionSearchResults.length - 1 ? prev + 1 : prev))
+				break
+			case "ArrowUp":
+				event.preventDefault()
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+				break
+			case "Enter":
+				event.preventDefault()
+				if (selectedIndex >= 0 && selectedIndex < regionSearchResults.length) {
+					handleRegionChange(regionSearchResults[selectedIndex])
+				} else if (searchTerm.trim()) {
+					handleRegionChange(searchTerm.trim())
+				}
+				;(event.target as HTMLInputElement)?.blur()
+				break
+			case "Escape":
+				setIsDropdownVisible(false)
+				setSelectedIndex(-1)
+				setSearchTerm(currentRegion)
+				break
+		}
+	}
+
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+				setIsDropdownVisible(false)
+				setSearchTerm(currentRegion)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [currentRegion])
+
+	// Reset selection when search term changes
+	useEffect(() => {
+		setSelectedIndex(-1)
+		if (dropdownListRef.current) {
+			dropdownListRef.current.scrollTop = 0
+		}
+	}, [searchTerm])
+
+	// Scroll selected item into view
+	useEffect(() => {
+		if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
+			itemRefs.current[selectedIndex]?.scrollIntoView({
+				block: "nearest",
+				behavior: "smooth",
+			})
+		}
+	}, [selectedIndex])
 
 	return (
 		<div className="flex flex-col gap-1">
@@ -113,27 +227,69 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				<TooltipTrigger>
 					<DropdownContainer className="dropdown-container mb-2.5" zIndex={DROPDOWN_Z_INDEX - 1}>
 						<div className="flex items-center gap-2 mb-1">
-							<label htmlFor="aws-region-dropdown">
+							<label htmlFor="aws-region">
 								<span className="font-medium">AWS Region</span>
 							</label>
 							{remoteConfigSettings?.awsRegion !== undefined && (
 								<i className="codicon codicon-lock text-description text-sm flex items-center" />
 							)}
 						</div>
-						<VSCodeDropdown
-							className="w-full"
-							disabled={remoteConfigSettings?.awsRegion !== undefined}
-							id="aws-region-dropdown"
-							onChange={(e: any) => handleFieldChange("awsRegion", e.target.value)}
-							value={apiConfiguration?.awsRegion || ""}>
-							<VSCodeOption value="">Select a region...</VSCodeOption>
-							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
-							{AWS_REGIONS.map((region) => (
-								<VSCodeOption key={region} value={region}>
-									{region}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
+						<RegionDropdownWrapper ref={dropdownRef}>
+							<VSCodeTextField
+								disabled={remoteConfigSettings?.awsRegion !== undefined}
+								id="aws-region"
+								onFocus={() => {
+									setIsDropdownVisible(true)
+									setSearchTerm("")
+								}}
+								onInput={(e) => {
+									setSearchTerm((e.target as HTMLInputElement)?.value || "")
+									setIsDropdownVisible(true)
+								}}
+								onKeyDown={handleKeyDown}
+								placeholder="Search or enter custom region..."
+								style={{
+									width: "100%",
+									zIndex: DROPDOWN_Z_INDEX - 1,
+									position: "relative",
+									minWidth: 130,
+								}}
+								value={searchTerm}>
+								{searchTerm && searchTerm !== currentRegion && (
+									<div
+										aria-label="Clear search"
+										className="input-icon-button codicon codicon-close"
+										onClick={() => {
+											setSearchTerm("")
+											setIsDropdownVisible(true)
+										}}
+										slot="end"
+										style={{
+											display: "flex",
+											justifyContent: "center",
+											alignItems: "center",
+											height: "100%",
+										}}
+									/>
+								)}
+							</VSCodeTextField>
+							{isDropdownVisible && regionSearchResults.length > 0 && (
+								<RegionDropdownList ref={dropdownListRef}>
+									{regionSearchResults.map((region, index) => (
+										<RegionDropdownItem
+											isSelected={index === selectedIndex}
+											key={region}
+											onClick={() => handleRegionChange(region)}
+											onMouseEnter={() => setSelectedIndex(index)}
+											ref={(el) => {
+												itemRefs.current[index] = el
+											}}>
+											<span>{region}</span>
+										</RegionDropdownItem>
+									))}
+								</RegionDropdownList>
+							)}
+						</RegionDropdownWrapper>
 					</DropdownContainer>
 				</TooltipTrigger>
 			</Tooltip>
@@ -364,3 +520,36 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		</div>
 	)
 }
+
+const RegionDropdownWrapper = styled.div`
+	position: relative;
+	width: 100%;
+`
+
+const RegionDropdownList = styled.div`
+	position: absolute;
+	top: calc(100% - 3px);
+	left: 0;
+	width: calc(100% - 2px);
+	max-height: 200px;
+	overflow-y: auto;
+	background-color: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-list-activeSelectionBackground);
+	z-index: ${DROPDOWN_Z_INDEX - 1};
+	border-bottom-left-radius: 3px;
+	border-bottom-right-radius: 3px;
+`
+
+const RegionDropdownItem = styled.div<{ isSelected: boolean }>`
+	padding: 5px 10px;
+	cursor: pointer;
+	word-break: break-all;
+	white-space: normal;
+	text-align: left;
+
+	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+
+	&:hover {
+		background-color: var(--vscode-list-activeSelectionBackground);
+	}
+`
