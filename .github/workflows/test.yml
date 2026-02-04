@@ -32,7 +32,6 @@ jobs:
                   cache-dependency-path: |
                       package-lock.json
                       webview-ui/package-lock.json
-                      cli/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
