@@ -1,5 +1,5 @@
 import { ApiFormat } from "./proto/cline/models"
-import { ApiHandlerSettings } from "./storage/state-keys"
+import type { ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -221,7 +221,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
-	"claude-opus-4-6-20260205": {
+	"claude-opus-4-6": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -232,7 +232,7 @@ export const anthropicModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 	},
-	"claude-opus-4-6-20260205:1m": {
+	"claude-opus-4-6:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -361,8 +361,8 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
-	"claude-opus-4-6-20260205": {
-		...anthropicModels["claude-opus-4-6-20260205"],
+	"claude-opus-4-6": {
+		...anthropicModels["claude-opus-4-6"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -460,7 +460,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
-	"anthropic.claude-opus-4-6-20260205-v1:0": {
+	"anthropic.claude-opus-4-6-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -472,7 +472,7 @@ export const bedrockModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 	},
-	"anthropic.claude-opus-4-6-20260205-v1:0:1m": {
+	"anthropic.claude-opus-4-6-v1:0:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -875,7 +875,7 @@ export const vertexModels = {
 		cacheReadsPrice: 0.1,
 		supportsReasoning: true,
 	},
-	"claude-opus-4-6@20260205": {
+	"claude-opus-4-6": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -1091,7 +1091,7 @@ export const vertexModels = {
 				cacheReadsPrice: 0.31,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 2.5,
 				outputPrice: 15,
 				cacheReadsPrice: 0.625,
@@ -1160,7 +1160,7 @@ export const vertexModels = {
 				cacheReadsPrice: 0.01875,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
 				cacheReadsPrice: 0.0375,
@@ -1243,7 +1243,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.2,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 4.0,
 				outputPrice: 18.0,
 				cacheReadsPrice: 0.4,
@@ -1272,7 +1272,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.03,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.3,
 				outputPrice: 2.5,
 				cacheReadsPrice: 0.03,
@@ -1298,7 +1298,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.31,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 2.5,
 				outputPrice: 15,
 				cacheReadsPrice: 0.625,
@@ -1399,7 +1399,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.01875,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
 				cacheReadsPrice: 0.0375,
@@ -4168,7 +4168,7 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.057,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.29,
 				outputPrice: 1.14,
 				cacheReadsPrice: 0.057,
@@ -4200,7 +4200,7 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.017,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.086,
 				outputPrice: 0.57,
 				cacheReadsPrice: 0.017,
