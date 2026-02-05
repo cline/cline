@@ -767,22 +767,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 		)
 	}
 
-	// Report bug request
-	if (type === "ask" && ask === "report_bug" && text) {
-		return (
-			<Box flexDirection="column" marginBottom={1} width="100%">
-				<DotRow color={COLORS.primaryBlue} flashing={partial === true && isStreaming}>
-					<Text bold color={COLORS.primaryBlue}>
-						Cline wants to create a Github issue:
-					</Text>
-				</DotRow>
-				<Box flexDirection="column" paddingLeft={2}>
-					<Text color="gray">{text}</Text>
-				</Box>
-			</Box>
-		)
-	}
-
 	// Skip other message types
 	return null
 }

@@ -783,15 +783,6 @@ export const CondenseConversation = quickStory(
 	"Would you like me to condense the conversation to improve performance?",
 	"Shows utility action to condense conversation for better performance.",
 )
-export const ReportBug = quickStory(
-	"Report Bug",
-	"report_bug",
-	JSON.stringify({
-		steps_to_reproduce: "1. Open Cline\n2. Start a new task\n3. Observe the error",
-		what_happened: "Cline crashes unexpectedly",
-	}),
-	"Shows utility action to report bugs to the GitHub repository.",
-)
 export const ResumeCompletedTask = quickStory(
 	"Resume Completed Task type",
 	"resume_completed_task",

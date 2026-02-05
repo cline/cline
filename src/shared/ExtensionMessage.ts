@@ -153,7 +153,6 @@ export type ClineAsk =
 	| "new_task"
 	| "condense"
 	| "summarize_task"
-	| "report_bug"
 
 export type ClineSay =
 	| "task"

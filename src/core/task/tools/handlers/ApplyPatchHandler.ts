@@ -692,7 +692,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
 
-		// Extract provider using the proven pattern from ReportBugHandler
+		// Extract provider from API configuration
 		const apiConfig = config.services.stateManager.getApiConfiguration()
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string

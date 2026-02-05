@@ -30,7 +30,6 @@ enum ClineAsk {
   USE_MCP_SERVER = 11;
   NEW_TASK = 12;
   CONDENSE = 13;
-  REPORT_BUG = 14;
   SUMMARIZE_TASK = 15;
   ACT_MODE_RESPOND = 16;
 }

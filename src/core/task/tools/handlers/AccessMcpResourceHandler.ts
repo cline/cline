@@ -45,7 +45,7 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 		const server_name: string | undefined = block.params.server_name
 		const uri: string | undefined = block.params.uri
 
-		// Extract provider using the proven pattern from ReportBugHandler
+		// Extract provider from API configuration
 		const apiConfig = config.services.stateManager.getApiConfiguration()
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string

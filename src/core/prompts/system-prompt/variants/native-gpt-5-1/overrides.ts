@@ -105,7 +105,7 @@ This ensures your work aligns with the existing codebase structure and avoids un
 
 const GPT5_1_FEEDBACK = (_context: SystemPromptContext) => `FEEDBACK
 
-When user is providing you with feedback on how you could improve, you can let the user know to report new issue using the '/reportbug' slash command.`
+When user is providing you with feedback on how you could improve, you can let the user know to report new issues at https://github.com/cline/cline/issues.`
 
 export const gpt51ComponentOverrides: PromptVariant["componentOverrides"] = {
 	[SystemPromptSection.AGENT_ROLE]: {
