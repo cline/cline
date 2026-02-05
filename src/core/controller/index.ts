@@ -468,7 +468,9 @@ export class Controller {
 		}
 
 		// Set flag to prevent concurrent cancellations
-		this.cancelInProgress = true
+		if (!isParallelTasksEnabled) {
+			this.cancelInProgress = true
+		}
 
 		try {
 			// If canceling current task, clear background command state

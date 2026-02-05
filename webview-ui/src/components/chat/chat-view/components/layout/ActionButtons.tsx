@@ -85,6 +85,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			if (event.key === "Escape") {
 				event.preventDefault()
 				event.stopPropagation()
+				setIsProcessing(false)
 				messageHandlers.executeButtonAction("cancel")
 			}
 		},
