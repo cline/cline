@@ -19,8 +19,8 @@ export const FEATURED_MODELS = {
 			labels: ["BEST"],
 		},
 		{
-			id: "openai/gpt-5.3-codex",
-			name: "GPT 5.3 Codex",
+			id: "openai/gpt-5.2-codex",
+			name: "GPT 5.2 Codex",
 			description: "OpenAI's latest with strong coding abilities",
 			labels: ["NEW"],
 		},

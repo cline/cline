@@ -64,7 +64,7 @@ export const recommendedModels = [
 		label: "NEW",
 	},
 	{
-		id: "openai/gpt-5.3-codex",
+		id: "openai/gpt-5.2-codex",
 		description: "OpenAI's latest with strong coding abilities",
 		label: "NEW",
 	},
