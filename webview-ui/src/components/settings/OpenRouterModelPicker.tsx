@@ -59,9 +59,9 @@ export const recommendedModels = [
 		label: "NEW",
 	},
 	{
-		id: "anthropic/claude-opus-4.5",
-		description: "State-of-the-art for complex coding",
-		label: "HOT",
+		id: "anthropic/claude-opus-4.6",
+		description: "Most intelligent model for agents and coding",
+		label: "NEW",
 	},
 	{
 		id: "openai/gpt-5.2-codex",
