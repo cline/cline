@@ -53,10 +53,7 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 					description: undefined,
 				}
 
-				// Use litellm_params.model as the key since that's the actual model ID users select
-				// model_name may not include the region prefix (e.g., "us." for Bedrock models)
-				const modelId = rawModel.litellm_params?.model || rawModel.model_name
-				models[modelId] = modelInfo
+				models[rawModel.model_name] = modelInfo
 			}
 		}
 	} catch (error) {
