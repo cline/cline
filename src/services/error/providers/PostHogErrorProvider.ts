@@ -1,4 +1,5 @@
 import { PostHog } from "posthog-node"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
@@ -123,7 +124,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 	}
 
 	public isEnabled(): boolean {
-		return this.errorSettings.enabled && this.errorSettings.hostEnabled
+		return StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled" && this.errorSettings.hostEnabled
 	}
 
 	public getSettings(): ErrorSettings {

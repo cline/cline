@@ -731,6 +731,13 @@ describe("Remote Config Schema", () => {
 						vertexProjectId: "my-gcp-project",
 						vertexRegion: "us-central1",
 					},
+					Anthropic: {
+						models: [
+							{ id: "claude-3-5-sonnet-20241022" },
+							{ id: "claude-3-5-sonnet-20241024", thinkingBudgetTokens: 1600 },
+						],
+						baseUrl: "https://example.cline.bot",
+					},
 				},
 				enterpriseTelemetry: {
 					promptUploading: {
@@ -782,6 +789,13 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.Vertex?.models?.[1].thinkingBudgetTokens).to.be.undefined
 			expect(result.providerSettings?.Vertex?.vertexProjectId).to.equal("my-gcp-project")
 			expect(result.providerSettings?.Vertex?.vertexRegion).to.equal("us-central1")
+
+			expect(result.providerSettings?.Anthropic?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.Anthropic?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
+			expect(result.providerSettings?.Anthropic?.models?.[0].thinkingBudgetTokens).to.be.undefined
+			expect(result.providerSettings?.Anthropic?.models?.[1].id).to.equal("claude-3-5-sonnet-20241024")
+			expect(result.providerSettings?.Anthropic?.models?.[1].thinkingBudgetTokens).to.equal(1600)
+			expect(result.providerSettings?.Anthropic?.baseUrl).to.equal("https://example.cline.bot")
 
 			// Verify OpenTelemetry settings
 			expect(result.openTelemetryEnabled).to.equal(true)

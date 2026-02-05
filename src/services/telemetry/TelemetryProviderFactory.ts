@@ -154,16 +154,11 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 	identifyUser(_userInfo: any, _properties?: TelemetryProperties): void {
 		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
 	}
-	setOptIn(_optIn: boolean): void {
-		Logger.info(`[NoOpTelemetryProvider] setOptIn(${_optIn})`)
-		this.isOptIn = _optIn
-	}
 	isEnabled(): boolean {
 		return false
 	}
 	getSettings(): TelemetrySettings {
 		return {
-			extensionEnabled: false,
 			hostEnabled: false,
 			level: "off",
 		}

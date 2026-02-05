@@ -76,7 +76,7 @@ export interface UseTextInputReturn {
 	cursorPos: number
 
 	// Text manipulation
-	setText: (text: string) => void
+	setText: (text: string | ((prev: string) => string)) => void
 	insertText: (text: string) => void
 	setCursorPos: (pos: number | ((prev: number) => number)) => void
 
@@ -102,9 +102,15 @@ export function useTextInput(): UseTextInputReturn {
 	cursorRef.current = cursorPos
 
 	// Text manipulation
-	const setText = useCallback((newText: string) => {
-		setTextState(newText)
-		setCursorPosState(newText.length)
+	const setText = useCallback((newText: string | ((prev: string) => string)) => {
+		setTextState((prev) => {
+			const resolved = typeof newText === "function" ? newText(prev) : newText
+			// Only update cursor to end if setting a direct value (not functional update)
+			if (typeof newText !== "function") {
+				setCursorPosState(resolved.length)
+			}
+			return resolved
+		})
 	}, [])
 
 	const insertText = useCallback((insertedText: string) => {

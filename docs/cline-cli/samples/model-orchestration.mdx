@@ -1,0 +1,227 @@
+---
+title: "Model Orchestration"
+description: "Use multiple AI models strategically: optimize costs, reduce bias, and leverage model-specific strengths in your workflows"
+---
+
+# Model Orchestration
+
+Cline CLI's `--config` and `--thinking` flags enable sophisticated multi-model workflows. Instead of using a single model for all tasks, you can route different work to different models based on cost, capability, and specialization.
+
+## Why Orchestrate Multiple Models?
+
+**Cost Optimization**
+- Use fast, cheap models (Haiku, Gemini Flash) for simple tasks like summarization
+- Reserve expensive models (Opus, O1) for complex reasoning and planning
+- Reduce API costs by 10-100x on routine operations
+
+**Bias Reduction**
+- Different models catch different issues in code reviews
+- Cross-validate solutions with multiple AI perspectives
+- Reduce blind spots from single-model thinking
+
+**Specialization**
+- Some models excel at code (Codex, DeepSeek)
+- Others are better at documentation (GPT-4, Claude)
+- Security analysis benefits from multiple viewpoints
+
+## Pattern 1: CI/CD Code Review
+
+See our production GitHub Actions workflow that uses Cline CLI for automated PR reviews: [cline-pr-review.yml](https://github.com/cline/cline/blob/main/.github/workflows/cline-pr-review.yml)
+
+**Key capabilities demonstrated:**
+- **Automated inline suggestions**: Creates GitHub suggestion blocks that authors can commit with one click
+- **SME identification**: Analyzes git history to find subject matter experts for each file
+- **Related issue discovery**: Searches for context from past issues and PRs
+- **Security-first permissions**: Read-only codebase access, can only post reviews
+- **Deep code analysis**: Understands intent, compares approaches, identifies edge cases
+
+The workflow runs on every PR and provides maintainers with comprehensive context to make faster, more informed decisions.
+
+## Pattern 2: Task Phase Optimization
+
+Use different models for different phases of work. Route simple tasks to cheap models, complex reasoning to premium models.
+
+### Example: Issue Analysis Pipeline
+
+```bash
+# Get latest issue content
+ISSUE_CONTENT=$(gh issue view $(gh issue list -L 1 | awk '{print $1}'))
+
+# Phase 1: Quick summary with cheap model
+SUMMARY=$(echo "$ISSUE_CONTENT" | cline -y --config ~/.cline-haiku \
+  "summarize this issue in 2-3 sentences")
+
+# Phase 2: Detailed plan with expensive model + thinking
+PLAN=$(echo "$SUMMARY" | cline -y --thinking --config ~/.cline-opus \
+  "create detailed implementation plan with edge cases")
+
+# Phase 3: Execute with mid-tier model
+echo "$PLAN" | cline -y --config ~/.cline-sonnet \
+  "implement the plan from above"
+```
+
+<Note>
+Each cline invocation needs to complete before passing output to the next phase. Use shell variables to store intermediate results rather than piping cline commands directly.
+</Note>
+
+**Cost impact:**
+- Haiku: $0.80 per million input tokens
+- Opus: $15 per million input tokens  
+- Sonnet: $3 per million input tokens
+
+This pattern uses Opus only when needed for complex reasoning, saving ~10x on API costs compared to using Opus for everything.
+
+### Setting Up Model Configs
+
+Create separate configuration directories for each model:
+
+```bash
+# Create config directories
+mkdir -p ~/.cline-haiku ~/.cline-sonnet ~/.cline-opus
+
+# Configure each with different models
+cline --config ~/.cline-haiku auth anthropic --modelid claude-haiku-4-20250514
+cline --config ~/.cline-sonnet auth anthropic --modelid claude-sonnet-4-20250514  
+cline --config ~/.cline-opus auth anthropic --modelid claude-opus-4-5-20251101
+
+# Or use different providers entirely
+cline --config ~/.cline-gemini auth gemini --modelid gemini-2.0-flash-exp
+cline --config ~/.cline-codex auth openai-codex --modelid gpt-5-latest
+```
+
+Now you can switch models per-task with `--config`:
+
+```bash
+cline --config ~/.cline-haiku "quick task"
+cline --config ~/.cline-opus "complex reasoning task"
+```
+
+## Pattern 3: Multi-Model Review & Consensus
+
+Get multiple AI perspectives on the same change, then synthesize their feedback.
+
+### Example: Diff Review Pipeline
+
+```bash
+# Get the latest commit
+DIFF=$(git show)
+
+# Review 1: Gemini's perspective
+echo "$DIFF" | cline -y --config ~/.cline-gemini \
+    "review this diff and write your analysis to gemini-review.md"
+
+# Review 2: Codex's perspective
+echo "$DIFF" | cline -y --config ~/.cline-codex \
+    "review this diff and write your analysis to codex-review.md"
+
+# Review 3: Opus's perspective
+echo "$DIFF" | cline -y --config ~/.cline-opus \
+    "review this diff and write your analysis to opus-review.md"
+
+# Synthesize all reviews into a consensus
+cat gemini-review.md codex-review.md opus-review.md | cline -y \
+    "summarize these 3 reviews and identify: 1) issues all models agree on, 2) issues only one model caught, 3) your final recommendation"
+```
+
+**Why this works:**
+- **Redundancy**: Issues caught by all 3 models are high-confidence
+- **Coverage**: Each model has blind spots; together they cover more ground
+- **Prioritization**: Consensus issues should be fixed first
+- **Learning**: See which model types catch which issue types
+
+### Advanced: Parallel Reviews
+
+Run reviews in parallel for faster feedback:
+
+```bash
+# Run all reviews simultaneously
+git show | cline -y --config ~/.cline-gemini "review and save to gemini-review.md" &
+git show | cline -y --config ~/.cline-codex "review and save to codex-review.md" &
+git show | cline -y --config ~/.cline-opus "review and save to opus-review.md" &
+
+# Wait for all to complete
+wait
+
+# Synthesize
+cat *-review.md | cline -y "create consensus review"
+```
+
+<Note>
+Parallel execution requires managing multiple Cline instances. See [Multi-instance workflows](/cline-cli/three-core-flows#3-multi-instance-run-parallel-agents) for details.
+</Note>
+
+## Extended Thinking for Complex Tasks
+
+Use the `--thinking` flag when Cline needs to analyze multiple approaches:
+
+```bash
+# Without thinking: Fast but may miss nuances
+cline -y "refactor this codebase"
+
+# With thinking: Slower but more thorough
+cline -y --thinking \
+    "refactor this codebase - consider: performance, maintainability, backward compatibility"
+```
+
+The `--thinking` flag allocates 1024 tokens for internal reasoning before Cline responds. Best for:
+- Architectural decisions
+- Security analysis
+- Complex refactoring
+- Multi-step planning
+
+## Best Practices
+
+1. **Profile your workload**: Track which tasks are simple vs. complex
+2. **Match models to tasks**: Use fast models for summaries, powerful models for reasoning
+3. **Automate switching**: Script model selection based on task type
+4. **Monitor costs**: Different models have 10-100x price differences
+5. **Validate important decisions**: Use multi-model consensus for critical changes
+
+## Production Examples
+
+### Cost-Optimized PR Review
+
+```bash
+# Haiku: Quick summary and issue identification
+gh pr view $PR | cline -y --config ~/.cline-haiku \
+    "list all issues to fix, output as JSON"
+
+# Opus with thinking: Deep analysis only if issues found
+if [ -s issues.json ]; then
+    cline -y --thinking --config ~/.cline-opus \
+        "analyze these issues and recommend fixes"
+fi
+```
+
+### Security-Focused Multi-Model Scan
+
+```bash
+# Different models have different security perspectives
+git diff main | cline -y --config ~/.cline-gemini "security review" > gemini-sec.md &
+git diff main | cline -y --config ~/.cline-opus "security review" > opus-sec.md &
+git diff main | cline -y --config ~/.cline-codex "security review" > codex-sec.md &
+wait
+
+# High-priority: Issues all 3 models found
+cat *-sec.md | cline -y "find security issues all 3 reviews mentioned"
+```
+
+## Related Documentation
+
+<Columns cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cline-cli/cli-reference">
+    Complete documentation for --config and --thinking flags
+  </Card>
+  
+  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
+    Learn about interactive mode, headless automation, and multi-instance workflows
+  </Card>
+  
+  <Card title="Model Selection Guide" icon="brain" href="/core-features/model-selection-guide">
+    Compare models and choose the right one for your needs
+  </Card>
+  
+  <Card title="CI/CD Integration" icon="github" href="/cline-cli/samples/github-integration">
+    Automate GitHub workflows with Cline CLI
+  </Card>
+</Columns>

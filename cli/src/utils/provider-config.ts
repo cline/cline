@@ -8,6 +8,7 @@ import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
+import type { BedrockConfig } from "../components/BedrockSetup"
 import { getDefaultModelId } from "../components/ModelPicker"
 
 export interface ApplyProviderConfigOptions {
@@ -66,6 +67,55 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 
 	// Save via StateManager
 	stateManager.setApiConfiguration(config)
+	await stateManager.flushPendingState()
+
+	// Rebuild API handler on active task if one exists
+	if (controller?.task) {
+		const currentMode = stateManager.getGlobalSettingsKey("mode")
+		const apiConfig = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+	}
+}
+
+export interface ApplyBedrockConfigOptions {
+	bedrockConfig: BedrockConfig
+	modelId?: string
+	controller?: Controller
+}
+
+/**
+ * Apply Bedrock provider configuration to state
+ * Handles AWS-specific fields (authentication, region, credentials)
+ */
+export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Promise<void> {
+	const { bedrockConfig, modelId, controller } = options
+	const stateManager = StateManager.get()
+
+	const config: Record<string, unknown> = {
+		actModeApiProvider: "bedrock",
+		planModeApiProvider: "bedrock",
+		awsAuthentication: bedrockConfig.awsAuthentication,
+		awsRegion: bedrockConfig.awsRegion,
+		awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
+	}
+
+	// Add model ID
+	const finalModelId = modelId || getDefaultModelId("bedrock")
+	if (finalModelId) {
+		const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
+		const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
+		if (actModelKey) config[actModelKey] = finalModelId
+		if (planModelKey) config[planModelKey] = finalModelId
+	}
+
+	// Add optional AWS credentials
+	if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
+	if (bedrockConfig.awsAccessKey) config.awsAccessKey = bedrockConfig.awsAccessKey
+	if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
+	if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
+
+	// Save via StateManager
+	stateManager.setApiConfiguration(config as Record<string, string>)
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
