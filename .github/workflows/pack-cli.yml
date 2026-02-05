@@ -1,5 +1,10 @@
 name: Build and Pack CLI
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -24,10 +29,6 @@ on:
 jobs:
   pack:
     name: Build and Pack CLI
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
