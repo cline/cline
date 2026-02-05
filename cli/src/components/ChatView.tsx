@@ -460,11 +460,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (!provider) return ""
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
-		return (
-			(stateManager.getGlobalSettingsKey(modelKey) as string) ||
-			getProviderDefaultModelId(provider as ApiProvider) ||
-			""
-		)
+		return (stateManager.getGlobalSettingsKey(modelKey) as string) || getProviderDefaultModelId(provider as ApiProvider) || ""
 	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {
@@ -1292,7 +1288,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				return next
 			})
 
-			const newText = textInputRef.current.slice(0, currentCursorPos) + placeholder + textInputRef.current.slice(currentCursorPos)
+			const newText =
+				textInputRef.current.slice(0, currentCursorPos) + placeholder + textInputRef.current.slice(currentCursorPos)
 			textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
 			setTextInput(newText)
 			setCursorPos(currentCursorPos + placeholder.length)
