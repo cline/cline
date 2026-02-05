@@ -155,7 +155,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.SetModel: {
-					const modelId = action.arg || "anthropic/claude-opus-4.5"
+					const modelId = action.arg || "anthropic/claude-opus-4.6"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
 						actModeOpenRouterModelId: modelId,
