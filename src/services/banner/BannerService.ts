@@ -4,8 +4,10 @@ import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostInfo, HostRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { buildBasicClineHeaders } from "../EnvUtils"
+import { featureFlagsService } from "../feature-flags"
 
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
 const CIRCUIT_BREAKER_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
@@ -137,6 +139,7 @@ export class BannerService {
 	public getActiveBanners(): BannerCardData[] {
 		const now = Date.now()
 		const shouldFetch =
+			featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS) &&
 			now >= this.backoffUntil &&
 			now - this.lastFetchTime >= CACHE_DURATION_MS &&
 			!this.fetchPromise &&
@@ -223,6 +226,11 @@ export class BannerService {
 	}
 
 	private async doFetch(): Promise<Banner[]> {
+		// Do not fetch banners when feature flag is off
+		if (!featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS)) {
+			return []
+		}
+
 		this.abortController = new AbortController()
 		const { signal } = this.abortController
 		const timeoutId = setTimeout(() => this.abortController?.abort(), FETCH_TIMEOUT_MS)

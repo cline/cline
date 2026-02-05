@@ -10,6 +10,7 @@ import * as sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostRegistryInfo } from "@/registry"
+import { featureFlagsService } from "@/services/feature-flags"
 import { mockFetchForTesting } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "../BannerService"
@@ -30,6 +31,9 @@ describe("BannerService", () => {
 
 		sandbox.stub(Logger, "log")
 		sandbox.stub(Logger, "error")
+
+		// Mock feature flag service to enable remote banners
+		sandbox.stub(featureFlagsService, "getBooleanFlagEnabled").returns(true)
 
 		// Default state manager configuration
 		mockStateManagerConfig = {
