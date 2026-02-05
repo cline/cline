@@ -1,5 +1,6 @@
 // Map providers to their specific model ID keys
 
+import { SettingsKey } from "@shared/storage/state-keys"
 import {
 	ApiProvider,
 	anthropicDefaultModelId,
@@ -46,6 +47,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 } as const
 
 export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>> = {
+	cline: ["clineApiKey", "clineAccountId"],
 	anthropic: "apiKey",
 	openrouter: "openRouterApiKey",
 	bedrock: ["awsAccessKey", "awsBedrockApiKey"],
@@ -81,7 +83,6 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
-	cline: "clineAccountId",
 } as const
 
 const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
@@ -117,14 +118,11 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
  * Get the provider-specific model ID key for a given provider and mode.
  * Different providers store their model IDs in different state keys.
  */
-export function getProviderModelIdKey(
-	provider: ApiProvider,
-	mode: "act" | "plan",
-): keyof import("@shared/storage/state-keys").Settings | null {
+export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan"): SettingsKey {
 	const keySuffix = ProviderKeyMap[provider]
 	if (keySuffix) {
 		// E.g. actModeOpenAiModelId, planModeOpenAiModelId, etc.
-		return `${mode}Mode${keySuffix}` as keyof import("@shared/storage/state-keys").Settings
+		return `${mode}Mode${keySuffix}` as SettingsKey
 	}
 
 	// For providers without a specific key (anthropic, gemini, bedrock, etc.),

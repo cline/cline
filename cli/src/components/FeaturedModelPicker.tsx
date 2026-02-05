@@ -27,12 +27,12 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 	return (
 		<Box flexDirection="column">
 			{title && (
-				<>
+				<Text>
 					<Text bold color={COLORS.primaryBlue}>
 						{title}
 					</Text>
 					<Text> </Text>
-				</>
+				</Text>
 			)}
 
 			{featuredModels.map((model, i) => {
@@ -45,15 +45,15 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 							<Text bold color={isSelected ? COLORS.primaryBlue : "white"}>
 								{model.name}
 							</Text>
-							{model.label && (
-								<>
+							{model.labels.map((label) => (
+								<Text key={label}>
 									<Text> </Text>
-									<Text backgroundColor={model.label === "FREE" ? "gray" : COLORS.primaryBlue} color="black">
+									<Text backgroundColor={label === "FREE" ? "gray" : COLORS.primaryBlue} color="black">
 										{" "}
-										{model.label}{" "}
+										{label}{" "}
 									</Text>
-								</>
-							)}
+								</Text>
+							))}
 						</Box>
 						<Box paddingLeft={2}>
 							<Text color="gray">{model.description}</Text>

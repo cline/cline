@@ -23,9 +23,9 @@ import fs from "fs/promises"
 import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import type * as vscode from "vscode"
 import { ClineEnv } from "@/config"
+import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -756,6 +756,30 @@ export class Controller {
 			Logger.error("Error reading cached OpenRouter models:", error)
 		}
 		return undefined
+	}
+
+	// Hicap
+	async handleHicapCallback(code: string) {
+		const apiKey: string = code
+
+		const hicap: ApiProvider = "hicap"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+
+		// Update API configuration through cache service
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: hicap,
+			actModeApiProvider: hicap,
+			hicapApiKey: apiKey,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+
+		await this.postStateToWebview()
+		this.accountService
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
 	}
 
 	// Task history

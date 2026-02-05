@@ -75,9 +75,9 @@ function createS3Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 }
 
 function createR2Adapter(settings: BlobStoreSettings): StorageAdapter | undefined {
-	const { accountId, bucket, accessKeyId, secretAccessKey } = settings
+	const { accountId, endpoint, bucket, accessKeyId, secretAccessKey } = settings
 
-	if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
+	if ((!endpoint && !accountId) || !bucket || !accessKeyId || !secretAccessKey) {
 		Logger.error("[StorageAdapter] Missing required R2 settings")
 		return undefined
 	}

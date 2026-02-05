@@ -331,6 +331,22 @@
 		li > ol {
 			@apply my-1 ml-2;
 		}
+		table {
+			@apply border-collapse w-full my-3;
+		}
+		th,
+		td {
+			@apply p-2 border border-border-panel text-left;
+		}
+		th {
+			@apply bg-code/20 font-semibold;
+		}
+		tr:nth-child(even) {
+			@apply bg-list-hover;
+		}
+		del {
+			@apply line-through opacity-70;
+		}
 
 		code:not(pre > code) {
 			@apply font-mono text-preformat bg-code-block-background border border-text-separator rounded-xs py-0.5 whitespace-pre-line break-words text-editor-size;

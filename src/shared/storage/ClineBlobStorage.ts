@@ -102,7 +102,7 @@ export class ClineBlobStorage extends ClineStorage {
 		const hasRequiredVars = !!settings.bucket && !!settings.accessKeyId && !!settings.secretAccessKey
 
 		if (adapter === "r2") {
-			return hasRequiredVars && !!settings.accountId
+			return hasRequiredVars && !!(settings.accountId || settings.endpoint)
 		}
 
 		return hasRequiredVars

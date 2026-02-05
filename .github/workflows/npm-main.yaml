@@ -9,7 +9,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write # Required for pushing tags
   checks: write # Required by test workflow
   pull-requests: write # Required by test workflow
 
@@ -87,6 +87,13 @@ jobs:
           echo "Publishing version ${{ steps.version.outputs.version }} to NPM with tag 'latest'..."
           cd dist-standalone
           npm publish --tag latest --access public
+
+      - name: Tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}-cli"
+          git push origin "v${{ steps.version.outputs.version }}-cli"
 
       - name: Summary
         run: |
