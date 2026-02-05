@@ -1,5 +1,5 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
-import { RemoteConfig } from "@shared/remote-config/schema"
+import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
 import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -12,9 +12,28 @@ import { ApiProvider } from "@/shared/api"
 import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
+import { BlobStoreSettings } from "@/shared/storage"
 import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
+
+function accessSettingsToBlobStorage(type: BlobStoreSettings["adapterType"], settings: S3AccessKeySettings): BlobStoreSettings {
+	return {
+		adapterType: type,
+		accessKeyId: settings.accessKeyId,
+		secretAccessKey: settings.secretAccessKey,
+		region: settings.region,
+		bucket: settings.bucket,
+		endpoint: settings.endpoint,
+		accountId: settings.accountId,
+		intervalMs: settings.intervalMs,
+		maxRetries: settings.maxRetries,
+		batchSize: settings.batchSize,
+		maxQueueSize: settings.maxQueueSize,
+		maxFailedAgeMs: settings.maxFailedAgeMs,
+		backfillEnabled: settings.backfillEnabled,
+	}
+}
 
 /**
  * Transforms RemoteConfig schema to RemoteConfigFields shape
@@ -209,21 +228,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.enterpriseTelemetry?.promptUploading) {
 		const promptUplaoding = remoteConfig.enterpriseTelemetry.promptUploading
 		if (promptUplaoding.type === "s3_access_keys" && promptUplaoding.s3AccessSettings) {
-			transformed.blobStoreConfig = {
-				adapterType: "s3",
-				accessKeyId: promptUplaoding.s3AccessSettings.accessKeyId,
-				secretAccessKey: promptUplaoding.s3AccessSettings.secretAccessKey,
-				region: promptUplaoding.s3AccessSettings.region,
-				bucket: promptUplaoding.s3AccessSettings.bucket,
-				endpoint: promptUplaoding.s3AccessSettings.endpoint,
-				accountId: promptUplaoding.s3AccessSettings.accountId,
-				intervalMs: promptUplaoding.s3AccessSettings.intervalMs,
-				maxRetries: promptUplaoding.s3AccessSettings.maxRetries,
-				batchSize: promptUplaoding.s3AccessSettings.batchSize,
-				maxQueueSize: promptUplaoding.s3AccessSettings.maxQueueSize,
-				maxFailedAgeMs: promptUplaoding.s3AccessSettings.maxFailedAgeMs,
-				backfillEnabled: promptUplaoding.s3AccessSettings.backfillEnabled,
-			}
+			transformed.blobStoreConfig = accessSettingsToBlobStorage("s3", promptUplaoding.s3AccessSettings)
+		} else if (promptUplaoding.type === "r2_access_keys" && promptUplaoding.r2AccessSettings) {
+			transformed.blobStoreConfig = accessSettingsToBlobStorage("r2", promptUplaoding.r2AccessSettings)
 		}
 	}
 
