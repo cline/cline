@@ -59,9 +59,9 @@ export const recommendedModels = [
 		label: "NEW",
 	},
 	{
-		id: "anthropic/claude-opus-4.5",
-		description: "State-of-the-art for complex coding",
-		label: "HOT",
+		id: "anthropic/claude-opus-4.6",
+		description: "Most intelligent model for agents and coding",
+		label: "NEW",
 	},
 	{
 		id: "openai/gpt-5.2-codex",
@@ -288,6 +288,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.6") ||
 			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
@@ -440,6 +441,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{/* Context window switcher for Claude Opus 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher
