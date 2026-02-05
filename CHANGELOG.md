@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.57.1]
+
+### Fixed
+
+- Fixed Opus 4.6 for bedrock provider
+
 ## [3.57.0]
 
 ### Added
