@@ -105,6 +105,19 @@ async function main() {
 	console.log("Bedrock tool calling live test")
 	ensureCredentials()
 
+	const previewHandler = createTestHandler()
+	const resolvedModelId = await previewHandler.getModelId()
+	console.log(`Using model: ${MODEL_ID}`)
+	console.log(`Resolved model ID: ${resolvedModelId}`)
+	console.log(`Region: ${REGION} | Cross-region inference: ${USE_CROSS_REGION}`)
+
+	const requiresInferenceProfile = /claude-(sonnet|haiku)-4-5|claude-opus-4-6/i.test(MODEL_ID)
+	if (requiresInferenceProfile && !USE_CROSS_REGION) {
+		console.warn(
+			"  ⚠️  This model typically requires an inference profile. Set BEDROCK_USE_CROSS_REGION=true (or provide a profile ARN) if requests fail.",
+		)
+	}
+
 	const results: TestResult[] = []
 
 	results.push(

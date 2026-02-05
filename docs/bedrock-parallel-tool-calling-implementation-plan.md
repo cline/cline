@@ -419,7 +419,7 @@ The script needs AWS credentials with Bedrock model access. It should support mu
 | `AWS_SESSION_TOKEN` | No | — | Session token (for temp creds) |
 | `AWS_PROFILE` | Yes* | — | Alternative: use named profile |
 | `BEDROCK_MODEL_ID` | No | `anthropic.claude-sonnet-4-5-20250929-v1:0` | Model to test with |
-| `BEDROCK_USE_CROSS_REGION` | No | `false` | Enable cross-region inference |
+| `BEDROCK_USE_CROSS_REGION` | No | `false` | Enable cross-region inference (required for Claude 4.5/Opus 4.6 inference profiles) |
 
 \* Either `AWS_ACCESS_KEY_ID`+`AWS_SECRET_ACCESS_KEY` or `AWS_PROFILE` must be set.
 
@@ -434,6 +434,12 @@ AWS_PROFILE=bedrock-dev npx tsx scripts/test-bedrock-tool-calling.ts
 
 # With custom model/region
 AWS_PROFILE=bedrock-dev AWS_REGION=us-west-2 BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0 npx tsx scripts/test-bedrock-tool-calling.ts
+
+# Claude 4.5/Opus 4.6 models require inference profiles
+AWS_PROFILE=bedrock-dev \
+BEDROCK_MODEL_ID=anthropic.claude-haiku-4-5-20251001-v1:0 \
+BEDROCK_USE_CROSS_REGION=true \
+npx tsx scripts/test-bedrock-tool-calling.ts
 ```
 
 #### Script Structure & Test Cases
