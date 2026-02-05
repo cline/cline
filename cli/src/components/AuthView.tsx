@@ -5,6 +5,7 @@
 
 import { Box, Text, useApp, useInput } from "ink"
 import Spinner from "ink-spinner"
+// biome-ignore lint/style/useImportType: React is used as a value by JSX (jsx: "react" in tsconfig)
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
@@ -12,7 +13,6 @@ import { AuthService } from "@/services/auth/AuthService"
 import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
-import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
@@ -47,9 +47,6 @@ type AuthStep =
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
-
-// Featured models loaded from shared constants
-const featuredModels = getAllFeaturedModels()
 
 interface AuthViewProps {
 	controller: any
@@ -864,7 +861,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 										{index === menuIndex ? "❯ " : "  "}
 										{item.label}
 									</Text>
-									{item.value === "cline_auth" && <Text color="yellow"> (try Kimi K2.5 free!)</Text>}
+									{item.value === "cline_auth" && <Text color="yellow"> (try Opus 4.6!)</Text>}
 								</Text>
 							</Box>
 						))}
