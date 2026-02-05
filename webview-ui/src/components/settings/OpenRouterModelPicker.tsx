@@ -102,7 +102,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	initialTab,
 }) => {
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, openRouterModels, clineModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -130,6 +130,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 		setSearchTerm(newModelId)
 
+		// Use clineModels when provider is "cline", otherwise use openRouterModels
+		const modelsSource = modeFields.apiProvider === "cline" ? clineModels : openRouterModels
 		handleModeFieldsChange(
 			{
 				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
@@ -137,7 +139,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+				openRouterModelInfo: modelsSource?.[newModelId],
 			},
 			currentMode,
 		)
@@ -184,9 +186,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	}, [])
 
 	const modelIds = useMemo(() => {
-		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
+		// Use clineModels when provider is "cline", otherwise use openRouterModels
+		const modelsSource = modeFields.apiProvider === "cline" ? clineModels : openRouterModels
+		const unfilteredModelIds = Object.keys(modelsSource || {}).sort((a, b) => a.localeCompare(b))
 		return filterOpenRouterModelIds(unfilteredModelIds, modeFields.apiProvider || "openrouter")
-	}, [openRouterModels, modeFields.apiProvider])
+	}, [openRouterModels, clineModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -285,9 +289,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		}
 	}, [selectedIndex])
 
+	// Determine model source based on provider
+	const currentModelsSource = modeFields.apiProvider === "cline" ? clineModels : openRouterModels
+
 	const showBudgetSlider = useMemo(() => {
 		return (
-			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			Object.entries(currentModelsSource || {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||

@@ -87,6 +87,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChange, currentMode, children }) => {
 	const {
 		apiConfiguration,
+		clineModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		navigateToSettings,
@@ -173,8 +174,13 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {
 		if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
-			// Use vercelAiGatewayModels for Vercel provider, openRouterModels for others
-			const modelsSource = selectedProvider === "vercel-ai-gateway" ? vercelAiGatewayModels : openRouterModels
+			// Use clineModels for Cline, vercelAiGatewayModels for Vercel, openRouterModels for OpenRouter
+			const modelsSource =
+				selectedProvider === "cline"
+					? clineModels
+					: selectedProvider === "vercel-ai-gateway"
+						? vercelAiGatewayModels
+						: openRouterModels
 			const modelIds = Object.keys(modelsSource || {})
 			const filteredIds = filterOpenRouterModelIds(modelIds, selectedProvider)
 
@@ -201,7 +207,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		}
 
 		return []
-	}, [selectedProvider, openRouterModels, vercelAiGatewayModels, apiConfiguration, basetenModels, liteLlmModels])
+	}, [selectedProvider, clineModels, openRouterModels, vercelAiGatewayModels, apiConfiguration, basetenModels, liteLlmModels])
 
 	// Multi-word substring search - all words must match somewhere in id/name/provider
 	const matchesSearch = useCallback((model: ModelItem, query: string): boolean => {
@@ -422,7 +428,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 						// Determine which list the index falls into
 						if (selectedIndex < featuredModels.length) {
 							const model = featuredModels[selectedIndex]
-							handleSelectModel(model.id, openRouterModels[model.id])
+							handleSelectModel(model.id, clineModels[model.id])
 						} else {
 							const model = filteredModels[selectedIndex - featuredModels.length]
 							handleSelectModel(model.id, model.info)
@@ -435,7 +441,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					break
 			}
 		},
-		[filteredModels, featuredModels, selectedIndex, handleSelectModel, openRouterModels, onOpenChange],
+		[filteredModels, featuredModels, selectedIndex, handleSelectModel, clineModels, onOpenChange],
 	)
 
 	// Reset selectedIndex and clear refs when search/provider changes
@@ -753,9 +759,11 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									<ModelItemContainer
 										$isSelected={index === selectedIndex}
 										key={model.id}
-										onClick={() => handleSelectModel(model.id, openRouterModels[model.id])}
+										onClick={() => handleSelectModel(model.id, clineModels[model.id])}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => {
+											itemRefs.current[index] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
@@ -775,7 +783,9 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 										key={model.id}
 										onClick={() => handleSelectModel(model.id, model.info)}
 										onMouseEnter={() => setSelectedIndex(globalIndex)}
-										ref={(el) => (itemRefs.current[globalIndex] = el)}>
+										ref={(el) => {
+											itemRefs.current[globalIndex] = el
+										}}>
 										<ModelInfoRow>
 											<ModelName>{model.name}</ModelName>
 											<ModelProvider>{model.provider}</ModelProvider>
