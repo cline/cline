@@ -1,3 +1,5 @@
+
+FAKE Test changes
 <div align="center"><sub>
 English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
 </sub></div>
@@ -149,3 +151,7 @@ Get the same Cline experience with enterprise-grade controls: SSO (SAML/OIDC), g
 ## License
 
 [Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+
+
+
+FAKE Test changes
