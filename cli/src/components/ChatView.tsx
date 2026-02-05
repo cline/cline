@@ -350,9 +350,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		insertText: insertTextAtCursor,
 	} = useTextInput()
 
-	// Ref for text input (used by useHomeEndKeys)
+	// Refs for text input and cursor position (used by useHomeEndKeys and to avoid stale closures in useInput)
 	const textInputRef = useRef(textInput)
 	textInputRef.current = textInput
+	const cursorPosRef = useRef(cursorPos)
+	cursorPosRef.current = cursorPos
 
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0) // For file menu
@@ -1007,11 +1009,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// 3. Handle Option+arrow via key.meta (backup - Ink sometimes parses these instead of passing raw sequence)
 		if (key.meta) {
 			if (key.leftArrow) {
-				setCursorPos(findWordStart(textInput, cursorPos))
+				setCursorPos(findWordStart(textInputRef.current, cursorPosRef.current))
 				return
 			}
 			if (key.rightArrow) {
-				setCursorPos(findWordEnd(textInput, cursorPos))
+				setCursorPos(findWordEnd(textInputRef.current, cursorPosRef.current))
 				return
 			}
 		}
@@ -1261,10 +1263,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				}
 				pasteUpdateTimeoutRef.current = setTimeout(() => {
 					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
-					setTextInput((prev) => {
-						const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-						return prev.replace(pattern, newPlaceholder)
-					})
+					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
+					const newText = textInputRef.current.replace(pattern, newPlaceholder)
+					textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
+					setTextInput(newText)
 					// Update cursor to be right after the placeholder
 					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
 					Logger.info(`Paste #${pasteNum} complete: ${activePasteLinesRef.current} lines`)
@@ -1277,7 +1279,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			pasteCounterRef.current += 1
 			const pasteNum = pasteCounterRef.current
 			activePasteNumRef.current = pasteNum
-			activePasteStartPosRef.current = cursorPos // Track where placeholder starts
+			const currentCursorPos = cursorPosRef.current // Use ref to avoid stale closure
+			activePasteStartPosRef.current = currentCursorPos // Track where placeholder starts
 			// Count line breaks in the pasted content (handle both \n and \r)
 			const extraLines = input.match(/[\r\n]/g)?.length || 0
 			activePasteLinesRef.current = extraLines // Track total lines
@@ -1289,8 +1292,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				return next
 			})
 
-			setTextInput((prev) => prev.slice(0, cursorPos) + placeholder + prev.slice(cursorPos))
-			setCursorPos(cursorPos + placeholder.length)
+			const newText = textInputRef.current.slice(0, currentCursorPos) + placeholder + textInputRef.current.slice(currentCursorPos)
+			textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
+			setTextInput(newText)
+			setCursorPos(currentCursorPos + placeholder.length)
 			return // Exit early - don't also add the raw input via normal handling below
 		}
 
@@ -1319,15 +1324,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 		if (key.rightArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos((pos) => Math.min(textInput.length, pos + 1))
+			setCursorPos((pos) => Math.min(textInputRef.current.length, pos + 1))
 			return
 		}
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorUp(textInput, cursorPos))
+			setCursorPos(moveCursorUp(textInputRef.current, cursorPosRef.current))
 			return
 		}
 		if (key.downArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorDown(textInput, cursorPos))
+			setCursorPos(moveCursorDown(textInputRef.current, cursorPosRef.current))
 			return
 		}
 		// Normal input (single char or short paste)
