@@ -2,11 +2,13 @@
  * Provider picker component for API provider selection
  */
 
-import React, { useMemo } from "react"
+import type { RemoteConfigFields } from "@shared/storage/state-keys"
+import type React from "react"
+import { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiConfiguration } from "@/shared/api"
 import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "../utils/providers"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Re-export for backwards compatibility
 export { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder }
@@ -122,13 +124,22 @@ interface ProviderPickerProps {
 	isActive?: boolean
 }
 
+export const getValidProviders = (remoteConfig: Partial<RemoteConfigFields> | undefined) => {
+	if (remoteConfig?.remoteConfiguredProviders?.length) {
+		return remoteConfig.remoteConfiguredProviders
+	}
+
+	return getProviderOrder().filter((p: string) => !CLI_EXCLUDED_PROVIDERS.has(p))
+}
+
 export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActive = true }) => {
 	// Get API configuration to check which providers are configured
 	const apiConfig = StateManager.get().getApiConfiguration()
+	const remoteConfig = StateManager.get().getRemoteConfigSettings()
 
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const items: SearchableListItem[] = useMemo(() => {
-		const sorted = getProviderOrder().filter((p: string) => !CLI_EXCLUDED_PROVIDERS.has(p))
+		const sorted = getValidProviders(remoteConfig)
 
 		return sorted.map((providerId: string) => ({
 			id: providerId,
