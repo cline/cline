@@ -113,8 +113,8 @@ import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storag
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
-import type React from "react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+// biome-ignore lint/style/useImportType: JSX requires React as a value (jsx: "react" in tsconfig)
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
