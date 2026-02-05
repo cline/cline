@@ -109,7 +109,7 @@ import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getProviderModelIdKey } from "@shared/storage"
+import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
@@ -453,11 +453,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Get model ID based on current mode and provider
 	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
 	// Re-read when activePanel changes (settings panel closes) to pick up changes
+	// Falls back to provider's default model if no model has been explicitly set
 	const modelId = useMemo(() => {
 		if (!provider) return ""
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
-		return (stateManager.getGlobalSettingsKey(modelKey) as string) || ""
+		return (
+			(stateManager.getGlobalSettingsKey(modelKey) as string) ||
+			getProviderDefaultModelId(provider as ApiProvider) ||
+			""
+		)
 	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {
