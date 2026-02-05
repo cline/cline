@@ -49,7 +49,7 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider organized by tabs
 export const recommendedModels = [
 	{
-		id: "anthropic/claude-sonnet-4.5",
+		id: "anthropic/claude-sonnet-5",
 		description: "Best balance of speed, cost, and quality",
 		label: "BEST",
 	},
@@ -288,6 +288,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-sonnet-5") ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.6") ||
 			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
@@ -441,6 +443,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					)}
 				</DropdownWrapper>
 
+				{/* Context window switcher for Claude Sonnet 5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
@@ -520,9 +530,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
+						onClick={() => handleModelChange("anthropic/claude-sonnet-5")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.5.
+						anthropic/claude-sonnet-5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
 					entering @preset/your-preset-name

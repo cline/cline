@@ -81,6 +81,22 @@ export interface BannerAction {
  * TODO: Backend would return a similar JSON structure in the future which we will replace this with.
  */
 export const BANNER_DATA: BannerCardData[] = [
+	// Sonnet 5 free trial banner
+	{
+		id: "sonnet-5-free-v1",
+		icon: "sparkles",
+		title: "Try Sonnet 5 Free",
+		description: "Anthropic's latest model with frontier-level coding intelligence. Free for a limited time for Cline users!",
+		actions: [
+			{
+				title: "Try Now",
+				action: BannerActionType.SetModel,
+				arg: "anthropic/claude-sonnet-5",
+			},
+		],
+		isClineUserOnly: true,
+	},
+
 	// ChatGPT integration banner
 	{
 		id: "chatgpt-integration-v1",
