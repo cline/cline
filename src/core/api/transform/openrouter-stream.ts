@@ -5,6 +5,7 @@ import {
 	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeOpus461mModelId,
 } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
@@ -30,8 +31,11 @@ export async function createOpenRouterStream(
 		...convertToOpenAiMessages(messages),
 	]
 
-	const isClaudeSonnet1m = model.id === openRouterClaudeSonnet41mModelId || model.id === openRouterClaudeSonnet451mModelId
-	if (isClaudeSonnet1m) {
+	const isClaude1m =
+		model.id === openRouterClaudeSonnet41mModelId ||
+		model.id === openRouterClaudeSonnet451mModelId ||
+		model.id === openRouterClaudeOpus461mModelId
+	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id openrouter API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
@@ -43,6 +47,7 @@ export async function createOpenRouterStream(
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
 	switch (model.id) {
+		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
@@ -110,6 +115,7 @@ export async function createOpenRouterStream(
 	// (models usually default to max tokens allowed)
 	let maxTokens: number | undefined
 	switch (model.id) {
+		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
@@ -155,6 +161,7 @@ export async function createOpenRouterStream(
 
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
+		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
@@ -210,7 +217,7 @@ export async function createOpenRouterStream(
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
-		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
+		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools),
 		...(model.id.includes("gemini-3") && geminiThinkingLevel
 			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
