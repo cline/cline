@@ -1,4 +1,4 @@
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
@@ -8,15 +8,15 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
-import { OpenRouterErrorResponse } from "./types"
+import type { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	ulid?: string
@@ -109,7 +109,7 @@ export class ClineHandler implements ApiHandler {
 			this.lastGenerationId = undefined
 			this.lastRequestId = undefined
 
-			let didOutputUsage: boolean = false
+			let didOutputUsage = false
 
 			const stream = await createOpenRouterStream(
 				client,
@@ -149,11 +149,8 @@ export class ClineHandler implements ApiHandler {
 						const error = choiceWithError.error
 						Logger.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
 						throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
-					} else {
-						throw new Error(
-							"Cline Mid-Stream Error: Stream terminated with error status but no error details provided",
-						)
 					}
+					throw new Error("Cline Mid-Stream Error: Stream terminated with error status but no error details provided")
 				}
 
 				const delta = choice?.delta
@@ -188,7 +185,7 @@ export class ClineHandler implements ApiHandler {
 				if (
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					delta?.reasoning_details?.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
@@ -200,10 +197,12 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(modelId)
+					const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5", "minimax/minimax-m2.1"].includes(
+						modelId,
+					)
 
 					if (isFreeModel) {
 						totalCost = 0
