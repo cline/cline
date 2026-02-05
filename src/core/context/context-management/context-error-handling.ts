@@ -67,7 +67,21 @@ function checkIsCerebrasContextWindowError(response: any): boolean {
 		const status = response?.status ?? response?.code ?? response?.error?.status ?? response?.response?.status
 		const message: string = String(response?.message || response?.error?.message || "")
 
-		return String(status) === "400" && message.includes("Please reduce the length of the messages or completion")
+		if (String(status) !== "400") {
+			return false
+		}
+
+		// Known Cerebras context window error patterns
+		const CEREBRAS_CONTEXT_PATTERNS = [
+			/reduce.*length.*messages.*completion/i,
+			/\bcontext\s*(?:length|window)\b/i,
+			/\bmaximum\s*context\b/i,
+			/\b(?:input\s*)?tokens?\s*exceed/i,
+			/\btoo\s*many\s*tokens?\b/i,
+			/input is too long/i,
+		] as const
+
+		return CEREBRAS_CONTEXT_PATTERNS.some((pattern) => pattern.test(message))
 	} catch {
 		return false
 	}

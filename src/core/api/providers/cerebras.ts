@@ -192,7 +192,18 @@ export class CerebrasHandler implements ApiHandler {
 		} catch (error: any) {
 			// Enhanced error handling for Cerebras API
 			if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
-				// Rate limit error - will be handled by retry decorator with patient backoff
+				// Check if this is actually a context window error disguised as rate limit
+				// Cerebras rate limiter counts input tokens, so oversized context can trigger 429
+				const errorMessage = String(error?.message || "")
+				const isContextRelated = /reduce.*length|context.*length|too.*many.*tokens|tokens.*exceed|input.*too.*long/i.test(
+					errorMessage,
+				)
+				if (isContextRelated) {
+					// Preserve original error so context window detection can catch it
+					error.status = 400 // Treat as bad request for context window detection
+					throw error
+				}
+				// Regular rate limit error - will be handled by retry decorator with patient backoff
 				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
 			} else if (error?.status === 401) {
@@ -203,8 +214,9 @@ export class CerebrasHandler implements ApiHandler {
 				// Server errors - retryable
 				throw new Error(`Cerebras API server error (${error.status}): ${error.message || "Unknown server error"}`)
 			} else if (error?.status === 400) {
-				// Client errors - not retryable
-				throw new Error(`Cerebras API bad request: ${error.message || "Invalid request parameters"}`)
+				// Client errors (including context window exceeded) - preserve original error
+				// so checkIsCerebrasContextWindowError can detect it and trigger compaction
+				throw error
 			}
 
 			// Re-throw original error for other cases
