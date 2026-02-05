@@ -37,6 +37,7 @@ import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
+import { selectOutputMode } from "./utils/mode-selection"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
@@ -102,21 +103,31 @@ function applyTaskOptions(options: TaskOptions): void {
 }
 
 /**
+ * Get mode selection result using the extracted, testable selectOutputMode function.
+ * This wrapper provides the current process TTY state.
+ */
+function getModeSelection(options: TaskOptions) {
+	return selectOutputMode({
+		stdoutIsTTY: process.stdout.isTTY === true,
+		stdinIsTTY: process.stdin.isTTY === true,
+		stdinWasPiped: options.stdinWasPiped ?? false,
+		json: options.json,
+		yolo: options.yolo,
+	})
+}
+
+/**
  * Determine if plain text mode should be used based on options and environment.
  */
 function shouldUsePlainTextMode(options: TaskOptions): boolean {
-	const isTTY = process.stdout.isTTY === true
-	return !isTTY || !!options.stdinWasPiped || !!options.json || !!options.yolo
+	return getModeSelection(options).usePlainTextMode
 }
 
 /**
  * Get the reason for using plain text mode (for telemetry).
  */
 function getPlainTextModeReason(options: TaskOptions): string {
-	if (options.yolo) return "yolo_flag"
-	if (options.json) return "json"
-	if (options.stdinWasPiped) return "piped_stdin"
-	return "redirected_output"
+	return getModeSelection(options).reason
 }
 
 /**
@@ -883,8 +894,18 @@ program
 		// Always check for piped stdin content
 		const stdinInput = await readStdinIfPiped()
 
-		// Error if stdin was piped but empty (e.g., `echo "" | cline`)
-		if (stdinInput === "") {
+		// Track whether stdin was actually piped (even if empty) vs not piped (null)
+		// stdinInput === null means stdin wasn't piped (TTY or not FIFO/file)
+		// stdinInput === "" means stdin was piped but empty
+		// stdinInput has content means stdin was piped with data
+		const stdinWasPiped = stdinInput !== null
+
+		// Error if stdin was piped but empty AND no prompt was provided
+		// This handles:
+		// - `echo "" | cline` -> error (empty stdin, no prompt)
+		// - `cline "prompt"` in GitHub Actions -> OK (empty stdin ignored, has prompt)
+		// - `cat file | cline "explain"` -> OK (has stdin AND prompt)
+		if (stdinInput === "" && !prompt) {
 			printWarning("Empty input received from stdin. Please provide content to process.")
 			exit(1)
 		}
@@ -912,14 +933,14 @@ program
 			await resumeTask(options.taskId, {
 				...options,
 				initialPrompt: effectivePrompt,
-				stdinWasPiped: !!stdinInput,
+				stdinWasPiped,
 			})
 			return
 		}
 
 		if (effectivePrompt) {
 			// Pass stdinWasPiped flag so runTask knows to use plain text mode
-			await runTask(effectivePrompt, { ...options, stdinWasPiped: !!stdinInput })
+			await runTask(effectivePrompt, { ...options, stdinWasPiped })
 		} else {
 			// Show welcome prompt if no prompt given
 			await showWelcome(options)
