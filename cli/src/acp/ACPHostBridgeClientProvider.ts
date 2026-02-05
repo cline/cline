@@ -177,9 +177,8 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
 		const url = request.value || ""
 		if (url) {
 			Logger.debug(`[ACPEnvServiceClient] openExternal: ${url}`)
-			// Dynamically import 'open' to open URL in default browser
-			const { default: open } = await import("open")
-			await open(url)
+			const { openUrlInBrowser } = await import("../utils/browser")
+			await openUrlInBrowser(url)
 		}
 		return proto.cline.Empty.create()
 	}
