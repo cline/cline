@@ -1,0 +1,163 @@
+name: Build and Pack CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or commit SHA to build (leave empty for current branch)'
+        required: false
+        type: string
+      pr_number:
+        description: 'PR number to comment on with install instructions (optional)'
+        required: false
+        type: number
+  # Automatic PR builds - uncomment to enable
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   paths:
+  #     - 'cli/**'
+  #     - 'src/**'
+  #     - 'proto/**'
+  #     - 'scripts/package-npm.mjs'
+  #     - '.github/workflows/pack-cli.yml'
+
+jobs:
+  pack:
+    name: Build and Pack CLI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Get commit SHA
+        id: commit
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "Building from commit: $COMMIT_SHA"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Cache root dependencies
+        uses: actions/cache@v4
+        id: root-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Generate Protos
+        run: npm run protos
+
+      - name: Build standalone package
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ENVIRONMENT: production
+          OTEL_TELEMETRY_ENABLED: "1"
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        run: node scripts/package-npm.mjs
+
+      - name: Create Tarball
+        id: pack
+        run: |
+          cd dist-standalone
+          TARBALL=$(npm pack)
+          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+          echo "Created tarball: $TARBALL"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const commit = '${{ steps.commit.outputs.sha }}';
+            const tarball = '${{ steps.pack.outputs.tarball }}';
+            
+            // Create a release
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `cli-build-${commit}`,
+              name: `CLI Build (${commit})`,
+              body: `Automated CLI build from commit ${commit}\n\nInstall with:\n\`\`\`bash\nnpm install -g https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/cli-build-${commit}/${tarball}\n\`\`\``,
+              draft: false,
+              prerelease: true
+            });
+            
+            // Upload the tarball as a release asset
+            const tarballPath = path.join('dist-standalone', tarball);
+            const tarballData = fs.readFileSync(tarballPath);
+            
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              name: tarball,
+              data: tarballData
+            });
+            
+            core.setOutput('release_url', release.data.html_url);
+            core.setOutput('download_url', `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/cli-build-${commit}/${tarball}`);
+            
+            return release.data.html_url;
+
+      - name: Comment on PR with download instructions
+        if: github.event_name == 'pull_request' || inputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commit = '${{ steps.commit.outputs.sha }}';
+            const releaseUrl = '${{ steps.create_release.outputs.release_url }}';
+            const downloadUrl = '${{ steps.create_release.outputs.download_url }}';
+            const prNumber = '${{ inputs.pr_number }}' || context.issue.number;
+            
+            const comment = `## 📦 CLI Build Ready
+            
+            A CLI build has been created for commit \`${commit}\`.
+            
+            ### Install Directly from URL (No Authentication Required!)
+            
+            \`\`\`bash
+            npm install -g ${downloadUrl}
+            \`\`\`
+            
+            ### Alternative: Download and Install
+            
+            \`\`\`bash
+            curl -L ${downloadUrl} -o cline.tgz
+            npm install -g ./cline.tgz
+            \`\`\`
+            
+            📦 [View Release](${releaseUrl})
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Summary
+        run: |
+          echo "✅ CLI build complete!"
+          echo ""
+          echo "📦 Release: ${{ steps.create_release.outputs.release_url }}"
+          echo "🔗 Download URL: ${{ steps.create_release.outputs.download_url }}"
+          echo ""
+          echo "Install from anywhere (no authentication required):"
+          echo "  npm install -g ${{ steps.create_release.outputs.download_url }}"

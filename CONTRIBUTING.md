@@ -79,6 +79,54 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     - Run `npm run test` to run tests locally. 
     - Before submitting PR, run `npm run format:fix` to format your code
 
+### Building CLI Artifacts for Testing
+
+You can build a CLI tarball from any branch or commit for testing purposes using our GitHub Actions workflow. This creates a public GitHub Release that **anyone can download without authentication**.
+
+**Using the CLI script (recommended):**
+```bash
+# Build from current branch
+./scripts/build-cli-artifact.sh
+
+# Build from specific branch or commit
+./scripts/build-cli-artifact.sh feature/my-changes
+
+# Build and comment on a PR with install instructions
+./scripts/build-cli-artifact.sh feature/my-changes 1234
+```
+
+**Using GitHub CLI directly:**
+```bash
+# Build from current branch
+gh workflow run pack-cli.yml
+
+# Build from specific ref
+gh workflow run pack-cli.yml -f ref=main
+
+# Build and comment on PR #1234
+gh workflow run pack-cli.yml -f ref=feature/my-changes -f pr_number=1234
+```
+
+**Installing the built CLI:**
+
+The workflow creates a GitHub Release with tag `cli-build-{commit-sha}`. Once the workflow completes, you can:
+
+1. **Install directly from the URL** (no authentication required):
+   ```bash
+   npm install -g https://github.com/cline/cline/releases/download/cli-build-abc123/cline-2.0.4.tgz
+   ```
+
+2. **Find the release**:
+   ```bash
+   # Check recent releases
+   gh release list --limit 10
+   
+   # View a specific release
+   gh release view cli-build-abc123
+   ```
+
+The release URL can be shared with anyone for testing - no GitHub account or authentication required!
+
 ### Extension
 
 1. **VS Code Extensions**
