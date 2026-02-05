@@ -193,25 +193,24 @@ function OtelSettingsSection() {
 						value={`${Object.keys(remoteConfigSettings.openTelemetryOtlpHeaders).length} header(s)`}
 					/>
 				)}
-				<SettingRow
-					label="Metric Export Interval"
-					value={
-						remoteConfigSettings?.openTelemetryMetricExportInterval
-							? `${remoteConfigSettings.openTelemetryMetricExportInterval}ms`
-							: undefined
-					}
-				/>
-				<SettingRow label="OTLP Insecure" value={remoteConfigSettings?.openTelemetryOtlpInsecure} />
-				<SettingRow label="Log Batch Size" value={remoteConfigSettings?.openTelemetryLogBatchSize} />
-				<SettingRow
-					label="Log Batch Timeout"
-					value={
-						remoteConfigSettings?.openTelemetryLogBatchTimeout
-							? `${remoteConfigSettings.openTelemetryLogBatchTimeout}ms`
-							: undefined
-					}
-				/>
-				<SettingRow label="Log Max Queue Size" value={remoteConfigSettings?.openTelemetryLogMaxQueueSize} />
+				{remoteConfigSettings?.openTelemetryMetricExportInterval && (
+					<SettingRow
+						label="Metric Export Interval"
+						value={`${remoteConfigSettings.openTelemetryMetricExportInterval}ms`}
+					/>
+				)}
+				{remoteConfigSettings?.openTelemetryOtlpInsecure !== undefined && (
+					<SettingRow label="OTLP Insecure" value={remoteConfigSettings?.openTelemetryOtlpInsecure} />
+				)}
+				{remoteConfigSettings?.openTelemetryLogBatchSize && (
+					<SettingRow label="Log Batch Size" value={remoteConfigSettings?.openTelemetryLogBatchSize} />
+				)}
+				{remoteConfigSettings?.openTelemetryLogBatchTimeout && (
+					<SettingRow label="Log Batch Timeout" value={`${remoteConfigSettings.openTelemetryLogBatchTimeout}ms`} />
+				)}
+				{remoteConfigSettings?.openTelemetryLogMaxQueueSize && (
+					<SettingRow label="Log Max Queue Size" value={remoteConfigSettings?.openTelemetryLogMaxQueueSize} />
+				)}
 			</div>
 
 			{otelEnabled && (
