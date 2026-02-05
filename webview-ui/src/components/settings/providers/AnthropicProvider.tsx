@@ -6,6 +6,7 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
+import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -36,7 +37,7 @@ interface AnthropicProviderProps {
  * The Anthropic provider configuration component
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
@@ -56,12 +57,16 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
 
-			<BaseUrlField
-				initialValue={apiConfiguration?.anthropicBaseUrl}
-				label="Use custom base URL"
-				onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
-				placeholder="Default: https://api.anthropic.com"
-			/>
+			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}>
+				<BaseUrlField
+					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
+					initialValue={apiConfiguration?.anthropicBaseUrl}
+					label="Use custom base URL"
+					onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
+					placeholder="Default: https://api.anthropic.com"
+					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
+				/>
+			</RemotelyConfiguredInputWrapper>
 
 			{showModelOptions && (
 				<>
