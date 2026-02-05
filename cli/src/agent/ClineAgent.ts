@@ -173,7 +173,7 @@ export class ClineAgent implements acp.Agent {
 	async initialize(params: acp.InitializeRequest, connection?: acp.AgentSideConnection): Promise<acp.InitializeResponse> {
 		this.clientCapabilities = params.clientCapabilities
 		this.initializeHostProvider(this.clientCapabilities, connection)
-		await ClineEndpoint.initialize()
+		await ClineEndpoint.initialize(this.ctx.EXTENSION_DIR)
 		await StateManager.initialize(this.ctx.extensionContext)
 
 		return {
