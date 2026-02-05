@@ -460,7 +460,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
-	"anthropic.claude-opus-4-6-v1:0": {
+	"anthropic.claude-opus-4-6-v1": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -472,7 +472,7 @@ export const bedrockModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 	},
-	"anthropic.claude-opus-4-6-v1:0:1m": {
+	"anthropic.claude-opus-4-6-v1:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
