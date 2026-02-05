@@ -94,6 +94,11 @@
 		"lineEnding": "lf",
 		"formatWithErrors": true
 	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
 	"javascript": {
 		"formatter": {
 			"semicolons": "asNeeded",
