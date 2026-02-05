@@ -70,6 +70,8 @@ Run a new task with a prompt.
 
 **\--json** :   Output messages as JSON instead of styled text
 
+**-T**, **\--taskId** *id* :   Resume an existing task by ID. The prompt argument becomes an optional follow-up message.
+
 ## history (alias: h)
 
 List task history with pagination.
@@ -153,6 +155,8 @@ When running **cline** with just a prompt (no subcommand), these options are ava
 **\--thinking** :   Enable extended thinking (1024 token budget)
 
 **\--json** :   Output messages as JSON instead of styled text. Forces plain text mode.
+
+**-T**, **\--taskId** *id* :   Resume an existing task by ID instead of starting a new one. The prompt becomes an optional follow-up message.
 
 # JSON OUTPUT FORMAT
 
@@ -249,6 +253,22 @@ cline history
 
 # Show more tasks with pagination
 cline history -n 20 -p 2
+```
+
+## Resuming Tasks
+
+```bash
+# Resume a task by ID (get IDs from cline history)
+cline -T abc123def
+
+# Resume a task with a follow-up message
+cline -T abc123def "Now add unit tests for the changes"
+
+# Resume in plan mode to review before continuing
+cline -T abc123def -p "What's left to do?"
+
+# Resume with yolo mode for automated continuation
+cline -T abc123def -y "Continue with the implementation"
 ```
 
 ## Authentication
