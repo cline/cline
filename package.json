@@ -453,7 +453,7 @@
 		]
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.1.4",
+		"@biomejs/biome": "^2.3.14",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/better-sqlite3": "^7.6.13",
@@ -497,7 +497,8 @@
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^4.0.18"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
