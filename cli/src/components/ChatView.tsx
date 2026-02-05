@@ -113,7 +113,8 @@ import { getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
@@ -209,9 +210,9 @@ function getGitDiffStats(cwd?: string): GitDiffStats | null {
 		const delMatch = output.match(/(\d+) deletion/)
 
 		return {
-			files: filesMatch ? parseInt(filesMatch[1], 10) : 0,
-			additions: addMatch ? parseInt(addMatch[1], 10) : 0,
-			deletions: delMatch ? parseInt(delMatch[1], 10) : 0,
+			files: filesMatch ? Number.parseInt(filesMatch[1], 10) : 0,
+			additions: addMatch ? Number.parseInt(addMatch[1], 10) : 0,
+			deletions: delMatch ? Number.parseInt(delMatch[1], 10) : 0,
 		}
 	} catch {
 		return null
@@ -222,7 +223,7 @@ function getGitDiffStats(cwd?: string): GitDiffStats | null {
  * Create a progress bar for context window usage
  * Returns { filled, empty } strings to allow different coloring
  */
-function createContextBar(used: number, total: number, width: number = 8): { filled: string; empty: string } {
+function createContextBar(used: number, total: number, width = 8): { filled: string; empty: string } {
 	const ratio = Math.min(used / total, 1)
 	// Use ceil so any usage > 0 shows at least one bar
 	const filledCount = used > 0 ? Math.max(1, Math.ceil(ratio * width)) : 0
@@ -312,7 +313,7 @@ function parseAskOptions(text: string): string[] {
  */
 function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
 	return text.replace(/\[Pasted text #(\d+) \+\d+ lines\]/g, (match, num) => {
-		const content = pastedTexts.get(parseInt(num, 10))
+		const content = pastedTexts.get(Number.parseInt(num, 10))
 		return content ?? match
 	})
 }
@@ -1191,7 +1192,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (hasPrimary && buttonConfig.primaryAction) {
 					handleButtonAction(buttonConfig.primaryAction, true)
 					return
-				} else if (hasSecondary && !hasPrimary && buttonConfig.secondaryAction) {
+				}
+				if (hasSecondary && !hasPrimary && buttonConfig.secondaryAction) {
 					handleButtonAction(buttonConfig.secondaryAction, false)
 					return
 				}
@@ -1212,7 +1214,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 			// Number selection for options (only when no text typed yet)
 			if (askType === "options") {
-				const num = parseInt(input, 10)
+				const num = Number.parseInt(input, 10)
 				if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= askOptions.length) {
 					const selectedOption = askOptions[num - 1]
 					sendAskResponse("messageResponse", selectedOption)
@@ -1386,10 +1388,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			{/* Dynamic region - only current streaming message + input */}
 			<Box flexDirection="column" width="100%">
-				{/* Animated robot and welcome text - only shown before messages start and user hasn't scrolled */}
+				{/* Animated robot and welcome text - only shown before messages start and user hasn't interacted */}
 				{isWelcomeState && (
 					<Box flexDirection="column" marginBottom={1}>
-						<AsciiMotionCli onScroll={() => setUserScrolled(true)} />
+						<AsciiMotionCli onInteraction={() => setUserScrolled(true)} />
 						<Text> </Text>
 						<Text bold color="white">
 							{centerText("What can I do for you?")}
