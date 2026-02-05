@@ -172,6 +172,16 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
 		Logger.debug("[ACPEnvServiceClient] shutdown called (stub)")
 		return proto.cline.Empty.create()
 	}
+
+	async openExternal(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
+		const url = request.value || ""
+		if (url) {
+			Logger.debug(`[ACPEnvServiceClient] openExternal: ${url}`)
+			const { openUrlInBrowser } = await import("../utils/browser")
+			await openUrlInBrowser(url)
+		}
+		return proto.cline.Empty.create()
+	}
 }
 
 /**

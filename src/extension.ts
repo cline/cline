@@ -494,7 +494,7 @@ ${ctx.cellJson || "{}"}
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMsg(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
