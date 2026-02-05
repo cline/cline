@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.57.0]
+
+### Added
+
+- Cline CLI 2.0 now available. Install with `npm install -g cline`
+- Anthopic Opus 4.6 
+- Minimax-2.1 and Kimi-k2.5 now available for free for a limited time promo
+- Codex-5.3 through OpenAI Codex provider
+
+### Fixed
+
+- Fix read file tool to support reading large files
+- Fix decimal input crash in OpenAI Compatible price fields (#8129)
+- Fix build complete handlers when updating the api config
+- Fixed missing provider from list
+- Fixed Favorite Icon / Star from getting clipped in the task history view
+
+### Changed
+
+- Make skills always enabled and remove feature toggle setting
+
 ## [3.56.0]
 
 ### Added
