@@ -54,7 +54,7 @@ function logProgress(message: string) {
 	process.stderr.write(`[${nowIso()}] ${message}\n`)
 }
 
-const DEFAULT_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
+const DEFAULT_MODEL_ID = "anthropic.claude-sonnet-4-5-20250514-v1:0"
 const DEFAULT_REGION = "us-east-1"
 
 function ensureAwsCredentials() {
@@ -301,9 +301,17 @@ async function main() {
 	// Ensure we are testing *structured/native* tool calling rather than XML fallback.
 	// NOTE: The CLI may include the literal string "<tool_name>" inside *error/help text*.
 	// To avoid false positives, only fail if we see actual XML tool invocation tags.
-	if (/<tool_name>\s*\n\s*<\/tool_name>|<tool_name>\s*\n\s*<parameter/i.test(result.stdout)) {
-		console.error("Detected XML tool invocation (<tool_name>...) in output; this indicates legacy XML tool calling path.")
-		process.exit(1)
+	const xmlToolPatterns = [
+		/<tool_name>\s*\n\s*<\/tool_name>|<tool_name>\s*\n\s*<parameter/i,
+		/<invoke\s+name="(read_file|attempt_completion|execute_command)"/i,
+	]
+	for (const pattern of xmlToolPatterns) {
+		if (pattern.test(result.stdout)) {
+			console.error(
+				`Detected XML/invoke tool invocation in output (pattern: ${pattern}); this indicates legacy XML tool calling path, not native tool calling.`,
+			)
+			process.exit(1)
+		}
 	}
 	if (uniquePaths.size < 2) {
 		console.warn("Expected at least 2 parallel read_file tool calls. Parsed tool calls:")

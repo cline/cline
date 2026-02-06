@@ -556,7 +556,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			return {
 				toolSpec: {
 					name: tool.name,
-					description: tool.description || "",
+					description: tool.description || tool.name || "Tool",
 					inputSchema: {
 						json: tool.input_schema,
 					},

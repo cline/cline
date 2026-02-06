@@ -8,6 +8,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	return [
 		"cline",
 		"anthropic",
+		"bedrock",
 		"gemini",
 		"vertex",
 		"openrouter",
@@ -62,7 +63,7 @@ export function isClaude4PlusModelFamily(id: string): boolean {
 	if (!versionMatch) {
 		return false
 	}
-	const version = parseFloat(versionMatch[1])
+	const version = Number.parseFloat(versionMatch[1])
 	// Check if version is 4.0 or higher
 	return version >= 4
 }
@@ -181,7 +182,7 @@ export function parsePrice(priceString: string | undefined): number {
 	if (!priceString || priceString === "" || priceString === "0") {
 		return 0
 	}
-	const parsed = parseFloat(priceString)
+	const parsed = Number.parseFloat(priceString)
 	if (Number.isNaN(parsed)) {
 		return 0
 	}
