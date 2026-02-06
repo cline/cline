@@ -57,7 +57,7 @@ export class McpHub {
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
-	isConnecting = false
+	isConnecting: boolean = false
 	/**
 	 * Flag to skip file watcher processing when we're updating Cline-specific settings
 	 * (autoApprove, timeout) that don't require an MCP server restart.
@@ -72,10 +72,10 @@ export class McpHub {
 	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
 	 *   300ms:  flag = false (ready for external file changes)
 	 */
-	private isUpdatingClineSettings = false
+	private isUpdatingClineSettings: boolean = false
 
 	// Track when remote config is updating to prevent unnecessary watcher triggers
-	private isUpdatingFromRemoteConfig = false
+	private isUpdatingFromRemoteConfig: boolean = false
 
 	/**
 	 * Map of unique keys to each connected server names
@@ -1449,7 +1449,7 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
+	public async addRemoteServer(serverName: string, serverUrl: string, transportType: string = "streamableHttp"): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1528,8 +1528,9 @@ export class McpHub {
 				// Get the servers in their correct order from settings
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
+			} else {
+				throw new Error(`${serverName} not found in MCP configuration`)
 			}
-			throw new Error(`${serverName} not found in MCP configuration`)
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
