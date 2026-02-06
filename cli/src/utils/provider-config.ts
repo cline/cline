@@ -12,6 +12,35 @@ import type { BedrockConfig } from "../components/BedrockSetup"
 import { getDefaultModelId } from "../components/ModelPicker"
 import type { SapAiCoreConfig } from "../components/SapAiCoreSetup"
 
+/**
+ * Clear all SAP AI Core configuration fields from state
+ * Called when switching away from SAP AI Core provider
+ *
+ * Reference: Commit 78dce9d17
+ */
+export async function clearSapAiCoreConfig(controller?: Controller): Promise<void> {
+	const stateManager = StateManager.get()
+
+	const config: Record<string, unknown> = {
+		// Clear state fields
+		sapAiCoreBaseUrl: undefined,
+		sapAiCoreTokenUrl: undefined,
+		sapAiResourceGroup: undefined,
+		sapAiCoreUseOrchestrationMode: undefined, // Reset to default (true) on next setup
+		// Clear provider-specific model ID keys (for backwards compatibility)
+		actModeSapAiCoreModelId: undefined,
+		planModeSapAiCoreModelId: undefined,
+		actModeSapAiCoreDeploymentId: undefined,
+		planModeSapAiCoreDeploymentId: undefined,
+		// Clear secret fields
+		sapAiCoreClientId: undefined,
+		sapAiCoreClientSecret: undefined,
+	}
+
+	stateManager.setApiConfiguration(config as Record<string, string>)
+	await stateManager.flushPendingState()
+}
+
 export interface ApplyProviderConfigOptions {
 	providerId: string
 	apiKey?: string
@@ -119,12 +148,12 @@ export async function applySapAiCoreConfig(options: ApplySapAiCoreConfigOptions)
 	config.sapAiCoreClientSecret = sapAiCoreConfig.clientSecret
 
 	// Add model ID
+	// Note: SAP AI Core uses generic model ID keys (planModeApiModelId/actModeApiModelId)
+	// to match the VS Code extension behavior. Do NOT use getProviderModelIdKey here.
 	const finalModelId = modelId || getDefaultModelId("sapaicore")
 	if (finalModelId) {
-		const actModelKey = getProviderModelIdKey("sapaicore" as ApiProvider, "act")
-		const planModelKey = getProviderModelIdKey("sapaicore" as ApiProvider, "plan")
-		if (actModelKey) config[actModelKey] = finalModelId
-		if (planModelKey) config[planModelKey] = finalModelId
+		config.actModeApiModelId = finalModelId
+		config.planModeApiModelId = finalModelId
 	}
 
 	// Store deployment ID for direct deployment mode (commit 973660a57)
