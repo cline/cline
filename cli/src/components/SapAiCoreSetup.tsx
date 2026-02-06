@@ -157,7 +157,7 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 			<CredentialInput
 				hint="OAuth Client ID from your SAP AI Core service key"
 				isActive={isActive}
-				isPassword={false}
+				isPassword={true}
 				label="SAP AI Core Client ID"
 				onCancel={goBack}
 				onChange={setClientId}
