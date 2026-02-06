@@ -168,7 +168,45 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 		)
 	}
 
-	// TODO: Implement remaining steps (base_url, token_url, options) in subsequent commits
+	// Render Base URL step
+	if (step === "base_url") {
+		return (
+			<CredentialInput
+				hint="API endpoint URL from your SAP AI Core service key (serviceurls.AI_API_URL)"
+				isActive={isActive}
+				isPassword={false}
+				label="SAP AI Core Base URL"
+				onCancel={goBack}
+				onChange={setBaseUrl}
+				onSubmit={() => {
+					if (baseUrl.trim()) setStep("token_url")
+				}}
+				placeholder="https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2"
+				value={baseUrl}
+			/>
+		)
+	}
+
+	// Render Token URL step
+	if (step === "token_url") {
+		return (
+			<CredentialInput
+				hint="OAuth token endpoint URL from your SAP AI Core service key (url + /oauth/token)"
+				isActive={isActive}
+				isPassword={false}
+				label="OAuth Token URL"
+				onCancel={goBack}
+				onChange={setTokenUrl}
+				onSubmit={() => {
+					if (tokenUrl.trim()) setStep("options")
+				}}
+				placeholder="https://xxx.authentication.eu10.hana.ondemand.com/oauth/token"
+				value={tokenUrl}
+			/>
+		)
+	}
+
+	// TODO: Implement options step in Commit 4
 
 	return (
 		<Box flexDirection="column">
