@@ -1449,7 +1449,11 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string, transportType: string = "streamableHttp"): Promise<McpServer[]> {
+	public async addRemoteServer(
+		serverName: string,
+		serverUrl: string,
+		transportType: string = "streamableHttp",
+	): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
