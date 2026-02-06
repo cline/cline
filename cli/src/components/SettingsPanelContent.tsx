@@ -140,6 +140,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
 	const [isConfiguringSapAiCore, setIsConfiguringSapAiCore] = useState(false)
+	const [pendingSapAiCoreConfig, setPendingSapAiCoreConfig] = useState<SapAiCoreConfig | null>(null)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
@@ -831,9 +832,27 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	])
 
 	// Handle model selection from picker
+	// For SAP AI Core in deployment mode, deploymentId is passed from ModelPicker
 	const handleModelSelect = useCallback(
-		async (modelId: string) => {
+		async (modelId: string, deploymentId?: string) => {
 			if (!pickingModelKey) return
+
+			// If we have a pending SAP AI Core config, apply it with the selected model
+			if (pendingSapAiCoreConfig) {
+				await applySapAiCoreConfig({
+					sapAiCoreConfig: pendingSapAiCoreConfig,
+					modelId,
+					deploymentId,
+					controller,
+				})
+				setProvider("sapaicore")
+				setPendingSapAiCoreConfig(null)
+				refreshModelIds()
+				setIsPickingModel(false)
+				setPickingModelKey(null)
+				return
+			}
+
 			const apiConfig = stateManager.getApiConfiguration()
 			const actProvider = apiConfig.actModeApiProvider
 			const planProvider = apiConfig.planModeApiProvider || actProvider
@@ -864,6 +883,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						pickingModelKey === "actModelId" ? "actModeOpenRouterModelInfo" : "planModeOpenRouterModelInfo"
 					stateManager.setGlobalState(infoKey, modelInfo)
 				}
+				// For SAP AI Core, also store deployment ID if provided
+				if (providerForSelection === "sapaicore") {
+					const deploymentKey =
+						pickingModelKey === "actModelId" ? "actModeSapAiCoreDeploymentId" : "planModeSapAiCoreDeploymentId"
+					stateManager.setGlobalState(deploymentKey, deploymentId || undefined)
+				}
 			} else {
 				// Update both modes to keep them in sync
 				if (actKey) stateManager.setGlobalState(actKey, modelId)
@@ -872,6 +897,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (modelInfo) {
 					stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
 					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+				}
+				// For SAP AI Core, also store deployment ID for both modes if provided
+				if (providerForSelection === "sapaicore") {
+					stateManager.setGlobalState("actModeSapAiCoreDeploymentId", deploymentId || undefined)
+					stateManager.setGlobalState("planModeSapAiCoreDeploymentId", deploymentId || undefined)
 				}
 			}
 
@@ -894,7 +924,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				onClose()
 			}
 		},
-		[pickingModelKey, separateModels, stateManager, controller, refreshModelIds, initialMode, onClose],
+		[
+			pickingModelKey,
+			separateModels,
+			stateManager,
+			controller,
+			refreshModelIds,
+			initialMode,
+			onClose,
+			pendingSapAiCoreConfig,
+		],
 	)
 
 	// Handle language selection from picker
@@ -1053,19 +1092,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 
 	// Handle SAP AI Core configuration complete
-	const handleSapAiCoreComplete = useCallback(
-		(sapAiCoreConfig: SapAiCoreConfig) => {
-			// Update UI state first for responsiveness
-			setProvider("sapaicore")
-			refreshModelIds()
-			setIsConfiguringSapAiCore(false)
-			setPendingProvider(null)
-
-			// Apply config and rebuild API handler in background
-			applySapAiCoreConfig({ sapAiCoreConfig, controller })
-		},
-		[controller, refreshModelIds],
-	)
+	// Store config and show model picker (like AuthView flow)
+	const handleSapAiCoreComplete = useCallback((sapAiCoreConfig: SapAiCoreConfig) => {
+		// Store the config for later use when model is selected
+		setPendingSapAiCoreConfig(sapAiCoreConfig)
+		setIsConfiguringSapAiCore(false)
+		setPendingProvider(null)
+		// Show model picker for SAP AI Core
+		setPickingModelKey("actModelId")
+		setIsPickingModel(true)
+	}, [])
 
 	// Handle saving edited value
 	const handleSave = useCallback(() => {
@@ -1423,7 +1459,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 							isActive={isPickingModel}
 							onChange={() => {}}
 							onSubmit={handleModelSelect}
-							provider={provider}
+							provider={pendingSapAiCoreConfig ? "sapaicore" : provider}
+							sapAiCoreCredentials={
+								pendingSapAiCoreConfig
+									? {
+											clientId: pendingSapAiCoreConfig.clientId,
+											clientSecret: pendingSapAiCoreConfig.clientSecret,
+											baseUrl: pendingSapAiCoreConfig.baseUrl,
+											tokenUrl: pendingSapAiCoreConfig.tokenUrl,
+											resourceGroup: pendingSapAiCoreConfig.resourceGroup,
+										}
+									: undefined
+							}
+							sapAiCoreUseOrchestrationMode={pendingSapAiCoreConfig?.useOrchestrationMode}
 						/>
 					</Box>
 					<Box marginTop={1}>

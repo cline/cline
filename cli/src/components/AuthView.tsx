@@ -779,9 +779,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					/>
 				)
 
-			case "sapaicore":
+			case "sapaicore": {
+				// Get existing SAP AI Core configuration for pre-filling the form
+				const apiConfig = StateManager.get().getApiConfiguration()
+				const initialSapAiCoreConfig = {
+					clientId: apiConfig.sapAiCoreClientId || "",
+					clientSecret: apiConfig.sapAiCoreClientSecret || "",
+					baseUrl: apiConfig.sapAiCoreBaseUrl || "",
+					tokenUrl: apiConfig.sapAiCoreTokenUrl || "",
+					resourceGroup: apiConfig.sapAiResourceGroup || "",
+					useOrchestrationMode: apiConfig.sapAiCoreUseOrchestrationMode ?? true,
+				}
 				return (
 					<SapAiCoreSetup
+						initialConfig={initialSapAiCoreConfig}
 						isActive={step === "sapaicore"}
 						onCancel={() => {
 							setSapAiCoreConfig(null)
@@ -790,6 +801,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						onComplete={handleSapAiCoreComplete}
 					/>
 				)
+			}
 
 			case "import":
 				if (!importSource) {

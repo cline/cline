@@ -6,8 +6,7 @@
 
 import { Box, Text, useInput } from "ink"
 // biome-ignore lint/correctness/noUnusedImports: React is required for JSX transformation (tsconfig jsx: react)
-import type React from "react"
-import { useCallback, useState } from "react"
+import React, { useCallback, useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -32,6 +31,8 @@ interface SapAiCoreSetupProps {
 	isActive: boolean
 	onComplete: (config: SapAiCoreConfig) => void
 	onCancel: () => void
+	/** Initial configuration values to pre-fill the form */
+	initialConfig?: Partial<SapAiCoreConfig>
 }
 
 /**
@@ -68,22 +69,19 @@ const FIELDS: FieldConfig[] = [
 	{
 		id: "baseUrl",
 		label: "Base URL",
-		hint: "API endpoint URL (serviceurls.AI_API_URL)",
-		placeholder: "https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2",
+		hint: "API endpoint URL (serviceurls.AI_API_URL from service key)",
 		required: true,
 	},
 	{
 		id: "tokenUrl",
 		label: "Token URL",
-		hint: "OAuth token endpoint URL (url field from service key)",
-		placeholder: "https://xxx.authentication.eu10.hana.ondemand.com",
+		hint: "OAuth token endpoint URL (url from service key)",
 		required: true,
 	},
 	{
 		id: "resourceGroup",
 		label: "Resource Group",
 		hint: "Optional: Leave empty for default",
-		placeholder: "default",
 		required: false,
 	},
 	{
@@ -103,16 +101,31 @@ const FIELDS: FieldConfig[] = [
  * SAP AI Core Setup form component
  * Displays all fields on one screen with arrow key navigation
  */
-export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComplete, onCancel }) => {
+export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComplete, onCancel, initialConfig }) => {
 	const { isRawModeSupported } = useStdinContext()
 
-	// Form state
+	// Form state - pre-fill with initial values if provided
+	// Note: useState only runs the initializer once, so we use useEffect to sync
 	const [clientId, setClientId] = useState("")
 	const [clientSecret, setClientSecret] = useState("")
 	const [baseUrl, setBaseUrl] = useState("")
 	const [tokenUrl, setTokenUrl] = useState("")
 	const [resourceGroup, setResourceGroup] = useState("")
 	const [useOrchestrationMode, setUseOrchestrationMode] = useState(true)
+	const [initialized, setInitialized] = useState(false)
+
+	// Initialize form with initial values (once)
+	React.useEffect(() => {
+		if (!initialized && initialConfig) {
+			setClientId(initialConfig.clientId || "")
+			setClientSecret(initialConfig.clientSecret || "")
+			setBaseUrl(initialConfig.baseUrl || "")
+			setTokenUrl(initialConfig.tokenUrl || "")
+			setResourceGroup(initialConfig.resourceGroup || "")
+			setUseOrchestrationMode(initialConfig.useOrchestrationMode ?? true)
+			setInitialized(true)
+		}
+	}, [initialized, initialConfig])
 
 	// Currently focused field index
 	const [focusedIndex, setFocusedIndex] = useState(0)
@@ -190,21 +203,22 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 				return
 			}
 
+			// Handle toggle field - left/right arrows or space to toggle, enter moves down
+			if (currentField.isToggle) {
+				if (key.leftArrow || key.rightArrow || input === " ") {
+					setUseOrchestrationMode((prev) => !prev)
+					return
+				}
+				// Enter moves to next field (handled below with other fields)
+			}
+
 			// Navigation
 			if (key.upArrow) {
 				setFocusedIndex((i) => (i > 0 ? i - 1 : FIELDS.length - 1))
 				return
 			}
-			if (key.downArrow || (key.return && !currentField.isButton && !currentField.isToggle)) {
+			if (key.downArrow || (key.return && !currentField.isButton)) {
 				setFocusedIndex((i) => (i < FIELDS.length - 1 ? i + 1 : 0))
-				return
-			}
-
-			// Handle toggle field
-			if (currentField.isToggle) {
-				if (key.return || input === " ") {
-					setUseOrchestrationMode((prev) => !prev)
-				}
 				return
 			}
 
@@ -264,7 +278,7 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 							)}
 							{isFocused && (
 								<Box paddingLeft={2}>
-									<Text color="gray">Press Enter or Space to toggle</Text>
+									<Text color="gray">←→ or Space to toggle, Enter to continue</Text>
 								</Box>
 							)}
 						</Box>
@@ -273,15 +287,22 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 
 				// Button field
 				if (field.isButton) {
-					const canSubmit = isFormValid()
+					const canSubmit = Boolean(isFormValid())
 					return (
-						<Box key={field.id} marginTop={1}>
-							<Text
-								bold={isFocused}
-								color={isFocused ? (canSubmit ? COLORS.primaryBlue : "red") : canSubmit ? "green" : "gray"}>
-								{isFocused ? "❯ " : "  "}
-								{canSubmit ? "[Submit]" : "[Fill required fields]"}
-							</Text>
+						<Box flexDirection="column" key={field.id} marginTop={1}>
+							<Box>
+								<Text
+									bold={isFocused && canSubmit}
+									color={isFocused && canSubmit ? COLORS.primaryBlue : canSubmit ? "green" : "gray"}>
+									{isFocused ? "❯ " : "  "}
+									[Submit]
+								</Text>
+							</Box>
+							{!canSubmit && (
+								<Box paddingLeft={2}>
+									<Text color="gray">Fill all required fields (*) to continue</Text>
+								</Box>
+							)}
 						</Box>
 					)
 				}
