@@ -14,7 +14,7 @@ import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeT
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { initializeTestMode } from "./services/test/TestMode"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
+import "./utils/path"; // necessary to have access to String.prototype.toPosix
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -581,14 +581,18 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
+	const getCallbackUrl = async () => {
+		const baseUri = vscode.Uri.parse(`${vscode.env.uriScheme || "vscode"}://${context.extension.id}`)
+		const externalUri = await vscode.env.asExternalUri(baseUri)
+		return externalUri.toString(true)
+	}
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
 		createCommentReview,
 		createTerminalManager,
 		vscodeHostBridgeClient,
-		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
+		() => { }, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,

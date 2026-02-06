@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 
 export async function getIdeRedirectUri(_: EmptyRequest): Promise<String> {
 	const uriScheme = vscode.env.uriScheme || "vscode"
-	const url = `${uriScheme}://saoudrizwan.claude-dev`
-	return { value: url }
+	const baseUri = vscode.Uri.parse(`${uriScheme}://saoudrizwan.claude-dev`)
+	const externalUri = await vscode.env.asExternalUri(baseUri)
+	return { value: externalUri.toString(true) }
 }
