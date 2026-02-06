@@ -106,7 +106,7 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 
 	// Options state
 	const [resourceGroup, setResourceGroup] = useState("")
-	const [useOrchestrationMode, setUseOrchestrationMode] = useState(true) // Default: ON
+	const [, setUseOrchestrationMode] = useState(true) // Default: ON
 
 	/**
 	 * Navigate back to the previous step
