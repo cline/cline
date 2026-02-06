@@ -96,8 +96,13 @@ async function runWithRetries(name: string, fn: () => Promise<void>, retries = 2
 }
 
 function ensureCredentials() {
+	if (process.env.ALLOW_AWS_DEFAULT_CHAIN === "true") {
+		return
+	}
 	if (!process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_PROFILE) {
-		throw new Error("Missing AWS credentials. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or AWS_PROFILE.")
+		throw new Error(
+			"Missing AWS credentials. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or AWS_PROFILE, or set ALLOW_AWS_DEFAULT_CHAIN=true to rely on the AWS default credential chain.",
+		)
 	}
 }
 
