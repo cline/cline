@@ -240,7 +240,7 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 				const value = getFieldValue(field.id)
 				const displayValue = field.isPassword && value ? "•".repeat(value.length) : value
 
-				// Toggle field
+				// Toggle field - show both options with selection indicator
 				if (field.isToggle) {
 					return (
 						<Box flexDirection="column" key={field.id} marginBottom={1}>
@@ -249,13 +249,22 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 									{isFocused ? "❯ " : "  "}
 									{field.label}:{" "}
 								</Text>
-								<Text color={isFocused ? COLORS.primaryBlue : "green"}>
-									{useOrchestrationMode ? "[Yes]" : "[No]"}
+								<Text color={useOrchestrationMode ? (isFocused ? COLORS.primaryBlue : "green") : "gray"}>
+									{useOrchestrationMode ? "● Yes" : "○ Yes"}
+								</Text>
+								<Text color="gray"> / </Text>
+								<Text color={!useOrchestrationMode ? (isFocused ? COLORS.primaryBlue : "green") : "gray"}>
+									{!useOrchestrationMode ? "● No" : "○ No"}
 								</Text>
 							</Box>
 							{field.hint && (
 								<Box paddingLeft={2}>
 									<Text color="gray">{field.hint}</Text>
+								</Box>
+							)}
+							{isFocused && (
+								<Box paddingLeft={2}>
+									<Text color="gray">Press Enter or Space to toggle</Text>
 								</Box>
 							)}
 						</Box>
