@@ -1698,6 +1698,68 @@ export class Task {
 		return this.promptOverrideMetadata
 	}
 
+	private async writePromptArtifacts(params: {
+		promptVariantFamily: string
+		systemPromptFingerprint: string
+		systemPrompt: string
+		providerInfo: ApiProviderInfo
+		promptOverrideMetadata?: PromptOverrideMetadata
+	}): Promise<void> {
+		const enabledFlag = process.env.CLINE_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
+		const enabled = enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes"
+		if (!enabled) {
+			return
+		}
+
+		try {
+			const configuredDir = process.env.CLINE_PROMPT_ARTIFACT_DIR?.trim()
+			const artifactDir = configuredDir
+				? path.isAbsolute(configuredDir)
+					? configuredDir
+					: path.resolve(this.cwd, configuredDir)
+				: path.resolve(this.cwd, ".cline-prompt-artifacts")
+
+			await fs.mkdir(artifactDir, { recursive: true })
+
+			const safeTs = new Date().toISOString().replace(/[:.]/g, "-")
+			const baseName = `task-${this.taskId}-req-${this.taskState.apiRequestCount}-${safeTs}`
+			const manifestPath = path.join(artifactDir, `${baseName}.manifest.json`)
+			const systemPromptPath = path.join(artifactDir, `${baseName}.system_prompt.md`)
+			const profilePromptPath = path.join(artifactDir, `${baseName}.profile_prompt.md`)
+
+			const manifest = {
+				taskId: this.taskId,
+				ulid: this.ulid,
+				ts: new Date().toISOString(),
+				cwd: this.cwd,
+				provider: params.providerInfo.providerId,
+				model: params.providerInfo.model.id,
+				mode: params.providerInfo.mode,
+				promptVariantFamily: params.promptVariantFamily,
+				systemPromptFingerprint: params.systemPromptFingerprint,
+				promptProfileId: params.promptOverrideMetadata?.profileId,
+				promptProfileFilePath: params.promptOverrideMetadata?.profileFilePath,
+				promptProfileFingerprint: params.promptOverrideMetadata?.profileFingerprint,
+				promptProfileLoadWarning: params.promptOverrideMetadata?.loadWarning,
+			}
+
+			const writes: Promise<unknown>[] = [
+				fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8"),
+				fs.writeFile(systemPromptPath, params.systemPrompt, "utf8"),
+			]
+
+			if (params.promptOverrideMetadata?.profileInstructions) {
+				writes.push(fs.writeFile(profilePromptPath, params.promptOverrideMetadata.profileInstructions, "utf8"))
+			}
+
+			await Promise.all(writes)
+
+			await this.say("info", `Prompt artifacts written: ${manifestPath}`)
+		} catch (error) {
+			Logger.error("Failed to write prompt artifacts:", error)
+		}
+	}
+
 	private getApiRequestIdSafe(): string | undefined {
 		const apiLike = this.api as Partial<{
 			getLastRequestId: () => string | undefined
@@ -1948,6 +2010,14 @@ export class Task {
 					`model=${providerInfo.model.id}`,
 				].join(" | "),
 			)
+
+			await this.writePromptArtifacts({
+				promptVariantFamily,
+				systemPromptFingerprint,
+				systemPrompt,
+				providerInfo,
+				promptOverrideMetadata,
+			})
 		}
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(

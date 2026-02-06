@@ -17,6 +17,7 @@ flowchart LR
   CTX --> BUILDER["PromptBuilder (existing)"]
   BUILDER --> API["Provider API createMessage"]
   MAN --> LOG["Emit one-time info messages\nat first request"]
+  TASK --> ART["Optional prompt artifacts\nmanifest + profile + system prompt"]
 ```
 
 ## What Changed
@@ -66,6 +67,20 @@ File: `src/core/prompts/system-prompt/components/user_instructions.ts`
 - Extended `buildUserInstructions(...)` to include `activePromptProfileInstructions`.
 - This means prompt-file content is included via existing user-instructions composition path.
 
+### 5) Optional prompt artifact dump (exact prompt capture)
+File: `src/core/task/index.ts`
+
+- Added optional artifact writing to persist exactly what prompt was sent.
+- Guarded by env flag:
+  - `CLINE_WRITE_PROMPT_ARTIFACTS=1` (also accepts `true`/`yes`)
+- Optional output dir:
+  - `CLINE_PROMPT_ARTIFACT_DIR=/path/to/dir`
+  - defaults to `<cwd>/.cline-prompt-artifacts`
+- On first request of a task run, writes:
+  - `<basename>.manifest.json`
+  - `<basename>.system_prompt.md`
+  - `<basename>.profile_prompt.md` (when profile instructions exist)
+
 ## Practical Usage
 
 ### Override prompt profile label only
@@ -88,6 +103,13 @@ cline task "Fix failing tests" --thinking-budget 2048
 cline task "Fix failing tests" --reasoning-effort high
 ```
 
+### Persist exact prompts as artifacts
+```bash
+CLINE_WRITE_PROMPT_ARTIFACTS=1 \
+CLINE_PROMPT_ARTIFACT_DIR=./prompt-artifacts \
+cline task "Fix failing tests" --prompt-profile exp-v2 --prompt-file ./prompts/exp-v2.md
+```
+
 ## Reproducibility Impact
 
 For each run, you now get an explicit runtime identity signal that can be logged with your eval/benchmark metadata:
@@ -98,8 +120,11 @@ For each run, you now get an explicit runtime identity signal that can be logged
 - Variant family
 - Provider/model
 
-This removes ambiguity about whether you were tweaking the intended prompt.
+And with artifact dumping enabled, you can inspect the exact rendered prompt text for audit/debugging.
 
 ## Validation
 - Type-check passed: `npm run -s check-types`
-- No test changes were added in this pass.
+- CLI build passed: `npm run -s cli:build`
+- Manual E2E against OpenRouter (`anthropic/claude-opus-4.5`) verified:
+  - profile-v1 and profile-v2 runs produce distinct output files
+  - manifest/profile/system prompt artifact files are written
