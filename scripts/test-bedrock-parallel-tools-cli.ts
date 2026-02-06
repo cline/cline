@@ -22,8 +22,26 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
+// ---------------------------------------------------------------------------
+// Configuration defaults
+// ---------------------------------------------------------------------------
+
 const DEFAULT_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
 const DEFAULT_REGION = "us-east-1"
+/** Maximum seconds the CLI task is allowed to run before being killed. */
+const CLI_TIMEOUT_SECONDS = 120
+/** Interval (ms) between heartbeat log lines while waiting for CLI output. */
+const HEARTBEAT_INTERVAL_MS = 15_000
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+interface CliResult {
+	exitCode: number
+	stdout: string
+	stderr: string
+}
 
 function log(msg: string) {
 	process.stderr.write(`[${new Date().toISOString()}] ${msg}\n`)
@@ -40,10 +58,14 @@ function resolveCliCommand(): string {
 	throw new Error("Cline CLI not found on PATH. Set CLINE_BIN or install cline.")
 }
 
+// ---------------------------------------------------------------------------
+// Config seeding — sets up a throwaway Cline CLI config pointed at Bedrock
+// ---------------------------------------------------------------------------
+
 function seedConfig(configDir: string) {
-	const writeJson = (p: string, d: unknown) => {
-		fs.mkdirSync(path.dirname(p), { recursive: true })
-		fs.writeFileSync(p, JSON.stringify(d, null, 2))
+	const writeJson = (filePath: string, data: unknown) => {
+		fs.mkdirSync(path.dirname(filePath), { recursive: true })
+		fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
 	}
 	const dataDir = path.join(configDir, "data")
 	writeJson(path.join(dataDir, "globalState.json"), {
@@ -72,6 +94,14 @@ function seedConfig(configDir: string) {
 	})
 }
 
+// ---------------------------------------------------------------------------
+// Output parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Scans CLI JSON output for `read_file` / `readFile` tool invocations
+ * and returns the set of file paths that were read.
+ */
 function parseReadFilePaths(stdout: string): Set<string> {
 	const paths = new Set<string>()
 	for (const line of stdout.split("\n")) {
@@ -86,11 +116,17 @@ function parseReadFilePaths(stdout: string): Set<string> {
 					paths.add(path.normalize(payload.path))
 				}
 			}
-		} catch {}
+		} catch {
+			// Non-JSON lines (progress spinners, plain text) are expected — skip silently.
+		}
 	}
 	return paths
 }
 
+/**
+ * Checks whether the CLI output contains XML tool invocation patterns,
+ * which would indicate the model fell back to XML-based (non-native) tool calling.
+ */
 function hasXmlFallback(stdout: string): boolean {
 	return [
 		/<tool_name>\s*\n\s*<\/tool_name>|<tool_name>\s*\n\s*<parameter/i,
@@ -98,13 +134,29 @@ function hasXmlFallback(stdout: string): boolean {
 	].some((re) => re.test(stdout))
 }
 
-async function runCli(prompt: string, configDir: string, workspaceDir: string) {
-	return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve, reject) => {
+// ---------------------------------------------------------------------------
+// CLI runner
+// ---------------------------------------------------------------------------
+
+async function runCli(prompt: string, configDir: string, workspaceDir: string): Promise<CliResult> {
+	return new Promise<CliResult>((resolve, reject) => {
 		const cli = resolveCliCommand()
 		log(`Spawning: ${cli}`)
 		const child = spawn(
 			cli,
-			["--config", configDir, "--cwd", workspaceDir, "task", "--json", "--yolo", "--timeout", "120", "--act", prompt],
+			[
+				"--config",
+				configDir,
+				"--cwd",
+				workspaceDir,
+				"task",
+				"--json",
+				"--yolo",
+				"--timeout",
+				String(CLI_TIMEOUT_SECONDS),
+				"--act",
+				prompt,
+			],
 			{
 				cwd: path.resolve(__dirname, ".."),
 				env: { ...process.env, CLINE_DIR: configDir },
@@ -114,26 +166,60 @@ async function runCli(prompt: string, configDir: string, workspaceDir: string) {
 		let stdout = ""
 		let stderr = ""
 		let lastOutput = Date.now()
-		const hb = setInterval(
+		const heartbeatInterval = setInterval(
 			() => log(`  waiting... (${Math.round((Date.now() - lastOutput) / 1000)}s since last output)`),
-			15_000,
+			HEARTBEAT_INTERVAL_MS,
 		)
-		child.stdout.on("data", (c) => {
-			stdout += c.toString()
+		child.stdout.on("data", (chunk) => {
+			stdout += chunk.toString()
 			lastOutput = Date.now()
 		})
-		child.stderr.on("data", (c) => {
-			stderr += c.toString()
+		child.stderr.on("data", (chunk) => {
+			stderr += chunk.toString()
 			lastOutput = Date.now()
 		})
 		child.stdin.end()
 		child.on("error", reject)
 		child.on("close", (code) => {
-			clearInterval(hb)
+			clearInterval(heartbeatInterval)
 			resolve({ exitCode: code ?? 1, stdout, stderr })
 		})
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Temp directory helpers
+// ---------------------------------------------------------------------------
+
+function createTestWorkspace(): { tmpDir: string; workspaceDir: string; configDir: string } {
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-bedrock-test-"))
+	const workspaceDir = path.join(tmpDir, "workspace")
+	fs.mkdirSync(workspaceDir, { recursive: true })
+	for (const [name, content] of [
+		["a.txt", "alpha"],
+		["b.txt", "bravo"],
+		["c.txt", "charlie"],
+	] as const) {
+		fs.writeFileSync(path.join(workspaceDir, name), content)
+	}
+	const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-bedrock-cfg-"))
+	seedConfig(configDir)
+	return { tmpDir, workspaceDir, configDir }
+}
+
+function cleanupDirs(...dirs: string[]) {
+	for (const dir of dirs) {
+		try {
+			fs.rmSync(dir, { recursive: true, force: true })
+		} catch {
+			// Best-effort cleanup — don't fail the script if removal fails.
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 
 async function main() {
 	// Validate prerequisites
@@ -147,46 +233,45 @@ async function main() {
 	console.log(`Bedrock parallel tool calling verification`)
 	console.log(`Model: ${modelId} | Region: ${region} | Cross-region: ${process.env.BEDROCK_USE_CROSS_REGION === "true"}`)
 
-	// Set up workspace with 3 test files
-	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-bedrock-test-"))
-	const workspaceDir = path.join(tmpDir, "workspace")
-	fs.mkdirSync(workspaceDir, { recursive: true })
-	for (const [name, content] of [
-		["a.txt", "alpha"],
-		["b.txt", "bravo"],
-		["c.txt", "charlie"],
-	] as const) {
-		fs.writeFileSync(path.join(workspaceDir, name), content)
-	}
+	const { tmpDir, workspaceDir, configDir } = createTestWorkspace()
 
-	// Seed CLI config
-	const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-bedrock-cfg-"))
-	seedConfig(configDir)
-
-	// Run Cline
-	const prompt = `Read these 3 files using the read_file tool, then use attempt_completion to confirm done:
+	try {
+		// Build prompt that requests parallel file reads
+		const prompt = `Read these 3 files using the read_file tool, then use attempt_completion to confirm done:
 - ${path.join(workspaceDir, "a.txt")}
 - ${path.join(workspaceDir, "b.txt")}
 - ${path.join(workspaceDir, "c.txt")}`
 
-	const start = Date.now()
-	const result = await runCli(prompt, configDir, workspaceDir)
-	const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+		const start = Date.now()
+		const result = await runCli(prompt, configDir, workspaceDir)
+		const elapsed = ((Date.now() - start) / 1000).toFixed(1)
 
-	// Verify
-	assert(!hasXmlFallback(result.stdout), "Detected XML fallback — expected native tool calling")
+		// On failure, dump stderr for debugging before assertions run
+		if (result.exitCode !== 0) {
+			log(`CLI exited with code ${result.exitCode}`)
+			if (result.stderr) {
+				log(`--- stderr ---\n${result.stderr.slice(0, 2000)}\n--- end stderr ---`)
+			}
+		}
 
-	const readPaths = parseReadFilePaths(result.stdout)
-	assert(readPaths.size >= 2, `Expected ≥2 parallel read_file calls, got ${readPaths.size}`)
+		// Verify: no XML fallback
+		assert(!hasXmlFallback(result.stdout), "Detected XML fallback — expected native tool calling")
 
-	const expected = ["a.txt", "b.txt", "c.txt"].map((f) => path.normalize(path.join(workspaceDir, f)))
-	const missing = expected.filter((p) => !readPaths.has(p))
-	if (missing.length > 0) {
-		console.log(`⚠️  ${readPaths.size}/3 files read in parallel (${missing.length} in follow-up turn — acceptable)`)
+		// Verify: ≥2 parallel read_file calls in the output
+		const readPaths = parseReadFilePaths(result.stdout)
+		assert(readPaths.size >= 2, `Expected ≥2 parallel read_file calls, got ${readPaths.size}`)
+
+		const expected = ["a.txt", "b.txt", "c.txt"].map((f) => path.normalize(path.join(workspaceDir, f)))
+		const missing = expected.filter((p) => !readPaths.has(p))
+		if (missing.length > 0) {
+			console.log(`⚠️  ${readPaths.size}/3 files read in parallel (${missing.length} in follow-up turn — acceptable)`)
+		}
+
+		console.log(`\n✅ Parallel tool calling verified (${readPaths.size} parallel reads, ${elapsed}s)`)
+		console.log(`   Files read: ${Array.from(readPaths).join(", ")}`)
+	} finally {
+		cleanupDirs(tmpDir, configDir)
 	}
-
-	console.log(`\n✅ Parallel tool calling verified (${readPaths.size} parallel reads, ${elapsed}s)`)
-	console.log(`   Files read: ${Array.from(readPaths).join(", ")}`)
 }
 
 main().catch((err) => {
