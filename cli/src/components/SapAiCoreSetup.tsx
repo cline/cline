@@ -3,9 +3,11 @@
  * Multi-step wizard for configuring SAP AI Core provider credentials
  */
 
-import { Box, Text } from "ink"
+import { Box, Text, useInput } from "ink"
 // biome-ignore lint/style/useImportType: React is used as a value by JSX (jsx: "react" in tsconfig)
-import React, { useState } from "react"
+import React, { useCallback, useState } from "react"
+import { useStdinContext } from "../context/StdinContext"
+import { isMouseEscapeSequence } from "../utils/input"
 
 /**
  * SAP AI Core configuration interface
@@ -35,6 +37,59 @@ interface SapAiCoreSetupProps {
 type SapAiCoreStep = "client_id" | "client_secret" | "base_url" | "token_url" | "options"
 
 /**
+ * Inline text input for credential fields
+ * Similar to BedrockSetup's CredentialInput
+ */
+const CredentialInput: React.FC<{
+	label: string
+	value: string
+	onChange: (value: string) => void
+	onSubmit: () => void
+	onCancel: () => void
+	isActive: boolean
+	isPassword?: boolean
+	placeholder?: string
+	hint?: string
+}> = ({ label, value, onChange, onSubmit, onCancel, isActive, isPassword, placeholder, hint }) => {
+	const { isRawModeSupported } = useStdinContext()
+
+	useInput(
+		(input, key) => {
+			if (isMouseEscapeSequence(input)) return
+			if (key.escape) {
+				onCancel()
+			} else if (key.return) {
+				onSubmit()
+			} else if (key.backspace || key.delete) {
+				onChange(value.slice(0, -1))
+			} else if (input && !key.ctrl && !key.meta) {
+				onChange(value + input)
+			}
+		},
+		{ isActive: isActive && isRawModeSupported },
+	)
+
+	const displayValue = isPassword && value ? "•".repeat(value.length) : value
+
+	// Combine hint and placeholder into description shown above input
+	const description = hint || (placeholder ? `e.g. ${placeholder}` : undefined)
+
+	return (
+		<Box flexDirection="column">
+			<Text color="white">{label}</Text>
+			{description && <Text color="gray">{description}</Text>}
+			<Text> </Text>
+			<Box>
+				<Text color="white">{displayValue}</Text>
+				<Text inverse> </Text>
+			</Box>
+			<Text> </Text>
+			<Text color="gray">Enter to continue, Esc to go back</Text>
+		</Box>
+	)
+}
+
+/**
  * SAP AI Core Setup wizard component
  * Guides user through entering credentials and configuration options
  */
@@ -52,7 +107,68 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 	const [resourceGroup, setResourceGroup] = useState("")
 	const [useOrchestrationMode, setUseOrchestrationMode] = useState(true) // Default: ON
 
-	// TODO: Implement step rendering in subsequent commits
+	/**
+	 * Navigate back to the previous step
+	 */
+	const goBack = useCallback(() => {
+		switch (step) {
+			case "client_id":
+				onCancel()
+				break
+			case "client_secret":
+				setStep("client_id")
+				break
+			case "base_url":
+				setStep("client_secret")
+				break
+			case "token_url":
+				setStep("base_url")
+				break
+			case "options":
+				setStep("token_url")
+				break
+		}
+	}, [step, onCancel])
+
+	// Render Client ID step
+	if (step === "client_id") {
+		return (
+			<CredentialInput
+				hint="OAuth Client ID from your SAP AI Core service key"
+				isActive={isActive}
+				isPassword={false}
+				label="SAP AI Core Client ID"
+				onCancel={goBack}
+				onChange={setClientId}
+				onSubmit={() => {
+					if (clientId.trim()) setStep("client_secret")
+				}}
+				placeholder="sb-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx!bxxxxx|aicore!bxxxxx"
+				value={clientId}
+			/>
+		)
+	}
+
+	// Render Client Secret step
+	if (step === "client_secret") {
+		return (
+			<CredentialInput
+				hint="OAuth Client Secret from your SAP AI Core service key"
+				isActive={isActive}
+				isPassword={true}
+				label="SAP AI Core Client Secret"
+				onCancel={goBack}
+				onChange={setClientSecret}
+				onSubmit={() => {
+					if (clientSecret.trim()) setStep("base_url")
+				}}
+				placeholder="Enter client secret..."
+				value={clientSecret}
+			/>
+		)
+	}
+
+	// TODO: Implement remaining steps (base_url, token_url, options) in subsequent commits
 
 	return (
 		<Box flexDirection="column">
