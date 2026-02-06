@@ -1,5 +1,6 @@
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as fs from "fs/promises"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * A file-system-based implementation of DiffViewProvider that performs direct file operations
@@ -44,10 +45,16 @@ export class FileEditProvider extends DiffViewProvider {
 		// Split the document into lines
 		const lines = this.documentContent.split("\n")
 
+		// Check if we're replacing to the end of the document
+		const replacingToEnd = rangeToReplace.endLine >= lines.length
+
 		// Replace the specified range with the new content
 		const newContentLines = content.split("\n")
-		// Remove trailing empty line if present in newContentLines for proper splicing
-		if (newContentLines[newContentLines.length - 1] === "") {
+
+		// Remove trailing empty line for proper splicing, BUT only when NOT replacing
+		// to the end of the document. When replacing to the end, keep the trailing
+		// empty string to preserve trailing newlines from the content.
+		if (!replacingToEnd && newContentLines[newContentLines.length - 1] === "") {
 			newContentLines.pop()
 		}
 
@@ -78,6 +85,13 @@ export class FileEditProvider extends DiffViewProvider {
 		}
 	}
 
+	protected async getDocumentLineCount(): Promise<number> {
+		if (!this.documentContent) {
+			return 0
+		}
+		return this.documentContent.split("\n").length
+	}
+
 	protected async getDocumentText(): Promise<string | undefined> {
 		return this.documentContent
 	}
@@ -90,17 +104,19 @@ export class FileEditProvider extends DiffViewProvider {
 		return this.getDocumentText()
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.absolutePath || !this.documentContent) {
 			return false
 		}
 
 		try {
-			// Write the content to the file using fs
-			await fs.writeFile(this.absolutePath, this.documentContent, { encoding: this.fileEncoding as BufferEncoding })
+			// Always use UTF-8 for writing - it's the modern standard and handles all characters
+			// including emojis. The detected fileEncoding was used for reading to preserve
+			// compatibility, but writing as UTF-8 ensures no character corruption.
+			await fs.writeFile(this.absolutePath, this.documentContent, { encoding: "utf8" })
 			return true
 		} catch (error) {
-			console.error(`Failed to save document to ${this.absolutePath}:`, error)
+			Logger.error(`Failed to save document to ${this.absolutePath}:`, error)
 			return false
 		}
 	}

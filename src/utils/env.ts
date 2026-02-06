@@ -1,6 +1,6 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import open from "open"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Writes text to the system clipboard
@@ -39,6 +39,7 @@ export async function readTextFromClipboard(): Promise<string> {
  * @throws Error if the operation fails
  */
 export async function openExternal(url: string): Promise<void> {
-	console.log("Opening browser:", url)
-	await open(url)
+	Logger.log("Opening browser:", url)
+	// Use VS Code's openExternal which handles remote environments
+	await HostProvider.env.openExternal(StringRequest.create({ value: url }))
 }

@@ -1,21 +1,21 @@
 import {
 	internationalZAiDefaultModelId,
-	internationalZAiModelId,
+	type internationalZAiModelId,
 	internationalZAiModels,
-	ModelInfo,
+	type ModelInfo,
 	mainlandZAiDefaultModelId,
-	mainlandZAiModelId,
+	type mainlandZAiModelId,
 	mainlandZAiModels,
 } from "@shared/api"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
 import { version as extensionVersion } from "../../../../package.json"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface ZAiHandlerOptions extends CommonApiHandlerOptions {
@@ -41,7 +41,7 @@ export class ZAiHandler implements ApiHandler {
 				throw new Error("Z AI API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
 					apiKey: this.options.zaiApiKey,
 					defaultHeaders: {
@@ -49,7 +49,6 @@ export class ZAiHandler implements ApiHandler {
 						"X-Title": "Cline",
 						"X-Cline-Version": extensionVersion,
 					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Z AI client: ${error.message}`)
@@ -65,13 +64,12 @@ export class ZAiHandler implements ApiHandler {
 				id: (modelId as mainlandZAiModelId) ?? mainlandZAiDefaultModelId,
 				info: mainlandZAiModels[modelId as mainlandZAiModelId] ?? mainlandZAiModels[mainlandZAiDefaultModelId],
 			}
-		} else {
-			return {
-				id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
-				info:
-					internationalZAiModels[modelId as internationalZAiModelId] ??
-					internationalZAiModels[internationalZAiDefaultModelId],
-			}
+		}
+		return {
+			id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
+			info:
+				internationalZAiModels[modelId as internationalZAiModelId] ??
+				internationalZAiModels[internationalZAiDefaultModelId],
 		}
 	}
 
@@ -95,7 +93,7 @@ export class ZAiHandler implements ApiHandler {
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",

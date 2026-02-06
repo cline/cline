@@ -5,7 +5,10 @@ import { McpServiceClient } from "@/services/grpc-client"
 import ServersToggleList from "./ServersToggleList"
 
 const ConfigureServersView = () => {
-	const { mcpServers: servers, navigateToSettings } = useExtensionState()
+	const { mcpServers: servers, navigateToSettings, remoteConfigSettings } = useExtensionState()
+
+	// Check if there are remote MCP servers configured
+	const hasRemoteMCPServers = remoteConfigSettings?.remoteMCPServers && remoteConfigSettings.remoteMCPServers.length > 0
 
 	return (
 		<div style={{ padding: "16px 20px" }}>
@@ -31,6 +34,14 @@ const ConfigureServersView = () => {
 				</VSCodeLink>
 			</div>
 
+			{/* Remote config banner */}
+			{hasRemoteMCPServers && (
+				<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
+					<i className="codicon codicon-lock text-sm" />
+					<span className="text-base">Your organization manages some MCP servers</span>
+				</div>
+			)}
+
 			<ServersToggleList hasTrashIcon={false} isExpandable={true} servers={servers} />
 
 			{/* Settings Section */}
@@ -43,7 +54,7 @@ const ConfigureServersView = () => {
 						})
 					}}
 					style={{ width: "100%", marginBottom: "5px" }}>
-					<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+					<span className="codicon codicon-server" style={{ marginRight: "6px" }} />
 					Configure MCP Servers
 				</VSCodeButton>
 

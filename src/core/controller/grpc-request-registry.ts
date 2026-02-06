@@ -1,4 +1,5 @@
-import { StreamingResponseHandler } from "./grpc-handler"
+import { Logger } from "@/shared/services/Logger"
+import type { StreamingResponseHandler } from "./grpc-handler"
 
 /**
  * Information about a registered gRPC request
@@ -54,7 +55,6 @@ export class GrpcRequestRegistry {
 			timestamp: new Date(),
 			responseStream,
 		})
-		console.log(`[DEBUG] Registered request: ${requestId}`)
 	}
 
 	/**
@@ -69,9 +69,8 @@ export class GrpcRequestRegistry {
 		}
 		try {
 			requestInfo.cleanup()
-			console.log(`[DEBUG] Cleaned up request: ${requestId}`)
 		} catch (error) {
-			console.error(`Error cleaning up request ${requestId}:`, error)
+			Logger.error(`Error cleaning up request ${requestId}:`, error)
 		}
 		this.activeRequests.delete(requestId)
 		return true

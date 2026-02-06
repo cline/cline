@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { sendAddToInputEvent } from "@/core/controller/ui/subscribeToAddToInput"
 import { CommentReviewController, type OnReplyCallback, type ReviewComment } from "@/integrations/editor/CommentReviewController"
+import { Logger } from "@/shared/services/Logger"
 import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
 
 /**
@@ -24,7 +25,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 
 	/** The currently streaming comment thread */
 	private streamingThread: vscode.CommentThread | null = null
-	private streamingContent: string = ""
+	private streamingContent = ""
 
 	constructor() {
 		super()
@@ -133,7 +134,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		endLine: number,
 		relativePath?: string,
 		fileContent?: string,
-		revealComment: boolean = false,
+		revealComment = false,
 	): void {
 		// Use virtual diff URI if relativePath and fileContent are provided
 		let uri: vscode.Uri
@@ -198,7 +199,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 			editor.revealRange(commentPosition, vscode.TextEditorRevealType.InCenter)
 		} catch (error) {
 			// Ignore errors - this is not critical
-			console.error("[VscodeCommentReviewController] Error revealing comment:", error)
+			Logger.error("[VscodeCommentReviewController] Error revealing comment:", error)
 		}
 	}
 
@@ -434,7 +435,7 @@ Please continue helping the user with their question about this code.`
 				await vscode.window.tabGroups.close(tab)
 			} catch (error) {
 				// Tab might already be closed
-				console.warn("Failed to close diff tab:", error)
+				Logger.warn("Failed to close diff tab:", error)
 			}
 		}
 	}

@@ -1,13 +1,18 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ModelInfo } from "@shared/api"
+import { ANTHROPIC_MAX_THINKING_BUDGET, type ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
-import fs from "fs/promises"
-import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { basetenModels } from "../../../shared/api"
-import { Controller } from ".."
+import type { Controller } from ".."
+
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
 
 /**
  * Core function: Refreshes the Baseten models and returns application types
@@ -15,6 +20,31 @@ import { Controller } from ".."
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshBasetenModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
+	const cache = StateManager.get().getModelsCache("baseten")
+	if (cache) {
+		return cache
+	}
+
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels(controller)
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
@@ -22,22 +52,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 
 	const models: Record<string, Partial<ModelInfo> & { supportedFeatures?: string[] }> = {}
 	try {
-		if (!basetenApiKey) {
-			// Don't throw an error, just use static models, althought this might be slightly out of date
-			for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
-				models[modelId] = {
-					maxTokens: modelInfo.maxTokens,
-					contextWindow: modelInfo.contextWindow,
-					supportsImages: modelInfo.supportsImages,
-					supportsPromptCache: modelInfo.supportsPromptCache,
-					inputPrice: modelInfo.inputPrice,
-					outputPrice: modelInfo.outputPrice,
-					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
-					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: (modelInfo as any).description || `${modelId} model`,
-				}
-			}
-		} else {
+		if (basetenApiKey) {
 			// Ensure the API key is properly formatted
 			const cleanApiKey = basetenApiKey.trim()
 			if (!cleanApiKey) {
@@ -54,9 +69,9 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 				...getAxiosSettings(),
 			})
 
-			if (response.data?.data) {
-				const rawModels = response.data.data
+			const rawModels = response?.data?.data
 
+			if (rawModels && Array.isArray(rawModels)) {
 				for (const rawModel of rawModels) {
 					// Filter out non-chat models and validate model capabilities
 					if (!isValidChatModel(rawModel)) {
@@ -65,6 +80,9 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
+					const supportThinking = rawModel?.supported_features?.some(
+						(p: string) => p === "reasoning_effort" || p === "reasoning",
+					)
 
 					const modelInfo: Partial<ModelInfo> & { supportedFeatures?: string[] } = {
 						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens,
@@ -77,17 +95,25 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
 						supportedFeatures: rawModel.supported_features || [],
+						supportsReasoning: supportThinking || false,
+						// If thinking is supported, set maxBudget with a default value as a placeholder
+						// to ensure it has a valid thinkingConfig that lets the application know thinking is supported.
+						thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 					}
 
 					models[rawModel.id] = modelInfo
 				}
-			} else {
-				console.error("Invalid response from Baseten API")
 			}
+			// Cache the fetched models to disk
 			await fs.writeFile(basetenModelsFilePath, JSON.stringify(models))
 		}
+
+		// If no API key is set or models is empty, throw an error to trigger fallback
+		if (Object.keys(models).length === 0) {
+			throw new Error("No Baseten API key set or no models fetched")
+		}
 	} catch (error) {
-		console.error("Error fetching Baseten models:", error)
+		Logger.error("Error fetching Baseten models:", error)
 
 		// Provide more specific error messages
 		let errorMessage = "Unknown error occurred"
@@ -107,7 +133,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 			errorMessage = error.message
 		}
 
-		console.error("Baseten API Error:", errorMessage)
+		Logger.error("Baseten API Error:", errorMessage)
 
 		// If we failed to fetch models, try to read cached models first
 		const cachedModels = await readBasetenModels()
@@ -129,6 +155,8 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
 					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
 					description: (modelInfo as any).description || `${modelId} model`,
+					supportsReasoning: modelInfo.supportsReasoning || false,
+					thinkingConfig: modelInfo.supportsReasoning ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 				}
 			}
 		}
@@ -149,8 +177,13 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 			cacheReadsPrice: model.cacheReadsPrice ?? 0,
 			description: model.description ?? "",
 			tiers: model.tiers,
+			supportsReasoning: model.supportsReasoning || false,
+			thinkingConfig: model.supportsReasoning ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 		}
 	}
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("baseten", typedModels)
 
 	return typedModels
 }
@@ -166,7 +199,7 @@ async function readBasetenModels(): Promise<Record<string, Partial<ModelInfo>> |
 			const fileContents = await fs.readFile(basetenModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		} catch (error) {
-			console.error("Error reading cached Baseten models:", error)
+			Logger.error("Error reading cached Baseten models:", error)
 			return undefined
 		}
 	}

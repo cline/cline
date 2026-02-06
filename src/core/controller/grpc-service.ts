@@ -1,5 +1,6 @@
-import { StreamingResponseHandler } from "./grpc-handler"
-import { Controller } from "./index"
+import { Logger } from "@/shared/services/Logger"
+import type { StreamingResponseHandler } from "./grpc-handler"
+import type { Controller } from "./index"
 
 /**
  * Generic type for service method handlers
@@ -37,7 +38,7 @@ export class ServiceRegistry {
 	 * @param serviceName The name of the service (used for logging)
 	 */
 	constructor(serviceName: string) {
-		console.log(`Registering Protobus service: ${serviceName}...`)
+		Logger.log(`Registering Protobus service: ${serviceName}...`)
 		this.serviceName = serviceName
 	}
 

@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { Content, GenerateContentResponse, Part } from "@google/genai"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { Content, GenerateContentResponse, Part } from "@google/genai"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 
 // Source: https://ai.google.dev/gemini-api/docs/thought-signatures#faqs
 // While injecting custom function call blocks into the request is strongly discouraged,
@@ -48,7 +48,11 @@ export function convertAnthropicContentToGemini(content: string | ClineStorageMe
 						},
 					}
 				case "thinking":
-					return { text: block.thinking, thought: true, thoughtSignature: block.signature }
+					return {
+						text: block.thinking,
+						thought: true,
+						thoughtSignature: block.signature || GEMINI_DUMMY_THOUGHT_SIGNATURE,
+					}
 				default:
 					return undefined
 			}

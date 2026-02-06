@@ -1,5 +1,5 @@
-import type { LanguageModelChatSelector } from "../core/api/providers/types"
 import { ApiFormat } from "./proto/cline/models"
+import type { ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -12,6 +12,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "openai-codex"
 	| "requesty"
 	| "together"
 	| "deepseek"
@@ -43,186 +44,14 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 
-export interface ApiHandlerSecrets {
-	apiKey?: string // anthropic
-	liteLlmApiKey?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	openRouterApiKey?: string
-	aihubmixApiKey?: string
-	aihubmixBaseUrl?: string
-	aihubmixAppCode?: string
+export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
-	clineAccountId?: string
-	awsSessionToken?: string
-	awsBedrockApiKey?: string
-	openAiApiKey?: string
-	geminiApiKey?: string
-	openAiNativeApiKey?: string
-	ollamaApiKey?: string
-	deepSeekApiKey?: string
-	requestyApiKey?: string
-	togetherApiKey?: string
-	fireworksApiKey?: string
-	qwenApiKey?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
-	authNonce?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
-	moonshotApiKey?: string
-	zaiApiKey?: string
-	huggingFaceApiKey?: string
-	nebiusApiKey?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
-	groqApiKey?: string
-	huaweiCloudMaasApiKey?: string
-	basetenApiKey?: string
-	vercelAiGatewayApiKey?: string
-	difyApiKey?: string
-	minimaxApiKey?: string
-	hicapApiKey?: string
-	nousResearchApiKey?: string
-}
-
-export interface ApiHandlerOptions {
-	// Global configuration (not mode-specific)
+export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	ulid?: string // Used to identify the task in API requests
-	liteLlmBaseUrl?: string
-	liteLlmUsePromptCache?: boolean
-	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
-	anthropicBaseUrl?: string
-	openRouterProviderSorting?: string
-	awsRegion?: string
-	awsUseCrossRegionInference?: boolean
-	awsUseGlobalInference?: boolean
-	awsBedrockUsePromptCache?: boolean
-	awsAuthentication?: string
-	awsUseProfile?: boolean
-	awsProfile?: string
-	awsBedrockEndpoint?: string
-	claudeCodePath?: string
-	vertexProjectId?: string
-	vertexRegion?: string
-	openAiBaseUrl?: string
-	ollamaBaseUrl?: string
-	ollamaApiOptionsCtxNum?: string
-	lmStudioBaseUrl?: string
-	lmStudioModelId?: string
-	lmStudioMaxTokens?: string
-	geminiBaseUrl?: string
-	requestyBaseUrl?: string
-	fireworksModelMaxCompletionTokens?: number
-	fireworksModelMaxTokens?: number
-	qwenCodeOauthPath?: string
-	azureApiVersion?: string
-	qwenApiLine?: string
-	moonshotApiLine?: string
-	asksageApiUrl?: string
-	requestTimeoutMs?: number
-	sapAiResourceGroup?: string
-	sapAiCoreTokenUrl?: string
-	sapAiCoreBaseUrl?: string
-	sapAiCoreUseOrchestrationMode?: boolean
-	difyBaseUrl?: string
-	zaiApiLine?: string
-	hicapApiKey?: string
-	hicapModelId?: string
-	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
-	ocaBaseUrl?: string
-	minimaxApiLine?: string
-	ocaMode?: string
-	aihubmixBaseUrl?: string
-	aihubmixAppCode?: string
-
-	// Plan mode configurations
-	planModeApiModelId?: string
-	planModeThinkingBudgetTokens?: number
-	geminiPlanModeThinkingLevel?: string
-	planModeReasoningEffort?: string
-	planModeVerbosity?: string
-	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
-	planModeAwsBedrockCustomSelected?: boolean
-	planModeAwsBedrockCustomModelBaseId?: string
-	planModeOpenRouterModelId?: string
-	planModeOpenRouterModelInfo?: ModelInfo
-	planModeOpenAiModelId?: string
-	planModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
-	planModeOllamaModelId?: string
-	planModeLmStudioModelId?: string
-	planModeLiteLlmModelId?: string
-	planModeLiteLlmModelInfo?: LiteLLMModelInfo
-	planModeRequestyModelId?: string
-	planModeRequestyModelInfo?: ModelInfo
-	planModeTogetherModelId?: string
-	planModeFireworksModelId?: string
-	planModeSapAiCoreModelId?: string
-	planModeSapAiCoreDeploymentId?: string
-	planModeGroqModelId?: string
-	planModeGroqModelInfo?: ModelInfo
-	planModeBasetenModelId?: string
-	planModeBasetenModelInfo?: ModelInfo
-	planModeHuggingFaceModelId?: string
-	planModeHuggingFaceModelInfo?: ModelInfo
-	planModeHuaweiCloudMaasModelId?: string
-	planModeHuaweiCloudMaasModelInfo?: ModelInfo
-	planModeOcaModelId?: string
-	planModeOcaModelInfo?: OcaModelInfo
-	planModeAihubmixModelId?: string
-	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
-	planModeHicapModelId?: string
-	planModeHicapModelInfo?: ModelInfo
-	planModeNousResearchModelId?: string
-	// Act mode configurations
-
-	// Act mode configurations
-	actModeApiModelId?: string
-	actModeThinkingBudgetTokens?: number
-	geminiActModeThinkingLevel?: string
-	actModeReasoningEffort?: string
-	actModeVerbosity?: string
-	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
-	actModeAwsBedrockCustomSelected?: boolean
-	actModeAwsBedrockCustomModelBaseId?: string
-	actModeOpenRouterModelId?: string
-	actModeOpenRouterModelInfo?: ModelInfo
-	actModeOpenAiModelId?: string
-	actModeOpenAiModelInfo?: OpenAiCompatibleModelInfo
-	actModeOllamaModelId?: string
-	actModeLmStudioModelId?: string
-	actModeLiteLlmModelId?: string
-	actModeLiteLlmModelInfo?: LiteLLMModelInfo
-	actModeRequestyModelId?: string
-	actModeRequestyModelInfo?: ModelInfo
-	actModeTogetherModelId?: string
-	actModeFireworksModelId?: string
-	actModeSapAiCoreModelId?: string
-	actModeSapAiCoreDeploymentId?: string
-	actModeGroqModelId?: string
-	actModeGroqModelInfo?: ModelInfo
-	actModeBasetenModelId?: string
-	actModeBasetenModelInfo?: ModelInfo
-	actModeHuggingFaceModelId?: string
-	actModeHuggingFaceModelInfo?: ModelInfo
-	actModeHuaweiCloudMaasModelId?: string
-	actModeHuaweiCloudMaasModelInfo?: ModelInfo
-	actModeOcaModelId?: string
-	actModeOcaModelInfo?: OcaModelInfo
-	actModeAihubmixModelId?: string
-	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
-	actModeHicapModelId?: string
-	actModeHicapModelInfo?: ModelInfo
-	actModeNousResearchModelId?: string
+	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void // Callback function
 }
 
-export type ApiConfiguration = ApiHandlerOptions &
-	ApiHandlerSecrets & {
-		planModeApiProvider?: ApiProvider
-		actModeApiProvider?: ApiProvider
-	}
+export type ApiConfiguration = ApiHandlerOptions
 
 // Models
 
@@ -276,6 +105,8 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	surveyId?: string
 	banner?: string
 	surveyContent?: string
+	supportsReasoning?: boolean
+	reasoningEffortOptions: string[]
 }
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"
@@ -293,6 +124,22 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		outputPrice: 22.5,
 		cacheWritesPrice: 7.5,
 		cacheReadsPrice: 0.6,
+	},
+]
+export const CLAUDE_OPUS_1M_TIERS = [
+	{
+		contextWindow: 200000,
+		inputPrice: 5.0,
+		outputPrice: 25,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	{
+		contextWindow: Number.MAX_SAFE_INTEGER,
+		inputPrice: 10,
+		outputPrice: 37.5,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1.0,
 	},
 ]
 
@@ -374,6 +221,29 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"claude-opus-4-6": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"claude-opus-4-6:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
 	"claude-opus-4-5-20251101": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -433,7 +303,7 @@ export const anthropicModels = {
 	"claude-3-5-haiku-20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.8,
 		outputPrice: 4.0,
@@ -491,6 +361,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-opus-4-6": {
+		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-opus-4-5-20251101": {
 		...anthropicModels["claude-opus-4-5-20251101"],
 		supportsImages: false,
@@ -513,7 +388,7 @@ export const claudeCodeModels = {
 	},
 	"claude-3-5-haiku-20241022": {
 		...anthropicModels["claude-3-5-haiku-20241022"],
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: false,
 	},
 } as const satisfies Record<string, ModelInfo>
@@ -521,13 +396,14 @@ export const claudeCodeModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0" // TODO: update to 4-5
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -539,6 +415,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -551,6 +428,8 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 1,
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
@@ -561,6 +440,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -572,6 +452,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
@@ -579,11 +460,37 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"anthropic.claude-opus-4-6-v1": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"anthropic.claude-opus-4-6-v1:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		supportsGlobalEndpoint: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
@@ -595,6 +502,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -605,6 +513,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -670,6 +579,7 @@ export const bedrockModels = {
 		supportsImages: true,
 
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -783,6 +693,7 @@ export const bedrockModels = {
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
 export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -964,6 +875,17 @@ export const vertexModels = {
 		cacheReadsPrice: 0.1,
 		supportsReasoning: true,
 	},
+	"claude-opus-4-6": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+	},
 	"claude-opus-4-5@20251101": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -1036,7 +958,7 @@ export const vertexModels = {
 	"claude-3-5-haiku@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
@@ -1169,7 +1091,7 @@ export const vertexModels = {
 				cacheReadsPrice: 0.31,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 2.5,
 				outputPrice: 15,
 				cacheReadsPrice: 0.625,
@@ -1238,7 +1160,7 @@ export const vertexModels = {
 				cacheReadsPrice: 0.01875,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
 				cacheReadsPrice: 0.0375,
@@ -1321,7 +1243,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.2,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 4.0,
 				outputPrice: 18.0,
 				cacheReadsPrice: 0.4,
@@ -1350,7 +1272,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.03,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.3,
 				outputPrice: 2.5,
 				cacheReadsPrice: 0.03,
@@ -1376,7 +1298,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.31,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 2.5,
 				outputPrice: 15,
 				cacheReadsPrice: 0.625,
@@ -1477,7 +1399,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.01875,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
 				cacheReadsPrice: 0.0375,
@@ -1539,6 +1461,20 @@ export const openAiNativeModels = {
 		inputPrice: 1.75,
 		outputPrice: 14.0,
 		cacheReadsPrice: 0.175,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.2-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.75,
+		outputPrice: 14.0,
+		cacheReadsPrice: 0.175,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
 		temperature: 1,
 		systemRole: "developer",
 		supportsReasoning: true,
@@ -1793,6 +1729,71 @@ export const openAiNativeModels = {
 		temperature: 0,
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
+
+// OpenAI Codex (ChatGPT Plus/Pro subscription)
+// Uses OAuth authentication via ChatGPT, routes to chatgpt.com/backend-api/codex/responses
+// Subscription-based pricing (all costs are $0)
+export type OpenAiCodexModelId = keyof typeof openAiCodexModels
+export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.3-codex"
+export const openAiCodexModels = {
+	"gpt-5.3-codex": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.3 Codex: OpenAI's latest flagship coding model via ChatGPT subscription",
+	},
+	"gpt-5.2-codex": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.2 Codex: OpenAI's flagship coding model via ChatGPT subscription",
+	},
+	"gpt-5.1-codex-max": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.1 Codex Max: Maximum capability coding model via ChatGPT subscription",
+	},
+	"gpt-5.1-codex-mini": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.1 Codex Mini: Faster version for coding tasks via ChatGPT subscription",
+	},
+	"gpt-5.2": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.2: Latest GPT model via ChatGPT subscription",
+	},
+} as const satisfies Record<string, ModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
@@ -3419,16 +3420,18 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
+export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.7"
 export const cerebrasModels = {
-	"zai-glm-4.6": {
+	"zai-glm-4.7": {
 		maxTokens: 40000,
-		contextWindow: 128000,
+		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
+		temperature: 0.9,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intelligent general purpose model with 1,000 tokens/s",
+		description:
+			"Highly capable general-purpose model on Cerebras (up to 1,000 tokens/s), competitive with leading proprietary models on coding tasks.",
 	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
@@ -3611,6 +3614,13 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 // Pricing is calculated using Capacity Units, not directly in USD
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
+	"anthropic--claude-4.5-haiku": {
+		maxTokens: 64000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -3619,6 +3629,13 @@ export const sapAiCoreModels = {
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
+	"anthropic--claude-4.5-opus": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -3790,6 +3807,16 @@ export const sapAiCoreModels = {
 // Moonshot AI Studio
 // https://platform.moonshot.ai/docs/pricing/chat
 export const moonshotModels = {
+	"kimi-k2.5": {
+		maxTokens: 32_000,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 3.0,
+		cacheReadsPrice: 0.1,
+		temperature: 1.0,
+	},
 	"kimi-k2-0905-preview": {
 		maxTokens: 16384,
 		contextWindow: 262144,
@@ -3931,6 +3958,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Kimi K2 Thinking - A model with enhanced reasoning capabilities from Kimi K2",
+		supportsReasoning: true,
 	},
 	"zai-org/GLM-4.6": {
 		maxTokens: 200_000,
@@ -3942,6 +3970,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Frontier open model with advanced agentic, reasoning and coding capabilities",
+		supportsReasoning: true,
 	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 131_072,
@@ -3953,6 +3982,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "DeepSeek's first-generation reasoning model",
+		supportsReasoning: true,
 	},
 	"deepseek-ai/DeepSeek-R1-0528": {
 		maxTokens: 131_072,
@@ -3964,6 +3994,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "The latest revision of DeepSeek's first-generation reasoning model",
+		supportsReasoning: true,
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
 		maxTokens: 131_072,
@@ -3975,6 +4006,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Fast general-purpose LLM with enhanced reasoning capabilities",
+		supportsReasoning: true,
 	},
 	"deepseek-ai/DeepSeek-V3.1": {
 		maxTokens: 131_072,
@@ -3986,6 +4018,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
+		supportsReasoning: true,
 	},
 	"deepseek-ai/DeepSeek-V3.2": {
 		maxTokens: 131_072,
@@ -3997,6 +4030,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "DeepSeek's hybrid reasoning model with efficient long context scaling with GPT-5 level performance",
+		supportsReasoning: true,
 	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 262_144,
@@ -4008,6 +4042,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Mixture-of-experts LLM with math and reasoning capabilities",
+		supportsReasoning: false,
 	},
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
 		maxTokens: 262_144,
@@ -4019,6 +4054,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Mixture-of-experts LLM with advanced coding and reasoning capabilities",
+		supportsReasoning: false,
 	},
 	"openai/gpt-oss-120b": {
 		maxTokens: 128_072,
@@ -4030,6 +4066,7 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Extremely capable general-purpose LLM with strong, controllable reasoning capabilities",
+		supportsReasoning: true,
 	},
 	"moonshotai/Kimi-K2-Instruct-0905": {
 		maxTokens: 168_000,
@@ -4040,7 +4077,8 @@ export const basetenModels = {
 		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
+		description: "State of the art language model for agentic and coding tasks. September Update.",
+		supportsReasoning: false,
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
@@ -4050,13 +4088,23 @@ export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 // https://docs.z.ai/guides/llm/glm-4.5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.7"
 export const internationalZAiModels = {
+	"glm-4.7": {
+		maxTokens: 131_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.6": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
 		inputPrice: 0.6,
 		outputPrice: 2.2,
 	},
@@ -4087,13 +4135,23 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.7"
 export const mainlandZAiModels = {
+	"glm-4.7": {
+		maxTokens: 131_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.6": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
 		inputPrice: 0.6,
 		outputPrice: 2.2,
 	},
@@ -4122,7 +4180,7 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.057,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.29,
 				outputPrice: 1.14,
 				cacheReadsPrice: 0.057,
@@ -4154,7 +4212,7 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.017,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.086,
 				outputPrice: 0.57,
 				cacheReadsPrice: 0.017,
@@ -4251,8 +4309,28 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 // https://www.minimax.io/platform/document/text_api_intro
 // https://www.minimax.io/platform/document/pricing
 export type MinimaxModelId = keyof typeof minimaxModels
-export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2"
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.1"
 export const minimaxModels = {
+	"MiniMax-M2.1": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.0375,
+		cacheReadsPrice: 0.03,
+	},
+	"MiniMax-M2.1-lightning": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.0375,
+		cacheReadsPrice: 0.03,
+	},
 	"MiniMax-M2": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,

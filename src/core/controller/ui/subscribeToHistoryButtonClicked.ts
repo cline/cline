@@ -1,6 +1,7 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { Empty, type EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active history button clicked subscriptions
 const activeHistoryButtonClickedSubscriptions = new Set<StreamingResponseHandler<Empty>>()
@@ -45,7 +46,7 @@ export async function sendHistoryButtonClickedEvent(): Promise<void> {
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending history button clicked event:", error)
+			Logger.error("Error sending history button clicked event:", error)
 			// Remove the subscription if there was an error
 			activeHistoryButtonClickedSubscriptions.delete(responseStream)
 		}

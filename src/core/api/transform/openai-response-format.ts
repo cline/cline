@@ -1,5 +1,5 @@
-import { ResponseInput, ResponseInputMessageContentList, ResponseReasoningItem } from "openai/resources/responses/responses"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ResponseInput, ResponseInputMessageContentList, ResponseReasoningItem } from "openai/resources/responses/responses"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 
 /**
  * Converts an array of ClineStorageMessage objects (extension of Anthropic format) to a ResponseInput array to use with OpenAI's Responses API.
@@ -170,7 +170,8 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 						assistantItems.push({
 							type: "function_call",
 							call_id,
-							id: part.id,
+							// MAX 53 characters for OpenAI Responses API tool IDs
+							id: !part.id.startsWith("fc_") ? `fc_${part.id.slice(0, 50)}` : part.id,
 							name: part.name,
 							arguments: JSON.stringify(part.input ?? {}),
 						})

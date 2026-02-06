@@ -1,4 +1,5 @@
-import { HookProcess } from "./HookProcess"
+import { Logger } from "@/shared/services/Logger"
+import type { HookProcess } from "./HookProcess"
 
 /**
  * Global registry for tracking active hook processes.
@@ -39,7 +40,7 @@ export class HookProcessRegistry {
 	static async terminateAll(): Promise<void> {
 		const processes = Array.from(HookProcessRegistry.activeProcesses)
 		if (processes.length > 0) {
-			console.log(`[HookProcessRegistry] Terminating ${processes.length} active hook process(es)`)
+			Logger.log(`[HookProcessRegistry] Terminating ${processes.length} active hook process(es)`)
 			await Promise.all(processes.map((p) => p.terminate()))
 			HookProcessRegistry.activeProcesses.clear()
 		}

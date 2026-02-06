@@ -1,5 +1,5 @@
-import { TabInputText, window } from "vscode"
-import { GetOpenTabsRequest, GetOpenTabsResponse } from "@/shared/proto/host/window"
+import { type TabInputText, window } from "vscode"
+import { type GetOpenTabsRequest, GetOpenTabsResponse } from "@/shared/proto/host/window"
 
 export async function getOpenTabs(_: GetOpenTabsRequest): Promise<GetOpenTabsResponse> {
 	const openTabPaths = window.tabGroups.all
@@ -7,5 +7,5 @@ export async function getOpenTabs(_: GetOpenTabsRequest): Promise<GetOpenTabsRes
 		.map((tab) => (tab.input as TabInputText)?.uri?.fsPath)
 		.filter(Boolean)
 
-	return GetOpenTabsResponse.create({ paths: openTabPaths })
+	return GetOpenTabsResponse.create({ paths: openTabPaths ?? [] })
 }

@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
+import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
@@ -7,6 +8,7 @@ import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
+import { Logger } from "@/shared/services/Logger"
 import type { ToolResponse } from "../../index"
 import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -23,22 +25,13 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 	/**
 	 * Handle partial block streaming for attempt_completion
-	 * Matches the original conditional logic structure for command vs no-command cases
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const result = block.params.result
-		const command = block.params.command
-
-		if (!command) {
-			// no command, still outputting partial result
-			await uiHelpers.say(
-				"completion_result",
-				uiHelpers.removeClosingTag(block, "result", result),
-				undefined,
-				undefined,
-				block.partial,
-			)
+		const result = uiHelpers.removeClosingTag(block, "result", block.params.result)
+		if (result) {
+			await uiHelpers.say("completion_result", result, undefined, undefined, block.partial)
 		}
+		// We will handle command in the final execution step
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -249,7 +242,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	 * Errors are logged but do not affect task completion.
 	 */
 	private async runTaskCompleteHook(config: TaskConfig, block: ToolUse): Promise<void> {
-		const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = getHooksEnabledSafe()
 		if (!hooksEnabled) {
 			return
 		}
@@ -279,7 +272,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			})
 		} catch (error) {
 			// TaskComplete hook failed - non-fatal, just log
-			console.error("[TaskComplete Hook] Failed (non-fatal):", error)
+			Logger.error("[TaskComplete Hook] Failed (non-fatal):", error)
 		}
 	}
 }

@@ -1,5 +1,6 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { Controller } from ".."
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from ".."
 
 /**
  * Exports a task with the given ID to markdown
@@ -15,7 +16,7 @@ export async function exportTaskWithId(controller: Controller, request: StringRe
 		return Empty.create()
 	} catch (error) {
 		// Log the error but allow it to propagate for proper gRPC error handling
-		console.error(`Error exporting task with ID ${request.value}:`, error)
+		Logger.error(`Error exporting task with ID ${request.value}:`, error)
 		throw error
 	}
 }

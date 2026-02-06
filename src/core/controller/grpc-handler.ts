@@ -1,9 +1,10 @@
-import { Controller } from "@core/controller/index"
+import type { Controller } from "@core/controller/index"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
-import { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
+import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
+import type { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
 
 /**
  * Type definition for a streaming response handler
@@ -28,7 +29,7 @@ function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: 
 					response.grpc_response,
 				)
 			} catch (e) {
-				console.warn("Failed to record gRPC response:", e)
+				Logger.warn("Failed to record gRPC response:", e)
 			}
 		}
 		return postMessage(response)
@@ -42,7 +43,7 @@ function recordRequest(request: GrpcRequest, controller: Controller): void {
 	try {
 		GrpcRecorderBuilder.getRecorder(controller).recordRequest(request)
 	} catch (e) {
-		console.warn("Failed to record gRPC request:", e)
+		Logger.warn("Failed to record gRPC request:", e)
 	}
 }
 
@@ -91,7 +92,7 @@ async function handleUnaryRequest(
 		})
 	} catch (error) {
 		// Send error response
-		console.log("Protobus error:", error)
+		Logger.log("Protobus error:", error)
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -115,11 +116,7 @@ async function handleStreamingRequest(
 	request: GrpcRequest,
 ): Promise<void> {
 	// Create a response stream function
-	const responseStream: StreamingResponseHandler<any> = async (
-		response: any,
-		isLast: boolean = false,
-		sequenceNumber?: number,
-	) => {
+	const responseStream: StreamingResponseHandler<any> = async (response: any, isLast = false, sequenceNumber?: number) => {
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -142,7 +139,7 @@ async function handleStreamingRequest(
 		// The stream will be closed when the client disconnects or when the service explicitly ends it
 	} catch (error) {
 		// Send error response
-		console.log("Protobus error:", error)
+		Logger.log("Protobus error:", error)
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -173,7 +170,7 @@ export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageT
 			},
 		})
 	} else {
-		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
+		Logger.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
 }
 

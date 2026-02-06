@@ -1,9 +1,9 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { ListRange, VirtuosoHandle } from "react-virtuoso"
-import { ScrollBehavior } from "../types/chatTypes"
+import type { ListRange, VirtuosoHandle } from "react-virtuoso"
+import type { ScrollBehavior } from "../types/chatTypes"
 
 // Height of the sticky user message header (padding + content)
 const STICKY_HEADER_HEIGHT = 32
@@ -240,31 +240,23 @@ export function useScrollBehavior(
 			if (!isCollapsing) {
 				disableAutoScrollRef.current = true
 			}
-
+			// Only scroll on collapse, never on expand - expanding should stay in place
 			if (isCollapsing && isAtBottom) {
 				const timer = setTimeout(() => {
 					scrollToBottomAuto()
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isLast || isSecondToLast) {
-				if (isCollapsing) {
-					if (isSecondToLast && !isLastCollapsedApiReq) {
-						return
-					}
-					const timer = setTimeout(() => {
-						scrollToBottomAuto()
-					}, 0)
-					return () => clearTimeout(timer)
-				} else {
-					const timer = setTimeout(() => {
-						virtuosoRef.current?.scrollToIndex({
-							index: groupedMessages.length - (isLast ? 1 : 2),
-							align: "start",
-						})
-					}, 0)
-					return () => clearTimeout(timer)
-				}
 			}
+			if (isCollapsing && (isLast || isSecondToLast)) {
+				if (isSecondToLast && !isLastCollapsedApiReq) {
+					return
+				}
+				const timer = setTimeout(() => {
+					scrollToBottomAuto()
+				}, 0)
+				return () => clearTimeout(timer)
+			}
+			// When expanding, don't scroll - let the element expand in place
 		},
 		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)

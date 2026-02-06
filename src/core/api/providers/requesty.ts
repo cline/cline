@@ -1,13 +1,13 @@
-import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { type ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import { toRequestyServiceStringUrl } from "@/shared/clients/requesty"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface RequestyHandlerOptions extends CommonApiHandlerOptions {
 	requestyBaseUrl?: string
@@ -42,14 +42,13 @@ export class RequestyHandler implements ApiHandler {
 				throw new Error("Requesty API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: toRequestyServiceStringUrl(this.options.requestyBaseUrl),
 					apiKey: this.options.requestyApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
 					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Requesty client: ${error.message}`)
@@ -78,6 +77,7 @@ export class RequestyHandler implements ApiHandler {
 				? { thinking: { type: "enabled", budget_tokens: thinkingBudget } }
 				: { thinking: { type: "disabled" } }
 		const thinkingArgs =
+			model.id.includes("claude-opus-4-6") ||
 			model.id.includes("claude-3-7-sonnet") ||
 			model.id.includes("claude-sonnet-4") ||
 			model.id.includes("claude-opus-4") ||
@@ -99,7 +99,7 @@ export class RequestyHandler implements ApiHandler {
 		let lastUsage: any
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",

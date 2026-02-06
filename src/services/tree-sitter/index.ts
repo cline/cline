@@ -1,9 +1,10 @@
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { listFiles } from "@services/glob/list-files"
 import { fileExistsAtPath } from "@utils/fs"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+import { Logger } from "@/shared/services/Logger"
+import { type LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(
@@ -173,7 +174,7 @@ async function parseFile(
 			lastLine = endLine
 		})
 	} catch (error) {
-		console.log(`Error parsing file: ${error}\n`)
+		Logger.log(`Error parsing file: ${error}\n`)
 	}
 
 	if (formattedOutput.length > 0) {

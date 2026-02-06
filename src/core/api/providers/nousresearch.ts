@@ -1,10 +1,11 @@
-import { ModelInfo, NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
-import OpenAI from "openai"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import { type ModelInfo, type NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
+import type OpenAI from "openai"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface NousResearchHandlerOptions extends CommonApiHandlerOptions {
 	nousResearchApiKey?: string
@@ -25,7 +26,7 @@ export class NousResearchHandler implements ApiHandler {
 				throw new Error("NousResearch API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://inference-api.nousResearch.com/v1",
 					apiKey: this.options.nousResearchApiKey,
 				})
@@ -55,7 +56,7 @@ export class NousResearchHandler implements ApiHandler {
 		})
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",

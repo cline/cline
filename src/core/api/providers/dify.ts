@@ -1,8 +1,10 @@
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ModelInfo } from "../../../shared/api"
-import { ApiHandler } from "../index"
-import { ApiStream } from "../transform/stream"
+import { Logger } from "@/shared/services/Logger"
+import type { ModelInfo } from "../../../shared/api"
+import type { ApiHandler } from "../index"
+import type { ApiStream } from "../transform/stream"
 
 interface DifyHandlerOptions {
 	difyApiKey?: string
@@ -84,7 +86,7 @@ export class DifyHandler implements ApiHandler {
 		this.apiKey = options.difyApiKey || ""
 		this.baseUrl = options.difyBaseUrl || ""
 
-		console.log("[DIFY DEBUG] Constructor called with:", {
+		Logger.log("[DIFY DEBUG] Constructor called with:", {
 			hasApiKey: !!this.apiKey,
 			baseUrl: this.baseUrl,
 		})
@@ -98,7 +100,7 @@ export class DifyHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		console.log("[DIFY DEBUG] createMessage called with:", {
+		Logger.log("[DIFY DEBUG] createMessage called with:", {
 			systemPromptLength: systemPrompt?.length || 0,
 			messagesCount: messages?.length || 0,
 		})
@@ -115,35 +117,32 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const fullUrl = `${this.baseUrl}/chat-messages`
-		console.log("[DIFY DEBUG] Making request to:", fullUrl)
-		console.log("[DIFY DEBUG] Request body:", JSON.stringify(requestBody, null, 2))
+		Logger.log("[DIFY DEBUG] Making request to:", fullUrl)
+		Logger.log("[DIFY DEBUG] Request body:", JSON.stringify(requestBody, null, 2))
 
 		let response: Response
 		try {
 			response = await fetch(fullUrl, {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${this.apiKey}`,
-					"Content-Type": "application/json",
-				},
+				headers: this.jsonHeaders(),
 				body: JSON.stringify(requestBody),
 			})
 		} catch (error: any) {
-			console.error("[DIFY DEBUG] Network error during fetch:", error)
+			Logger.error("[DIFY DEBUG] Network error during fetch:", error)
 			const cause = error.cause ? ` | Cause: ${error.cause}` : ""
 			throw new Error(`Dify API network error: ${error.message}${cause}`)
 		}
 
-		console.log("[DIFY DEBUG] Response status:", response.status)
+		Logger.log("[DIFY DEBUG] Response status:", response.status)
 		const headersObj: Record<string, string> = {}
 		response.headers.forEach((value, key) => {
 			headersObj[key] = value
 		})
-		console.log("[DIFY DEBUG] Response headers:", headersObj)
+		Logger.log("[DIFY DEBUG] Response headers:", headersObj)
 
 		if (!response.ok) {
 			const errorText = await response.text()
-			console.error("[DIFY DEBUG] Error response:", errorText)
+			Logger.error("[DIFY DEBUG] Error response:", errorText)
 			throw new Error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`)
 		}
 
@@ -159,14 +158,14 @@ export class DifyHandler implements ApiHandler {
 		const processedEvents: string[] = []
 		let lastEventTime = Date.now()
 
-		console.log("[DIFY DEBUG] Starting to read streaming response...")
+		Logger.log("[DIFY DEBUG] Starting to read streaming response...")
 
 		try {
 			while (true) {
 				const { done, value } = await reader.read()
 				if (done) {
-					console.log("[DIFY DEBUG] Stream ended naturally")
-					console.log(
+					Logger.log("[DIFY DEBUG] Stream ended naturally")
+					Logger.log(
 						"[DIFY DEBUG] Final state - hasYieldedContent:",
 						hasYieldedContent,
 						"fullText length:",
@@ -178,7 +177,7 @@ export class DifyHandler implements ApiHandler {
 				}
 
 				const chunk = decoder.decode(value, { stream: true })
-				console.log("[DIFY DEBUG] Raw chunk received:", JSON.stringify(chunk))
+				Logger.log("[DIFY DEBUG] Raw chunk received:", JSON.stringify(chunk))
 
 				buffer += chunk
 				const lines = buffer.split("\n")
@@ -187,41 +186,41 @@ export class DifyHandler implements ApiHandler {
 				buffer = lines.pop() || ""
 
 				for (const line of lines) {
-					console.log("[DIFY DEBUG] Processing line:", JSON.stringify(line))
+					Logger.log("[DIFY DEBUG] Processing line:", JSON.stringify(line))
 
 					if (line.startsWith("data: ")) {
 						const data = line.slice(6).trim()
-						console.log("[DIFY DEBUG] Extracted data:", JSON.stringify(data))
+						Logger.log("[DIFY DEBUG] Extracted data:", JSON.stringify(data))
 
 						if (data === "[DONE]") {
-							console.log("[DIFY DEBUG] Received [DONE] signal")
+							Logger.log("[DIFY DEBUG] Received [DONE] signal")
 							break
 						}
 
 						if (data === "") {
-							console.log("[DIFY DEBUG] Empty data line, skipping")
+							Logger.log("[DIFY DEBUG] Empty data line, skipping")
 							continue
 						}
 
 						try {
 							const parsed = JSON.parse(data)
-							console.log("[DIFY DEBUG] Parsed JSON:", parsed)
+							Logger.log("[DIFY DEBUG] Parsed JSON:", parsed)
 							processedEvents.push(parsed.event || "unknown")
 							lastEventTime = Date.now()
 
 							// Capture conversation_id as soon as it's available
 							if (parsed.conversation_id && !this.conversationId) {
 								this.conversationId = parsed.conversation_id
-								console.log("[DIFY DEBUG] Captured conversation_id:", this.conversationId)
+								Logger.log("[DIFY DEBUG] Captured conversation_id:", this.conversationId)
 							}
 
 							// Handle different Dify event types based on actual Dify API
 							if (parsed.event === "message") {
-								console.log("[DIFY DEBUG] Message event, answer:", parsed.answer)
+								Logger.log("[DIFY DEBUG] Message event, answer:", parsed.answer)
 								// Dify sends the full text in each "answer" chunk, so we replace.
 								if (typeof parsed.answer === "string") {
 									fullText = parsed.answer
-									console.log("[DIFY DEBUG] Updated fullText length:", fullText.length)
+									Logger.log("[DIFY DEBUG] Updated fullText length:", fullText.length)
 									yield {
 										type: "text",
 										text: fullText,
@@ -229,10 +228,10 @@ export class DifyHandler implements ApiHandler {
 									hasYieldedContent = true
 								}
 							} else if (parsed.event === "message_replace") {
-								console.log("[DIFY DEBUG] Replace message event:", parsed)
+								Logger.log("[DIFY DEBUG] Replace message event:", parsed)
 								if (parsed.answer) {
 									fullText = parsed.answer // Replace instead of append
-									console.log("[DIFY DEBUG] Replaced fullText length:", fullText.length)
+									Logger.log("[DIFY DEBUG] Replaced fullText length:", fullText.length)
 									yield {
 										type: "text",
 										text: fullText,
@@ -240,7 +239,7 @@ export class DifyHandler implements ApiHandler {
 									hasYieldedContent = true
 								}
 							} else if (parsed.event === "message_end") {
-								console.log("[DIFY DEBUG] Message end event", parsed)
+								Logger.log("[DIFY DEBUG] Message end event", parsed)
 								// Message completed. Yield final text if we have any.
 								if (fullText) {
 									yield {
@@ -260,19 +259,19 @@ export class DifyHandler implements ApiHandler {
 								}
 								return // End of stream
 							} else if (parsed.event === "error") {
-								console.error("[DIFY DEBUG] Error event:", parsed)
+								Logger.error("[DIFY DEBUG] Error event:", parsed)
 								throw new Error(`Dify API error: ${parsed.message || "Unknown error"}`)
 							} else if (parsed.event === "workflow_started" || parsed.event === "workflow_finished") {
-								console.log("[DIFY DEBUG] Workflow event:", parsed.event)
+								Logger.log("[DIFY DEBUG] Workflow event:", parsed.event)
 								// These are informational events, continue processing
 							} else if (parsed.event === "node_started" || parsed.event === "node_finished") {
-								console.log("[DIFY DEBUG] Node event:", parsed.event, parsed.data)
+								Logger.log("[DIFY DEBUG] Node event:", parsed.event, parsed.data)
 								// These are informational events, continue processing
 							} else if (parsed.event === "ping") {
-								console.log("[DIFY DEBUG] Ping event received, keeping connection alive.")
+								Logger.log("[DIFY DEBUG] Ping event received, keeping connection alive.")
 								// Ping event, do nothing
 							} else {
-								console.log("[DIFY DEBUG] Unknown event type:", parsed.event, "Full object:", parsed)
+								Logger.log("[DIFY DEBUG] Unknown event type:", parsed.event, "Full object:", parsed)
 								// Try to extract text from other possible fields
 								if (parsed.text) {
 									fullText += parsed.text
@@ -299,17 +298,17 @@ export class DifyHandler implements ApiHandler {
 								}
 							}
 						} catch (e) {
-							console.warn("[DIFY DEBUG] Failed to parse JSON:", data, "Error:", e)
+							Logger.warn("[DIFY DEBUG] Failed to parse JSON:", data, "Error:", e)
 						}
 					} else if (line.trim() !== "") {
-						console.log(
+						Logger.log(
 							"[DIFY DEBUG] Non-data line (not starting with 'data:'), trying to parse as direct JSON:",
 							JSON.stringify(line),
 						)
 						// Try to parse as direct JSON (fallback for non-SSE responses, though Dify uses SSE)
 						try {
 							const parsed = JSON.parse(line.trim())
-							console.log("[DIFY DEBUG] Parsed direct JSON:", parsed)
+							Logger.log("[DIFY DEBUG] Parsed direct JSON:", parsed)
 							processedEvents.push(parsed.event || "direct-json")
 
 							// Handle the same event types as above
@@ -330,7 +329,7 @@ export class DifyHandler implements ApiHandler {
 								}
 								return
 							} else if (parsed.event === "error") {
-								console.error("[DIFY DEBUG] Direct JSON Error event:", parsed)
+								Logger.error("[DIFY DEBUG] Direct JSON Error event:", parsed)
 								throw new Error(`Dify API error: ${parsed.message || "Unknown error"}`)
 							} else if (parsed.answer || parsed.text || parsed.content) {
 								// Fallback for any content in direct JSON
@@ -344,7 +343,7 @@ export class DifyHandler implements ApiHandler {
 							}
 						} catch (e) {
 							// Not JSON, continue
-							console.log("[DIFY DEBUG] Line is not direct JSON, continuing")
+							Logger.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}
 					}
 				}
@@ -359,11 +358,11 @@ export class DifyHandler implements ApiHandler {
 					streamDuration: Date.now() - lastEventTime,
 					conversationId: this.conversationId,
 				}
-				console.error("[DIFY DEBUG] No content was yielded! Diagnostic info:", diagnosticInfo)
+				Logger.error("[DIFY DEBUG] No content was yielded! Diagnostic info:", diagnosticInfo)
 
 				// If we have any accumulated text at all, yield it as a fallback
 				if (fullText.trim()) {
-					console.log("[DIFY DEBUG] Yielding accumulated text as fallback:", fullText)
+					Logger.log("[DIFY DEBUG] Yielding accumulated text as fallback:", fullText)
 					yield {
 						type: "text",
 						text: fullText,
@@ -380,7 +379,7 @@ export class DifyHandler implements ApiHandler {
 			}
 		} finally {
 			reader.releaseLock()
-			console.log("[DIFY DEBUG] Stream reader released")
+			Logger.log("[DIFY DEBUG] Stream reader released")
 		}
 	}
 
@@ -399,7 +398,7 @@ export class DifyHandler implements ApiHandler {
 
 		// Only prepend the system prompt if it's the very first message of a new conversation.
 		if (!this.conversationId && systemPrompt) {
-			console.log("[DIFY DEBUG] Prepending system prompt for new conversation.")
+			Logger.log("[DIFY DEBUG] Prepending system prompt for new conversation.")
 			return `${systemPrompt}\n\n---\n\n${userQuery}`
 		}
 
@@ -430,16 +429,14 @@ export class DifyHandler implements ApiHandler {
 	 * @param user User identifier (defaults to "cline-user")
 	 * @returns Promise with file upload response
 	 */
-	async uploadFile(file: Buffer, filename: string, user: string = "cline-user"): Promise<DifyFileResponse> {
+	async uploadFile(file: Buffer, filename: string, user = "cline-user"): Promise<DifyFileResponse> {
 		const formData = new FormData()
 		formData.append("file", new Blob([new Uint8Array(file)]), filename)
 		formData.append("user", user)
 
 		const response = await fetch(`${this.baseUrl}/files/upload`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: this.headers(),
 			body: formData,
 		})
 
@@ -457,13 +454,10 @@ export class DifyHandler implements ApiHandler {
 	 * @param user User identifier (defaults to "cline-user")
 	 * @returns Promise that resolves when generation is stopped
 	 */
-	async stopGeneration(taskId: string, user: string = "cline-user"): Promise<void> {
+	async stopGeneration(taskId: string, user = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/chat-messages/${taskId}/stop`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify({ user }),
 		})
 
@@ -483,9 +477,9 @@ export class DifyHandler implements ApiHandler {
 	 */
 	async getConversationHistory(
 		conversationId: string,
-		user: string = "cline-user",
+		user = "cline-user",
 		firstId?: string,
-		limit: number = 20,
+		limit = 20,
 	): Promise<DifyHistoryResponse> {
 		const params = new URLSearchParams({ user, limit: limit.toString() })
 		if (firstId) {
@@ -493,9 +487,7 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}/messages?${params}`, {
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: this.headers(),
 		})
 
 		if (!response.ok) {
@@ -515,10 +507,10 @@ export class DifyHandler implements ApiHandler {
 	 * @returns Promise with conversations list
 	 */
 	async getConversations(
-		user: string = "cline-user",
+		user = "cline-user",
 		lastId?: string,
-		limit: number = 20,
-		sortBy: string = "-updated_at",
+		limit = 20,
+		sortBy = "-updated_at",
 	): Promise<DifyConversationsResponse> {
 		const params = new URLSearchParams({
 			user,
@@ -530,9 +522,7 @@ export class DifyHandler implements ApiHandler {
 		}
 
 		const response = await fetch(`${this.baseUrl}/conversations?${params}`, {
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-			},
+			headers: this.headers(),
 		})
 
 		if (!response.ok) {
@@ -549,13 +539,10 @@ export class DifyHandler implements ApiHandler {
 	 * @param user User identifier (defaults to "cline-user")
 	 * @returns Promise that resolves when conversation is deleted
 	 */
-	async deleteConversation(conversationId: string, user: string = "cline-user"): Promise<void> {
+	async deleteConversation(conversationId: string, user = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}`, {
 			method: "DELETE",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify({ user }),
 		})
 
@@ -575,9 +562,9 @@ export class DifyHandler implements ApiHandler {
 	 */
 	async renameConversation(
 		conversationId: string,
-		user: string = "cline-user",
+		user = "cline-user",
 		name?: string,
-		autoGenerate: boolean = false,
+		autoGenerate = false,
 	): Promise<DifyConversationResponse> {
 		const body: any = { user, auto_generate: autoGenerate }
 		if (name) {
@@ -586,10 +573,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}/name`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify(body),
 		})
 
@@ -613,7 +597,7 @@ export class DifyHandler implements ApiHandler {
 		messageId: string,
 		rating: "like" | "dislike",
 		content?: string,
-		user: string = "cline-user",
+		user = "cline-user",
 	): Promise<void> {
 		const body: any = { rating, user }
 		if (content) {
@@ -622,10 +606,7 @@ export class DifyHandler implements ApiHandler {
 
 		const response = await fetch(`${this.baseUrl}/messages/${messageId}/feedbacks`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.apiKey}`,
-				"Content-Type": "application/json",
-			},
+			headers: this.jsonHeaders(),
 			body: JSON.stringify(body),
 		})
 
@@ -657,5 +638,20 @@ export class DifyHandler implements ApiHandler {
 	resetConversation(): void {
 		this.conversationId = null
 		this.currentTaskId = null
+	}
+
+	private jsonHeaders() {
+		return {
+			...this.headers(),
+			"Content-Type": "application/json",
+		}
+	}
+
+	private headers() {
+		const externalHeaders = buildExternalBasicHeaders()
+		return {
+			...externalHeaders,
+			Authorization: `Bearer ${this.apiKey}`,
+		}
 	}
 }

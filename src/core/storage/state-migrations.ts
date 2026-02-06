@@ -1,8 +1,10 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { HistoryItem } from "@/shared/HistoryItem"
+import type { HistoryItem } from "@/shared/HistoryItem"
+import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
+import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -53,7 +55,7 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		const globalValue = await context.globalState.get(key)
 
 		if (workspaceValue !== undefined && globalValue === undefined) {
-			console.log(`[Storage Migration] migrating key: ${key} to global storage. Current value: ${workspaceValue}`)
+			Logger.log(`[Storage Migration] migrating key: ${key} to global storage. Current value: ${workspaceValue}`)
 
 			// Move to global storage using raw VSCode method to avoid type errors
 			await context.globalState.update(key, workspaceValue)
@@ -61,7 +63,7 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 			await context.workspaceState.update(key, undefined)
 			const newWorkspaceValue = await context.workspaceState.get(key)
 
-			console.log(`[Storage Migration] migrated key: ${key} to global storage. Current value: ${newWorkspaceValue}`)
+			Logger.log(`[Storage Migration] migrated key: ${key} to global storage. Current value: ${newWorkspaceValue}`)
 		}
 	}
 }
@@ -76,7 +78,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 
 		// Early return if no migration needed
 		if (oldLocationData.length === 0) {
-			console.log("[Storage Migration] No task history to migrate")
+			Logger.log("[Storage Migration] No task history to migrate")
 			return
 		}
 
@@ -101,12 +103,12 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 		const successfullyWrittenData = await readTaskHistoryFromState()
 
 		if (!Array.isArray(successfullyWrittenData)) {
-			console.error("[Storage Migration] Failed to write taskHistory to file: Written data is not an array")
+			Logger.error("[Storage Migration] Failed to write taskHistory to file: Written data is not an array")
 			return
 		}
 
 		if (successfullyWrittenData.length !== finalData.length) {
-			console.error(
+			Logger.error(
 				"[Storage Migration] Failed to write taskHistory to file: Written data does not match the old location data",
 			)
 			return
@@ -114,9 +116,9 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 
 		await context.globalState.update("taskHistory", undefined)
 
-		console.log(`[Storage Migration] ${migrationAction}`)
+		Logger.log(`[Storage Migration] ${migrationAction}`)
 	} catch (error) {
-		console.error("[Storage Migration] Failed to migrate task history to file:", error)
+		Logger.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
 }
 
@@ -148,7 +150,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 		const customInstructions = (await context.globalState.get("customInstructions")) as string | undefined
 
 		if (customInstructions?.trim()) {
-			console.log("Migrating custom instructions to global Cline rules...")
+			Logger.log("Migrating custom instructions to global Cline rules...")
 
 			// Create global .clinerules directory if it doesn't exist
 			const globalRulesDir = await ensureRulesDirectoryExists()
@@ -172,18 +174,18 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 					: customInstructions.trim()
 
 				await fs.writeFile(migrationFilePath, contentToWrite)
-				console.log(`Successfully ${existingContent ? "appended to" : "created"} migration file: ${migrationFilePath}`)
+				Logger.log(`Successfully ${existingContent ? "appended to" : "created"} migration file: ${migrationFilePath}`)
 			} catch (fileError) {
-				console.error("Failed to write migration file:", fileError)
+				Logger.error("Failed to write migration file:", fileError)
 				return
 			}
 
 			// Remove customInstructions from global state only after successful file creation
 			await context.globalState.update("customInstructions", undefined)
-			console.log("Successfully migrated custom instructions to global Cline rules")
+			Logger.log("Successfully migrated custom instructions to global Cline rules")
 		}
 	} catch (error) {
-		console.error("Failed to migrate custom instructions to global rules:", error)
+		Logger.error("Failed to migrate custom instructions to global rules:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
@@ -193,11 +195,11 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		// Check if migration is needed - if planModeApiProvider already exists, skip migration
 		const planModeApiProvider = await context.globalState.get("planModeApiProvider")
 		if (planModeApiProvider !== undefined) {
-			console.log("Legacy API configuration migration already completed, skipping...")
+			Logger.log("Legacy API configuration migration already completed, skipping...")
 			return
 		}
 
-		console.log("Starting legacy API configuration migration to mode-specific keys...")
+		Logger.log("Starting legacy API configuration migration to mode-specific keys...")
 
 		// Get the planActSeparateModelsSetting to determine migration strategy
 		const planActSeparateModelsSetting = (await context.globalState.get("planActSeparateModelsSetting")) as
@@ -243,7 +245,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 
 		// Migrate based on planActSeparateModelsSetting
 		if (planActSeparateModelsSetting === false) {
-			console.log("Migrating with separate models DISABLED - using current values for both modes")
+			Logger.log("Migrating with separate models DISABLED - using current values for both modes")
 
 			// Use current values for both plan and act modes
 			if (apiProvider !== undefined) {
@@ -343,7 +345,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 				await context.globalState.update("actModeHuggingFaceModelInfo", huggingFaceModelInfo)
 			}
 		} else {
-			console.log("Migrating with separate models ENABLED - using current->plan, previous->act")
+			Logger.log("Migrating with separate models ENABLED - using current->plan, previous->act")
 
 			// Use current values for plan mode
 			if (apiProvider !== undefined) {
@@ -515,7 +517,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		}
 
 		// Clean up legacy keys after successful migration
-		console.log("Cleaning up legacy keys...")
+		Logger.log("Cleaning up legacy keys...")
 		await context.globalState.update("apiProvider", undefined)
 		await context.globalState.update("apiModelId", undefined)
 		await context.globalState.update("thinkingBudgetTokens", undefined)
@@ -550,9 +552,9 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		await context.globalState.update("previousModeAwsBedrockCustomModelBaseId", undefined)
 		await context.globalState.update("previousModeSapAiCoreModelId", undefined)
 
-		console.log("Successfully migrated legacy API configuration to mode-specific keys")
+		Logger.log("Successfully migrated legacy API configuration to mode-specific keys")
 	} catch (error) {
-		console.error("Failed to migrate legacy API configuration to mode-specific keys:", error)
+		Logger.error("Failed to migrate legacy API configuration to mode-specific keys:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
@@ -563,7 +565,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted")
 
 		if (welcomeViewCompleted === undefined) {
-			console.log("Migrating welcomeViewCompleted setting...")
+			Logger.log("Migrating welcomeViewCompleted setting...")
 
 			// Fetch API keys directly from secrets
 			const apiKey = await context.secrets.get("apiKey")
@@ -586,6 +588,8 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
 			const hicapApiKey = await context.secrets.get("hicapApiKey")
+			// OpenAI Codex OAuth credentials
+			const openAiCodexCredentials = await context.secrets.get("openai-codex-oauth-credentials")
 
 			// Fetch configuration values from global state
 			const awsRegion = context.globalState.get("awsRegion")
@@ -628,15 +632,16 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sapAiCoreClientId,
 				difyApiKey,
 				hicapApiKey,
+				openAiCodexCredentials,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys
 			await context.globalState.update("welcomeViewCompleted", hasKey)
 
-			console.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
+			Logger.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
 		}
 	} catch (error) {
-		console.error("Failed to migrate welcomeViewCompleted:", error)
+		Logger.error("Failed to migrate welcomeViewCompleted:", error)
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
@@ -647,48 +652,26 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 		const mcpMarketplaceCatalog = await context.globalState.get("mcpMarketplaceCatalog")
 
 		if (mcpMarketplaceCatalog !== undefined) {
-			console.log("Cleaning up mcpMarketplaceCatalog from global state...")
+			Logger.log("Cleaning up mcpMarketplaceCatalog from global state...")
 
 			// Delete it from global state
 			await context.globalState.update("mcpMarketplaceCatalog", undefined)
 
-			console.log("Successfully removed mcpMarketplaceCatalog from global state")
+			Logger.log("Successfully removed mcpMarketplaceCatalog from global state")
 		}
 	} catch (error) {
-		console.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
+		Logger.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
 		// Continue execution - cleanup failure shouldn't break extension startup
 	}
 }
 
-/**
- * Legacy type definition for the old ClineFeatureSetting structure
- */
-type LegacyHooksEnabled = { user?: boolean; featureFlag?: boolean }
-
-/**
- * Migrates hooksEnabled from ClineFeatureSetting {user: boolean, featureFlag: boolean} to boolean
- */
-export async function migrateHooksEnabledToBoolean(context: vscode.ExtensionContext) {
+export function cleanupOldApiKey() {
 	try {
-		const hooksEnabled = await context.globalState.get("hooksEnabled")
-
-		// Check if hooksEnabled exists and is an object (the old ClineFeatureSetting structure)
-		if (hooksEnabled !== undefined && typeof hooksEnabled === "object" && hooksEnabled !== null) {
-			console.log("Migrating hooksEnabled from ClineFeatureSetting to boolean...")
-
-			// Cast to the legacy type to access properties safely
-			const legacySetting = hooksEnabled as LegacyHooksEnabled
-
-			// Extract the boolean value from the 'user' field
-			const booleanValue = legacySetting.user === true
-
-			// Update with the new boolean value
-			await context.globalState.update("hooksEnabled", booleanValue)
-
-			console.log(`Successfully migrated hooksEnabled to boolean: ${booleanValue}`)
-		}
+		// Old API Keys were introduced in March 2025 and later replaced with tokens
+		// Now that we have new API keys that are prefixed with `sk_`,
+		// we need to clean up the old ones to free the secret storage
+		StateManager.get().setSecret("clineApiKey", undefined)
 	} catch (error) {
-		console.error("Failed to migrate hooksEnabled to boolean:", error)
-		// Continue execution - migration failure shouldn't break extension startup
+		Logger.error("Failed to cleanup old clineApiKey", error)
 	}
 }

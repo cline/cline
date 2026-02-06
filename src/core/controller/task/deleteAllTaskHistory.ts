@@ -3,8 +3,9 @@ import fs from "fs/promises"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "../../../utils/fs"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Deletes all task history, with an option to preserve favorites
@@ -57,32 +58,30 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				try {
 					await controller.postStateToWebview()
 				} catch (webviewErr) {
-					console.error("Error posting to webview:", webviewErr)
+					Logger.error("Error posting to webview:", webviewErr)
 				}
 
 				return DeleteAllTaskHistoryCount.create({
 					tasksDeleted: totalTasks - favoritedTasks.length,
 				})
-			} else {
-				// No favorited tasks found - show warning and ask user what to do
-				const answer = (
-					await HostProvider.window.showMessage({
-						type: ShowMessageType.WARNING,
-						message: "No favorited tasks found. Would you like to delete all tasks anyway?",
-						options: {
-							modal: true,
-							items: ["Delete All Tasks"],
-						},
-					})
-				).selectedOption
+			}
+			// No favorited tasks found - show warning and ask user what to do
+			const answer = (
+				await HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+					options: {
+						modal: true,
+						items: ["Delete All Tasks"],
+					},
+				})
+			).selectedOption
 
-				// User cancelled - don't delete anything
-				if (answer === undefined) {
-					return DeleteAllTaskHistoryCount.create({
-						tasksDeleted: 0,
-					})
-				}
-				// If user chose "Delete All Tasks", fall through to the `delete everything` section below
+			// User cancelled - don't delete anything
+			if (answer === undefined) {
+				return DeleteAllTaskHistoryCount.create({
+					tasksDeleted: 0,
+				})
 			}
 		}
 
@@ -112,14 +111,14 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		try {
 			await controller.postStateToWebview()
 		} catch (webviewErr) {
-			console.error("Error posting to webview:", webviewErr)
+			Logger.error("Error posting to webview:", webviewErr)
 		}
 
 		return DeleteAllTaskHistoryCount.create({
 			tasksDeleted: totalTasks,
 		})
 	} catch (error) {
-		console.error("Error in deleteAllTaskHistory:", error)
+		Logger.error("Error in deleteAllTaskHistory:", error)
 		throw error
 	}
 }
@@ -133,7 +132,7 @@ async function cleanupTaskFiles(preserveTaskIds: string[]) {
 	try {
 		if (await fileExistsAtPath(taskDirPath)) {
 			const taskDirs = await fs.readdir(taskDirPath)
-			console.debug(`[cleanupTaskFiles] Found ${taskDirs.length} task directories`)
+			Logger.debug(`[cleanupTaskFiles] Found ${taskDirs.length} task directories`)
 
 			// Delete only non-preserved task directories
 			for (const dir of taskDirs) {
@@ -147,7 +146,7 @@ async function cleanupTaskFiles(preserveTaskIds: string[]) {
 			}
 		}
 	} catch (error) {
-		console.error("Error cleaning up task files:", error)
+		Logger.error("Error cleaning up task files:", error)
 	}
 
 	return true

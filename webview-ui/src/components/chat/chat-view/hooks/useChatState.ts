@@ -1,6 +1,6 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { useCallback, useMemo, useRef, useState } from "react"
-import { ChatState } from "../types/chatTypes"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { ChatState } from "../types/chatTypes"
 
 /**
  * Custom hook for managing chat state
@@ -47,6 +47,11 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const handleFocusChange = useCallback((isFocused: boolean) => {
 		setIsTextAreaFocused(isFocused)
 	}, [])
+
+	// Auto-expand last message row when task or messages first changed.
+	useEffect(() => {
+		clearExpandedRows()
+	}, [task?.ts, clearExpandedRows])
 
 	return {
 		// State values

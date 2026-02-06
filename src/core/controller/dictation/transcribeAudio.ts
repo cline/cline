@@ -1,9 +1,10 @@
-import { TranscribeAudioRequest, Transcription } from "@shared/proto/cline/dictation"
+import { type TranscribeAudioRequest, Transcription } from "@shared/proto/cline/dictation"
 import { HostProvider } from "@/hosts/host-provider"
 import { getVoiceTranscriptionService } from "@/services/dictation/VoiceTranscriptionService"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { Controller } from ".."
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from ".."
 
 /**
  * Transcribes audio using Cline transcription service
@@ -59,7 +60,7 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 			error: result.error ?? "",
 		})
 	} catch (error) {
-		console.error("Error transcribing audio:", error)
+		Logger.error("Error transcribing audio:", error)
 		const durationMs = Date.now() - startTime
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 

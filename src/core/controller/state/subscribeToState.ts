@@ -1,8 +1,9 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { State } from "@shared/proto/cline/state"
-import { ExtensionState } from "@/shared/ExtensionMessage"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import type { State } from "@shared/proto/cline/state"
+import type { ExtensionState } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active state subscriptions
 const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
@@ -26,7 +27,6 @@ export async function subscribeToState(
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeStateSubscriptions.delete(responseStream)
-		//console.log(`[DEBUG] Cleaned up state subscription`)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -38,8 +38,6 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
-	//console.log(`[DEBUG] set up state subscription`)
-
 	try {
 		await responseStream(
 			{
@@ -48,7 +46,7 @@ export async function subscribeToState(
 			false, // Not the last message
 		)
 	} catch (error) {
-		console.error("Error sending initial state:", error)
+		Logger.error("Error sending initial state:", error)
 		activeStateSubscriptions.delete(responseStream)
 	}
 }
@@ -68,9 +66,8 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 				},
 				false, // Not the last message
 			)
-			//console.log(`[DEBUG] sending followup state`, stateJson.length, "chars")
 		} catch (error) {
-			console.error("Error sending state update:", error)
+			Logger.error("Error sending state update:", error)
 			// Remove the subscription if there was an error
 			activeStateSubscriptions.delete(responseStream)
 		}

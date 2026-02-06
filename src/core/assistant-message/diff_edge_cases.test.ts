@@ -3,7 +3,8 @@ import { describe, it } from "mocha"
 import { constructNewFileContent as cnfc } from "./diff"
 
 async function cnfc2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
-	return cnfc(diffContent, originalContent, isFinal, "v2")
+	const result = await cnfc(diffContent, originalContent, isFinal, "v2")
+	return result.newContent
 }
 
 describe("Diff Format Edge Cases", () => {
@@ -18,7 +19,7 @@ new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nnew content\nafter"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 
@@ -33,7 +34,7 @@ new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nnew content\nafter"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 
@@ -48,7 +49,7 @@ new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nnew content\nafter"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 
@@ -62,7 +63,7 @@ new content
 +++++++ REPLACE`
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
-		expect(result1).to.equal("before\nnew content\nafter")
+		expect(result1.newContent).to.equal("before\nnew content\nafter")
 		expect(result2).to.equal("before\nnew content\nafter")
 	})
 
@@ -77,7 +78,7 @@ new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nnew content\nafter"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 
@@ -92,7 +93,7 @@ new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nnew content\nafter"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 
@@ -112,7 +113,7 @@ second new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nfirst new content\nafter\nsecond new content\nend"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 
@@ -132,7 +133,7 @@ second new content
 		const result1 = await cnfc(diff, original, isFinal)
 		const result2 = await cnfc2(diff, original, isFinal)
 		const expectedResult = "before\nfirst new content\nafter\nsecond new content\nend"
-		expect(result1).to.equal(expectedResult)
+		expect(result1.newContent).to.equal(expectedResult)
 		expect(result2).to.equal(expectedResult)
 	})
 })

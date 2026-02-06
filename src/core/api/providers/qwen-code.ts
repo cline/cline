@@ -1,15 +1,17 @@
 import { promises as fs } from "node:fs"
-import { ModelInfo, QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } from "@shared/api"
+import { type ModelInfo, type QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import * as os from "os"
 import * as path from "path"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { Logger } from "@/shared/services/Logger"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 // --- Constants for Qwen OAuth2 ---
@@ -62,9 +64,12 @@ export class QwenCodeHandler implements ApiHandler {
 		if (!this.client) {
 			// Create the client instance with dummy key initially
 			// The API key will be updated dynamically via ensureAuthenticated
+			const externalHeaders = buildExternalBasicHeaders()
 			this.client = new OpenAI({
 				apiKey: "dummy-key-will-be-replaced",
 				baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+				defaultHeaders: externalHeaders,
+				fetch,
 			})
 		}
 		return this.client
@@ -76,7 +81,7 @@ export class QwenCodeHandler implements ApiHandler {
 			const credsStr = await fs.readFile(keyFile, "utf-8")
 			return JSON.parse(credsStr)
 		} catch (error) {
-			console.error(
+			Logger.error(
 				`Error reading or parsing credentials file at ${getQwenCachedCredentialPath(this.options.qwenCodeOauthPath)}`,
 			)
 			throw new Error(`Failed to load Qwen OAuth credentials: ${error}`)
@@ -170,9 +175,8 @@ export class QwenCodeHandler implements ApiHandler {
 				client.apiKey = this.credentials.access_token
 				client.baseURL = this.getBaseUrl(this.credentials)
 				return await apiCall()
-			} else {
-				throw error
 			}
+			throw error
 		}
 	}
 

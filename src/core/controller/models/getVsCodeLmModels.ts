@@ -1,8 +1,9 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { VsCodeLmModelsArray } from "@shared/proto/cline/models"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 import { convertVsCodeNativeModelsToProtoModels } from "../../../shared/proto-conversions/models/vscode-lm-models-conversion"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Fetches available models from VS Code LM API
@@ -18,7 +19,7 @@ export async function getVsCodeLmModels(_controller: Controller, _request: Empty
 
 		return VsCodeLmModelsArray.create({ models: protoModels })
 	} catch (error) {
-		console.error("Error fetching VS Code LM models:", error)
+		Logger.error("Error fetching VS Code LM models:", error)
 		return VsCodeLmModelsArray.create({ models: [] })
 	}
 }

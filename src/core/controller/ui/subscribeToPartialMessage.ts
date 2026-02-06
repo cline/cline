@@ -1,10 +1,15 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { ClineMessage } from "@shared/proto/cline/ui"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import type { ClineMessage } from "@shared/proto/cline/ui"
+import { Logger } from "@/shared/services/Logger"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
-// Keep track of active partial message subscriptions
+// Keep track of active partial message subscriptions (gRPC streams)
 const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<ClineMessage>>()
+
+// Keep track of callback-based subscriptions (for CLI and other non-gRPC consumers)
+export type PartialMessageCallback = (message: ClineMessage) => void
+const callbackSubscriptions = new Set<PartialMessageCallback>()
 
 /**
  * Subscribe to partial message events
@@ -34,23 +39,44 @@ export async function subscribeToPartialMessage(
 }
 
 /**
+ * Register a callback to receive partial message events (for CLI and non-gRPC consumers)
+ * @param callback The callback function to receive messages
+ * @returns A function to unsubscribe
+ */
+export function registerPartialMessageCallback(callback: PartialMessageCallback): () => void {
+	callbackSubscriptions.add(callback)
+	return () => {
+		callbackSubscriptions.delete(callback)
+	}
+}
+
+/**
  * Send a partial message event to all active subscribers
  * @param partialMessage The ClineMessage to send
  */
 export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
-	// Send the event to all active subscribers
-	const promises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
+	// Send to gRPC stream subscribers
+	const streamPromises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
 		try {
 			await responseStream(
 				partialMessage,
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending partial message event:", error)
+			Logger.error("Error sending partial message event:", error)
 			// Remove the subscription if there was an error
 			activePartialMessageSubscriptions.delete(responseStream)
 		}
 	})
 
-	await Promise.all(promises)
+	// Send to callback subscribers (synchronous)
+	for (const callback of callbackSubscriptions) {
+		try {
+			callback(partialMessage)
+		} catch (error) {
+			Logger.error("Error in partial message callback:", error)
+		}
+	}
+
+	await Promise.all(streamPromises)
 }

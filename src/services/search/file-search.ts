@@ -4,9 +4,10 @@ import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
 import * as path from "path"
 import * as readline from "readline"
-import { WorkspaceRootManager } from "@/core/workspace"
+import type { WorkspaceRootManager } from "@/core/workspace"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
 // Wrapper function for childProcess.spawn
@@ -15,7 +16,7 @@ export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 export async function executeRipgrepForFiles(
 	workspacePath: string,
-	limit: number = 5000,
+	limit = 5000,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	const rgPath = await getBinaryLocation("rg")
 
@@ -106,7 +107,7 @@ async function getActiveFiles(): Promise<Set<string>> {
 export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,
-	limit: number = 20,
+	limit = 20,
 	selectedType?: "file" | "folder",
 	workspaceName?: string,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
@@ -145,7 +146,8 @@ export async function searchWorkspaceFiles(
 
 			if (selectedType === "file") {
 				return addWorkspaceName(combinedItems.filter((item) => item.type === "file").slice(0, limit))
-			} else if (selectedType === "folder") {
+			}
+			if (selectedType === "folder") {
 				return addWorkspaceName(combinedItems.filter((item) => item.type === "folder").slice(0, limit))
 			}
 			return addWorkspaceName(combinedItems.slice(0, limit))
@@ -182,7 +184,7 @@ export async function searchWorkspaceFiles(
 
 		return await Promise.all(verifiedResultsPromises)
 	} catch (error) {
-		console.error("Error in searchWorkspaceFiles:", error)
+		Logger.error("Error in searchWorkspaceFiles:", error)
 		return []
 	}
 }
@@ -192,9 +194,9 @@ export async function searchWorkspaceFiles(
 export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
 	const countGaps = (positions: Iterable<number>) => {
 		let gaps = 0,
-			prev = -Infinity
+			prev = Number.NEGATIVE_INFINITY
 		for (const pos of positions) {
-			if (prev !== -Infinity && pos - prev > 1) {
+			if (prev !== Number.NEGATIVE_INFINITY && pos - prev > 1) {
 				gaps++
 			}
 			prev = pos
@@ -212,7 +214,7 @@ export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) 
 export async function searchWorkspaceFilesMultiroot(
 	query: string,
 	workspaceManager: WorkspaceRootManager,
-	limit: number = 20,
+	limit = 20,
 	selectedType?: "file" | "folder",
 	workspaceHint?: string,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
@@ -244,7 +246,7 @@ export async function searchWorkspaceFilesMultiroot(
 				const results = await searchWorkspaceFiles(query, workspace.path, limit, selectedType, workspace.name)
 				return results
 			} catch (error) {
-				console.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
+				Logger.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
 				return []
 			}
 		})
@@ -286,7 +288,7 @@ export async function searchWorkspaceFilesMultiroot(
 
 		return flatResults
 	} catch (error) {
-		console.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
+		Logger.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
 		return []
 	}
 }

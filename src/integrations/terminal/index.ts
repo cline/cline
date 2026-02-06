@@ -23,17 +23,7 @@
 export { CommandExecutor } from "./CommandExecutor"
 
 // Export command orchestrator (shared logic)
-export {
-	BUFFER_STUCK_TIMEOUT_MS,
-	CHUNK_BYTE_SIZE,
-	CHUNK_DEBOUNCE_MS,
-	CHUNK_LINE_COUNT,
-	COMPLETION_TIMEOUT_MS,
-	findLastIndex,
-	orchestrateCommandExecution,
-} from "./CommandOrchestrator"
-
-// Export terminal process interface
+export { findLastIndex, orchestrateCommandExecution } from "./CommandOrchestrator"
 
 // Export standalone terminal implementations
 export { StandaloneTerminal } from "./standalone/StandaloneTerminal"

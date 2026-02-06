@@ -5,7 +5,8 @@ import { audioRecordingService } from "@/services/dictation/AudioRecordingServic
 import { telemetryService } from "@/services/telemetry"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { Controller } from ".."
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from ".."
 
 /**
  * Handles the installation of missing dependencies with Cline
@@ -24,7 +25,7 @@ async function handleInstallWithCline(
 	await controller.postStateToWebview()
 	await controller.initTask(installTask)
 
-	HostProvider.get().logToChannel(`Started task to install ${dependencyName}`)
+	Logger.log(`[handleInstallWithCline] Started task to install ${dependencyName}`)
 }
 
 /**
@@ -143,7 +144,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 			error: result.error || "",
 		})
 	} catch (error) {
-		console.error("Error starting recording:", error)
+		Logger.error("Error starting recording:", error)
 		const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
 
 		// Handle different error types

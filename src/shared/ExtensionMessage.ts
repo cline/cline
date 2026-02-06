@@ -1,22 +1,23 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { WorkspaceRoot } from "@shared/multi-root/types"
-import { RemoteConfigFields } from "@shared/storage/state-keys"
+import type { WorkspaceRoot } from "@shared/multi-root/types"
+import type { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { ApiConfiguration } from "./api"
-import { BrowserSettings } from "./BrowserSettings"
-import { ClineFeatureSetting } from "./ClineFeatureSetting"
-import { ClineRulesToggles } from "./cline-rules"
-import { DictationSettings } from "./DictationSettings"
-import { FocusChainSettings } from "./FocusChainSettings"
-import { HistoryItem } from "./HistoryItem"
-import { McpDisplayMode } from "./McpDisplayMode"
-import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
-import { Mode, OpenaiReasoningEffort } from "./storage/types"
-import { TelemetrySetting } from "./TelemetrySetting"
-import { UserInfo } from "./UserInfo"
+import type { AutoApprovalSettings } from "./AutoApprovalSettings"
+import type { ApiConfiguration } from "./api"
+import type { BrowserSettings } from "./BrowserSettings"
+import type { ClineFeatureSetting } from "./ClineFeatureSetting"
+import type { BannerCardData } from "./cline/banner"
+import type { ClineRulesToggles } from "./cline-rules"
+import type { DictationSettings } from "./DictationSettings"
+import type { FocusChainSettings } from "./FocusChainSettings"
+import type { HistoryItem } from "./HistoryItem"
+import type { McpDisplayMode } from "./McpDisplayMode"
+import type { ClineMessageModelInfo } from "./messages"
+import type { OnboardingModelGroup } from "./proto/cline/state"
+import type { Mode, OpenaiReasoningEffort } from "./storage/types"
+import type { TelemetrySetting } from "./TelemetrySetting"
+import type { UserInfo } from "./UserInfo"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -88,6 +89,7 @@ export interface ExtensionState {
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	clineWebToolsEnabled?: ClineFeatureSetting
+	worktreesEnabled?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings
 	dictationSettings: DictationSettings
 	customPrompt?: string
@@ -101,11 +103,18 @@ export interface ExtensionState {
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
+	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
+	globalSkillsToggles?: Record<string, boolean>
+	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean
 	enableParallelToolCalling?: boolean
+	backgroundEditEnabled?: boolean
+	optOutOfRemoteConfig?: boolean
+	banners?: BannerCardData[]
+	openAiCodexIsAuthenticated?: boolean
 }
 
 export interface ClineMessage {
@@ -173,13 +182,15 @@ export type ClineSay =
 	| "diff_error"
 	| "deleted_api_reqs"
 	| "clineignore_error"
+	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
-	| "hook"
-	| "hook_output"
+	| "hook_status"
+	| "hook_output_stream"
+	| "conditional_rules_applied"
 
 export interface ClineSayTool {
 	tool:
@@ -194,12 +205,15 @@ export interface ClineSayTool {
 		| "webFetch"
 		| "webSearch"
 		| "summarizeTask"
+		| "useSkill"
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+	/** Starting line numbers in the original file where each SEARCH block matched */
+	startLineNumbers?: number[]
 }
 
 export interface ClineSayHook {
@@ -228,6 +242,13 @@ export interface ClineSayHook {
 		details?: string // Technical details for expansion
 		scriptPath?: string // Path to the hook script
 	}
+}
+
+export type HookOutputStreamMeta = {
+	/** Which hook configuration the script originated from (global vs workspace). */
+	source: "global" | "workspace"
+	/** Full path to the hook script that emitted the output. */
+	scriptPath: string
 }
 
 // must keep in sync with system prompt

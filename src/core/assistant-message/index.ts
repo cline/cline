@@ -1,4 +1,4 @@
-import { ClineDefaultTool } from "@shared/tools"
+import type { ClineDefaultTool } from "@shared/tools"
 
 export type AssistantMessageContent = TextStreamContent | ToolUse | ReasoningStreamContent
 
@@ -48,6 +48,7 @@ export const toolParamNames = [
 	"input",
 	"from_ref",
 	"to_ref",
+	"skill_name",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

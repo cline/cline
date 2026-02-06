@@ -1,8 +1,9 @@
 import { StateManager } from "@core/storage/StateManager"
-import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
 import crypto from "crypto"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { getMcpServerCallbackPath, getServerAuthHash } from "@/utils/mcpAuth"
 
@@ -33,7 +34,7 @@ function getMcpOAuthSecrets(): McpOAuthSecrets {
 	try {
 		return JSON.parse(secretsJson) as McpOAuthSecrets
 	} catch (error) {
-		console.error("[McpOAuth] Failed to parse MCP OAuth secrets:", error)
+		Logger.error("[McpOAuth] Failed to parse MCP OAuth secrets:", error)
 		return {}
 	}
 }
@@ -85,6 +86,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			client_name: "Cline",
 			client_uri: "https://cline.bot",
 			software_id: "cline",
+			scope: "openid",
 		}
 	}
 
@@ -134,11 +136,10 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 				// If we have a refresh_token, return the expired tokens so SDK can refresh
 				// Otherwise return undefined to trigger full re-authentication
 				if (serverData.tokens.refresh_token) {
-					console.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
+					Logger.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
 					return serverData.tokens
-				} else {
-					return undefined
 				}
+				return undefined
 			}
 		}
 
@@ -149,7 +150,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		// Called by the SDK after successful token exchange
 		// Flow: finishAuth(code) → SDK's auth() → exchangeAuthorization() → THIS METHOD
 		// Stores tokens in the single mcpOAuthSecrets JSON for persistence
-		console.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
+		Logger.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
 
 		const secrets = getMcpOAuthSecrets()
 		if (!secrets[this.serverHash]) {
@@ -188,7 +189,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		// But if it is called, don't overwrite existing auth state
 		const existingTokens = await this.tokens()
 		if (existingTokens && existingTokens.access_token) {
-			console.warn(`[McpOAuth] Preserving existing tokens for ${this.serverName}`)
+			Logger.warn(`[McpOAuth] Preserving existing tokens for ${this.serverName}`)
 			return
 		}
 
@@ -208,7 +209,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		secrets[this.serverHash].pending_auth_url = authorizationUrl.toString()
 		saveMcpOAuthSecrets(secrets)
 
-		console.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate button`)
+		Logger.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate button`)
 	}
 
 	async saveCodeVerifier(codeVerifier: string): Promise<void> {
@@ -289,14 +290,14 @@ export class McpOAuthManager {
 		const serverData = secrets[serverHash]
 
 		if (!serverData?.oauth_state) {
-			console.error(`No stored state found for server hash: ${serverHash}`)
+			Logger.error(`No stored state found for server hash: ${serverHash}`)
 			return false
 		}
 
 		// Check if state has expired
 		if (serverData.oauth_state_timestamp) {
 			if (Date.now() - serverData.oauth_state_timestamp > this.STATE_EXPIRY_MS) {
-				console.error(`OAuth state expired for server hash: ${serverHash}`)
+				Logger.error(`OAuth state expired for server hash: ${serverHash}`)
 				// Clear expired state
 				delete serverData.oauth_state
 				delete serverData.oauth_state_timestamp

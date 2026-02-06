@@ -3,7 +3,7 @@
  * Tests the core functionality of path resolution in single and multi-root workspaces
  */
 
-import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
+import { VcsType, type WorkspaceRoot } from "@shared/multi-root/types"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
@@ -11,12 +11,13 @@ import * as sinon from "sinon"
 import { createWorkspacePathAdapter, WorkspacePathAdapter } from "../WorkspacePathAdapter"
 import { WorkspaceRootManager } from "../WorkspaceRootManager"
 import "@utils/path"
+import { Logger } from "@/shared/services/Logger"
 
 describe("WorkspacePathAdapter", () => {
 	let consoleWarnStub: sinon.SinonStub
 
 	beforeEach(() => {
-		consoleWarnStub = sinon.stub(console, "warn")
+		consoleWarnStub = sinon.stub(Logger, "warn")
 	})
 
 	afterEach(() => {

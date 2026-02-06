@@ -1,6 +1,7 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { writeTextToClipboard } from "@/utils/env"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Copies text to the system clipboard
@@ -14,7 +15,7 @@ export async function copyToClipboard(_controller: Controller, request: StringRe
 			await writeTextToClipboard(request.value)
 		}
 	} catch (error) {
-		console.error("Error copying to clipboard:", error)
+		Logger.error("Error copying to clipboard:", error)
 	}
 	return Empty.create()
 }

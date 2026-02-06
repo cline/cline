@@ -36,6 +36,14 @@ export const window = {
 		key: "mock-decoration-type",
 		dispose: () => {},
 	}),
+	createOutputChannel: (_name: string) => ({
+		appendLine: (message: string) => console.debug(message),
+		append: (message: string) => console.debug(message),
+		clear: () => {},
+		show: () => {},
+		hide: () => {},
+		dispose: () => {},
+	}),
 }
 
 export const commands = {

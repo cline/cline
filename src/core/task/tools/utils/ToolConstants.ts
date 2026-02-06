@@ -42,6 +42,7 @@ export const TASK_SERVICES_KEYS = [
 	"diffViewProvider",
 	"fileContextTracker",
 	"clineIgnoreController",
+	"commandPermissionController",
 	"contextManager",
 	"stateManager",
 ] as const
@@ -125,7 +126,7 @@ export function removeClosingTag(block: ToolUse, tag: ToolParamName, text?: stri
 	}
 
 	const tagRegex = new RegExp(
-		`\\s?<\/?${tag
+		`\\s?</?${tag
 			.split("")
 			.map((char) => `(?:${char})?`)
 			.join("")}$`,

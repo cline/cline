@@ -1,13 +1,20 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
-import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import type { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import {
+	type AnthropicModelId,
+	anthropicDefaultModelId,
+	anthropicModels,
+	CLAUDE_SONNET_1M_SUFFIX,
+	type ModelInfo,
+} from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
@@ -33,6 +40,7 @@ export class AnthropicHandler implements ApiHandler {
 				this.client = new Anthropic({
 					apiKey: this.options.apiKey,
 					baseURL: this.options.anthropicBaseUrl || undefined,
+					defaultHeaders: buildExternalBasicHeaders(),
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
@@ -95,9 +103,8 @@ export class AnthropicHandler implements ApiHandler {
 								"anthropic-beta": "context-1m-2025-08-07",
 							},
 						}
-					} else {
-						return undefined
 					}
+					return undefined
 				})(),
 			)
 		} else {

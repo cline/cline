@@ -1,8 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "@/utils/context-mentions"
+import {
+	ContextMenuOptionType,
+	type ContextMenuQueryItem,
+	getContextMenuOptions,
+	type SearchResult,
+} from "@/utils/context-mentions"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -233,7 +239,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			<ScreenReaderAnnounce message={announcement} />
 			<div
 				aria-activedescendant={
-					filteredOptions.length > 0 && isOptionSelectable(filteredOptions[selectedIndex])
+					filteredOptions.length > selectedIndex &&
+					selectedIndex > -1 &&
+					isOptionSelectable(filteredOptions[selectedIndex])
 						? `context-menu-item-${selectedIndex}`
 						: undefined
 				}

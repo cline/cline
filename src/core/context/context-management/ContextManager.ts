@@ -1,12 +1,13 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "@core/api"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { ApiHandler } from "@core/api"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
-import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { getContextWindowInfo } from "./context-window-utils"
 
 enum EditType {
@@ -119,7 +120,7 @@ export class ContextManager {
 				)
 			}
 		} catch (error) {
-			console.error("Failed to load context history:", error)
+			Logger.error("Failed to load context history:", error)
 		}
 		return new Map()
 	}
@@ -139,7 +140,7 @@ export class ContextManager {
 				"utf8",
 			)
 		} catch (error) {
-			console.error("Failed to save context history:", error)
+			Logger.error("Failed to save context history:", error)
 		}
 	}
 
@@ -207,7 +208,7 @@ export class ContextManager {
 						maxContextWindow: contextWindow,
 					}
 				} catch (error) {
-					console.error("Error parsing API request info for context telemetry:", error)
+					Logger.error("Error parsing API request info for context telemetry:", error)
 				}
 			}
 		}
@@ -357,7 +358,7 @@ export class ContextManager {
 		// Validate and fix tool_use/tool_result pairing
 		this.ensureToolResultsFollowToolUse(updatedMessages)
 
-		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
+		// OLD NOTE: if you try to Logger log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return updatedMessages
 	}
 
@@ -743,7 +744,7 @@ export class ContextManager {
 					return true
 				}
 			} catch (error) {
-				console.error("applyFirstUserMessageReplacement:", error)
+				Logger.error("applyFirstUserMessageReplacement:", error)
 			}
 		}
 		return false
@@ -812,9 +813,8 @@ export class ContextManager {
 							}
 							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
 							// to do so we need to keep track of which files we've already replaced so we don't replace them again
-							else {
-								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-							}
+
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again

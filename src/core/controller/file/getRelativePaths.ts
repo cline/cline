@@ -1,9 +1,10 @@
-import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file"
+import { RelativePaths, type RelativePathsRequest } from "@shared/proto/cline/file"
 import * as path from "path"
 import { URI } from "vscode-uri"
+import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { asRelativePath } from "@/utils/path"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -17,7 +18,7 @@ export async function getRelativePaths(_controller: Controller, request: Relativ
 		try {
 			result.push(await getRelativePath(uriString))
 		} catch (error) {
-			console.error(`Error calculating relative path for ${uriString}:`, error)
+			Logger.error(`Error calculating relative path for ${uriString}:`, error)
 		}
 	}
 	return RelativePaths.create({ paths: result })

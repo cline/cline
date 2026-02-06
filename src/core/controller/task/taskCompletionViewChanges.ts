@@ -1,5 +1,6 @@
-import { Empty, Int64Request } from "@shared/proto/cline/common"
-import { Controller } from ".."
+import { Empty, type Int64Request } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from ".."
 
 /**
  * Shows task completion changes in a diff view
@@ -15,7 +16,7 @@ export async function taskCompletionViewChanges(controller: Controller, request:
 		}
 		return Empty.create()
 	} catch (error) {
-		console.error("Error in taskCompletionViewChanges handler:", error)
+		Logger.error("Error in taskCompletionViewChanges handler:", error)
 		throw error
 	}
 }

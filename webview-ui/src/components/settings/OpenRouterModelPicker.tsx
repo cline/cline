@@ -43,6 +43,7 @@ export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 	showProviderRouting?: boolean
+	initialTab?: "recommended" | "free"
 }
 
 // Featured models for Cline provider organized by tabs
@@ -55,17 +56,17 @@ export const recommendedModels = [
 	{
 		id: "google/gemini-3-flash-preview",
 		description: "Intelligent model built for speed and price efficiency",
-		label: "NEW",
-	},
-	{
-		id: "anthropic/claude-opus-4.5",
-		description: "State-of-the-art for complex coding",
 		label: "HOT",
 	},
 	{
-		id: "openai/gpt-5.2",
-		description: "OpenAI's latest with strong coding abilities",
+		id: "anthropic/claude-opus-4.6",
+		description: "Most intelligent model for agents and coding",
 		label: "NEW",
+	},
+	{
+		id: "openai/gpt-5.2-codex",
+		description: "OpenAI's latest with strong coding abilities",
+		label: "HOT",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
@@ -76,35 +77,40 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "x-ai/grok-code-fast-1",
-		description: "Fast inference with strong coding performance",
+		id: "minimax/minimax-m2.1",
+		description: "MiniMax-M2.1 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
 		label: "FREE",
 	},
 	{
-		id: "minimax/minimax-m2",
-		description: "Open source model with solid performance",
+		id: "moonshotai/kimi-k2.5",
+		description: "Moonshot's SOTA Coding Model",
 		label: "FREE",
 	},
 	{
-		id: "z-ai/glm-4.6",
-		description: "Zhipu AI's latest agentic coding model in GLM series",
-		label: "FREE",
-	},
-	{
-		id: "kwaipilot/kat-coder-pro:free",
+		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
 	},
 	{
-		id: "mistralai/devstral-2512:free",
-		description: "Mistral's latest model with strong coding abilities",
+		id: "arcee-ai/trinity-large-preview:free",
+		description: "Arcee AI's advanced large preview model in the Trinity series",
+		label: "FREE",
+	},
+	{
+		id: "stealth/giga-potato",
+		description: "A stealth model for coding(may underperform in quality and have longer latency)",
 		label: "FREE",
 	},
 ]
 
 const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
+	isPopup,
+	currentMode,
+	showProviderRouting,
+	initialTab,
+}) => {
 	const { handleModeFieldChange, handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -112,9 +118,19 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [activeTab, setActiveTab] = useState<"recommended" | "free">(() => {
+		if (initialTab) {
+			return initialTab
+		}
 		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
 		return freeModels.some((m) => m.id === currentModelId) ? "free" : "recommended"
 	})
+
+	// If a caller wants to deep-link to the Free tab (or Recommended), honor that.
+	useEffect(() => {
+		if (initialTab) {
+			setActiveTab(initialTab)
+		}
+	}, [initialTab])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -282,6 +298,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.6") ||
 			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
@@ -434,6 +451,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{/* Context window switcher for Claude Opus 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher

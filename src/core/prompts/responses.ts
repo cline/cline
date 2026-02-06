@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
-import { Mode } from "@/shared/storage/types"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
+import type { Mode } from "@/shared/storage/types"
+import { type ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -24,6 +24,9 @@ export const formatResponse = {
 
 	clineIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
+
+	permissionDeniedError: (reason: string) =>
+		`Command execution blocked by CLINE_COMMAND_PERMISSIONS: ${reason}. You must try a different approach or ask the user to update the permission settings.`,
 
 	noToolsUsed: (usingNativeToolCalls: boolean) =>
 		usingNativeToolCalls
@@ -135,11 +138,11 @@ Otherwise, if you have not completed the task and do not need additional informa
 			return `${clineIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
-			return "No files found."
-		} else {
-			return clineIgnoreParsed.join("\n")
 		}
+		if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
+			return "No files found."
+		}
+		return clineIgnoreParsed.join("\n")
 	},
 
 	createPrettyPatch: (filename = "file", oldStr?: string, newStr?: string) => {

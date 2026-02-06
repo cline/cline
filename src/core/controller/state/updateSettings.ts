@@ -1,22 +1,24 @@
 import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
 	McpDisplayMode as ProtoMcpDisplayMode,
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
-	UpdateSettingsRequest,
+	type UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
+import type { OpenaiReasoningEffort } from "@shared/storage/types"
+import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
+import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
+import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
-import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import type { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
-import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
-import { Controller } from ".."
+import type { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
+import type { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 
 /**
@@ -193,6 +195,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
 		}
 
+		// Update worktrees setting
+		if (request.worktreesEnabled !== undefined) {
+			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
+		}
+
 		if (request.dictationSettings !== undefined) {
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {
@@ -320,6 +327,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		if (request.backgroundEditEnabled !== undefined) {
+			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
+		}
+
 		if (request.autoCondenseThreshold !== undefined) {
 			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold)) // Clamp to 0-1 range
 			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
@@ -327,17 +338,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
-		}
-
-		if (request.hooksEnabled !== undefined) {
-			const isEnabled = !!request.hooksEnabled
-
-			// Platform validation: Only allow enabling hooks on macOS and Linux
-			if (isEnabled && process.platform === "win32") {
-				throw new Error("Hooks are not yet supported on Windows")
-			}
-
-			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
 		}
 
 		if (request.subagentsEnabled !== undefined) {
@@ -375,12 +375,31 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
 		}
 
+		if (request.optOutOfRemoteConfig !== undefined) {
+			const hadOptedOut = controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
+			const isOptingOut = !!request.optOutOfRemoteConfig
+			const isReenablingRemoteConfig = !isOptingOut && hadOptedOut
+
+			// Update now so any subsequent function can access the updated value
+			controller.stateManager.setGlobalState("optOutOfRemoteConfig", isOptingOut)
+
+			if (isOptingOut && !hadOptedOut) {
+				clearRemoteConfig()
+			} else if (isReenablingRemoteConfig) {
+				// Fire-and-forget: We don't need to await here
+				// The function catches any errors and posts the updated state to the webview
+				// The immediate state update below shows the user's intent (opted-in),
+				// and we apply the actual config afterwards without blocking the settings update
+				fetchRemoteConfig(controller)
+			}
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update settings:", error)
+		Logger.error("Failed to update settings:", error)
 		throw error
 	}
 }

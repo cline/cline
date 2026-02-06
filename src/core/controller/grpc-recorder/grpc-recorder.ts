@@ -1,14 +1,15 @@
-import { GrpcResponse } from "@shared/ExtensionMessage"
-import { GrpcRequest } from "@shared/WebviewMessage"
+import type { GrpcResponse } from "@shared/ExtensionMessage"
+import type { GrpcRequest } from "@shared/WebviewMessage"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
-import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
-import {
+import type { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
+import type {
 	GrpcLogEntry,
 	GrpcPostRecordHook,
 	GrpcRequestFilter,
 	GrpcSessionLog,
 	SessionStats,
 } from "@/core/controller/grpc-recorder/types"
+import { Logger } from "@/shared/services/Logger"
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
@@ -55,7 +56,7 @@ export class GrpcRecorder implements IRecorder {
 		}
 
 		this.fileHandler.initialize(this.sessionLog).catch((error) => {
-			console.error("Failed to initialize gRPC log file:", error)
+			Logger.error("Failed to initialize gRPC log file:", error)
 		})
 	}
 
@@ -72,7 +73,7 @@ export class GrpcRecorder implements IRecorder {
 	 *
 	 * @param request - The incoming gRPC request.
 	 */
-	public recordRequest(request: GrpcRequest, synthetic: boolean = false): void {
+	public recordRequest(request: GrpcRequest, synthetic = false): void {
 		if (this.shouldFilter(request)) {
 			return
 		}
@@ -118,7 +119,7 @@ export class GrpcRecorder implements IRecorder {
 		const pendingRequest = this.pendingRequests.get(requestId)
 
 		if (!pendingRequest) {
-			console.warn(`No pending request found for response with ID: ${requestId}`)
+			Logger.warn(`No pending request found for response with ID: ${requestId}`)
 			return
 		}
 
@@ -142,7 +143,7 @@ export class GrpcRecorder implements IRecorder {
 
 		this.flushLogAsync()
 
-		this.runHooks(entry).catch((e) => console.error("Post-record hook failed:", e))
+		this.runHooks(entry).catch((e) => Logger.error("Post-record hook failed:", e))
 	}
 
 	private async runHooks(entry: GrpcLogEntry): Promise<void> {
@@ -181,7 +182,7 @@ export class GrpcRecorder implements IRecorder {
 	public recordError(requestId: string, error: string): void {
 		const pendingRequest = this.pendingRequests.get(requestId)
 		if (!pendingRequest) {
-			console.warn(`No pending request found for error with ID: ${requestId}`)
+			Logger.warn(`No pending request found for error with ID: ${requestId}`)
 			return
 		}
 
@@ -200,7 +201,7 @@ export class GrpcRecorder implements IRecorder {
 	private flushLogAsync(): void {
 		setImmediate(() => {
 			this.fileHandler.write(this.sessionLog).catch((error) => {
-				console.error("Failed to flush gRPC log:", error)
+				Logger.error("Failed to flush gRPC log:", error)
 			})
 		})
 	}

@@ -1,10 +1,8 @@
-import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
-import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
-import { getApiMetrics } from "@shared/getApiMetrics"
+import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo } from "react"
 import { useMount } from "react-use"
@@ -21,6 +19,7 @@ import {
 	ChatLayout,
 	convertHtmlToMarkdown,
 	filterVisibleMessages,
+	groupLowStakesTools,
 	groupMessages,
 	InputSection,
 	MessagesArea,
@@ -69,25 +68,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
-	const lastApiReqTotalTokens = useMemo(() => {
-		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
-			if (!msg.text) {
-				return 0
-			}
-			const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(msg.text)
-			return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-		}
-		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
-			if (msg.say !== "api_req_started") {
-				return false
-			}
-			return getTotalTokensFromApiReqMessage(msg) > 0
-		})
-		if (!lastApiReqMessage) {
-			return undefined
-		}
-		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
-	}, [modifiedMessages])
+	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(modifiedMessages) || undefined, [modifiedMessages])
 
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
@@ -192,10 +173,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [])
 	// Button state is now managed by useButtonState hook
 
-	useEffect(() => {
-		setExpandedRows({})
-	}, [task?.ts])
-
 	// handleFocusChange is already provided by chatState
 
 	// Use message handlers hook
@@ -242,20 +219,27 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
-	// Listen for local focusChatInput event
+	// Subscribe to show webview events from the backend
 	useEffect(() => {
-		const handleFocusChatInput = () => {
-			// Only focus chat input box if user is currently viewing the chat (not hidden).
-			if (!isHidden) {
-				textAreaRef.current?.focus()
-			}
-		}
+		const cleanup = UiServiceClient.subscribeToShowWebview(
+			{},
+			{
+				onResponse: (event) => {
+					// Only focus if not hidden and preserveEditorFocus is false
+					if (!isHidden && !event.preserveEditorFocus) {
+						textAreaRef.current?.focus()
+					}
+				},
+				onError: (error) => {
+					console.error("Error in showWebview subscription:", error)
+				},
+				onComplete: () => {
+					console.log("showWebview subscription completed")
+				},
+			},
+		)
 
-		window.addEventListener("focusChatInput", handleFocusChatInput)
-
-		return () => {
-			window.removeEventListener("focusChatInput", handleFocusChatInput)
-		}
+		return cleanup
 	}, [isHidden])
 
 	// Set up addToInput subscription
@@ -324,7 +308,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages, currentFocusChainChecklist])
 
 	const groupedMessages = useMemo(() => {
-		return groupMessages(visibleMessages)
+		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
 	// Use scroll behavior hook

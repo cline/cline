@@ -3,8 +3,8 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
+import type { VirtuosoHandle } from "react-virtuoso"
+import { type ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
@@ -120,6 +120,14 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				behavior: "smooth",
 			})
 			disableAutoScrollRef.current = true
+			// Virtual rendering may not have all items rendered when at bottom,
+			// so scroll again after a delay to ensure we reach the true top
+			setTimeout(() => {
+				scrollBehavior.virtuosoRef.current?.scrollTo({
+					top: 0,
+					behavior: "smooth",
+				})
+			}, 300)
 		}
 
 		return (

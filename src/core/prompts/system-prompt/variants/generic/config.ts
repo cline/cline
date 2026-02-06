@@ -1,5 +1,12 @@
-import { isGLMModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import {
+	isGLMModelFamily,
+	isLocalModel,
+	isNextGenModelFamily,
+	isNextGenModelProvider,
+	isTrinityModelFamily,
+} from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
@@ -28,7 +35,9 @@ export const config = createVariant(ModelFamily.GENERIC)
 			// Not a next-gen model
 			!(isNextGenModelProvider(providerInfo) && isNextGenModelFamily(modelId)) &&
 			// Not a GLM model
-			!isGLMModelFamily(modelId)
+			!isGLMModelFamily(modelId) &&
+			// Not a Trinity model
+			!isTrinityModelFamily(modelId)
 		)
 	})
 	.template(baseTemplate)
@@ -45,6 +54,7 @@ export const config = createVariant(ModelFamily.GENERIC)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
@@ -63,6 +73,7 @@ export const config = createVariant(ModelFamily.GENERIC)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: "generic",
@@ -73,12 +84,12 @@ export const config = createVariant(ModelFamily.GENERIC)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: "generic" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Generic variant configuration validation failed:", validationResult.errors)
+	Logger.error("Generic variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid generic variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Generic variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Generic variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

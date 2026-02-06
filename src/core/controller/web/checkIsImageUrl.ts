@@ -1,7 +1,8 @@
 import { detectImageUrl } from "@integrations/misc/link-preview"
-import { StringRequest } from "@shared/proto/cline/common"
+import type { StringRequest } from "@shared/proto/cline/common"
 import { IsImageUrl } from "@shared/proto/cline/web"
-import { Controller } from "../index"
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from "../index"
 
 /**
  * Checks if a URL is an image URL
@@ -20,7 +21,7 @@ export async function checkIsImageUrl(_: Controller, request: StringRequest): Pr
 			url,
 		})
 	} catch (error) {
-		console.error(`Error checking if URL is an image: ${request.value}`, error)
+		Logger.error(`Error checking if URL is an image: ${request.value}`, error)
 		return IsImageUrl.create({
 			isImage: false,
 			url: request.value || "",

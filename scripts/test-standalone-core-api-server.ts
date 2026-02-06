@@ -31,7 +31,7 @@
 import * as fs from "node:fs"
 import { mkdtempSync, rmSync } from "node:fs"
 import * as os from "node:os"
-import { ChildProcess, execSync, spawn } from "child_process"
+import { type ChildProcess, execSync, spawn } from "child_process"
 import * as path from "path"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
 	console.log("Extracting standalone.zip to extensions directory...")
 	try {
 		if (!fs.existsSync(extensionsDir)) {
-			execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+			execSync(`unzip -o -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
 		}
 		console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
 	} catch (error) {

@@ -1,7 +1,8 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import type { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
+import { Logger } from "@/shared/services/Logger"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active subscriptions
 const activeMcpMarketplaceSubscriptions = new Set<StreamingResponseHandler<McpMarketplaceCatalog>>()
@@ -45,7 +46,7 @@ export async function sendMcpMarketplaceCatalogEvent(catalog: McpMarketplaceCata
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending MCP marketplace catalog event:", error)
+			Logger.error("Error sending MCP marketplace catalog event:", error)
 			// Remove the subscription if there was an error
 			activeMcpMarketplaceSubscriptions.delete(responseStream)
 		}

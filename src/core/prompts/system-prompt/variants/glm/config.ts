@@ -1,4 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isGLMModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -33,6 +34,7 @@ export const config = createVariant(ModelFamily.GLM)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
@@ -51,6 +53,7 @@ export const config = createVariant(ModelFamily.GLM)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GLM,
@@ -67,12 +70,12 @@ export const config = createVariant(ModelFamily.GLM)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: "glm" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("GLM variant configuration validation failed:", validationResult.errors)
+	Logger.error("GLM variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GLM variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("GLM variant configuration warnings:", validationResult.warnings)
+	Logger.warn("GLM variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

@@ -2,11 +2,11 @@ import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
-	UpdateTaskSettingsRequest,
+	type UpdateTaskSettingsRequest,
 } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { Controller } from ".."
+import type { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
+import type { Controller } from ".."
 
 /**
  * Updates task-specific settings for the current task
@@ -149,7 +149,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Failed to update task settings:", error)
 		throw error
 	}
 }

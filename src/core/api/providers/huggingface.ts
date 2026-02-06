@@ -1,13 +1,13 @@
-import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, ModelInfo } from "@shared/api"
+import { type HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, type ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface HuggingFaceHandlerOptions extends CommonApiHandlerOptions {
@@ -32,13 +32,9 @@ export class HuggingFaceHandler implements ApiHandler {
 			}
 
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://router.huggingface.co/v1",
 					apiKey: this.options.huggingFaceApiKey,
-					defaultHeaders: {
-						"User-Agent": "Cline/1.0",
-					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Hugging Face client: ${error.message}`)
@@ -97,7 +93,7 @@ export class HuggingFaceHandler implements ApiHandler {
 
 			for await (const chunk of stream) {
 				_chunkCount++
-				const delta = chunk.choices[0]?.delta
+				const delta = chunk.choices?.[0]?.delta
 				if (delta?.content) {
 					_totalContent += delta.content
 

@@ -1,5 +1,217 @@
 # Changelog
 
+## [3.57.1]
+
+### Fixed
+
+- Fixed Opus 4.6 for bedrock provider
+
+## [3.57.0]
+
+### Added
+
+- Cline CLI 2.0 now available. Install with `npm install -g cline`
+- Anthopic Opus 4.6 
+- Minimax-2.1 and Kimi-k2.5 now available for free for a limited time promo
+- Codex-5.3 through ChatGPT subscription
+
+### Fixed
+
+- Fix read file tool to support reading large files
+- Fix decimal input crash in OpenAI Compatible price fields (#8129)
+- Fix build complete handlers when updating the api config
+- Fixed missing provider from list
+- Fixed Favorite Icon / Star from getting clipped in the task history view
+
+### Changed
+
+- Make skills always enabled and remove feature toggle setting
+
+## [3.56.0]
+
+### Added
+
+- __CLI authentication:__ Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- __New model:__ Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- __Prompt variant:__ Added Trinity Large prompt variant for improved tool-calling support
+- __OpenTelemetry:__ Added support for custom headers on metrics and logs endpoints
+- __Social links:__ Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+
+### Fixed
+
+- __LiteLLM:__ Fixed thinking configuration not appearing for reasoning-capable models
+- __OpenTelemetry:__ Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
+- __CLI auth:__ Fixed `cline auth` displaying incorrect provider information after configuration
+
+### Changed
+
+- __Hooks:__ Hook scripts now run from the workspace repository root instead of filesystem root
+- __Default settings:__ Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- __Settings UI:__ Refreshed feature settings section with collapsible design
+
+## [3.55.0]
+
+- Add new model: Arcee Trinity Large Preview
+- Add new model: Moonshot Kimi K2.5
+- Add MCP prompts support - prompts from connected MCP servers now appear in slash command autocomplete as `/mcp:<server>:<prompt>`
+
+## [3.54.0]
+
+### Added
+
+- Native tool calls support for Ollama provider
+- Sonnet 4.5 is now the default Amazon Bedrock model id
+
+### Fixed
+
+- Prevent infinite retry loops when replace_in_file fails repeatedly. The system now detects repeated failures and provides better guidance to break out of retry cycles.
+- Skip diff error UI handling during streaming to prevent flickering. Error handling is deferred until streaming completes.
+- Strip notebook cell outputs when extracting text content from Jupyter notebooks, significantly reducing context size sent to the LLM.
+- Throttle diff view updates during streaming to reduce UI flickering and improve performance.
+
+### Changed
+
+- Removed Mistral's Devstral-2512 free from the free models list
+- Removed deprecated zai-glm-4.6 model from Cerebras provider
+
+## [3.53.1]
+
+### Fixed
+
+- Bug in responses API
+
+## [3.53.0]
+
+### Fixed
+
+- Removed grok model from free tier
+
+## [3.52.0]
+
+### Added
+
+- Users with ChatGPT Plus or Pro subscriptions can now use GPT-5 models directly through Cline without needing an API key. Authentication is handled via OAuth through OpenAI's authentication system.
+- Grok models are now moving out of free tier and into paid plans.
+- Introduces comprehensive Jupyter Notebook support for Cline, enabling AI-assisted editing of `.ipynb` files with full cell-level context awareness.
+
+### Fixed
+
+- Bugs in DiffViewProvider for file editing
+- Ollama's recommended models to use correct identifiers
+
+## [3.51.0]
+
+### Added
+
+- Adding OpenAI gpt-5.2-codex model to the model picker
+
+## [3.50.0]
+
+### Added
+
+- Add gpt-5.2-codex OpenAI model support
+- Add create-pull-request skill
+
+### Fixed
+
+- Fix the selection of remotely configured providers
+- Fix act_mode_respond to prevent consecutive calls
+- Fix invalid tool call IDs when switching between model formats
+
+## [3.49.1]
+
+### Added
+
+- Add telemetry to track usage of skills feature
+- Add version headers to Cline backend requests
+- Phase in Responses API usage instead of defaulting for every supported model
+
+### Fixed
+
+- Fix workflow slash command search to be case-insensitive
+- Fix model display in ModelPickerModal when using LiteLLM
+- Fix LiteLLM model fetching with default base URL
+- Fix crash when OpenAI-compatible APIs send usage chunks with empty or null choices arrays at end of streaming
+- Fix model ID for Kat Coder Pro Free model
+
+## [3.49.0]
+
+- Enable configuring an OTEL collector at runtime
+- Removing Minimax-2.1 from free model list as the free trial has ended
+- Improved image display in MCP responses
+- Auto-sync remote MCP servers from remote config to local settings
+
+## [3.48.0]
+
+### Added
+
+- Add Skills system for reusable, on-demand agent instructions
+- Add new websearch tooling in Cline provider
+- Add zai-glm-4.7 to Cerebras model list
+- Add model refresh and improve reasoning support for Vercel AI Gateway
+
+### Fixed
+
+- Revert #8341 due to regressions in diff view/document truncation (see #8423, #8429)
+- Fixed extension crash when using context menu selector
+
+## [3.47.0]
+
+### Added
+
+- Added experimental support for Background Edits (allows editing files in background without opening the diff view)
+- Updated free model to MiniMax M2.1 (replacing MiniMax M2)
+- Added support for Azure based identity authentication in OpenAI Compatible provider and Azure OpenAI
+- Add `supportsReasoning` property to Baseten models
+
+### Fixed
+
+- Prevent expired token usage in authenticated requests
+- Exclude binary files without extensions from diffs
+- Preserve file endings and trailing newlines
+- Fix Cerebras rate limiting
+- Fix Auto Compact for Claude Code provider
+- Make Workspace and Favorites history filters independent
+- Fix remote MCP server connection failures (404 response handling)
+- Disable native tool calling for Deepseek 3.2 speciale
+- Show notification instead of opening sidebar on update
+- Fix Baseten model selector
+
+### Refactored
+
+- Modify prompts for parallel tool usage in Claude and Gemini 3 models
+
+## [3.46.1]
+
+### Fixed
+
+- Remove GLM 4.6 from free models
+
+## [3.46.0]
+
+### Added
+
+- Added GLM 4.7 model
+- Enhanced background terminal execution with command tracking, log file output, zombie process prevention (10-minute timeout), and clickable log paths in UI
+- Apply Patch tool for GPT-5+ models (replacing current diff edit tools)
+
+### Fixed
+
+- Duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled
+- Banner carousel styling and dismiss functionality
+- Typos in Gemini system prompt overrides
+- Model picker favorites ordering, star toggle, and keyboard navigation for OpenRouter and Vercel AI Gateway providers
+- Fetch remote config values from the cache
+
+### Refactored
+
+- Anthropic handler to use metadata for reasoning support
+- Bedrock provider to use metadata for reasoning support
+
+## [3.45.1]
+
+- Fixed MCP settings race condition where toggling auto-approve or changing timeout settings would cause the UI to flash and revert
+
 ## [3.45.0]
 
 - Added Gemini 3 Flash Preview model

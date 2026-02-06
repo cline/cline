@@ -1,7 +1,8 @@
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
+import { Logger } from "@/shared/services/Logger"
 import { getBinaryLocation } from "@/utils/fs"
 
 /*
@@ -64,7 +65,7 @@ async function execRipgrep(args: string[]): Promise<string> {
 		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
 		const rl = readline.createInterface({
 			input: rgProcess.stdout,
-			crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
+			crlfDelay: Number.POSITIVE_INFINITY, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
 		})
 
 		let output = ""
@@ -140,7 +141,7 @@ export async function regexSearchFiles(
 					}
 				}
 			} catch (error) {
-				console.error("Error parsing ripgrep output:", error)
+				Logger.error("Error parsing ripgrep output:", error)
 			}
 		}
 	})

@@ -1,4 +1,5 @@
 import type { ToolUse } from "@core/assistant-message"
+import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { PreToolUseHookCancellationError } from "@core/hooks/PreToolUseHookCancellationError"
 import type { TaskConfig } from "../types/TaskConfig"
 
@@ -19,7 +20,7 @@ export class ToolHookUtils {
 	 */
 	static async runPreToolUseIfEnabled(config: TaskConfig, block: ToolUse): Promise<boolean> {
 		// Check if hooks are enabled via user setting
-		const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = getHooksEnabledSafe()
 
 		if (!hooksEnabled) {
 			return true // Hooks disabled, continue execution

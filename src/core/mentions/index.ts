@@ -1,10 +1,10 @@
 import { diagnosticsToProblemsString } from "@integrations/diagnostics"
 import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { telemetryService } from "@services/telemetry"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import { WorkspaceRoot } from "@shared/multi-root/types"
+import type { WorkspaceRoot } from "@shared/multi-root/types"
 import { openExternal } from "@utils/env"
 import { getCommitInfo, getWorkingState } from "@utils/git"
 import fs from "fs/promises"
@@ -14,9 +14,10 @@ import { HostProvider } from "@/hosts/host-provider"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
-import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
+import type { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 import type { WorkspaceRootManager } from "../workspace"
 
 export async function openMention(mention?: string): Promise<void> {
@@ -67,7 +68,8 @@ export async function parseMentions(
 		mentions.add(mention)
 		if (mention.startsWith("http")) {
 			return `'${mention}' (see below for site content)`
-		} else if (isFileMention(mention)) {
+		}
+		if (isFileMention(mention)) {
 			const mentionPath = getFilePathFromMention(mention)
 			const workspaceHint = getWorkspaceHintFromMention(mention)
 			// For workspace-prefixed mentions, include the workspace name in the same format the model uses for tool calls
@@ -79,13 +81,17 @@ export async function parseMentions(
 			return mentionPath.endsWith("/")
 				? `'${mentionPath}' (see below for folder content)`
 				: `'${mentionPath}' (see below for file content)`
-		} else if (mention === "problems") {
+		}
+		if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
-		} else if (mention === "terminal") {
+		}
+		if (mention === "terminal") {
 			return `Terminal Output (see below for output)`
-		} else if (mention === "git-changes") {
+		}
+		if (mention === "git-changes") {
 			return `Working directory changes (see below for details)`
-		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+		}
+		if (/^[a-f0-9]{7,40}$/.test(mention)) {
 			return `Git commit '${mention}' (see below for commit info)`
 		}
 		return match
@@ -319,7 +325,7 @@ export async function parseMentions(
 		try {
 			await urlContentFetcher.closeBrowser()
 		} catch (error) {
-			console.error(`Error closing browser: ${error.message}`)
+			Logger.error(`Error closing browser: ${error.message}`)
 		}
 	}
 
@@ -339,7 +345,8 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			}
 			const content = await extractTextFromFile(absPath)
 			return content
-		} else if (stats.isDirectory()) {
+		}
+		if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
 			let folderContent = ""
 			const fileContentPromises: Promise<string | undefined>[] = []
@@ -374,9 +381,8 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			})
 			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)
 			return `${folderContent}\n${fileContents.join("\n\n")}`.trim()
-		} else {
-			return `(Failed to read contents of ${mentionPath})`
 		}
+		return `(Failed to read contents of ${mentionPath})`
 	} catch (error) {
 		throw new Error(`Failed to access path "${mentionPath}": ${error.message}`)
 	}

@@ -33,6 +33,7 @@ export const OpenAiCompatibleSchema = z.object({
 	openAiBaseUrl: z.string().optional(),
 	openAiHeaders: z.record(z.string(), z.string()).optional(),
 	azureApiVersion: z.string().optional(),
+	azureIdentity: z.boolean().optional(),
 })
 
 // AWS Bedrock model schema with per-model settings
@@ -98,6 +99,16 @@ export const LiteLLMSchema = z.object({
 	baseUrl: z.string().optional(),
 })
 
+export const AnthropicModelSchema = z.object({
+	id: z.string(),
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+export const AnthropicSchema = z.object({
+	models: z.array(AnthropicModelSchema).optional(),
+	baseUrl: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
@@ -106,6 +117,7 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 	Vertex: VertexSettingsSchema.optional(),
 	LiteLLM: LiteLLMSchema.optional(),
+	Anthropic: AnthropicSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
@@ -118,6 +130,8 @@ export const RemoteMCPServerSchema = z.object({
 	name: z.string(),
 	// The URL of the MCP server
 	url: z.string(),
+	// When this is true, the user cannot disable this MCP server
+	alwaysEnabled: z.boolean().optional(),
 })
 
 // Settings for a global cline rules or workflow file.
@@ -128,6 +142,32 @@ export const GlobalInstructionsFileSchema = z.object({
 	name: z.string(),
 	// The contents of the rules or workflow file
 	contents: z.string(),
+})
+
+export const S3AccessKeySettingsSchema = z.object({
+	bucket: z.string(),
+	accessKeyId: z.string(),
+	secretAccessKey: z.string(),
+	region: z.string().optional(),
+	endpoint: z.string().optional(),
+	accountId: z.string().optional(),
+	intervalMs: z.number().optional(),
+	maxRetries: z.number().optional(),
+	batchSize: z.number().optional(),
+	maxQueueSize: z.number().optional(),
+	maxFailedAgeMs: z.number().optional(),
+	backfillEnabled: z.boolean().optional(),
+})
+
+export const PromptUploadingSchema = z.object({
+	enabled: z.boolean().optional(),
+	type: z.union([z.literal("s3_access_keys"), z.literal("r2_access_keys")]).optional(),
+	s3AccessSettings: S3AccessKeySettingsSchema.optional(),
+	r2AccessSettings: S3AccessKeySettingsSchema.optional(),
+})
+
+export const EnterpriseTelemetrySchema = z.object({
+	promptUploading: PromptUploadingSchema.optional(),
 })
 
 export const RemoteConfigSchema = z.object({
@@ -166,13 +206,17 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryOtlpHeaders: z.record(z.string(), z.string()).optional(),
 	openTelemetryOtlpMetricsProtocol: z.string().optional(),
 	openTelemetryOtlpMetricsEndpoint: z.string().optional(),
+	openTelemetryOtlpMetricsHeaders: z.record(z.string(), z.string()).optional(),
 	openTelemetryOtlpLogsProtocol: z.string().optional(),
 	openTelemetryOtlpLogsEndpoint: z.string().optional(),
+	openTelemetryOtlpLogsHeaders: z.record(z.string(), z.string()).optional(),
 	openTelemetryMetricExportInterval: z.number().optional(),
 	openTelemetryOtlpInsecure: z.boolean().optional(),
 	openTelemetryLogBatchSize: z.number().optional(),
 	openTelemetryLogBatchTimeout: z.number().optional(),
 	openTelemetryLogMaxQueueSize: z.number().optional(),
+
+	enterpriseTelemetry: EnterpriseTelemetrySchema.optional(),
 
 	// Rules & Workflows
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
@@ -202,4 +246,11 @@ export type VertexModel = z.infer<typeof VertexModelSchema>
 export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
 export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
 
+export type AnthropicSettings = z.infer<typeof AnthropicSchema>
+export type AnthropicModel = z.infer<typeof AnthropicModelSchema>
+
 export type APIKeySettings = z.infer<typeof APIKeySchema>
+
+export type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetrySchema>
+export type PromptUploading = z.infer<typeof PromptUploadingSchema>
+export type S3AccessKeySettings = z.infer<typeof S3AccessKeySettingsSchema>

@@ -1,8 +1,8 @@
 import { workspaceResolver } from "@core/workspace"
-import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
+import { BooleanResponse, type StringRequest } from "@shared/proto/cline/common"
 import { getWorkspacePath } from "@utils/path"
 import * as fs from "fs"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Check if a file exists in the project using a relative path
@@ -15,7 +15,6 @@ export async function ifFileExistsRelativePath(_controller: Controller, request:
 
 	if (!workspacePath) {
 		// If no workspace is open, return false
-		console.error("Error in ifFileExistsRelativePath: No workspace path available") // TODO
 		return BooleanResponse.create({ value: false })
 	}
 

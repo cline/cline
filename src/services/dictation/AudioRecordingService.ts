@@ -1,9 +1,9 @@
-import { ChildProcess, spawn } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { Logger } from "@services/logging/Logger"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
+import { Logger } from "@/shared/services/Logger"
 
 function isExecutable(filePath: string): boolean {
 	try {
@@ -16,8 +16,8 @@ function isExecutable(filePath: string): boolean {
 
 export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
-	private startTime: number = 0
-	private outputFile: string = ""
+	private startTime = 0
+	private outputFile = ""
 
 	constructor() {}
 
@@ -60,7 +60,6 @@ export class AudioRecordingService {
 			return
 		}
 
-		Logger.info("Terminating recording process...")
 		this.recordingProcess.kill("SIGINT")
 
 		// Wait for the process to finish with timeout

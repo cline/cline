@@ -1,12 +1,13 @@
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { createRuleFile as createRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import { getWorkspaceBasename } from "@core/workspace"
-import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
+import { RuleFile, type RuleFileRequest } from "@shared/proto/cline/file"
 import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { Controller } from ".."
+import type { Controller } from ".."
 import { openFile } from "./openFile"
 
 /**
@@ -24,7 +25,7 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		!request.type ||
 		typeof request.type !== "string"
 	) {
-		console.error("createRuleFile: Missing or invalid parameters", {
+		Logger.error("createRuleFile: Missing or invalid parameters", {
 			isGlobal: typeof request.isGlobal === "boolean" ? request.isGlobal : `Invalid: ${typeof request.isGlobal}`,
 			filename: typeof request.filename === "string" ? request.filename : `Invalid: ${typeof request.filename}`,
 			type: typeof request.type === "string" ? request.type : `Invalid: ${typeof request.type}`,

@@ -6,11 +6,12 @@ import { retryOperation } from "@utils/retry"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
-import { WebviewProvider } from "@/core/webview"
+import type { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
+import { Logger } from "@/shared/services/Logger"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
 import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
@@ -251,10 +252,10 @@ function parseArgs(): CliArgs {
 		switch (arg) {
 			case "--port":
 			case "-p":
-				args.port = parseInt(argv[++i], 10)
+				args.port = Number.parseInt(argv[++i], 10)
 				break
 			case "--host-bridge-port":
-				args.hostBridgePort = parseInt(argv[++i], 10)
+				args.hostBridgePort = Number.parseInt(argv[++i], 10)
 				break
 			case "--config":
 			case "-c":
@@ -271,7 +272,7 @@ function parseArgs(): CliArgs {
 }
 
 function showHelp() {
-	console.log(`
+	Logger.log(`
 Cline Core - Standalone Server
 
 Usage: node cline-core.js [options]

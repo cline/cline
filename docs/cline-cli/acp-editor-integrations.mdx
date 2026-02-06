@@ -1,0 +1,216 @@
+---
+title: "ACP: Editor Integrations"
+description: "Use Cline in JetBrains, Neovim, Zed, and other editors via the Agent Client Protocol"
+---
+
+
+Cline CLI supports the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard that enables AI coding agents to work across different editors and IDEs. This means you can use the full Cline agent—with all its capabilities including Skills, Hooks, and MCP integrations—in your preferred development environment.
+
+## Why ACP?
+
+- **Editor flexibility**: Use Cline in JetBrains, Neovim, Zed, or any ACP-compatible editor
+- **No feature compromises**: Full access to Cline's capabilities regardless of editor
+- **Team consistency**: Same AI assistant across different developer workflows
+- **Open standard**: Built on Zed's open Agent Client Protocol specification
+
+## JetBrains IDEs
+
+[JetBrains](https://www.jetbrains.com) IDEs include IntelliJ IDEA, PyCharm, WebStorm, and more. They offer built-in AI Assistant with ACP support.
+
+<Note>
+**Recommended: Native JetBrains Plugin**
+
+For the best JetBrains experience, install the [native Cline plugin](/getting-started/installing-cline#jetbrains-ides) from the JetBrains Marketplace. It provides full IDE integration and the complete Cline experience.
+
+The ACP setup below is an alternative way to use Cline CLI features in JetBrains IDEs.
+</Note>
+
+Alternatively, you can run Cline CLI in IntelliJ IDEA, PyCharm, WebStorm, and all other JetBrains IDEs through their built-in AI Assistant with ACP support.
+
+<video
+  src="https://storage.googleapis.com/cline_public_images/cline-acp-jetbrains.mp4"
+  autoPlay
+  loop
+  muted
+  playsInline
+  style={{ width: "100%", borderRadius: "8px", marginTop: "16px", marginBottom: "16px" }}
+/>
+
+### Setup
+
+1. **Install Cline CLI** (if not already installed):
+   ```bash
+   npm i -g cline
+   ```
+
+2. **Authenticate with Cline**:
+   ```bash
+   cline auth
+   ```
+
+3. **Configure JetBrains AI Assistant**:
+   - Open your JetBrains IDE
+   - Navigate to `Settings | Tools | AI Assistant | Agents`
+   - Click "Add Custom Agent"
+   - This opens/creates `~/.jetbrains/acp.json`
+
+4. **Add Cline to `acp.json`**:
+   ```json
+   {
+     "agent_servers": {
+       "Cline": {
+         "command": "cline",
+         "args": ["--acp"],
+         "env": {}
+       }
+     }
+   }
+   ```
+
+5. **Use Cline**:
+   - Open the AI Chat tool window
+   - Select "Cline" from the agent dropdown
+   - Start coding with Cline in your JetBrains IDE!
+
+<Tip>
+JetBrains AI Assistant can expose its built-in MCP server to Cline, giving Cline access to IDE-specific tools and context.
+</Tip>
+
+## Neovim
+
+[Neovim](https://neovim.io) is a hyperextensible Vim-based text editor loved by developers for its speed and flexibility. Use Cline in Neovim through the [agentic.nvim](https://github.com/carlos-algms/agentic.nvim) or [avante.nvim](https://github.com/yetone/avante.nvim) plugins, which provide ACP integration.
+
+<video
+  src="https://storage.googleapis.com/cline_public_images/cline-acp-neovim-avante.mp4"
+  autoPlay
+  loop
+  muted
+  playsInline
+  style={{ width: "100%", borderRadius: "8px", marginTop: "16px", marginBottom: "16px" }}
+/>
+
+### Setup with agentic.nvim
+
+1. **Install Cline CLI** (if not already installed):
+   ```bash
+   npm i -g cline
+   ```
+
+2. **Authenticate with Cline**:
+   ```bash
+   cline auth
+   ```
+
+3. **Install agentic.nvim** using lazy.nvim:
+   ```lua
+   {
+     "carlos-algms/agentic.nvim",
+     opts = {
+       provider = "cline-acp",
+       acp_providers = {
+         ["cline-acp"] = {
+           command = "cline",
+           args = {"--acp"},
+         },
+       },
+     },
+     keys = {
+       {"<C-\\>", function() require("agentic").toggle() end, mode={"n","v","i"}, desc="Toggle Cline Chat"},
+     },
+   }
+   ```
+
+4. **Use Cline**:
+   - Press `<C-\>` to toggle Cline chat
+   - Start coding with Cline in Neovim!
+
+### Setup with avante.nvim
+
+Follow the [avante.nvim documentation](https://github.com/yetone/avante.nvim) for configuring external ACP agents and point it to `cline --acp`.
+
+## Zed
+
+[Zed](https://zed.dev) is a high-performance, multiplayer code editor built from the ground up for speed and collaboration. Zed's team created the Agent Client Protocol, making Cline a natural fit for this editor.
+
+### Setup
+
+1. **Install Cline CLI** (if not already installed):
+   ```bash
+   npm i -g cline
+   ```
+
+2. **Authenticate with Cline**:
+   ```bash
+   cline auth
+   ```
+
+3. **Configure Zed**:
+   - Open Zed settings (`Cmd/Ctrl + ,`)
+   - Add Cline to your `settings.json`:
+   ```json
+   {
+     "agent_servers": {
+       "Cline": {
+         "type": "custom",
+         "command": "cline",
+         "args": ["--acp"],
+         "env": {}
+       }
+     }
+   }
+   ```
+
+4. **Use Cline**:
+   - Open the AI assistant panel
+   - Select "Cline" from the agent dropdown
+   - Start coding with Cline in Zed!
+
+## Other Editors
+
+Any editor that supports the Agent Client Protocol can run Cline. Check your editor's documentation for ACP configuration instructions, then point it to:
+
+```bash
+cline --acp
+```
+
+## Troubleshooting
+
+### Agent not appearing
+
+- Ensure Cline CLI is installed globally: `npm i -g cline`
+- Verify authentication: `cline auth`
+- Check that `cline --acp` runs without errors
+- Restart your editor after configuration changes
+
+### Permission errors
+
+If Cline can't access files or run commands:
+- Check that your editor's ACP integration passes the correct working directory
+- Verify file permissions in your project
+- Ensure Cline has approval settings configured correctly
+
+### Connection issues
+
+- Make sure no other Cline instance is using the same configuration directory
+- Check editor logs for ACP-related errors
+- Try running `cline --acp` manually to test the connection
+
+## Learn More
+
+<Columns cols={2}>
+  <Card title="CLI Overview" icon="terminal" href="/cline-cli/overview">
+    Learn about Cline CLI's core capabilities and use cases.
+  </Card>
+  
+  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
+    Master interactive mode, headless automation, and multi-instance workflows.
+  </Card>
+  
+  <Card title="Skills" icon="graduation-cap" href="/features/skills">
+    Understand how Cline's Skills work across all editors via ACP.
+  </Card>
+  
+  <Card title="Hooks" icon="link" href="/features/hooks/index">
+    Learn how to enforce policies with Hooks in any editor.
+  </Card>
+</Columns>

@@ -5,16 +5,18 @@ import {
 	type GenerateContentConfig,
 	type GenerateContentResponseUsageMetadata,
 	GoogleGenAI,
-	FunctionDeclaration as GoogleTool,
+	type FunctionDeclaration as GoogleTool,
 	ThinkingLevel,
 } from "@google/genai"
-import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { type GeminiModelId, geminiDefaultModelId, geminiModels, type ModelInfo } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
 
@@ -62,6 +64,7 @@ export class GeminiHandler implements ApiHandler {
 	private ensureClient(): GoogleGenAI {
 		if (!this.client) {
 			const options = this.options as GeminiHandlerOptions
+			const externalHeaders = buildExternalBasicHeaders()
 
 			if (options.isVertex) {
 				// Initialize with Vertex AI configuration
@@ -73,6 +76,9 @@ export class GeminiHandler implements ApiHandler {
 						vertexai: true,
 						project,
 						location,
+						httpOptions: {
+							headers: externalHeaders,
+						},
 					})
 				} catch (error) {
 					throw new Error(`Error creating Gemini Vertex AI client: ${error.message}`)
@@ -84,7 +90,12 @@ export class GeminiHandler implements ApiHandler {
 				}
 
 				try {
-					this.client = new GoogleGenAI({ apiKey: options.geminiApiKey })
+					this.client = new GoogleGenAI({
+						apiKey: options.geminiApiKey,
+						httpOptions: {
+							headers: externalHeaders,
+						},
+					})
 				} catch (error) {
 					throw new Error(`Error creating Gemini client: ${error.message}`)
 				}
@@ -332,7 +343,7 @@ export class GeminiHandler implements ApiHandler {
 					throughputTokensPerSec: throughputTokensPerSecSdk,
 				})
 			} else {
-				console.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
+				Logger.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
 			}
 		}
 	}
@@ -408,7 +419,7 @@ export class GeminiHandler implements ApiHandler {
 			trace.cacheRead = { price: cacheReadsPrice, tokens: cacheReadTokens ?? 0, cost: cacheReadCost }
 		}
 
-		// console.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
+		// Logger.log(`[GeminiHandler] calculateCost -> ${totalCost}`, trace)
 		return totalCost
 	}
 
@@ -450,13 +461,13 @@ export class GeminiHandler implements ApiHandler {
 			})
 
 			if (response.totalTokens === undefined) {
-				console.warn("Gemini token counting returned undefined, using fallback")
+				Logger.warn("Gemini token counting returned undefined, using fallback")
 				return this.estimateTokens(content)
 			}
 
 			return response.totalTokens
 		} catch (error) {
-			console.warn("Gemini token counting failed, using fallback", error)
+			Logger.warn("Gemini token counting failed, using fallback", error)
 			return this.estimateTokens(content)
 		}
 	}
@@ -469,13 +480,14 @@ export class GeminiHandler implements ApiHandler {
 		const totalChars = content.reduce((total, block) => {
 			if (typeof block === "string") {
 				return total + block.length
-			} else if (block && typeof block === "object") {
+			}
+			if (block && typeof block === "object") {
 				// Safely stringify the object
 				try {
 					const jsonStr = JSON.stringify(block)
 					return total + jsonStr.length
 				} catch (e) {
-					console.warn("Failed to stringify block for token estimation", e)
+					Logger.warn("Failed to stringify block for token estimation", e)
 					return total
 				}
 			}
@@ -491,7 +503,7 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		const unit = retryAfter.at(-1)
-		const value = parseInt(retryAfter, 10)
+		const value = Number.parseInt(retryAfter, 10)
 
 		if (Number.isNaN(value)) {
 			return 0
@@ -499,9 +511,11 @@ export class GeminiHandler implements ApiHandler {
 
 		if (unit === "s") {
 			return value
-		} else if (unit === "m") {
+		}
+		if (unit === "m") {
 			return value * 60 // Convert minutes to seconds
-		} else if (unit === "h") {
+		}
+		if (unit === "h") {
 			return value * 60 * 60 // Convert hours to seconds
 		}
 

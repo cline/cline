@@ -2,7 +2,8 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { findLast, parsePartialArrayString } from "@shared/array"
 import { telemetryService } from "@/services/telemetry"
-import { ClinePlanModeResponse } from "@/shared/ExtensionMessage"
+import type { ClinePlanModeResponse } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -84,9 +85,8 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 
 				// we dont need to process any text, options, files or other content here
 				return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
-			} else {
-				console.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
 			}
+			Logger.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
 		}
 
 		// Set awaiting plan response state
@@ -146,9 +146,8 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			// Reset the flag after using it to prevent it from persisting
 			config.taskState.didRespondToPlanAskBySwitchingMode = false
 			return result
-		} else {
-			// if we didn't switch to ACT MODE, then we can just send the user_feedback message
-			return formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images, fileContentString)
 		}
+		// if we didn't switch to ACT MODE, then we can just send the user_feedback message
+		return formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images, fileContentString)
 	}
 }

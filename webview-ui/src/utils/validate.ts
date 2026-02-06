@@ -1,5 +1,5 @@
-import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import { type ApiConfiguration, type ModelInfo, openRouterDefaultModelId } from "@shared/api"
+import type { Mode } from "@shared/storage/types"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
@@ -72,8 +72,16 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "cline":
 				break
+			case "openai-codex":
+				// Authentication is handled via OAuth, not API key
+				// Validation happens at runtime in the handler
+				break
 			case "openai":
-				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !openAiModelId) {
+				if (
+					!apiConfiguration.openAiBaseUrl ||
+					(!apiConfiguration.openAiApiKey && !apiConfiguration.azureIdentity) ||
+					!openAiModelId
+				) {
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break

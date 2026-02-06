@@ -1,6 +1,7 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import { telemetryService } from "@/services/telemetry"
-import { Controller } from ".."
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from ".."
 
 /**
  * Toggles a model's favorite status
@@ -34,7 +35,7 @@ export async function toggleFavoriteModel(controller: Controller, request: Strin
 
 		return Empty.create()
 	} catch (error) {
-		console.error(`Failed to toggle favorite status for model ${request.value}:`, error)
+		Logger.error(`Failed to toggle favorite status for model ${request.value}:`, error)
 		throw error
 	}
 }

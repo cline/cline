@@ -1,6 +1,7 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import { openExternal } from "@utils/env"
-import { Controller } from ".."
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from ".."
 
 /**
  * Opens a URL in the user's default browser
@@ -15,7 +16,7 @@ export async function openInBrowser(_controller: Controller, request: StringRequ
 		}
 		return Empty.create()
 	} catch (error) {
-		console.error("Error opening URL in browser:", error)
+		Logger.error("Error opening URL in browser:", error)
 		return Empty.create()
 	}
 }

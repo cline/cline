@@ -1,22 +1,23 @@
 import {
-	InternationalQwenModelId,
+	type InternationalQwenModelId,
 	internationalQwenDefaultModelId,
 	internationalQwenModels,
-	MainlandQwenModelId,
-	ModelInfo,
+	type MainlandQwenModelId,
+	type ModelInfo,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
 	QwenApiRegions,
 } from "@shared/api"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface QwenHandlerOptions extends CommonApiHandlerOptions {
@@ -48,12 +49,11 @@ export class QwenHandler implements ApiHandler {
 				throw new Error("Alibaba API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: this.useChinaApi()
 						? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 						: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 					apiKey: this.options.qwenApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Alibaba client: ${error.message}`)
@@ -70,13 +70,12 @@ export class QwenHandler implements ApiHandler {
 				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
 				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],
 			}
-		} else {
-			return {
-				id: (modelId as InternationalQwenModelId) ?? internationalQwenDefaultModelId,
-				info:
-					internationalQwenModels[modelId as InternationalQwenModelId] ??
-					internationalQwenModels[internationalQwenDefaultModelId],
-			}
+		}
+		return {
+			id: (modelId as InternationalQwenModelId) ?? internationalQwenDefaultModelId,
+			info:
+				internationalQwenModels[modelId as InternationalQwenModelId] ??
+				internationalQwenModels[internationalQwenDefaultModelId],
 		}
 	}
 
@@ -122,7 +121,7 @@ export class QwenHandler implements ApiHandler {
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
+			const delta = chunk.choices?.[0]?.delta
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -134,7 +133,7 @@ export class QwenHandler implements ApiHandler {
 				try {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				} catch (error) {
-					console.error("Error processing tool call delta:", error, delta.tool_calls)
+					Logger.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
 			}
 
@@ -150,9 +149,9 @@ export class QwenHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
 			}

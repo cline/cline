@@ -1,9 +1,11 @@
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
-import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
+import type { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import type React from "react"
+import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
@@ -304,7 +306,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	)
 
 	useEffect(() => {
-		if (actionHeight === 0 || actionHeight === Infinity) {
+		if (actionHeight === 0 || actionHeight === Number.POSITIVE_INFINITY) {
 			return
 		}
 		if (actionHeight > maxActionHeight) {
@@ -356,7 +358,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{isBrowsing && !isLastMessageResume ? (
 					<ProgressIndicator />
 				) : (
-					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
+					<span className="codicon codicon-inspect" style={browserIconStyle} />
 				)}
 				<span style={approveTextStyle}>
 					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}
@@ -416,8 +418,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<BrowserCursor
 							style={{
 								position: "absolute",
-								top: `${(parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`,
-								left: `${(parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`,
+								top: `${(Number.parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`,
+								left: `${(Number.parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`,
 								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>
@@ -438,7 +440,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							cursor: "pointer",
 							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
 						}}>
-						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
+						{consoleLogsExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
 						<span style={consoleLogsTextStyle}>Console Logs</span>
 					</div>
 					{consoleLogsExpanded && (
@@ -478,7 +480,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// Height change effect
 	useEffect(() => {
 		const isInitialRender = prevHeightRef.current === 0
-		if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+		if (isLast && height !== 0 && height !== Number.POSITIVE_INFINITY && height !== prevHeightRef.current) {
 			if (!isInitialRender) {
 				onHeightChange(height > prevHeightRef.current)
 			}

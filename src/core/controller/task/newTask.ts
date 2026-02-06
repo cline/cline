@@ -1,10 +1,10 @@
 import { String } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
-import { NewTaskRequest } from "@shared/proto/cline/task"
-import { Settings } from "@shared/storage/state-keys"
+import type { NewTaskRequest } from "@shared/proto/cline/task"
+import type { Settings } from "@shared/storage/state-keys"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Creates a new task with the given text and optional images
@@ -79,18 +79,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 			}),
 			...(request.taskSettings?.actModeApiProvider !== undefined && {
 				actModeApiProvider: convertProtoToApiProvider(request.taskSettings.actModeApiProvider),
-			}),
-			...(request.taskSettings?.hooksEnabled !== undefined && {
-				hooksEnabled: (() => {
-					const isEnabled = !!request.taskSettings.hooksEnabled
-
-					// Platform validation: Only allow enabling hooks on macOS and Linux
-					if (isEnabled && process.platform === "win32") {
-						throw new Error("Hooks are not yet supported on Windows")
-					}
-
-					return isEnabled
-				})(),
 			}),
 		}).filter(([_, value]) => value !== undefined),
 	)

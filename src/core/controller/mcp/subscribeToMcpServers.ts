@@ -1,8 +1,9 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { Logger } from "@/shared/services/Logger"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active subscriptions
 const activeMcpServersSubscriptions = new Set<StreamingResponseHandler<McpServers>>()
@@ -46,7 +47,7 @@ export async function subscribeToMcpServers(
 					false, // Not the last message
 				)
 			} catch (error) {
-				console.error("Error sending initial MCP servers:", error)
+				Logger.error("Error sending initial MCP servers:", error)
 				activeMcpServersSubscriptions.delete(responseStream)
 			}
 		}
@@ -66,7 +67,7 @@ export async function sendMcpServersUpdate(mcpServers: McpServers): Promise<void
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending MCP servers update:", error)
+			Logger.error("Error sending MCP servers update:", error)
 			// Remove the subscription if there was an error
 			activeMcpServersSubscriptions.delete(responseStream)
 		}

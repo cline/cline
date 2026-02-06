@@ -1,11 +1,11 @@
 import path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
-import { constructNewFileContent } from "@core/assistant-message/diff"
+import { constructNewFileContent, getLineNumberFromCharIndex } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
@@ -49,7 +49,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		try {
-			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, matchIndices } = result
 
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
@@ -60,6 +60,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+				startLineNumbers: matchIndices?.map((idx) =>
+					getLineNumberFromCharIndex(config.services.diffViewProvider.originalContent || "", idx),
+				),
 			}
 			const partialMessage = JSON.stringify(sharedMessageProps)
 
@@ -123,7 +126,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
+		// NOTE: Do NOT reset consecutiveMistakeCount here - it should only be reset after successful completion
+		// The reset was moved to after saveChanges() succeeds to properly track consecutive failures
 
 		try {
 			const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
@@ -131,7 +135,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return "" // can only happen if the sharedLogic adds an error to userMessages
 			}
 
-			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices } = result
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -139,6 +143,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				path: getReadablePath(config.cwd, relPath),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
+				startLineNumbers: matchIndices?.map((idx) =>
+					getLineNumberFromCharIndex(config.services.diffViewProvider.originalContent || "", idx),
+				),
 			}
 			// if isEditingFile false, that means we have the full contents of the file already.
 			// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
@@ -239,35 +246,34 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
-				} else {
-					// User hit the approve button, and may have provided feedback
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						let fileContentString = ""
-						if (files && files.length > 0) {
-							fileContentString = await processFilesIntoText(files)
-						}
-
-						// Push additional tool feedback using existing utilities
-						ToolResultUtils.pushAdditionalToolFeedback(
-							config.taskState.userMessageContent,
-							text,
-							images,
-							fileContentString,
-						)
-						await config.callbacks.say("user_feedback", text, images, files)
+				}
+				// User hit the approve button, and may have provided feedback
+				if (text || (images && images.length > 0) || (files && files.length > 0)) {
+					let fileContentString = ""
+					if (files && files.length > 0) {
+						fileContentString = await processFilesIntoText(files)
 					}
 
-					telemetryService.captureToolUsage(
-						config.ulid,
-						block.name,
-						modelId,
-						providerId,
-						false,
-						true,
-						workspaceContext,
-						block.isNativeToolCall,
+					// Push additional tool feedback using existing utilities
+					ToolResultUtils.pushAdditionalToolFeedback(
+						config.taskState.userMessageContent,
+						text,
+						images,
+						fileContentString,
 					)
+					await config.callbacks.say("user_feedback", text, images, files)
 				}
+
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					modelId,
+					providerId,
+					false,
+					true,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
 			}
 
 			// Run PreToolUse hook after approval but before execution
@@ -290,6 +296,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// Save the changes and get the result
 			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 				await config.services.diffViewProvider.saveChanges()
+
+			// Reset consecutive mistake counter on successful file operation
+			config.taskState.consecutiveMistakeCount = 0
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
@@ -317,9 +326,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					finalContent,
 					newProblemsMessage,
 				)
-			} else {
-				return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 			}
+			return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 		} catch (error) {
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()
@@ -373,7 +381,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				block,
 				config.taskState.userMessageContent,
 				ToolDisplayUtils.getToolDescription,
-				config.api,
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
@@ -395,6 +402,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		// Construct newContent from diff
 		let newContent: string
+		let matchIndices: number[] = []
 		newContent = "" // default to original content if not editing
 
 		if (diff) {
@@ -409,19 +417,25 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			try {
-				newContent = await constructNewFileContent(
+				const result = await constructNewFileContent(
 					diff,
 					config.services.diffViewProvider.originalContent || "",
 					!block.partial, // Pass the partial flag correctly
 				)
+				newContent = result.newContent
+				matchIndices = result.matchIndices
 			} catch (error) {
-				// As we set the didAlreadyUseTool flag when the tool has failed once, we don't want to add the error message to the
-				// userMessages array again on each new streaming chunk received.
-				if (!config.enableParallelToolCalling && config.taskState.didAlreadyUseTool) {
+				// During streaming (block.partial=true), the diff may fail repeatedly as incomplete content streams in.
+				// Skip all error UI handling for partial blocks to prevent flickering.
+				if (block.partial) {
 					return
 				}
-				// Full original behavior - comprehensive error handling even for partial blocks
-				await config.callbacks.say("diff_error", relPath)
+
+				config.taskState.consecutiveMistakeCount++
+
+				// Removes any existing diff_error messages to avoid duplicates.
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
+				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
 				const { providerId, modelId } = this.getModelInfo(config)
@@ -439,17 +453,17 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
 					`${(error as Error)?.message}\n\n` +
-						formatResponse.diffError(relPath, config.services.diffViewProvider.originalContent),
+						formatResponse.diffError(relPath, config.services.diffViewProvider.getOriginalContentForLLM()),
 				)
 				ToolResultUtils.pushToolResult(
 					errorResponse,
 					block,
 					config.taskState.userMessageContent,
 					ToolDisplayUtils.getToolDescription,
-					config.api,
 					config.coordinator,
 					config.taskState.toolUseIdMap,
 				)
+
 				if (!config.enableParallelToolCalling) {
 					config.taskState.didAlreadyUseTool = true
 				}
@@ -480,9 +494,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return
 		}
 
-		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
-
-		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
+		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices }
 	}
 
 	private getModelInfo(config: TaskConfig) {
