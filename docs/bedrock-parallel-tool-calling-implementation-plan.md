@@ -99,14 +99,14 @@ interface ApiStreamToolCallsChunk {
 
 ## Implementation Plan — Task Checklist
 
-### Phase 1: Core plumbing — Accept tools in Bedrock handler
+### Phase 1: Core plumbing — Accept tools in Bedrock handler ✅
 
-- [ ] **1.1** Update `AwsBedrockHandler.createMessage()` signature to accept optional `tools` parameter
+- [x] **1.1** Update `AwsBedrockHandler.createMessage()` signature to accept optional `tools` parameter
   - File: `src/core/api/providers/bedrock.ts`
   - Change: `async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: any[]): ApiStream`
   - The `tools` parameter will be Anthropic-format tool definitions (same as what `AnthropicHandler` receives)
 
-- [ ] **1.2** Create a tool definition mapper function: `mapClineToolsToBedrockToolConfig()`
+- [x] **1.2** Create a tool definition mapper function: `mapClineToolsToBedrockToolConfig()`
   - File: `src/core/api/providers/bedrock.ts` (private method or standalone function)
   - Input: Cline/Anthropic tool definitions `Array<{ name, description, input_schema }>`
   - Output: Bedrock `ToolConfiguration` object:
@@ -118,27 +118,27 @@ interface ApiStreamToolCallsChunk {
     ```
   - Handle edge case: when `tools` is empty/undefined, return `undefined` (no toolConfig)
 
-- [ ] **1.3** Pass `toolConfig` into the `ConverseStreamCommand` in `createAnthropicMessage()`
+- [x] **1.3** Pass `toolConfig` into the `ConverseStreamCommand` in `createAnthropicMessage()`
   - File: `src/core/api/providers/bedrock.ts`, method `createAnthropicMessage()`
   - Thread the `tools` parameter from `createMessage()` → `createAnthropicMessage()`
   - Build `toolConfig` using mapper from 1.2
   - Add to command: `new ConverseStreamCommand({ ..., toolConfig })`
   - Important: When thinking/reasoning is enabled AND tools are provided, set `toolChoice: { auto: {} }` (not `any`), since forced tool use + thinking may conflict
 
-- [ ] **1.4** (Optional, Phase 2 scope) Pass `toolConfig` into Nova, OpenAI-on-Bedrock, Qwen-on-Bedrock paths
+- [x] **1.4** (Optional, Phase 2 scope) Pass `toolConfig` into Nova, OpenAI-on-Bedrock, Qwen-on-Bedrock paths
   - These use ConverseStream or Converse; same pattern applies
   - Can be deferred to a follow-up PR
 
-### Phase 2: Parse tool use events from ConverseStream
+### Phase 2: Parse tool use events from ConverseStream ✅
 
-- [ ] **2.1** Add tool use state tracking to `executeConverseStream()`
+- [x] **2.1** Add tool use state tracking to `executeConverseStream()`
   - File: `src/core/api/providers/bedrock.ts`, method `executeConverseStream()`
   - Add a map to track active tool calls by `contentBlockIndex`:
     ```typescript
     const activeToolCalls: Map<number, { toolUseId: string; name: string; inputBuffer: string }> = new Map()
     ```
 
-- [ ] **2.2** Handle `contentBlockStart` with `start.toolUse`
+- [x] **2.2** Handle `contentBlockStart` with `start.toolUse`
   - In the existing `chunk.contentBlockStart` handler, add a new branch:
     ```typescript
     if (blockStart.start?.toolUse) {
@@ -147,7 +147,7 @@ interface ApiStreamToolCallsChunk {
     }
     ```
 
-- [ ] **2.3** Handle `contentBlockDelta` with `delta.toolUse`
+- [x] **2.3** Handle `contentBlockDelta` with `delta.toolUse`
   - In the existing `chunk.contentBlockDelta` handler, add a new branch:
     ```typescript
     if (delta.toolUse?.input !== undefined) {
@@ -170,7 +170,7 @@ interface ApiStreamToolCallsChunk {
     ```
   - Note: We yield on every delta (matching how Anthropic handler yields `input_json_delta`). The downstream `toolUseHandler` in Task accumulates these.
 
-- [ ] **2.4** Handle `contentBlockStop` for tool use blocks
+- [x] **2.4** Handle `contentBlockStop` for tool use blocks
   - Clean up tracking state:
     ```typescript
     if (chunk.contentBlockStop) {
@@ -179,9 +179,9 @@ interface ApiStreamToolCallsChunk {
     }
     ```
 
-### Phase 3: Send tool results back to Bedrock
+### Phase 3: Send tool results back to Bedrock ✅
 
-- [ ] **3.1** Update `formatMessagesForConverseAPI()` to handle `tool_use` content blocks
+- [x] **3.1** Update `formatMessagesForConverseAPI()` to handle `tool_use` content blocks
   - File: `src/core/api/providers/bedrock.ts`, method `formatMessagesForConverseAPI()`
   - Currently only handles `text` and `image` types
   - Add mapping for `tool_use` blocks from assistant messages:
@@ -197,7 +197,7 @@ interface ApiStreamToolCallsChunk {
     }
     ```
 
-- [ ] **3.2** Update `formatMessagesForConverseAPI()` to handle `tool_result` content blocks
+- [x] **3.2** Update `formatMessagesForConverseAPI()` to handle `tool_result` content blocks
   - Add mapping for `tool_result` blocks from user messages:
     ```typescript
     if (item.type === "tool_result") {
@@ -216,34 +216,34 @@ interface ApiStreamToolCallsChunk {
     }
     ```
 
-- [ ] **3.3** Verify that `tool_use` blocks from API conversation history round-trip correctly
+- [x] **3.3** Verify that `tool_use` blocks from API conversation history round-trip correctly
   - When Cline stores assistant messages with `tool_use` blocks in `apiConversationHistory`, those get passed back on the next turn
   - Bedrock expects them as `ContentBlock.ToolUseMember` in the `messages` array
   - Ensure the mapping in 3.1 produces the right AWS SDK union shape
 
-### Phase 4: Integration with existing parallel tool calling infrastructure
+### Phase 4: Integration with existing parallel tool calling infrastructure ✅
 
-- [ ] **4.1** Verify `enableNativeToolCalls` / `enableParallelToolCalling` propagation
+- [x] **4.1** Verify `enableNativeToolCalls` / `enableParallelToolCalling` propagation
   - File: `src/core/task/index.ts`, in `attemptApiRequest()` where `promptContext` is built
   - When `enableNativeToolCalls` is true, the system prompt includes native tool definitions, and `getSystemPrompt()` returns `tools`
   - Verify that these `tools` are actually passed through to `this.api.createMessage(systemPrompt, history, tools)`
   - If `tools` are currently only passed for non-Bedrock providers, fix the call site
 
-- [ ] **4.2** Verify that the Bedrock handler's `createMessage()` is called with `tools` from Task
+- [x] **4.2** Verify that the Bedrock handler's `createMessage()` is called with `tools` from Task
   - File: `src/core/api/index.ts` — the `ApiHandler` interface
   - Check that the interface allows `tools?` as a third parameter
   - Currently `AnthropicHandler.createMessage(systemPrompt, messages, tools?)` accepts it
   - Bedrock handler needs the same signature (done in step 1.1)
 
-- [ ] **4.3** Verify parallel tool execution works end-to-end
+- [x] **4.3** Verify parallel tool execution works end-to-end
   - When `isParallelToolCallingEnabled()` returns true:
     - Task does NOT interrupt the stream after the first tool use
     - ToolExecutor does NOT block execution of a second tool
   - When the Bedrock model emits multiple `toolUse` content blocks, they should all be yielded as `tool_calls` chunks and then executed
 
-### Phase 5: Tests
+### Phase 5: Tests ✅
 
-- [ ] **5.1** Add unit test: tool call parsing from ConverseStream
+- [x] **5.1** Add unit test: tool call parsing from ConverseStream
   - File: `src/core/api/providers/__tests__/bedrock.test.ts`
   - Mock chunks:
     ```typescript
@@ -254,50 +254,42 @@ interface ApiStreamToolCallsChunk {
     ```
   - Assert: handler yields `type: "tool_calls"` chunks with correct `function.id`, `name`, `arguments`
 
-- [ ] **5.2** Add unit test: multiple (parallel) tool calls in one response
+- [x] **5.2** Add unit test: multiple (parallel) tool calls in one response
   - Mock chunks with two tool use blocks (different `contentBlockIndex` values)
   - Assert: both tool calls are yielded
 
-- [ ] **5.3** Add unit test: text + tool use interleaved in one response
+- [x] **5.3** Add unit test: text + tool use interleaved in one response
   - Mock chunks: text block, then tool use block, then more text
   - Assert: text chunks and tool_calls chunks are yielded in correct order
 
-- [ ] **5.4** Add unit test: `mapClineToolsToBedrockToolConfig()` mapper
+- [x] **5.4** Add unit test: `mapClineToolsToBedrockToolConfig()` mapper
   - Input: array of Cline/Anthropic tool definitions
   - Assert: output matches Bedrock `ToolConfiguration` schema
 
-- [ ] **5.5** Add unit test: `formatMessagesForConverseAPI()` with tool_use and tool_result
+- [x] **5.5** Add unit test: `formatMessagesForConverseAPI()` with tool_use and tool_result
   - Input: conversation history with tool_use (assistant) and tool_result (user) messages
   - Assert: output messages contain correct Bedrock `toolUse` and `toolResult` content blocks
 
-- [ ] **5.6** Run existing Bedrock tests to ensure no regressions
+- [x] **5.6** Run existing Bedrock tests to ensure no regressions
   - Command: `npm run test:unit -- --grep "AwsBedrockHandler"`
 
-### Phase 6: Verification & Polish
+### Phase 6: Verification & Polish ✅
 
-- [ ] **6.1** Manual end-to-end test with Bedrock Claude model
+- [x] **6.1** ~~Manual~~ Programmatic end-to-end test with Bedrock Claude model (via `scripts/test-bedrock-tool-calling.ts` and `scripts/test-bedrock-parallel-tools-cli.ts`)
   - Set up Bedrock with `anthropic.claude-sonnet-4-5-20250929-v1:0`
   - Enable parallel tool calling in settings
   - Run a task that triggers multiple tool calls (e.g., "Read these 3 files")
   - Verify tools execute in parallel
 
-- [ ] **6.2** Manual test: single tool call (regression)
-  - Verify single tool calls still work correctly
+- [x] **6.2** Single tool call (regression) — verified via live integration test (Test 2)
 
-- [ ] **6.3** Manual test: thinking/reasoning + tool calling
-  - Enable thinking budget > 0
-  - Verify reasoning and tool calls coexist
+- [x] **6.3** Thinking/reasoning + tool calling — verified via live integration test (Test 6)
 
-- [ ] **6.4** Manual test: tool result round-trip
-  - Verify that after a tool call, the result is sent back to Bedrock correctly and the model continues
+- [x] **6.4** Tool result round-trip — verified via live integration test (Test 4)
 
-- [ ] **6.5** Update snapshot tests if system prompt changes affect Bedrock
-  - Command: `UPDATE_SNAPSHOTS=true npm run test:unit`
-  - Only needed if prompt variant configs change
+- [x] **6.5** Snapshot tests — no system prompt template changes; `ClineToolSet.ts` and `model-utils.ts` changes don't affect prompt snapshots
 
-- [ ] **6.6** Consider adding a changeset for user-facing changelog
-  - Command: `npm run changeset`
-  - Create a patch changeset describing Bedrock parallel tool calling support
+- [x] **6.6** Changeset added (`.changeset/bedrock-parallel-tool-calling.md`)
 
 ---
 
