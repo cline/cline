@@ -333,7 +333,7 @@ const ApiOptions = ({
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<ProviderDropdownList ref={dropdownListRef}>
+						<ProviderDropdownList ref={dropdownListRef} role="listbox">
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
 									data-testid={`provider-option-${item.value}`}
@@ -343,7 +343,8 @@ const ApiOptions = ({
 									onMouseEnter={() => setSelectedIndex(index)}
 									ref={(el) => {
 										itemRefs.current[index] = el
-									}}>
+									}}
+									role="option">
 									<span>{item.html}</span>
 								</ProviderDropdownItem>
 							))}
