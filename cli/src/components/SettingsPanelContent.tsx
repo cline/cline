@@ -26,7 +26,7 @@ import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyBedrockConfig, applyProviderConfig, applySapAiCoreConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig, applySapAiCoreConfig, clearSapAiCoreConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
@@ -936,6 +936,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	const handleProviderSelect = useCallback(
 		async (providerId: string) => {
+			// Clear SAP AI Core config when switching away from sapaicore (commit 78dce9d17)
+			if (provider === "sapaicore" && providerId !== "sapaicore") {
+				await clearSapAiCoreConfig(controller)
+			}
+
 			// Special handling for Cline - uses OAuth (but skip if already logged in)
 			if (providerId === "cline") {
 				setIsPickingProvider(false)
@@ -1012,7 +1017,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds],
+		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds, provider],
 	)
 
 	// Handle API key submission after provider selection
