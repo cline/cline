@@ -98,7 +98,8 @@
 									"cline-cli/samples/model-orchestration",
 									"cline-cli/samples/worktree-workflows",
 									"cline-cli/samples/github-issue-rca",
-									"cline-cli/samples/github-integration"
+									"cline-cli/samples/github-integration",
+									"cline-cli/samples/github-pr-review"
 								]
 							},
 							"cline-cli/cli-reference"

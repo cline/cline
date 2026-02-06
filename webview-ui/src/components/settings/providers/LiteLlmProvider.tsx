@@ -1,11 +1,14 @@
+import { ModelInfo } from "@shared/api"
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { RefreshCwIcon } from "lucide-react"
+import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
@@ -21,17 +24,15 @@ interface LiteLlmProviderProps {
 }
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration, remoteConfigSettings, liteLlmModels } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+
+	const [isLoading, setIsLoading] = useState(false)
 
 	// Get the normalized configuration with model info
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	// Handle model change
-	const handleModelChange = (e: any) => {
-		const newModelId = e.target.value
-		const modelInfo = liteLlmModels[newModelId]
-
+	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
 		handleModeFieldsChange(
 			{
 				liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
@@ -43,6 +44,15 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			},
 			currentMode,
 		)
+	}
+
+	const onRefreshModels = async () => {
+		try {
+			setIsLoading(true)
+			await refreshLiteLlmModels()
+		} finally {
+			setIsLoading(false)
+		}
 	}
 
 	return (
@@ -99,12 +109,25 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			</RemotelyConfiguredInputWrapper>
 			{showModelOptions && (
 				<>
-					<ModelSelector
+					<ModelAutocomplete
 						label="Model"
 						models={liteLlmModels}
 						onChange={handleModelChange}
+						placeholder="Search or enter a custom model ID..."
 						selectedModelId={selectedModelId}
 					/>
+					<VSCodeButton
+						className={`my-2 ${isLoading ? "animate-pulse" : ""}`}
+						disabled={isLoading}
+						onClick={onRefreshModels}>
+						{isLoading ? (
+							"Loading..."
+						) : (
+							<>
+								Refresh models <RefreshCwIcon className="ml-1" />
+							</>
+						)}
+					</VSCodeButton>
 
 					{selectedModelInfo?.supportsReasoning && <ThinkingBudgetSlider currentMode={currentMode} />}
 

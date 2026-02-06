@@ -19,6 +19,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
@@ -36,10 +37,165 @@ import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
+import { selectOutputMode } from "./utils/mode-selection"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
+
+/**
+ * Common options shared between runTask and resumeTask
+ */
+interface TaskOptions {
+	act?: boolean
+	plan?: boolean
+	model?: string
+	verbose?: boolean
+	cwd?: string
+	config?: string
+	thinking?: boolean
+	yolo?: boolean
+	timeout?: string
+	json?: boolean
+	stdinWasPiped?: boolean
+}
+
+/**
+ * Apply task-related options (mode, model, thinking, yolo) to StateManager.
+ * Shared between runTask and resumeTask to avoid duplication.
+ */
+function applyTaskOptions(options: TaskOptions): void {
+	// Apply mode flag
+	if (options.plan) {
+		StateManager.get().setGlobalState("mode", "plan")
+		telemetryService.captureHostEvent("mode_flag", "plan")
+	} else if (options.act) {
+		StateManager.get().setGlobalState("mode", "act")
+		telemetryService.captureHostEvent("mode_flag", "act")
+	}
+
+	// Apply model override if specified
+	if (options.model) {
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
+		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
+		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
+		if (modelKey) {
+			StateManager.get().setGlobalState(modelKey, options.model)
+		}
+		telemetryService.captureHostEvent("model_flag", options.model)
+	}
+
+	// Set thinking budget based on --thinking flag
+	const thinkingBudget = options.thinking ? 1024 : 0
+	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
+	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+	if (options.thinking) {
+		telemetryService.captureHostEvent("thinking_flag", "true")
+	}
+
+	// Set yolo mode based on --yolo flag
+	if (options.yolo) {
+		StateManager.get().setGlobalState("yoloModeToggled", true)
+		telemetryService.captureHostEvent("yolo_flag", "true")
+	}
+}
+
+/**
+ * Get mode selection result using the extracted, testable selectOutputMode function.
+ * This wrapper provides the current process TTY state.
+ */
+function getModeSelection(options: TaskOptions) {
+	return selectOutputMode({
+		stdoutIsTTY: process.stdout.isTTY === true,
+		stdinIsTTY: process.stdin.isTTY === true,
+		stdinWasPiped: options.stdinWasPiped ?? false,
+		json: options.json,
+		yolo: options.yolo,
+	})
+}
+
+/**
+ * Determine if plain text mode should be used based on options and environment.
+ */
+function shouldUsePlainTextMode(options: TaskOptions): boolean {
+	return getModeSelection(options).usePlainTextMode
+}
+
+/**
+ * Get the reason for using plain text mode (for telemetry).
+ */
+function getPlainTextModeReason(options: TaskOptions): string {
+	return getModeSelection(options).reason
+}
+
+/**
+ * Run a task in plain text mode (no Ink UI).
+ * Handles auth check, task execution, cleanup, and exit.
+ */
+async function runTaskInPlainTextMode(
+	ctx: CliContext,
+	options: TaskOptions,
+	taskConfig: {
+		prompt?: string
+		taskId?: string
+		imageDataUrls?: string[]
+	},
+): Promise<never> {
+	// Set flag so shutdown handler knows not to clear Ink UI lines
+	isPlainTextMode = true
+
+	// Check if auth is configured before attempting to run the task
+	// In plain text mode we can't show the interactive auth flow
+	const hasAuth = await isAuthConfigured()
+	if (!hasAuth) {
+		printWarning("Not authenticated. Please run 'cline auth' first to configure your API credentials.")
+		await ctx.controller.stateManager.flushPendingState()
+		await ctx.controller.dispose()
+		await ErrorService.get().dispose()
+		exit(1)
+	}
+
+	const reason = getPlainTextModeReason(options)
+	telemetryService.captureHostEvent("plain_text_mode", reason)
+
+	// Plain text mode: no Ink rendering, just clean text output
+	const success = await runPlainTextTask({
+		controller: ctx.controller,
+		prompt: taskConfig.prompt,
+		taskId: taskConfig.taskId,
+		imageDataUrls: taskConfig.imageDataUrls,
+		verbose: options.verbose,
+		jsonOutput: options.json,
+		timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
+	})
+
+	// Cleanup
+	await ctx.controller.stateManager.flushPendingState()
+	await ctx.controller.dispose()
+	await ErrorService.get().dispose()
+
+	// Ensure stdout is fully drained before exiting - critical for piping
+	await drainStdout()
+	exit(success ? 0 : 1)
+}
+
+/**
+ * Create the standard cleanup function for Ink apps.
+ */
+function createInkCleanup(ctx: CliContext, onTaskError?: () => boolean): () => Promise<void> {
+	return async () => {
+		await ctx.controller.stateManager.flushPendingState()
+		await ctx.controller.dispose()
+		await ErrorService.get().dispose()
+		if (onTaskError?.()) {
+			printWarning("Task ended with errors.")
+			exit(1)
+		}
+		exit(0)
+	}
+}
 
 // Track active context for graceful shutdown
 let activeContext: CliContext | null = null
@@ -228,24 +384,7 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 /**
  * Run a task with the given prompt - uses welcome view for consistent behavior
  */
-async function runTask(
-	prompt: string,
-	options: {
-		act?: boolean
-		plan?: boolean
-		model?: string
-		verbose?: boolean
-		cwd?: string
-		config?: string
-		thinking?: boolean
-		yolo?: boolean
-		timeout?: string
-		images?: string[]
-		json?: boolean
-		stdinWasPiped?: boolean
-	},
-	existingContext?: CliContext,
-) {
+async function runTask(prompt: string, options: TaskOptions & { images?: string[] }, existingContext?: CliContext) {
 	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Parse images from the prompt text (e.g., @/path/to/image.png)
@@ -262,101 +401,23 @@ async function runTask(
 	// Task without prompt starts in interactive mode
 	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
 
-	if (options.plan) {
-		StateManager.get().setGlobalState("mode", "plan")
-		telemetryService.captureHostEvent("mode_flag", "plan")
-	} else if (options.act) {
-		StateManager.get().setGlobalState("mode", "act")
-		telemetryService.captureHostEvent("mode_flag", "act")
-	}
-
-	if (options.model) {
-		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
-
-		// Get the current provider for the selected mode
-		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
-
-		// Update model ID using provider-specific key (e.g., cline uses actModeOpenRouterModelId)
-		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
-		if (modelKey) {
-			StateManager.get().setGlobalState(modelKey, options.model)
-		}
-		telemetryService.captureHostEvent("model_flag", options.model)
-	}
-
-	// Set thinking budget based on --thinking flag
-	const thinkingBudget = options.thinking ? 1024 : 0
-	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
-	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-	if (options.thinking) {
-		telemetryService.captureHostEvent("thinking_flag", "true")
-	}
-
-	// Set yolo mode based on --yolo flag
-	if (options.yolo) {
-		StateManager.get().setGlobalState("yoloModeToggled", true)
-		telemetryService.captureHostEvent("yolo_flag", "true")
-	}
-
+	// Apply shared task options (mode, model, thinking, yolo)
+	applyTaskOptions(options)
 	await StateManager.get().flushPendingState()
 
-	// Detect if output is a TTY (interactive terminal) or redirected to a file/pipe
-	const isTTY = process.stdout.isTTY === true
-
 	// Use plain text mode when output is redirected, stdin was piped, JSON mode is enabled, or --yolo flag is used
-	// Ink requires raw mode on stdin which isn't available when stdin is piped
-	// Note: we use the stdinWasPiped flag passed from the caller because process.stdin.isTTY
-	// may not be reliable after stdin has been consumed by readStdinIfPiped()
-	if (!isTTY || options.stdinWasPiped || options.json || options.yolo) {
-		// Set flag so shutdown handler knows not to clear Ink UI lines
-		isPlainTextMode = true
-
-		// Check if auth is configured before attempting to run the task
-		// In plain text mode we can't show the interactive auth flow
-		const hasAuth = await isAuthConfigured()
-		if (!hasAuth) {
-			printWarning("Not authenticated. Please run 'cline auth' first to configure your API credentials.")
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
-			exit(1)
-		}
-
-		const reason = options.yolo
-			? "yolo_flag"
-			: options.json
-				? "json"
-				: options.stdinWasPiped
-					? "piped_stdin"
-					: "redirected_output"
-		telemetryService.captureHostEvent("plain_text_mode", reason)
-		// Plain text mode: no Ink rendering, just clean text output
-		const success = await runPlainTextTask({
-			controller: ctx.controller,
+	if (shouldUsePlainTextMode(options)) {
+		return runTaskInPlainTextMode(ctx, options, {
 			prompt: taskPrompt,
 			imageDataUrls: imageDataUrls.length > 0 ? imageDataUrls : undefined,
-			verbose: options.verbose,
-			jsonOutput: options.json,
-			timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
 		})
-
-		// Cleanup
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
-
-		// Ensure stdout is fully drained before exiting - critical for piping
-		await drainStdout()
-		exit(success ? 0 : 1)
 	}
 
-	let taskError = false
-
-	// Render the welcome view with optional initial prompt/images
+	// Interactive mode: Render the welcome view with optional initial prompt/images
 	// If prompt provided (cline task "prompt"), ChatView will auto-submit
 	// If no prompt (cline interactive), user will type it in
+	let taskError = false
+
 	await runInkApp(
 		React.createElement(App, {
 			view: "welcome",
@@ -373,16 +434,7 @@ async function runTask(
 				exit(0)
 			},
 		}),
-		async () => {
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
-			if (taskError) {
-				printWarning("Task ended with errors.")
-				exit(1)
-			}
-			exit(0)
-		},
+		createInkCleanup(ctx, () => taskError),
 	)
 }
 
@@ -596,7 +648,13 @@ program
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.option("--json", "Output messages as JSON instead of styled text")
-	.action((prompt, options) => runTask(prompt, options))
+	.option("-T, --taskId <id>", "Resume an existing task by ID")
+	.action((prompt, options) => {
+		if (options.taskId) {
+			return resumeTask(options.taskId, { ...options, initialPrompt: prompt })
+		}
+		return runTask(prompt, options)
+	})
 
 program
 	.command("history")
@@ -710,6 +768,69 @@ async function checkAnyProviderConfigured(): Promise<boolean> {
 }
 
 /**
+ * Validate that a task exists in history
+ * @returns The task history item if found, null otherwise
+ */
+function findTaskInHistory(taskId: string): HistoryItem | null {
+	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
+	return taskHistory.find((item) => item.id === taskId) || null
+}
+
+/**
+ * Resume an existing task by ID
+ * Loads the task and optionally prefills the input with a prompt
+ */
+async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
+	const ctx = await initializeCli({ ...options, enableAuth: true })
+
+	// Validate task exists
+	const historyItem = findTaskInHistory(taskId)
+	if (!historyItem) {
+		printWarning(`Task not found: ${taskId}`)
+		printInfo("Use 'cline history' to see available tasks.")
+		await ctx.controller.stateManager.flushPendingState()
+		await ctx.controller.dispose()
+		await ErrorService.get().dispose()
+		exit(1)
+	}
+
+	telemetryService.captureHostEvent("resume_task_command", options.initialPrompt ? "with_prompt" : "interactive")
+
+	// Apply shared task options (mode, model, thinking, yolo)
+	applyTaskOptions(options)
+	await StateManager.get().flushPendingState()
+
+	// Use plain text mode for non-interactive scenarios
+	if (shouldUsePlainTextMode(options)) {
+		return runTaskInPlainTextMode(ctx, options, {
+			prompt: options.initialPrompt,
+			taskId: taskId,
+		})
+	}
+
+	// Interactive mode: render the task view with the existing task
+	let taskError = false
+
+	await runInkApp(
+		React.createElement(App, {
+			view: "task",
+			taskId: taskId,
+			verbose: options.verbose,
+			controller: ctx.controller,
+			isRawModeSupported: checkRawModeSupport(),
+			initialPrompt: options.initialPrompt || undefined,
+			onError: () => {
+				taskError = true
+			},
+			onWelcomeExit: () => {
+				exit(0)
+			},
+		}),
+		createInkCleanup(ctx, () => taskError),
+	)
+}
+
+/**
  * Show welcome prompt and wait for user input
  * If auth is not configured, show auth flow first
  */
@@ -758,6 +879,7 @@ program
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action(async (prompt, options) => {
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
@@ -772,8 +894,18 @@ program
 		// Always check for piped stdin content
 		const stdinInput = await readStdinIfPiped()
 
-		// Error if stdin was piped but empty (e.g., `echo "" | cline`)
-		if (stdinInput === "") {
+		// Track whether stdin was actually piped (even if empty) vs not piped (null)
+		// stdinInput === null means stdin wasn't piped (TTY or not FIFO/file)
+		// stdinInput === "" means stdin was piped but empty
+		// stdinInput has content means stdin was piped with data
+		const stdinWasPiped = stdinInput !== null
+
+		// Error if stdin was piped but empty AND no prompt was provided
+		// This handles:
+		// - `echo "" | cline` -> error (empty stdin, no prompt)
+		// - `cline "prompt"` in GitHub Actions -> OK (empty stdin ignored, has prompt)
+		// - `cat file | cline "explain"` -> OK (has stdin AND prompt)
+		if (stdinInput === "" && !prompt) {
 			printWarning("Empty input received from stdin. Please provide content to process.")
 			exit(1)
 		}
@@ -796,9 +928,19 @@ program
 			}
 		}
 
+		// Handle --taskId flag to resume an existing task
+		if (options.taskId) {
+			await resumeTask(options.taskId, {
+				...options,
+				initialPrompt: effectivePrompt,
+				stdinWasPiped,
+			})
+			return
+		}
+
 		if (effectivePrompt) {
 			// Pass stdinWasPiped flag so runTask knows to use plain text mode
-			await runTask(effectivePrompt, { ...options, stdinWasPiped: !!stdinInput })
+			await runTask(effectivePrompt, { ...options, stdinWasPiped })
 		} else {
 			// Show welcome prompt if no prompt given
 			await showWelcome(options)

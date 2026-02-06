@@ -1,6 +1,6 @@
 {
 	"name": "cline",
-	"version": "2.0.2",
+	"version": "2.0.5",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"main": "dist/cli.mjs",
 	"bin": {
@@ -21,7 +21,6 @@
 		"node": ">=20.0.0"
 	},
 	"scripts": {
-		"prepublishOnly": "npm run build:production",
 		"package:brew": "npx tsx ./scripts/update-brew-formula.mts",
 		"package": "npm pack --pack-destination ./dist",
 		"build": "npm run typecheck && npx tsx esbuild.mts",

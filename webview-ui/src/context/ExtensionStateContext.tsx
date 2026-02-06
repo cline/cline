@@ -94,7 +94,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
-	refreshLiteLlmModels: () => void
+	refreshLiteLlmModels: () => Promise<void>
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -718,7 +718,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshLiteLlmModels = useCallback(() => {
-		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
+		return ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
 				setLiteLlmModels(models)

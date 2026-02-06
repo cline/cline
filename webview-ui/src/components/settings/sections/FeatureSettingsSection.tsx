@@ -55,7 +55,6 @@ const agentFeatures: FeatureToggle[] = [
 		description: "Execute multiple tool calls simultaneously",
 		stateKey: "enableParallelToolCalling",
 		settingKey: "enableParallelToolCalling",
-		isExperimental: true,
 	},
 	{
 		id: "strict-plan-mode",

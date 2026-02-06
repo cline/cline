@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.56.2",
+	"version": "3.57.1",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
 		"cli"
@@ -426,7 +426,7 @@
 		"test:e2e": "playwright install && npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:optimal": "npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
 		"test:e2e:ui": "npx tsx scripts/interactive-playwright.ts",
-		"install:all": "npm install && cd webview-ui && npm install && cd ../cli && npm install && cd ..",
+		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
@@ -453,7 +453,7 @@
 		]
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.1.4",
+		"@biomejs/biome": "^2.3.14",
 		"@bufbuild/buf": "^1.54.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/better-sqlite3": "^7.6.13",
