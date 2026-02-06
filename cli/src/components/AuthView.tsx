@@ -166,7 +166,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
 	const [sapAiCoreConfig, setSapAiCoreConfig] = useState<SapAiCoreConfig | null>(null)
-	const [sapAiCoreDeploymentId, setSapAiCoreDeploymentId] = useState<string | undefined>(undefined)
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -437,10 +436,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		(value: string, deploymentId?: string) => {
 			if (value.trim()) {
 				setModelId(value)
-			}
-			// Track deployment ID for SAP AI Core direct deployment mode
-			if (selectedProvider === "sapaicore") {
-				setSapAiCoreDeploymentId(deploymentId)
 			}
 			// Only show baseurl step for OpenAI-like providers
 			if (["openai", "openai-native"].includes(selectedProvider)) {
