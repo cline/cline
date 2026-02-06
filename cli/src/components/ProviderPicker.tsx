@@ -2,8 +2,7 @@
  * Provider picker component for API provider selection
  */
 
-import type React from "react"
-import { useMemo } from "react"
+import React, { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiConfiguration } from "@/shared/api"
 import { getProviderLabel, useValidProviders } from "../utils/providers"
