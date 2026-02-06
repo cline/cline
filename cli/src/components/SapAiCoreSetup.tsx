@@ -6,6 +6,7 @@
 import { Box, Text, useInput } from "ink"
 // biome-ignore lint/style/useImportType: React is used as a value by JSX (jsx: "react" in tsconfig)
 import React, { useCallback, useState } from "react"
+import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 
@@ -34,7 +35,7 @@ interface SapAiCoreSetupProps {
 /**
  * Step states for the setup wizard
  */
-type SapAiCoreStep = "client_id" | "client_secret" | "base_url" | "token_url" | "options"
+type SapAiCoreStep = "client_id" | "client_secret" | "base_url" | "token_url" | "resource_group" | "orchestration_mode"
 
 /**
  * Inline text input for credential fields
@@ -124,11 +125,31 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 			case "token_url":
 				setStep("base_url")
 				break
-			case "options":
+			case "resource_group":
 				setStep("token_url")
+				break
+			case "orchestration_mode":
+				setStep("resource_group")
 				break
 		}
 	}, [step, onCancel])
+
+	/**
+	 * Complete the setup and return the config
+	 */
+	const completeSetup = useCallback(
+		(orchestrationMode: boolean) => {
+			onComplete({
+				clientId: clientId.trim(),
+				clientSecret: clientSecret.trim(),
+				baseUrl: baseUrl.trim(),
+				tokenUrl: tokenUrl.trim(),
+				resourceGroup: resourceGroup.trim() || undefined,
+				useOrchestrationMode: orchestrationMode,
+			})
+		},
+		[onComplete, clientId, clientSecret, baseUrl, tokenUrl, resourceGroup],
+	)
 
 	// Render Client ID step
 	if (step === "client_id") {
@@ -198,7 +219,7 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 				onCancel={goBack}
 				onChange={setTokenUrl}
 				onSubmit={() => {
-					if (tokenUrl.trim()) setStep("options")
+					if (tokenUrl.trim()) setStep("resource_group")
 				}}
 				placeholder="https://xxx.authentication.eu10.hana.ondemand.com/oauth/token"
 				value={tokenUrl}
@@ -206,8 +227,42 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 		)
 	}
 
-	// TODO: Implement options step in Commit 4
+	// Render Resource Group step (optional)
+	if (step === "resource_group") {
+		return (
+			<CredentialInput
+				hint="Optional: Specify a resource group, or leave empty to use default"
+				isActive={isActive}
+				isPassword={false}
+				label="Resource Group (optional)"
+				onCancel={goBack}
+				onChange={setResourceGroup}
+				onSubmit={() => {
+					// Resource group is optional, so we can proceed even if empty
+					setStep("orchestration_mode")
+				}}
+				placeholder="default"
+				value={resourceGroup}
+			/>
+		)
+	}
 
+	// Render Orchestration Mode step (Yes/No select)
+	// Reference: Commit 20a89ce5d - use Select for Yes/No instead of checkbox/toggle
+	if (step === "orchestration_mode") {
+		return (
+			<OrchestrationModeSelect
+				isActive={isActive}
+				onCancel={goBack}
+				onSelect={(value) => {
+					setUseOrchestrationMode(value)
+					completeSetup(value)
+				}}
+			/>
+		)
+	}
+
+	// Fallback (should not be reached)
 	return (
 		<Box flexDirection="column">
 			<Text color="white">SAP AI Core Setup</Text>
@@ -215,6 +270,65 @@ export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComp
 			<Text color="gray">Current step: {step}</Text>
 			<Text> </Text>
 			<Text color="gray">Esc to go back</Text>
+		</Box>
+	)
+}
+
+/**
+ * Orchestration Mode selection component
+ * Uses a simple Yes/No select list per commit 20a89ce5d
+ */
+const OrchestrationModeSelect: React.FC<{
+	isActive: boolean
+	onSelect: (useOrchestration: boolean) => void
+	onCancel: () => void
+}> = ({ isActive, onSelect, onCancel }) => {
+	const { isRawModeSupported } = useStdinContext()
+	const [selectedIndex, setSelectedIndex] = useState(0) // Default to "Yes" (index 0)
+
+	const options = [
+		{ id: "yes", label: "Yes", value: true },
+		{ id: "no", label: "No", value: false },
+	]
+
+	useInput(
+		(input, key) => {
+			if (isMouseEscapeSequence(input)) return
+			if (key.escape) {
+				onCancel()
+			} else if (key.upArrow) {
+				setSelectedIndex((i) => (i > 0 ? i - 1 : options.length - 1))
+			} else if (key.downArrow) {
+				setSelectedIndex((i) => (i < options.length - 1 ? i + 1 : 0))
+			} else if (key.return) {
+				const selected = options[selectedIndex]
+				if (selected) {
+					onSelect(selected.value)
+				}
+			}
+		},
+		{ isActive: isActive && isRawModeSupported },
+	)
+
+	return (
+		<Box flexDirection="column">
+			<Text color="white">Use Orchestration Mode?</Text>
+			<Text color="gray">Orchestration mode routes requests through the SAP AI Core orchestration service.</Text>
+			<Text color="gray">Recommended: Yes (simpler setup, no deployment IDs needed)</Text>
+			<Text> </Text>
+			{options.map((option, idx) => {
+				const isSelected = idx === selectedIndex
+				return (
+					<Box key={option.id}>
+						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
+							{isSelected ? "❯ " : "  "}
+							{option.label}
+						</Text>
+					</Box>
+				)
+			})}
+			<Text> </Text>
+			<Text color="gray">↑↓ to select, Enter to confirm, Esc to go back</Text>
 		</Box>
 	)
 }
