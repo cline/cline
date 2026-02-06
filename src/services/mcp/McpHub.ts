@@ -57,7 +57,7 @@ export class McpHub {
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
-	isConnecting: boolean = false
+	isConnecting = false
 	/**
 	 * Flag to skip file watcher processing when we're updating Cline-specific settings
 	 * (autoApprove, timeout) that don't require an MCP server restart.
@@ -72,10 +72,10 @@ export class McpHub {
 	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
 	 *   300ms:  flag = false (ready for external file changes)
 	 */
-	private isUpdatingClineSettings: boolean = false
+	private isUpdatingClineSettings = false
 
 	// Track when remote config is updating to prevent unnecessary watcher triggers
-	private isUpdatingFromRemoteConfig: boolean = false
+	private isUpdatingFromRemoteConfig = false
 
 	/**
 	 * Map of unique keys to each connected server names
@@ -237,6 +237,7 @@ export class McpHub {
 			if (settings) {
 				try {
 					await this.updateServerConnections(settings.mcpServers)
+					await this.restoreRemoteConfiguredServers(settings.mcpServers)
 				} catch (error) {
 					Logger.error("Failed to process MCP settings change:", error)
 				}
@@ -954,6 +955,70 @@ export class McpHub {
 		return !deepEqual(oldConnectionConfig, newConnectionConfig)
 	}
 
+	/**
+	 * Restores remotely configured MCP servers that were manually deleted from the settings file.
+	 * This ensures enterprise-managed servers cannot be accidentally removed by users editing the file.
+	 *
+	 * @param currentServers The current servers in the settings file after the manual edit
+	 */
+	private async restoreRemoteConfiguredServers(currentServers: Record<string, McpServerConfig>): Promise<void> {
+		try {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+			const remoteMCPServers = remoteConfig.remoteMCPServers
+
+			if (!remoteMCPServers || remoteMCPServers.length === 0) {
+				return
+			}
+
+			const missingServers: Array<{ name: string; url: string }> = []
+			for (const remoteServer of remoteMCPServers) {
+				const existingServer = currentServers[remoteServer.name]
+				if (!existingServer || !("url" in existingServer) || existingServer.url !== remoteServer.url) {
+					missingServers.push(remoteServer)
+				}
+			}
+
+			if (missingServers.length === 0) {
+				return
+			}
+
+			Logger.log(`[MCP] Restoring ${missingServers.length} remotely configured server(s) that were manually removed`)
+
+			this.isUpdatingFromRemoteConfig = true
+
+			try {
+				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+				const content = await fs.readFile(settingsPath, "utf-8")
+				const config = JSON.parse(content)
+
+				if (!config.mcpServers || typeof config.mcpServers !== "object") {
+					config.mcpServers = {}
+				}
+
+				for (const server of missingServers) {
+					config.mcpServers[server.name] = {
+						url: server.url,
+						type: "streamableHttp",
+						disabled: false,
+						autoApprove: [],
+					}
+				}
+
+				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+
+				const validatedSettings = await this.readAndValidateMcpSettingsFile()
+				if (validatedSettings) {
+					await this.updateServerConnections(validatedSettings.mcpServers)
+				}
+			} finally {
+				this.isUpdatingFromRemoteConfig = false
+			}
+		} catch (error) {
+			Logger.error("[MCP] Failed to restore remotely configured servers:", error)
+		}
+	}
+
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
 		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
 		if (filePath) {
@@ -1384,11 +1449,7 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(
-		serverName: string,
-		serverUrl: string,
-		transportType: string = "streamableHttp",
-	): Promise<McpServer[]> {
+	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1467,9 +1528,8 @@ export class McpHub {
 				// Get the servers in their correct order from settings
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
-			} else {
-				throw new Error(`${serverName} not found in MCP configuration`)
 			}
+			throw new Error(`${serverName} not found in MCP configuration`)
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
