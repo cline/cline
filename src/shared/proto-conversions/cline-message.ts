@@ -173,13 +173,17 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 	const askEnum = message.ask ? convertClineAskToProtoEnum(message.ask) : undefined
 	const sayEnum = message.say ? convertClineSayToProtoEnum(message.say) : undefined
 
-	// Determine appropriate enum values based on message type
-	let finalAskEnum: ClineAsk = ClineAsk.FOLLOWUP // Proto default
-	let finalSayEnum: ClineSay = ClineSay.TEXT // Proto default
+	// CRITICAL FIX: Only set ask/say based on message type to prevent cross-contamination
+	// Setting both fields causes the webview to receive wrong enum values
+	let finalAskEnum: ClineAsk
+	let finalSayEnum: ClineSay
 
 	if (message.type === "ask") {
 		finalAskEnum = askEnum ?? ClineAsk.FOLLOWUP // Use FOLLOWUP as default for ask messages
-	} else if (message.type === "say") {
+		finalSayEnum = ClineSay.TEXT // Required by proto but won't be used for ask messages
+	} else {
+		// message.type === "say"
+		finalAskEnum = ClineAsk.FOLLOWUP // Required by proto but won't be used for say messages
 		finalSayEnum = sayEnum ?? ClineSay.TEXT // Use TEXT as default for say messages
 	}
 

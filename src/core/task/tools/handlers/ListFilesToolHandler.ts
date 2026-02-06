@@ -16,6 +16,9 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListFilesToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.LIST_FILES
+	private lastPartialMessage: string | undefined
+	private lastUpdateTime = 0
+	private readonly UPDATE_THROTTLE_MS = 100
 
 	constructor(private validator: ToolValidator) {}
 
@@ -43,6 +46,21 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		}
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
+
+		// CRITICAL FIX: Skip duplicate updates and throttle
+		// OpenAI Codex sends many identical deltas that cause UI flickering
+		const now = Date.now()
+		const isDuplicate = partialMessage === this.lastPartialMessage
+		const timeSinceLastUpdate = now - this.lastUpdateTime
+
+		const shouldUpdate = !block.partial || !isDuplicate || timeSinceLastUpdate >= this.UPDATE_THROTTLE_MS
+
+		if (!shouldUpdate) {
+			return
+		}
+
+		this.lastPartialMessage = partialMessage
+		this.lastUpdateTime = now
 
 		// Handle auto-approval vs manual approval for partial
 		if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, relPath)) {

@@ -1,4 +1,5 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
@@ -16,6 +17,8 @@ interface MessagesAreaProps {
 	messageHandlers: MessageHandlers
 	isReasoningActive?: boolean
 	isWaitingForContent?: boolean
+	streamingReasoningContent?: string
+	supportsStreaming?: boolean
 }
 
 /**
@@ -31,8 +34,25 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	messageHandlers,
 	isReasoningActive,
 	isWaitingForContent,
+	streamingReasoningContent,
+	supportsStreaming,
 }) => {
 	const { clineMessages } = useExtensionState()
+	const [isStreamingReasoningExpanded, setIsStreamingReasoningExpanded] = React.useState(true)
+	const reasoningScrollRef = React.useRef<HTMLDivElement>(null)
+
+	// Auto-scroll reasoning content to bottom as it streams
+	React.useEffect(() => {
+		if (reasoningScrollRef.current && streamingReasoningContent && isStreamingReasoningExpanded) {
+			const scrollElement = reasoningScrollRef.current
+			// Single RAF is sufficient for simple DOM updates
+			requestAnimationFrame(() => {
+				if (scrollElement) {
+					scrollElement.scrollTop = scrollElement.scrollHeight
+				}
+			})
+		}
+	}, [streamingReasoningContent, isStreamingReasoningExpanded])
 
 	const {
 		virtuosoRef,
@@ -74,6 +94,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			!!(isWaitingForContent || isReasoningActive),
 		),
 		[
 			groupedMessages,
@@ -84,6 +105,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			isWaitingForContent,
+			isReasoningActive,
 		],
 	)
 
@@ -116,14 +139,46 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					components={{
 						Footer: () => (
 							<div>
-								{/* Show "Working..." or "Thinking..." at bottom of chat stream */}
+								{/* Show "Working..." or streaming "Thinking..." at bottom of chat stream */}
 								{(isWaitingForContent || isReasoningActive) && (
-									<div className="pl-[16px] -mt-2">
-										<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
-											<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
-												{isWaitingForContent ? "Working..." : "Thinking..."}
-											</span>
-										</div>
+									<div className="pl-[16px] pt-2.5">
+										{/* Non-streaming models: just shimmer text */}
+										{(supportsStreaming === false || !streamingReasoningContent) && (
+											<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
+												<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+													{isWaitingForContent ? "Working..." : "Thinking..."}
+												</span>
+											</div>
+										)}
+
+										{/* Streaming models with reasoning: show expandable content */}
+										{supportsStreaming !== false && streamingReasoningContent && (
+											<div className="mb-1">
+												<button
+													className="inline-flex items-center justify-baseline gap-0.5 text-left select-none cursor-pointer px-0 w-full bg-transparent border-0"
+													onClick={() => setIsStreamingReasoningExpanded(!isStreamingReasoningExpanded)}
+													type="button">
+													<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+														Thinking...
+													</span>
+													{isStreamingReasoningExpanded ? (
+														<ChevronDownIcon className="size-1 ml-1 text-foreground" />
+													) : (
+														<ChevronRightIcon className="size-1 ml-1 text-foreground" />
+													)}
+												</button>
+												{isStreamingReasoningExpanded && (
+													<div
+														className="mt-1 max-h-[75px] overflow-y-auto text-description text-sm leading-normal whitespace-pre-wrap break-words pl-2 border-l border-description/50"
+														ref={reasoningScrollRef}
+														// column-reverse keeps content anchored at bottom as it streams in
+														// Combined with scrollTop = scrollHeight, this ensures latest content is visible
+														style={{ display: "flex", flexDirection: "column-reverse" }}>
+														<span className="block">{streamingReasoningContent}</span>
+													</div>
+												)}
+											</div>
+										)}
 									</div>
 								)}
 								<div className="min-h-1" />

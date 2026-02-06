@@ -14,11 +14,47 @@ interface ThinkingRowProps {
 export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisible, isExpanded, onToggle }: ThinkingRowProps) => {
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const [canScrollDown, setCanScrollDown] = useState(false)
+	const [displayReasoning, setDisplayReasoning] = useState(reasoningContent)
+	const pendingReasoningRef = useRef<string | undefined>(reasoningContent)
+	const reasoningFlushTimeoutRef = useRef<number | null>(null)
+	const lastReasoningFlushRef = useRef(0)
+	const REASONING_FLUSH_INTERVAL_MS = 80
 
 	const checkScrollable = useCallback(() => {
 		if (scrollRef.current) {
 			const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
 			setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
+		}
+	}, [])
+
+	useEffect(() => {
+		pendingReasoningRef.current = reasoningContent
+		const now = Date.now()
+		const elapsed = now - lastReasoningFlushRef.current
+		const shouldFlushNow = elapsed >= REASONING_FLUSH_INTERVAL_MS && reasoningFlushTimeoutRef.current === null
+
+		if (shouldFlushNow) {
+			lastReasoningFlushRef.current = now
+			setDisplayReasoning((prev) => (prev === pendingReasoningRef.current ? prev : pendingReasoningRef.current))
+			return
+		}
+
+		if (reasoningFlushTimeoutRef.current === null) {
+			const delay = Math.max(REASONING_FLUSH_INTERVAL_MS - elapsed, 0)
+			reasoningFlushTimeoutRef.current = window.setTimeout(() => {
+				lastReasoningFlushRef.current = Date.now()
+				setDisplayReasoning((prev) => (prev === pendingReasoningRef.current ? prev : pendingReasoningRef.current))
+				reasoningFlushTimeoutRef.current = null
+			}, delay)
+		}
+	}, [reasoningContent])
+
+	useEffect(() => {
+		return () => {
+			if (reasoningFlushTimeoutRef.current !== null) {
+				clearTimeout(reasoningFlushTimeoutRef.current)
+				reasoningFlushTimeoutRef.current = null
+			}
 		}
 	}, [])
 
@@ -29,7 +65,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight
 		}
 		checkScrollable()
-	}, [reasoningContent, isVisible, checkScrollable])
+	}, [displayReasoning, isVisible, checkScrollable])
 
 	if (!isVisible) {
 		return null
@@ -78,7 +114,7 @@ export const ThinkingRow = memo(({ showTitle = false, reasoningContent, isVisibl
 							)}
 							onScroll={checkScrollable}
 							ref={scrollRef}>
-							<span className="pb-2 block text-sm">{reasoningContent}</span>
+							<span className="pb-2 block text-sm">{displayReasoning}</span>
 						</div>
 						{canScrollDown && (
 							<div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-t from-background to-transparent" />
