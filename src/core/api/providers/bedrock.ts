@@ -65,6 +65,7 @@ interface ContentBlockStart {
 	start?: {
 		type?: string
 		thinking?: string
+		toolUse?: ToolUseStart
 	}
 	contentBlock?: {
 		type?: string
@@ -84,7 +85,20 @@ interface ContentBlockDelta {
 		reasoningContent?: {
 			text?: string
 		}
+		toolUse?: ToolUseDelta
 	}
+}
+
+// Tool use types returned by Bedrock ConverseStream API.
+// The @aws-sdk/client-bedrock-runtime types don't fully cover these
+// fields in the streaming response, so we define them here.
+interface ToolUseStart {
+	toolUseId: string
+	name: string
+}
+
+interface ToolUseDelta {
+	input: string
 }
 
 // Define types for supported content types
@@ -354,7 +368,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message using the Deepseek R1 model through AWS Bedrock
+	 * Creates a message using the Deepseek R1 model through AWS Bedrock.
+	 * DeepSeek R1 uses InvokeModelWithResponseStream (not the Converse API)
+	 * and does not support native tool calling, so tools are intentionally unused.
 	 */
 	private async *createDeepseekMessage(
 		systemPrompt: string,
@@ -545,6 +561,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		return Math.ceil(text.length / 4)
 	}
 
+	/**
+	 * Converts Cline's tool definitions (Anthropic format with `input_schema`) to the
+	 * Bedrock Converse API `ToolConfiguration` shape. Returns `undefined` when no tools
+	 * are provided so callers can conditionally spread into the command params.
+	 */
 	private mapClineToolsToBedrockToolConfig(tools?: ClineTool[]): ToolConfiguration | undefined {
 		if (!tools || tools.length === 0) {
 			return undefined
@@ -589,7 +610,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				// Buffer content by contentBlockIndex to handle multi-block responses correctly
 				const contentBuffers: Record<number, string> = {}
 				const blockTypes = new Map<number, "reasoning" | "text">()
-				const activeToolCalls: Map<number, { toolUseId: string; name: string; inputBuffer: string }> = new Map()
+				const activeToolCalls: Map<number, { toolUseId: string; name: string }> = new Map()
 
 				for await (const chunk of response.stream) {
 					// Debug logging to see actual response structure
@@ -639,13 +660,12 @@ export class AwsBedrockHandler implements ApiHandler {
 						const blockStart = chunk.contentBlockStart as ContentBlockStart
 						const blockIndex = chunk.contentBlockStart.contentBlockIndex
 
-						if (blockStart.start && "toolUse" in blockStart.start) {
-							const toolUse = (blockStart.start as any).toolUse
-							if (toolUse?.toolUseId && toolUse?.name && blockIndex !== undefined) {
+						if (blockStart.start?.toolUse) {
+							const toolUse = blockStart.start.toolUse
+							if (toolUse.toolUseId && toolUse.name && blockIndex !== undefined) {
 								activeToolCalls.set(blockIndex, {
 									toolUseId: toolUse.toolUseId,
 									name: toolUse.name,
-									inputBuffer: "",
 								})
 							}
 						}
@@ -703,11 +723,10 @@ export class AwsBedrockHandler implements ApiHandler {
 										reasoning: reasoningText,
 									}
 								}
-							} else if ((chunk.contentBlockDelta.delta as any)?.toolUse?.input !== undefined) {
+							} else if (delta?.toolUse?.input !== undefined) {
 								const toolCall = activeToolCalls.get(blockIndex)
-								const toolInput = (chunk.contentBlockDelta.delta as any).toolUse?.input
+								const toolInput = delta.toolUse.input
 								if (toolCall && typeof toolInput === "string") {
-									toolCall.inputBuffer += toolInput
 									yield {
 										type: "tool_calls",
 										tool_call: {
