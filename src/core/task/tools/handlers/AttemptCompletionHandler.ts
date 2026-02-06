@@ -35,6 +35,9 @@ function getInitialTaskPreview(config: TaskConfig): string | undefined {
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ATTEMPT
+	private lastUpdateTime = 0
+	private lastUpdateLength = 0
+	private readonly UPDATE_THROTTLE_MS = 100 // Only update UI every 100ms
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
@@ -42,11 +45,30 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 	/**
 	 * Handle partial block streaming for attempt_completion
+	 * Throttled to prevent UI flickering from rapid updates
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const result = uiHelpers.removeClosingTag(block, "result", block.params.result)
-		if (result) {
+		if (!result) {
+			return
+		}
+
+		// CRITICAL FIX: Throttle partial updates to prevent UI flickering
+		// Some providers (openai-codex) send many small deltas that overwhelm React rendering
+		const now = Date.now()
+		const timeSinceLastUpdate = now - this.lastUpdateTime
+		const lengthDelta = result.length - this.lastUpdateLength
+
+		// Only update if:
+		// 1. Enough time has passed (100ms throttle), OR
+		// 2. Substantial content added (50+ chars), OR
+		// 3. This is the final update (partial=false)
+		const shouldUpdate = !block.partial || timeSinceLastUpdate >= this.UPDATE_THROTTLE_MS || lengthDelta >= 50
+
+		if (shouldUpdate) {
 			await uiHelpers.say("completion_result", result, undefined, undefined, block.partial)
+			this.lastUpdateTime = now
+			this.lastUpdateLength = result.length
 		}
 		// We will handle command in the final execution step
 	}
