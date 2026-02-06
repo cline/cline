@@ -2,7 +2,7 @@ import { AwsBedrockHandler, type AwsBedrockHandlerOptions } from "../src/core/ap
 import type { ApiStreamChunk } from "../src/core/api/transform/stream"
 
 const REGION = process.env.AWS_REGION || "us-east-1"
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-sonnet-4-5-20250929-v1:0"
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-haiku-4-5-20251001-v1:0"
 const USE_CROSS_REGION = process.env.BEDROCK_USE_CROSS_REGION === "true"
 
 function createTestHandler(options: Partial<AwsBedrockHandlerOptions> = {}) {

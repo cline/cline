@@ -54,7 +54,7 @@ function logProgress(message: string) {
 	process.stderr.write(`[${nowIso()}] ${message}\n`)
 }
 
-const DEFAULT_MODEL_ID = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+const DEFAULT_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
 const DEFAULT_REGION = "us-east-1"
 
 function ensureAwsCredentials() {
