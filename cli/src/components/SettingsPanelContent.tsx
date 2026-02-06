@@ -10,20 +10,23 @@ import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shar
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+// biome-ignore lint/correctness/noUnusedImports: React is required for JSX transformation (tsconfig jsx: react)
+// biome-ignore lint/style/useImportType: React must be imported as a value for JSX transformation
+import * as React from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
-import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { AuthService, type ClineAccountOrganization } from "@/services/auth/AuthService"
 import { openExternal } from "@/utils/env"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig, applySapAiCoreConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
@@ -36,8 +39,9 @@ import {
 import { LanguagePicker } from "./LanguagePicker"
 import { hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OrganizationPicker } from "./OrganizationPicker"
-import { Panel, PanelTab } from "./Panel"
+import { Panel, type PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
+import { type SapAiCoreConfig, SapAiCoreSetup } from "./SapAiCoreSetup"
 
 interface SettingsPanelContentProps {
 	onClose: () => void
@@ -135,6 +139,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
+	const [isConfiguringSapAiCore, setIsConfiguringSapAiCore] = useState(false)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
@@ -979,6 +984,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for SAP AI Core - needs multi-field configuration
+			if (providerId === "sapaicore") {
+				setPendingProvider(providerId)
+				setIsPickingProvider(false)
+				setIsConfiguringSapAiCore(true)
+				return
+			}
+
 			// Check if this provider needs an API key
 			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {
@@ -1030,6 +1043,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Apply config and rebuild API handler in background
 			applyBedrockConfig({ bedrockConfig, controller })
+		},
+		[controller, refreshModelIds],
+	)
+
+	// Handle SAP AI Core configuration complete
+	const handleSapAiCoreComplete = useCallback(
+		(sapAiCoreConfig: SapAiCoreConfig) => {
+			// Update UI state first for responsiveness
+			setProvider("sapaicore")
+			refreshModelIds()
+			setIsConfiguringSapAiCore(false)
+			setPendingProvider(null)
+
+			// Apply config and rebuild API handler in background
+			applySapAiCoreConfig({ sapAiCoreConfig, controller })
 		},
 		[controller, refreshModelIds],
 	)
@@ -1117,6 +1145,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (isPickingProvider) {
 				if (key.escape) {
 					setIsPickingProvider(false)
+				}
+				return
+			}
+
+			// SAP AI Core configuration mode - escape to close, input is handled by SapAiCoreSetup
+			if (isConfiguringSapAiCore) {
+				if (key.escape) {
+					setIsConfiguringSapAiCore(false)
+					setPendingProvider(null)
 				}
 				return
 			}
@@ -1257,7 +1294,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock },
+		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isConfiguringSapAiCore },
 	)
 
 	// Render content
@@ -1304,6 +1341,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						setPendingProvider(null)
 					}}
 					onComplete={handleBedrockComplete}
+				/>
+			)
+		}
+
+		if (isConfiguringSapAiCore) {
+			return (
+				<SapAiCoreSetup
+					isActive={isConfiguringSapAiCore}
+					onCancel={() => {
+						setIsConfiguringSapAiCore(false)
+						setPendingProvider(null)
+					}}
+					onComplete={handleSapAiCoreComplete}
 				/>
 			)
 		}
@@ -1595,6 +1645,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isPickingLanguage ||
 		isEnteringApiKey ||
 		isConfiguringBedrock ||
+		isConfiguringSapAiCore ||
 		isWaitingForCodexAuth ||
 		!!codexAuthError ||
 		isPickingOrganization ||
