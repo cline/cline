@@ -106,6 +106,7 @@ message OpenRouterModelInfo {
   optional double temperature = 14;
   optional bool supports_reasoning = 15;
   optional ApiFormat api_format = 16;
+  optional bool supports_streaming = 17;
 }
 
 // Shared response message for model information
@@ -467,6 +468,7 @@ message OpenAiCompatibleModelInfo {
   optional double temperature = 13;
   optional bool is_r1_format_required = 14;
   optional ApiFormat api_format = 15;
+  optional bool supports_streaming = 16;
 }
 
 // Model info for LiteLLM models

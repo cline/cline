@@ -146,6 +146,22 @@ export class Task {
 	private taskIsFavorited?: boolean
 	private cwd: string
 	private taskInitializationStartTime: number
+	private lastPartialTextUpdateAtByType = new Map<ClineSay, number>()
+	private lastPartialMessageIndexByType = new Map<ClineSay, number>()
+	private readonly PARTIAL_TEXT_UPDATE_INTERVAL_MS = 200
+	private readonly PARTIAL_REASONING_UPDATE_INTERVAL_MS = 250
+	private readonly PARTIAL_FINAL_COALESCE_WINDOW_MS = 120
+
+	private listFingerprint(list?: string[]): string {
+		if (!list || list.length === 0) {
+			return ""
+		}
+		return list.join("\u0001")
+	}
+
+	private messagePayloadFingerprint(text?: string, images?: string[], files?: string[]): string {
+		return `${text ?? ""}|img:${this.listFingerprint(images)}|file:${this.listFingerprint(files)}`
+	}
 
 	taskState: TaskState
 
@@ -608,7 +624,8 @@ export class Task {
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const updatedMessage = this.messageStateHandler.getClineMessages().at(-1)!
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				} else {
@@ -651,7 +668,8 @@ export class Task {
 						partial: false,
 					})
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const updatedMessage = this.messageStateHandler.getClineMessages().at(-1)!
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial=false message, so add it like normal
@@ -734,21 +752,66 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
+			const isEmptyText = text !== undefined && text.trim().length === 0
+			const hasNoPayload = text === undefined && images === undefined && files === undefined
+			// CRITICAL FIX: Block empty/undefined partial or final messages before ANY processing
+			// OpenAI Codex can emit empty deltas that create ghost/flicker updates
+			if ((partial || type === "text" || type === "reasoning") && (hasNoPayload || isEmptyText)) {
+				return undefined
+			}
+			if (partial && (type === "text" || type === "reasoning")) {
+				const now = Date.now()
+				const lastUpdateAt = this.lastPartialTextUpdateAtByType.get(type) ?? 0
+				const interval =
+					type === "reasoning" ? this.PARTIAL_REASONING_UPDATE_INTERVAL_MS : this.PARTIAL_TEXT_UPDATE_INTERVAL_MS
+				if (now - lastUpdateAt < interval) {
+					return undefined
+				}
+				this.lastPartialTextUpdateAtByType.set(type, now)
+			}
+
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastMessage = clineMessages.at(-1)
+			if (
+				partial === false &&
+				lastMessage &&
+				lastMessage.type === "say" &&
+				lastMessage.say === type &&
+				lastMessage.partial === false &&
+				this.messagePayloadFingerprint(text, images, files) ===
+					this.messagePayloadFingerprint(lastMessage.text, lastMessage.images, lastMessage.files)
+			) {
+				return undefined
+			}
+			const lastPartialIndex = this.lastPartialMessageIndexByType.get(type)
 			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+				lastPartialIndex !== undefined &&
+				lastPartialIndex >= 0 &&
+				lastPartialIndex < clineMessages.length &&
+				clineMessages[lastPartialIndex]?.type === "say" &&
+				clineMessages[lastPartialIndex]?.say === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
-					// existing partial message, so update it
-					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					// CRITICAL FIX: Skip duplicate updates (prevents redundant React re-renders)
+					const previousMessage = clineMessages[lastPartialIndex!]
+					const isDuplicate =
+						this.messagePayloadFingerprint(text, images, files) ===
+						this.messagePayloadFingerprint(previousMessage.text, previousMessage.images, previousMessage.files)
+					if (isDuplicate) {
+						return undefined
+					}
+
+					await this.messageStateHandler.updateClineMessage(lastPartialIndex!, {
 						text,
 						images,
 						files,
 						partial,
 					})
 
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					// CRITICAL FIX: Get the UPDATED message, not the old lastMessage!
+					// The old code used lastMessage which still had old text value
+					const updatedMessage = this.messageStateHandler.getClineMessages()[lastPartialIndex!]!
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
 				} else {
@@ -765,26 +828,38 @@ export class Task {
 						partial,
 						modelInfo,
 					})
+					this.lastPartialMessageIndexByType.set(type, this.messageStateHandler.getClineMessages().length - 1)
 					await this.postStateToWebview()
 					return sayTs
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
 				if (isUpdatingPreviousPartial) {
+					const previousMessage = clineMessages[lastPartialIndex!]
+					const isDuplicate =
+						this.messagePayloadFingerprint(text, images, files) ===
+						this.messagePayloadFingerprint(previousMessage.text, previousMessage.images, previousMessage.files)
+					const lastPartialUpdateAt = this.lastPartialTextUpdateAtByType.get(type) ?? 0
+					const now = Date.now()
+					if (isDuplicate && now - lastPartialUpdateAt < this.PARTIAL_FINAL_COALESCE_WINDOW_MS) {
+						this.lastPartialMessageIndexByType.delete(type)
+						return undefined
+					}
 					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.lastMessageTs = lastMessage.ts
-					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+					this.taskState.lastMessageTs = previousMessage.ts
 					// updateClineMessage emits the change event and saves to disk
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					await this.messageStateHandler.updateClineMessage(lastPartialIndex!, {
 						text,
 						images,
 						files,
 						partial: false,
 					})
 
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					// CRITICAL FIX: Get the UPDATED message, not the old lastMessage!
+					const updatedMessage = this.messageStateHandler.getClineMessages()[lastPartialIndex!]!
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+					this.lastPartialMessageIndexByType.delete(type)
 					return undefined
 				} else {
 					// this is a new partial=false message, so add it like normal
@@ -2081,48 +2156,53 @@ export class Task {
 					break
 				}
 				let content = block.content
-				if (content) {
-					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
-					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
-					// (this is done with the xml parsing below now, but keeping here for reference)
-					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
-					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
-					// - Needs to be separate since we dont want to remove the line break before the first tag
-					// - Needs to happen before the xml parsing below
-					content = content.replace(/<thinking>\s?/g, "")
-					content = content.replace(/\s?<\/thinking>/g, "")
 
-					// Remove all instances of <think> tags (alternative to <thinking>, some models are trained to use this tag instead)
-					content = content.replace(/<think>\s?/g, "")
-					content = content.replace(/\s?<\/think>/g, "")
+				// CRITICAL FIX: Skip rendering if content is undefined/empty (prevents UI flickering)
+				// Some providers send empty content blocks that cause messages to flash
+				if (!content || content.trim().length === 0) {
+					break
+				}
 
-					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
-					content = content.replace(/<function_calls>\s?/g, "")
-					content = content.replace(/\s?<\/function_calls>/g, "")
+				// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
+				// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
+				// (this is done with the xml parsing below now, but keeping here for reference)
+				// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
+				// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
+				// - Needs to be separate since we dont want to remove the line break before the first tag
+				// - Needs to happen before the xml parsing below
+				content = content.replace(/<thinking>\s?/g, "")
+				content = content.replace(/\s?<\/thinking>/g, "")
 
-					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
-					// (prevents scrollview from jumping when tags are automatically removed)
-					const lastOpenBracketIndex = content.lastIndexOf("<")
-					if (lastOpenBracketIndex !== -1) {
-						const possibleTag = content.slice(lastOpenBracketIndex)
-						// Check if there's a '>' after the last '<' (i.e., if the tag is complete) (complete thinking and tool tags will have been removed by now)
-						const hasCloseBracket = possibleTag.includes(">")
-						if (!hasCloseBracket) {
-							// Extract the potential tag name
-							let tagContent: string
-							if (possibleTag.startsWith("</")) {
-								tagContent = possibleTag.slice(2).trim()
-							} else {
-								tagContent = possibleTag.slice(1).trim()
-							}
-							// Check if tagContent is likely an incomplete tag name (letters and underscores only)
-							const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
-							// Preemptively remove < or </ to keep from these artifacts showing up in chat (also handles closing thinking tags)
-							const isOpeningOrClosing = possibleTag === "<" || possibleTag === "</"
-							// If the tag is incomplete and at the end, remove it from the content
-							if (isOpeningOrClosing || isLikelyTagName) {
-								content = content.slice(0, lastOpenBracketIndex).trim()
-							}
+				// Remove all instances of <think> tags (alternative to <thinking>, some models are trained to use this tag instead)
+				content = content.replace(/<think>\s?/g, "")
+				content = content.replace(/\s?<\/think>/g, "")
+
+				// New claude models tend to output <function_calls> tags which we don't want to show in the chat
+				content = content.replace(/<function_calls>\s?/g, "")
+				content = content.replace(/\s?<\/function_calls>/g, "")
+
+				// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
+				// (prevents scrollview from jumping when tags are automatically removed)
+				const lastOpenBracketIndex = content.lastIndexOf("<")
+				if (lastOpenBracketIndex !== -1) {
+					const possibleTag = content.slice(lastOpenBracketIndex)
+					// Check if there's a '>' after the last '<' (i.e., if the tag is complete) (complete thinking and tool tags will have been removed by now)
+					const hasCloseBracket = possibleTag.includes(">")
+					if (!hasCloseBracket) {
+						// Extract the potential tag name
+						let tagContent: string
+						if (possibleTag.startsWith("</")) {
+							tagContent = possibleTag.slice(2).trim()
+						} else {
+							tagContent = possibleTag.slice(1).trim()
+						}
+						// Check if tagContent is likely an incomplete tag name (letters and underscores only)
+						const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
+						// Preemptively remove < or </ to keep from these artifacts showing up in chat (also handles closing thinking tags)
+						const isOpeningOrClosing = possibleTag === "<" || possibleTag === "</"
+						// If the tag is incomplete and at the end, remove it from the content
+						if (isOpeningOrClosing || isLikelyTagName) {
+							content = content.slice(0, lastOpenBracketIndex).trim()
 						}
 					}
 				}
@@ -3187,11 +3267,17 @@ export class Task {
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
-			lastMessage.text = textContent
-			lastMessage.partial = false
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			const protoMessage = convertClineMessageToProto(lastMessage)
-			await sendPartialMessageEvent(protoMessage)
+			// Avoid emitting empty final text updates (these cause visible flicker in the webview)
+			const finalText = textContent || lastMessage.text || ""
+			if (finalText.trim().length > 0) {
+				lastMessage.text = finalText
+				lastMessage.partial = false
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				// Get the updated message after mutation
+				const updatedMessage = this.messageStateHandler.getClineMessages().at(-1)!
+				const protoMessage = convertClineMessageToProto(updatedMessage)
+				await sendPartialMessageEvent(protoMessage)
+			}
 		}
 
 		this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
