@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { useMemo } from "react"
+import type React from "react"
+import { useMemo } from "react"
 import CodeAccordian from "../common/CodeAccordian"
 
 interface SearchResultsDisplayProps {
@@ -121,7 +122,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					}}>
 					{path + (filePattern ? `/(${filePattern})` : "")}
 				</span>
-				<div style={{ flexGrow: 1 }}></div>
+				<div style={{ flexGrow: 1 }} />
 				{isExpanded ? (
 					<ChevronDownIcon size={16} style={{ margin: "1px 0" }} />
 				) : (
@@ -162,7 +163,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 									style={{
 										fontSize: "14px",
 										color: "var(--vscode-symbolIcon-folderForeground)",
-									}}></span>
+									}}
+								/>
 								<span
 									style={{
 										fontWeight: "500",

@@ -1,7 +1,7 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Toggles a model's favorite status

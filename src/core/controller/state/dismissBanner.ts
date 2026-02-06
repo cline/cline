@@ -1,6 +1,5 @@
 import { BannerService } from "@/services/banner/BannerService"
-import type { StringRequest } from "@/shared/proto/cline/common"
-import { Empty } from "@/shared/proto/cline/common"
+import type { Empty, StringRequest } from "@/shared/proto/cline/common"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 

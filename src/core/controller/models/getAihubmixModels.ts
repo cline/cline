@@ -1,9 +1,9 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Fetches available models from AIhubmix

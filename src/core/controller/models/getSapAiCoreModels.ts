@@ -1,8 +1,8 @@
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
+import { SapAiCoreModelDeployment, type SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 interface Token {
 	access_token: string

@@ -79,7 +79,7 @@ export class CliDiffServiceClient implements DiffServiceClientInterface {
  * CLI implementation of EnvService - handles environment operations
  */
 export class CliEnvServiceClient implements EnvServiceClientInterface {
-	private clipboardContent: string = ""
+	private clipboardContent = ""
 
 	private getTelemetrySetting(): proto.host.Setting {
 		// Read from StateManager - defaults to ENABLED if not set or "unset"

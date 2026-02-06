@@ -3,7 +3,7 @@ import { describe, it } from "mocha"
 import { DiffViewProvider } from "../DiffViewProvider"
 
 class TestBoundaryDiffViewProvider extends DiffViewProvider {
-	public documentText: string = ""
+	public documentText = ""
 	public truncatedAt: number | undefined
 
 	async openDiffEditor(): Promise<void> {}
@@ -26,7 +26,7 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 		return this.documentText
 	}
 
-	async saveDocument(): Promise<Boolean> {
+	async saveDocument(): Promise<boolean> {
 		return true
 	}
 	async closeAllDiffViews(): Promise<void> {}
@@ -199,7 +199,7 @@ describe("DiffViewProvider Update Throttling", () => {
 	// Only the final line (without trailing newline) is deferred until isFinal=true.
 
 	class ThrottleTestDiffViewProvider extends DiffViewProvider {
-		public documentText: string = ""
+		public documentText = ""
 		public replaceTextCallCount = 0
 
 		async openDiffEditor(): Promise<void> {}
@@ -215,7 +215,7 @@ describe("DiffViewProvider Update Throttling", () => {
 			return this.documentText
 		}
 
-		async saveDocument(): Promise<Boolean> {
+		async saveDocument(): Promise<boolean> {
 			return true
 		}
 		async closeAllDiffViews(): Promise<void> {}

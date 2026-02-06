@@ -1,4 +1,4 @@
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import OpenRouterModelPicker from "../OpenRouterModelPicker"
 

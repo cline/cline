@@ -1,4 +1,4 @@
-import { ClineMessage } from "./ExtensionMessage"
+import type { ClineMessage } from "./ExtensionMessage"
 
 interface ApiMetrics {
 	totalTokensIn: number

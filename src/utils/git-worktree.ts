@@ -234,7 +234,7 @@ export async function createWorktree(
 /**
  * Delete a worktree
  */
-export async function deleteWorktree(cwd: string, path: string, force: boolean = false): Promise<WorktreeResult> {
+export async function deleteWorktree(cwd: string, path: string, force = false): Promise<WorktreeResult> {
 	const isInstalled = await checkGitInstalled()
 	if (!isInstalled) {
 		return { success: false, message: "Git is not installed" }

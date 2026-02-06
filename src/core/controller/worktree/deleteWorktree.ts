@@ -1,4 +1,4 @@
-import { DeleteWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { type DeleteWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { deleteWorktree as deleteWorktreeUtil } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import { rm } from "fs/promises"
@@ -7,7 +7,7 @@ import simpleGit from "simple-git"
 import { HostProvider } from "@/hosts/host-provider"
 import { hashWorkingDir } from "@/integrations/checkpoints/CheckpointUtils"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Deletes an existing git worktree

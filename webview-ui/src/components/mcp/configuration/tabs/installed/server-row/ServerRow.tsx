@@ -1,10 +1,10 @@
-import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "@shared/mcp"
+import { DEFAULT_MCP_TIMEOUT_SECONDS, type McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import {
-	McpServers,
+	type McpServers,
 	ToggleMcpServerRequest,
 	ToggleToolAutoApproveRequest,
-	UpdateMcpTimeoutRequest,
+	type UpdateMcpTimeoutRequest,
 } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import {
@@ -93,7 +93,7 @@ const ServerRow = ({
 	const handleTimeoutChange = (e: any) => {
 		const select = e.target as HTMLSelectElement
 		const value = select.value
-		const num = parseInt(value)
+		const num = Number.parseInt(value)
 		setTimeoutValue(value)
 
 		McpServiceClient.updateMcpTimeout({

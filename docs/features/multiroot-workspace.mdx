@@ -49,15 +49,23 @@ required field.
 
 **Monorepo**: One Git repository containing multiple projects or packages. All code shares the same version history.
 
-```
-my-company/                    # Single Git repo
-├── .git/
-├── packages/
-│   ├── web/                   # React frontend
-│   ├── api/                   # Node.js backend
-│   └── shared/                # Common utilities
-└── package.json
-```
+<Files>
+  <Folder name="my-company" defaultOpen>
+    <Folder name=".git" />
+    <Folder name="packages" defaultOpen>
+      <Folder name="web" icon="react">
+        <File name="..." />
+      </Folder>
+      <Folder name="api" icon="node-js">
+        <File name="..." />
+      </Folder>
+      <Folder name="shared">
+        <File name="..." />
+      </Folder>
+    </Folder>
+    <File name="package.json" />
+  </Folder>
+</Files>
 
 **Multiple Repositories**: Separate Git repositories, each with their own history, opened together in one VSCode workspace.
 

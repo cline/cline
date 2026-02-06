@@ -1,10 +1,10 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { toRequestyServiceUrl } from "@/shared/clients/requesty"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes the Requesty models and returns the updated model list
@@ -15,7 +15,7 @@ import { Controller } from ".."
 export async function refreshRequestyModels(controller: Controller, _: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
-			return parseFloat(price) * 1_000_000
+			return Number.parseFloat(price) * 1_000_000
 		}
 		return undefined
 	}

@@ -1,7 +1,7 @@
-import { CheckoutBranchRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { type CheckoutBranchRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { getWorkspacePath } from "@utils/path"
 import simpleGit from "simple-git"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Checks out a branch in the current worktree (git checkout)

@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type OpenAI from "openai"
+import type { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
 
 /**
  * DeepSeek Reasoner message format with reasoning_content support.

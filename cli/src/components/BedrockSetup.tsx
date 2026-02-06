@@ -1,6 +1,7 @@
 import BedrockData from "@shared/providers/bedrock.json"
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useMemo, useState } from "react"
+import type React from "react"
+import { useCallback, useMemo, useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useScrollableList } from "../hooks/useScrollableList"

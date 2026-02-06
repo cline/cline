@@ -3,7 +3,7 @@ import { JSONParser } from "@streamparser/json"
 import { nanoid } from "nanoid"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
-import {
+import type {
 	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
 	ClineAssistantToolUseBlock,

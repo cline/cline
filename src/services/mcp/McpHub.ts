@@ -18,19 +18,19 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
-	McpPrompt,
-	McpPromptResponse,
-	McpResource,
-	McpResourceResponse,
-	McpResourceTemplate,
-	McpServer,
-	McpTool,
-	McpToolCallResponse,
+	type McpPrompt,
+	type McpPromptResponse,
+	type McpResource,
+	type McpResourceResponse,
+	type McpResourceTemplate,
+	type McpServer,
+	type McpTool,
+	type McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { secondsToMs } from "@utils/time"
-import chokidar, { FSWatcher } from "chokidar"
+import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import { nanoid } from "nanoid"
@@ -42,11 +42,11 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import { getServerAuthHash } from "@/utils/mcpAuth"
-import { TelemetryService } from "../telemetry/TelemetryService"
+import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
-import { McpConnection, McpServerConfig, Transport } from "./types"
+import type { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -57,7 +57,7 @@ export class McpHub {
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
-	isConnecting: boolean = false
+	isConnecting = false
 	/**
 	 * Flag to skip file watcher processing when we're updating Cline-specific settings
 	 * (autoApprove, timeout) that don't require an MCP server restart.
@@ -72,10 +72,10 @@ export class McpHub {
 	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
 	 *   300ms:  flag = false (ready for external file changes)
 	 */
-	private isUpdatingClineSettings: boolean = false
+	private isUpdatingClineSettings = false
 
 	// Track when remote config is updating to prevent unnecessary watcher triggers
-	private isUpdatingFromRemoteConfig: boolean = false
+	private isUpdatingFromRemoteConfig = false
 
 	/**
 	 * Map of unique keys to each connected server names
@@ -1384,11 +1384,7 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(
-		serverName: string,
-		serverUrl: string,
-		transportType: string = "streamableHttp",
-	): Promise<McpServer[]> {
+	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1467,9 +1463,8 @@ export class McpHub {
 				// Get the servers in their correct order from settings
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
-			} else {
-				throw new Error(`${serverName} not found in MCP configuration`)
 			}
+			throw new Error(`${serverName} not found in MCP configuration`)
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error

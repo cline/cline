@@ -4,7 +4,7 @@
  */
 
 import { Box, Text } from "ink"
-import React from "react"
+import type React from "react"
 import { COLORS } from "../constants/colors"
 import { type FileSearchResult, getRipgrepInstallInstructions } from "../utils/file-search"
 import { getVisibleWindow } from "../utils/slash-commands"
@@ -20,7 +20,7 @@ interface FileMentionMenuProps {
 /**
  * Truncate path from the left if too long, keeping the filename visible
  */
-function truncatePath(filePath: string, maxLength: number = 50): string {
+function truncatePath(filePath: string, maxLength = 50): string {
 	if (filePath.length <= maxLength) {
 		return filePath
 	}

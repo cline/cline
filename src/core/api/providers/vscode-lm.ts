@@ -1,12 +1,12 @@
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
+import type { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
@@ -392,7 +392,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
 		// Accumulate the text and count at the end of the stream to reduce token counting overhead.
-		let accumulatedText: string = ""
+		let accumulatedText = ""
 
 		try {
 			// Create the response stream with minimal required options
@@ -498,17 +498,17 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 				// Return original error if it's already an Error instance
 				throw error
-			} else if (typeof error === "object" && error !== null) {
+			}
+			if (typeof error === "object" && error !== null) {
 				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				Logger.error("Cline <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Cline <Language Model API>: Response stream error: ${errorDetails}`)
-			} else {
-				// Fallback for unknown error types
-				const errorMessage = String(error)
-				Logger.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
-				throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 			}
+			// Fallback for unknown error types
+			const errorMessage = String(error)
+			Logger.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
+			throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 		}
 	}
 

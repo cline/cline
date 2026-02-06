@@ -1,25 +1,25 @@
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { type AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import {
-	ApiProvider,
+	type ApiProvider,
 	DEFAULT_API_PROVIDER,
-	LiteLLMModelInfo,
-	ModelInfo,
+	type LiteLLMModelInfo,
+	type ModelInfo,
 	type OcaModelInfo,
-	OpenAiCompatibleModelInfo,
+	type OpenAiCompatibleModelInfo,
 } from "@shared/api"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
-import { HistoryItem } from "@shared/HistoryItem"
-import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
-import { WorkspaceRoot } from "@shared/multi-root/types"
-import { GlobalInstructionsFile } from "@shared/remote-config/schema"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { UserInfo } from "@shared/UserInfo"
-import { LanguageModelChatSelector } from "vscode"
-import { BlobStoreSettings } from "./ClineBlobStorage"
+import { type BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import type { ClineRulesToggles } from "@shared/cline-rules"
+import { DEFAULT_DICTATION_SETTINGS, type DictationSettings } from "@shared/DictationSettings"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS, type FocusChainSettings } from "@shared/FocusChainSettings"
+import type { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_MCP_DISPLAY_MODE, type McpDisplayMode } from "@shared/McpDisplayMode"
+import type { WorkspaceRoot } from "@shared/multi-root/types"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import type { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import type { UserInfo } from "@shared/UserInfo"
+import type { LanguageModelChatSelector } from "vscode"
+import type { BlobStoreSettings } from "./ClineBlobStorage"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS

@@ -6,7 +6,7 @@ import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/Po
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import * as pkg from "../../../../package.json"
-import { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
+import type { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
 import { getErrorLevelFromString } from ".."
 import { ClineError } from "../ClineError"
 import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"

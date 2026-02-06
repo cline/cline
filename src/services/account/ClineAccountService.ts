@@ -6,7 +6,7 @@ import type {
 	UsageTransaction,
 	UserResponse,
 } from "@shared/ClineAccount"
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { getAxiosSettings } from "@/shared/net"
@@ -82,9 +82,8 @@ export class ClineAccountService {
 		}
 		if (response.statusText === "No Content") {
 			return {} as T // Return empty object if no content
-		} else {
-			return response.data.data as T
 		}
+		return response.data.data as T
 	}
 
 	/**

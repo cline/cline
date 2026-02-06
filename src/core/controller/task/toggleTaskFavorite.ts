@@ -1,7 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
-import { TaskFavoriteRequest } from "@shared/proto/cline/task"
+import type { TaskFavoriteRequest } from "@shared/proto/cline/task"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from "../"
+import type { Controller } from "../"
 
 export async function toggleTaskFavorite(controller: Controller, request: TaskFavoriteRequest): Promise<Empty> {
 	if (!request.taskId || request.isFavorited === undefined) {

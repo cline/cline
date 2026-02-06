@@ -4,7 +4,8 @@
  */
 
 import { Box } from "ink"
-import React, { useEffect, useRef } from "react"
+import type React from "react"
+import { useEffect, useRef } from "react"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useCompletionSignals } from "../hooks/useStateSubscriber"
 import { originalConsoleLog } from "../utils/console"

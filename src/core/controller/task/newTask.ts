@@ -1,10 +1,10 @@
 import { String } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
-import { NewTaskRequest } from "@shared/proto/cline/task"
-import { Settings } from "@shared/storage/state-keys"
+import type { NewTaskRequest } from "@shared/proto/cline/task"
+import type { Settings } from "@shared/storage/state-keys"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Creates a new task with the given text and optional images

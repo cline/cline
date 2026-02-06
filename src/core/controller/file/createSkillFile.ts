@@ -1,4 +1,4 @@
-import { CreateSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
+import { type CreateSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
 import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
@@ -6,7 +6,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "@/utils/fs"
-import { Controller } from ".."
+import type { Controller } from ".."
 import { openFile } from "./openFile"
 
 const SKILL_TEMPLATE = `---

@@ -1,174 +1,201 @@
 ---
 title: "Cline Rules"
-sidebarTitle: "Overview"
-description: "Add persistent instructions and context to guide Cline's behavior"
+description: "Provide Cline with system-level guidance and persistent context"
 ---
 
-Cline Rules provide system-level guidance for your projects. Rules persist across conversations, ensuring consistent behavior without repeating instructions in every chat.
+Cline Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to include context and preferences for your projects or globally for every conversation.
 
-## How It Works
+## Creating a Rule
 
-Rules are loaded when Cline starts a task. Here's what happens:
-
-**Loading order**: Cline checks for rules in this sequence:
-1. `.clinerules/` folder (all `.md` files inside)
-2. Single `.clinerules` file
-3. `AGENTS.md` file
-
-**Scope precedence**: Workspace rules override global rules when both define the same guidance.
-
-**Multiple files**: When using a `.clinerules/` folder, all Markdown files are combined into one ruleset. Numeric prefixes (like `01-`, `02-`) control the order.
-
-**Conditional activation**: Rules with YAML frontmatter activate only when you're working with matching files. See [Conditional Rules](/features/cline-rules/conditional-rules) for details.
-
-## Supported Rule Files
-
-Cline reads rules from multiple file formats in your workspace root, letting you share rules across different AI coding tools:
-
-| File/Folder | Source | Notes |
-|-------------|--------|-------|
-| `.clinerules/` | Cline | Folder with `.md` files (recommended) |
-| `.cursor/rules/` | Cursor | Folder with `.mdc` files |
-| `.windsurf/rules` | Windsurf | Folder with multiple `md` files |
-| `AGENTS.md` | Universal | Follows [agents.md](https://agents.md/) standard, searched recursively |
-
-Cline prioritizes `.clinerules` when present. Other formats load only if no `.clinerules` exists (except `AGENTS.md`, which always searches subdirectories). All rules appear in the Rules popover where you can toggle them.
-
-## Creating Rules
-
-Click the `+` button in the Rules tab to create a new rule. This opens a file in your editor where you write your guidance.
+You can create a rule by clicking the `+` button in the Rules tab. This will open a new file in your IDE which you can use to write your rule.
 
 <Frame>
 	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-rules.png" alt="Create a Rule" />
 </Frame>
 
-When you save the file, it's stored in:
-- **Workspace rules**: `.clinerules/` in your project root
-- **Global rules**: Platform-specific location (see table below)
+Once you save the file:
 
-You can also use the [`/newrule` slash command](/features/slash-commands/new-rule) to have Cline generate a rule based on your description.
+-   Your rule will be stored in the `.clinerules/` directory in your project (if it's a Workspace Rule)
+-   Or in the Global Rules directory (if it's a Global Rule):
 
-### Global Rules Location
+### Global Rules Directory Location
 
-| Operating System | Default Location |
-|------------------|------------------|
-| **Windows** | `Documents\Cline\Rules` |
-| **macOS** | `~/Documents/Cline/Rules` |
-| **Linux/WSL** | `~/Documents/Cline/Rules` or `~/Cline/Rules` |
+The location of your Global Rules directory depends on your operating system:
 
-<Note>
-Linux/WSL users: Check both locations if you don't find global rules in `~/Documents/Cline/Rules`.
-</Note>
+| Operating System | Default Location | Notes |
+|------------------|------------------|-------|
+| **Windows** | `Documents\Cline\Rules` | Uses system Documents folder |
+| **macOS** | `~/Documents/Cline/Rules` | Uses user Documents folder |
+| **Linux/WSL** | `~/Documents/Cline/Rules` | May fall back to `~/Cline/Rules` on some systems |
 
-## Managing Rules
+> **Note for Linux/WSL users**: If you don't find your global rules in `~/Documents/Cline/Rules`, check `~/Cline/Rules` as the location may vary depending on your system configuration and whether the Documents directory exists.
 
-The Rules popover (below the chat input) shows active rules and lets you toggle them on or off.
+You can also have Cline create a rule for you by using the [`/newrule` slash command](/features/slash-commands/new-rule) in the chat.
 
-<Frame>
-	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(1).png" alt="Rules Popover" />
-</Frame>
+```markdown Example Cline Rule Structure [expandable]
+# Project Guidelines
 
-The popover displays:
-- **Global rules**: From your user-level Rules directory
-- **Workspace rules**: From `.clinerules/` in your project
+## Documentation Requirements
 
-Toggle any rule to enable or disable it. Disabled rules won't load, even if they match conditions.
+-   Update relevant documentation in /docs when modifying features
+-   Keep README.md in sync with new capabilities
+-   Maintain changelog entries in CHANGELOG.md
 
-## When to Use Rules
+## Architecture Decision Records
 
-Rules work best for persistent project context:
+Create ADRs in /docs/adr for:
 
-- **Code standards**: Formatting preferences, naming conventions, project-specific patterns
-- **Documentation requirements**: Where to add docs, what format to follow
-- **Architecture decisions**: Design patterns, dependency rules, module boundaries
-- **Team conventions**: PR processes, branch naming, commit message format
-- **Technology constraints**: Required libraries, banned APIs, version requirements
+-   Major dependency changes
+-   Architectural pattern changes
+-   New integration patterns
+-   Database schema changes
+    Follow template in /docs/adr/template.md
 
-Rules are less effective for:
-- One-time instructions (just say it in the chat)
-- Complex multi-step workflows (use [Workflows](/features/slash-commands/workflows/index) instead)
-- Dynamic decisions that depend on runtime context
+## Code Style & Patterns
 
-## Example Rule
+-   Generate API clients using OpenAPI Generator
+-   Use TypeScript axios template
+-   Place generated code in /src/generated
+-   Prefer composition over inheritance
+-   Use repository pattern for data access
+-   Follow error handling pattern in /src/utils/errors.ts
 
-```markdown
-# Backend API Guidelines
+## Testing Standards
 
-## Route Handlers
-
-- Use async/await, not callbacks
-- Validate request bodies with Zod schemas
-- Return typed errors from `src/errors.ts`
-- All routes require authentication unless in `publicRoutes` array
-
-## Database Access
-
-- All queries go through repository classes in `src/repositories/`
-- Use transactions for multi-table updates
-- Never expose raw database errors to clients
-
-## Testing
-
-- Unit tests for business logic in `src/services/`
-- Integration tests for route handlers in `src/routes/`
-- Mock external APIs, not internal modules
+-   Unit tests required for business logic
+-   Integration tests for API endpoints
+-   E2E tests for critical user flows
 ```
 
-This rule provides clear, actionable guidance without explaining obvious concepts or using vague language.
+### Key Benefits
 
-## Using a Folder Structure
+1. **Version Controlled**: The `.clinerules` file becomes part of your project's source code
+2. **Team Consistency**: Ensures consistent behavior across all team members
+3. **Project-Specific**: Rules and standards tailored to each project's needs
+4. **Institutional Knowledge**: Maintains project standards and practices in code
 
-For projects with many rules, organize them in a `.clinerules/` folder:
+Place the `.clinerules` file in your project's root directory:
 
 ```
 your-project/
-├── .clinerules/
-│   ├── 01-coding-standards.md
-│   ├── 02-documentation.md
-│   └── 03-testing.md
+├── .clinerules
+├── src/
+├── docs/
+└── ...
+```
+
+Cline's system prompt, on the other hand, is not user-editable ([here's where you can find it](https://github.com/cline/cline/blob/main/src/core/prompts/system.ts)). For a broader look at prompt engineering best practices, check out [this resource](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview).
+
+### AGENTS.md Standard Support
+
+Cline also supports the [AGENTS.md](https://agents.md/) standard as a fallback 
+(in addition to Cline Rules) by automatically detecting `AGENTS.md` files in 
+your workspace root. This allows you to use the same rules file across different AI 
+coding tools.
+
+```
+your-project/
+├── AGENTS.md
 ├── src/
 └── ...
 ```
 
-Cline loads all Markdown files in `.clinerules/` automatically. The numeric prefixes help you control ordering, but they're optional.
+### Tips for Writing Effective Cline Rules
 
-### Organizing a Rules Bank
+-   Be Clear and Concise: Use simple language and avoid ambiguity.
+-   Focus on Desired Outcomes: Describe the results you want, not the specific steps.
+-   Test and Iterate: Experiment to find what works best for your workflow.
 
-Maintain a separate folder for rules you might need but don't always want active:
+### .clinerules/ Folder System
 
 ```
 your-project/
-├── .clinerules/              # Active rules
-│   ├── 01-coding.md
-│   └── client-a.md
-│
-├── clinerules-bank/          # Available but inactive
-│   ├── clients/
-│   │   ├── client-a.md
-│   │   └── client-b.md
-│   └── frameworks/
-│       ├── react.md
-│       └── vue.md
+├── .clinerules/              # Folder containing active rules
+│   ├── 01-coding.md          # Core coding standards
+│   ├── 02-documentation.md   # Documentation requirements
+│   └── current-sprint.md     # Rules specific to current work
+├── src/
 └── ...
 ```
 
-Copy files from the bank to `.clinerules/` when you need them. This keeps your active context lean while maintaining a library of reusable guidance.
+Cline automatically processes **all Markdown files** inside the `.clinerules/` directory, combining them into a unified set of rules. The numeric prefixes (optional) help organize files in a logical sequence.
 
-Switch contexts with simple file operations:
+#### Using a Rules Bank
+
+For projects with multiple contexts or teams, maintain a rules bank directory:
+
+```
+your-project/
+├── .clinerules/              # Active rules - automatically applied
+│   ├── 01-coding.md
+│   └── client-a.md
+│
+├── clinerules-bank/          # Repository of available but inactive rules
+│   ├── clients/              # Client-specific rule sets
+│   │   ├── client-a.md
+│   │   └── client-b.md
+│   ├── frameworks/           # Framework-specific rules
+│   │   ├── react.md
+│   │   └── vue.md
+│   └── project-types/        # Project type standards
+│       ├── api-service.md
+│       └── frontend-app.md
+└── ...
+```
+
+#### Benefits of the Folder Approach
+
+1. **Contextual Activation**: Copy only relevant rules from the bank to the active folder
+2. **Easier Maintenance**: Update individual rule files without affecting others
+3. **Team Flexibility**: Different team members can activate rules specific to their current task
+4. **Reduced Noise**: Keep the active ruleset focused and relevant
+
+#### Usage Examples
+
+Switch between client projects:
 
 ```bash
-# Switch to Client B
+# Switch to Client B project
 rm .clinerules/client-a.md
 cp clinerules-bank/clients/client-b.md .clinerules/
 ```
 
-<Tip>
-Consider git-ignoring `.clinerules/` while tracking `clinerules-bank/` so team members can activate the rules relevant to their current work.
-</Tip>
+Adapt to different tech stacks:
 
-## Conditional Rules
+```bash
+# Frontend React project
+cp clinerules-bank/frameworks/react.md .clinerules/
+```
 
-Scope rules to specific file patterns using YAML frontmatter. This keeps React guidance out of Python code and backend rules away from frontend work.
+#### Implementation Tips
+
+-   Keep individual rule files focused on specific concerns
+-   Use descriptive filenames that clearly indicate the rule's purpose
+-   Consider git-ignoring the active `.clinerules/` folder while tracking the `clinerules-bank/`
+-   Create team scripts to quickly activate common rule combinations
+
+The folder system transforms your Cline rules from a static document into a dynamic knowledge system that adapts to your team's changing contexts and requirements.
+
+### Conditional Rules
+
+Conditional rules let you scope rules to specific parts of your codebase. Rules activate only when you're working with matching files, keeping your context focused and relevant.
+
+- **Without conditionals**: every rule loads for every request.
+- **With conditionals**, rules activate only when your current files match their defined scope.
+
+For example, React component rules should appear when you're working with React components, not when you're editing Python or documentation.
+
+#### How It Works
+
+Conditional rules use YAML frontmatter at the top of your rule files. When Cline processes a request, it gathers context from your current work (open files, visible tabs, mentioned paths, edited files), evaluates each rule's conditions, and activates matching rules.
+
+<Note>
+When a conditional rule activates, you'll see a notification: **"Conditional rules applied: workspace:frontend-rules.md"**
+</Note>
+
+#### Writing Conditional Rules
+
+Add YAML frontmatter to the top of any rule file in your `.clinerules/` directory:
 
 ```yaml
 ---
@@ -177,29 +204,228 @@ paths:
   - "src/hooks/**"
 ---
 
-# React Guidelines
+# React Component Guidelines
 
-Use functional components with hooks. Extract reusable logic into custom hooks.
+When creating or modifying React components:
+- Use functional components with React hooks
+- Extract reusable logic into custom React hooks
+- Keep components focused on a single responsibility
 ```
 
-This rule activates only when working with files matching those patterns. Read the [Conditional Rules guide](/features/cline-rules/conditional-rules) for pattern syntax, behavior details, and more examples.
+The `---` markers delimit the frontmatter. Everything after the closing `---` is your rule content.
 
-## Tips for Effective Rules
+##### The `paths` Conditional
 
-**Be specific**: "Use async/await for all database calls" beats "write good async code."
+Currently, `paths` is the supported conditional. It takes an array of glob patterns:
 
-**Show patterns**: Include file paths and real examples. "Follow the error handling in `src/utils/errors.ts`" gives Cline a concrete reference.
+```yaml
+---
+paths:
+  - "src/**"           # All files under src/
+  - "*.config.js"      # Config files in root
+  - "packages/*/src/"  # Monorepo package sources
+---
+```
 
-**Focus on outcomes**: Describe what you want, not step-by-step instructions. Let Cline figure out how.
+**Glob pattern syntax:**
 
-**Test and refine**: Start with core standards. Add rules when you find yourself repeating the same feedback.
+- `*` matches any characters except `/`
+- `**` matches any characters including `/` (recursive)
+- `?` matches a single character
+- `[abc]` matches any character in the brackets
+- `{a,b}` matches either pattern
 
-**Use conditional rules**: Load guidance only when relevant. This keeps context efficient and reduces noise.
+| Pattern | Matches |
+|---------|---------|
+| `src/**/*.ts` | All TypeScript files under `src/` |
+| `*.md` | Markdown files in root only |
+| `**/*.test.ts` | Test files anywhere in the project |
+| `packages/{web,api}/**` | Files in web or api packages |
+| `src/components/*.tsx` | TSX files directly in components (not nested) |
 
-## Related
+##### Behavior Details
 
-- [Conditional Rules](/features/cline-rules/conditional-rules) - Activate rules based on file patterns
-- [Skills](/features/skills) - Load instructions on demand with `/skill` command
-- [Workflows](/features/slash-commands/workflows/index) - Define explicit task automation
-- [New Rule Slash Command](/features/slash-commands/new-rule) - Generate rules with AI assistance
-- [Plan and Act Mode](/features/plan-and-act) - Use different rules for planning vs execution
+**Multiple patterns**: A rule activates if any pattern matches any file in your context.
+
+```yaml
+---
+paths:
+  - "frontend/**"
+  - "mobile/**"
+---
+# Activates when working in frontend OR mobile
+```
+
+**No frontmatter**: Rules without frontmatter are always active.
+
+**Empty paths array**: `paths: []` means the rule never activates. Use this to temporarily disable a rule.
+
+**Invalid YAML**: If frontmatter can't be parsed, Cline fails open: the rule activates with raw content visible to help debugging.
+
+#### What Counts as "Current Context"
+
+Cline evaluates rules based on:
+
+1. **Your message**: File paths mentioned in your prompt (e.g., "update `src/App.tsx`")
+2. **Open tabs**: Files currently open in your editor
+3. **Visible files**: Files visible in your active editor panes
+4. **Edited files**: Files Cline has created, modified, or deleted during the task
+5. **Pending operations**: Files Cline is about to edit
+
+Conditional rules can activate on your first message, when relevant files are open, or mid-task when Cline starts working with matching files.
+
+<Tip>
+Be explicit about file paths in your prompts. "Update `src/services/user.ts`" reliably triggers path-based rules; "update the user service" may not.
+</Tip>
+
+#### Practical Examples
+
+##### Frontend vs Backend Rules
+
+Keep frontend and backend rules separate to avoid noise:
+
+```yaml
+# .clinerules/frontend.md
+---
+paths:
+  - "src/components/**"
+  - "src/pages/**"
+  - "src/hooks/**"
+---
+
+# Frontend Guidelines
+
+- Use Tailwind CSS for styling
+- Prefer server components where possible
+- Keep client components small and focused
+```
+
+```yaml
+# .clinerules/backend.md
+---
+paths:
+  - "src/api/**"
+  - "src/services/**"
+  - "src/db/**"
+---
+
+# Backend Guidelines
+
+- Use dependency injection for services
+- All database queries go through repositories
+- Return typed errors, not thrown exceptions
+```
+
+##### Test File Rules
+
+Enforce testing standards automatically:
+
+```yaml
+# .clinerules/testing.md
+---
+paths:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/__tests__/**"
+---
+
+# Testing Standards
+
+- Use descriptive test names: "should [expected behavior] when [condition]"
+- One assertion per test when possible
+- Mock external dependencies, not internal modules
+- Use factories for test data, not fixtures
+```
+
+##### Documentation Rules
+
+Apply documentation standards only when editing docs:
+
+```yaml
+# .clinerules/docs.md
+---
+paths:
+  - "docs/**"
+  - "**/*.md"
+  - "**/*.mdx"
+---
+
+# Documentation Guidelines
+
+- Use sentence case for headings
+- Include code examples for all features
+- Keep paragraphs short (3-4 sentences max)
+- Link to related documentation
+```
+
+#### Combining with Rule Toggles
+
+Conditional rules work alongside the rule toggle UI. Toggle off a conditional rule to disable it entirely (it won't activate even if paths match). Toggle on to let it activate when conditions are met.
+
+This provides two levels of control: manual toggles and automatic condition-based activation.
+
+#### Tips for Effective Conditional Rules
+
+**Start Broad, Then Narrow**: Begin with broader patterns and refine as you learn what works:
+
+```yaml
+# Start here
+paths:
+  - "src/**"
+
+# Then narrow down
+paths:
+  - "src/features/auth/**"
+```
+
+**Use Descriptive Filenames**: Name your rule files to indicate their scope:
+
+```
+.clinerules/
+├── api-endpoints.md      # Rules for API code
+├── database-models.md    # Rules for DB layer
+├── react-components.md   # Rules for React
+└── universal.md          # No frontmatter = always active
+```
+
+**Keep Universal Rules Separate**: Put always-on rules (coding standards, project conventions) in files without frontmatter. Reserve conditional rules for context-specific guidance.
+
+#### Troubleshooting Conditional Rules
+
+**Rule not activating:**
+- Check that file paths in your context match the glob pattern
+- Verify the rule is toggled on in the rules panel
+- Ensure YAML frontmatter has proper `---` delimiters
+
+**Rule activating unexpectedly:**
+- Review glob patterns: `**` is recursive and may match more than intended
+- Check for open files that match the pattern
+- File paths mentioned in your message also count as context
+
+**Frontmatter showing in output:**
+- YAML couldn't be parsed
+- Check for syntax errors (unquoted special characters, improper indentation)
+
+### Managing Rules with the Toggleable Popover
+
+To make managing both single `.clinerules` files and the folder system even easier, Cline v3.13 introduces a dedicated popover UI directly accessible from the chat interface.
+
+Located conveniently under the chat input field, this popover allows you to:
+
+-   **Instantly See Active Rules:** View which global rules (from your user settings) and workspace rules (`.clinerules` file or folder contents) are currently active.
+-   **Quickly Toggle Rules:** Enable or disable specific rule files within your workspace `.clinerules/` folder with a single click. This is perfect for activating context-specific rules (like `react-rules.md` or `memory-bank.md`) only when needed.
+-   **Easily Add/Manage Rules:** Quickly create a workspace `.clinerules` file or folder if one doesn't exist, or add new rule files to an existing folder.
+
+This UI significantly simplifies switching contexts and managing different sets of instructions without needing to manually edit files or configurations during a conversation.
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(1).png" alt="Cline Logo" />
+</Frame>
+
+## Conditional Rules
+
+Cline now supports **conditional rules** that activate automatically based on which files you're working with. This allows you to scope rules to specific parts of your codebase, keeping your context focused and relevant.
+
+For example, React component rules can activate only when you're working with React components, not when you're editing Python or documentation files.
+
+Learn more about [Conditional Rules](/features/cline-rules/conditional-rules).

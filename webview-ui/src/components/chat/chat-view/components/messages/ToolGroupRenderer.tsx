@@ -1,4 +1,4 @@
-import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useCallback, useMemo, useState } from "react"
 import { TypewriterText } from "@/components/chat/TypewriterText"

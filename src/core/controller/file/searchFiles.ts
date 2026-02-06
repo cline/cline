@@ -1,10 +1,10 @@
 import { searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
 import { telemetryService } from "@services/telemetry"
-import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
+import { type FileSearchRequest, type FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
 import { getWorkspacePath } from "@utils/path"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Searches for files in the workspace with fuzzy matching

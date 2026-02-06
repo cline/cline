@@ -1,11 +1,11 @@
-import { ModelInfo, NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
-import OpenAI from "openai"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { type ModelInfo, type NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
+import type OpenAI from "openai"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface NousResearchHandlerOptions extends CommonApiHandlerOptions {
 	nousResearchApiKey?: string

@@ -1,9 +1,10 @@
-import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
+import { BANNER_DATA, type BannerAction, BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch } from "lucide-react"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -17,7 +18,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { getCurrentPlatform } from "@/utils/platformUtils"
-import { WelcomeSectionProps } from "../../types/chatTypes"
+import type { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
  * Welcome section shown when there's no active task

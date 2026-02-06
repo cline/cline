@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import {
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type OpenAI from "openai"
+import type {
 	ClineAssistantRedactedThinkingBlock,
 	ClineAssistantThinkingBlock,
 	ClineAssistantToolUseBlock,

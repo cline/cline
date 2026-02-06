@@ -1,9 +1,9 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { WorktreeIncludeStatus } from "@shared/proto/cline/worktree"
 import { getWorkspacePath } from "@utils/path"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Gets the status of .worktreeinclude file and .gitignore contents

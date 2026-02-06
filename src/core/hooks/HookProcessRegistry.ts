@@ -1,5 +1,5 @@
 import { Logger } from "@/shared/services/Logger"
-import { HookProcess } from "./HookProcess"
+import type { HookProcess } from "./HookProcess"
 
 /**
  * Global registry for tracking active hook processes.

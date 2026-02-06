@@ -3,7 +3,7 @@
  */
 
 import { Box, Text } from "ink"
-import React from "react"
+import type React from "react"
 import { COLORS } from "../constants/colors"
 
 interface CheckboxProps {

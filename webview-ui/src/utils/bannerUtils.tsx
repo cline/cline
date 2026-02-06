@@ -1,7 +1,7 @@
-import { BannerAction, BannerCardData } from "@shared/cline/banner"
+import type { BannerAction, BannerCardData } from "@shared/cline/banner"
 import { DynamicIcon } from "lucide-react/dynamic"
-import React from "react"
-import { BannerData } from "@/components/common/BannerCarousel"
+import type React from "react"
+import type { BannerData } from "@/components/common/BannerCarousel"
 
 /**
  * Convert BannerCardData to BannerData for rendering

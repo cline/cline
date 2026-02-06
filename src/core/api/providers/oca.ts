@@ -1,5 +1,5 @@
-import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, ModelInfo } from "@shared/api"
-import OpenAI, { APIError, OpenAIError } from "openai"
+import { liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults, type ModelInfo } from "@shared/api"
+import OpenAI, { type APIError, OpenAIError } from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import {
@@ -9,16 +9,16 @@ import {
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { OcaModelInfo } from "@/shared/api"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { OcaModelInfo } from "@/shared/api"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, type CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 import { handleResponsesApiStreamResponse } from "../utils/responses_api_support"
 
@@ -137,10 +137,9 @@ export class OcaHandler implements ApiHandler {
 			if (response.ok) {
 				const data: { cost: number } = await response.json()
 				return data.cost
-			} else {
-				Logger.error("Error calculating spend:", response.statusText)
-				return undefined
 			}
+			Logger.error("Error calculating spend:", response.statusText)
+			return undefined
 		} catch (error) {
 			Logger.error("Error calculating spend:", error)
 			return undefined

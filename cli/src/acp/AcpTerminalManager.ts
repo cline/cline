@@ -27,7 +27,7 @@ import type {
 } from "@integrations/terminal/types"
 import { EventEmitter } from "events"
 import { Logger } from "@/shared/services/Logger"
-import { SessionIdResolver } from "./ACPDiffViewProvider"
+import type { SessionIdResolver } from "./ACPDiffViewProvider"
 
 // =============================================================================
 // Local Types
@@ -142,12 +142,12 @@ export interface ManagedTerminal {
  * Wraps ACP terminal operations and emits events compatible with ITerminalProcess.
  */
 class AcpTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
-	isHot: boolean = false
-	waitForShellIntegration: boolean = false
+	isHot = false
+	waitForShellIntegration = false
 
-	private _unretrievedOutput: string = ""
-	private _continued: boolean = false
-	private _completed: boolean = false
+	private _unretrievedOutput = ""
+	private _continued = false
+	private _completed = false
 	private _hotTimeout: NodeJS.Timeout | null = null
 	private _exitWaitTimeout: NodeJS.Timeout | null = null
 	private readonly manager: AcpTerminalManager
@@ -397,7 +397,7 @@ export class AcpTerminalManager implements ITerminalManager {
 	private readonly numericIdToStringId: Map<number, string> = new Map()
 
 	/** Next numeric ID to assign */
-	private nextNumericId: number = 1
+	private nextNumericId = 1
 
 	/** Active processes indexed by numeric terminal ID */
 	private readonly processes: Map<number, AcpTerminalProcess> = new Map()
@@ -406,7 +406,7 @@ export class AcpTerminalManager implements ITerminalManager {
 	private readonly terminalInfos: Map<number, TerminalInfo> = new Map()
 
 	// Configuration options for ITerminalManager
-	private terminalReuseEnabled: boolean = true
+	private terminalReuseEnabled = true
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
 	private subagentTerminalOutputLineLimit: number = DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT
 

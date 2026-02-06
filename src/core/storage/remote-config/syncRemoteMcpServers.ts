@@ -1,6 +1,6 @@
 import { getMcpSettingsFilePath } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
-import { RemoteMCPServer } from "@shared/remote-config/schema"
+import type { RemoteMCPServer } from "@shared/remote-config/schema"
 import * as fs from "fs/promises"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"

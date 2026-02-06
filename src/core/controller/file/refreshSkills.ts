@@ -4,7 +4,7 @@ import path from "path"
 import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
 import { fileExistsAtPath, isDirectory } from "@/utils/fs"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Parse YAML frontmatter from markdown content.

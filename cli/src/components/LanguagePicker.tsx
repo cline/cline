@@ -2,8 +2,9 @@
  * Language picker component for user preference
  */
 
-import React, { useMemo } from "react"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import type React from "react"
+import { useMemo } from "react"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Available languages - English names only to avoid Unicode rendering issues
 const LANGUAGES = [

@@ -1,19 +1,19 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { StateManager } from "@core/storage/StateManager"
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
-import { OpenRouterErrorResponse } from "./types"
+import type { OpenRouterErrorResponse } from "./types"
 
 interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterApiKey?: string
@@ -72,7 +72,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.geminiThinkingLevel,
 		)
 
-		let didOutputUsage: boolean = false
+		let didOutputUsage = false
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
@@ -101,12 +101,9 @@ export class OpenRouterHandler implements ApiHandler {
 					// Format error details
 					const errorDetails = typeof error === "object" ? JSON.stringify(error, null, 2) : String(error)
 					throw new Error(`OpenRouter Mid-Stream Error: ${errorDetails}`)
-				} else {
-					// Fallback if error details are not available
-					throw new Error(
-						`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`,
-					)
 				}
+				// Fallback if error details are not available
+				throw new Error(`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`)
 			}
 
 			if (!this.lastGenerationId && chunk.id) {

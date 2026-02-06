@@ -1,6 +1,6 @@
 import { Boolean } from "@shared/proto/cline/common"
 import { isClineCliInstalled } from "@/utils/cli-detector"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Check if the Cline CLI is installed

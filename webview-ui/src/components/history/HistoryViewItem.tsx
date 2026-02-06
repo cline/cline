@@ -1,4 +1,4 @@
-import { HistoryItem } from "@shared/HistoryItem"
+import type { HistoryItem } from "@shared/HistoryItem"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import {

@@ -1,5 +1,5 @@
 import { QuoteIcon } from "lucide-react"
-import React from "react"
+import type React from "react"
 import styled from "styled-components"
 import { Button } from "@/components/ui/button"
 

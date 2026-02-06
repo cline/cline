@@ -73,10 +73,10 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	private terminalIds: Set<number> = new Set()
 
 	/** Timeout for shell integration (not used in standalone, but kept for interface compatibility) */
-	private shellIntegrationTimeout: number = 4000
+	private shellIntegrationTimeout = 4000
 
 	/** Whether terminal reuse is enabled */
-	private terminalReuseEnabled: boolean = true
+	private terminalReuseEnabled = true
 
 	/** Maximum output lines to keep */
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
@@ -85,7 +85,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	private subagentTerminalOutputLineLimit: number = DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT
 
 	/** Default terminal profile */
-	private defaultTerminalProfile: string = "default"
+	private defaultTerminalProfile = "default"
 
 	// =========================================================================
 	// Background Command Tracking
@@ -365,7 +365,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * @param force If true, closes even busy terminals
 	 * @returns Number of terminals closed
 	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force: boolean = false): number {
+	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
 		const terminalsToClose = this.filterTerminals(filterFn)
 		let closedCount = 0
 
@@ -503,7 +503,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			// Try to extract exit code from error message if available
 			const exitCodeMatch = error.message.match(/exit code (\d+)/)
 			if (exitCodeMatch) {
-				backgroundCommand.exitCode = parseInt(exitCodeMatch[1], 10)
+				backgroundCommand.exitCode = Number.parseInt(exitCodeMatch[1], 10)
 			}
 			logStream.end()
 		})

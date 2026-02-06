@@ -7,7 +7,7 @@
  * - Falls back to SIGKILL if process doesn't exit
  */
 
-import { ChildProcess } from "child_process"
+import type { ChildProcess } from "child_process"
 import treeKill from "tree-kill"
 
 export interface TerminateProcessTreeOptions {

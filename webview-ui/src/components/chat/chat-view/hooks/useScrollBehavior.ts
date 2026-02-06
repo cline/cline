@@ -1,9 +1,9 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { ListRange, VirtuosoHandle } from "react-virtuoso"
-import { ScrollBehavior } from "../types/chatTypes"
+import type { ListRange, VirtuosoHandle } from "react-virtuoso"
+import type { ScrollBehavior } from "../types/chatTypes"
 
 // Height of the sticky user message header (padding + content)
 const STICKY_HEADER_HEIGHT = 32
@@ -246,7 +246,8 @@ export function useScrollBehavior(
 					scrollToBottomAuto()
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isCollapsing && (isLast || isSecondToLast)) {
+			}
+			if (isCollapsing && (isLast || isSecondToLast)) {
 				if (isSecondToLast && !isLastCollapsedApiReq) {
 					return
 				}

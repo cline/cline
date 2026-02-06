@@ -1,7 +1,7 @@
-import { SwitchWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { type SwitchWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Switches to a different worktree by opening it in VS Code

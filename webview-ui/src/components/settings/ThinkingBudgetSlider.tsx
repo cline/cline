@@ -1,5 +1,5 @@
 import { ANTHROPIC_MAX_THINKING_BUDGET, ANTHROPIC_MIN_THINKING_BUDGET } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
 import styled from "styled-components"
@@ -92,7 +92,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	}, [modeFields.thinkingBudgetTokens])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-		const value = parseInt(event.target.value, 10)
+		const value = Number.parseInt(event.target.value, 10)
 		const clampedValue = Math.max(value, ANTHROPIC_MIN_THINKING_BUDGET)
 		setLocalValue(clampedValue)
 	}, [])

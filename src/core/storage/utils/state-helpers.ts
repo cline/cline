@@ -1,19 +1,19 @@
-import { ApiProvider } from "@shared/api"
+import type { ApiProvider } from "@shared/api"
 import {
 	applyTransform,
 	GlobalStateAndSettingKeys,
-	GlobalStateAndSettings,
+	type GlobalStateAndSettings,
 	getDefaultValue,
 	isAsyncProperty,
 	isComputedProperty,
-	LocalState,
+	type LocalState,
 	LocalStateKeys,
 	SecretKeys,
-	Secrets,
+	type Secrets,
 } from "@shared/storage/state-keys"
-import { ExtensionContext } from "vscode"
-import { Controller } from "@/core/controller"
-import { ClineRulesToggles } from "@/shared/cline-rules"
+import type { ExtensionContext } from "vscode"
+import type { Controller } from "@/core/controller"
+import type { ClineRulesToggles } from "@/shared/cline-rules"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"

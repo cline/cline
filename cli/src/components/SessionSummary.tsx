@@ -1,5 +1,5 @@
 import { Box, Text } from "ink"
-import React from "react"
+import type React from "react"
 import { Session } from "@/shared/services/Session"
 
 /**

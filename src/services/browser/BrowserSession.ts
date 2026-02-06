@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import { Controller } from "@core/controller"
-import { BrowserActionResult } from "@shared/ExtensionMessage"
+import type { Controller } from "@core/controller"
+import type { BrowserActionResult } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import { spawn } from "child_process"
@@ -8,10 +8,10 @@ import * as chromeLauncher from "chrome-launcher"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-// @ts-ignore
+// @ts-expect-error
 import type { LoggerMessage, ScreenshotOptions } from "puppeteer-core"
-import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
-import { StateManager } from "@/core/storage/StateManager"
+import { type Browser, connect, launch, type Page, TimeoutError } from "puppeteer-core"
+import type { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
@@ -40,17 +40,17 @@ export class BrowserSession {
 	private page?: Page
 	private currentMousePosition?: string
 	private cachedWebSocketEndpoint?: string
-	private lastConnectionAttempt: number = 0
-	private isConnectedToRemote: boolean = false
+	private lastConnectionAttempt = 0
+	private isConnectedToRemote = false
 	private useWebp: boolean
 
 	// Telemetry tracking properties
-	private sessionStartTime: number = 0
+	private sessionStartTime = 0
 	private browserActions: string[] = []
 	private ulid?: string
 	private stateManager: StateManager
 
-	constructor(stateManager: StateManager, useWebp: boolean = true) {
+	constructor(stateManager: StateManager, useWebp = true) {
 		this.stateManager = stateManager
 		this.useWebp = useWebp
 	}

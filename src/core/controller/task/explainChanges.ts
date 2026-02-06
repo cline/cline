@@ -1,11 +1,11 @@
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@shared/array"
 import { Empty } from "@shared/proto/cline/common"
-import { ExplainChangesRequest } from "@shared/proto/cline/task"
+import type { ExplainChangesRequest } from "@shared/proto/cline/task"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 import { sendRelinquishControlEvent } from "../ui/subscribeToRelinquishControl"
 import {
 	buildDiffContent,

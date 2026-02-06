@@ -317,17 +317,6 @@ Don't over-explain obvious things. If users are reading documentation, they prob
 
 That's pretty much it. Never use them. Only AI writes with em dashes or emojis.
 
-# Anthropomorphizing Cline
-
-When referring to Cline, always call him a "him" not an "it". 
-
-Bad example:
-- When Cline can’t execute commands or read their output, you lose access to one of its most powerful capabilities.
-
-Good Example:
-
-- When Cline can’t execute commands or read their output, you lose access to one of his most powerful capabilities.
-
 # Using "I" when sharing your workflow
 
 Adding a personal touch goes a long way. There are great examples in the docs currently where I use "I" to share how I personally use cline, from dev to dev. It's a great technique.
@@ -336,7 +325,7 @@ Adding a personal touch goes a long way. There are great examples in the docs cu
 
 Make sure you crosslink when you're done writing the docs. If there are relevant docs, just link to them.
 
-# Brevity is the soul of wit
+# Brevity is the soul of 
 
 Don't ramble if you don't need to. Use bullet points and numbered lists. Keep things easy to read.
 

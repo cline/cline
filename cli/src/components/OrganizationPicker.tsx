@@ -2,9 +2,10 @@
  * Organization picker component for switching between personal account and organizations
  */
 
-import React, { useMemo } from "react"
+import type React from "react"
+import { useMemo } from "react"
 import type { ClineAccountOrganization } from "@/services/auth/AuthService"
-import { SelectList, SelectListItem } from "./SelectList"
+import { SelectList, type SelectListItem } from "./SelectList"
 
 interface OrganizationPickerProps {
 	organizations: ClineAccountOrganization[]

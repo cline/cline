@@ -2,9 +2,9 @@ import * as fs from "fs/promises"
 import * as vscode from "vscode"
 import { sanitizeCellForLLM } from "@/integrations/misc/notebook-utils"
 import { ExtensionRegistryInfo } from "@/registry"
-import { CommandContext } from "@/shared/proto/index.cline"
+import type { CommandContext } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from "../../core/controller"
+import type { Controller } from "../../core/controller"
 import { WebviewProvider } from "../../core/webview"
 import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics"
 
@@ -100,7 +100,7 @@ export async function getContextForCommand(
 	return { controller, commandContext }
 }
 
-export async function showWebview(preserveEditorFocus: boolean = true): Promise<WebviewProvider> {
+export async function showWebview(preserveEditorFocus = true): Promise<WebviewProvider> {
 	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput, preserveEditorFocus)
 
 	return WebviewProvider.getInstance()

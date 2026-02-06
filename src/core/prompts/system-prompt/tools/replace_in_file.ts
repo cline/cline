@@ -1,7 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { SystemPromptContext, TASK_PROGRESS_PARAMETER } from "../types"
+import { type SystemPromptContext, TASK_PROGRESS_PARAMETER } from "../types"
 
 const id = ClineDefaultTool.FILE_EDIT
 

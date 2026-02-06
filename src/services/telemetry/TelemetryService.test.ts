@@ -15,7 +15,7 @@ import * as otelConfigModule from "@/shared/services/config/otel-config"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { NoOpTelemetryProvider, TelemetryProviderFactory } from "./TelemetryProviderFactory"
-import { TelemetryMetadata, TelemetryService } from "./TelemetryService"
+import { type TelemetryMetadata, TelemetryService } from "./TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {
 	// Setup and teardown for HostProvider mocking

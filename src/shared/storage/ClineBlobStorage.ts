@@ -1,5 +1,5 @@
 import { Logger } from "../services/Logger"
-import { getStorageAdapter, StorageAdapter } from "./adapters"
+import { getStorageAdapter, type StorageAdapter } from "./adapters"
 import { ClineStorage } from "./ClineStorage"
 
 export interface BlobStoreSettings {

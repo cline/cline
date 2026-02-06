@@ -5,7 +5,7 @@
 
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { Box, Text } from "ink"
-import React from "react"
+import type React from "react"
 import { COLORS } from "../constants/colors"
 import { useTerminalSize } from "../hooks/useTerminalSize"
 import { getVisibleWindow } from "../utils/slash-commands"

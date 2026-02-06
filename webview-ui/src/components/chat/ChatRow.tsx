@@ -1,16 +1,16 @@
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
-	ClineApiReqInfo,
-	ClineAskQuestion,
-	ClineAskUseMcpServer,
-	ClineMessage,
-	ClinePlanModeResponse,
-	ClineSayGenerateExplanation,
-	ClineSayTool,
+	type ClineApiReqInfo,
+	type ClineAskQuestion,
+	type ClineAskUseMcpServer,
+	type ClineMessage,
+	type ClinePlanModeResponse,
+	type ClineSayGenerateExplanation,
+	type ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
 	ArrowRightIcon,
@@ -36,7 +36,7 @@ import {
 	TerminalIcon,
 	TriangleAlertIcon,
 } from "lucide-react"
-import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
@@ -113,7 +113,7 @@ const ChatRow = memo(
 			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
 			// height starts off at Infinity
-			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+			if (isLast && height !== 0 && height !== Number.POSITIVE_INFINITY && height !== prevHeightRef.current) {
 				if (!isInitialRender) {
 					onHeightChange(height > prevHeightRef.current)
 				}
@@ -421,7 +421,8 @@ export const ChatRowContent = memo(
 						marginBottom: "-1.5px",
 						transform: rotation ? `rotate(${rotation}deg)` : undefined,
 					}}
-					title={title}></span>
+					title={title}
+				/>
 			)
 
 			switch (tool.tool) {
@@ -1158,10 +1159,9 @@ export const ChatRowContent = memo(
 									text={text || ""}
 								/>
 							)
-						} else {
-							// Virtuoso cannot handle zero-height items; render a spacer instead of null
-							return <InvisibleSpacer />
 						}
+						// Virtuoso cannot handle zero-height items; render a spacer instead of null
+						return <InvisibleSpacer />
 					case "followup":
 						let question: string | undefined
 						let options: string[] | undefined

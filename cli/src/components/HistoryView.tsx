@@ -4,8 +4,9 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useState } from "react"
-import { Controller } from "@/core/controller"
+import type React from "react"
+import { useCallback, useState } from "react"
+import type { Controller } from "@/core/controller"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StringRequest } from "@/shared/proto/cline/common"
 import { useStdinContext } from "../context/StdinContext"
@@ -40,7 +41,7 @@ interface HistoryViewProps {
 /**
  * Format separator
  */
-function formatSeparator(char: string = "─", width: number = 80): string {
+function formatSeparator(char = "─", width = 80): string {
 	return char.repeat(Math.max(width, 10))
 }
 

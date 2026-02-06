@@ -1,8 +1,8 @@
-import { GrpcResponse } from "@shared/ExtensionMessage"
-import { GrpcRequest } from "@shared/WebviewMessage"
+import type { GrpcResponse } from "@shared/ExtensionMessage"
+import type { GrpcRequest } from "@shared/WebviewMessage"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
-import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
-import {
+import type { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
+import type {
 	GrpcLogEntry,
 	GrpcPostRecordHook,
 	GrpcRequestFilter,
@@ -73,7 +73,7 @@ export class GrpcRecorder implements IRecorder {
 	 *
 	 * @param request - The incoming gRPC request.
 	 */
-	public recordRequest(request: GrpcRequest, synthetic: boolean = false): void {
+	public recordRequest(request: GrpcRequest, synthetic = false): void {
 		if (this.shouldFilter(request)) {
 			return
 		}

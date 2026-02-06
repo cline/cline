@@ -1,10 +1,10 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { EnvironmentMetadataEntry, TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { EnvironmentMetadataEntry, TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
-import { RemoteConfig } from "@shared/remote-config/schema"
-import { GlobalState, Settings } from "@shared/storage/state-keys"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
+import type { RemoteConfig } from "@shared/remote-config/schema"
+import type { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
@@ -12,7 +12,7 @@ import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
+import type { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
@@ -226,14 +226,13 @@ export async function getSavedClineMessages(taskId: string): Promise<ClineMessag
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.uiMessages)
 	if (await fileExistsAtPath(filePath)) {
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
-	} else {
-		// check old location
-		const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
-		if (await fileExistsAtPath(oldPath)) {
-			const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
-			await fs.unlink(oldPath) // remove old file
-			return data
-		}
+	}
+	// check old location
+	const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
+	if (await fileExistsAtPath(oldPath)) {
+		const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+		await fs.unlink(oldPath) // remove old file
+		return data
 	}
 	return []
 }

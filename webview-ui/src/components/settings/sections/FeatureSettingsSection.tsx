@@ -1,6 +1,6 @@
-import { UpdateSettingsRequest } from "@shared/proto/cline/state"
+import type { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { EmptyRequest } from "@shared/proto/index.cline"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
+import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import { AlertCircleIcon } from "lucide-react"
 import { memo, type ReactNode, useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"

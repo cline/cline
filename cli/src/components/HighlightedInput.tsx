@@ -5,7 +5,7 @@
 
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { Text } from "ink"
-import React from "react"
+import type React from "react"
 
 interface HighlightedInputProps {
 	text: string

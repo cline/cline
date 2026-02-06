@@ -1,8 +1,8 @@
 // Map providers to their specific model ID keys
 
-import { SettingsKey } from "@shared/storage/state-keys"
+import type { SettingsKey } from "@shared/storage/state-keys"
 import {
-	ApiProvider,
+	type ApiProvider,
 	anthropicDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,

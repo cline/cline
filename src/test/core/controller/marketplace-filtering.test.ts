@@ -18,7 +18,7 @@ describe("Controller Marketplace Filtering", () => {
 	let stateManagerStub: sinon.SinonStub
 	let mockStateManager: any
 	let axiosGetStub: sinon.SinonStub
-	let hostProviderInitialized: boolean = false
+	let hostProviderInitialized = false
 
 	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
 	before(async () => {

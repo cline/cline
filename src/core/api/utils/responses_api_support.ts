@@ -1,5 +1,5 @@
-import OpenAI from "openai"
-import { ModelInfo } from "@/shared/api"
+import type OpenAI from "openai"
+import type { ModelInfo } from "@/shared/api"
 import { Logger } from "@/shared/services/Logger"
 
 // Type that represents the OpenAI ResponseStream with its private properties

@@ -1,4 +1,4 @@
-import { EventMessage, PostHog } from "posthog-node"
+import { type EventMessage, PostHog } from "posthog-node"
 import { ClineEndpoint } from "@/config"
 import { posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"

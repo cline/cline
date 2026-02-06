@@ -1,6 +1,5 @@
 ---
 title: "Conditional Rules"
-sidebarTitle: "Conditional Rules"
 description: "Activate rules automatically based on which files you're working with"
 ---
 
@@ -8,7 +7,7 @@ Conditional rules let you scope rules to specific parts of your codebase. Rules 
 
 For an introduction to Cline Rules, see the [Overview](/features/cline-rules/overview).
 
-- **Without conditionals**: every rule loads for every request. 
+- **Without conditionals**: every rule loads for every request.
 - **With conditionals**, rules activate only when your current files match their defined scope.
 
 For example, React component rules should appear when you're working with React components, not when you're editing Python or documentation.
@@ -56,6 +55,7 @@ paths:
 ```
 
 **Glob pattern syntax:**
+
 - `*` matches any characters except `/`
 - `**` matches any characters including `/` (recursive)
 - `?` matches a single character
@@ -98,170 +98,172 @@ Cline evaluates rules based on:
 1. **Your message**: File paths mentioned in your prompt (e.g., "update `src/App.tsx`")
 2. **Open tabs**: Files currently open in your editor
 3. **Visible files**: Files visible in your active editor panes
-4. **Edited files**: Files Cline has created, modified, or deleted during the task
-5. **Pending operations**: Files Cline is about to edit
+4. **Recent edits**: Files modified in the current task
 
-Conditional rules can activate on your first message, when relevant files are open, or mid-task when Cline starts working with matching files.
-
-<Tip>
-Be explicit about file paths in your prompts. "Update `src/services/user.ts`" reliably triggers path-based rules; "update the user service" may not.
-</Tip>
+This ensures rules activate when they're relevant to your current work.
 
 ## Practical Examples
 
-Copy these patterns and adapt them to your project structure.
-
 ### Frontend vs Backend Rules
 
-Keep frontend and backend rules separate to avoid noise. Frontend rules only load when working with UI code, backend rules only load when working with API or service code.
-
+**File: `.clinerules/frontend.md`**
 ```yaml
-# .clinerules/frontend.md
 ---
 paths:
   - "src/components/**"
   - "src/pages/**"
   - "src/hooks/**"
+  - "*.tsx"
+  - "*.jsx"
 ---
 
 # Frontend Guidelines
 
-- Use Tailwind CSS for styling
-- Prefer server components where possible
-- Keep client components small and focused
+- Use TypeScript for all new components
+- Follow the component structure: Props interface, component function, styles
+- Use CSS modules for styling
+- Implement proper error boundaries
+- Ensure accessibility (ARIA labels, keyboard navigation)
 ```
 
+**File: `.clinerules/backend.md`**
 ```yaml
-# .clinerules/backend.md
 ---
 paths:
   - "src/api/**"
   - "src/services/**"
-  - "src/db/**"
+  - "src/models/**"
+  - "src/controllers/**"
 ---
 
 # Backend Guidelines
 
-- Use dependency injection for services
-- All database queries go through repositories
-- Return typed errors, not thrown exceptions
+- Validate all input data
+- Use proper error handling middleware
+- Implement request logging
+- Follow RESTful conventions
+- Document API endpoints with OpenAPI/Swagger
 ```
 
 ### Test File Rules
 
-Enforce testing standards automatically. This rule activates only when you're writing or modifying tests, so testing guidance appears exactly when you need it.
-
+**File: `.clinerules/testing.md`**
 ```yaml
-# .clinerules/testing.md
 ---
 paths:
   - "**/*.test.ts"
+  - "**/*.test.tsx"
   - "**/*.spec.ts"
-  - "**/__tests__/**"
+  - "tests/**"
+  - "__tests__/**"
 ---
 
 # Testing Standards
 
-- Use descriptive test names: "should [expected behavior] when [condition]"
-- One assertion per test when possible
-- Mock external dependencies, not internal modules
-- Use factories for test data, not fixtures
+- Write descriptive test names that explain the scenario
+- Follow AAA pattern: Arrange, Act, Assert
+- Mock external dependencies
+- Test edge cases and error conditions
+- Aim for high coverage on business logic
 ```
 
 ### Documentation Rules
 
-Apply documentation standards only when editing docs. Prevents style rules from cluttering your context when you're writing code.
-
+**File: `.clinerules/docs.md`**
 ```yaml
-# .clinerules/docs.md
 ---
 paths:
   - "docs/**"
-  - "**/*.md"
-  - "**/*.mdx"
+  - "*.md"
+  - "README.md"
 ---
 
 # Documentation Guidelines
 
-- Use sentence case for headings
-- Include code examples for all features
-- Keep paragraphs short (3-4 sentences max)
-- Link to related documentation
+- Use clear, concise language
+- Include code examples where appropriate
+- Keep table of contents updated
+- Add screenshots for UI features
+- Follow the established documentation structure
 ```
 
 ## Combining with Rule Toggles
 
-Conditional rules work alongside the rule toggle UI. Toggle off a conditional rule to disable it entirely (it won't activate even if paths match). Toggle on to let it activate when conditions are met.
+Conditional rules work seamlessly with the rule toggle UI. You can:
 
-This provides two levels of control: manual toggles and automatic condition-based activation.
+1. **Toggle conditional rules on/off**: Disable a conditional rule entirely via the UI
+2. **Mix conditional and always-on rules**: Some rules always active, others conditional
+3. **Override with manual toggles**: Turn off a conditional rule even when its conditions match
+
+This gives you fine-grained control over which rules are active at any time.
 
 ## Tips for Effective Conditional Rules
 
 ### Start Broad, Then Narrow
 
-Begin with broader patterns and refine as you learn what works:
+Begin with broader patterns and refine based on experience:
 
 ```yaml
-# Start here
+# Start with:
 paths:
   - "src/**"
 
-# Then narrow down
+# Refine to:
 paths:
-  - "src/features/auth/**"
+  - "src/components/**"
+  - "src/hooks/**"
 ```
 
 ### Use Descriptive Filenames
 
-Name your rule files to indicate their scope:
+Name your rule files to clearly indicate their scope:
 
-```
-.clinerules/
-├── api-endpoints.md      # Rules for API code
-├── database-models.md    # Rules for DB layer
-├── react-components.md   # Rules for React
-└── universal.md          # No frontmatter = always active
-```
+- `frontend-react.md` - React-specific frontend rules
+- `backend-api.md` - API development rules
+- `testing-unit.md` - Unit testing standards
+- `docs-api.md` - API documentation rules
 
 ### Keep Universal Rules Separate
 
-Put always-on rules (coding standards, project conventions) in files without frontmatter. Reserve conditional rules for context-specific guidance.
+Rules that apply everywhere should not have conditionals:
+
+**File: `.clinerules/00-universal.md`** (no frontmatter)
+```markdown
+# Universal Standards
+
+- Write clear commit messages
+- Keep functions small and focused
+- Use meaningful variable names
+- Comment complex logic
+```
 
 ### Test Your Patterns
 
-Not sure if a pattern matches? Create a simple test rule:
+Verify your patterns match the intended files:
 
-```yaml
----
-paths:
-  - "your/pattern/here/**"
----
-
-TEST: This rule should activate for your/pattern/here files.
-```
-
-Then work with a file in that path and check if you see the activation notification.
+1. Open a file that should trigger the rule
+2. Check the notification for "Conditional rules applied"
+3. Adjust patterns if needed
 
 ## Troubleshooting
 
-**Rule not activating:**
-- Check that file paths in your context match the glob pattern
-- Verify the rule is toggled on in the rules panel
-- Ensure YAML frontmatter has proper `---` delimiters
+**Rule not activating?**
+- Check that your glob patterns match the file paths
+- Verify the YAML frontmatter is valid
+- Ensure the rule file is in `.clinerules/` directory
+- Check if the rule is toggled off in the UI
 
-**Rule activating unexpectedly:**
-- Review glob patterns: `**` is recursive and may match more than intended
-- Check for open files that match the pattern
-- File paths mentioned in your message also count as context
+**Rule activating too often?**
+- Make your glob patterns more specific
+- Use more restrictive patterns (e.g., `src/components/*.tsx` instead of `**/*.tsx`)
 
-**Frontmatter showing in output:**
-- YAML couldn't be parsed
-- Check for syntax errors (unquoted special characters, improper indentation)
+**YAML parsing errors?**
+- Ensure proper indentation (use spaces, not tabs)
+- Quote paths that contain special characters
+- Verify the `---` markers are on their own lines
 
 ## Related
 
-- [Cline Rules Overview](/features/cline-rules/overview) - Complete rules system guide
-- [Skills](/features/skills) - Load instructions on demand with `/skill` command
-- [Workflows](/features/slash-commands/workflows/index) - Define explicit task automation
-- [@ Mentions](/features/at-mentions/overview) - Add files to context explicitly
-- [Understanding Context Management](/prompting/understanding-context-management) - How Cline manages context window
+- [Cline Rules Overview](/features/cline-rules/overview) - Introduction to Cline Rules
+- [Slash Commands](/features/slash-commands/new-rule) - Create rules with `/newrule`
+- [Memory Bank](/features/memory-bank) - Long-term context storage

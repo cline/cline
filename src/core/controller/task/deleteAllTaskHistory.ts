@@ -5,7 +5,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "../../../utils/fs"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Deletes all task history, with an option to preserve favorites
@@ -64,26 +64,24 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				return DeleteAllTaskHistoryCount.create({
 					tasksDeleted: totalTasks - favoritedTasks.length,
 				})
-			} else {
-				// No favorited tasks found - show warning and ask user what to do
-				const answer = (
-					await HostProvider.window.showMessage({
-						type: ShowMessageType.WARNING,
-						message: "No favorited tasks found. Would you like to delete all tasks anyway?",
-						options: {
-							modal: true,
-							items: ["Delete All Tasks"],
-						},
-					})
-				).selectedOption
+			}
+			// No favorited tasks found - show warning and ask user what to do
+			const answer = (
+				await HostProvider.window.showMessage({
+					type: ShowMessageType.WARNING,
+					message: "No favorited tasks found. Would you like to delete all tasks anyway?",
+					options: {
+						modal: true,
+						items: ["Delete All Tasks"],
+					},
+				})
+			).selectedOption
 
-				// User cancelled - don't delete anything
-				if (answer === undefined) {
-					return DeleteAllTaskHistoryCount.create({
-						tasksDeleted: 0,
-					})
-				}
-				// If user chose "Delete All Tasks", fall through to the `delete everything` section below
+			// User cancelled - don't delete anything
+			if (answer === undefined) {
+				return DeleteAllTaskHistoryCount.create({
+					tasksDeleted: 0,
+				})
 			}
 		}
 

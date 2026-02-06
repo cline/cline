@@ -1,4 +1,4 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import * as vscode from "vscode"
 
 const CLINE_OUTPUT_CHANNEL = vscode.window.createOutputChannel("Cline")

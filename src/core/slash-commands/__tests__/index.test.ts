@@ -1,6 +1,6 @@
 import type { McpPromptResponse } from "@shared/mcp"
 import { expect } from "chai"
-import { formatMcpPromptResponse, McpPromptFetcher, parseSlashCommands } from "../index"
+import { formatMcpPromptResponse, type McpPromptFetcher, parseSlashCommands } from "../index"
 
 describe("slash-commands", () => {
 	describe("formatMcpPromptResponse", () => {

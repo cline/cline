@@ -1,9 +1,9 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { WorktreeDefaults } from "@shared/proto/cline/worktree"
 import { getWorkspacePath } from "@utils/path"
 import path from "path"
 import { getDocumentsPath } from "@/core/storage/disk"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Generates a random suffix for worktree names

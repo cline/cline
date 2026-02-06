@@ -1,7 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
-import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
+import type { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { telemetryService } from "@/services/telemetry"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Tracks when the worktrees view is opened (for telemetry)

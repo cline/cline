@@ -16,7 +16,7 @@ import { blobStorage } from "../../storage/ClineBlobStorage"
 import { backfillTasks } from "./backfill"
 import { SyncQueue } from "./queue"
 import type { SyncWorkerOptions } from "./worker"
-import { disposeSyncWorker, initSyncWorker, SyncWorker } from "./worker"
+import { disposeSyncWorker, initSyncWorker, type SyncWorker } from "./worker"
 
 export type { SyncQueueItem, SyncQueueStatus } from "./queue"
 // Re-export types and functions

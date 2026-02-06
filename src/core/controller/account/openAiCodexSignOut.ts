@@ -1,7 +1,7 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import type { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Signs out of OpenAI Codex by clearing stored credentials

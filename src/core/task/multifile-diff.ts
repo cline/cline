@@ -1,9 +1,9 @@
 import { HostProvider } from "@/hosts/host-provider"
-import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
+import type CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@/shared/array"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { MessageStateHandler } from "./message-state"
+import type { MessageStateHandler } from "./message-state"
 
 export async function showChangedFilesDiff(
 	messageStateHandler: MessageStateHandler,

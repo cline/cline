@@ -10,7 +10,7 @@
  * 3. Add the indicator to the Virtuoso Footer component
  */
 
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { useEffect, useRef, useState } from "react"
 
 // Idle timeout in milliseconds before showing indicator

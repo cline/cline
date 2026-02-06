@@ -1,5 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"

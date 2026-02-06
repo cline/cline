@@ -5,7 +5,8 @@
 
 import { isCompletedFocusChainItem, isFocusChainItem, parseFocusChainItem } from "@shared/focus-chain-utils"
 import { Box, Text } from "ink"
-import React, { useMemo } from "react"
+import type React from "react"
+import { useMemo } from "react"
 
 interface TodoInfo {
 	currentTodo: { text: string; completed: boolean; index: number } | null

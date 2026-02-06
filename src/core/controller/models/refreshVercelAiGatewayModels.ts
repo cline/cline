@@ -1,5 +1,5 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
@@ -7,7 +7,7 @@ import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Derives thinkingConfig from model ID and tags.
@@ -121,7 +121,7 @@ async function fetchAndCacheModels(): Promise<Record<string, ModelInfo>> {
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
 				if (price) {
-					return parseFloat(price) * 1_000_000
+					return Number.parseFloat(price) * 1_000_000
 				}
 				return undefined
 			}

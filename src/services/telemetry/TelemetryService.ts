@@ -3,10 +3,10 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
-import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import type { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { Mode } from "@/shared/storage/types"
+import type { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
@@ -803,8 +803,8 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		ulid: string,
-		provider: string = "unknown",
-		model: string = "unknown",
+		provider = "unknown",
+		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
 		tokenUsage: {

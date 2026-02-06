@@ -1,6 +1,6 @@
 import {
-	ApiConfiguration,
-	ApiProvider,
+	type ApiConfiguration,
+	type ApiProvider,
 	anthropicDefaultModelId,
 	anthropicModels,
 	askSageDefaultModelId,
@@ -33,7 +33,7 @@ import {
 	internationalZAiDefaultModelId,
 	internationalZAiModels,
 	liteLlmModelInfoSaneDefaults,
-	ModelInfo,
+	type ModelInfo,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
 	mainlandZAiDefaultModelId,
@@ -68,7 +68,7 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 
 /**
  * Returns the static model list for a provider.

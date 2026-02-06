@@ -1,23 +1,23 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import {
 	type ContentBlock as BedrockContentBlock,
 	ConversationRole as BedrockConversationRole,
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
-import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
-import { HttpDestination, transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
-import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
+import { type ChatMessage, OrchestrationClient, type OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
+import { type HttpDestination, transformServiceBindingToDestination } from "@sap-cloud-sdk/connectivity"
+import { type ModelInfo, type SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import JSON5 from "json5"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface SapAiCoreHandlerOptions extends CommonApiHandlerOptions {
 	sapAiCoreClientId?: string
@@ -372,12 +372,12 @@ export class SapAiCoreHandler implements ApiHandler {
 	private chunkToString(chunk: any): string {
 		if (Buffer.isBuffer(chunk)) {
 			return chunk.toString("utf-8")
-		} else if (typeof chunk === "string") {
-			return chunk
-		} else {
-			// Handle comma-separated byte values or other array-like formats
-			return Buffer.from(chunk).toString("utf-8")
 		}
+		if (typeof chunk === "string") {
+			return chunk
+		}
+		// Handle comma-separated byte values or other array-like formats
+		return Buffer.from(chunk).toString("utf-8")
 	}
 
 	private validateCredentials(): void {
@@ -526,7 +526,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (!expiresIn) {
 				throw new Error("Destination is missing required authTokens with expiresIn")
 			}
-			this.destinationExpiresAt = Date.now() + parseInt(expiresIn, 10) * 1000
+			this.destinationExpiresAt = Date.now() + Number.parseInt(expiresIn, 10) * 1000
 		}
 	}
 
@@ -846,20 +846,21 @@ export class SapAiCoreHandler implements ApiHandler {
 
 				if (error.response.status === 404) {
 					throw new Error(`404 Not Found: ${errorMessage}`)
-				} else if (error.response.status === 400) {
+				}
+				if (error.response.status === 400) {
 					throw new Error(`400 Bad Request: ${errorMessage}`)
 				}
 
 				throw new Error(`HTTP ${error.response.status}: ${errorMessage}`)
-			} else if (error.request) {
+			}
+			if (error.request) {
 				// The request was made but no response was received
 				Logger.error("Error request:", error.request)
 				throw new Error("No response received from server")
-			} else {
-				// Something happened in setting up the request that triggered an Error
-				Logger.error("Error message:", error.message)
-				throw new Error(`Error setting up request: ${error.message}`)
 			}
+			// Something happened in setting up the request that triggered an Error
+			Logger.error("Error message:", error.message)
+			throw new Error(`Error setting up request: ${error.message}`)
 		}
 	}
 

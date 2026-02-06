@@ -135,7 +135,7 @@ export function parseValue(input: string, type: ValueType): unknown {
 		return input.toLowerCase() === "true" || input === "1"
 	}
 	if (type === "number") {
-		const num = parseFloat(input)
+		const num = Number.parseFloat(input)
 		return Number.isNaN(num) ? 0 : num
 	}
 	if (type === "object") {

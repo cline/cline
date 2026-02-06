@@ -6,7 +6,8 @@
 import { registerPartialMessageCallback } from "@core/controller/ui/subscribeToPartialMessage"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
-import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react"
+import type React from "react"
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react"
 
 interface TaskContextType {
 	state: Partial<ExtensionState>

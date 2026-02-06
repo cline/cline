@@ -5,7 +5,7 @@ import type { HistoryItem } from "@/shared/HistoryItem"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { StateManager } from "../storage/StateManager"
+import type { StateManager } from "../storage/StateManager"
 import { isMultiRootEnabled } from "./multi-root-utils"
 import { WorkspaceRootManager } from "./WorkspaceRootManager"
 

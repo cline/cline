@@ -224,7 +224,7 @@ function truncate(text: string, maxLength: number): string {
 /**
  * Format tool result for display
  */
-function formatToolResult(result: string, maxLines: number = 5): string[] {
+function formatToolResult(result: string, maxLines = 5): string[] {
 	const lines = result.split("\n")
 	if (lines.length <= maxLines) {
 		return lines

@@ -3,8 +3,8 @@
  * See https://code.visualstudio.com/api for more information
  */
 
-import { URI } from "vscode-uri"
-import { ClineMemento, ClineSecretStore } from "../storage"
+import type { URI } from "vscode-uri"
+import type { ClineMemento, ClineSecretStore } from "../storage"
 
 enum ExtensionMode {
 	/**

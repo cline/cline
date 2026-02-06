@@ -117,7 +117,7 @@ export const mockProviderInfo = {
 	mode: "act" as const,
 }
 
-const makeProviderInfo = (modelId: string, providerId: string = "test") => ({
+const makeProviderInfo = (modelId: string, providerId = "test") => ({
 	providerId: modelId.includes("ollama") ? "ollama" : providerId,
 	model: { ...mockProviderInfo.model, id: modelId },
 	mode: "act" as const,

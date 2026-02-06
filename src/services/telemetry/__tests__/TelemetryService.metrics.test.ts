@@ -1,6 +1,6 @@
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
-import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
+import { type TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
 	readonly name = "FakeProvider"

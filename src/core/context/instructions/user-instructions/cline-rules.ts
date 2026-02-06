@@ -1,19 +1,19 @@
 import {
-	ActivatedConditionalRule,
+	type ActivatedConditionalRule,
 	getRemoteRulesTotalContentWithMetadata,
 	getRuleFilesTotalContentWithMetadata,
 	RULE_SOURCE_PREFIX,
-	RuleLoadResultWithInstructions,
+	type RuleLoadResultWithInstructions,
 	synchronizeRuleToggles,
 } from "@core/context/instructions/user-instructions/rule-helpers"
 import { formatResponse } from "@core/prompts/responses"
 import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import type { ClineRulesToggles } from "@shared/cline-rules"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
 import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"

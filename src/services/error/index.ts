@@ -1,4 +1,4 @@
-import { ErrorSettings } from "./providers/IErrorProvider"
+import type { ErrorSettings } from "./providers/IErrorProvider"
 
 export { ClineError, ClineErrorType } from "./ClineError"
 export { type ErrorProviderConfig, ErrorProviderFactory, type ErrorProviderType } from "./ErrorProviderFactory"

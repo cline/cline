@@ -1,10 +1,10 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import type { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Initiates OpenAI Codex OAuth authentication flow

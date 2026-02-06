@@ -1,8 +1,8 @@
-import { CreateWorktreeIncludeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { type CreateWorktreeIncludeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { getWorkspacePath } from "@utils/path"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Creates a .worktreeinclude file with the provided content

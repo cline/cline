@@ -5,18 +5,18 @@ import {
 	type GenerateContentConfig,
 	type GenerateContentResponseUsageMetadata,
 	GoogleGenAI,
-	FunctionDeclaration as GoogleTool,
+	type FunctionDeclaration as GoogleTool,
 	ThinkingLevel,
 } from "@google/genai"
-import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { type GeminiModelId, geminiDefaultModelId, geminiModels, type ModelInfo } from "@shared/api"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
 
@@ -480,7 +480,8 @@ export class GeminiHandler implements ApiHandler {
 		const totalChars = content.reduce((total, block) => {
 			if (typeof block === "string") {
 				return total + block.length
-			} else if (block && typeof block === "object") {
+			}
+			if (block && typeof block === "object") {
 				// Safely stringify the object
 				try {
 					const jsonStr = JSON.stringify(block)
@@ -502,7 +503,7 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		const unit = retryAfter.at(-1)
-		const value = parseInt(retryAfter, 10)
+		const value = Number.parseInt(retryAfter, 10)
 
 		if (Number.isNaN(value)) {
 			return 0
@@ -510,9 +511,11 @@ export class GeminiHandler implements ApiHandler {
 
 		if (unit === "s") {
 			return value
-		} else if (unit === "m") {
+		}
+		if (unit === "m") {
 			return value * 60 // Convert minutes to seconds
-		} else if (unit === "h") {
+		}
+		if (unit === "h") {
 			return value * 60 * 60 // Convert hours to seconds
 		}
 

@@ -91,7 +91,7 @@ export async function orchestrateCommandExecution(
 
 	// Chunked terminal output buffering
 	let outputBuffer: string[] = []
-	let outputBufferSize: number = 0
+	let outputBufferSize = 0
 	let chunkTimer: NodeJS.Timeout | null = null
 
 	// Track if buffer gets stuck
@@ -549,17 +549,16 @@ export async function orchestrateCommandExecution(
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
 		}
-	} else {
-		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
-		return {
-			userRejected: false,
-			result: `Command is still running in the user's terminal.${
-				result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-			}${logFileMsg}\n\nYou will be updated on the terminal status and new output in the future.`,
-			completed: false,
-			outputLines: resultOutputLines,
-			logFilePath: largeOutputLogPath || undefined,
-		}
+	}
+	const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+	return {
+		userRejected: false,
+		result: `Command is still running in the user's terminal.${
+			result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+		}${logFileMsg}\n\nYou will be updated on the terminal status and new output in the future.`,
+		completed: false,
+		outputLines: resultOutputLines,
+		logFilePath: largeOutputLogPath || undefined,
 	}
 }
 

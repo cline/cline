@@ -1,6 +1,6 @@
 import deepEqual from "fast-deep-equal"
 import * as path from "path"
-import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { type Diagnostic, DiagnosticSeverity, type FileDiagnostics } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
 

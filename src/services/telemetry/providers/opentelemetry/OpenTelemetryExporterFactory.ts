@@ -5,8 +5,8 @@ import { OTLPLogExporter as OTLPLogExporterProto } from "@opentelemetry/exporter
 import { OTLPMetricExporter as OTLPMetricExporterGRPC } from "@opentelemetry/exporter-metrics-otlp-grpc"
 import { OTLPMetricExporter as OTLPMetricExporterHTTP } from "@opentelemetry/exporter-metrics-otlp-http"
 import { OTLPMetricExporter as OTLPMetricExporterProto } from "@opentelemetry/exporter-metrics-otlp-proto"
-import { ConsoleLogRecordExporter, LogRecordExporter } from "@opentelemetry/sdk-logs"
-import { ConsoleMetricExporter, MetricReader, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
+import { ConsoleLogRecordExporter, type LogRecordExporter } from "@opentelemetry/sdk-logs"
+import { ConsoleMetricExporter, type MetricReader, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { Logger } from "@/shared/services/Logger"
 import { wrapLogsExporterWithDiagnostics, wrapMetricsExporterWithDiagnostics } from "./otel-exporter-diagnostics"
 

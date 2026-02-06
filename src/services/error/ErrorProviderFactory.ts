@@ -1,8 +1,8 @@
 import { ClineEndpoint } from "@/config"
-import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import { isPostHogConfigValid, type PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"
-import { ClineError } from "./ClineError"
-import { IErrorProvider } from "./providers/IErrorProvider"
+import type { ClineError } from "./ClineError"
+import type { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
 /**

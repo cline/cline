@@ -1,7 +1,7 @@
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
 import { ClineEnv } from "@/config"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { HostProvider } from "@/hosts/host-provider"
@@ -63,7 +63,7 @@ export interface ClineAccountOrganization {
 
 export class AuthService {
 	protected static instance: AuthService | null = null
-	protected _authenticated: boolean = false
+	protected _authenticated = false
 	protected _clineAuthInfo: ClineAuthInfo | null = null
 	protected _provider: ClineAuthProvider
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()

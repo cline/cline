@@ -1,4 +1,4 @@
-import { ApiConfiguration, ApiProvider } from "@shared/api"
+import type { ApiConfiguration, ApiProvider } from "@shared/api"
 import PROVIDERS from "@shared/providers/providers.json"
 
 /**

@@ -1,12 +1,12 @@
-import { HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasModels, ModelInfo } from "@shared/api"
-import OpenAI from "openai"
+import { type HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasModels, type ModelInfo } from "@shared/api"
+import type OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface HuaweiCloudMaaSHandlerOptions extends CommonApiHandlerOptions {
@@ -79,7 +79,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 		})
 
 		let reasoning: string | null = null
-		let didOutputUsage: boolean = false
+		let didOutputUsage = false
 		let finalUsage: any = null
 
 		const toolCallProcessor = new ToolCallProcessor()

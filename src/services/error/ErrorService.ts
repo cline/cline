@@ -1,7 +1,7 @@
 import { Logger } from "@/shared/services/Logger"
 import { ClineError } from "./ClineError"
 import { ErrorProviderFactory } from "./ErrorProviderFactory"
-import { IErrorProvider } from "./providers/IErrorProvider"
+import type { IErrorProvider } from "./providers/IErrorProvider"
 
 /**
  * ErrorService handles error logging and tracking for the Cline extension

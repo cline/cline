@@ -3,7 +3,8 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useEffect, useMemo, useState } from "react"
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
 import { COLORS } from "../constants/colors"
 
 interface ThinkingIndicatorProps {

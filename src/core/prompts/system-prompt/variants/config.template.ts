@@ -14,7 +14,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
-import { PromptVariant } from ".."
+import type { PromptVariant } from ".."
 import { SystemPromptSection } from "../templates/placeholders"
 import { baseTemplate } from "./generic/template"
 import { createVariant } from "./variant-builder"

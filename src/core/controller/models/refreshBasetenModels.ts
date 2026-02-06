@@ -1,7 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ANTHROPIC_MAX_THINKING_BUDGET, ModelInfo } from "@shared/api"
+import { ANTHROPIC_MAX_THINKING_BUDGET, type ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
@@ -9,7 +9,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { basetenModels } from "../../../shared/api"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 // Track pending refresh promise to prevent duplicate concurrent fetches
 let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null

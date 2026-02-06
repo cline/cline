@@ -5,7 +5,8 @@
 
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
-import React, { useEffect, useMemo, useState } from "react"
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
 import {
 	type ApiProvider,
@@ -67,7 +68,7 @@ import {
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
 import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Map providers to their static model lists and defaults
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {

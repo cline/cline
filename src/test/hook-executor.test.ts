@@ -9,7 +9,7 @@ import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
-import { ClineMessage } from "../shared/ExtensionMessage"
+import type { ClineMessage } from "../shared/ExtensionMessage"
 
 /**
  * Unit tests for the hook-executor module
@@ -49,8 +49,8 @@ describe("Hook Executor", () => {
 	async function createHookScript(
 		hookName: string,
 		output: { cancel?: boolean; contextModification?: string; errorMessage?: string },
-		exitCode: number = 0,
-		delayMs: number = 0,
+		exitCode = 0,
+		delayMs = 0,
 	): Promise<string> {
 		const scriptPath = path.join(tempDir, hookName)
 		const scriptContent = `#!/usr/bin/env node

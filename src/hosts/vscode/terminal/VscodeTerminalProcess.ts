@@ -1,6 +1,6 @@
 import { TerminalOutputFailureReason, telemetryService } from "@services/telemetry"
 import { EventEmitter } from "events"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { stripAnsi } from "@/hosts/vscode/terminal/ansiUtils"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import {
@@ -30,12 +30,12 @@ import { Logger } from "@/shared/services/Logger"
  * - 'no_shell_integration': Emitted when shell integration is not available
  */
 export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
-	waitForShellIntegration: boolean = true
-	private isListening: boolean = true
-	private buffer: string = ""
-	private fullOutput: string = ""
-	private lastRetrievedIndex: number = 0
-	isHot: boolean = false
+	waitForShellIntegration = true
+	private isListening = true
+	private buffer = ""
+	private fullOutput = ""
+	private lastRetrievedIndex = 0
+	isHot = false
 	private hotTimer: NodeJS.Timeout | null = null
 
 	async run(terminal: vscode.Terminal, command: string) {

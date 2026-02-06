@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -16,8 +16,8 @@ function isExecutable(filePath: string): boolean {
 
 export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
-	private startTime: number = 0
-	private outputFile: string = ""
+	private startTime = 0
+	private outputFile = ""
 
 	constructor() {}
 

@@ -3,13 +3,13 @@ title: "Disable Terminal Pagers During Cline Sessions"
 description: "Make CLI output non-interactive when Cline runs commands by detecting the CLINE_ACTIVE environment variable and disabling pagers like less."
 ---
 
-Many CLI tools (like Git) use a pager such as `less` for interactive, scrollable output. When Cline runs commands in your terminal, that interactivity gets in the way — the pager can pause on the first page and block progress. You can configure your shell so that when a terminal is spawned by Cline, pagers are disabled and output streams through normally.
+Many CLI tools (like Git) use a pager such as `less` for interactive, scrollable output. When Cline runs commands in your terminal, that interactivity gets in the way - the pager can pause on the first page and block progress. You can configure your shell so that when a terminal is spawned by Cline, pagers are disabled and output streams through normally.
 
 ## How it works
 
 Cline sets an environment variable for terminals it opens to run commands:
 
-- `CLINE_ACTIVE` — non-empty when the shell is running under Cline
+- `CLINE_ACTIVE` - non-empty when the shell is running under Cline
 
 You can detect this variable in your shell startup file and adjust environment variables or aliases only for Cline-run sessions. This keeps your normal interactive terminals unchanged.
 

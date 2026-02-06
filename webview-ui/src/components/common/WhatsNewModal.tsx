@@ -1,4 +1,5 @@
-import React, { useCallback, useRef } from "react"
+import type React from "react"
+import { useCallback, useRef } from "react"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"

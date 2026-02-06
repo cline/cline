@@ -7,11 +7,11 @@ import {
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
 import { listFiles } from "@services/glob/list-files"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import type { ClineRulesToggles } from "@shared/cline-rules"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import path from "path"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
 
 /**

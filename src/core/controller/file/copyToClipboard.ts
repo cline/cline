@@ -1,7 +1,7 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import { Logger } from "@/shared/services/Logger"
 import { writeTextToClipboard } from "@/utils/env"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Copies text to the system clipboard

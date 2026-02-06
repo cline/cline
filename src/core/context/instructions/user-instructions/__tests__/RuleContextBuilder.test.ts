@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import sinon from "sinon"
-import { RuleContextBuilder, RuleContextBuilderDeps } from "../RuleContextBuilder"
+import { RuleContextBuilder, type RuleContextBuilderDeps } from "../RuleContextBuilder"
 
 // Mock HostProvider to avoid actual VSCode API calls
 const mockHostProvider = {

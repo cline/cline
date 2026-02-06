@@ -1,5 +1,5 @@
 import { BannerService } from "@/services/banner/BannerService"
-import { Empty } from "@/shared/proto/cline/common"
+import type { Empty } from "@/shared/proto/cline/common"
 import type { TrackBannerEventRequest } from "@/shared/proto/cline/state"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."

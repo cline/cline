@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { HistoryItem } from "@/shared/HistoryItem"
+import type { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { StateManager } from "./StateManager"

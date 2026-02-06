@@ -1,8 +1,7 @@
-import type { HookOutputStreamMeta } from "@shared/ExtensionMessage"
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, HookOutputStreamMeta } from "@shared/ExtensionMessage"
 import type { HookOutput } from "@shared/proto/cline/hooks"
 import { Logger } from "@/shared/services/Logger"
-import { MessageStateHandler } from "../task/message-state"
+import type { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
 import { HookFactory } from "./hook-factory"
 

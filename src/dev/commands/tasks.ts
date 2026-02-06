@@ -1,6 +1,6 @@
-import { Controller } from "@core/controller"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
+import type { Controller } from "@core/controller"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -65,7 +65,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 				return
 			}
 
-			const tasksCount = parseInt(count)
+			const tasksCount = Number.parseInt(count)
 			const globalStoragePath = HostProvider.get().globalStorageFsPath
 			const tasksDir = path.join(globalStoragePath, "tasks")
 

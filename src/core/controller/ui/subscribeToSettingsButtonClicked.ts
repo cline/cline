@@ -1,6 +1,6 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Empty, type EmptyRequest } from "@shared/proto/cline/common"
 import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
 // Keep track of active settings button clicked subscriptions

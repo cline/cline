@@ -5,7 +5,8 @@
 
 import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text, useApp, useInput } from "ink"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useStdinContext } from "../context/StdinContext"
 import { useTaskController } from "../context/TaskContext"
 import { useLastCompletedAskMessage } from "../hooks/useStateSubscriber"
@@ -145,7 +146,7 @@ export const AskPrompt: React.FC<AskPromptProps> = ({ onRespond }) => {
 					setTextInput((prev) => prev.slice(0, -1))
 				} else if (input && !key.ctrl && !key.meta) {
 					// Check if it's a number for option selection (only when no text typed yet)
-					const num = parseInt(input, 10)
+					const num = Number.parseInt(input, 10)
 					if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= parts.options.length) {
 						const selectedOption = parts.options[num - 1]
 						sendResponse("messageResponse", selectedOption)
@@ -401,43 +402,42 @@ function getCliMessagePrefixIcon(message: ClineMessage): string {
 			default:
 				return "❔"
 		}
-	} else {
-		switch (message.say) {
-			case "task":
-				return "📋"
-			case "error":
-				return "❌"
-			case "text":
-				return "💬"
-			case "reasoning":
-				return "🧠"
-			case "completion_result":
-				return "✅"
-			case "user_feedback":
-				return "👤"
-			case "command":
-			case "command_output":
-				return "⚙️"
-			case "tool":
-				return "🔧"
-			case "browser_action":
-			case "browser_action_launch":
-			case "browser_action_result":
-				return "🌐"
-			case "mcp_server_request_started":
-			case "mcp_server_response":
-				return "🔌"
-			case "api_req_started":
-			case "api_req_finished":
-				return "🔄"
-			case "checkpoint_created":
-				return "💾"
-			case "info":
-				return "ℹ️"
-			case "generate_explanation":
-				return "📝"
-			default:
-				return "  "
-		}
+	}
+	switch (message.say) {
+		case "task":
+			return "📋"
+		case "error":
+			return "❌"
+		case "text":
+			return "💬"
+		case "reasoning":
+			return "🧠"
+		case "completion_result":
+			return "✅"
+		case "user_feedback":
+			return "👤"
+		case "command":
+		case "command_output":
+			return "⚙️"
+		case "tool":
+			return "🔧"
+		case "browser_action":
+		case "browser_action_launch":
+		case "browser_action_result":
+			return "🌐"
+		case "mcp_server_request_started":
+		case "mcp_server_response":
+			return "🔌"
+		case "api_req_started":
+		case "api_req_finished":
+			return "🔄"
+		case "checkpoint_created":
+			return "💾"
+		case "info":
+			return "ℹ️"
+		case "generate_explanation":
+			return "📝"
+		default:
+			return "  "
 	}
 }

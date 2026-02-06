@@ -8,7 +8,7 @@ import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -19,7 +19,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
-import { HistoryItem } from "@/shared/HistoryItem"
+import type { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
@@ -32,12 +32,12 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
+import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
-import { selectOutputMode } from "./utils/mode-selection"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
@@ -168,7 +168,7 @@ async function runTaskInPlainTextMode(
 		imageDataUrls: taskConfig.imageDataUrls,
 		verbose: options.verbose,
 		jsonOutput: options.json,
-		timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
+		timeoutSeconds: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
 	})
 
 	// Cleanup
@@ -447,8 +447,8 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
 	// Sort by timestamp (newest first) before pagination
 	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
-	const limit = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit || 10
-	const initialPage = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
+	const limit = typeof options.limit === "string" ? Number.parseInt(options.limit, 10) : options.limit || 10
+	const initialPage = typeof options.page === "string" ? Number.parseInt(options.page, 10) : options.page || 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 

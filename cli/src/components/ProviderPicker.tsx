@@ -2,11 +2,12 @@
  * Provider picker component for API provider selection
  */
 
-import React, { useMemo } from "react"
+import type React from "react"
+import { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiConfiguration } from "@/shared/api"
 import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "../utils/providers"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Re-export for backwards compatibility
 export { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder }

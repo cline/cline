@@ -4,7 +4,8 @@
  */
 
 import { Box } from "ink"
-import React, { ReactNode, useCallback, useState } from "react"
+import type React from "react"
+import { type ReactNode, useCallback, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
 import { useTerminalSize } from "../hooks/useTerminalSize"

@@ -7,7 +7,7 @@ import { execa } from "execa"
 import readline from "readline"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
-import { ClaudeCodeMessage } from "./types"
+import type { ClaudeCodeMessage } from "./types"
 
 type ClaudeCodeOptions = {
 	systemPrompt: string

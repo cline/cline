@@ -4,10 +4,10 @@
  */
 
 import {
-	GlobalStateAndSettings,
-	GlobalStateAndSettingsKey,
-	LocalState,
-	LocalStateKey,
+	type GlobalStateAndSettings,
+	type GlobalStateAndSettingsKey,
+	type LocalState,
+	type LocalStateKey,
 	SETTINGS_DEFAULTS,
 } from "@shared/storage/state-keys"
 import { Box, Text, useApp, useInput } from "ink"
@@ -18,21 +18,21 @@ import {
 	buildConfigEntries,
 	buildToggleEntries,
 	ConfigRow,
-	HookInfo,
+	type HookInfo,
 	HookRow,
 	MAX_VISIBLE,
 	parseValue,
 	SEPARATOR,
 	SectionHeader,
-	SkillInfo,
+	type SkillInfo,
 	SkillRow,
 	TABS,
 	TabBar,
-	TabView,
+	type TabView,
 	TextInput,
-	ToggleEntry,
+	type ToggleEntry,
 	ToggleRow,
-	WorkspaceHooks,
+	type WorkspaceHooks,
 } from "./ConfigViewComponents"
 
 // ============================================================================
@@ -248,7 +248,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			if (key.tab || (input >= "1" && input <= "5")) {
 				const targetIdx = key.tab
 					? (availableTabs.findIndex((t) => t.key === currentTab) + 1) % availableTabs.length
-					: parseInt(input) - 1
+					: Number.parseInt(input) - 1
 				if (targetIdx >= 0 && targetIdx < availableTabs.length) {
 					handleTabChange(availableTabs[targetIdx].key)
 				}

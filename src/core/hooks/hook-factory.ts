@@ -7,14 +7,14 @@ import { telemetryService } from "../../services/telemetry"
 import {
 	HookInput,
 	HookOutput,
-	PostToolUseData,
-	PreCompactData,
-	PreToolUseData,
-	TaskCancelData,
-	TaskCompleteData,
-	TaskResumeData,
-	TaskStartData,
-	UserPromptSubmitData,
+	type PostToolUseData,
+	type PreCompactData,
+	type PreToolUseData,
+	type TaskCancelData,
+	type TaskCompleteData,
+	type TaskResumeData,
+	type TaskStartData,
+	type UserPromptSubmitData,
 } from "../../shared/proto/cline/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
@@ -506,10 +506,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 				return HookOutput.create({
 					cancel: false,
 				})
-			} else {
-				// Hook failed with non-zero exit - include hook name in error
-				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
+			// Hook failed with non-zero exit - include hook name in error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		} catch (error) {
 			const durationMs = performance.now() - startTime
 

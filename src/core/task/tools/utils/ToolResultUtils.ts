@@ -1,11 +1,11 @@
-import { ToolUse } from "@core/assistant-message"
+import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { ToolResponse } from "@core/task"
+import type { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
-import { ClineAsk } from "@/shared/ExtensionMessage"
+import type { ClineAsk } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
-import { TaskConfig } from "../types/TaskConfig"
+import type { TaskConfig } from "../types/TaskConfig"
 
 /**
  * Utility functions for handling tool results and feedback
@@ -139,9 +139,8 @@ export class ToolResultUtils {
 			// User pressed reject button or responded with a message, which we treat as a rejection
 			config.taskState.didRejectTool = true // Prevent further tool uses in this message
 			return false
-		} else {
-			// User hit the approve button, and may have provided feedback
-			return true
 		}
+		// User hit the approve button, and may have provided feedback
+		return true
 	}
 }

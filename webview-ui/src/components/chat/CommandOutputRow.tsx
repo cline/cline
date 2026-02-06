@@ -1,5 +1,5 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useEffect, useRef } from "react"
 import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
@@ -278,7 +278,7 @@ export const CommandOutputRow = memo(
 				</div>
 				{requestsApproval && (
 					<div className="flex items-center gap-2.5 p-2 text-[12px] text-editor-warning-foreground">
-						<i className="codicon codicon-warning"></i>
+						<i className="codicon codicon-warning" />
 						<span>The model has determined this command requires explicit approval.</span>
 					</div>
 				)}

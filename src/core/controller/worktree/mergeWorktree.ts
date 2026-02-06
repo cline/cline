@@ -1,9 +1,9 @@
-import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
+import { type MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
 import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import simpleGit from "simple-git"
 import { telemetryService } from "@/services/telemetry"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Merges a worktree's branch into the target branch and optionally deletes the worktree

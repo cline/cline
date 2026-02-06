@@ -1,4 +1,4 @@
-import { ClineMessage } from "./ExtensionMessage"
+import type { ClineMessage } from "./ExtensionMessage"
 
 /**
  * Consolidates error_retry messages in a retry sequence, keeping only the latest one,

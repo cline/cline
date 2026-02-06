@@ -1,8 +1,8 @@
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
-import { Mode } from "@shared/storage/types"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { type ApiConfiguration, type ModelInfo, QwenApiRegions } from "@shared/api"
+import type { Mode } from "@shared/storage/types"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { ClineTool } from "@/shared/tools"
+import type { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
@@ -44,7 +44,7 @@ import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
-import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
+import type { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]

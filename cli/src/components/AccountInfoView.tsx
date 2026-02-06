@@ -5,10 +5,10 @@
 
 import { Box, Text } from "ink"
 import React, { useCallback, useEffect, useState } from "react"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
-import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { AuthService, type ClineAccountOrganization } from "@/services/auth/AuthService"
 import { LoadingSpinner } from "./Spinner"
 
 interface AccountInfoViewProps {

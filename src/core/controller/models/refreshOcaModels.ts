@@ -1,4 +1,4 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import type { StringRequest } from "@shared/proto/cline/common"
 import { ApiFormat, OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
@@ -13,8 +13,8 @@ import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
-import { Controller } from ".."
+import type { GlobalStateAndSettings } from "@/shared/storage/state-keys"
+import type { Controller } from ".."
 
 /**
  * Refreshes the Oca models and returns the updated model list
@@ -25,7 +25,7 @@ import { Controller } from ".."
 export async function refreshOcaModels(controller: Controller, request: StringRequest): Promise<OcaCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
-			return parseFloat(price) * 1_000_000
+			return Number.parseFloat(price) * 1_000_000
 		}
 		return undefined
 	}

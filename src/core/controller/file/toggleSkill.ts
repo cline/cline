@@ -1,6 +1,6 @@
-import { SkillsToggles, ToggleSkillRequest } from "@shared/proto/cline/file"
+import { SkillsToggles, type ToggleSkillRequest } from "@shared/proto/cline/file"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Toggles a skill on or off

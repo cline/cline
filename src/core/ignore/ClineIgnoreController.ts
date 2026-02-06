@@ -1,7 +1,7 @@
 import { fileExistsAtPath } from "@utils/fs"
-import chokidar, { FSWatcher } from "chokidar"
+import chokidar, { type FSWatcher } from "chokidar"
 import fs from "fs/promises"
-import ignore, { Ignore } from "ignore"
+import ignore, { type Ignore } from "ignore"
 import path from "path"
 import { Logger } from "@/shared/services/Logger"
 

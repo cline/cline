@@ -8,7 +8,8 @@ import path from "node:path"
 
 import { RuleScope } from "@shared/proto/cline/file"
 import type { GlobalStateAndSettings, GlobalStateAndSettingsKey, LocalState, LocalStateKey } from "@shared/storage/state-keys"
-import React, { useCallback, useEffect, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"

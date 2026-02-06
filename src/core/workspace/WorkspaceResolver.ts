@@ -5,7 +5,7 @@
  * Phase 1+: Will handle multi-root path resolution
  */
 
-import { WorkspaceRoot } from "@shared/multi-root/types"
+import type { WorkspaceRoot } from "@shared/multi-root/types"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { MigrationReporter, type UsageStats } from "./MigrationReporter"

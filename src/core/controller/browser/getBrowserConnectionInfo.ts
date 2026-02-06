@@ -1,7 +1,7 @@
 import { BrowserConnectionInfo } from "@shared/proto/cline/browser"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from "../index"
+import type { Controller } from "../index"
 
 /**
  * Get information about the current browser connection

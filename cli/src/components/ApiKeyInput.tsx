@@ -4,7 +4,7 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import React from "react"
+import type React from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"

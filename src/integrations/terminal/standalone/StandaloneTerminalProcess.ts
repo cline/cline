@@ -9,7 +9,7 @@
  */
 
 import { telemetryService } from "@services/telemetry"
-import { ChildProcess, spawn } from "child_process"
+import { type ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
 import { terminateProcessTree } from "@/utils/process-termination"
 
@@ -38,22 +38,22 @@ import type { ITerminal, ITerminalProcess, TerminalProcessEvents } from "../type
  */
 export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
 	/** We don't need to wait since we control the process directly */
-	waitForShellIntegration: boolean = false
+	waitForShellIntegration = false
 
 	/** Whether we're actively listening for output */
-	isListening: boolean = true
+	isListening = true
 
 	/** Buffer for incomplete lines */
-	private buffer: string = ""
+	private buffer = ""
 
 	/** Full output captured from the process */
-	private fullOutput: string = ""
+	private fullOutput = ""
 
 	/** Index of last retrieved output position */
-	private lastRetrievedIndex: number = 0
+	private lastRetrievedIndex = 0
 
 	/** Whether the process is actively outputting */
-	isHot: boolean = false
+	isHot = false
 
 	/** Timer for tracking hot state */
 	private hotTimer: NodeJS.Timeout | null = null
@@ -65,7 +65,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	private exitCode: number | null = null
 
 	/** Whether the process has completed */
-	private isCompleted: boolean = false
+	private isCompleted = false
 
 	constructor() {
 		super()
@@ -299,9 +299,8 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	private getDefaultShell(): string {
 		if (process.platform === "win32") {
 			return process.env.COMSPEC || "cmd.exe"
-		} else {
-			return process.env.SHELL || "/bin/bash"
 		}
+		return process.env.SHELL || "/bin/bash"
 	}
 
 	/**
@@ -314,13 +313,11 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		if (process.platform === "win32") {
 			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
 				return ["-Command", command]
-			} else {
-				return ["/c", command]
 			}
-		} else {
-			// Use -l for login shell, -c for command
-			return ["-l", "-c", command]
+			return ["/c", command]
 		}
+		// Use -l for login shell, -c for command
+		return ["-l", "-c", command]
 	}
 
 	/**

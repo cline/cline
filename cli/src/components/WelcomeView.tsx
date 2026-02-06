@@ -5,10 +5,11 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiProvider } from "@/shared/api"
-import { getProviderDefaultModelId, getProviderModelIdKey, Mode, SettingsKey } from "@/shared/storage"
+import { getProviderDefaultModelId, getProviderModelIdKey, type Mode, type SettingsKey } from "@/shared/storage"
 import { useStdinContext } from "../context/StdinContext"
 import {
 	checkAndWarnRipgrepMissing,

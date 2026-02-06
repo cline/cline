@@ -2,7 +2,7 @@ import { ClineEndpoint } from "@/config"
 import {
 	getValidOpenTelemetryConfig,
 	getValidRuntimeOpenTelemetryConfig,
-	OpenTelemetryClientValidConfig,
+	type OpenTelemetryClientValidConfig,
 } from "@/shared/services/config/otel-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"

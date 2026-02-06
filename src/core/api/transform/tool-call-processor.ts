@@ -74,7 +74,7 @@ export class ToolCallProcessor {
 	}
 }
 
-export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls: boolean = false) {
+export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls = false) {
 	return tools?.length
 		? {
 				tools,

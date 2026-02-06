@@ -4,7 +4,8 @@
  */
 
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useEffect, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"

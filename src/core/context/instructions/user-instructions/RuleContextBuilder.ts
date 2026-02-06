@@ -1,5 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { extractPathLikeStrings, RuleEvaluationContext, toWorkspaceRelativePosixPath } from "./rule-conditionals"
+import { extractPathLikeStrings, type RuleEvaluationContext, toWorkspaceRelativePosixPath } from "./rule-conditionals"
 
 type WorkspaceRoot = { path: string }
 type WorkspaceManagerLike = { getRoots(): WorkspaceRoot[] }

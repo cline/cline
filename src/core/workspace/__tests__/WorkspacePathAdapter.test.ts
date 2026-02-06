@@ -3,7 +3,7 @@
  * Tests the core functionality of path resolution in single and multi-root workspaces
  */
 
-import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
+import { VcsType, type WorkspaceRoot } from "@shared/multi-root/types"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"

@@ -1,5 +1,5 @@
 import { StateManager } from "@core/storage/StateManager"
-import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
 import crypto from "crypto"
 import { HostProvider } from "@/hosts/host-provider"
@@ -138,9 +138,8 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 				if (serverData.tokens.refresh_token) {
 					Logger.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
 					return serverData.tokens
-				} else {
-					return undefined
 				}
+				return undefined
 			}
 		}
 

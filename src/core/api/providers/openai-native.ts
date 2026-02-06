@@ -1,23 +1,23 @@
 import {
-	ModelInfo,
-	OpenAiCompatibleModelInfo,
-	OpenAiNativeModelId,
+	type ModelInfo,
+	type OpenAiCompatibleModelInfo,
+	type OpenAiNativeModelId,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {

@@ -1,9 +1,9 @@
-import { CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
+import { type CreateWorktreeRequest, WorktreeResult } from "@shared/proto/cline/worktree"
 import { createWorktree as createWorktreeUtil, listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Creates a new git worktree

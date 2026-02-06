@@ -1,11 +1,11 @@
-import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { type AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, type ModelInfo } from "@shared/api"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface AskSageHandlerOptions extends CommonApiHandlerOptions {
 	asksageApiKey?: string

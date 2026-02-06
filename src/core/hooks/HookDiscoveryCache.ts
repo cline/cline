@@ -1,7 +1,7 @@
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../services/telemetry"
 import { getAllHooksDirs } from "../storage/disk"
-import { HookFactory, Hooks } from "./hook-factory"
+import { HookFactory, type Hooks } from "./hook-factory"
 
 type HookName = keyof Hooks
 

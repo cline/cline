@@ -93,7 +93,7 @@
  * ```
  */
 
-import OpenAI, { ClientOptions as OpenAIClientOptions } from "openai"
+import OpenAI, { type ClientOptions as OpenAIClientOptions } from "openai"
 import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 
@@ -145,9 +145,8 @@ export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callba
 			return result.finally(() => {
 				mockFetch = originalMockFetch
 			}) as typeof result
-		} else {
-			return result
 		}
+		return result
 	} finally {
 		if (willResetSync) {
 			mockFetch = originalMockFetch

@@ -1,13 +1,13 @@
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import type { ClineRulesToggles } from "@shared/cline-rules"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
-import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
+import { evaluateRuleConditionals, type RuleEvaluationContext } from "./rule-conditionals"
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
@@ -42,7 +42,7 @@ export async function readDirectoryRecursive(
 export async function synchronizeRuleToggles(
 	rulesDirectoryPath: string,
 	currentToggles: ClineRulesToggles,
-	allowedFileExtension: string = "",
+	allowedFileExtension = "",
 	excludedPaths: string[][] = [],
 ): Promise<ClineRulesToggles> {
 	// Create a copy of toggles to modify

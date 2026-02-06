@@ -21,15 +21,15 @@
  * See PRD: Multi-Workspace Folder Support for complete requirements
  */
 
-import { MessageStateHandler } from "@core/task/message-state"
+import type { MessageStateHandler } from "@core/task/message-state"
 import { showChangedFilesDiff } from "@core/task/multifile-diff"
-import { WorkspaceRootManager } from "@core/workspace"
+import type { WorkspaceRootManager } from "@core/workspace"
 import { telemetryService } from "@services/telemetry"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import CheckpointTracker from "./CheckpointTracker"
-import { ICheckpointManager } from "./types"
+import type { ICheckpointManager } from "./types"
 
 /**
  * Manages checkpoints across multiple workspace roots.

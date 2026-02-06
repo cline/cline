@@ -1,24 +1,24 @@
 import { ContextManager } from "@core/context/context-management/ContextManager"
-import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
-import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqInfo, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
-import { HistoryItem } from "@shared/HistoryItem"
-import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
+import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { MessageStateHandler } from "../../core/task/message-state"
-import { TaskState } from "../../core/task/TaskState"
-import { ICheckpointManager } from "./types"
+import type { MessageStateHandler } from "../../core/task/message-state"
+import type { TaskState } from "../../core/task/TaskState"
+import type { ICheckpointManager } from "./types"
 
 // Type definitions for better code organization
 type SayFunction = (
@@ -115,7 +115,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
 	 * @param completionMessageTs - Optional timestamp of the completion message to update with checkpoint hash
 	 */
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number): Promise<void> {
+	async saveCheckpoint(isAttemptCompletionMessage = false, completionMessageTs?: number): Promise<void> {
 		try {
 			// If checkpoints are disabled or previously encountered a timeout error, return early
 			if (

@@ -1,15 +1,15 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
-	ModelInfo,
+	type ModelInfo,
 	OPENROUTER_PROVIDER_PREFERENCES,
+	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
-	openRouterClaudeOpus461mModelId,
 } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
-import OpenAI from "openai"
-import { ChatCompletionTool } from "openai/resources/chat/completions"
+import type OpenAI from "openai"
+import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
 import { getOpenAIToolParams } from "./tool-call-processor"

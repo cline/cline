@@ -1,6 +1,11 @@
-import { ParseEntry, parse } from "shell-quote"
+import { type ParseEntry, parse } from "shell-quote"
 import { Logger } from "@/shared/services/Logger"
-import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidationResult, ShellOperatorMatch } from "./types"
+import {
+	COMMAND_PERMISSIONS_ENV_VAR,
+	type CommandPermissionConfig,
+	type PermissionValidationResult,
+	type ShellOperatorMatch,
+} from "./types"
 
 const REDIRECT_OPERATORS = new Set([">", ">>", "<", ">&", "<&", "|&", "<(", ">("])
 const COMMAND_SEPARATOR_OPERATORS = new Set(["&&", "||", "|", ";"])

@@ -21,7 +21,7 @@ export class AuthHandler {
 	private server: Server | null = null
 	private serverCreationPromise: Promise<void> | null = null
 	private timeoutId: NodeJS.Timeout | null = null
-	private enabled: boolean = false
+	private enabled = false
 
 	private constructor() {}
 

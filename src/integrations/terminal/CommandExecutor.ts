@@ -18,7 +18,7 @@
 import { isSubagentCommand, transformClineCommand } from "@integrations/cli-subagents/subagent_command"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
-import { ClineToolResponseContent } from "@shared/messages"
+import type { ClineToolResponseContent } from "@shared/messages"
 import { Logger } from "@/shared/services/Logger"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"

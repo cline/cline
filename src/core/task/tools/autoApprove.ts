@@ -1,7 +1,7 @@
 import { resolveWorkspacePath } from "@core/workspace"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { ClineDefaultTool } from "@shared/tools"
-import { StateManager } from "@/core/storage/StateManager"
+import type { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/utils/path"
 
@@ -127,7 +127,7 @@ export class AutoApprove {
 			return true
 		}
 
-		let isLocalRead: boolean = false
+		let isLocalRead = false
 		if (autoApproveActionpath) {
 			// Use cached workspace info instead of fetching every time
 			const { isMultiRootScenario } = await this.getWorkspaceInfo()
@@ -159,8 +159,7 @@ export class AutoApprove {
 
 		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
 			return true
-		} else {
-			return false
 		}
+		return false
 	}
 }

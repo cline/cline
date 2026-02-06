@@ -4,7 +4,8 @@
  */
 
 import { Box, Text } from "ink"
-import React, { ReactNode } from "react"
+import type React from "react"
+import type { ReactNode } from "react"
 import { COLORS } from "../constants/colors"
 import { useTerminalSize } from "../hooks/useTerminalSize"
 

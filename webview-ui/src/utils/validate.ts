@@ -1,5 +1,5 @@
-import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import { type ApiConfiguration, type ModelInfo, openRouterDefaultModelId } from "@shared/api"
+import type { Mode } from "@shared/storage/types"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {

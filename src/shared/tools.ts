@@ -1,6 +1,6 @@
-import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
-import { FunctionDeclaration as GoogleTool } from "@google/genai"
-import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import type { FunctionDeclaration as GoogleTool } from "@google/genai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 
 export type ClineTool = OpenAITool | AnthropicTool | GoogleTool
 

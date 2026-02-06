@@ -1,6 +1,6 @@
 import type { ApiProviderInfo } from "@core/api"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import { McpPromptResponse } from "@shared/mcp"
+import type { ClineRulesToggles } from "@shared/cline-rules"
+import type { McpPromptResponse } from "@shared/mcp"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
@@ -175,10 +175,9 @@ export async function parseSlashCommands(
 							telemetryService.captureSlashCommandUsed(ulid, commandName, "mcp_prompt")
 
 							return { processedText, needsClinerulesFileCheck: false }
-						} else {
-							// Prompt not found - log for debugging and fall through to workflow checking
-							Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
 						}
+						// Prompt not found - log for debugging and fall through to workflow checking
+						Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
 					} catch (error) {
 						Logger.error(`Error fetching MCP prompt ${commandName}: ${error}`)
 					}

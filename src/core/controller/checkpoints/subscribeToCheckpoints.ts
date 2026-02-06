@@ -1,8 +1,12 @@
-import { CheckpointEvent, CheckpointEvent_OperationType, CheckpointSubscriptionRequest } from "@shared/proto/cline/checkpoints"
-import { Timestamp } from "@shared/proto/google/protobuf/timestamp"
+import {
+	type CheckpointEvent,
+	CheckpointEvent_OperationType,
+	type CheckpointSubscriptionRequest,
+} from "@shared/proto/cline/checkpoints"
+import type { Timestamp } from "@shared/proto/google/protobuf/timestamp"
 import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 /**
  * Parameters for creating a checkpoint event

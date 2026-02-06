@@ -16,7 +16,7 @@ import { getDistinctId } from "../logging/distinctId"
 export class BannerService {
 	private static instance: BannerService | null = null
 	private _cachedBanners: Banner[] = []
-	private _lastFetchTime: number = 0
+	private _lastFetchTime = 0
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 	private _controller: Controller
 	private _authService?: AuthService

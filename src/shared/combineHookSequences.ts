@@ -1,4 +1,4 @@
-import { ClineMessage } from "./ExtensionMessage"
+import type { ClineMessage } from "./ExtensionMessage"
 
 /**
  * Hook metadata extracted from hook message text.

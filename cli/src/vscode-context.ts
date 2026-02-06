@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs"
 import os from "os"
 import path from "path"
 import { ExtensionRegistryInfo } from "@/registry"
-import { ClineExtensionContext } from "@/shared/cline"
+import type { ClineExtensionContext } from "@/shared/cline"
 import { ClineFileStorage } from "@/shared/storage"
 import { EnvironmentVariableCollection, ExtensionKind, ExtensionMode, readJson, URI } from "./vscode-shim"
 

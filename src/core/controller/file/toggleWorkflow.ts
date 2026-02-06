@@ -1,6 +1,6 @@
-import { ClineRulesToggles, RuleScope, ToggleWorkflowRequest } from "@shared/proto/cline/file"
+import { ClineRulesToggles, RuleScope, type ToggleWorkflowRequest } from "@shared/proto/cline/file"
 import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Toggles a workflow on or off
