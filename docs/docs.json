@@ -84,13 +84,8 @@
 						"group": "Customization",
 						"pages": [
 							"customization/overview",
-							{
-								"group": "Cline Rules",
-								"pages": [
-									"features/cline-rules/overview",
-									"features/cline-rules/conditional-rules"
-								]
-							},
+							"customization/cline-rules",
+							"customization/clineignore",
 							"customization/workflows",
 							"customization/skills",
 							"customization/hooks"
@@ -185,10 +180,11 @@
 					{
 						"group": "Cline CLI",
 						"pages": [
-							"cline-cli/getting-started",
-							"cline-cli/three-core-flows",
+							"cline-cli/overview",
+							"cline-cli/installation",
 							"cline-cli/interactive-mode",
 							"cline-cli/configuration",
+							"cline-cli/three-core-flows",
 							"cline-cli/acp-editor-integrations",
 							{
 								"group": "CLI Samples",
@@ -461,11 +457,11 @@
 		},
 		{
 			"source": "/features/cline-rules",
-			"destination": "/features/cline-rules/overview"
+			"destination": "/customization/cline-rules"
 		},
 		{
-			"source": "/customization/cline-rules",
-			"destination": "/features/cline-rules/overview"
+			"source": "/features/cline-rules/overview",
+			"destination": "/customization/cline-rules"
 		},
 		{
 			"source": "/features/cline-rules/conditional-rules",
@@ -558,6 +554,10 @@
 		{
 			"source": "/features/customization/opening-cline-in-sidebar",
 			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
+			"destination": "/customization/clineignore"
 		}
 	],
 	"search": {

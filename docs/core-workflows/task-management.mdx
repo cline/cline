@@ -43,14 +43,16 @@ As you work, the context window fills up with:
 - Your prompts and Cline's responses
 - File contents Cline reads or edits
 - Command outputs and tool results
-- System instructions that guide Cline's behavior
+- System instructions that guide Cline's behavior (including [Cline Rules](/customization/cline-rules))
 
 When the context window approaches its limit, Cline automatically compresses older parts of the conversation to make room. This means very long tasks may lose some earlier details, though Cline preserves the most important context.
 
 This is why task scoping matters: a focused task keeps relevant information in the context window. A sprawling task fills the window with noise, pushing out useful context.
 
+If your starting context seems high even for simple prompts, add a [`.clineignore`](/customization/clineignore) file to exclude dependencies, build artifacts, and other files Cline doesn't need. This can dramatically reduce your baseline token usage.
+
 <Tip>
-For long-running tasks, enable [Auto-Compact](/customization/auto-compact) to intelligently manage context as you work.
+For long-running tasks, enable [Auto-Compact](/features/auto-compact) to intelligently manage context as you work.
 </Tip>
 
 ### New Task vs. Continue
