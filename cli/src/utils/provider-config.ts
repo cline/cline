@@ -11,6 +11,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import type { BedrockConfig } from "../components/BedrockSetup"
 import { getDefaultModelId } from "../components/ModelPicker"
 import type { SapAiCoreConfig } from "../components/SapAiCoreSetup"
+import { clearTokenCache } from "./sapaicore-models"
 
 /**
  * Clear all SAP AI Core configuration fields from state
@@ -146,6 +147,9 @@ export async function applySapAiCoreConfig(options: ApplySapAiCoreConfigOptions)
 	// Set SAP AI Core secret fields (Client ID and Client Secret)
 	config.sapAiCoreClientId = sapAiCoreConfig.clientId
 	config.sapAiCoreClientSecret = sapAiCoreConfig.clientSecret
+
+	// Clear cached OAuth token when credentials change to ensure fresh authentication
+	clearTokenCache()
 
 	// Add model ID
 	// Note: SAP AI Core uses generic model ID keys (planModeApiModelId/actModeApiModelId)
