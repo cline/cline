@@ -239,11 +239,6 @@ describe("AwsBedrockHandler", () => {
 			handler = new AwsBedrockHandler(mockOptions)
 		})
 
-		describe("reasoning content handling (deprecated)", () => {
-			// These tests are for the old reasoningContent API that may be deprecated
-			// Keep them for backward compatibility but they may fail with new API
-		})
-
 		describe("thinking response handling (new API structure)", () => {
 			it("should handle thinking response in additionalModelResponseFields", async () => {
 				const mockChunks = [
@@ -773,6 +768,22 @@ describe("AwsBedrockHandler", () => {
 				required: ["path"],
 			})
 		})
+
+		it("should return undefined when tools is undefined or empty", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			should.not.exist(handler["mapClineToolsToBedrockToolConfig"](undefined))
+			should.not.exist(handler["mapClineToolsToBedrockToolConfig"]([]))
+		})
+
+		it("should silently drop tools without input_schema", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			// A tool missing input_schema doesn't match the AnthropicTool type guard
+			const toolConfig = handler["mapClineToolsToBedrockToolConfig"]([
+				{ name: "bad_tool", description: "No schema" } as any,
+			])
+			// All tools filtered out → undefined
+			should.not.exist(toolConfig)
+		})
 	})
 
 	describe("formatMessagesForConverseAPI", () => {
@@ -810,6 +821,54 @@ describe("AwsBedrockHandler", () => {
 			toolUseBlock?.toolUseId?.should.equal("tool-1")
 			toolResultBlock?.toolUseId?.should.equal("tool-1")
 			toolResultBlock?.content?.[0]?.text?.should.equal("ok")
+		})
+
+		it("should format tool_result with array content", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-2",
+							content: [
+								{ type: "text", text: "line 1" },
+								{ type: "text", text: "line 2" },
+							],
+						},
+					],
+				},
+			]
+
+			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const toolResult = formatted[0].content?.[0]?.toolResult
+			toolResult?.toolUseId?.should.equal("tool-2")
+			toolResult?.content?.should.have.length(2)
+			toolResult?.content?.[0]?.text?.should.equal("line 1")
+			toolResult?.content?.[1]?.text?.should.equal("line 2")
+		})
+
+		it("should map is_error to error status on tool_result", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-3",
+							content: "something went wrong",
+							is_error: true,
+						},
+					],
+				},
+			]
+
+			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const toolResult = formatted[0].content?.[0]?.toolResult
+			toolResult?.status?.should.equal("error")
+			toolResult?.content?.[0]?.text?.should.equal("something went wrong")
 		})
 	})
 
