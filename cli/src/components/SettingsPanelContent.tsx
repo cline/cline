@@ -1387,8 +1387,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 
 		if (isConfiguringSapAiCore) {
+			// Get existing SAP AI Core configuration for pre-filling the form
+			const apiConfig = stateManager.getApiConfiguration()
+			const initialSapAiCoreConfig = {
+				clientId: apiConfig.sapAiCoreClientId || "",
+				clientSecret: apiConfig.sapAiCoreClientSecret || "",
+				baseUrl: apiConfig.sapAiCoreBaseUrl || "",
+				tokenUrl: apiConfig.sapAiCoreTokenUrl || "",
+				resourceGroup: apiConfig.sapAiResourceGroup || "",
+				useOrchestrationMode: apiConfig.sapAiCoreUseOrchestrationMode ?? true,
+			}
 			return (
 				<SapAiCoreSetup
+					initialConfig={initialSapAiCoreConfig}
 					isActive={isConfiguringSapAiCore}
 					onCancel={() => {
 						setIsConfiguringSapAiCore(false)
