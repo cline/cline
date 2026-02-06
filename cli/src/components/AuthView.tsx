@@ -166,6 +166,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
 	const [sapAiCoreConfig, setSapAiCoreConfig] = useState<SapAiCoreConfig | null>(null)
+	const [sapAiCoreDeploymentId, setSapAiCoreDeploymentId] = useState<string | undefined>(undefined)
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -394,7 +395,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	)
 
 	const saveConfiguration = useCallback(
-		async (model: string, base: string) => {
+		async (model: string, base: string, deploymentId?: string) => {
 			try {
 				if (selectedProvider === "bedrock" && bedrockConfig) {
 					await applyBedrockConfig({
@@ -406,6 +407,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					await applySapAiCoreConfig({
 						sapAiCoreConfig,
 						modelId: model,
+						deploymentId, // Pass deployment ID for direct deployment mode (commit 973660a57)
 						controller,
 					})
 				} else {
@@ -432,16 +434,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	)
 
 	const handleModelIdSubmit = useCallback(
-		(value: string) => {
+		(value: string, deploymentId?: string) => {
 			if (value.trim()) {
 				setModelId(value)
+			}
+			// Track deployment ID for SAP AI Core direct deployment mode
+			if (selectedProvider === "sapaicore") {
+				setSapAiCoreDeploymentId(deploymentId)
 			}
 			// Only show baseurl step for OpenAI-like providers
 			if (["openai", "openai-native"].includes(selectedProvider)) {
 				setStep("baseurl")
 			} else {
 				setStep("saving")
-				saveConfiguration(value, "")
+				saveConfiguration(value, "", deploymentId)
 			}
 		},
 		[selectedProvider, saveConfiguration],
@@ -645,6 +651,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "modelid":
 				// Show model picker for providers with static model lists
 				if (hasModelPicker(selectedProvider)) {
+					// For SAP AI Core, pass credentials and orchestration mode for dynamic model fetching
+					// Reference commits: d7b3a5253, c1e3ac860, ea8a7fd7d, f7fe2b854
+					const sapAiCoreCredentials =
+						selectedProvider === "sapaicore" && sapAiCoreConfig
+							? {
+									clientId: sapAiCoreConfig.clientId,
+									clientSecret: sapAiCoreConfig.clientSecret,
+									baseUrl: sapAiCoreConfig.baseUrl,
+									tokenUrl: sapAiCoreConfig.tokenUrl,
+									resourceGroup: sapAiCoreConfig.resourceGroup,
+								}
+							: undefined
+
 					return (
 						<Box flexDirection="column">
 							<Text color="white">Select a model</Text>
@@ -655,6 +674,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 								onChange={setModelId}
 								onSubmit={handleModelIdSubmit}
 								provider={selectedProvider}
+								sapAiCoreCredentials={sapAiCoreCredentials}
+								sapAiCoreUseOrchestrationMode={sapAiCoreConfig?.useOrchestrationMode}
 							/>
 							<Text> </Text>
 							<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>

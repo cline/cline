@@ -81,6 +81,7 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 export interface ApplySapAiCoreConfigOptions {
 	sapAiCoreConfig: SapAiCoreConfig
 	modelId?: string
+	deploymentId?: string // Deployment ID for direct deployment mode (commit 973660a57)
 	controller?: Controller
 }
 
@@ -92,7 +93,7 @@ export interface ApplySapAiCoreConfigOptions {
  * Reference commits: c40342499, f48e922ed, 888945c0e
  */
 export async function applySapAiCoreConfig(options: ApplySapAiCoreConfigOptions): Promise<void> {
-	const { sapAiCoreConfig, modelId, controller } = options
+	const { sapAiCoreConfig, modelId, deploymentId, controller } = options
 	const stateManager = StateManager.get()
 
 	// Set provider to sapaicore for both modes
@@ -124,6 +125,17 @@ export async function applySapAiCoreConfig(options: ApplySapAiCoreConfigOptions)
 		const planModelKey = getProviderModelIdKey("sapaicore" as ApiProvider, "plan")
 		if (actModelKey) config[actModelKey] = finalModelId
 		if (planModelKey) config[planModelKey] = finalModelId
+	}
+
+	// Store deployment ID for direct deployment mode (commit 973660a57)
+	// In orchestration mode, deployment IDs are not needed
+	if (deploymentId) {
+		config.actModeSapAiCoreDeploymentId = deploymentId
+		config.planModeSapAiCoreDeploymentId = deploymentId
+	} else {
+		// Clear deployment IDs if no deployment ID provided (e.g., orchestration mode or non-deployed model)
+		config.actModeSapAiCoreDeploymentId = undefined
+		config.planModeSapAiCoreDeploymentId = undefined
 	}
 
 	// Save via StateManager
