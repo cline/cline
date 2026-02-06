@@ -1,11 +1,19 @@
-import { ApiConfiguration, ApiProvider } from "@shared/api"
+import type { ApiConfiguration, ApiProvider } from "@shared/api"
 import PROVIDERS from "@shared/providers/providers.json"
+import type { RemoteConfigFields } from "@shared/storage/state-keys"
 
 /**
  * Returns a list of API providers that are configured (have required credentials/settings)
  * Based on validation logic from validate.ts
  */
-export function getConfiguredProviders(apiConfiguration: ApiConfiguration | undefined): ApiProvider[] {
+export function getConfiguredProviders(
+	remoteConfig: Partial<RemoteConfigFields> | undefined,
+	apiConfiguration: ApiConfiguration | undefined,
+): ApiProvider[] {
+	if (remoteConfig?.remoteConfiguredProviders?.length) {
+		return remoteConfig.remoteConfiguredProviders
+	}
+
 	const configured: ApiProvider[] = []
 
 	if (!apiConfiguration) {
