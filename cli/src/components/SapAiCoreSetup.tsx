@@ -1,11 +1,13 @@
 /**
  * SAP AI Core Setup component
- * Multi-step wizard for configuring SAP AI Core provider credentials
+ * Form-style layout for configuring SAP AI Core provider credentials
+ * All fields visible on one screen with arrow key navigation
  */
 
 import { Box, Text, useInput } from "ink"
-// biome-ignore lint/style/useImportType: React is used as a value by JSX (jsx: "react" in tsconfig)
-import React, { useCallback, useState } from "react"
+// biome-ignore lint/correctness/noUnusedImports: React is required for JSX transformation (tsconfig jsx: react)
+import type React from "react"
+import { useCallback, useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -33,278 +35,194 @@ interface SapAiCoreSetupProps {
 }
 
 /**
- * Step states for the setup wizard
+ * Field definitions for the form
  */
-type SapAiCoreStep = "client_id" | "client_secret" | "base_url" | "token_url" | "resource_group" | "orchestration_mode"
+type FieldId = "clientId" | "clientSecret" | "baseUrl" | "tokenUrl" | "resourceGroup" | "orchestrationMode" | "done"
 
-/**
- * Inline text input for credential fields
- * Similar to BedrockSetup's CredentialInput
- */
-const CredentialInput: React.FC<{
+interface FieldConfig {
+	id: FieldId
 	label: string
-	value: string
-	onChange: (value: string) => void
-	onSubmit: () => void
-	onCancel: () => void
-	isActive: boolean
-	isPassword?: boolean
-	placeholder?: string
 	hint?: string
-}> = ({ label, value, onChange, onSubmit, onCancel, isActive, isPassword, placeholder, hint }) => {
-	const { isRawModeSupported } = useStdinContext()
-
-	useInput(
-		(input, key) => {
-			if (isMouseEscapeSequence(input)) return
-			if (key.escape) {
-				onCancel()
-			} else if (key.return) {
-				onSubmit()
-			} else if (key.backspace || key.delete) {
-				onChange(value.slice(0, -1))
-			} else if (input && !key.ctrl && !key.meta) {
-				onChange(value + input)
-			}
-		},
-		{ isActive: isActive && isRawModeSupported },
-	)
-
-	const displayValue = isPassword && value ? "•".repeat(value.length) : value
-
-	// Combine hint and placeholder into description shown above input
-	const description = hint || (placeholder ? `e.g. ${placeholder}` : undefined)
-
-	return (
-		<Box flexDirection="column">
-			<Text color="white">{label}</Text>
-			{description && <Text color="gray">{description}</Text>}
-			<Text> </Text>
-			<Box>
-				<Text color="white">{displayValue}</Text>
-				<Text inverse> </Text>
-			</Box>
-			<Text> </Text>
-			<Text color="gray">Enter to continue, Esc to go back</Text>
-		</Box>
-	)
+	placeholder?: string
+	isPassword?: boolean
+	isToggle?: boolean
+	isButton?: boolean
+	required?: boolean
 }
 
+const FIELDS: FieldConfig[] = [
+	{
+		id: "clientId",
+		label: "Client ID",
+		hint: "OAuth Client ID from your SAP AI Core service key",
+		isPassword: true,
+		required: true,
+	},
+	{
+		id: "clientSecret",
+		label: "Client Secret",
+		hint: "OAuth Client Secret from your SAP AI Core service key",
+		isPassword: true,
+		required: true,
+	},
+	{
+		id: "baseUrl",
+		label: "Base URL",
+		hint: "API endpoint URL (serviceurls.AI_API_URL)",
+		placeholder: "https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2",
+		required: true,
+	},
+	{
+		id: "tokenUrl",
+		label: "Token URL",
+		hint: "OAuth token endpoint URL (url field from service key)",
+		placeholder: "https://xxx.authentication.eu10.hana.ondemand.com",
+		required: true,
+	},
+	{
+		id: "resourceGroup",
+		label: "Resource Group",
+		hint: "Optional: Leave empty for default",
+		placeholder: "default",
+		required: false,
+	},
+	{
+		id: "orchestrationMode",
+		label: "Orchestration Mode",
+		hint: "Recommended: Yes (simpler setup, no deployment IDs needed)",
+		isToggle: true,
+	},
+	{
+		id: "done",
+		label: "Done",
+		isButton: true,
+	},
+]
+
 /**
- * SAP AI Core Setup wizard component
- * Guides user through entering credentials and configuration options
+ * SAP AI Core Setup form component
+ * Displays all fields on one screen with arrow key navigation
  */
 export const SapAiCoreSetup: React.FC<SapAiCoreSetupProps> = ({ isActive, onComplete, onCancel }) => {
-	// Current step in the wizard
-	const [step, setStep] = useState<SapAiCoreStep>("client_id")
+	const { isRawModeSupported } = useStdinContext()
 
-	// Credential state
+	// Form state
 	const [clientId, setClientId] = useState("")
 	const [clientSecret, setClientSecret] = useState("")
 	const [baseUrl, setBaseUrl] = useState("")
 	const [tokenUrl, setTokenUrl] = useState("")
-
-	// Options state
 	const [resourceGroup, setResourceGroup] = useState("")
-	const [, setUseOrchestrationMode] = useState(true) // Default: ON
+	const [useOrchestrationMode, setUseOrchestrationMode] = useState(true)
 
-	/**
-	 * Navigate back to the previous step
-	 */
-	const goBack = useCallback(() => {
-		switch (step) {
-			case "client_id":
-				onCancel()
+	// Currently focused field index
+	const [focusedIndex, setFocusedIndex] = useState(0)
+
+	// Get value for a field
+	const getFieldValue = useCallback(
+		(id: FieldId): string => {
+			switch (id) {
+				case "clientId":
+					return clientId
+				case "clientSecret":
+					return clientSecret
+				case "baseUrl":
+					return baseUrl
+				case "tokenUrl":
+					return tokenUrl
+				case "resourceGroup":
+					return resourceGroup
+				default:
+					return ""
+			}
+		},
+		[clientId, clientSecret, baseUrl, tokenUrl, resourceGroup],
+	)
+
+	// Set value for a field
+	const setFieldValue = useCallback((id: FieldId, value: string) => {
+		switch (id) {
+			case "clientId":
+				setClientId(value)
 				break
-			case "client_secret":
-				setStep("client_id")
+			case "clientSecret":
+				setClientSecret(value)
 				break
-			case "base_url":
-				setStep("client_secret")
+			case "baseUrl":
+				setBaseUrl(value)
 				break
-			case "token_url":
-				setStep("base_url")
+			case "tokenUrl":
+				setTokenUrl(value)
 				break
-			case "resource_group":
-				setStep("token_url")
-				break
-			case "orchestration_mode":
-				setStep("resource_group")
+			case "resourceGroup":
+				setResourceGroup(value)
 				break
 		}
-	}, [step, onCancel])
+	}, [])
 
-	/**
-	 * Complete the setup and return the config
-	 */
-	const completeSetup = useCallback(
-		(orchestrationMode: boolean) => {
-			onComplete({
-				clientId: clientId.trim(),
-				clientSecret: clientSecret.trim(),
-				baseUrl: baseUrl.trim(),
-				tokenUrl: tokenUrl.trim(),
-				resourceGroup: resourceGroup.trim() || undefined,
-				useOrchestrationMode: orchestrationMode,
-			})
-		},
-		[onComplete, clientId, clientSecret, baseUrl, tokenUrl, resourceGroup],
-	)
+	// Check if all required fields are filled
+	const isFormValid = useCallback(() => {
+		return clientId.trim() && clientSecret.trim() && baseUrl.trim() && tokenUrl.trim()
+	}, [clientId, clientSecret, baseUrl, tokenUrl])
 
-	// Render Client ID step
-	if (step === "client_id") {
-		return (
-			<CredentialInput
-				hint="OAuth Client ID from your SAP AI Core service key"
-				isActive={isActive}
-				isPassword={true}
-				label="SAP AI Core Client ID"
-				onCancel={goBack}
-				onChange={setClientId}
-				onSubmit={() => {
-					if (clientId.trim()) setStep("client_secret")
-				}}
-				placeholder="sb-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx!bxxxxx|aicore!bxxxxx"
-				value={clientId}
-			/>
-		)
-	}
+	// Complete the setup
+	const completeSetup = useCallback(() => {
+		if (!isFormValid()) return
 
-	// Render Client Secret step
-	if (step === "client_secret") {
-		return (
-			<CredentialInput
-				hint="OAuth Client Secret from your SAP AI Core service key"
-				isActive={isActive}
-				isPassword={true}
-				label="SAP AI Core Client Secret"
-				onCancel={goBack}
-				onChange={setClientSecret}
-				onSubmit={() => {
-					if (clientSecret.trim()) setStep("base_url")
-				}}
-				placeholder="Enter client secret..."
-				value={clientSecret}
-			/>
-		)
-	}
+		onComplete({
+			clientId: clientId.trim(),
+			clientSecret: clientSecret.trim(),
+			baseUrl: baseUrl.trim(),
+			tokenUrl: tokenUrl.trim(),
+			resourceGroup: resourceGroup.trim() || undefined,
+			useOrchestrationMode,
+		})
+	}, [onComplete, clientId, clientSecret, baseUrl, tokenUrl, resourceGroup, useOrchestrationMode, isFormValid])
 
-	// Render Base URL step
-	if (step === "base_url") {
-		return (
-			<CredentialInput
-				hint="API endpoint URL from your SAP AI Core service key (serviceurls.AI_API_URL)"
-				isActive={isActive}
-				isPassword={false}
-				label="SAP AI Core Base URL"
-				onCancel={goBack}
-				onChange={setBaseUrl}
-				onSubmit={() => {
-					if (baseUrl.trim()) setStep("token_url")
-				}}
-				placeholder="https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com/v2"
-				value={baseUrl}
-			/>
-		)
-	}
-
-	// Render Token URL step
-	if (step === "token_url") {
-		return (
-			<CredentialInput
-				hint="OAuth token endpoint URL from your SAP AI Core service key (url + /oauth/token)"
-				isActive={isActive}
-				isPassword={false}
-				label="OAuth Token URL"
-				onCancel={goBack}
-				onChange={setTokenUrl}
-				onSubmit={() => {
-					if (tokenUrl.trim()) setStep("resource_group")
-				}}
-				placeholder="https://xxx.authentication.eu10.hana.ondemand.com/oauth/token"
-				value={tokenUrl}
-			/>
-		)
-	}
-
-	// Render Resource Group step (optional)
-	if (step === "resource_group") {
-		return (
-			<CredentialInput
-				hint="Optional: Specify a resource group, or leave empty to use default"
-				isActive={isActive}
-				isPassword={false}
-				label="Resource Group (optional)"
-				onCancel={goBack}
-				onChange={setResourceGroup}
-				onSubmit={() => {
-					// Resource group is optional, so we can proceed even if empty
-					setStep("orchestration_mode")
-				}}
-				placeholder="default"
-				value={resourceGroup}
-			/>
-		)
-	}
-
-	// Render Orchestration Mode step (Yes/No select)
-	// Reference: Commit 20a89ce5d - use Select for Yes/No instead of checkbox/toggle
-	if (step === "orchestration_mode") {
-		return (
-			<OrchestrationModeSelect
-				isActive={isActive}
-				onCancel={goBack}
-				onSelect={(value) => {
-					setUseOrchestrationMode(value)
-					completeSetup(value)
-				}}
-			/>
-		)
-	}
-
-	// Fallback (should not be reached)
-	return (
-		<Box flexDirection="column">
-			<Text color="white">SAP AI Core Setup</Text>
-			<Text> </Text>
-			<Text color="gray">Current step: {step}</Text>
-			<Text> </Text>
-			<Text color="gray">Esc to go back</Text>
-		</Box>
-	)
-}
-
-/**
- * Orchestration Mode selection component
- * Uses a simple Yes/No select list per commit 20a89ce5d
- */
-const OrchestrationModeSelect: React.FC<{
-	isActive: boolean
-	onSelect: (useOrchestration: boolean) => void
-	onCancel: () => void
-}> = ({ isActive, onSelect, onCancel }) => {
-	const { isRawModeSupported } = useStdinContext()
-	const [selectedIndex, setSelectedIndex] = useState(0) // Default to "Yes" (index 0)
-
-	const options = [
-		{ id: "yes", label: "Yes", value: true },
-		{ id: "no", label: "No", value: false },
-	]
-
+	// Handle keyboard input
 	useInput(
 		(input, key) => {
 			if (isMouseEscapeSequence(input)) return
+
+			const currentField = FIELDS[focusedIndex]
+
 			if (key.escape) {
 				onCancel()
-			} else if (key.upArrow) {
-				setSelectedIndex((i) => (i > 0 ? i - 1 : options.length - 1))
-			} else if (key.downArrow) {
-				setSelectedIndex((i) => (i < options.length - 1 ? i + 1 : 0))
-			} else if (key.return) {
-				const selected = options[selectedIndex]
-				if (selected) {
-					onSelect(selected.value)
+				return
+			}
+
+			// Navigation
+			if (key.upArrow) {
+				setFocusedIndex((i) => (i > 0 ? i - 1 : FIELDS.length - 1))
+				return
+			}
+			if (key.downArrow || (key.return && !currentField.isButton && !currentField.isToggle)) {
+				setFocusedIndex((i) => (i < FIELDS.length - 1 ? i + 1 : 0))
+				return
+			}
+
+			// Handle toggle field
+			if (currentField.isToggle) {
+				if (key.return || input === " ") {
+					setUseOrchestrationMode((prev) => !prev)
 				}
+				return
+			}
+
+			// Handle button field
+			if (currentField.isButton) {
+				if (key.return) {
+					completeSetup()
+				}
+				return
+			}
+
+			// Text input for regular fields
+			if (key.backspace || key.delete) {
+				const currentValue = getFieldValue(currentField.id)
+				setFieldValue(currentField.id, currentValue.slice(0, -1))
+			} else if (input && !key.ctrl && !key.meta) {
+				const currentValue = getFieldValue(currentField.id)
+				setFieldValue(currentField.id, currentValue + input)
 			}
 		},
 		{ isActive: isActive && isRawModeSupported },
@@ -312,23 +230,78 @@ const OrchestrationModeSelect: React.FC<{
 
 	return (
 		<Box flexDirection="column">
-			<Text color="white">Use Orchestration Mode?</Text>
-			<Text color="gray">Orchestration mode routes requests through the SAP AI Core orchestration service.</Text>
-			<Text color="gray">Recommended: Yes (simpler setup, no deployment IDs needed)</Text>
+			<Text bold color="white">
+				SAP AI Core Configuration
+			</Text>
 			<Text> </Text>
-			{options.map((option, idx) => {
-				const isSelected = idx === selectedIndex
+
+			{FIELDS.map((field, index) => {
+				const isFocused = index === focusedIndex
+				const value = getFieldValue(field.id)
+				const displayValue = field.isPassword && value ? "•".repeat(value.length) : value
+
+				// Toggle field
+				if (field.isToggle) {
+					return (
+						<Box flexDirection="column" key={field.id} marginBottom={1}>
+							<Box>
+								<Text color={isFocused ? COLORS.primaryBlue : "white"}>
+									{isFocused ? "❯ " : "  "}
+									{field.label}:{" "}
+								</Text>
+								<Text color={isFocused ? COLORS.primaryBlue : "green"}>
+									{useOrchestrationMode ? "[Yes]" : "[No]"}
+								</Text>
+							</Box>
+							{field.hint && (
+								<Box paddingLeft={2}>
+									<Text color="gray">{field.hint}</Text>
+								</Box>
+							)}
+						</Box>
+					)
+				}
+
+				// Button field
+				if (field.isButton) {
+					const canSubmit = isFormValid()
+					return (
+						<Box key={field.id} marginTop={1}>
+							<Text
+								bold={isFocused}
+								color={isFocused ? (canSubmit ? COLORS.primaryBlue : "red") : canSubmit ? "green" : "gray"}>
+								{isFocused ? "❯ " : "  "}
+								{canSubmit ? "[Submit]" : "[Fill required fields]"}
+							</Text>
+						</Box>
+					)
+				}
+
+				// Text input field
 				return (
-					<Box key={option.id}>
-						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
-							{isSelected ? "❯ " : "  "}
-							{option.label}
-						</Text>
+					<Box flexDirection="column" key={field.id} marginBottom={1}>
+						<Box>
+							<Text color={isFocused ? COLORS.primaryBlue : "white"}>
+								{isFocused ? "❯ " : "  "}
+								{field.label}
+								{field.required ? "*" : ""}:{" "}
+							</Text>
+							<Text color={isFocused ? "white" : "gray"}>
+								{displayValue || (field.placeholder ? `(${field.placeholder})` : "")}
+							</Text>
+							{isFocused && <Text inverse> </Text>}
+						</Box>
+						{field.hint && isFocused && (
+							<Box paddingLeft={2}>
+								<Text color="gray">{field.hint}</Text>
+							</Box>
+						)}
 					</Box>
 				)
 			})}
+
 			<Text> </Text>
-			<Text color="gray">↑↓ to select, Enter to confirm, Esc to go back</Text>
+			<Text color="gray">↑↓ Navigate • Type to edit • Enter to move/submit • Esc to cancel</Text>
 		</Box>
 	)
 }
