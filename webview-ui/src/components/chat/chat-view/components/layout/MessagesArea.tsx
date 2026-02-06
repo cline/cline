@@ -1,10 +1,11 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import React, { useCallback, useMemo } from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type React from "react"
+import { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {
@@ -60,6 +61,29 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
 
+	// Show "Thinking..." in the Footer until real content starts streaming.
+	// This is the sole early loading indicator - RequestStartRow does NOT duplicate it.
+	// Covers: pre-api_req_started (backend processing) AND post-api_req_started (waiting for model).
+	// Hides once reasoning, tools, text, or any other content message appears.
+	const isWaitingForResponse = useMemo(() => {
+		const lastMsg = modifiedMessages[modifiedMessages.length - 1]
+		if (!lastMsg) {
+			// No messages after the initial task message - new task just started
+			return true
+		}
+		if (lastMsg.say === "user_feedback" || lastMsg.say === "user_feedback_diff") return true
+		if (lastMsg.say === "api_req_started") {
+			try {
+				const info = JSON.parse(lastMsg.text || "{}")
+				// Still in progress (no cost) and nothing has streamed after it yet
+				return info.cost == null
+			} catch {
+				return true
+			}
+		}
+		return false
+	}, [modifiedMessages])
+
 	const itemContent = useCallback(
 		createMessageRenderer(
 			groupedMessages,
@@ -70,6 +94,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			isWaitingForResponse,
 		),
 		[
 			groupedMessages,
@@ -80,6 +105,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			isWaitingForResponse,
 		],
 	)
 
@@ -110,7 +136,18 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable grow overflow-y-scroll"
 					components={{
-						Footer: () => <div className="min-h-1" />, // Add empty padding at the bottom
+						Footer: () =>
+							isWaitingForResponse ? (
+								<div className="px-4 pt-2 pb-2.5">
+									<div className="ml-1">
+										<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent select-none">
+											Thinking...
+										</span>
+									</div>
+								</div>
+							) : (
+								<div className="min-h-1" />
+							),
 					}}
 					data={groupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row
