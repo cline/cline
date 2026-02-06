@@ -3,10 +3,16 @@ import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shar
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import {
+	CONTEXT_WINDOW_PRESETS,
+	formatContextWindow,
+	getEstimatedPromptOverhead,
+	validateContextWindow,
+} from "@/utils/contextWindowUtils"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -33,6 +39,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
+	const [contextWindowValidation, setContextWindowValidation] = useState<{ valid: boolean; warning?: string; error?: string }>({
+		valid: true,
+	})
+	const [contextWindowFocused, setContextWindowFocused] = useState(false)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -40,8 +50,32 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
 
+	// Calculate current context window and validation
+	const currentContextWindow = useMemo(() => {
+		return openAiModelInfo?.contextWindow ?? openAiModelInfoSaneDefaults.contextWindow ?? 128_000
+	}, [openAiModelInfo])
+
+	const promptOverhead = useMemo(() => {
+		return getEstimatedPromptOverhead(currentContextWindow)
+	}, [currentContextWindow])
+
+	const contextWindowUsageIndicator = useMemo(() => {
+		if (!contextWindowFocused && contextWindowValidation.valid) {
+			return { show: false, type: "info" as const, message: "" }
+		}
+		return {
+			show: true,
+			type: contextWindowValidation.error
+				? ("danger" as const)
+				: contextWindowValidation.warning
+					? ("warning" as const)
+					: ("info" as const),
+			message: contextWindowValidation.error || contextWindowValidation.warning || "",
+		}
+	}, [contextWindowFocused, contextWindowValidation])
+
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
-	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	useEffect(() => {
 		return () => {
@@ -63,12 +97,27 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						baseUrl,
 						apiKey,
 					}),
-				).catch((error) => {
+				).catch((error: unknown) => {
 					console.error("Failed to refresh OpenAI models:", error)
 				})
 			}, 500)
 		}
 	}, [])
+
+	// Handle context window change from preset buttons
+	const handleContextWindowChange = useCallback(
+		(value: number) => {
+			const validation = validateContextWindow(value)
+			setContextWindowValidation(validation)
+
+			if (validation.valid) {
+				const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSaneDefaults }
+				modelInfo.contextWindow = value
+				handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
+			}
+		},
+		[openAiModelInfo, handleModeFieldChange, currentMode],
+	)
 
 	return (
 		<div>
@@ -286,31 +335,109 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						Enable R1 messages format
 					</VSCodeCheckbox>
 
+					{/* Context Window Configuration */}
+					<div style={{ marginBottom: 10 }}>
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+							<span style={{ fontWeight: 500 }}>Context Window Size</span>
+							{contextWindowValidation.error && (
+								<span style={{ color: "var(--vscode-errorForeground)", fontSize: "12px" }}>
+									{contextWindowValidation.error}
+								</span>
+							)}
+						</div>
+
+						{/* Preset buttons */}
+						<div style={{ display: "flex", gap: 5, marginBottom: 5, flexWrap: "wrap" }}>
+							{CONTEXT_WINDOW_PRESETS.map((preset) => (
+								<VSCodeButton
+									appearance={currentContextWindow === preset.value ? "primary" : "secondary"}
+									key={preset.value}
+									onClick={() => handleContextWindowChange(preset.value)}
+									size="small">
+									{preset.label}
+								</VSCodeButton>
+							))}
+						</div>
+
+						{/* Context window input */}
+						<div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+							<DebouncedTextField
+								initialValue={
+									openAiModelInfo?.contextWindow
+										? openAiModelInfo.contextWindow.toString()
+										: (openAiModelInfoSaneDefaults.contextWindow?.toString() ?? "")
+								}
+								onChange={(value) => {
+									const numValue = Number(value)
+									const validation = validateContextWindow(numValue)
+									setContextWindowValidation(validation)
+
+									if (validation.valid) {
+										const modelInfo = openAiModelInfo
+											? { ...openAiModelInfo }
+											: { ...openAiModelInfoSaneDefaults }
+										modelInfo.contextWindow = numValue
+										handleModeFieldChange(
+											{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+											modelInfo,
+											currentMode,
+										)
+									}
+								}}
+								placeholder="Enter context window..."
+								style={{ flex: 1 }}
+							/>
+
+							{/* Context usage indicator */}
+							{contextWindowUsageIndicator.show && (
+								<div
+									style={{
+										padding: "8px 12px",
+										borderRadius: 4,
+										backgroundColor:
+											contextWindowUsageIndicator.type === "danger"
+												? "var(--vscode-diffEditor-removedLineBackground)"
+												: contextWindowUsageIndicator.type === "warning"
+													? "var(--vscode-editorWarningInfoIcon-background)"
+													: "var(--vscode-editor-background)",
+										border: `1px solid ${
+											contextWindowUsageIndicator.type === "danger"
+												? "var(--vscode-errorForeground)"
+												: contextWindowUsageIndicator.type === "warning"
+													? "var(--vscode-editorWarningInfoIcon-foreground)"
+													: "var(--vscode-descriptionForeground)"
+										}`,
+										minWidth: "180px",
+										maxWidth: "200px",
+									}}>
+									<span style={{ fontSize: "12px", fontWeight: 500 }}>
+										{formatContextWindow(currentContextWindow)} context ({promptOverhead.percentage}%
+										overhead)
+									</span>
+									{contextWindowValidation.warning && (
+										<p
+											style={{
+												fontSize: "11px",
+												marginTop: 4,
+												color: "var(--vscode-descriptionForeground)",
+											}}>
+											{contextWindowValidation.warning}
+										</p>
+									)}
+								</div>
+							)}
+						</div>
+					</div>
+
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
-								openAiModelInfo?.contextWindow
-									? openAiModelInfo.contextWindow.toString()
-									: (openAiModelInfoSaneDefaults.contextWindow?.toString() ?? "")
-							}
-							onChange={(value) => {
-								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.contextWindow = Number(value)
-								handleModeFieldChange(
-									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-									modelInfo,
-									currentMode,
-								)
-							}}
-							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Context Window Size</span>
-						</DebouncedTextField>
-
-						<DebouncedTextField
-							initialValue={
-								openAiModelInfo?.maxTokens
+								openAiModelInfo?.maxTokens !== undefined && openAiModelInfo.maxTokens !== -1
 									? openAiModelInfo.maxTokens.toString()
-									: (openAiModelInfoSaneDefaults.maxTokens?.toString() ?? "")
+									: openAiModelInfoSaneDefaults.maxTokens !== undefined &&
+											openAiModelInfoSaneDefaults.maxTokens !== -1
+										? openAiModelInfoSaneDefaults.maxTokens.toString()
+										: ""
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
@@ -324,9 +451,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 						</DebouncedTextField>
-					</div>
 
-					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
 								openAiModelInfo?.inputPrice
@@ -345,7 +470,9 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
 						</DebouncedTextField>
+					</div>
 
+					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
 								openAiModelInfo?.outputPrice
@@ -364,9 +491,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 						</DebouncedTextField>
-					</div>
 
-					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
 							initialValue={
 								openAiModelInfo?.temperature
@@ -381,7 +506,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
 						</DebouncedTextField>
 					</div>

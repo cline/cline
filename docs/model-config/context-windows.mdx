@@ -148,6 +148,55 @@ Act Mode: Claude Sonnet (1M) - Maximum context for coding
 - Show an error and suggest starting a new task
 - Truncate older messages (with warning)
 
+## Configuring Context Window for Custom Models
+
+### For OpenAI-Compatible Providers
+
+If you're using a custom model through an OpenAI-compatible API (like LM Studio, Ollama, or any custom deployment), you can configure the context window size:
+
+1. Go to **Settings → API Configuration**
+2. Select your provider (e.g., OpenAI Compatible, LiteLLM)
+3. Expand **Model Configuration**
+4. Find **Context Window Size**
+5. Enter your model's context window in tokens
+
+#### Quick Presets
+
+Cline provides quick-select buttons for common context window sizes:
+
+| Preset | Tokens |
+|--------|--------|
+| 32K | 32,000 |
+| 64K | 64,000 |
+| 128K | 128,000 |
+| 200K | 200,000 |
+| 512K | 512,000 |
+| 1M | 1,000,000 |
+
+#### Why Configure Context Window?
+
+Setting the correct context window ensures:
+- **Proper buffer calculations** - Cline reserves appropriate space for system prompts
+- **Accurate cost tracking** - Token usage is calculated correctly
+- **Better performance** - The model operates within its actual limits
+
+#### Common Custom Model Context Windows
+
+| Model | Context Window |
+|-------|---------------|
+| Local LLMs (varies) | Check model documentation |
+| LM Studio defaults | 4K-128K (model-dependent) |
+| Ollama defaults | 4K-128K (model-dependent) |
+| Groq inference endpoints | 4K-128K (model-dependent) |
+
+### Troubleshooting Custom Context Windows
+
+| Issue | Solution |
+|-------|----------|
+| Context errors despite large window | Verify actual model context limit |
+| Cline shows wrong usage | Configure the correct context window |
+| Small models timing out | Lower context window to match model capacity |
+
 ## Recommendations by Use Case
 
 | Use Case | Recommended Context | Model Suggestion |
