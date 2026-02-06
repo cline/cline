@@ -1,14 +1,14 @@
-import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import { FunctionDeclaration as GoogleTool } from "@google/genai"
-import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import type { FunctionDeclaration as GoogleTool } from "@google/genai"
+import { type ModelInfo, type VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { ClineTool } from "@/shared/tools"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineTool } from "@/shared/tools"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
 interface VertexHandlerOptions extends CommonApiHandlerOptions {
@@ -56,11 +56,20 @@ export class VertexHandler implements ApiHandler {
 			}
 			try {
 				const externalHeaders = buildExternalBasicHeaders()
+				const region = this.options.vertexRegion
+
+				// For global region, use the global endpoint without region prefix
+				// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
+				const baseURL =
+					region === "global"
+						? "https://aiplatform.googleapis.com/v1"
+						: `https://${region}-aiplatform.googleapis.com/v1`
+
 				// Initialize Anthropic client for Claude models
 				this.clientAnthropic = new AnthropicVertex({
 					projectId: this.options.vertexProjectId,
-					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
-					region: this.options.vertexRegion,
+					region: region,
+					baseURL: baseURL,
 					defaultHeaders: externalHeaders,
 				})
 			} catch (error: any) {
