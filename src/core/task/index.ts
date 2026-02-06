@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
@@ -66,12 +67,13 @@ import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenMod
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
+import fs from "fs/promises"
 import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
-import { getSystemPrompt } from "@/core/prompts/system-prompt"
+import { getSystemPrompt, PromptRegistry } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import {
@@ -137,6 +139,14 @@ type TaskParams = {
 	historyItem?: HistoryItem
 	taskId: string
 	taskLockAcquired: boolean
+}
+
+type PromptOverrideMetadata = {
+	profileId: string
+	profileFilePath?: string
+	profileFingerprint: string
+	profileInstructions?: string
+	loadWarning?: string
 }
 
 export class Task {
@@ -215,7 +225,7 @@ export class Task {
 	 * Example: We don't add noToolsUsed response when native tool call is used
 	 * because of the expected format from the tool calls is different.
 	 */
-	private useNativeToolCalls: boolean = false
+	private useNativeToolCalls = false
 	private streamHandler: StreamResponseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
@@ -248,6 +258,8 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
+	private promptOverrideMetadata?: PromptOverrideMetadata
+	private promptOverrideMetadataLoaded = false
 
 	constructor(params: TaskParams) {
 		const {
@@ -611,64 +623,62 @@ export class Task {
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
-				} else {
-					// this is a new partial message, so add it with partial state
-					// this.askResponse = undefined
-					// this.askResponseText = undefined
-					// this.askResponseImages = undefined
-					askTs = Date.now()
-					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: askTs,
-						type: "ask",
-						ask: type,
-						text,
-						partial,
-					})
-					await this.postStateToWebview()
-					throw new Error("Current ask promise was ignored 2")
 				}
-			} else {
-				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
+				// this is a new partial message, so add it with partial state
+				// this.askResponse = undefined
+				// this.askResponseText = undefined
+				// this.askResponseImages = undefined
+				askTs = Date.now()
+				this.taskState.lastMessageTs = askTs
+				await this.messageStateHandler.addToClineMessages({
+					ts: askTs,
+					type: "ask",
+					ask: type,
+					text,
+					partial,
+				})
+				await this.postStateToWebview()
+				throw new Error("Current ask promise was ignored 2")
+			}
+			// partial=false means its a complete version of a previously partial message
+			if (isUpdatingPreviousPartial) {
+				// this is the complete version of a previously partial message, so replace the partial with the complete version
+				this.taskState.askResponse = undefined
+				this.taskState.askResponseText = undefined
+				this.taskState.askResponseImages = undefined
+				this.taskState.askResponseFiles = undefined
 
-					/*
+				/*
 					Bug for the history books:
 					In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
 					The lesson here is if you see flickering when rendering lists, it's likely because the key prop is not stable.
 					So in this case we must make sure that the message ts is never altered after first setting it.
 					*/
-					askTs = lastMessage.ts
-					this.taskState.lastMessageTs = askTs
-					// lastMessage.ts = askTs
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
-						text,
-						partial: false,
-					})
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
-				} else {
-					// this is a new partial=false message, so add it like normal
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
-					askTs = Date.now()
-					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: askTs,
-						type: "ask",
-						ask: type,
-						text,
-					})
-					await this.postStateToWebview()
-				}
+				askTs = lastMessage.ts
+				this.taskState.lastMessageTs = askTs
+				// lastMessage.ts = askTs
+				await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+					text,
+					partial: false,
+				})
+				// await this.postStateToWebview()
+				const protoMessage = convertClineMessageToProto(lastMessage)
+				await sendPartialMessageEvent(protoMessage)
+			} else {
+				// this is a new partial=false message, so add it like normal
+				this.taskState.askResponse = undefined
+				this.taskState.askResponseText = undefined
+				this.taskState.askResponseImages = undefined
+				this.taskState.askResponseFiles = undefined
+				askTs = Date.now()
+				this.taskState.lastMessageTs = askTs
+				await this.messageStateHandler.addToClineMessages({
+					ts: askTs,
+					type: "ask",
+					ask: type,
+					text,
+				})
+				await this.postStateToWebview()
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
@@ -751,60 +761,42 @@ export class Task {
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
-				} else {
-					// this is a new partial message, so add it with partial state
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-						partial,
-						modelInfo,
-					})
-					await this.postStateToWebview()
-					return sayTs
 				}
-			} else {
-				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.lastMessageTs = lastMessage.ts
-					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					// updateClineMessage emits the change event and saves to disk
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
-						text,
-						images,
-						files,
-						partial: false,
-					})
-
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
-					return undefined
-				} else {
-					// this is a new partial=false message, so add it like normal
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-						modelInfo,
-					})
-					await this.postStateToWebview()
-					return sayTs
-				}
+				// this is a new partial message, so add it with partial state
+				const sayTs = Date.now()
+				this.taskState.lastMessageTs = sayTs
+				await this.messageStateHandler.addToClineMessages({
+					ts: sayTs,
+					type: "say",
+					say: type,
+					text,
+					images,
+					files,
+					partial,
+					modelInfo,
+				})
+				await this.postStateToWebview()
+				return sayTs
 			}
-		} else {
-			// this is a new non-partial message, so add it like normal
+			// partial=false means its a complete version of a previously partial message
+			if (isUpdatingPreviousPartial) {
+				// this is the complete version of a previously partial message, so replace the partial with the complete version
+				this.taskState.lastMessageTs = lastMessage.ts
+				const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+				// updateClineMessage emits the change event and saves to disk
+				await this.messageStateHandler.updateClineMessage(lastIndex, {
+					text,
+					images,
+					files,
+					partial: false,
+				})
+
+				// await this.postStateToWebview()
+				const protoMessage = convertClineMessageToProto(lastMessage)
+				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+				return undefined
+			}
+			// this is a new partial=false message, so add it like normal
 			const sayTs = Date.now()
 			this.taskState.lastMessageTs = sayTs
 			await this.messageStateHandler.addToClineMessages({
@@ -819,6 +811,20 @@ export class Task {
 			await this.postStateToWebview()
 			return sayTs
 		}
+		// this is a new non-partial message, so add it like normal
+		const sayTs = Date.now()
+		this.taskState.lastMessageTs = sayTs
+		await this.messageStateHandler.addToClineMessages({
+			ts: sayTs,
+			type: "say",
+			say: type,
+			text,
+			images,
+			files,
+			modelInfo,
+		})
+		await this.postStateToWebview()
+		return sayTs
 	}
 
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
@@ -1355,19 +1361,18 @@ export class Task {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
-			} else {
-				// this.say(
-				// 	"tool",
-				// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
-				// )
-				nextUserContent = [
-					{
-						type: "text",
-						text: formatResponse.noToolsUsed(this.useNativeToolCalls),
-					},
-				]
-				this.taskState.consecutiveMistakeCount++
 			}
+			// this.say(
+			// 	"tool",
+			// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
+			// )
+			nextUserContent = [
+				{
+					type: "text",
+					text: formatResponse.noToolsUsed(this.useNativeToolCalls),
+				},
+			]
+			this.taskState.consecutiveMistakeCount++
 		}
 	}
 
@@ -1631,6 +1636,68 @@ export class Task {
 		return { model, providerId, customPrompt, mode }
 	}
 
+	private async loadPromptOverrideMetadata(): Promise<PromptOverrideMetadata | undefined> {
+		if (this.promptOverrideMetadataLoaded) {
+			return this.promptOverrideMetadata
+		}
+		this.promptOverrideMetadataLoaded = true
+
+		const rawProfileId = process.env.CLINE_PROMPT_PROFILE?.trim()
+		const rawPromptFilePath = process.env.CLINE_PROMPT_FILE?.trim()
+
+		if (!rawProfileId && !rawPromptFilePath) {
+			this.promptOverrideMetadata = undefined
+			return undefined
+		}
+
+		let resolvedPromptFilePath: string | undefined
+		let promptFileContent: string | undefined
+		let loadWarning: string | undefined
+
+		if (rawPromptFilePath) {
+			resolvedPromptFilePath = path.isAbsolute(rawPromptFilePath)
+				? rawPromptFilePath
+				: path.resolve(this.cwd, rawPromptFilePath)
+			try {
+				promptFileContent = (await fs.readFile(resolvedPromptFilePath, "utf8")).trim()
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error)
+				loadWarning = `Prompt override file could not be loaded: ${resolvedPromptFilePath} (${message})`
+			}
+		}
+
+		const profileId = rawProfileId || (resolvedPromptFilePath ? path.basename(resolvedPromptFilePath) : "ad-hoc")
+		const profileFingerprint = createHash("sha256")
+			.update([profileId, resolvedPromptFilePath || "", promptFileContent || ""].join("\n"))
+			.digest("hex")
+			.slice(0, 12)
+
+		const profileInstructions = promptFileContent
+			? [
+					"# Active Prompt Profile",
+					"",
+					"Use the following profile instructions as part of system-level behavior.",
+					`Profile: ${profileId}`,
+					resolvedPromptFilePath ? `Source: ${resolvedPromptFilePath}` : undefined,
+					`Fingerprint: ${profileFingerprint}`,
+					"",
+					"## Profile Instructions",
+					promptFileContent,
+				]
+					.filter(Boolean)
+					.join("\n")
+			: undefined
+
+		this.promptOverrideMetadata = {
+			profileId,
+			profileFilePath: resolvedPromptFilePath,
+			profileFingerprint,
+			profileInstructions,
+			loadWarning,
+		}
+		return this.promptOverrideMetadata
+	}
+
 	private getApiRequestIdSafe(): string | undefined {
 		const apiLike = this.api as Partial<{
 			getLastRequestId: () => string | undefined
@@ -1726,6 +1793,23 @@ export class Task {
 			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
+		const promptOverrideMetadata = await this.loadPromptOverrideMetadata()
+		if (this.taskState.apiRequestCount === 1 && promptOverrideMetadata) {
+			await this.say(
+				"info",
+				[
+					`Prompt profile active: ${promptOverrideMetadata.profileId}`,
+					promptOverrideMetadata.profileFilePath ? `file=${promptOverrideMetadata.profileFilePath}` : undefined,
+					`fingerprint=${promptOverrideMetadata.profileFingerprint}`,
+				]
+					.filter(Boolean)
+					.join(" | "),
+			)
+
+			if (promptOverrideMetadata.loadWarning) {
+				await this.say("error", promptOverrideMetadata.loadWarning)
+			}
+		}
 
 		// Check CLI installation status only if subagents are enabled
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
@@ -1824,6 +1908,10 @@ export class Task {
 			localAgentsRulesFileInstructions,
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
+			activePromptProfileId: promptOverrideMetadata?.profileId,
+			activePromptProfileFilePath: promptOverrideMetadata?.profileFilePath,
+			activePromptProfileFingerprint: promptOverrideMetadata?.profileFingerprint,
+			activePromptProfileInstructions: promptOverrideMetadata?.profileInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			clineWebToolsEnabled:
@@ -1848,6 +1936,19 @@ export class Task {
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length
+		if (this.taskState.apiRequestCount === 1) {
+			const promptVariantFamily = PromptRegistry.getInstance().getModelFamily(promptContext)
+			const systemPromptFingerprint = createHash("sha256").update(systemPrompt).digest("hex").slice(0, 12)
+			await this.say(
+				"info",
+				[
+					`System prompt variant=${promptVariantFamily}`,
+					`fingerprint=${systemPromptFingerprint}`,
+					`provider=${providerInfo.providerId}`,
+					`model=${providerInfo.model.id}`,
+				].join(" | "),
+			)
+		}
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
@@ -2190,7 +2291,7 @@ export class Task {
 		}
 	}
 
-	async recursivelyMakeClineRequests(userContent: ClineContent[], includeFileDetails: boolean = false): Promise<boolean> {
+	async recursivelyMakeClineRequests(userContent: ClineContent[], includeFileDetails = false): Promise<boolean> {
 		// Check abort flag at the very start to prevent any execution after cancellation
 		if (this.taskState.abort) {
 			throw new Error("Task instance aborted")
@@ -3037,7 +3138,7 @@ export class Task {
 
 	async loadContext(
 		userContent: ClineContent[],
-		includeFileDetails: boolean = false,
+		includeFileDetails = false,
 		useCompactPrompt = false,
 	): Promise<[ClineContent[], string, boolean]> {
 		let needsClinerulesFileCheck = false
@@ -3261,12 +3362,11 @@ export class Task {
 			const primary = this.workspaceManager?.getPrimaryRoot()
 			const primaryName = this.getPrimaryWorkspaceName(primary)
 			return `\n\n# Current Working Directory (Primary: ${primaryName}) Files\n`
-		} else {
-			return `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
 		}
+		return `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
 	}
 
-	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+	async getEnvironmentDetails(includeFileDetails = false) {
 		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
 

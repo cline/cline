@@ -2,6 +2,8 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
+import fs from "node:fs/promises"
+import path from "node:path"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
@@ -32,12 +34,12 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
+import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
-import { selectOutputMode } from "./utils/mode-selection"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
@@ -50,14 +52,86 @@ interface TaskOptions {
 	act?: boolean
 	plan?: boolean
 	model?: string
+	reasoningEffort?: string
 	verbose?: boolean
 	cwd?: string
 	config?: string
 	thinking?: boolean
+	thinkingBudget?: string
+	promptProfile?: string
+	promptFile?: string
 	yolo?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
+}
+
+const REASONING_EFFORT_VALUES = ["minimal", "low", "medium", "high"] as const
+type ReasoningEffortValue = (typeof REASONING_EFFORT_VALUES)[number]
+
+function parseThinkingBudget(options: TaskOptions): number {
+	if (options.thinkingBudget !== undefined) {
+		const parsed = Number.parseInt(options.thinkingBudget, 10)
+		if (!Number.isFinite(parsed) || parsed < 0) {
+			throw new Error(`Invalid --thinking-budget value '${options.thinkingBudget}'. Expected a non-negative integer.`)
+		}
+		return parsed
+	}
+
+	if (options.thinking) {
+		return 1024
+	}
+
+	return 0
+}
+
+function normalizeReasoningEffort(options: TaskOptions): ReasoningEffortValue | undefined {
+	if (!options.reasoningEffort) {
+		return undefined
+	}
+	const normalized = options.reasoningEffort.toLowerCase().trim()
+	if (!REASONING_EFFORT_VALUES.includes(normalized as ReasoningEffortValue)) {
+		throw new Error(
+			`Invalid --reasoning-effort value '${options.reasoningEffort}'. Expected one of: ${REASONING_EFFORT_VALUES.join(", ")}`,
+		)
+	}
+	return normalized as ReasoningEffortValue
+}
+
+async function applyPromptOverrideOptions(options: TaskOptions): Promise<void> {
+	const profileId = options.promptProfile?.trim()
+	const promptFile = options.promptFile?.trim()
+
+	if (!profileId && !promptFile) {
+		delete process.env.CLINE_PROMPT_PROFILE
+		delete process.env.CLINE_PROMPT_FILE
+		return
+	}
+
+	if (profileId) {
+		process.env.CLINE_PROMPT_PROFILE = profileId
+	} else {
+		delete process.env.CLINE_PROMPT_PROFILE
+	}
+
+	let resolvedPromptFile: string | undefined
+	if (promptFile) {
+		const baseDir = options.cwd || process.cwd()
+		resolvedPromptFile = path.isAbsolute(promptFile) ? promptFile : path.resolve(baseDir, promptFile)
+		try {
+			await fs.access(resolvedPromptFile)
+		} catch {
+			throw new Error(
+				`Prompt override file not found or not readable: ${resolvedPromptFile}. ` +
+					`Use an absolute path or a path relative to --cwd.`,
+			)
+		}
+		process.env.CLINE_PROMPT_FILE = resolvedPromptFile
+	} else {
+		delete process.env.CLINE_PROMPT_FILE
+	}
+
+	// Intentionally no direct stdout log here to avoid polluting piped/plain-text output.
 }
 
 /**
@@ -86,13 +160,23 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
-	// Set thinking budget based on --thinking flag
-	const thinkingBudget = options.thinking ? 1024 : 0
+	// Set thinking budget (explicit --thinking-budget overrides --thinking)
+	const thinkingBudget = parseThinkingBudget(options)
 	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-	if (options.thinking) {
-		telemetryService.captureHostEvent("thinking_flag", "true")
+	if (options.thinking || options.thinkingBudget !== undefined) {
+		telemetryService.captureHostEvent("thinking_budget_flag", String(thinkingBudget))
+	}
+
+	// Set reasoning effort for providers that honor it (OpenAI/OpenRouter/OCA-compatible paths)
+	const reasoningEffort = normalizeReasoningEffort(options)
+	if (reasoningEffort) {
+		const reasoningKey = currentMode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+		StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+		// Keep this in sync for callers that still read the global setting
+		StateManager.get().setGlobalState("openaiReasoningEffort", reasoningEffort)
+		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
 	// Set yolo mode based on --yolo flag
@@ -168,7 +252,7 @@ async function runTaskInPlainTextMode(
 		imageDataUrls: taskConfig.imageDataUrls,
 		verbose: options.verbose,
 		jsonOutput: options.json,
-		timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
+		timeoutSeconds: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
 	})
 
 	// Cleanup
@@ -386,6 +470,7 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
  */
 async function runTask(prompt: string, options: TaskOptions & { images?: string[] }, existingContext?: CliContext) {
 	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
+	await applyPromptOverrideOptions(options)
 
 	// Parse images from the prompt text (e.g., @/path/to/image.png)
 	const { prompt: cleanPrompt, imagePaths: parsedImagePaths } = parseImagesFromInput(prompt)
@@ -447,8 +532,8 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
 	// Sort by timestamp (newest first) before pagination
 	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
-	const limit = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit || 10
-	const initialPage = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
+	const limit = typeof options.limit === "string" ? Number.parseInt(options.limit, 10) : options.limit || 10
+	const initialPage = typeof options.page === "string" ? Number.parseInt(options.page, 10) : options.page || 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 
@@ -643,10 +728,14 @@ program
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
 	.option("-t, --timeout <seconds>", "Timeout in seconds for yes/yolo mode (default: 600)")
 	.option("-m, --model <model>", "Model to use for the task")
+	.option("--reasoning-effort <level>", "Reasoning effort (minimal|low|medium|high)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking-budget <tokens>", "Set explicit thinking budget tokens (overrides --thinking)")
+	.option("--prompt-profile <id>", "Label this run with a prompt profile ID for traceability")
+	.option("--prompt-file <path>", "Markdown file to inject as prompt profile instructions")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
@@ -782,6 +871,7 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  */
 async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
+	await applyPromptOverrideOptions(options)
 
 	// Validate task exists
 	const historyItem = findTaskInHistory(taskId)
@@ -836,6 +926,7 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
  */
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
+	await applyPromptOverrideOptions(options)
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
@@ -873,10 +964,14 @@ program
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
 	.option("-t, --timeout <seconds>", "Timeout in seconds for yolo mode (default: 600)")
 	.option("-m, --model <model>", "Model to use for the task")
+	.option("--reasoning-effort <level>", "Reasoning effort (minimal|low|medium|high)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking-budget <tokens>", "Set explicit thinking budget tokens (overrides --thinking)")
+	.option("--prompt-profile <id>", "Label this run with a prompt profile ID for traceability")
+	.option("--prompt-file <path>", "Markdown file to inject as prompt profile instructions")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
