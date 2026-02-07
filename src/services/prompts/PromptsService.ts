@@ -101,10 +101,12 @@ export class PromptsService {
 
 						// Extract username from GitHub URL if present
 						let authorName = author || "Unknown"
-						if (author && author.includes("github.com/")) {
-							const parts = author.split("github.com/")
-							if (parts.length > 1) {
-								authorName = parts[1].split("/")[0]
+						if (author) {
+							const githubMatch = author.match(
+								/(?:^|[\s<([])(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s?#()>\]]+)/i,
+							)
+							if (githubMatch) {
+								authorName = githubMatch[1]
 							}
 						}
 
