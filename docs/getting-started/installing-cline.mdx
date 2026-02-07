@@ -7,7 +7,7 @@ description: "Get Cline up and running in your favorite IDE or terminal with the
 
 1. **Create your account** at [app.cline.bot](https://app.cline.bot/login) for access to multiple AI models, seamless setup without managing API keys, and occasional free inferencing.
 
-2. **Choose your platform**: VS Code, Cursor, JetBrains IDEs, CLI (macOS/Linux preview), VSCodium, or Windsurf.
+2. **Choose your platform**: VS Code, Cursor, JetBrains IDEs, CLI (macOS/Linux preview), Zed, Neovim, VSCodium, or Windsurf.
 
 ## Installation Instructions
 
@@ -104,6 +104,75 @@ description: "Get Cline up and running in your favorite IDE or terminal with the
 
     <Tip>
     Want to learn more? See the [Cline CLI documentation](/cline-cli/getting-started) for advanced usage patterns like multi-instance development and CI/CD integration.
+    </Tip>
+  </Tab>
+  <Tab title="Zed/Neovim (ACP via CLI)">
+    <Note>
+    **ACP (Agent Client Protocol)** lets you run Cline in any ACP-compatible editor via the CLI. This gives you full access to Cline's capabilities—including Skills, Hooks, and MCP integrations—in your preferred editor.
+    </Note>
+
+    <Steps>
+      <Step title="Install Node.js 20+">
+        Check your version with `node --version`. If needed, visit [nodejs.org](https://nodejs.org) or use nvm.
+      </Step>
+      <Step title="Install Cline CLI">
+        ```bash
+        npm install -g cline
+        ```
+      </Step>
+      <Step title="Authenticate">
+        ```bash
+        cline auth
+        ```
+      </Step>
+      <Step title="Configure your editor">
+        <Tabs>
+          <Tab title="Zed">
+            Open Zed settings (`Cmd/Ctrl + ,`) and add Cline to your `settings.json`:
+            ```json
+            {
+              "agent_servers": {
+                "Cline": {
+                  "type": "custom",
+                  "command": "cline",
+                  "args": ["--acp"],
+                  "env": {}
+                }
+              }
+            }
+            ```
+            Then open the AI assistant panel, select **Cline** from the agent dropdown, and start coding.
+          </Tab>
+          <Tab title="Neovim (agentic.nvim)">
+            Install [agentic.nvim](https://github.com/carlos-algms/agentic.nvim) using lazy.nvim:
+            ```lua
+            {
+              "carlos-algms/agentic.nvim",
+              opts = {
+                provider = "cline-acp",
+                acp_providers = {
+                  ["cline-acp"] = {
+                    command = "cline",
+                    args = {"--acp"},
+                  },
+                },
+              },
+              keys = {
+                {"<C-\\>", function() require("agentic").toggle() end, mode={"n","v","i"}, desc="Toggle Cline Chat"},
+              },
+            }
+            ```
+            Press `<C-\>` to toggle the Cline chat panel.
+          </Tab>
+          <Tab title="Neovim (avante.nvim)">
+            Follow the [avante.nvim documentation](https://github.com/yetone/avante.nvim) for configuring external ACP agents and point it to `cline --acp`.
+          </Tab>
+        </Tabs>
+      </Step>
+    </Steps>
+
+    <Tip>
+    For full details on ACP editor integrations—including JetBrains ACP setup and troubleshooting—see the [ACP Editor Integrations](/cline-cli/acp-editor-integrations) guide.
     </Tip>
   </Tab>
   <Tab title="VSCodium/Windsurf">
@@ -224,4 +293,4 @@ If Cline appears installed but doesn't respond, try disabling and re-enabling th
 ## Need Help?
 
 - Join our [Discord community](https://discord.gg/cline) for support, tips, and discussions.
-- [Read the docs](/getting-started/selecting-your-model) to explore model selection guides and advanced features.
+- [Read the docs](/getting-started/authorizing-with-cline) to explore model selection guides and advanced features.

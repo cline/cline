@@ -33,7 +33,19 @@ Create a new file:
 <write_to_file>
 <path>src/components/Header.tsx</path>
 <content>
-// Header component code
+import React from "react"
+
+interface HeaderProps {
+  title: string
+}
+
+export default function Header({ title }: HeaderProps) {
+  return (
+    <header style={{ padding: "1rem", borderBottom: "1px solid #eee" }}>
+      <h1>{title}</h1>
+    </header>
+  )
+}
 </content>
 </write_to_file>
 ```
@@ -113,23 +125,23 @@ This works like a developer handoff, packaging what matters (plan, work done, fi
 ## Common Task Patterns
 
 ### Code Generation
-```
+```text
 Create a TypeScript function that validates email addresses.
 Include unit tests using Jest.
 ```
 
 ### Bug Fixing
-```
+```text
 @terminal The app crashes on submit. Fix the error.
 ```
 
 ### Refactoring
-```
+```text
 Refactor @auth.ts to use async/await instead of callbacks.
 ```
 
 ### Run Commands
-```
+```text
 Run npm install to add axios.
 ```
 

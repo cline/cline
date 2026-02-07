@@ -66,7 +66,6 @@
 							"getting-started/what-is-cline",
 							"getting-started/installing-cline",
 							"getting-started/authorizing-with-cline",
-							"getting-started/selecting-your-model",
 							"getting-started/your-first-project"
 						]
 					},
@@ -85,16 +84,38 @@
 						"pages": [
 							"customization/overview",
 							"customization/cline-rules",
-							"customization/clineignore",
-							"customization/workflows",
 							"customization/skills",
-							"customization/hooks"
+							"customization/workflows",
+							"customization/hooks",
+							"customization/clineignore"
+						]
+					},
+					{
+						"group": "Cline CLI",
+						"pages": [
+							"cline-cli/overview",
+							"cline-cli/installation",
+							"cline-cli/interactive-mode",
+							{
+								"group": "Headless Mode",
+								"pages": [
+									"cline-cli/three-core-flows",
+									"cline-cli/samples/overview",
+									"cline-cli/samples/github-issue-rca",
+									"cline-cli/samples/github-integration",
+									"cline-cli/samples/github-pr-review",
+									"cline-cli/samples/model-orchestration",
+									"cline-cli/samples/worktree-workflows"
+								]
+							},
+							"cline-cli/configuration",
+							"cline-cli/acp-editor-integrations",
+							"cline-cli/cli-reference"
 						]
 					},
 					{
 						"group": "Features",
 						"pages": [
-							"features/dictation",
 							"features/memory-bank",
 							"features/focus-chain",
 							"features/auto-approve",
@@ -103,7 +124,8 @@
 							"features/background-edit",
 							"features/jupyter-notebooks",
 							"features/web-tools",
-							"features/worktrees"
+							"features/worktrees",
+							"features/dictation"
 						]
 					},
 					{
@@ -175,29 +197,6 @@
 							"mcp/mcp-server-development-protocol",
 							"mcp/connecting-to-a-remote-server",
 							"mcp/mcp-transport-mechanisms"
-						]
-					},
-					{
-						"group": "Cline CLI",
-						"pages": [
-							"cline-cli/overview",
-							"cline-cli/installation",
-							"cline-cli/interactive-mode",
-							"cline-cli/configuration",
-							"cline-cli/three-core-flows",
-							"cline-cli/acp-editor-integrations",
-							{
-								"group": "CLI Samples",
-								"pages": [
-									"cline-cli/samples/overview",
-									"cline-cli/samples/github-issue-rca",
-									"cline-cli/samples/github-integration",
-									"cline-cli/samples/github-pr-review",
-									"cline-cli/samples/model-orchestration",
-									"cline-cli/samples/worktree-workflows"
-								]
-							},
-							"cline-cli/cli-reference"
 						]
 					},
 					{
@@ -558,6 +557,10 @@
 		{
 			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
 			"destination": "/customization/clineignore"
+		},
+		{
+			"source": "/getting-started/selecting-your-model",
+			"destination": "/getting-started/authorizing-with-cline"
 		}
 	],
 	"search": {

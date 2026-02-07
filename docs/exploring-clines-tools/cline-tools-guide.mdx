@@ -53,7 +53,19 @@ Each tool has specific parameters and usage patterns. Here are some examples:
     <write_to_file>
     <path>src/components/Header.tsx</path>
     <content>
-    // Header component code
+    import React from "react"
+
+    interface HeaderProps {
+      title: string
+    }
+
+    export default function Header({ title }: HeaderProps) {
+      return (
+        <header style={{ padding: "1rem", borderBottom: "1px solid #eee" }}>
+          <h1>{title}</h1>
+        </header>
+      )
+    }
     </content>
     </write_to_file>
     ```

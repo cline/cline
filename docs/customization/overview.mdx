@@ -1,51 +1,56 @@
 ---
 title: "Overview"
 sidebarTitle: "Overview"
-description: "Understand how Rules, Workflows, Skills, and Hooks work together to customize Cline."
+description: "Understand how Rules, Skills, Workflows, Hooks, and .clineignore work together to customize Cline."
 ---
 
 Out of the box, Cline is a general-purpose AI assistant. Customizations transform it into an expert on your codebase, your team's conventions, and your workflows. Instead of repeating the same instructions every task, you define them once and Cline follows them automatically.
 
-Cline offers four systems for this: Rules, Workflows, Skills, and Hooks. Each serves a different purpose and activates at different times.
+Cline offers five systems for this: Rules, Skills, Workflows, Hooks, and .clineignore. Each serves a different purpose and activates at different times.
 
 ## Quick Comparison
 
 | Feature | Purpose | When Active | Best For |
 |---------|---------|-------------|----------|
 | **[Rules](/customization/cline-rules)** | Define how Cline behaves | Always (or contextually) | Coding standards, project constraints, team conventions |
-| **[Workflows](/customization/workflows)** | Step-by-step task automation | Invoked with `/workflow.md` | Repetitive processes, release procedures, setup scripts |
 | **[Skills](/customization/skills)** | Domain expertise loaded on-demand | Triggered by matching requests | Specialized knowledge, complex procedures, institutional expertise |
+| **[Workflows](/customization/workflows)** | Step-by-step task automation | Invoked with `/workflow.md` | Repetitive processes, release procedures, setup scripts |
 | **[Hooks](/customization/hooks)** | Inject custom logic at key moments | Automatically on specific events | Validation, enforcement, monitoring, automation triggers |
+| **[.clineignore](/customization/clineignore)** | Control file access | Always | Excluding dependencies, build artifacts, large data files |
 
 ## Understanding Each Tool
 
 **[Rules](/customization/cline-rules)** are always-on guidance. Use them when you want Cline to consistently follow certain patterns: coding standards, naming conventions, architectural constraints, or project-specific context. Rules shape *how* Cline works across all tasks. For example, a rule might say "always use TypeScript" or "follow the repository pattern for data access."
 
-**[Workflows](/customization/workflows)** are explicit task scripts you invoke on demand. Use them when you have a repeatable multi-step process that should run the same way every time. Type `/release.md` and Cline executes your release sequence: bump version, run tests, update changelog, commit, tag, push. Workflows define *what* to do, step by step.
-
 **[Skills](/customization/skills)** are domain expertise that loads only when relevant. Use them when you have extensive knowledge that would waste context if always active. Cline sees skill descriptions at startup and activates the full instructions only when your request matches. A data analysis skill might include pandas patterns, visualization preferences, and output formats that Cline only loads when you're working with data files.
+
+**[Workflows](/customization/workflows)** are explicit task scripts you invoke on demand. Use them when you have a repeatable multi-step process that should run the same way every time. Type `/release.md` and Cline executes your release sequence: bump version, run tests, update changelog, commit, tag, push. Workflows define *what* to do, step by step.
 
 **[Hooks](/customization/hooks)** are programmatic guardrails that run automatically at key moments. Use them when you need to validate, enforce, or extend Cline's behavior with custom code. A hook might block `.js` file creation in a TypeScript project, run linters before saves, or notify external services after deployments.
 
+**[.clineignore](/customization/clineignore)** controls which files and directories Cline can access. Use it to exclude dependencies, build artifacts, generated files, and large data files from Cline's context. This reduces token usage, lowers costs, and keeps Cline focused on the code that matters. It works like `.gitignore`: add patterns to a `.clineignore` file in your project root and matching files are automatically excluded.
+
 ### Example: A Release Process
 
-Consider how all four work together for releasing a new version:
+Consider how all five work together for releasing a new version:
 
 1. **Rules** ensure Cline follows your team's commit message format and versioning policy
-2. **Workflows** provide the explicit `/release.md` sequence: bump version, update changelog, tag, push
-3. **Skills** offer deep knowledge about your CI/CD system that Cline loads when deployment questions arise
+2. **Skills** offer deep knowledge about your CI/CD system that Cline loads when deployment questions arise
+3. **Workflows** provide the explicit `/release.md` sequence: bump version, update changelog, tag, push
 4. **Hooks** validate that tests pass before allowing any commit or that the changelog was actually updated
+5. **.clineignore** keeps build artifacts, `node_modules/`, and generated files out of Cline's context so it stays focused
 
 ## Storage Locations
 
-All four systems support both global and project-specific configurations:
+All five systems support both global and project-specific configurations:
 
 | System | Global Location | Project Location |
 |--------|-----------------|------------------|
 | Rules | `~/Documents/Cline/Rules/` | `.clinerules/` |
-| Workflows | `~/Documents/Cline/Workflows/` | `.clinerules/workflows/` |
 | Skills | `~/.cline/skills/` | `.cline/skills/` |
+| Workflows | `~/Documents/Cline/Workflows/` | `.clinerules/workflows/` |
 | Hooks | `~/Documents/Cline/Hooks/` | `.clinerules/hooks/` |
+| .clineignore | N/A | `.clineignore` |
 
 ### When to Use Each
 
