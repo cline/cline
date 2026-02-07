@@ -21,7 +21,7 @@ export class AuthHandler {
 	private server: Server | null = null
 	private serverCreationPromise: Promise<void> | null = null
 	private timeoutId: NodeJS.Timeout | null = null
-	private enabled: boolean = false
+	private enabled = false
 
 	private constructor() {}
 
@@ -40,7 +40,7 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUrl(): Promise<string> {
+	public async getCallbackUrl(path = ""): Promise<string> {
 		if (!this.enabled) {
 			throw Error("AuthHandler was not enabled")
 		}
@@ -58,7 +58,7 @@ export class AuthHandler {
 			this.updateTimeout()
 		}
 
-		return `http://127.0.0.1:${this.port}`
+		return `http://127.0.0.1:${this.port}${path}`
 	}
 
 	private async createServer(): Promise<void> {
