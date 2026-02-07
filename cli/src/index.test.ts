@@ -31,6 +31,7 @@ describe("CLI Commands", () => {
 			.option("-c, --cwd <path>", "Working directory")
 			.option("--config <path>", "Configuration directory")
 			.option("--thinking", "Enable extended thinking")
+			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.action(() => {})
 
 		program
@@ -68,6 +69,7 @@ describe("CLI Commands", () => {
 			.option("-c, --cwd <path>", "Working directory")
 			.option("--config <path>", "Configuration directory")
 			.option("--thinking", "Enable extended thinking")
+			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.action(() => {})
 	})
 
@@ -144,6 +146,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--thinking"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().thinking).toBe(true)
+		})
+
+		it("should parse --reasoning-effort option", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--reasoning-effort", "high"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().reasoningEffort).toBe("high")
 		})
 
 		it("should parse short flags", () => {
@@ -280,6 +289,11 @@ describe("CLI Commands", () => {
 		it("should parse --thinking flag", () => {
 			program.parse(["node", "cli", "--thinking"])
 			expect(program.opts().thinking).toBe(true)
+		})
+
+		it("should parse --reasoning-effort option", () => {
+			program.parse(["node", "cli", "--reasoning-effort", "medium"])
+			expect(program.opts().reasoningEffort).toBe("medium")
 		})
 	})
 

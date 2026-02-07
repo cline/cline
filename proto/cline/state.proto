@@ -101,7 +101,7 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 46;
+  optional string openai_codex_oauth_credentials = 47;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -252,7 +252,6 @@ message Settings {
   optional bool use_auto_condense = 143;
   optional bool cline_web_tools_enabled = 144;
   optional string preferred_language = 145;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 146;
   optional PlanActMode mode = 147;
   optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;

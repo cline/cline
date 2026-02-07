@@ -23,6 +23,20 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 }
 
+function normalizeReasoningEffort(effort?: string): ChatCompletionReasoningEffort | "none" {
+	const value = (effort || "medium").toLowerCase()
+	switch (value) {
+		case "none":
+		case "low":
+		case "medium":
+		case "high":
+		case "xhigh":
+			return value
+		default:
+			return "medium"
+	}
+}
+
 export class OpenAiHandler implements ApiHandler {
 	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
@@ -128,7 +142,8 @@ export class OpenAiHandler implements ApiHandler {
 		if (isReasoningModelFamily) {
 			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
 			temperature = undefined // does not support temperature
-			reasoningEffort = (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
+			const requestedEffort = normalizeReasoningEffort(this.options.reasoningEffort)
+			reasoningEffort = requestedEffort === "none" ? undefined : requestedEffort
 		}
 
 		const stream = await client.chat.completions.create({

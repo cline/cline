@@ -28,7 +28,6 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
 	clineApiKey?: string
-	geminiThinkingLevel?: string
 }
 
 export class ClineHandler implements ApiHandler {
@@ -120,7 +119,6 @@ export class ClineHandler implements ApiHandler {
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
-				this.options.geminiThinkingLevel,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()

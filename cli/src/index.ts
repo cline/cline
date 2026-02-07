@@ -23,6 +23,7 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
+import type { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
@@ -32,12 +33,12 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
+import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
-import { selectOutputMode } from "./utils/mode-selection"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
@@ -54,10 +55,31 @@ interface TaskOptions {
 	cwd?: string
 	config?: string
 	thinking?: boolean
+	reasoningEffort?: string
 	yolo?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
+}
+
+function normalizeReasoningEffort(value?: string): OpenaiReasoningEffort | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+
+	const normalized = value.toLowerCase()
+	if (
+		normalized === "none" ||
+		normalized === "low" ||
+		normalized === "medium" ||
+		normalized === "high" ||
+		normalized === "xhigh"
+	) {
+		return normalized
+	}
+
+	printWarning(`Invalid --reasoning-effort '${value}'. Using 'medium'. Valid values: none, low, medium, high, xhigh.`)
+	return "medium"
 }
 
 /**
@@ -93,6 +115,13 @@ function applyTaskOptions(options: TaskOptions): void {
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
 	if (options.thinking) {
 		telemetryService.captureHostEvent("thinking_flag", "true")
+	}
+
+	const reasoningEffort = normalizeReasoningEffort(options.reasoningEffort)
+	if (reasoningEffort !== undefined) {
+		const reasoningKey = currentMode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+		StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
 	// Set yolo mode based on --yolo flag
@@ -168,7 +197,7 @@ async function runTaskInPlainTextMode(
 		imageDataUrls: taskConfig.imageDataUrls,
 		verbose: options.verbose,
 		jsonOutput: options.json,
-		timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
+		timeoutSeconds: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
 	})
 
 	// Cleanup
@@ -447,8 +476,8 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
 	// Sort by timestamp (newest first) before pagination
 	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
-	const limit = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit || 10
-	const initialPage = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
+	const limit = typeof options.limit === "string" ? Number.parseInt(options.limit, 10) : options.limit || 10
+	const initialPage = typeof options.page === "string" ? Number.parseInt(options.page, 10) : options.page || 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 
@@ -647,6 +676,7 @@ program
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
@@ -877,6 +907,7 @@ program
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")

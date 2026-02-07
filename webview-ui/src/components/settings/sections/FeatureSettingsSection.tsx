@@ -1,6 +1,5 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { EmptyRequest } from "@shared/proto/index.cline"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { AlertCircleIcon } from "lucide-react"
 import { memo, type ReactNode, useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -188,7 +187,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpDisplayMode,
-		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
@@ -204,10 +202,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
-
-	const handleReasoningEffortChange = useCallback((newValue: OpenaiReasoningEffort) => {
-		updateSetting("openaiReasoningEffort", newValue)
-	}, [])
 
 	// Poll for CLI installation status while the component is mounted
 	useEffect(() => {
@@ -404,27 +398,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Advanced</div>
 					<div className="relative p-3 my-3 rounded-md border border-editor-widget-border/50" id="advanced-features">
 						<div className="space-y-3">
-							{/* OAI Reasoning Effort */}
-							<div className="space-y-2">
-								<Label className="text-sm font-medium text-foreground">OpenAI Reasoning Effort</Label>
-								<p className="text-xs text-muted-foreground">
-									Control the depth of reasoning for OpenAI o-series models
-								</p>
-								<Select
-									onValueChange={(v) => handleReasoningEffortChange(v as OpenaiReasoningEffort)}
-									value={openaiReasoningEffort || "medium"}>
-									<SelectTrigger className="w-full">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="minimal">Minimal</SelectItem>
-										<SelectItem value="low">Low</SelectItem>
-										<SelectItem value="medium">Medium</SelectItem>
-										<SelectItem value="high">High</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-
 							{/* MCP Display Mode */}
 							<div className="space-y-2">
 								<Label className="text-sm font-medium text-foreground">MCP Display Mode</Label>

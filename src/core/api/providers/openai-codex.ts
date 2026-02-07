@@ -22,6 +22,20 @@ interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 }
 
+function normalizeReasoningEffort(effort?: string): "none" | "low" | "medium" | "high" | "xhigh" {
+	const value = (effort || "medium").toLowerCase()
+	switch (value) {
+		case "none":
+		case "low":
+		case "medium":
+		case "high":
+		case "xhigh":
+			return value
+		default:
+			return "medium"
+	}
+}
+
 /**
  * OpenAiCodexHandler - Uses OpenAI Responses API with OAuth authentication
  *
@@ -139,7 +153,8 @@ export class OpenAiCodexHandler implements ApiHandler {
 		tools?: ChatCompletionTool[],
 	): any {
 		// Determine reasoning effort
-		const reasoningEffort = this.options.reasoningEffort || "medium"
+		const reasoningEffort = normalizeReasoningEffort(this.options.reasoningEffort)
+		const includeReasoning = reasoningEffort !== "none"
 
 		const body: any = {
 			model: model.id,
@@ -147,11 +162,15 @@ export class OpenAiCodexHandler implements ApiHandler {
 			stream: true,
 			store: false,
 			instructions: systemPrompt,
-			include: ["reasoning.encrypted_content"],
-			reasoning: {
-				effort: reasoningEffort,
-				summary: "auto",
-			},
+			...(includeReasoning ? { include: ["reasoning.encrypted_content"] } : {}),
+			...(includeReasoning
+				? {
+						reasoning: {
+							effort: reasoningEffort,
+							summary: "auto",
+						},
+					}
+				: {}),
 		}
 
 		// Add tools if provided

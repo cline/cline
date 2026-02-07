@@ -7,6 +7,7 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
+import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -18,6 +19,7 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
 import { openExternal } from "@/utils/env"
+import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
@@ -51,11 +53,28 @@ type SettingsTab = "api" | "auto-approve" | "features" | "other" | "account"
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action"
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action" | "cycle"
 	value: string | boolean
 	description?: string
 	isSubItem?: boolean
 	parentKey?: string
+}
+
+const REASONING_EFFORT_OPTIONS: OpenaiReasoningEffort[] = ["none", "low", "medium", "high", "xhigh"]
+
+function normalizeReasoningEffort(value: unknown): OpenaiReasoningEffort {
+	if (typeof value !== "string") {
+		return "medium"
+	}
+	if (REASONING_EFFORT_OPTIONS.includes(value as OpenaiReasoningEffort)) {
+		return value as OpenaiReasoningEffort
+	}
+	return "medium"
+}
+
+function nextReasoningEffort(current: OpenaiReasoningEffort): OpenaiReasoningEffort {
+	const idx = REASONING_EFFORT_OPTIONS.indexOf(current)
+	return REASONING_EFFORT_OPTIONS[(idx + 1) % REASONING_EFFORT_OPTIONS.length]
 }
 
 const TABS: PanelTab[] = [
@@ -164,6 +183,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [planThinkingEnabled, setPlanThinkingEnabled] = useState<boolean>(
 		() => (stateManager.getGlobalSettingsKey("planModeThinkingBudgetTokens") ?? 0) > 0,
+	)
+	const [actReasoningEffort, setActReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort")),
+	)
+	const [planReasoningEffort, setPlanReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("planModeReasoningEffort")),
 	)
 
 	// Auto-approve settings (complex nested object)
@@ -395,9 +420,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
-		// OpenAI Native, Codex, and GPT models don't support thinking budget (they use reasoning effort)
-		const isGptModel = actModelId?.toLowerCase().includes("gpt") || planModelId?.toLowerCase().includes("gpt")
-		const showThinkingOption = provider !== "openai-native" && provider !== "openai-codex" && !isGptModel
+		// Some providers/models expose reasoning effort instead of thinking budget controls.
+		const providerUsesReasoningEffort = provider === "openai-native" || provider === "openai-codex"
+		const showActReasoningEffort = supportsReasoningEffortForModel(actModelId || "")
+		const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
+		const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
+		const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
 
 		switch (currentTab) {
 			case "api":
@@ -421,13 +449,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showActThinkingOption
 									? [
 											{
 												key: "actThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: actThinkingEnabled,
+											},
+										]
+									: []),
+								...(showActReasoningEffort
+									? [
+											{
+												key: "actReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: actReasoningEffort,
 											},
 										]
 									: []),
@@ -438,13 +476,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: planModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showPlanThinkingOption
 									? [
 											{
 												key: "planThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: planThinkingEnabled,
+											},
+										]
+									: []),
+								...(showPlanReasoningEffort
+									? [
+											{
+												key: "planReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: planReasoningEffort,
 											},
 										]
 									: []),
@@ -457,13 +505,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showActThinkingOption
 									? [
 											{
 												key: "actThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: actThinkingEnabled,
+											},
+										]
+									: []),
+								...(showActReasoningEffort
+									? [
+											{
+												key: "actReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: actReasoningEffort,
 											},
 										]
 									: []),
@@ -629,6 +687,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		separateModels,
 		actThinkingEnabled,
 		planThinkingEnabled,
+		actReasoningEffort,
+		planReasoningEffort,
 		autoApproveSettings,
 		features,
 		preferredLanguage,
@@ -683,6 +743,35 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 			return
+		}
+
+		if (item.type === "cycle") {
+			if (item.key === "actReasoningEffort") {
+				const next = nextReasoningEffort(actReasoningEffort)
+				setActReasoningEffort(next)
+				stateManager.setGlobalState("actModeReasoningEffort", next)
+				if (!separateModels) {
+					setPlanReasoningEffort(next)
+					stateManager.setGlobalState("planModeReasoningEffort", next)
+				}
+				if (controller?.task) {
+					const currentMode = stateManager.getGlobalSettingsKey("mode")
+					const apiConfig = stateManager.getApiConfiguration()
+					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+				}
+				return
+			}
+			if (item.key === "planReasoningEffort") {
+				const next = nextReasoningEffort(planReasoningEffort)
+				setPlanReasoningEffort(next)
+				stateManager.setGlobalState("planModeReasoningEffort", next)
+				if (controller?.task) {
+					const currentMode = stateManager.getGlobalSettingsKey("mode")
+					const apiConfig = stateManager.getApiConfiguration()
+					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+				}
+				return
+			}
 		}
 
 		if (item.type === "editable") {
@@ -742,6 +831,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					const actModel = stateManager.getGlobalSettingsKey(actKey)
 					if (planKey) stateManager.setGlobalState(planKey, actModel)
 				}
+				const actThinkingBudget = stateManager.getGlobalSettingsKey("actModeThinkingBudgetTokens") ?? 0
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", actThinkingBudget)
+				setPlanThinkingEnabled(actThinkingBudget > 0)
+
+				const actEffort = normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort"))
+				stateManager.setGlobalState("planModeReasoningEffort", actEffort)
+				setPlanReasoningEffort(actEffort)
+			}
+
+			if (controller?.task) {
+				const currentMode = stateManager.getGlobalSettingsKey("mode")
+				const apiConfig = stateManager.getApiConfiguration()
+				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
 			}
 			return
 		}
@@ -750,6 +852,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (item.key === "actThinkingEnabled") {
 			setActThinkingEnabled(newValue)
 			stateManager.setGlobalState("actModeThinkingBudgetTokens", newValue ? 1024 : 0)
+			if (!separateModels) {
+				setPlanThinkingEnabled(newValue)
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
+			}
 			// Rebuild API handler to apply thinking budget change
 			if (controller?.task) {
 				const currentMode = stateManager.getGlobalSettingsKey("mode")
@@ -823,6 +929,10 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		handleClineLogin,
 		handleClineLogout,
 		accountOrganizations,
+		separateModels,
+		actReasoningEffort,
+		planReasoningEffort,
+		controller,
 	])
 
 	// Handle model selection from picker
@@ -1565,6 +1675,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 								</Text>
 								<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}</Text>
 								{isSelected && <Text color="gray"> (Enter)</Text>}
+							</Text>
+						)
+					}
+
+					if (item.type === "cycle") {
+						return (
+							<Text key={item.key}>
+								<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+									{isSelected ? "❯" : " "}{" "}
+								</Text>
+								<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
+								<Text color={COLORS.primaryBlue}>
+									{typeof item.value === "string" ? item.value : String(item.value)}
+								</Text>
+								{isSelected && <Text color="gray"> (Tab to cycle)</Text>}
 							</Text>
 						)
 					}
