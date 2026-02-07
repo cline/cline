@@ -543,8 +543,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				// Go back to the appropriate step based on provider
 				if (selectedProvider === "cline") {
 					setStep("cline_model")
-				} else if (selectedProvider === "bedrock") {
-					setStep("bedrock")
 				} else if (selectedProvider === "sapaicore") {
 					setStep("sapaicore")
 				} else {
