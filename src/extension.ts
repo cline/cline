@@ -14,7 +14,7 @@ import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeT
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { initializeTestMode } from "./services/test/TestMode"
-import "./utils/path"; // necessary to have access to String.prototype.toPosix
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -352,7 +352,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus: boolean = false) => {
+		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
 			// Show the webview
@@ -582,9 +582,18 @@ function setupHostProvider(context: ExtensionContext) {
 	const createTerminalManager = () => new VscodeTerminalManager()
 
 	const getCallbackUrl = async () => {
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			// In VS Code Web (code serve-web), vscode:// URIs redirect to the desktop app
+			// instead of staying in the browser. Use an HTTP-based callback server instead,
+			// which the browser can navigate to directly after auth completes.
+			const { AuthHandler } = await import("@/hosts/external/AuthHandler")
+			const authHandler = AuthHandler.getInstance()
+			authHandler.setEnabled(true)
+			return authHandler.getCallbackUrl()
+		}
+		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
 		const baseUri = vscode.Uri.parse(`${vscode.env.uriScheme || "vscode"}://${context.extension.id}`)
-		const externalUri = await vscode.env.asExternalUri(baseUri)
-		return externalUri.toString(true)
+		return baseUri.toString(true)
 	}
 	HostProvider.initialize(
 		createWebview,
@@ -592,7 +601,7 @@ function setupHostProvider(context: ExtensionContext) {
 		createCommentReview,
 		createTerminalManager,
 		vscodeHostBridgeClient,
-		() => { }, // No-op logger, logging is handled via HostProvider.env.debugLog
+		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,
