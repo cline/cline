@@ -5,6 +5,7 @@
 
 import { Box, Text, useApp, useInput } from "ink"
 import Spinner from "ink-spinner"
+// biome-ignore lint/style/useImportType: React is used as a value by JSX (jsx: "react" in tsconfig)
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
@@ -12,13 +13,13 @@ import { AuthService } from "@/services/auth/AuthService"
 import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
-import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
+import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
@@ -30,7 +31,7 @@ import {
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
-import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "./ProviderPicker"
+import { getProviderLabel } from "./ProviderPicker"
 
 type AuthStep =
 	| "menu"
@@ -47,9 +48,6 @@ type AuthStep =
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
-
-// Featured models loaded from shared constants
-const featuredModels = getAllFeaturedModels()
 
 interface AuthViewProps {
 	controller: any
@@ -149,6 +147,9 @@ const TextInput: React.FC<{
 
 export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, onNavigateToWelcome }) => {
 	const { exit } = useApp()
+
+	const providers = useValidProviders()
+
 	const [step, setStep] = useState<AuthStep>("menu")
 	const [selectedProvider, setSelectedProvider] = useState<string>(
 		StateManager.get().getApiConfiguration().actModeApiProvider ||
@@ -190,11 +191,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		onError: handleOcaAuthError,
 	})
 
-	// Use providers.json order, filtered to exclude CLI-incompatible providers
-	const sortedProviders = useMemo(() => {
-		return getProviderOrder().filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
-	}, [])
-
 	// Main menu items - conditionally include import options
 	const mainMenuItems: SelectItem[] = useMemo(() => {
 		const items: SelectItem[] = [{ label: "Sign in with Cline", value: "cline_auth" }]
@@ -220,15 +216,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const providerItems: SelectItem[] = useMemo(() => {
 		const search = providerSearch.toLowerCase()
 		const filtered = providerSearch
-			? sortedProviders.filter(
-					(p) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search),
-				)
-			: sortedProviders
+			? providers.filter((p) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search))
+			: providers
 		return filtered.map((p: string) => ({
 			label: getProviderLabel(p),
 			value: p,
 		}))
-	}, [sortedProviders, providerSearch])
+	}, [providers, providerSearch])
 
 	// Use shared scrollable list hook for provider windowing
 	const TOTAL_PROVIDER_ROWS = 8
@@ -864,7 +858,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 										{index === menuIndex ? "❯ " : "  "}
 										{item.label}
 									</Text>
-									{item.value === "cline_auth" && <Text color="yellow"> (try Kimi K2.5 free!)</Text>}
+									{item.value === "cline_auth" && <Text color="yellow"> (try Opus 4.6!)</Text>}
 								</Text>
 							</Box>
 						))}

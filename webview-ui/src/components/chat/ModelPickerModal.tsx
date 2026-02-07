@@ -1,10 +1,11 @@
 import type { ModelInfo as ModelInfoType } from "@shared/api"
-import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, type ApiProvider } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { ArrowLeftRight, Brain, Check, ChevronDownIcon, Search, Settings } from "lucide-react"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -163,12 +164,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 
 	// Get configured providers
 	const configuredProviders = useMemo(() => {
-		if (remoteConfigSettings?.remoteConfiguredProviders?.length) {
-			return remoteConfigSettings.remoteConfiguredProviders
-		}
-
-		return getConfiguredProviders(apiConfiguration)
-	}, [apiConfiguration, remoteConfigSettings?.remoteConfiguredProviders])
+		return getConfiguredProviders(remoteConfigSettings, apiConfiguration)
+	}, [apiConfiguration, remoteConfigSettings])
 
 	// Get models for current provider
 	const allModels = useMemo((): ModelItem[] => {

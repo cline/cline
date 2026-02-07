@@ -138,6 +138,7 @@ import {
 import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
+import { waitFor } from "../utils/timeout"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { shutdownEvent } from "../vscode-shim"
 import { ActionButtons, type ButtonActionType, getButtonConfig, getVisibleButtons } from "./ActionButtons"
@@ -888,6 +889,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	)
 
 	// Auto-submit initial prompt if provided
+	// When taskId is also provided, this sends the prompt to resume the existing task
+	// When no taskId, this creates a new task with the prompt
 	useEffect(() => {
 		const autoSubmit = async () => {
 			if (!initialPrompt && (!initialImages || initialImages.length === 0)) {
@@ -908,8 +911,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (initialPrompt) {
 					setTerminalTitle(initialPrompt)
 				}
-				// initialImages are already data URLs from index.ts processing
-				await ctrl.initTask(initialPrompt || "", initialImages && initialImages.length > 0 ? initialImages : undefined)
+
+				if (taskId) {
+					// Resuming an existing task with a prompt - wait for task to load first
+					// The task loading happens in the other useEffect via showTaskWithId
+					// We need to wait for it to complete before sending the resume message
+					const task = await waitFor(() => ctrl.task, 5000)
+
+					if (task) {
+						// Send the prompt as a message to resume the task
+						await task.handleWebviewAskResponse("messageResponse", initialPrompt || "")
+					} else {
+						// Task failed to load, fall back to creating new task
+						Logger.error(`Failed to load task ${taskId} for resume, creating new task instead`)
+						await ctrl.initTask(
+							initialPrompt || "",
+							initialImages && initialImages.length > 0 ? initialImages : undefined,
+						)
+					}
+				} else {
+					// New task - use initTask
+					// initialImages are already data URLs from index.ts processing
+					await ctrl.initTask(
+						initialPrompt || "",
+						initialImages && initialImages.length > 0 ? initialImages : undefined,
+					)
+				}
 			} catch (_error) {
 				onError?.()
 			}

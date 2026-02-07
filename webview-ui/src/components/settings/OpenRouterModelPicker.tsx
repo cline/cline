@@ -56,17 +56,17 @@ export const recommendedModels = [
 	{
 		id: "google/gemini-3-flash-preview",
 		description: "Intelligent model built for speed and price efficiency",
-		label: "NEW",
+		label: "HOT",
 	},
 	{
-		id: "anthropic/claude-opus-4.5",
-		description: "State-of-the-art for complex coding",
-		label: "HOT",
+		id: "anthropic/claude-opus-4.6",
+		description: "Most intelligent model for agents and coding",
+		label: "NEW",
 	},
 	{
 		id: "openai/gpt-5.2-codex",
 		description: "OpenAI's latest with strong coding abilities",
-		label: "NEW",
+		label: "HOT",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
@@ -76,6 +76,16 @@ export const recommendedModels = [
 ]
 
 export const freeModels = [
+	{
+		id: "minimax/minimax-m2.1",
+		description: "MiniMax-M2.1 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+		label: "FREE",
+	},
+	{
+		id: "moonshotai/kimi-k2.5",
+		description: "Moonshot's SOTA Coding Model",
+		label: "FREE",
+	},
 	{
 		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
@@ -288,6 +298,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-opus-4.6") ||
 			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
@@ -440,6 +451,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{/* Context window switcher for Claude Opus 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher

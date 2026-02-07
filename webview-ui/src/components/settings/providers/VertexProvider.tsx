@@ -1,6 +1,6 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
@@ -23,6 +23,7 @@ interface VertexProviderProps {
 
 // Vertex models that support thinking
 const SUPPORTED_THINKING_MODELS = [
+	"claude-opus-4-6",
 	"claude-haiku-4-5@20251001",
 	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
