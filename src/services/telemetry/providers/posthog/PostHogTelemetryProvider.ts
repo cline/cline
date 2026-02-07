@@ -34,7 +34,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			}
 			this.client = new PostHog(posthogConfig.apiKey, {
 				host: posthogConfig.host,
-				fetch: (url, options) => fetch(url, options as RequestInit),
+				fetch: (url, options) => fetch(url, options),
 			})
 		}
 

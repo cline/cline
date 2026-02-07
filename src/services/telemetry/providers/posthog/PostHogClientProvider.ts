@@ -31,7 +31,7 @@ export class PostHogClientProvider {
 		this.client = posthogConfig.apiKey
 			? new PostHog(posthogConfig.apiKey, {
 					host: posthogConfig.host,
-					fetch: (url, options) => fetch(url, options as RequestInit),
+					fetch: (url, options) => fetch(url, options),
 					enableExceptionAutocapture: false, // This is only enabled for error services
 					before_send: (event) => PostHogClientProvider.eventFilter(event),
 				})

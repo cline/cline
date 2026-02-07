@@ -27,7 +27,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 			}
 			this.client = new PostHog(posthogConfig.apiKey, {
 				host: posthogConfig.host,
-				fetch: (url, options) => fetch(url, options as RequestInit),
+				fetch: (url, options) => fetch(url, options),
 			})
 		}
 
