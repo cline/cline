@@ -23,7 +23,7 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
-import type { OpenaiReasoningEffort } from "@/shared/storage/types"
+import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@/shared/storage/types"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
@@ -68,17 +68,13 @@ function normalizeReasoningEffort(value?: string): OpenaiReasoningEffort | undef
 	}
 
 	const normalized = value.toLowerCase()
-	if (
-		normalized === "none" ||
-		normalized === "low" ||
-		normalized === "medium" ||
-		normalized === "high" ||
-		normalized === "xhigh"
-	) {
+	if (isOpenaiReasoningEffort(normalized)) {
 		return normalized
 	}
 
-	printWarning(`Invalid --reasoning-effort '${value}'. Using 'medium'. Valid values: none, low, medium, high, xhigh.`)
+	printWarning(
+		`Invalid --reasoning-effort '${value}'. Using 'medium'. Valid values: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}.`,
+	)
 	return "medium"
 }
 

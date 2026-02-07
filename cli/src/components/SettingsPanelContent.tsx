@@ -7,7 +7,7 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
-import type { OpenaiReasoningEffort } from "@shared/storage/types"
+import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -60,21 +60,16 @@ interface ListItem {
 	parentKey?: string
 }
 
-const REASONING_EFFORT_OPTIONS: OpenaiReasoningEffort[] = ["none", "low", "medium", "high", "xhigh"]
-
 function normalizeReasoningEffort(value: unknown): OpenaiReasoningEffort {
-	if (typeof value !== "string") {
-		return "medium"
-	}
-	if (REASONING_EFFORT_OPTIONS.includes(value as OpenaiReasoningEffort)) {
-		return value as OpenaiReasoningEffort
+	if (isOpenaiReasoningEffort(value)) {
+		return value
 	}
 	return "medium"
 }
 
 function nextReasoningEffort(current: OpenaiReasoningEffort): OpenaiReasoningEffort {
-	const idx = REASONING_EFFORT_OPTIONS.indexOf(current)
-	return REASONING_EFFORT_OPTIONS[(idx + 1) % REASONING_EFFORT_OPTIONS.length]
+	const idx = OPENAI_REASONING_EFFORT_OPTIONS.indexOf(current)
+	return OPENAI_REASONING_EFFORT_OPTIONS[(idx + 1) % OPENAI_REASONING_EFFORT_OPTIONS.length]
 }
 
 const TABS: PanelTab[] = [
@@ -722,6 +717,33 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 	}, [items.length, selectedIndex])
 
+	const rebuildTaskApi = useCallback(() => {
+		if (!controller?.task) {
+			return
+		}
+		const currentMode = stateManager.getGlobalSettingsKey("mode")
+		const apiConfig = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+	}, [controller, stateManager])
+
+	const setReasoningEffortForMode = useCallback(
+		(mode: "act" | "plan", effort: OpenaiReasoningEffort) => {
+			if (mode === "act") {
+				setActReasoningEffort(effort)
+				stateManager.setGlobalState("actModeReasoningEffort", effort)
+				if (!separateModels) {
+					setPlanReasoningEffort(effort)
+					stateManager.setGlobalState("planModeReasoningEffort", effort)
+				}
+			} else {
+				setPlanReasoningEffort(effort)
+				stateManager.setGlobalState("planModeReasoningEffort", effort)
+			}
+			rebuildTaskApi()
+		},
+		[separateModels, rebuildTaskApi, stateManager],
+	)
+
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
 		const item = items[selectedIndex]
@@ -746,32 +768,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 
 		if (item.type === "cycle") {
-			if (item.key === "actReasoningEffort") {
-				const next = nextReasoningEffort(actReasoningEffort)
-				setActReasoningEffort(next)
-				stateManager.setGlobalState("actModeReasoningEffort", next)
-				if (!separateModels) {
-					setPlanReasoningEffort(next)
-					stateManager.setGlobalState("planModeReasoningEffort", next)
-				}
-				if (controller?.task) {
-					const currentMode = stateManager.getGlobalSettingsKey("mode")
-					const apiConfig = stateManager.getApiConfiguration()
-					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-				}
-				return
+			const targetMode = item.key === "actReasoningEffort" ? "act" : item.key === "planReasoningEffort" ? "plan" : undefined
+			if (targetMode) {
+				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
+				setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
 			}
-			if (item.key === "planReasoningEffort") {
-				const next = nextReasoningEffort(planReasoningEffort)
-				setPlanReasoningEffort(next)
-				stateManager.setGlobalState("planModeReasoningEffort", next)
-				if (controller?.task) {
-					const currentMode = stateManager.getGlobalSettingsKey("mode")
-					const apiConfig = stateManager.getApiConfiguration()
-					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-				}
-				return
-			}
+			return
 		}
 
 		if (item.type === "editable") {
@@ -840,11 +842,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setPlanReasoningEffort(actEffort)
 			}
 
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
+			rebuildTaskApi()
 			return
 		}
 
@@ -857,22 +855,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			}
 			// Rebuild API handler to apply thinking budget change
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
+			rebuildTaskApi()
 			return
 		}
 		if (item.key === "planThinkingEnabled") {
 			setPlanThinkingEnabled(newValue)
 			stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			// Rebuild API handler to apply thinking budget change
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
+			rebuildTaskApi()
 			return
 		}
 
@@ -932,7 +922,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		separateModels,
 		actReasoningEffort,
 		planReasoningEffort,
-		controller,
+		rebuildTaskApi,
+		setReasoningEffortForMode,
 	])
 
 	// Handle model selection from picker

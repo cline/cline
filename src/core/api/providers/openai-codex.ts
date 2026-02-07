@@ -1,4 +1,5 @@
 import { ModelInfo, OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
+import { isOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
@@ -24,16 +25,7 @@ interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 
 function normalizeReasoningEffort(effort?: string): "none" | "low" | "medium" | "high" | "xhigh" {
 	const value = (effort || "medium").toLowerCase()
-	switch (value) {
-		case "none":
-		case "low":
-		case "medium":
-		case "high":
-		case "xhigh":
-			return value
-		default:
-			return "medium"
-	}
+	return isOpenaiReasoningEffort(value) ? value : "medium"
 }
 
 /**

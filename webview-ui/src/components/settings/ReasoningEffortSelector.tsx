@@ -1,4 +1,4 @@
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { isOpenaiReasoningEffort, Mode, OPENAI_REASONING_EFFORT_OPTIONS, OpenaiReasoningEffort } from "@shared/storage/types"
 import { memo } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -10,23 +10,22 @@ interface ReasoningEffortSelectorProps {
 	currentMode: Mode
 	label?: string
 	description?: string
-	allowedEfforts?: OpenaiReasoningEffort[]
+	allowedEfforts?: readonly OpenaiReasoningEffort[]
 }
-
-const DEFAULT_EFFORTS: OpenaiReasoningEffort[] = ["none", "low", "medium", "high", "xhigh"]
 
 const ReasoningEffortSelector = ({
 	currentMode,
 	label = "Reasoning Effort",
 	description = "Higher effort improves depth, but uses more tokens.",
-	allowedEfforts = DEFAULT_EFFORTS,
+	allowedEfforts = OPENAI_REASONING_EFFORT_OPTIONS,
 }: ReasoningEffortSelectorProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const selectedEffort = allowedEfforts.includes(modeFields.reasoningEffort as OpenaiReasoningEffort)
-		? (modeFields.reasoningEffort as OpenaiReasoningEffort)
-		: "medium"
+	const selectedEffort =
+		isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
+			? modeFields.reasoningEffort
+			: "medium"
 
 	return (
 		<div style={{ marginTop: 10, marginBottom: 5 }}>
