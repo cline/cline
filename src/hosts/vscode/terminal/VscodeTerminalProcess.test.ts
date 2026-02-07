@@ -439,4 +439,126 @@ describe("TerminalProcess (Integration Tests)", () => {
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 3 continued").should.be.true()
 		processAny.buffer.should.equal("")
 	})
+
+	describe("Exit code validation", () => {
+		it("should return undefined exit code initially", () => {
+			const exitCode = process.getExitCode()
+			;(exitCode === undefined).should.be.true()
+		})
+
+		it("should parse exit code 0 from OSC 633;D sequence", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// Mock shell integration with output containing exit code 0
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => ({
+					async *[Symbol.asyncIterator]() {
+						yield "some-uuid]633;Ctest output]633;D;0]633;P;Cwd=/test\n"
+					},
+				}),
+			})
+
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			await process.run(terminal, "echo test")
+
+			const exitCode = process.getExitCode()
+			exitCode!.should.equal(0)
+		})
+
+		it("should parse non-zero exit code from OSC 633;D sequence", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// Mock shell integration with output containing exit code 1
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => ({
+					async *[Symbol.asyncIterator]() {
+						yield "some-uuid]633;Cerror: command not found]633;D;1]633;P;Cwd=/test\n"
+					},
+				}),
+			})
+
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			await process.run(terminal, "invalid-command")
+
+			const exitCode = process.getExitCode()
+			exitCode!.should.equal(1)
+		})
+
+		it("should parse exit code 127 for command not found", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// Mock shell integration with output containing exit code 127
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => ({
+					async *[Symbol.asyncIterator]() {
+						yield "uuid]633;Cbash: nonexistent: command not found]633;D;127\n"
+					},
+				}),
+			})
+
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			await process.run(terminal, "nonexistent")
+
+			const exitCode = process.getExitCode()
+			exitCode!.should.equal(127)
+		})
+
+		it("should return undefined if no exit code sequence is present", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// Mock shell integration without exit code in output
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => ({
+					async *[Symbol.asyncIterator]() {
+						yield "test output without exit code\n"
+					},
+				}),
+			})
+
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			await process.run(terminal, "echo test")
+
+			const exitCode = process.getExitCode()
+			;(exitCode === undefined).should.be.true()
+		})
+
+		it("should handle multi-digit exit codes", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// Mock shell integration with exit code 255
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => ({
+					async *[Symbol.asyncIterator]() {
+						yield "uuid]633;Cfatal error]633;D;255\n"
+					},
+				}),
+			})
+
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			await process.run(terminal, "exit 255")
+
+			const exitCode = process.getExitCode()
+			exitCode!.should.equal(255)
+		})
+	})
 })

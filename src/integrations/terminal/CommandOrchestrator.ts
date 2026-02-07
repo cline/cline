@@ -88,6 +88,7 @@ export async function orchestrateCommandExecution(
 	let didContinue = false
 	let didCancelViaUi = false
 	let backgroundTrackingResult: OrchestrationResult | null = null // Set when background tracking returns early
+	let capturedExitCode: number | undefined // Exit code from the process
 
 	// Chunked terminal output buffering
 	let outputBuffer: string[] = []
@@ -363,6 +364,10 @@ export async function orchestrateCommandExecution(
 
 	process.once("completed", async () => {
 		completed = true
+		// Capture exit code from the process if available
+		if (process.getExitCode) {
+			capturedExitCode = process.getExitCode()
+		}
 		// Clear the completion timer
 		if (completionTimer) {
 			clearTimeout(completionTimer)
@@ -514,6 +519,7 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: capturedExitCode,
 		}
 	}
 
@@ -537,17 +543,30 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: capturedExitCode,
 		}
 	}
 
 	if (completed) {
 		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+		// Build result message based on exit code
+		let statusMsg: string
+		if (capturedExitCode !== undefined) {
+			if (capturedExitCode === 0) {
+				statusMsg = "Command executed successfully (exit code 0)."
+			} else {
+				statusMsg = `Command failed with exit code ${capturedExitCode}.`
+			}
+		} else {
+			statusMsg = "Command executed."
+		}
 		return {
 			userRejected: false,
-			result: `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
+			result: `${statusMsg}${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
 			completed: true,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: capturedExitCode,
 		}
 	} else {
 		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
@@ -559,6 +578,7 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: capturedExitCode,
 		}
 	}
 }
