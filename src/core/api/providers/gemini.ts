@@ -35,14 +35,13 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel {
 	switch (effort) {
 		case "low":
-			return ThinkingLevel.LOW
 		case "medium":
-			return ThinkingLevel.MEDIUM
+			return ThinkingLevel.LOW
 		case "high":
 		case "xhigh":
 			return ThinkingLevel.HIGH
 		default:
-			return ThinkingLevel.MEDIUM
+			return ThinkingLevel.LOW
 	}
 }
 
