@@ -1,3 +1,23 @@
+# Build and Pack CLI
+#
+# Builds a CLI tarball from any branch/commit and publishes it as a GitHub Release.
+# Requires write access to the repository (maintainers/collaborators only).
+#
+# Usage (helper script, auto-detects current branch):
+#   ./scripts/build-cli-artifact.sh
+#   ./scripts/build-cli-artifact.sh feature/my-changes
+#   ./scripts/build-cli-artifact.sh feature/my-changes 1234  # comments on PR
+#
+# Usage (gh CLI directly):
+#   gh workflow run pack-cli.yml -f ref=main
+#   gh workflow run pack-cli.yml -f ref=abc123 -f pr_number=1234
+#
+# Install the built CLI (no auth required):
+#   npm install -g https://github.com/cline/cline/releases/download/cli-build-<sha>/cline-<ver>.tgz
+#
+# Find releases:
+#   gh release list --limit 10
+
 name: Build and Pack CLI
 
 permissions:
