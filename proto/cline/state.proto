@@ -101,13 +101,15 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 47;
+  optional string openai_codex_oauth_credentials = 46;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 146; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
+
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -384,6 +386,7 @@ message UpdateTaskSettingsRequest {
 
 // Message for updating settings
 message UpdateSettingsRequest {
+  reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
   reserved 38; // was skills_enabled (removed - now always enabled)
 
@@ -400,7 +403,6 @@ message UpdateSettingsRequest {
   optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
