@@ -114,10 +114,6 @@ export interface SystemPromptContext {
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
-	readonly activePromptProfileId?: string
-	readonly activePromptProfileFilePath?: string
-	readonly activePromptProfileFingerprint?: string
-	readonly activePromptProfileInstructions?: string
 	readonly yoloModeToggled?: boolean
 	readonly clineWebToolsEnabled?: boolean
 	readonly isMultiRootEnabled?: boolean

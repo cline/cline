@@ -2,8 +2,6 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
-import fs from "node:fs/promises"
-import path from "node:path"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
@@ -56,48 +54,10 @@ interface TaskOptions {
 	cwd?: string
 	config?: string
 	thinking?: boolean
-	promptProfile?: string
-	promptFile?: string
 	yolo?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
-}
-
-async function applyPromptOverrideOptions(options: TaskOptions): Promise<void> {
-	const profileId = options.promptProfile?.trim()
-	const promptFile = options.promptFile?.trim()
-
-	if (!profileId && !promptFile) {
-		delete process.env.CLINE_PROMPT_PROFILE
-		delete process.env.CLINE_PROMPT_FILE
-		return
-	}
-
-	if (profileId) {
-		process.env.CLINE_PROMPT_PROFILE = profileId
-	} else {
-		delete process.env.CLINE_PROMPT_PROFILE
-	}
-
-	let resolvedPromptFile: string | undefined
-	if (promptFile) {
-		const baseDir = options.cwd || process.cwd()
-		resolvedPromptFile = path.isAbsolute(promptFile) ? promptFile : path.resolve(baseDir, promptFile)
-		try {
-			await fs.access(resolvedPromptFile)
-		} catch {
-			throw new Error(
-				`Prompt override file not found or not readable: ${resolvedPromptFile}. ` +
-					`Use an absolute path or a path relative to --cwd.`,
-			)
-		}
-		process.env.CLINE_PROMPT_FILE = resolvedPromptFile
-	} else {
-		delete process.env.CLINE_PROMPT_FILE
-	}
-
-	// Intentionally no direct stdout log here to avoid polluting piped/plain-text output.
 }
 
 /**
@@ -426,7 +386,6 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
  */
 async function runTask(prompt: string, options: TaskOptions & { images?: string[] }, existingContext?: CliContext) {
 	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
-	await applyPromptOverrideOptions(options)
 
 	// Parse images from the prompt text (e.g., @/path/to/image.png)
 	const { prompt: cleanPrompt, imagePaths: parsedImagePaths } = parseImagesFromInput(prompt)
@@ -688,8 +647,6 @@ program
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
-	.option("--prompt-profile <id>", "Label this run with a prompt profile ID for traceability")
-	.option("--prompt-file <path>", "Markdown file to inject as prompt profile instructions")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
@@ -825,7 +782,6 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  */
 async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
-	await applyPromptOverrideOptions(options)
 
 	// Validate task exists
 	const historyItem = findTaskInHistory(taskId)
@@ -880,7 +836,6 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
  */
 async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
-	await applyPromptOverrideOptions(options)
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
@@ -922,8 +877,6 @@ program
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
-	.option("--prompt-profile <id>", "Label this run with a prompt profile ID for traceability")
-	.option("--prompt-file <path>", "Markdown file to inject as prompt profile instructions")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")

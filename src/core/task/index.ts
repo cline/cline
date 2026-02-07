@@ -141,14 +141,6 @@ type TaskParams = {
 	taskLockAcquired: boolean
 }
 
-type PromptOverrideMetadata = {
-	profileId: string
-	profileFilePath?: string
-	profileFingerprint: string
-	profileInstructions?: string
-	loadWarning?: string
-}
-
 export class Task {
 	// Core task variables
 	readonly taskId: string
@@ -258,8 +250,6 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
-	private promptOverrideMetadata?: PromptOverrideMetadata
-	private promptOverrideMetadataLoaded = false
 
 	constructor(params: TaskParams) {
 		const {
@@ -1636,74 +1626,11 @@ export class Task {
 		return { model, providerId, customPrompt, mode }
 	}
 
-	private async loadPromptOverrideMetadata(): Promise<PromptOverrideMetadata | undefined> {
-		if (this.promptOverrideMetadataLoaded) {
-			return this.promptOverrideMetadata
-		}
-		this.promptOverrideMetadataLoaded = true
-
-		const rawProfileId = process.env.CLINE_PROMPT_PROFILE?.trim()
-		const rawPromptFilePath = process.env.CLINE_PROMPT_FILE?.trim()
-
-		if (!rawProfileId && !rawPromptFilePath) {
-			this.promptOverrideMetadata = undefined
-			return undefined
-		}
-
-		let resolvedPromptFilePath: string | undefined
-		let promptFileContent: string | undefined
-		let loadWarning: string | undefined
-
-		if (rawPromptFilePath) {
-			resolvedPromptFilePath = path.isAbsolute(rawPromptFilePath)
-				? rawPromptFilePath
-				: path.resolve(this.cwd, rawPromptFilePath)
-			try {
-				promptFileContent = (await fs.readFile(resolvedPromptFilePath, "utf8")).trim()
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error)
-				loadWarning = `Prompt override file could not be loaded: ${resolvedPromptFilePath} (${message})`
-			}
-		}
-
-		const profileId = rawProfileId || (resolvedPromptFilePath ? path.basename(resolvedPromptFilePath) : "ad-hoc")
-		const profileFingerprint = createHash("sha256")
-			.update([profileId, resolvedPromptFilePath || "", promptFileContent || ""].join("\n"))
-			.digest("hex")
-			.slice(0, 12)
-
-		const profileInstructions = promptFileContent
-			? [
-					"# Active Prompt Profile",
-					"",
-					"Use the following profile instructions as part of system-level behavior.",
-					`Profile: ${profileId}`,
-					resolvedPromptFilePath ? `Source: ${resolvedPromptFilePath}` : undefined,
-					`Fingerprint: ${profileFingerprint}`,
-					"",
-					"## Profile Instructions",
-					promptFileContent,
-				]
-					.filter(Boolean)
-					.join("\n")
-			: undefined
-
-		this.promptOverrideMetadata = {
-			profileId,
-			profileFilePath: resolvedPromptFilePath,
-			profileFingerprint,
-			profileInstructions,
-			loadWarning,
-		}
-		return this.promptOverrideMetadata
-	}
-
 	private async writePromptArtifacts(params: {
 		promptVariantFamily: string
 		systemPromptFingerprint: string
 		systemPrompt: string
 		providerInfo: ApiProviderInfo
-		promptOverrideMetadata?: PromptOverrideMetadata
 	}): Promise<void> {
 		const enabledFlag = process.env.CLINE_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
 		const enabled = enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes"
@@ -1725,7 +1652,6 @@ export class Task {
 			const baseName = `task-${this.taskId}-req-${this.taskState.apiRequestCount}-${safeTs}`
 			const manifestPath = path.join(artifactDir, `${baseName}.manifest.json`)
 			const systemPromptPath = path.join(artifactDir, `${baseName}.system_prompt.md`)
-			const profilePromptPath = path.join(artifactDir, `${baseName}.profile_prompt.md`)
 
 			const manifest = {
 				taskId: this.taskId,
@@ -1737,20 +1663,12 @@ export class Task {
 				mode: params.providerInfo.mode,
 				promptVariantFamily: params.promptVariantFamily,
 				systemPromptFingerprint: params.systemPromptFingerprint,
-				promptProfileId: params.promptOverrideMetadata?.profileId,
-				promptProfileFilePath: params.promptOverrideMetadata?.profileFilePath,
-				promptProfileFingerprint: params.promptOverrideMetadata?.profileFingerprint,
-				promptProfileLoadWarning: params.promptOverrideMetadata?.loadWarning,
 			}
 
 			const writes: Promise<unknown>[] = [
 				fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8"),
 				fs.writeFile(systemPromptPath, params.systemPrompt, "utf8"),
 			]
-
-			if (params.promptOverrideMetadata?.profileInstructions) {
-				writes.push(fs.writeFile(profilePromptPath, params.promptOverrideMetadata.profileInstructions, "utf8"))
-			}
 
 			await Promise.all(writes)
 
@@ -1855,23 +1773,6 @@ export class Task {
 			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
-		const promptOverrideMetadata = await this.loadPromptOverrideMetadata()
-		if (this.taskState.apiRequestCount === 1 && promptOverrideMetadata) {
-			await this.say(
-				"info",
-				[
-					`Prompt profile active: ${promptOverrideMetadata.profileId}`,
-					promptOverrideMetadata.profileFilePath ? `file=${promptOverrideMetadata.profileFilePath}` : undefined,
-					`fingerprint=${promptOverrideMetadata.profileFingerprint}`,
-				]
-					.filter(Boolean)
-					.join(" | "),
-			)
-
-			if (promptOverrideMetadata.loadWarning) {
-				await this.say("error", promptOverrideMetadata.loadWarning)
-			}
-		}
 
 		// Check CLI installation status only if subagents are enabled
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
@@ -1970,10 +1871,6 @@ export class Task {
 			localAgentsRulesFileInstructions,
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
-			activePromptProfileId: promptOverrideMetadata?.profileId,
-			activePromptProfileFilePath: promptOverrideMetadata?.profileFilePath,
-			activePromptProfileFingerprint: promptOverrideMetadata?.profileFingerprint,
-			activePromptProfileInstructions: promptOverrideMetadata?.profileInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			clineWebToolsEnabled:
@@ -2016,7 +1913,6 @@ export class Task {
 				systemPromptFingerprint,
 				systemPrompt,
 				providerInfo,
-				promptOverrideMetadata,
 			})
 		}
 
