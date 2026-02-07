@@ -16,8 +16,7 @@ export async function requestyAuthClicked(_: Controller, req: StringRequest): Pr
 		throw new Error("Invalid Requesty base URL")
 	}
 
-	const authUrl = new URL("oauth/authorize", baseUrl)
-	authUrl.searchParams.set("callback_url", callbackUrl)
+	const authUrl = new URL(`oauth/authorize?callback_url=${callbackUrl}`, baseUrl)
 
 	await openExternal(authUrl.toString())
 
