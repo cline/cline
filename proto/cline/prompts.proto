@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Enum for prompt types
+enum PromptType {
+  PROMPT_TYPE_UNSPECIFIED = 0;
+  PROMPT_TYPE_RULE = 1;
+  PROMPT_TYPE_WORKFLOW = 2;
+}
+
+// Message for a single prompt item
+message PromptItem {
+  string prompt_id = 1;
+  string github_url = 2;
+  string name = 3;
+  string author = 4;
+  string description = 5;
+  string category = 6;
+  repeated string tags = 7;
+  PromptType type = 8;
+  string content = 9;
+  string version = 10;
+  repeated string globs = 11;
+  string created_at = 12;
+  string updated_at = 13;
+}
+
+// Message for prompts catalog
+message PromptsCatalog {
+  repeated PromptItem items = 1;
+  string last_updated = 2;
+}
+
+// Message for a team prompt
+message TeamPrompt {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  string content = 5;
+  PromptType type = 6;
+  string category = 7;
+  repeated string tags = 8;
+  string author = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  bool shared = 12;
+}
+
+// Message for team prompts catalog
+message TeamPromptsCatalog {
+  repeated TeamPrompt items = 1;
+  string organization_id = 2;
+}
+
+// Request to apply a prompt
+message ApplyPromptRequest {
+  string prompt_id = 1;
+  PromptType type = 2;
+  string content = 3;
+  string name = 4;
+}
+
+// Request to remove a prompt
+message RemovePromptRequest {
+  string prompt_id = 1;
+  PromptType type = 2;
+  string name = 3;
+}
+
+// PromptsService provides methods for managing prompts library
+service PromptsService {
+  // Fetches the catalog of community prompts from GitHub
+  rpc fetchPromptsCatalog(EmptyRequest) returns (PromptsCatalog);
+
+  // Fetches team prompts for the user's organization
+  rpc getTeamPrompts(EmptyRequest) returns (TeamPromptsCatalog);
+
+  // Applies a prompt to the workspace
+  rpc applyPrompt(ApplyPromptRequest) returns (Boolean);
+
+  // Removes a prompt from the workspace
+  rpc removePrompt(RemovePromptRequest) returns (Boolean);
+
+  // Subscribe to prompts catalog updates
+  rpc subscribeToPromptsCatalog(EmptyRequest) returns (stream PromptsCatalog);
+
+  // Subscribe to team prompts updates
+  rpc subscribeToTeamPrompts(EmptyRequest) returns (stream TeamPromptsCatalog);
+}
