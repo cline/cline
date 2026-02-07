@@ -9,7 +9,7 @@ export function normalizeOpenaiReasoningEffort(
 	}
 
 	if (typeof effort === "string") {
-		return "medium"
+		return "low"
 	}
 
 	switch (effort) {
@@ -20,6 +20,6 @@ export function normalizeOpenaiReasoningEffort(
 		case ProtoOpenaiReasoningEffort.HIGH:
 			return "high"
 		default:
-			return "medium"
+			return "low"
 	}
 }

@@ -24,8 +24,8 @@ interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 }
 
 function normalizeReasoningEffort(effort?: string): "none" | "low" | "medium" | "high" | "xhigh" {
-	const value = (effort || "medium").toLowerCase()
-	return isOpenaiReasoningEffort(value) ? value : "medium"
+	const value = (effort || "low").toLowerCase()
+	return isOpenaiReasoningEffort(value) ? value : "low"
 }
 
 /**

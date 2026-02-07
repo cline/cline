@@ -64,7 +64,7 @@ function normalizeReasoningEffort(value: unknown): OpenaiReasoningEffort {
 	if (isOpenaiReasoningEffort(value)) {
 		return value
 	}
-	return "medium"
+	return "low"
 }
 
 function nextReasoningEffort(current: OpenaiReasoningEffort): OpenaiReasoningEffort {

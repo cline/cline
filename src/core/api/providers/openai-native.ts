@@ -28,7 +28,7 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 }
 
 function normalizeReasoningEffort(effort?: string): ChatCompletionReasoningEffort | "none" {
-	const value = (effort || "medium").toLowerCase()
+	const value = (effort || "low").toLowerCase()
 	switch (value) {
 		case "none":
 		case "low":
@@ -37,7 +37,7 @@ function normalizeReasoningEffort(effort?: string): ChatCompletionReasoningEffor
 		case "xhigh":
 			return value
 		default:
-			return "medium"
+			return "low"
 	}
 }
 

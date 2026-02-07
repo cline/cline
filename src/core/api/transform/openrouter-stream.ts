@@ -197,7 +197,7 @@ export async function createOpenRouterStream(
 		openRouterProviderSorting = undefined
 	}
 
-	const normalizedReasoningEffort = isOpenaiReasoningEffort(reasoningEffort) ? reasoningEffort : "medium"
+	const normalizedReasoningEffort = isOpenaiReasoningEffort(reasoningEffort) ? reasoningEffort : "low"
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
