@@ -1,5 +1,9 @@
 import { OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
-import { isOpenaiReasoningEffort, OpenaiReasoningEffort } from "@/shared/storage/types"
+import {
+	isOpenaiReasoningEffort,
+	normalizeOpenaiReasoningEffort as normalizeOpenaiReasoningEffortString,
+	OpenaiReasoningEffort,
+} from "@/shared/storage/types"
 
 export function normalizeOpenaiReasoningEffort(
 	effort: ProtoOpenaiReasoningEffort | OpenaiReasoningEffort | string,
@@ -9,7 +13,7 @@ export function normalizeOpenaiReasoningEffort(
 	}
 
 	if (typeof effort === "string") {
-		return "low"
+		return normalizeOpenaiReasoningEffortString(effort)
 	}
 
 	switch (effort) {
@@ -20,6 +24,6 @@ export function normalizeOpenaiReasoningEffort(
 		case ProtoOpenaiReasoningEffort.HIGH:
 			return "high"
 		default:
-			return "low"
+			return normalizeOpenaiReasoningEffortString()
 	}
 }

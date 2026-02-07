@@ -6,4 +6,9 @@ export function isOpenaiReasoningEffort(value: unknown): value is OpenaiReasonin
 	return typeof value === "string" && OPENAI_REASONING_EFFORT_OPTIONS.includes(value as OpenaiReasoningEffort)
 }
 
+export function normalizeOpenaiReasoningEffort(effort?: string): OpenaiReasoningEffort {
+	const value = (effort || "low").toLowerCase()
+	return isOpenaiReasoningEffort(value) ? value : "low"
+}
+
 export type Mode = "plan" | "act"

@@ -5,6 +5,7 @@ import {
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -25,20 +26,6 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	apiModelId?: string
-}
-
-function normalizeReasoningEffort(effort?: string): ChatCompletionReasoningEffort | "none" {
-	const value = (effort || "low").toLowerCase()
-	switch (value) {
-		case "none":
-		case "low":
-		case "medium":
-		case "high":
-		case "xhigh":
-			return value
-		default:
-			return "low"
-	}
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
@@ -121,8 +108,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const systemRole = model.info.systemRole ?? "system"
 		const includeReasoning = model.info.supportsReasoningEffort
 		const includeTools = model.info.supportsTools ?? true
-		const requestedEffort = normalizeReasoningEffort(this.options.reasoningEffort)
-		const reasoningEffort = includeReasoning && requestedEffort !== "none" ? requestedEffort : undefined
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const reasoningEffort =
+			includeReasoning && requestedEffort !== "none" ? (requestedEffort as ChatCompletionReasoningEffort) : undefined
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
@@ -186,7 +174,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		// const previous_response_id = lastAssistantMessage?.id
 
 		// Create the response using Responses API
-		const requestedEffort = normalizeReasoningEffort(this.options.reasoningEffort)
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
 		const reasoning: { effort: ChatCompletionReasoningEffort; summary: "auto" } | undefined =
 			requestedEffort === "none"
 				? undefined

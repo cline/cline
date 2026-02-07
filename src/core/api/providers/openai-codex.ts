@@ -1,5 +1,5 @@
 import { ModelInfo, OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
-import { isOpenaiReasoningEffort } from "@shared/storage/types"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
@@ -21,11 +21,6 @@ const CODEX_API_BASE_URL = "https://chatgpt.com/backend-api/codex"
 interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 	apiModelId?: string
-}
-
-function normalizeReasoningEffort(effort?: string): "none" | "low" | "medium" | "high" | "xhigh" {
-	const value = (effort || "low").toLowerCase()
-	return isOpenaiReasoningEffort(value) ? value : "low"
 }
 
 /**
@@ -145,7 +140,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		tools?: ChatCompletionTool[],
 	): any {
 		// Determine reasoning effort
-		const reasoningEffort = normalizeReasoningEffort(this.options.reasoningEffort)
+		const reasoningEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
 		const includeReasoning = reasoningEffort !== "none"
 
 		const body: any = {
