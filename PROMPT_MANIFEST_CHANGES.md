@@ -9,7 +9,7 @@ Make it easy to:
 ## High-Level Flow
 ```mermaid
 flowchart LR
-  U["User runs cline"] --> CLI["CLI options\n--prompt-profile\n--prompt-file\n--thinking-budget\n--reasoning-effort"]
+  U["User runs cline"] --> CLI["CLI options\n--prompt-profile\n--prompt-file"]
   CLI --> ENV["Set env hints\nCLINE_PROMPT_PROFILE\nCLINE_PROMPT_FILE"]
   ENV --> TASK["Task prompt resolver"]
   TASK --> MAN["Build Prompt Manifest\nprofile id, file path, fingerprints"]
@@ -28,9 +28,6 @@ File: `cli/src/index.ts`
 - Added optional flags on both `cline task` and default interactive command:
   - `--prompt-profile <id>`
   - `--prompt-file <path>`
-  - `--thinking-budget <tokens>`
-  - `--reasoning-effort <minimal|low|medium|high>`
-- Added validation for `--thinking-budget` and `--reasoning-effort`.
 - Added prompt override preparation that sets:
   - `CLINE_PROMPT_PROFILE`
   - `CLINE_PROMPT_FILE`
@@ -91,16 +88,6 @@ cline task "Fix failing tests" --prompt-profile exp-v1
 ### Override with a prompt file
 ```bash
 cline task "Fix failing tests" --prompt-profile exp-v2 --prompt-file ./prompts/exp-v2.md
-```
-
-### Keep same model/provider but change thinking budget
-```bash
-cline task "Fix failing tests" --thinking-budget 2048
-```
-
-### Set reasoning effort explicitly
-```bash
-cline task "Fix failing tests" --reasoning-effort high
 ```
 
 ### Persist exact prompts as artifacts

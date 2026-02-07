@@ -52,50 +52,16 @@ interface TaskOptions {
 	act?: boolean
 	plan?: boolean
 	model?: string
-	reasoningEffort?: string
 	verbose?: boolean
 	cwd?: string
 	config?: string
 	thinking?: boolean
-	thinkingBudget?: string
 	promptProfile?: string
 	promptFile?: string
 	yolo?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
-}
-
-const REASONING_EFFORT_VALUES = ["minimal", "low", "medium", "high"] as const
-type ReasoningEffortValue = (typeof REASONING_EFFORT_VALUES)[number]
-
-function parseThinkingBudget(options: TaskOptions): number {
-	if (options.thinkingBudget !== undefined) {
-		const parsed = Number.parseInt(options.thinkingBudget, 10)
-		if (!Number.isFinite(parsed) || parsed < 0) {
-			throw new Error(`Invalid --thinking-budget value '${options.thinkingBudget}'. Expected a non-negative integer.`)
-		}
-		return parsed
-	}
-
-	if (options.thinking) {
-		return 1024
-	}
-
-	return 0
-}
-
-function normalizeReasoningEffort(options: TaskOptions): ReasoningEffortValue | undefined {
-	if (!options.reasoningEffort) {
-		return undefined
-	}
-	const normalized = options.reasoningEffort.toLowerCase().trim()
-	if (!REASONING_EFFORT_VALUES.includes(normalized as ReasoningEffortValue)) {
-		throw new Error(
-			`Invalid --reasoning-effort value '${options.reasoningEffort}'. Expected one of: ${REASONING_EFFORT_VALUES.join(", ")}`,
-		)
-	}
-	return normalized as ReasoningEffortValue
 }
 
 async function applyPromptOverrideOptions(options: TaskOptions): Promise<void> {
@@ -160,23 +126,13 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
-	// Set thinking budget (explicit --thinking-budget overrides --thinking)
-	const thinkingBudget = parseThinkingBudget(options)
+	// Set thinking budget based on --thinking flag
+	const thinkingBudget = options.thinking ? 1024 : 0
 	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
 	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
 	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-	if (options.thinking || options.thinkingBudget !== undefined) {
-		telemetryService.captureHostEvent("thinking_budget_flag", String(thinkingBudget))
-	}
-
-	// Set reasoning effort for providers that honor it (OpenAI/OpenRouter/OCA-compatible paths)
-	const reasoningEffort = normalizeReasoningEffort(options)
-	if (reasoningEffort) {
-		const reasoningKey = currentMode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-		StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
-		// Keep this in sync for callers that still read the global setting
-		StateManager.get().setGlobalState("openaiReasoningEffort", reasoningEffort)
-		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
+	if (options.thinking) {
+		telemetryService.captureHostEvent("thinking_flag", "true")
 	}
 
 	// Set yolo mode based on --yolo flag
@@ -728,12 +684,10 @@ program
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
 	.option("-t, --timeout <seconds>", "Timeout in seconds for yes/yolo mode (default: 600)")
 	.option("-m, --model <model>", "Model to use for the task")
-	.option("--reasoning-effort <level>", "Reasoning effort (minimal|low|medium|high)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
-	.option("--thinking-budget <tokens>", "Set explicit thinking budget tokens (overrides --thinking)")
 	.option("--prompt-profile <id>", "Label this run with a prompt profile ID for traceability")
 	.option("--prompt-file <path>", "Markdown file to inject as prompt profile instructions")
 	.option("--json", "Output messages as JSON instead of styled text")
@@ -964,12 +918,10 @@ program
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
 	.option("-t, --timeout <seconds>", "Timeout in seconds for yolo mode (default: 600)")
 	.option("-m, --model <model>", "Model to use for the task")
-	.option("--reasoning-effort <level>", "Reasoning effort (minimal|low|medium|high)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
 	.option("--thinking", "Enable extended thinking (1024 token budget)")
-	.option("--thinking-budget <tokens>", "Set explicit thinking budget tokens (overrides --thinking)")
 	.option("--prompt-profile <id>", "Label this run with a prompt profile ID for traceability")
 	.option("--prompt-file <path>", "Markdown file to inject as prompt profile instructions")
 	.option("--json", "Output messages as JSON instead of styled text")
