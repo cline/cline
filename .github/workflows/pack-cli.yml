@@ -62,16 +62,8 @@ jobs:
         run: npm run protos
 
       - name: Build standalone package
-        env:
-          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
-          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
-          CLINE_ENVIRONMENT: production
-          OTEL_TELEMETRY_ENABLED: "1"
-          OTEL_METRICS_EXPORTER: otlp
-          OTEL_LOGS_EXPORTER: otlp
-          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
-          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        # No secrets injected - this workflow builds arbitrary refs, so secrets
+        # must not be exposed to untrusted code. Test builds work without them.
         run: node scripts/package-npm.mjs
 
       - name: Create Tarball
