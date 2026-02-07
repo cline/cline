@@ -62,6 +62,17 @@ interface TaskOptions {
 	stdinWasPiped?: boolean
 }
 
+function setModeScopedState(currentMode: "act" | "plan", setter: (mode: "act" | "plan") => void): void {
+	const stateManager = StateManager.get()
+	setter(currentMode)
+
+	const separateModels = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false
+	if (!separateModels) {
+		const otherMode: "act" | "plan" = currentMode === "act" ? "plan" : "act"
+		setter(otherMode)
+	}
+}
+
 function normalizeReasoningEffort(value?: string): OpenaiReasoningEffort | undefined {
 	if (value === undefined) {
 		return undefined
@@ -106,17 +117,21 @@ function applyTaskOptions(options: TaskOptions): void {
 
 	// Set thinking budget based on --thinking flag
 	const thinkingBudget = options.thinking ? 1024 : 0
-	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
-	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+	setModeScopedState(currentMode, (mode) => {
+		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+		StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+	})
 	if (options.thinking) {
 		telemetryService.captureHostEvent("thinking_flag", "true")
 	}
 
 	const reasoningEffort = normalizeReasoningEffort(options.reasoningEffort)
 	if (reasoningEffort !== undefined) {
-		const reasoningKey = currentMode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-		StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+		setModeScopedState(currentMode, (mode) => {
+			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+			StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
