@@ -71,12 +71,7 @@ import {
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
 import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
-import {
-	findDeploymentIdForModel,
-	getSapAiCoreModels,
-	type SapAiCoreCredentials,
-	type SapAiCoreModelItem,
-} from "../utils/sapaicore-models"
+import { getSapAiCoreModels, type SapAiCoreCredentials, type SapAiCoreModelItem } from "../utils/sapaicore-models"
 import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Map providers to their static model lists and defaults
@@ -314,9 +309,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
 					items={items}
 					onSelect={(item) => {
 						onChange(item.id)
-						// For SAP AI Core, also pass deployment ID if available
-						const deploymentId = findDeploymentIdForModel(sapAiCoreModelItems, item.id)
-						onSubmit(item.id, deploymentId)
+						onSubmit(item.id, item.data?.deploymentId as string | undefined)
 					}}
 				/>
 			</Box>
@@ -334,14 +327,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
 			items={items}
 			onSelect={(item) => {
 				onChange(item.id)
-				// For SAP AI Core, also pass deployment ID if available
-				// Reference: commit 973660a57
-				if (provider === "sapaicore") {
-					const deploymentId = findDeploymentIdForModel(sapAiCoreModelItems, item.id)
-					onSubmit(item.id, deploymentId)
-				} else {
-					onSubmit(item.id)
-				}
+				onSubmit(item.id, item.data?.deploymentId as string | undefined)
 			}}
 		/>
 	)
