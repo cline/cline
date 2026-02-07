@@ -352,7 +352,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus: boolean = false) => {
+		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
 			// Show the webview
@@ -581,7 +581,20 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
+	const getCallbackUrl = async () => {
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			// In VS Code Web (code serve-web), vscode:// URIs redirect to the desktop app
+			// instead of staying in the browser. Use an HTTP-based callback server instead,
+			// which the browser can navigate to directly after auth completes.
+			const { AuthHandler } = await import("@/hosts/external/AuthHandler")
+			const authHandler = AuthHandler.getInstance()
+			authHandler.setEnabled(true)
+			return authHandler.getCallbackUrl()
+		}
+		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
+		const baseUri = vscode.Uri.parse(`${vscode.env.uriScheme || "vscode"}://${context.extension.id}`)
+		return baseUri.toString(true)
+	}
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
