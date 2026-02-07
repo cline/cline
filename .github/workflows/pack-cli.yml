@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Branch, tag, or commit SHA to build (leave empty for current branch)'
+        description: 'Branch, tag, or commit SHA to build (leave empty for default branch)'
         required: false
         type: string
       pr_number:
@@ -92,6 +92,29 @@ jobs:
             const commit = '${{ steps.commit.outputs.sha }}';
             const tarball = '${{ steps.pack.outputs.tarball }}';
             
+            // Delete existing release/tag if re-running for the same commit
+            const tagName = `cli-build-${commit}`;
+            try {
+              const existing = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tagName
+              });
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: existing.data.id
+              });
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${tagName}`
+              });
+              core.info(`Deleted existing release for ${tagName}`);
+            } catch (e) {
+              // Release doesn't exist yet, that's fine
+            }
+
             // Create a release
             const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
@@ -150,7 +173,7 @@ jobs:
             📦 [View Release](${releaseUrl})
             `;
             
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,

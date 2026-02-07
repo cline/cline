@@ -97,7 +97,7 @@ You can build a CLI tarball from any branch or commit for testing purposes using
 
 **Using GitHub CLI directly:**
 ```bash
-# Build from current branch
+# Build from default branch
 gh workflow run pack-cli.yml
 
 # Build from specific ref

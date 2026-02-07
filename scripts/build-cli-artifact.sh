@@ -12,26 +12,22 @@
 
 set -e
 
-REF="${1:-}"
+REF="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 PR_NUMBER="${2:-}"
 
 echo "🚀 Triggering CLI build workflow..."
+echo "   Branch/commit: $REF"
 
-# Build the gh workflow run command
-CMD="gh workflow run pack-cli.yml"
-
-if [ -n "$REF" ]; then
-  CMD="$CMD -f ref=$REF"
-  echo "   Branch/commit: $REF"
-fi
+# Build args array
+ARGS=(-f "ref=$REF")
 
 if [ -n "$PR_NUMBER" ]; then
-  CMD="$CMD -f pr_number=$PR_NUMBER"
+  ARGS+=(-f "pr_number=$PR_NUMBER")
   echo "   Will comment on PR #$PR_NUMBER"
 fi
 
 # Trigger the workflow
-eval $CMD
+gh workflow run pack-cli.yml "${ARGS[@]}"
 
 echo ""
 echo "✅ Workflow triggered!"
