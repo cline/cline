@@ -15,7 +15,7 @@ describe("ExecuteCommandToolHandler timeout policy", () => {
 
 	it("falls back to default timeout for short commands", () => {
 		const timeout = resolveCommandTimeoutSeconds("ls -la", undefined, true)
-		assert.equal(timeout, 120)
+		assert.equal(timeout, 30)
 	})
 
 	it("uses extended timeout for known long-running commands", () => {
