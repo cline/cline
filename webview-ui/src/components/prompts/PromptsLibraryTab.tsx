@@ -69,7 +69,6 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 	// Show toast notification
 	const showToast = (message: string, type: "success" | "error") => {
 		setToastMessage({ message, type })
-		setTimeout(() => setToastMessage(null), 5000)
 	}
 
 	const handleApplyPrompt = async (promptId: string, type: string, content: string, name: string) => {
@@ -135,6 +134,21 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 			return () => clearTimeout(timer)
 		}
 	}, [toastMessage])
+
+	// Fetch applied prompts on mount
+	useEffect(() => {
+		const fetchAppliedPrompts = async () => {
+			try {
+				const result = await PromptsServiceClient.getAppliedPrompts({})
+				if (result.values) {
+					setAppliedPrompts(new Set(result.values))
+				}
+			} catch (error) {
+				console.error("Error fetching applied prompts:", error)
+			}
+		}
+		fetchAppliedPrompts()
+	}, [])
 
 	if (!catalog.items || catalog.items.length === 0) {
 		return (

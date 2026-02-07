@@ -94,4 +94,7 @@ service PromptsService {
 
   // Subscribe to team prompts updates
   rpc subscribeToTeamPrompts(EmptyRequest) returns (stream TeamPromptsCatalog);
+
+  // Gets the list of currently applied prompt IDs
+  rpc getAppliedPrompts(EmptyRequest) returns (StringArray);
 }
