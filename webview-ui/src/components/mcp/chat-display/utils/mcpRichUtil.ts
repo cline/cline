@@ -394,14 +394,17 @@ export const buildDisplaySegments = (responseText: string, urlMatches: UrlMatch[
 			})
 		}
 
-		// Add the URL text itself (truncate data URIs since they're very long)
-		const isDataUri = url.startsWith("data:")
-		const urlContent = isDataUri ? truncateSingleDataUri(fullMatch) : fullMatch
-		segments.push({
-			type: "url",
-			content: urlContent,
-			key: `url-${segmentIndex++}`,
-		})
+		// Add the URL text itself, but skip for data:image URIs since the image will be displayed
+		// and showing the base64 string as text is unusable
+		if (!url.startsWith("data:image/")) {
+			const isDataUri = url.startsWith("data:")
+			const urlContent = isDataUri ? truncateSingleDataUri(fullMatch) : fullMatch
+			segments.push({
+				type: "url",
+				content: urlContent,
+				key: `url-${segmentIndex++}`,
+			})
+		}
 
 		// Add embedded content after the URL
 		if (match.isImage) {
