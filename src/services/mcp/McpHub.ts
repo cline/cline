@@ -661,8 +661,10 @@ export class McpHub {
 				return []
 			}
 
+			// Use server's configured timeout (in seconds) or default, convert to ms
+			const timeoutMs = (connection.server.timeout || DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: timeoutMs,
 			})
 
 			// Get autoApprove settings
@@ -693,8 +695,10 @@ export class McpHub {
 				return []
 			}
 
+			// Use server's configured timeout (in seconds) or default, convert to ms
+			const timeoutMs = (connection.server.timeout || DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: timeoutMs,
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -712,11 +716,13 @@ export class McpHub {
 				return []
 			}
 
+			// Use server's configured timeout (in seconds) or default, convert to ms
+			const timeoutMs = (connection.server.timeout || DEFAULT_MCP_TIMEOUT_SECONDS) * 1000
 			const response = await connection.client.request(
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: timeoutMs,
 				},
 			)
 
