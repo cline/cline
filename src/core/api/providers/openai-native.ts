@@ -5,6 +5,7 @@ import {
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -105,11 +106,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 
 		const systemRole = model.info.systemRole ?? "system"
-		const includeReasoning = this.options.thinkingBudgetTokens && model.info.supportsReasoningEffort
+		const includeReasoning = model.info.supportsReasoningEffort
 		const includeTools = model.info.supportsTools ?? true
-		const reasoningEffort = includeReasoning
-			? (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
-			: undefined
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const reasoningEffort =
+			includeReasoning && requestedEffort !== "none" ? (requestedEffort as ChatCompletionReasoningEffort) : undefined
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
@@ -173,6 +174,15 @@ export class OpenAiNativeHandler implements ApiHandler {
 		// const previous_response_id = lastAssistantMessage?.id
 
 		// Create the response using Responses API
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const reasoning: { effort: ChatCompletionReasoningEffort; summary: "auto" } | undefined =
+			requestedEffort === "none"
+				? undefined
+				: {
+						effort: requestedEffort,
+						summary: "auto",
+					}
+
 		const stream = await client.responses.create({
 			model: model.id,
 			instructions: systemPrompt,
@@ -181,7 +191,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			tools: responseTools,
 			// previous_response_id,
 			// store: true,
-			reasoning: { effort: "medium", summary: "auto" },
+			...(reasoning ? { reasoning } : {}),
 			// include: ["reasoning.encrypted_content"],
 		})
 

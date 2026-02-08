@@ -8,6 +8,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -50,9 +51,6 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
-
-	const geminiThinkingLevel =
-		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
 
 	return (
 		<div
@@ -141,25 +139,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					)}
 
 					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
-						<DropdownContainer className="dropdown-container" style={{ marginTop: "8px" }} zIndex={1}>
-							<label htmlFor="thinking-level">
-								<span style={{ fontWeight: 500 }}>Thinking Level</span>
-							</label>
-							<VSCodeDropdown
-								className="w-full"
-								id="thinking-level"
-								onChange={(e: any) =>
-									handleModeFieldChange(
-										{ plan: "geminiPlanModeThinkingLevel", act: "geminiActModeThinkingLevel" },
-										e.target.value,
-										currentMode,
-									)
-								}
-								value={geminiThinkingLevel || "high"}>
-								<VSCodeOption value="low">Low</VSCodeOption>
-								<VSCodeOption value="high">High</VSCodeOption>
-							</VSCodeDropdown>
-						</DropdownContainer>
+						<ReasoningEffortSelector currentMode={currentMode} />
 					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />

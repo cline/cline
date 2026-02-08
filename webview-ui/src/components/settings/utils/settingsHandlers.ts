@@ -1,4 +1,4 @@
-import { McpDisplayMode, OpenaiReasoningEffort, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { McpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { StateServiceClient } from "@/services/grpc-client"
 
 /**
@@ -9,20 +9,7 @@ import { StateServiceClient } from "@/services/grpc-client"
  * @throws Error if the value is invalid for the field
  */
 const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): any => {
-	if (field === "openaiReasoningEffort" && typeof value === "string") {
-		switch (value) {
-			case "minimal":
-				return OpenaiReasoningEffort.MINIMAL
-			case "low":
-				return OpenaiReasoningEffort.LOW
-			case "medium":
-				return OpenaiReasoningEffort.MEDIUM
-			case "high":
-				return OpenaiReasoningEffort.HIGH
-			default:
-				throw new Error(`Invalid OpenAI reasoning effort value: ${value}`)
-		}
-	} else if (field === "mcpDisplayMode" && typeof value === "string") {
+	if (field === "mcpDisplayMode" && typeof value === "string") {
 		switch (value) {
 			case "rich":
 				return McpDisplayMode.RICH

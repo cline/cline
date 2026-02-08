@@ -7,6 +7,7 @@ import {
 	fromProtobufOcaModelInfo,
 	fromProtobufOpenAiCompatibleModelInfo,
 } from "@shared/proto-conversions/models/typeConversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { buildApiHandler } from "@/core/api"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
@@ -113,6 +114,8 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			geminiPlanModeThinkingLevel: protoApiConfiguration.geminiPlanModeThinkingLevel,
 			geminiActModeThinkingLevel: protoApiConfiguration.geminiActModeThinkingLevel,
+			planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
+			actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		}
 
 		// Update the API configuration in storage
