@@ -15,7 +15,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
@@ -254,11 +254,11 @@ const USER_SETTINGS_FIELDS = {
 	subagentTerminalOutputLineLimit: { default: 2000 as number },
 	strictPlanModeEnabled: { default: false as boolean },
 	yoloModeToggled: { default: false as boolean },
+	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
-	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
 	mode: { default: "act" as Mode },
 	dictationSettings: {
 		default: DEFAULT_DICTATION_SETTINGS as DictationSettings,
@@ -270,7 +270,6 @@ const USER_SETTINGS_FIELDS = {
 	subagentsEnabled: { default: false as boolean },
 	enableParallelToolCalling: { default: true as boolean },
 	backgroundEditEnabled: { default: false as boolean },
-	skillsEnabled: { default: true as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 
 	// OpenTelemetry configuration
@@ -344,6 +343,7 @@ const SECRETS_KEYS = [
 	"ocaApiKey",
 	"ocaRefreshToken",
 	"mcpOAuthSecrets",
+	"openai-codex-oauth-credentials", // JSON blob containing OAuth tokens for OpenAI Codex (ChatGPT subscription)
 ] as const
 
 export const LocalStateKeys = [

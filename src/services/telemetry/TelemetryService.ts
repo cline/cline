@@ -164,6 +164,7 @@ export class TelemetryService {
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			OPT_IN: "user.opt_in",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
@@ -322,6 +323,10 @@ export class TelemetryService {
 			// Tracks when a worktree merge is attempted
 			MERGE_ATTEMPTED: "worktree.merge_attempted",
 		},
+		HOST: {
+			// Tracks events detected from the host environment
+			DETECTED: "host.detected",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -390,11 +395,23 @@ export class TelemetryService {
 					})
 			}
 		}
+	}
 
-		// Update all providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
+	/**
+	 * Captures when a user explicitly opts out of telemetry.
+	 * Uses captureRequired to ensure the event is sent before telemetry is disabled.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptOut(): void {
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+	}
+
+	/**
+	 * Captures when a user explicitly opts back into telemetry.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptIn(): void {
+		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
 	}
 
 	/**
@@ -1977,7 +1994,6 @@ export class TelemetryService {
 		return this.providers.length > 0
 			? this.providers[0].getSettings()
 			: {
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off" as const,
 				}
@@ -2228,6 +2244,16 @@ export class TelemetryService {
 				workspaceCount,
 				totalCount: globalCount + workspaceCount,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	public captureHostEvent(name: string, content: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.HOST.DETECTED,
+			properties: {
+				name,
+				content,
 			},
 		})
 	}

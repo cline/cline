@@ -3,6 +3,7 @@ import * as http from "http"
 import { URL } from "url"
 import type { ExtensionContext } from "vscode"
 import { z } from "zod"
+import { StateManager } from "@/core/storage/StateManager"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
@@ -25,7 +26,7 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 	callbackPort: 1455,
 } as const
 
-// Token storage key
+// Token storage key - must match the key in SECRETS_KEYS (state-keys.ts)
 const OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
 
 // Credentials schema
@@ -386,7 +387,7 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Load credentials from storage
+	 * Load credentials from storage via StateManager.
 	 */
 	async loadCredentials(): Promise<OpenAiCodexCredentials | null> {
 		if (!this.context) {
@@ -394,7 +395,9 @@ export class OpenAiCodexOAuthManager {
 		}
 
 		try {
-			const credentialsJson = await this.context.secrets.get(OPENAI_CODEX_CREDENTIALS_KEY)
+			const stateManager = StateManager.get()
+			const credentialsJson = stateManager.getSecretKey("openai-codex-oauth-credentials")
+
 			if (!credentialsJson) {
 				return null
 			}
@@ -409,14 +412,16 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Save credentials to storage
+	 * Save credentials to storage via StateManager
 	 */
 	async saveCredentials(credentials: OpenAiCodexCredentials): Promise<void> {
 		if (!this.context) {
 			throw new Error("OAuth manager not initialized")
 		}
 
-		await this.context.secrets.store(OPENAI_CODEX_CREDENTIALS_KEY, JSON.stringify(credentials))
+		const stateManager = StateManager.get()
+		stateManager.setSecret("openai-codex-oauth-credentials", JSON.stringify(credentials))
+		await stateManager.flushPendingState()
 		this.credentials = credentials
 	}
 
@@ -428,7 +433,9 @@ export class OpenAiCodexOAuthManager {
 			return
 		}
 
-		await this.context.secrets.delete(OPENAI_CODEX_CREDENTIALS_KEY)
+		const stateManager = StateManager.get()
+		stateManager.setSecret("openai-codex-oauth-credentials", undefined)
+		await stateManager.flushPendingState()
 		this.credentials = null
 	}
 
@@ -494,11 +501,16 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Check if the user is authenticated
+	 * Check if the user has stored credentials (i.e. has completed auth).
+	 * This intentionally does NOT attempt a token refresh so that transient
+	 * network failures or expired-but-refreshable tokens don't cause the
+	 * CLI to bounce the user back to the onboarding flow.
 	 */
 	async isAuthenticated(): Promise<boolean> {
-		const token = await this.getAccessToken()
-		return token !== null
+		if (!this.credentials) {
+			await this.loadCredentials()
+		}
+		return this.credentials !== null
 	}
 
 	/**

@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -28,58 +28,59 @@
 		"rules": {
 			"recommended": true,
 			"correctness": {
-				"useExhaustiveDependencies": "off",
+				"useExhaustiveDependencies": "info",
 				"noUndeclaredVariables": "off",
-				"noEmptyPattern": "off",
+				"noEmptyPattern": "info",
 				"useJsxKeyInIterable": "off",
 				"noInnerDeclarations": "off",
-				"useHookAtTopLevel": "off",
-				"useYield": "off",
+				"useHookAtTopLevel": "info",
+				"useYield": "info",
 				"noConstructorReturn": "off",
 				"noInvalidPositionAtImportRule": "off",
 				"noSwitchDeclarations": "off",
 				"noUnusedImports": "error"
 			},
-			"a11y": "off",
+			"a11y": "info",
 			"style": {
 				"useNodejsImportProtocol": "off",
 				"useImportType": "off",
-				"useBlockStatements": "warn",
+				"useBlockStatements": "off",
 				"useNamingConvention": "off",
 				"useThrowOnlyError": "info",
 				"useConsistentArrayType": "off",
 				"noParameterAssign": "off",
 				"useAsConstAssertion": "off",
 				"useDefaultParameterLast": "off",
-				"noNonNullAssertion": "off",
+				"noNonNullAssertion": "info",
 				"useEnumInitializers": "off",
-				"useSelfClosingElements": "off",
+				"useSelfClosingElements": "info",
 				"useSingleVarDeclarator": "off",
-				"useNumberNamespace": "off",
-				"noInferrableTypes": "off",
-				"useTemplate": "off",
-				"noUselessElse": "off"
+				"useNumberNamespace": "info",
+				"noInferrableTypes": "info",
+				"useTemplate": "info",
+				"noUselessElse": "info"
 			},
 			"suspicious": {
 				"noDoubleEquals": "warn",
 				"noImplicitAnyLet": "info",
 				"noThenProperty": "off",
-				"noAsyncPromiseExecutor": "off",
+				"noAsyncPromiseExecutor": "info",
 				"noImportAssign": "off",
-				"noExplicitAny": "off",
-				"noControlCharactersInRegex": "off",
+				"noExplicitAny": "info",
+				"noControlCharactersInRegex": "warn",
 				"noShadowRestrictedNames": "off",
 				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "info"
+				"noAssignInExpressions": "info",
+				"useIterableCallbackReturn": "info"
 			},
 			"complexity": {
-				"noUselessConstructor": "off",
-				"useOptionalChain": "off",
-				"noBannedTypes": "off",
-				"useLiteralKeys": "off",
-				"noUselessCatch": "off",
-				"noUselessSwitchCase": "off",
-				"noStaticOnlyClass": "off"
+				"noUselessConstructor": "info",
+				"useOptionalChain": "info",
+				"noBannedTypes": "warn",
+				"useLiteralKeys": "info",
+				"noUselessCatch": "info",
+				"noUselessSwitchCase": "info",
+				"noStaticOnlyClass": "info"
 			},
 			"security": {
 				"noDangerouslySetInnerHtml": "info"
@@ -93,6 +94,11 @@
 		"lineWidth": 130,
 		"lineEnding": "lf",
 		"formatWithErrors": true
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
 	},
 	"javascript": {
 		"formatter": {
@@ -112,19 +118,21 @@
 		}
 	},
 	"files": {
+		"ignoreUnknown": true,
 		"includes": [
 			"**",
-			"!**/dist",
-			"!**/dist-*",
-			"!**/out",
-			"!**/evals",
-			"!**/playwright",
-			"!**/test-results",
-			"!**/node_modules",
-			"!**/webview-ui/build",
-			"!**/generated",
-			"!**/proto",
-			"!**/tests/specs"
+			// explicitly force files to be ignored by the scanner with !!
+			"!!**/dist",
+			"!!**/dist-*",
+			"!!**/out",
+			"!!**/evals",
+			"!!**/playwright",
+			"!!**/test-results",
+			"!!**/node_modules",
+			"!!**/webview-ui/build",
+			"!!**/generated",
+			"!!**/proto",
+			"!!**/tests/specs"
 		]
 	},
 	"plugins": [
@@ -134,14 +142,15 @@
 		{
 			"includes": [
 				"**",
-				"!**/hosts/vscode/**",
-				"!**/test/**",
-				"!**/*.test.ts",
-				"!src/dev/**",
-				"!src/extension.ts",
-				"!src/integrations/git/commit-message-generator.ts",
-				"!src/integrations/terminal/**",
-				"!src/core/controller/ui/openWalkthrough.ts"
+				"!!**/dist",
+				"!!**/hosts/vscode/**",
+				"!!**/test/**",
+				"!!**/*.test.ts",
+				"!!src/dev/**",
+				"!!src/extension.ts",
+				"!!src/integrations/git/commit-message-generator.ts",
+				"!!src/integrations/terminal/**",
+				"!!src/core/controller/ui/openWalkthrough.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"
@@ -154,32 +163,37 @@
 			],
 			"includes": [
 				"**",
-				"!**/webview-ui/**",
-				"!**/evals/**",
-				"!**/standalone/**",
-				"!**/e2e/**",
-				"!**/test/**",
-				"!**/__tests__/**",
-				"!**/*.test.ts",
-				"!**/*.stories.ts",
-				"!src/dev/**",
-				"!**/*.mjs",
-				"!**/*.js",
-				"!**/scripts/**",
-				"!**/*.tsx",
-				"!**/testing-platform/**"
+				"!!**/esbuild.*",
+				"!!**/*.mts",
+				"!!**/webview-ui/**",
+				"!!**/evals/**",
+				"!!**/standalone/**",
+				"!!**/cli/**",
+				"!!**/e2e/**",
+				"!!**/test/**",
+				"!!**/__tests__/**",
+				"!!**/*.test.ts",
+				"!!**/*.stories.ts",
+				"!!src/dev/**",
+				"!!**/*.mjs",
+				"!!**/*.js",
+				"!!**/scripts/**",
+				"!!**/*.tsx",
+				"!!**/testing-platform/**",
+				// ACP mode must redirect console to stderr - this is intentional
+				"!!cli/src/acp/index.ts"
 			]
 		},
 		{
 			"includes": [
 				"**",
-				"!src/core/storage/state-migrations.ts",
-				"!src/core/storage/FileContextTracker.ts",
-				"!src/core/context/context-tracking/FileContextTracker.ts",
-				"!src/common.ts",
-				"!src/services/logging/distinctId.ts",
-				"!src/core/storage/utils/state-helpers.ts",
-				"!src/extension.ts"
+				"!!src/core/storage/state-migrations.ts",
+				"!!src/core/storage/FileContextTracker.ts",
+				"!!src/core/context/context-tracking/FileContextTracker.ts",
+				"!!src/common.ts",
+				"!!src/services/logging/distinctId.ts",
+				"!!src/core/storage/utils/state-helpers.ts",
+				"!!src/extension.ts"
 			],
 			"plugins": [
 				"src/dev/grit/use-cache-service.grit"

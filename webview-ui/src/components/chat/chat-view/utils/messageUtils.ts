@@ -4,7 +4,7 @@
 
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
 import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
 
 /**
@@ -51,7 +51,7 @@ export function processMessages(messages: ClineMessage[]): ClineMessage[] {
  * Filter messages that should be visible in the chat
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
-	return messages.filter((message) => {
+	return messages.filter((message, index, arr) => {
 		switch (message.ask) {
 			case "completion_result":
 				// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if cline wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
@@ -71,10 +71,20 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
-			case "api_req_started":
-				// Keep api_req_started visible so the Brain "thinking" UI can remain above
-				// subsequent tool/text output (especially for non-exploratory operations).
-				break
+			case "api_req_started": {
+				// api_req_started rows only render visible content for errors/cancels.
+				// Reasoning has its own standalone ChatRows. Everything else renders
+				// as invisible padding. Filter out unless there's an error.
+				try {
+					const info = JSON.parse(message.text || "{}")
+					if (info.cancelReason || info.streamingFailedMessage) {
+						break // keep - has error content
+					}
+				} catch {
+					break // keep on parse error to be safe
+				}
+				return false
+			}
 			case "text":
 				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
 				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
@@ -462,11 +472,10 @@ export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessag
 
 		// Tool group is in-flight if AFTER prevCompleted AND BEFORE current
 		return toolIndex > prevCompletedApiReqIndex && toolIndex < mostRecentApiReqIndex
-	} else {
-		// CASE B: Most recent api_req is COMPLETE (has cost)
-		// Tool group is in-flight if it appears AFTER this completed api_req (just arrived)
-		return toolIndex > mostRecentApiReqIndex
 	}
+	// CASE B: Most recent api_req is COMPLETE (has cost)
+	// Tool group is in-flight if it appears AFTER this completed api_req (just arrived)
+	return toolIndex > mostRecentApiReqIndex
 }
 
 /**
@@ -566,34 +575,33 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 			// Keep completed tools (say === 'tool')
 			return true
 		})
-	} else {
-		// CASE B: Most recent api_req is COMPLETE (has cost)
-		// Tools that appear AFTER this completed api_req are "in flight" (just arrived)
-		// Filter them out so they appear in currentActivities instead
+	}
+	// CASE B: Most recent api_req is COMPLETE (has cost)
+	// Tools that appear AFTER this completed api_req are "in flight" (just arrived)
+	// Filter them out so they appear in currentActivities instead
 
-		return toolGroupMessages.filter((msg) => {
-			// Keep non-low-stakes tools
-			if (!isLowStakesTool(msg)) {
+	return toolGroupMessages.filter((msg) => {
+		// Keep non-low-stakes tools
+		if (!isLowStakesTool(msg)) {
+			return true
+		}
+
+		// Filter out only tools awaiting approval (ask === 'tool')
+		// Completed tools (say === 'tool') should still be shown
+		if (msg.ask === "tool") {
+			const toolIndex = tsToIndex.get(msg.ts)
+			if (toolIndex === undefined) {
 				return true
 			}
+			// Tool is in "current activities" if it appears AFTER the most recent api_req
+			const isInCurrentActivitiesRange = toolIndex > mostRecentApiReqIndex
+			// Filter out if in current activities range
+			return !isInCurrentActivitiesRange
+		}
 
-			// Filter out only tools awaiting approval (ask === 'tool')
-			// Completed tools (say === 'tool') should still be shown
-			if (msg.ask === "tool") {
-				const toolIndex = tsToIndex.get(msg.ts)
-				if (toolIndex === undefined) {
-					return true
-				}
-				// Tool is in "current activities" if it appears AFTER the most recent api_req
-				const isInCurrentActivitiesRange = toolIndex > mostRecentApiReqIndex
-				// Filter out if in current activities range
-				return !isInCurrentActivitiesRange
-			}
-
-			// Keep completed tools (say === 'tool')
-			return true
-		})
-	}
+		// Keep completed tools (say === 'tool')
+		return true
+	})
 }
 
 /**

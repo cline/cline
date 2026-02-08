@@ -99,6 +99,16 @@ export const LiteLLMSchema = z.object({
 	baseUrl: z.string().optional(),
 })
 
+export const AnthropicModelSchema = z.object({
+	id: z.string(),
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+export const AnthropicSchema = z.object({
+	models: z.array(AnthropicModelSchema).optional(),
+	baseUrl: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
@@ -107,6 +117,7 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 	Vertex: VertexSettingsSchema.optional(),
 	LiteLLM: LiteLLMSchema.optional(),
+	Anthropic: AnthropicSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
@@ -150,8 +161,9 @@ export const S3AccessKeySettingsSchema = z.object({
 
 export const PromptUploadingSchema = z.object({
 	enabled: z.boolean().optional(),
-	type: z.literal("s3_access_keys").optional(),
+	type: z.union([z.literal("s3_access_keys"), z.literal("r2_access_keys")]).optional(),
 	s3AccessSettings: S3AccessKeySettingsSchema.optional(),
+	r2AccessSettings: S3AccessKeySettingsSchema.optional(),
 })
 
 export const EnterpriseTelemetrySchema = z.object({
@@ -233,6 +245,9 @@ export type VertexModel = z.infer<typeof VertexModelSchema>
 
 export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
 export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
+
+export type AnthropicSettings = z.infer<typeof AnthropicSchema>
+export type AnthropicModel = z.infer<typeof AnthropicModelSchema>
 
 export type APIKeySettings = z.infer<typeof APIKeySchema>
 

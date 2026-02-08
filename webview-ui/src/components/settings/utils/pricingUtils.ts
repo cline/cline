@@ -54,3 +54,19 @@ export const supportsPromptCache = (modelInfo: ModelInfo): boolean => {
 export const formatTokenLimit = (limit: number): string => {
 	return limit.toLocaleString()
 }
+
+/**
+ * Parses a price input string to a number, handling edge cases like
+ * incomplete decimals (e.g., ".", ".5", "0.") gracefully.
+ *
+ * @param value - The input string to parse
+ * @param defaultValue - The fallback value if input is empty or invalid
+ * @returns A valid number, or the default value if parsing fails
+ */
+export const parsePrice = (value: string, defaultValue: number): number => {
+	if (value === "" || value === ".") {
+		return defaultValue
+	}
+	const num = parseFloat(value)
+	return isNaN(num) ? defaultValue : num
+}
