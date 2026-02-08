@@ -65,6 +65,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Double-check completion: reject the first attempt_completion call to force re-verification
 		config.taskState.completionAttemptCount++
 		if (config.doubleCheckCompletionEnabled && config.taskState.completionAttemptCount === 1) {
+			// Remove the partial completion_result message that was shown during streaming
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
+
 			const taskPreview = getInitialTaskPreview(config)
 			const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
 
