@@ -46,7 +46,7 @@ export async function getAppliedPrompts(_controller: Controller, _request: Empty
 			// Directory doesn't exist or can't be read, skip
 		}
 	} catch (error) {
-		console.error("Error getting applied prompts:", error)
+		// Silently handle errors and return empty array
 	}
 
 	return StringArray.create({ values: appliedPromptIds })
