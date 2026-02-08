@@ -6,9 +6,10 @@ import { TaskState } from "../../../TaskState"
 /**
  * Tests for the double-check completion feature in AttemptCompletionHandler.
  *
- * When doubleCheckCompletionEnabled is true, the first attempt_completion
- * call is rejected with a tool error asking the model to re-verify its work.
- * The second call proceeds normally. This is counter-based (deterministic).
+ * When doubleCheckCompletionEnabled is true, each attempt_completion call
+ * is rejected the first time (setting pending=true), then accepted on the
+ * immediate follow-up (resetting pending=false). This means every completion
+ * attempt gets double-checked, not just the first one in a task.
  */
 describe("AttemptCompletionHandler double-check completion", () => {
 	let taskState: TaskState
@@ -25,84 +26,85 @@ describe("AttemptCompletionHandler double-check completion", () => {
 
 	describe("when disabled (default)", () => {
 		it("should not reject any completion attempts", () => {
-			const doubleCheckCompletionEnabled = false
-
-			// Simulate first attempt
-			taskState.completionAttemptCount++
-			const shouldReject = doubleCheckCompletionEnabled && taskState.completionAttemptCount === 1
+			const enabled = false
+			const shouldReject = enabled && !taskState.doubleCheckCompletionPending
 			shouldReject.should.be.false()
-		})
-
-		it("should still increment the counter even when disabled", () => {
-			taskState.completionAttemptCount++
-			taskState.completionAttemptCount.should.equal(1)
-
-			taskState.completionAttemptCount++
-			taskState.completionAttemptCount.should.equal(2)
 		})
 	})
 
 	describe("when enabled", () => {
 		it("should reject the first completion attempt", () => {
-			const doubleCheckCompletionEnabled = true
+			const enabled = true
 
-			taskState.completionAttemptCount++
-			const shouldReject = doubleCheckCompletionEnabled && taskState.completionAttemptCount === 1
+			// First call: pending is false, so reject and set pending
+			const shouldReject = enabled && !taskState.doubleCheckCompletionPending
+			shouldReject.should.be.true()
+			taskState.doubleCheckCompletionPending = true
+		})
+
+		it("should accept the second completion attempt and reset pending", () => {
+			const enabled = true
+
+			// Simulate first call rejected
+			taskState.doubleCheckCompletionPending = true
+
+			// Second call: pending is true, so accept
+			const shouldReject = enabled && !taskState.doubleCheckCompletionPending
+			shouldReject.should.be.false()
+
+			// Handler resets pending after acceptance
+			taskState.doubleCheckCompletionPending = false
+			taskState.doubleCheckCompletionPending.should.be.false()
+		})
+
+		it("should reject again after the pending flag is reset (third call)", () => {
+			const enabled = true
+
+			// After a full reject/accept cycle, pending is back to false
+			taskState.doubleCheckCompletionPending = false
+
+			const shouldReject = enabled && !taskState.doubleCheckCompletionPending
 			shouldReject.should.be.true()
 		})
 
-		it("should accept the second completion attempt", () => {
-			const doubleCheckCompletionEnabled = true
+		it("should double-check every completion attempt across a full task lifecycle", () => {
+			const shouldReject = () => !taskState.doubleCheckCompletionPending
 
-			// First attempt (rejected)
-			taskState.completionAttemptCount++
-			const firstReject = doubleCheckCompletionEnabled && taskState.completionAttemptCount === 1
-			firstReject.should.be.true()
+			// Cycle 1: reject, then accept
+			shouldReject().should.be.true()
+			taskState.doubleCheckCompletionPending = true
+			shouldReject().should.be.false()
+			taskState.doubleCheckCompletionPending = false
 
-			// Second attempt (accepted)
-			taskState.completionAttemptCount++
-			const secondReject = doubleCheckCompletionEnabled && taskState.completionAttemptCount === 1
-			secondReject.should.be.false()
-		})
+			// Cycle 2: reject, then accept
+			shouldReject().should.be.true()
+			taskState.doubleCheckCompletionPending = true
+			shouldReject().should.be.false()
+			taskState.doubleCheckCompletionPending = false
 
-		it("should accept the third and subsequent completion attempts", () => {
-			const doubleCheckCompletionEnabled = true
-
-			taskState.completionAttemptCount = 3
-			const shouldReject = doubleCheckCompletionEnabled && taskState.completionAttemptCount === 1
-			shouldReject.should.be.false()
+			// Cycle 3: still triggers
+			shouldReject().should.be.true()
 		})
 	})
 
 	describe("consecutiveMistakeCount interaction", () => {
 		it("should not increment consecutiveMistakeCount on rejection", () => {
-			// The handler resets consecutiveMistakeCount to 0 before checking double-check,
-			// and the rejection does not touch it further.
 			taskState.consecutiveMistakeCount = 0
-			taskState.completionAttemptCount++
-
-			// Simulating the handler flow: consecutiveMistakeCount stays at 0
+			// Rejection path does not touch consecutiveMistakeCount
+			taskState.doubleCheckCompletionPending = true
 			taskState.consecutiveMistakeCount.should.equal(0)
-		})
-
-		it("should not affect consecutiveMistakeCount when feature is disabled", () => {
-			taskState.consecutiveMistakeCount = 2
-			taskState.completionAttemptCount++
-
-			// Counter is untouched by the double-check logic
-			taskState.consecutiveMistakeCount.should.equal(2)
 		})
 	})
 
-	describe("counter initialization and lifecycle", () => {
-		it("should start at 0", () => {
-			taskState.completionAttemptCount.should.equal(0)
+	describe("initialization and lifecycle", () => {
+		it("should start as false", () => {
+			taskState.doubleCheckCompletionPending.should.be.false()
 		})
 
 		it("should reset with new TaskState (new task)", () => {
-			taskState.completionAttemptCount = 5
+			taskState.doubleCheckCompletionPending = true
 			const newTaskState = new TaskState()
-			newTaskState.completionAttemptCount.should.equal(0)
+			newTaskState.doubleCheckCompletionPending.should.be.false()
 		})
 	})
 })

@@ -62,9 +62,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Double-check completion: reject the first attempt_completion call to force re-verification
-		config.taskState.completionAttemptCount++
-		if (config.doubleCheckCompletionEnabled && config.taskState.completionAttemptCount === 1) {
+		// Double-check completion: reject attempt_completion calls that haven't been re-verified
+		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionPending) {
+			config.taskState.doubleCheckCompletionPending = true
 			// Remove the partial completion_result message that was shown during streaming
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
 
@@ -81,6 +81,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 					"\n\nIf everything checks out, call attempt_completion again with your final result.",
 			)
 		}
+		// Reset so the next attempt_completion pair triggers double-check again
+		config.taskState.doubleCheckCompletionPending = false
 
 		// Run PreToolUse hook before execution
 		try {
