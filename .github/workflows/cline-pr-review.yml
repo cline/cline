@@ -103,7 +103,8 @@ jobs:
               ]
             }
         run: |
-          printf %s 'You'\''re a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+          cat <<'CLINE_REVIEW_PROMPT' | npx cline --yolo
+          You're a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
           PR: #'"${PR_NUMBER}"'
 
@@ -328,4 +329,5 @@ jobs:
           - Be specific - Point to exact lines and suggest fixes, don'\''t give vague feedback
           - Think deeply - Don'\''t just surface-level review, understand the intent and evaluate the approach
           - Use inline suggestions - Make it easy for authors to accept changes
-          - You'\''re a first-pass reviewer - A human maintainer will do final approval' | npx cline --yolo
+          - You're a first-pass reviewer - A human maintainer will do final approval
+          CLINE_REVIEW_PROMPT
