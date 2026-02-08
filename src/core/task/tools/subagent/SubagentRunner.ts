@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises"
 import { buildApiHandler } from "@core/api"
-import { ToolUse } from "@core/assistant-message"
+import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
@@ -11,6 +11,7 @@ import { ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
 import { HostProvider } from "@/hosts/host-provider"
+import { ApiFormat } from "@/shared/proto/cline/models"
 import { TaskState } from "../../TaskState"
 import type { TaskConfig } from "../types/TaskConfig"
 
@@ -45,6 +46,15 @@ interface SubagentRunStats {
 	outputTokens: number
 	cacheWriteTokens: number
 	cacheReadTokens: number
+}
+
+interface SubagentToolCall {
+	id?: string
+	call_id?: string
+	signature?: string
+	name: string
+	input: unknown
+	isNativeToolCall: boolean
 }
 
 const SUBAGENT_SYSTEM_SUFFIX = `\n\n# Subagent Execution Mode
@@ -103,6 +113,21 @@ function normalizeToolCallArguments(argumentsPayload: unknown): string {
 	} catch {
 		return "{}"
 	}
+}
+
+function parseNonNativeToolCalls(assistantText: string): SubagentToolCall[] {
+	const parsedBlocks = parseAssistantMessageV2(assistantText)
+
+	return parsedBlocks
+		.filter((block): block is ToolUse => block.type === "tool_use")
+		.filter((block) => !block.partial)
+		.map((block) => ({
+			name: block.name,
+			input: block.params,
+			call_id: block.call_id,
+			signature: block.signature,
+			isNativeToolCall: false,
+		}))
 }
 
 export class SubagentRunner {
@@ -166,6 +191,9 @@ export class SubagentRunner {
 				mode,
 				customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
 			}
+			const useNativeToolCalls =
+				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				!!this.baseConfig.services.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 
 			const host = await HostProvider.env.getHostVersion({})
 			const discoveredSkills = await discoverSkills(this.baseConfig.cwd)
@@ -179,16 +207,16 @@ export class SubagentRunner {
 				focusChainSettings: this.baseConfig.focusChainSettings,
 				browserSettings: this.baseConfig.browserSettings,
 				yoloModeToggled: false,
-				enableNativeToolCalls: true,
+				enableNativeToolCalls: useNativeToolCalls,
 				enableParallelToolCalling: false,
 				isSubagentRun: true,
 			}
 
 			const promptRegistry = PromptRegistry.getInstance()
 			const systemPrompt = (await promptRegistry.get(context)) + SUBAGENT_SYSTEM_SUFFIX
-			const nativeTools = this.buildNativeTools(context)
+			const nativeTools = useNativeToolCalls ? this.buildNativeTools(context) : undefined
 
-			if (!nativeTools || nativeTools.length === 0) {
+			if (useNativeToolCalls && (!nativeTools || nativeTools.length === 0)) {
 				const error = "Subagent tool requires native tool calling support."
 				onProgress({ status: "failed", error, stats })
 				return { status: "failed", error, stats }
@@ -264,7 +292,19 @@ export class SubagentRunner {
 					}
 				}
 
-				const finalizedToolCalls = toolUseHandler.getAllFinalizedToolUses()
+				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall) => ({
+					id: toolCall.id,
+					call_id: toolCall.call_id,
+					signature: toolCall.signature,
+					name: toolCall.name,
+					input: toolCall.input,
+					isNativeToolCall: true,
+				}))
+				const finalizedToolCalls: SubagentToolCall[] = useNativeToolCalls
+					? nativeFinalizedToolCalls
+					: nativeFinalizedToolCalls.length > 0
+						? nativeFinalizedToolCalls
+						: parseNonNativeToolCalls(assistantText)
 				const assistantContent = [] as any[]
 				if (assistantText.trim().length > 0) {
 					assistantContent.push({
@@ -273,7 +313,9 @@ export class SubagentRunner {
 						signature: assistantTextSignature,
 					})
 				}
-				assistantContent.push(...finalizedToolCalls)
+				if (useNativeToolCalls) {
+					assistantContent.push(...finalizedToolCalls)
+				}
 
 				if (assistantContent.length > 0) {
 					conversation.push({
@@ -300,12 +342,19 @@ export class SubagentRunner {
 
 					if (!SUBAGENT_ALLOWED_TOOLS.includes(toolName)) {
 						const deniedResult = formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`)
-						toolResultBlocks.push({
-							type: "tool_result",
-							tool_use_id: call.id || call.call_id,
-							call_id: call.call_id,
-							content: deniedResult,
-						})
+						if (call.isNativeToolCall) {
+							toolResultBlocks.push({
+								type: "tool_result",
+								tool_use_id: call.id || call.call_id,
+								call_id: call.call_id,
+								content: deniedResult,
+							})
+						} else {
+							toolResultBlocks.push({
+								type: "text",
+								text: `${toolName} Result:\n${deniedResult}`,
+							})
+						}
 						continue
 					}
 
@@ -316,7 +365,7 @@ export class SubagentRunner {
 						name: toolName,
 						params: toolCallParams,
 						partial: false,
-						isNativeToolCall: true,
+						isNativeToolCall: call.isNativeToolCall,
 						call_id: call.call_id,
 						signature: call.signature,
 					}
@@ -342,12 +391,21 @@ export class SubagentRunner {
 					stats.toolCalls += 1
 					onProgress({ stats: { ...stats } })
 
-					toolResultBlocks.push({
-						type: "tool_result",
-						tool_use_id: call.id || call.call_id,
-						call_id: call.call_id,
-						content: serializeToolResult(toolResult),
-					})
+					const serializedToolResult = serializeToolResult(toolResult)
+					if (call.isNativeToolCall) {
+						toolResultBlocks.push({
+							type: "tool_result",
+							tool_use_id: call.id || call.call_id,
+							call_id: call.call_id,
+							content: serializedToolResult,
+						})
+					} else {
+						const toolDescription = handler?.getDescription(toolCallBlock) || `[${toolName}]`
+						toolResultBlocks.push({
+							type: "text",
+							text: `${toolDescription} Result:\n${serializedToolResult}`,
+						})
+					}
 				}
 
 				conversation.push({
