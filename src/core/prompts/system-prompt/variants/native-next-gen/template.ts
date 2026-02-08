@@ -100,7 +100,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 
 const FEEDBACK = (_context: SystemPromptContext) => `FEEDBACK
 
-When user is providing you with feedback on how you could improve, you can let the user know to report new issue using the '/reportbug' slash command.`
+When user is providing you with feedback on how you could improve, you can let the user know to report new issues at https://github.com/cline/cline/issues.`
 
 export const TEMPLATE_OVERRIDES = {
 	BASE,

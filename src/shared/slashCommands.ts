@@ -36,12 +36,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
-	{
-		name: "reportbug",
-		description: "Create a Github issue with Cline",
-		section: "default",
-		cliCompatible: true,
-	},
 ]
 
 // VS Code-only slash commands

@@ -114,5 +114,5 @@ This session is being continued from a previous conversation that ran out of con
 ${summaryText}.
 
 Please continue the conversation from where we left it off without asking the user any further questions. Continue with the last task that you were asked to work on. Pay special attention to the most recent user message when responding rather than the initial task message, if applicable.
-If the most recent user's message starts with "/newtask", "/smol", "/compact", "/newrule", or "/reportbug", you should indicate to the user that they will need to run this command again.
+If the most recent user's message starts with "/newtask", "/smol", "/compact", or "/newrule", you should indicate to the user that they will need to run this command again.
 `

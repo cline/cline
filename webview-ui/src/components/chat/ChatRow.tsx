@@ -58,7 +58,6 @@ import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
 import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
 import QuoteButton from "./QuoteButton"
-import ReportBugPreview from "./ReportBugPreview"
 import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
 import { ThinkingRow } from "./ThinkingRow"
@@ -1230,16 +1229,6 @@ export const ChatRowContent = memo(
 									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
-							</div>
-						)
-					case "report_bug":
-						return (
-							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
-								</div>
-								<ReportBugPreview data={message.text || ""} />
 							</div>
 						)
 					case "plan_mode_respond": {

@@ -80,7 +80,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "api_req_failed":
 							case "new_task":
 							case "condense":
-							case "report_bug":
 								await TaskServiceClient.askResponse(
 									AskResponseRequest.create({
 										responseType: "messageResponse",
@@ -263,11 +262,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					switch (clineAsk) {
 						case "condense":
 							await SlashServiceClient.condense(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
-								console.error(err),
-							)
-							break
-						case "report_bug":
-							await SlashServiceClient.reportBug(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
 								console.error(err),
 							)
 							break

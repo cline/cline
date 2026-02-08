@@ -10,8 +10,6 @@ option java_package = "bot.cline.proto";
 
 // SlashService provides methods for managing slash commands
 service SlashService {
-  // Sends button click message
-  rpc reportBug(StringRequest) returns (Empty);
   rpc condense(StringRequest) returns (Empty);
 
   // Get available slash commands for autocomplete (used by CLI)

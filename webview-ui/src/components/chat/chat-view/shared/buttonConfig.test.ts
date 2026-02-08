@@ -105,7 +105,6 @@ describe("getButtonConfig", () => {
 			{ ask: "resume_completed_task", expectedConfig: "resume_completed_task" },
 			{ ask: "new_task", expectedConfig: "new_task" },
 			{ ask: "condense", expectedConfig: "condense" },
-			{ ask: "report_bug", expectedConfig: "report_bug" },
 		]
 
 		stateConfigs.forEach(({ ask, expectedConfig }) => {

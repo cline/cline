@@ -11,7 +11,6 @@ import {
 	explainChangesToolResponse,
 	newRuleToolResponse,
 	newTaskToolResponse,
-	reportBugToolResponse,
 	subagentToolResponse,
 } from "../prompts/commands"
 import { StateManager } from "../storage/StateManager"
@@ -55,7 +54,6 @@ export async function parseSlashCommands(
 		"smol",
 		"compact",
 		"newrule",
-		"reportbug",
 		"deep-planning",
 		"subagent",
 		"explain-changes",
@@ -69,7 +67,6 @@ export async function parseSlashCommands(
 		smol: condenseToolResponse(focusChainSettings),
 		compact: condenseToolResponse(focusChainSettings),
 		newrule: newRuleToolResponse(),
-		reportbug: reportBugToolResponse(),
 		"deep-planning": deepPlanningToolResponse(focusChainSettings, providerInfo, willUseNativeTools),
 		subagent: subagentToolResponse(),
 		"explain-changes": explainChangesToolResponse(),
