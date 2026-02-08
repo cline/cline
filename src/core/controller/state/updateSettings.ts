@@ -368,6 +368,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		if (request.doubleCheckCompletionEnabled !== undefined) {
+			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

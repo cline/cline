@@ -16,6 +16,22 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+const TASK_PREVIEW_MAX_CHARS = 4000
+
+function getInitialTaskPreview(config: TaskConfig): string | undefined {
+	const firstTaskMessage = config.messageState
+		.getClineMessages()
+		.find((message) => message.say === "task")
+		?.text?.trim()
+	if (!firstTaskMessage) {
+		return undefined
+	}
+	if (firstTaskMessage.length <= TASK_PREVIEW_MAX_CHARS) {
+		return firstTaskMessage
+	}
+	return `${firstTaskMessage.slice(0, TASK_PREVIEW_MAX_CHARS)}\n...[truncated]`
+}
+
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ATTEMPT
 
@@ -45,6 +61,23 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		// Double-check completion: reject the first attempt_completion call to force re-verification
+		config.taskState.completionAttemptCount++
+		if (config.doubleCheckCompletionEnabled && config.taskState.completionAttemptCount === 1) {
+			const taskPreview = getInitialTaskPreview(config)
+			const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
+
+			return formatResponse.toolError(
+				"Before completing, re-verify your work against the original task requirements. Check that:\n" +
+					"1. All requested changes have been made\n" +
+					"2. No steps were skipped or partially completed\n" +
+					"3. Edge cases and error handling are addressed\n" +
+					"4. The solution matches what was asked for, not just what was convenient" +
+					taskSection +
+					"\n\nIf everything checks out, call attempt_completion again with your final result.",
+			)
+		}
 
 		// Run PreToolUse hook before execution
 		try {
