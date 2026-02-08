@@ -456,7 +456,7 @@ export abstract class DiffViewProvider {
 		for (const part of diffs) {
 			if (part.added || part.removed) {
 				// Found the first diff, scroll to it
-				this.scrollEditorToLine(lineCount)
+				await this.scrollEditorToLine(lineCount)
 				return
 			}
 			if (!part.removed) {
