@@ -3,6 +3,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
+import { fetch } from "@/shared/net"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../../shared/services/config/posthog-config"
@@ -33,6 +34,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			}
 			this.client = new PostHog(posthogConfig.apiKey, {
 				host: posthogConfig.host,
+				fetch: (url, options) => fetch(url, options),
 			})
 		}
 

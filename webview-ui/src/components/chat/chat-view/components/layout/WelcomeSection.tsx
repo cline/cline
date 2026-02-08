@@ -60,8 +60,8 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const { clineUser } = useClineAuth()
 	const {
 		openRouterModels,
-		setShowChatModelSelector,
 		navigateToSettings,
+		navigateToSettingsModelPicker,
 		navigateToWorktrees,
 		subagentsEnabled,
 		worktreesEnabled,
@@ -164,7 +164,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
-					setTimeout(() => setShowChatModelSelector(true), 10)
+					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab: "recommended" })
 					break
 				}
 
@@ -197,7 +197,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					console.warn("Unknown banner action:", action.action)
 			}
 		},
-		[handleFieldsChange, openRouterModels, setShowChatModelSelector, navigateToSettings],
+		[handleFieldsChange, openRouterModels, navigateToSettings, navigateToSettingsModelPicker],
 	)
 
 	/**
