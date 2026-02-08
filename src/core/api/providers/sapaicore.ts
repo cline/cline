@@ -635,7 +635,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"o4-mini",
 		]
 
-		const perplexityModels = ["sonar-pro", "sonar"]
+		const perplexityModels = ["sonar-pro", "sonar", "sonar-deep-research"]
 		const geminiModels = ["gemini-2.5-flash", "gemini-2.5-pro"]
 
 		let url: string
