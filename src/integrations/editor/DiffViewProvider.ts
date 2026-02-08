@@ -186,6 +186,7 @@ export abstract class DiffViewProvider {
 	private lastUpdateContentLength = -1
 	private lastUpdateTime = 0
 	private static readonly UPDATE_THROTTLE_MS = 100 // Throttle updates to max 10/second during streaming
+	private isUpdating = false // Lock to prevent concurrent updates
 
 	async update(
 		accumulatedContent: string,
@@ -196,94 +197,108 @@ export abstract class DiffViewProvider {
 			throw new Error("Not editing any file")
 		}
 
-		// Throttle updates during streaming to prevent performance issues with large files
-		// This is especially important for notebooks where streaming can trigger thousands of calls
-		if (!isFinal) {
-			const now = Date.now()
-			const contentLength = accumulatedContent.length
-			const timeSinceLastUpdate = now - this.lastUpdateTime
-
-			// Skip if: no content, content unchanged, or throttle period not elapsed
-			if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
-				return
-			}
-			if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
-				return // Throttle: too soon since last update
-			}
-
-			this.lastUpdateContentLength = contentLength
-			this.lastUpdateTime = now
+		// Check for update lock to prevent concurrent updates
+		if (this.isUpdating) {
+			// If an update is already in progress, skip this one
+			// This prevents race conditions when update is called multiple times in quick succession
+			return
 		}
 
-		// --- Fix to prevent duplicate BOM ---
-		// Strip potential BOM from incoming content. VS Code's `applyEdit` might implicitly handle the BOM
-		// when replacing from the start (0,0), and we want to avoid duplication.
-		// Final BOM is handled in `saveChanges`.
-		if (accumulatedContent.startsWith("\ufeff")) {
-			accumulatedContent = accumulatedContent.slice(1) // Remove the BOM character
-		}
-
-		this.newContent = accumulatedContent
-		const accumulatedLines = accumulatedContent.split("\n")
-		if (!isFinal) {
-			accumulatedLines.pop() // remove the last partial line only if it's not the final update
-		}
-		const diffLines = accumulatedLines.slice(this.streamedLines.length)
-
-		// Instead of animating each line, we'll update in larger chunks
-		const currentLine = this.streamedLines.length + diffLines.length - 1
-		if (currentLine >= 0) {
-			// Only proceed if we have new lines
-
-			// Replace all content up to the current line with accumulated lines
-			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
-			// on previous lines are auto closed for example
-			let contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n")
+		// Set update lock
+		this.isUpdating = true
+		try {
+			// Throttle updates during streaming to prevent performance issues with large files
+			// This is especially important for notebooks where streaming can trigger thousands of calls
 			if (!isFinal) {
-				// During streaming, add trailing newline for cursor positioning
-				contentToReplace += "\n"
+				const now = Date.now()
+				const contentLength = accumulatedContent.length
+				const timeSinceLastUpdate = now - this.lastUpdateTime
+
+				// Skip if: no content, content unchanged, or throttle period not elapsed
+				if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
+					return
+				}
+				if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
+					return // Throttle: too soon since last update
+				}
+
+				this.lastUpdateContentLength = contentLength
+				this.lastUpdateTime = now
 			}
 
-			// For the final update, replace the entire document to prevent concatenation
-			// when content doesn't end with a newline. Without this, replacing lines 0-N
-			// with content lacking a trailing newline causes line N+1's content to be
-			// directly appended to our content (e.g., "Hello World" + "# Old Header" becomes
-			// "Hello World# Old Header").
-			const endLine = isFinal ? await this.getDocumentLineCount() : currentLine + 1
+			// --- Fix to prevent duplicate BOM ---
+			// Strip potential BOM from incoming content. VS Code's `applyEdit` might implicitly handle the BOM
+			// when replacing from the start (0,0), and we want to avoid duplication.
+			// Final BOM is handled in `saveChanges`.
+			if (accumulatedContent.startsWith("\ufeff")) {
+				accumulatedContent = accumulatedContent.slice(1) // Remove the BOM character
+			}
 
-			const rangeToReplace = { startLine: 0, endLine }
-			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
+			this.newContent = accumulatedContent
+			const accumulatedLines = accumulatedContent.split("\n")
+			if (!isFinal) {
+				accumulatedLines.pop() // remove the last partial line only if it's not the final update
+			}
+			const diffLines = accumulatedLines.slice(this.streamedLines.length)
 
-			// Scroll to the actual change location if provided.
-			if (changeLocation) {
-				// We have the actual location of the change, scroll to it
-				const targetLine = changeLocation.startLine
-				await this.scrollEditorToLine(targetLine)
-			} else {
-				// Fallback to the old logic for non-replacement updates
-				if (diffLines.length <= 5) {
-					// For small changes, just jump directly to the line
-					await this.scrollEditorToLine(currentLine)
+			// Instead of animating each line, we'll update in larger chunks
+			const currentLine = this.streamedLines.length + diffLines.length - 1
+			if (currentLine >= 0) {
+				// Only proceed if we have new lines
+
+				// Replace all content up to the current line with accumulated lines
+				// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
+				// on previous lines are auto closed for example
+				let contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n")
+				if (!isFinal) {
+					// During streaming, add trailing newline for cursor positioning
+					contentToReplace += "\n"
+				}
+
+				// For the final update, replace the entire document to prevent concatenation
+				// when content doesn't end with a newline. Without this, replacing lines 0-N
+				// with content lacking a trailing newline causes line N+1's content to be
+				// directly appended to our content (e.g., "Hello World" + "# Old Header" becomes
+				// "Hello World# Old Header").
+				const endLine = isFinal ? await this.getDocumentLineCount() : currentLine + 1
+
+				const rangeToReplace = { startLine: 0, endLine }
+				await this.replaceText(contentToReplace, rangeToReplace, currentLine)
+
+				// Scroll to the actual change location if provided.
+				if (changeLocation) {
+					// We have the actual location of the change, scroll to it
+					const targetLine = changeLocation.startLine
+					await this.scrollEditorToLine(targetLine)
 				} else {
-					// For larger changes, create a quick scrolling animation
-					const startLine = this.streamedLines.length
-					const endLine = currentLine
-					await this.scrollAnimation(startLine, endLine)
-					// Ensure we end at the final line
-					await this.scrollEditorToLine(currentLine)
+					// Fallback to the old logic for non-replacement updates
+					if (diffLines.length <= 5) {
+						// For small changes, just jump directly to the line
+						await this.scrollEditorToLine(currentLine)
+					} else {
+						// For larger changes, create a quick scrolling animation
+						const startLine = this.streamedLines.length
+						const endLine = currentLine
+						await this.scrollAnimation(startLine, endLine)
+						// Ensure we end at the final line
+						await this.scrollEditorToLine(currentLine)
+					}
 				}
 			}
-		}
 
-		// Update the streamedLines with the new accumulated content
-		this.streamedLines = accumulatedLines
-		if (isFinal) {
-			// Handle any remaining lines if the new content is shorter than the original
-			await this.safelyTruncateDocument(this.streamedLines.length)
-			// Allow subclasses to perform cleanup (e.g., clearing decorations)
-			await this.onFinalUpdate()
-			// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
-			await this.switchToSpecializedEditor()
+			// Update the streamedLines with the new accumulated content
+			this.streamedLines = accumulatedLines
+			if (isFinal) {
+				// Handle any remaining lines if the new content is shorter than the original
+				await this.safelyTruncateDocument(this.streamedLines.length)
+				// Allow subclasses to perform cleanup (e.g., clearing decorations)
+				await this.onFinalUpdate()
+				// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
+				await this.switchToSpecializedEditor()
+			}
+		} finally {
+			// Clear update lock
+			this.isUpdating = false
 		}
 	}
 
