@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Unify ViewHeader Styles Accross All Views
+Unify ViewHeader Styles Across All Views
