@@ -16,7 +16,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
-const TASK_PREVIEW_MAX_CHARS = 4000
+const TASK_PREVIEW_MAX_CHARS = 8000
 
 function getInitialTaskPreview(config: TaskConfig): string | undefined {
 	const firstTaskMessage = config.messageState
