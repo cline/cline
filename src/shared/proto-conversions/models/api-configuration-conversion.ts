@@ -16,6 +16,7 @@ import {
 	ModelInfo,
 	OcaModelInfo,
 } from "../../api"
+import { OpenaiReasoningEffort } from "../../storage/types"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {
@@ -692,7 +693,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeApiModelId: protoConfig.planModeApiModelId,
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: protoConfig.geminiPlanModeThinkingLevel,
-		planModeReasoningEffort: protoConfig.planModeReasoningEffort,
+		planModeReasoningEffort: protoConfig.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		planModeVsCodeLmModelSelector: protoConfig.planModeVsCodeLmModelSelector,
 		planModeAwsBedrockCustomSelected: protoConfig.planModeAwsBedrockCustomSelected,
 		planModeAwsBedrockCustomModelBaseId: protoConfig.planModeAwsBedrockCustomModelBaseId as BedrockModelId | undefined,
@@ -735,7 +736,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeApiModelId: protoConfig.actModeApiModelId,
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: protoConfig.geminiActModeThinkingLevel,
-		actModeReasoningEffort: protoConfig.actModeReasoningEffort,
+		actModeReasoningEffort: protoConfig.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		actModeVsCodeLmModelSelector: protoConfig.actModeVsCodeLmModelSelector,
 		actModeAwsBedrockCustomSelected: protoConfig.actModeAwsBedrockCustomSelected,
 		actModeAwsBedrockCustomModelBaseId: protoConfig.actModeAwsBedrockCustomModelBaseId as BedrockModelId | undefined,

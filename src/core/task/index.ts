@@ -459,15 +459,6 @@ export class Task {
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const currentProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
-		if (currentProvider === "openai" || currentProvider === "openai-native" || currentProvider === "sapaicore") {
-			if (mode === "plan") {
-				effectiveApiConfiguration.planModeReasoningEffort = openaiReasoningEffort
-			} else {
-				effectiveApiConfiguration.actModeReasoningEffort = openaiReasoningEffort
-			}
-		}
-
 		// Now that ulid is initialized, we can build the API handler
 		this.api = buildApiHandler(effectiveApiConfiguration, mode)
 

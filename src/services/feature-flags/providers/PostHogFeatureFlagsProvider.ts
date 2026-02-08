@@ -1,5 +1,6 @@
 import { PostHog } from "posthog-node"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../shared/services/config/posthog-config"
 import type { FeatureFlagsAndPayloads, FeatureFlagsSettings, IFeatureFlagsProvider } from "./IFeatureFlagsProvider"
@@ -26,6 +27,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 			}
 			this.client = new PostHog(posthogConfig.apiKey, {
 				host: posthogConfig.host,
+				fetch: (url, options) => fetch(url, options),
 			})
 		}
 

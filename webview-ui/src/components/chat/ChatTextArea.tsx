@@ -1,10 +1,8 @@
 import { PulsingBorder } from "@paper-design/shaders-react"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
-import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
-import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -12,13 +10,10 @@ import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { useWindowSize } from "react-use"
 import styled from "styled-components"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
-import ModelPickerModal from "@/components/chat/ModelPickerModal"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -26,7 +21,7 @@ import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptionIndex,
@@ -48,7 +43,6 @@ import {
 	slashCommandRegexGlobal,
 	validateSlashCommand,
 } from "@/utils/slash-commands"
-import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
 import VoiceRecorder from "./VoiceRecorder"
@@ -147,46 +141,6 @@ const ButtonContainer = styled.div`
 	width: 100%;
 `
 
-const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
-	position: fixed;
-	bottom: calc(100% + 9px);
-	left: 15px;
-	right: 15px;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 12px 12px 18px 12px;
-	border-radius: 3px;
-	z-index: 1000;
-	max-height: calc(100vh - 100px);
-	overflow-y: auto;
-	overscroll-behavior: contain;
-
-	// Add invisible padding for hover zone
-	&::before {
-		content: "";
-		position: fixed;
-		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px - 2px)`};
-		left: 0;
-		right: 0;
-		height: 8px;
-	}
-
-	// Arrow pointing down
-	&::after {
-		content: "";
-		position: fixed;
-		bottom: ${(props) => `calc(100vh - ${props.menuPosition}px)`};
-		right: ${(props) => props.arrowPosition}px;
-		width: 10px;
-		height: 10px;
-		background: ${CODE_BLOCK_BG_COLOR};
-		border-right: 1px solid var(--vscode-editorGroup-border);
-		border-bottom: 1px solid var(--vscode-editorGroup-border);
-		transform: rotate(45deg);
-		z-index: -1;
-	}
-`
-
 const ModelContainer = styled.div`
 	position: relative;
 	display: flex;
@@ -270,8 +224,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			globalWorkflowToggles,
 			remoteWorkflowToggles,
 			remoteConfigSettings,
-			showChatModelSelector: showModelSelector,
-			setShowChatModelSelector: setShowModelSelector,
+			navigateToSettingsModelPicker,
 			dictationSettings,
 			mcpServers,
 		} = useExtensionState()
@@ -300,11 +253,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
 
-		const modelSelectorRef = useRef<HTMLDivElement>(null)
-		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
-		const buttonRef = useRef<HTMLDivElement>(null)
-		const [arrowPosition, setArrowPosition] = useState(0)
-		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -316,9 +264,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-
-		// Add a ref to track previous menu state
-		const prevShowModelSelector = useRef(showModelSelector)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -1046,41 +991,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
-		// Separate the API config submission logic
-		const submitApiConfig = useCallback(async () => {
-			const apiValidationResult = validateApiConfiguration(mode, apiConfiguration)
-			const modelIdValidationResult = validateModelId(mode, apiConfiguration, openRouterModels)
-
-			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
-				try {
-					await ModelsServiceClient.updateApiConfigurationProto(
-						UpdateApiConfigurationRequest.create({
-							apiConfiguration: convertApiConfigurationToProto(apiConfiguration),
-						}),
-					)
-				} catch (error) {
-					console.error("Failed to update API configuration:", error)
-				}
-			} else {
-				StateServiceClient.getLatestState(EmptyRequest.create())
-					.then(() => {
-						console.log("State refreshed")
-					})
-					.catch((error) => {
-						console.error("Error refreshing state:", error)
-					})
-			}
-		}, [apiConfiguration, openRouterModels])
-
 		const onModeToggle = useCallback(() => {
-			// if (textAreaDisabled) return
-			let changeModeDelay = 0
-			if (showModelSelector) {
-				// user has model selector open, so we should save it before switching modes
-				submitApiConfig()
-				changeModeDelay = 250 // necessary to let the api config update (we send message and wait for it to be saved) FIXME: this is a hack and we ideally should check for api config changes, then wait for it to be saved, before switching modes
-			}
-			setTimeout(async () => {
+			void (async () => {
 				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
 				const response = await StateServiceClient.togglePlanActModeProto(
 					TogglePlanActModeRequest.create({
@@ -1099,8 +1011,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					textAreaRef.current?.focus()
 				}, 100)
-			}, changeModeDelay)
-		}, [mode, showModelSelector, submitApiConfig, inputValue, selectedImages, selectedFiles])
+			})()
+		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue])
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1146,7 +1058,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [inputValue, handleInputChange, updateHighlights])
 
 		const handleModelButtonClick = () => {
-			setShowModelSelector(!showModelSelector)
+			navigateToSettingsModelPicker({ targetSection: "api-config" })
 		}
 
 		// Get model display name
@@ -1191,34 +1103,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${selectedModelId}`
 			}
 		}, [apiConfiguration, mode])
-
-		// Calculate arrow position and menu position based on button location
-		useEffect(() => {
-			if (showModelSelector && buttonRef.current) {
-				const buttonRect = buttonRef.current.getBoundingClientRect()
-				const buttonCenter = buttonRect.left + buttonRect.width / 2
-
-				// Calculate distance from right edge of viewport using viewport coordinates
-				const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
-
-				setArrowPosition(rightPosition)
-				setMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
-			}
-		}, [showModelSelector, viewportWidth, viewportHeight])
-
-		useEffect(() => {
-			if (!showModelSelector) {
-				// Attempt to save if possible
-				// NOTE: we cannot call this here since it will create an infinite loop between this effect and the callback since getLatestState will update state. Instead we should submitapiconfig when the menu is explicitly closed, rather than as an effect of showModelSelector changing.
-				// handleApiConfigSubmit()
-
-				// Reset any active styling by blurring the button
-				const button = buttonRef.current?.querySelector("a")
-				if (button) {
-					button.blur()
-				}
-			}
-		}, [showModelSelector])
 
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
@@ -1761,23 +1645,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 							<ClineRulesToggleModal />
 
-							<ModelContainer ref={modelSelectorRef}>
-								<ModelPickerModal
-									currentMode={mode}
-									isOpen={showModelSelector}
-									onOpenChange={setShowModelSelector}>
-									<ModelButtonWrapper ref={buttonRef}>
-										<ModelDisplayButton
-											disabled={false}
-											isActive={showModelSelector}
-											onClick={handleModelButtonClick}
-											role="button"
-											tabIndex={0}
-											title="Select Model / API Provider">
-											<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
-										</ModelDisplayButton>
-									</ModelButtonWrapper>
-								</ModelPickerModal>
+							<ModelContainer>
+								<ModelButtonWrapper>
+									<ModelDisplayButton
+										disabled={false}
+										onClick={handleModelButtonClick}
+										role="button"
+										tabIndex={0}
+										title="Open API Settings">
+										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
+									</ModelDisplayButton>
+								</ModelButtonWrapper>
 							</ModelContainer>
 						</ButtonGroup>
 					</div>
@@ -1816,11 +1694,5 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 	},
 )
-
-// Update TypeScript interface for styled-component props
-interface ModelSelectorTooltipProps {
-	arrowPosition: number
-	menuPosition: number
-}
 
 export default ChatTextArea
