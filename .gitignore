@@ -47,4 +47,6 @@ test-results
 /pkg
 .secrets
 
-*.tsbuildinfo
+
+# Smoke test results (generated)
+evals/smoke-tests/results/
