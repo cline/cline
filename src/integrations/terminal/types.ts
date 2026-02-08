@@ -224,12 +224,6 @@ export interface ITerminalManager {
 	setTerminalOutputLineLimit(limit: number): void
 
 	/**
-	 * Set the maximum number of output lines for subagent commands.
-	 * @param limit Maximum number of lines
-	 */
-	setSubagentTerminalOutputLineLimit(limit: number): void
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */
@@ -239,10 +233,9 @@ export interface ITerminalManager {
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override
-	 * @param isSubagentCommand Whether this is a subagent command
 	 * @returns Processed output string
 	 */
-	processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string
+	processOutput(outputLines: string[], overrideLimit?: number): string
 }
 
 /**

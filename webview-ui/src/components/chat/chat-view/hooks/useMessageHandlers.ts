@@ -75,6 +75,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "command":
 							case "command_output":
 							case "use_mcp_server":
+							case "use_subagents":
 							case "completion_result":
 							case "mistake_limit_reached":
 							case "api_req_failed":
