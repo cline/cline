@@ -37,7 +37,7 @@ const HISTORY_FILTERS = {
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl } = extensionStateContext
+	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -292,7 +292,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	return (
 		<div className="fixed overflow-hidden inset-0 flex flex-col w-full">
 			{/* HEADER */}
-			<ViewHeader onDone={onDone} title="History" />
+			<ViewHeader environment={environment} onDone={onDone} title="History" />
 
 			{/* FILTERS */}
 			<div className="flex flex-col gap-3 px-3">

@@ -130,7 +130,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version, settingsInitialModelTab } = useExtensionState()
+	const { version, settingsInitialModelTab, environment } = useExtensionState()
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
@@ -241,7 +241,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	return (
 		<Tab>
-			<ViewHeader onDone={onDone} title="Settings" />
+			<ViewHeader environment={environment} onDone={onDone} title="Settings" />
 
 			<div className="flex flex-1 overflow-hidden">
 				<TabList
