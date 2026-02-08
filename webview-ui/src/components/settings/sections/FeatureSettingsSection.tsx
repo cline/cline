@@ -121,6 +121,15 @@ const experimentalFeatures: FeatureToggle[] = [
 		settingKey: "focusChainSettings",
 		nestedKey: "enabled",
 	},
+	{
+		id: "double-check-completion",
+		label: "Double-Check Completion",
+		description:
+			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
+		stateKey: "doubleCheckCompletionEnabled",
+		settingKey: "doubleCheckCompletionEnabled",
+		isExperimental: true,
+	},
 ]
 
 const FeatureRow = memo(
@@ -199,6 +208,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		doubleCheckCompletionEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -248,6 +258,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled: worktreesEnabled?.user,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		doubleCheckCompletionEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
