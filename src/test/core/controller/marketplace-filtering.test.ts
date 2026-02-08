@@ -23,7 +23,7 @@ describe("Controller Marketplace Filtering", () => {
 	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
 	before(async () => {
 		if (!ClineEndpoint.isInitialized()) {
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize("/test/extension")
 		}
 	})
 

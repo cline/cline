@@ -357,8 +357,18 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		workspaceDir: workspacePath,
 	})
 
-	await ClineEndpoint.initialize()
+	// Set up output channel and Logger early so ClineEndpoint.initialize logs are captured
+	const outputChannel = window.createOutputChannel("Cline CLI")
+	const logToChannel = (message: string) => outputChannel.appendLine(message)
+
+	// Configure the shared Logging class early to capture all initialization logs
+	Logger.subscribe(logToChannel)
+
+	await ClineEndpoint.initialize(EXTENSION_DIR)
 	await initializeDistinctId(extensionContext)
+
+	// Auto-update check (after endpoints initialized, so we can detect bundled configs)
+	autoUpdateOnStartup(CLI_VERSION)
 
 	// Initialize/reset session tracking for this CLI run
 	Session.reset()
@@ -367,11 +377,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		AuthHandler.getInstance().setEnabled(true)
 	}
 
-	const outputChannel = window.createOutputChannel("Cline CLI")
 	outputChannel.appendLine(
 		`Cline CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}, Log dir: ${CLINE_CLI_DIR.log}`,
 	)
-	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	HostProvider.initialize(
 		() => new CliWebviewProvider(extensionContext as any),
@@ -391,9 +399,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
 	openAiCodexOAuthManager.initialize(extensionContext)
-
-	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg))
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
@@ -1001,9 +1006,6 @@ program
 			await showWelcome(options)
 		}
 	})
-
-// Background auto-update check (non-blocking)
-autoUpdateOnStartup(CLI_VERSION)
 
 // Parse and run
 program.parse()

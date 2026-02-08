@@ -4,12 +4,17 @@
  */
 
 import { mkdirSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import os from "os"
 import path from "path"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { ClineFileStorage } from "@/shared/storage"
 import { EnvironmentVariableCollection, ExtensionKind, ExtensionMode, readJson, URI } from "./vscode-shim"
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const SETTINGS_SUBFOLDER = "data"
 
@@ -140,8 +145,8 @@ export function initializeCliContext(config: CliContextConfig = {}): CliContextR
 	mkdirSync(DATA_DIR, { recursive: true })
 	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
 
-	// For CLI, extension dir is the root of the project (parent of cli)
-	const EXTENSION_DIR = path.resolve(__dirname, "..", "..")
+	// For CLI, extension dir is the package root (one level up from dist/)
+	const EXTENSION_DIR = path.resolve(__dirname, "..")
 	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
 	const extension: ClineExtensionContext["extension"] = {
