@@ -146,6 +146,29 @@ Follow best practices.`)
 			expect(skills[0].source).to.equal("project")
 		})
 
+		it("should discover skills from project .agents/skills directory", async () => {
+			const agentsSkillsDir = path.join(TEST_CWD, ".agents", "skills")
+			const skillDir = path.join(agentsSkillsDir, "testing")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(agentsSkillsDir).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(agentsSkillsDir).resolves(true)
+			readdirStub.withArgs(agentsSkillsDir).resolves(["testing"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: testing
+description: Write comprehensive tests
+---
+Always write tests.`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].name).to.equal("testing")
+			expect(skills[0].source).to.equal("project")
+		})
+
 		it("should handle empty skills directories gracefully", async () => {
 			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
 			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
