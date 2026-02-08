@@ -118,8 +118,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
 			const sidebarInstance = WebviewProvider.getInstance()
-			await sidebarInstance.controller.clearTask()
-			await sidebarInstance.controller.postStateToWebview()
+			// For parallel task support: prepare for a new task without aborting the current one
+			// The current task will remain in activeTasks map running in background
+			await sidebarInstance.controller.prepareNewTask()
 			await sendChatButtonClickedEvent()
 		}),
 	)

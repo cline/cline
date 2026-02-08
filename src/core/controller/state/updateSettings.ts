@@ -149,6 +149,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
 		}
 
+		// Update parallel tasks
+		if (request.parallelTasksEnabled !== undefined) {
+			controller.stateManager.setGlobalState("parallelTasksEnabled", request.parallelTasksEnabled)
+		}
+
 		// Update strict plan mode setting
 		if (request.strictPlanModeEnabled !== undefined) {
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
@@ -347,6 +352,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.enableParallelToolCalling !== undefined) {
 			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
+			if (request.enableParallelToolCalling === false) {
+				await controller.clearBackgroundActiveTasks()
+			}
 		}
 
 		if (request.optOutOfRemoteConfig !== undefined) {

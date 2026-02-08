@@ -45,7 +45,7 @@ interface CheckpointManagerServices {
 }
 interface CheckpointManagerCallbacks {
 	readonly updateTaskHistory: UpdateTaskHistoryFunction
-	readonly cancelTask: () => Promise<void>
+	readonly cancelTask: (id: string) => Promise<void>
 	readonly say: SayFunction
 	readonly postStateToWebview: () => Promise<void>
 }
@@ -743,7 +743,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 		await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 		// Cancel and reinitialize the task to get updated messages
-		await this.callbacks.cancelTask()
+		await this.callbacks.cancelTask(this.task.taskId)
 	}
 
 	// ============================================================================

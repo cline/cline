@@ -120,6 +120,15 @@ const experimentalFeatures: FeatureToggle[] = [
 		stateKey: "focusChainEnabled",
 		settingKey: "focusChainSettings",
 		nestedKey: "enabled",
+		isExperimental: true,
+	},
+	{
+		id: "parallel-tasks",
+		label: "Parallel Tasks",
+		description: "Keep tasks from current session to continue in the background",
+		stateKey: "parallelTasksEnabled",
+		settingKey: "parallelTasksEnabled",
+		isExperimental: true,
 	},
 ]
 
@@ -199,6 +208,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		parallelTasksEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -249,6 +259,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
+		parallelTasksEnabled,
 	}
 
 	// Visibility lookup for features with feature flags

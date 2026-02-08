@@ -9,6 +9,7 @@ import {
 	ChevronsDownUpIcon,
 	ChevronsUpDownIcon,
 	DownloadIcon,
+	LoaderIcon,
 	StarIcon,
 	TrashIcon,
 } from "lucide-react"
@@ -26,6 +27,7 @@ type HistoryViewItemProps = {
 	handleDeleteHistoryItem: (id: string) => void
 	toggleFavorite: (id: string, isCurrentlyFavorited: boolean) => void
 	handleHistorySelect: (itemId: string, checked: boolean) => void
+	isActive?: boolean
 }
 
 const HistoryViewItem = ({
@@ -34,6 +36,7 @@ const HistoryViewItem = ({
 	handleDeleteHistoryItem,
 	toggleFavorite,
 	handleHistorySelect,
+	isActive,
 	selectedItems,
 }: HistoryViewItemProps) => {
 	const [expanded, setExpanded] = useState(false)
@@ -43,11 +46,11 @@ const HistoryViewItem = ({
 		[item.id, item.isFavorited, pendingFavoriteToggles],
 	)
 
-	const handleShowTaskWithId = useCallback((id: string) => {
+	const handleShowTaskWithId = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
 		)
-	}, [])
+	}
 
 	const formatDate = useCallback((timestamp: number) => {
 		const date = new Date(timestamp)
@@ -76,7 +79,7 @@ const HistoryViewItem = ({
 	}, [])
 
 	return (
-		<div className="history-item cursor-pointer flex group mb-1 hover:bg-list-hover border-b border-accent/10" key={item.id}>
+		<div className="history-item cursor-pointer flex group mb-1 hover:bg-list-hover border-b border-accent/10" key={item.ts}>
 			<VSCodeCheckbox
 				checked={selectedItems.includes(item.id)}
 				className="pl-3 pr-1 py-auto self-start mt-3"
@@ -89,14 +92,17 @@ const HistoryViewItem = ({
 			/>
 
 			<div
-				className="flex flex-col gap-2 py-2 pl-2 pr-3 relative flex-grow min-w-0"
+				className="flex flex-col gap-2 py-2 pl-2 pr-3 relative flex-grow min-w-0 ph-no-capture"
 				onClick={(e) => {
 					e.stopPropagation()
 					handleShowTaskWithId(item.id)
 				}}>
-				<div className="flex items-center gap-2">
+				<div className="flex justify-between items-center">
 					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
-						<span className="ph-no-capture">{item.task}</span>
+						<span className="flex items-center" title={item.task}>
+							{isActive && <LoaderIcon className="animate-spin !size-2 mr-1" />}
+							<span className="line-clamp-1 ">{item.task}</span>
+						</span>
 					</div>
 					<div className="flex gap-2 flex-shrink-0">
 						<Button

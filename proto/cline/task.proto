@@ -42,6 +42,10 @@ service TaskService {
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
   // Explains changes with AI and adds inline comments to the diff view
   rpc explainChanges(ExplainChangesRequest) returns (Empty);
+  // Switches to a different active task
+  rpc switchTask(StringRequest) returns (BooleanResponse);
+  // Cancels a specific task by ID
+  rpc cancelTaskById(StringRequest) returns (Empty);
 }
 
 // Request message for creating a new task
