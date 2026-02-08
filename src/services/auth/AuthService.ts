@@ -63,7 +63,7 @@ export interface ClineAccountOrganization {
 
 export class AuthService {
 	protected static instance: AuthService | null = null
-	protected _authenticated: boolean = false
+	protected _authenticated = false
 	protected _clineAuthInfo: ClineAuthInfo | null = null
 	protected _provider: ClineAuthProvider
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
@@ -255,8 +255,7 @@ export class AuthService {
 			return String.create({ value: "Already authenticated" })
 		}
 
-		const callbackHost = await HostProvider.get().getCallbackUrl()
-		const callbackUrl = `${callbackHost}/auth`
+		const callbackUrl = await HostProvider.get().getCallbackUrl("/auth")
 
 		const authUrl = await this._provider.getAuthRequest(callbackUrl)
 		const authUrlString = authUrl.toString()

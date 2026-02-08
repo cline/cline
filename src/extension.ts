@@ -581,19 +581,20 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => {
+	const getCallbackUrl = async (path: string) => {
+		const scheme = vscode.env.uriScheme || "vscode"
+		const callbackUri = vscode.Uri.parse(`${scheme}://${context.extension.id}${path}`)
+
 		if (vscode.env.uiKind === vscode.UIKind.Web) {
-			// In VS Code Web (code serve-web), vscode:// URIs redirect to the desktop app
-			// instead of staying in the browser. Use an HTTP-based callback server instead,
-			// which the browser can navigate to directly after auth completes.
-			const { AuthHandler } = await import("@/hosts/external/AuthHandler")
-			const authHandler = AuthHandler.getInstance()
-			authHandler.setEnabled(true)
-			return authHandler.getCallbackUrl()
+			// In VS Code Web (Codespaces, code serve-web), vscode:// URIs redirect to the
+			// desktop app instead of staying in the browser. Use asExternalUri to convert
+			// to a web-reachable HTTPS URL that routes back to the extension's URI handler.
+			const externalUri = await vscode.env.asExternalUri(callbackUri)
+			return externalUri.toString(true)
 		}
+
 		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
-		const baseUri = vscode.Uri.parse(`${vscode.env.uriScheme || "vscode"}://${context.extension.id}`)
-		return baseUri.toString(true)
+		return callbackUri.toString(true)
 	}
 	HostProvider.initialize(
 		createWebview,
