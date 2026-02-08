@@ -1,6 +1,7 @@
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
+import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { ClineSay } from "../../../shared/ExtensionMessage"
@@ -10,13 +11,15 @@ import { ensureTaskDirectoryExists } from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
 import { TaskState } from "../TaskState"
 import {
-	createFocusChainMarkdownContent,
-	extractFocusChainItemsFromText,
-	extractFocusChainListFromText,
-	getFocusChainFilePath,
+    createFocusChainMarkdownContent,
+    extractFocusChainItemsFromText,
+    extractFocusChainListFromText,
+    getFocusChainFilePath,
+    getFocusChainJsonFilePath,
 } from "./file-utils"
+
 import { FocusChainPrompts } from "./prompts"
-import { parseFocusChainListCounts } from "./utils"
+import { parseFocusChainListCounts, planToMarkdown, tryParseJSON } from "./utils"
 
 export interface FocusChainDependencies {
 	taskId: string
@@ -92,6 +95,9 @@ export class FocusChainManager {
 				})
 
 			Logger.log(`[Task ${this.taskId}] Todo file watcher initialized`)
+
+			// Initial load
+			await this.updateFCListFromMarkdownFileAndNotifyUI()
 		} catch (error) {
 			Logger.error(`[Task ${this.taskId}] Failed to setup todo file watcher:`, error)
 		}
@@ -141,7 +147,22 @@ export class FocusChainManager {
 	 * @returns string - Formatted markdown instructions for focus chain list management, varies by context
 	 */
 	public generateFocusChainInstructions(): string {
-		// If list exists already exists, we need to remind it to update rather than demand initialization
+		// If structured plan exists, use JSON instructions
+		if (this.taskState.currentStructuredPlan) {
+			const planJson = JSON.stringify(this.taskState.currentStructuredPlan, null, 2)
+			const introUpdateRequired =
+				"# TODO LIST UPDATE REQUIRED - You MUST include the task_progress parameter in your NEXT tool call."
+			
+			return `\n
+${introUpdateRequired}\n
+**Current Plan:**
+${planJson}
+
+${FocusChainPrompts.reminder}
+`
+		}
+
+		// Fallback to existing logic for markdown lists
 		if (this.taskState.currentFocusChainChecklist) {
 			// Parse the current list for counts/stats
 			const { totalItems, completedItems } = parseFocusChainListCounts(this.taskState.currentFocusChainChecklist)
@@ -225,6 +246,20 @@ export class FocusChainManager {
 	private async readFocusChainFromDisk(): Promise<string | null> {
 		try {
 			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+
+			// Try to read JSON plan first
+			try {
+				const jsonFilePath = getFocusChainJsonFilePath(taskDir, this.taskId)
+				const jsonContent = await fs.readFile(jsonFilePath, "utf8")
+				const structuredPlan = tryParseJSON(jsonContent)
+				if (structuredPlan && typeof structuredPlan === "object" && Array.isArray(structuredPlan.steps)) {
+					this.taskState.currentStructuredPlan = structuredPlan
+					return planToMarkdown(structuredPlan)
+				}
+			} catch (e) {
+				// JSON file doesn't exist or is invalid, ignore and fall back to markdown
+			}
+
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const markdownContent = await fs.readFile(todoFilePath, "utf8")
 			const todoList = extractFocusChainListFromText(markdownContent)
@@ -279,14 +314,34 @@ export class FocusChainManager {
 
 			// If model provides task_progress update, write it to the markdown file
 			if (taskProgress && taskProgress.trim()) {
+				const trimmedProgress = taskProgress.trim()
+				let finalMarkdownForUI = trimmedProgress
+
+				// Try to parse as JSON first
+				const structuredPlan = tryParseJSON(trimmedProgress)
+				if (structuredPlan && typeof structuredPlan === "object" && Array.isArray(structuredPlan.steps)) {
+					this.taskState.currentStructuredPlan = structuredPlan
+					
+					// Convert to markdown for UI and legacy persistence
+					finalMarkdownForUI = planToMarkdown(structuredPlan)
+
+					// Write structure plan to disk
+					await this.writeStructuredPlanToDisk(structuredPlan)
+				} else {
+					// Fallback: it's not JSON, or invalid format. Treat as plain text/markdown
+					// If we previously had a structured plan, we might be losing it here if the model switched to markdown
+					// But usually if prompts are good, it sticks to JSON.
+					this.taskState.currentStructuredPlan = null
+				}
+
 				const previousList = this.taskState.currentFocusChainChecklist
-				this.taskState.currentFocusChainChecklist = taskProgress.trim()
+				this.taskState.currentFocusChainChecklist = finalMarkdownForUI
 				Logger.debug(
-					`[Task ${this.taskId}] focus chain list: LLM provided focus chain list update via task_progress parameter. Length ${previousList?.length || 0} > ${this.taskState.currentFocusChainChecklist.length}`,
+					`[Task ${this.taskId}] focus chain list: LLM provided focus chain list update via task_progress parameter.`,
 				)
 
 				// Parse focus chain list counts for telemetry
-				const { totalItems, completedItems } = parseFocusChainListCounts(taskProgress.trim())
+				const { totalItems, completedItems } = parseFocusChainListCounts(finalMarkdownForUI)
 
 				// Track first progress creation
 				if (!this.hasTrackedFirstProgress && totalItems > 0) {
@@ -300,18 +355,19 @@ export class FocusChainManager {
 
 				// Write the model's update to the markdown file
 				try {
-					await this.writeFocusChainToDisk(taskProgress.trim())
+					await this.writeFocusChainToDisk(finalMarkdownForUI)
 
 					// Send the task_progress message to the UI immediately
-					await this.say("task_progress", taskProgress.trim())
+					await this.say("task_progress", finalMarkdownForUI)
 				} catch (error) {
 					Logger.error(`[Task ${this.taskId}] focus chain list: Failed to write to markdown file:`, error)
 					// Fall back to creating a task_progress message directly if file write fails
-					await this.say("task_progress", taskProgress.trim())
+					await this.say("task_progress", finalMarkdownForUI)
 					Logger.log(`[Task ${this.taskId}] focus chain list: Sent fallback task_progress message to UI`)
 				}
 			} else {
 				// No model update provided, check if markdown file exists and load it
+				// TODO: Also check if JSON file exists? For now, we rely on markdown compatibility
 				const markdownTodoList = await this.readFocusChainFromDisk()
 				if (markdownTodoList) {
 					const _previousList = this.taskState.currentFocusChainChecklist
@@ -325,6 +381,16 @@ export class FocusChainManager {
 			}
 		} catch (error) {
 			Logger.error(`[Task ${this.taskId}] focus chain list: Error in updateFCListFromToolResponse:`, error)
+		}
+	}
+
+	private async writeStructuredPlanToDisk(plan: any): Promise<void> {
+		try {
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+			const jsonFilePath = path.join(taskDir, `focus_chain_taskid_${this.taskId}.json`)
+			await writeFile(jsonFilePath, JSON.stringify(plan, null, 2), "utf8")
+		} catch (error) {
+			Logger.error(`[Task ${this.taskId}] focus chain json: FILE WRITE FAILED - Error:`, error)
 		}
 	}
 

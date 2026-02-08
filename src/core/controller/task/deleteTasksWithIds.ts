@@ -72,6 +72,12 @@ async function deleteTaskWithId(controller: Controller, id: string): Promise<voi
 			await fs.rm(filePath, { force: true })
 		}
 
+		// Delete focus chain files (JSON plan and Markdown todo list)
+		const focusChainJsonPath = path.join(taskDirPath, `focus_chain_taskid_${id}.json`)
+		const focusChainMdPath = path.join(taskDirPath, `todolist_taskid_${id}.md`)
+		await fs.rm(focusChainJsonPath, { force: true })
+		await fs.rm(focusChainMdPath, { force: true })
+
 		// Remove empty task directory
 		try {
 			await fs.rmdir(taskDirPath) // succeeds if the dir is empty
