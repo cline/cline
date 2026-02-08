@@ -116,6 +116,8 @@ export interface ITelemetryProvider {
 		required?: boolean,
 	): void
 
+	forceFlush(): Promise<void>
+
 	/**
 	 * Clean up resources when the provider is disposed
 	 */
