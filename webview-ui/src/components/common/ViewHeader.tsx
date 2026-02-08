@@ -33,7 +33,7 @@ const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewH
 					</span>
 				)}
 			</div>
-			<Button className="py-1" onClick={onDone}>
+			<Button size="header" onClick={onDone}>
 				Done
 			</Button>
 		</div>
