@@ -430,8 +430,7 @@ export abstract class DiffViewProvider {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
 			// course the user made changes and saved during the edit.
-			const contents = (await this.getDocumentText()) || ""
-			const lineCount = (contents.match(/\n/g) || []).length + 1
+			const lineCount = await this.getDocumentLineCount()
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
