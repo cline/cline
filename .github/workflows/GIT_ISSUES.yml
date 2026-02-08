@@ -1,0 +1,636 @@
+name: Daily Issues Digest to Slack
+
+on:
+  schedule:
+    # Runs once daily at 9:00 AM UTC (6:00 AM Argentina time)
+    # To change frequency: https://crontab.guru/
+    # Examples:
+    #   "0 9 * * *"     = 9am UTC daily
+    #   "0 9,17 * * *"  = 9am and 5pm UTC daily
+    #   "0 */5 * * *"   = every 5 hours
+    - cron: '0 9 * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      hours_lookback:
+        description: 'Hours to look back for issues (default: 24)'
+        required: false
+        default: '24'
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  # Default lookback period in hours
+  HOURS_LOOKBACK: ${{ github.event.inputs.hours_lookback || '24' }}
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Calculate time range
+        id: time
+        run: |
+          # Calculate the timestamp for N hours ago in ISO 8601 format
+          SINCE=$(date -u -d "${{ env.HOURS_LOOKBACK }} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "since=$SINCE" >> $GITHUB_OUTPUT
+          echo "Looking back ${{ env.HOURS_LOOKBACK }} hours (since $SINCE)"
+
+      - name: Fetch new and reopened issues
+        id: issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SINCE="${{ steps.time.outputs.since }}"
+          
+          # Fetch issues updated since the lookback time
+          # Filter out pull requests (they show up in issues API)
+          ISSUES_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/issues?state=all&since=$SINCE&per_page=100" \
+            --jq '[.[] | select(.pull_request == null)]')
+          
+          # Separate into categories
+          # New issues: created_at >= SINCE
+          NEW_ISSUES=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+            '[.[] | select(.created_at >= $since and .state == "open")]')
+          
+          # Closed issues: issues that were closed in the time window
+          CLOSED_COUNT=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+            '[.[] | select(.state == "closed" and .closed_at >= $since)] | length')
+          echo "closed_count=$CLOSED_COUNT" >> $GITHUB_OUTPUT
+          
+          # Fetch PRs opened in the time window
+          ALL_PRS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/pulls?state=all&sort=created&direction=desc&per_page=100")
+          
+          PR_OPENED_COUNT=$(echo "$ALL_PRS" | jq --arg since "$SINCE" '[.[] | select(.created_at >= $since)] | length')
+          echo "pr_opened_count=$PR_OPENED_COUNT" >> $GITHUB_OUTPUT
+          
+          # Reopened/Updated issues: older issues that were updated recently
+          REOPENED_CANDIDATES_RAW=$(echo "$ISSUES_JSON" | jq --arg since "$SINCE" \
+            '[.[] | select(.created_at < $since and .state == "open" and .updated_at >= $since)]')
+          
+          # For each reopened issue, fetch the last comment (or reopen comment)
+          ENRICHED_REOPENED_ISSUES='[]'
+          while IFS= read -r issue_json; do
+            [ -z "$issue_json" ] && continue
+            
+            ISSUE_NUMBER=$(echo "$issue_json" | jq -r '.number')
+            
+            # Fetch the last comment on this issue
+            LAST_COMMENT=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/${ISSUE_NUMBER}/comments?per_page=5" \
+              --jq 'sort_by(.created_at) | last | {body: .body, user: .user.login} // {body: "", user: ""}' 2>/dev/null || echo '{"body":"","user":""}')
+            
+            LAST_COMMENT_BODY=$(echo "$LAST_COMMENT" | jq -r '.body // ""')
+            LAST_COMMENT_USER=$(echo "$LAST_COMMENT" | jq -r '.user // ""')
+            
+            # Extract first 200 chars of the comment
+            LAST_COMMENT_EXCERPT=$(echo "$LAST_COMMENT_BODY" | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
+            # Add last comment to the issue object
+            ENRICHED_ISSUE=$(echo "$issue_json" | jq \
+              --arg comment "$LAST_COMMENT_EXCERPT" \
+              --arg commenter "$LAST_COMMENT_USER" \
+              '. + {last_comment: $comment, last_commenter: $commenter}')
+            
+            ENRICHED_REOPENED_ISSUES=$(echo "$ENRICHED_REOPENED_ISSUES" | jq --argjson issue "$ENRICHED_ISSUE" \
+              '. + [$issue]')
+          done < <(echo "$REOPENED_CANDIDATES_RAW" | jq -c '.[]')
+          
+          REOPENED_CANDIDATES="$ENRICHED_REOPENED_ISSUES"
+          
+          # For each new issue, fetch the github-actions bot comment
+          ENRICHED_NEW_ISSUES='[]'
+          while IFS= read -r issue_json; do
+            [ -z "$issue_json" ] && continue
+            
+            ISSUE_NUMBER=$(echo "$issue_json" | jq -r '.number')
+            
+            # Fetch comments for this issue and find the github-actions bot comment
+            BOT_COMMENT=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/issues/${ISSUE_NUMBER}/comments?per_page=10" \
+              --jq '[.[] | select(.user.login == "github-actions" or .user.login == "github-actions[bot]")] | first | .body // ""' 2>/dev/null || echo "")
+            
+            # Extract first 200 chars of bot comment
+            BOT_COMMENT_EXCERPT=$(echo "$BOT_COMMENT" | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            
+            # Add bot comment to the issue object
+            ENRICHED_ISSUE=$(echo "$issue_json" | jq --arg bot_comment "$BOT_COMMENT_EXCERPT" \
+              '. + {bot_comment: $bot_comment}')
+            
+            ENRICHED_NEW_ISSUES=$(echo "$ENRICHED_NEW_ISSUES" | jq --argjson issue "$ENRICHED_ISSUE" \
+              '. + [$issue]')
+          done < <(echo "$NEW_ISSUES" | jq -c '.[]')
+          
+          # Count items
+          NEW_COUNT=$(echo "$ENRICHED_NEW_ISSUES" | jq 'length')
+          REOPENED_COUNT=$(echo "$REOPENED_CANDIDATES" | jq 'length')
+          
+          echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
+          echo "reopened_count=$REOPENED_COUNT" >> $GITHUB_OUTPUT
+          
+          # Save to files for the next step
+          echo "$ENRICHED_NEW_ISSUES" > /tmp/new_issues.json
+          echo "$REOPENED_CANDIDATES" > /tmp/reopened_issues.json
+          
+          echo "Found $NEW_COUNT new issues and $REOPENED_COUNT reopened/updated issues"
+
+      - name: Fetch issues with user comments
+        id: comments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SINCE="${{ steps.time.outputs.since }}"
+          
+          # Fetch all issue comments since the lookback time
+          # Filter out bot comments (user.type != "Bot")
+          COMMENTS_JSON=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/issues/comments?since=$SINCE&per_page=100" \
+            --jq '[.[] | select(.user.type != "Bot")]')
+          
+          # Get unique issue URLs from comments (to avoid duplicates)
+          # Each comment has issue_url field that points to the issue API
+          COMMENTED_ISSUE_URLS=$(echo "$COMMENTS_JSON" | jq -r '[.[].issue_url] | unique | .[]')
+          
+          # Fetch details for each commented issue
+          COMMENTED_ISSUES='[]'
+          for ISSUE_URL in $COMMENTED_ISSUE_URLS; do
+            # Skip if empty
+            [ -z "$ISSUE_URL" ] && continue
+            
+            # Fetch issue details
+            ISSUE=$(gh api -H "Accept: application/vnd.github+json" "$ISSUE_URL" 2>/dev/null || echo '{}')
+            
+            # Skip pull requests and closed issues
+            IS_PR=$(echo "$ISSUE" | jq 'has("pull_request")')
+            STATE=$(echo "$ISSUE" | jq -r '.state // "unknown"')
+            
+            if [ "$IS_PR" = "false" ] && [ "$STATE" = "open" ]; then
+              # Get the latest non-bot comment for this issue
+              LATEST_COMMENT_DATA=$(echo "$COMMENTS_JSON" | jq --arg url "$ISSUE_URL" \
+                '[.[] | select(.issue_url == $url)] | sort_by(.created_at) | last | {user: .user.login, body: .body} // {user: "unknown", body: ""}')
+              
+              LATEST_COMMENTER=$(echo "$LATEST_COMMENT_DATA" | jq -r '.user // "unknown"')
+              LATEST_COMMENT_BODY=$(echo "$LATEST_COMMENT_DATA" | jq -r '.body // ""')
+              
+              # Extract first 200 chars of the comment
+              COMMENT_EXCERPT=$(echo "$LATEST_COMMENT_BODY" | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              
+              # Add commenter info and comment excerpt to the issue
+              ISSUE_WITH_COMMENTER=$(echo "$ISSUE" | jq \
+                --arg commenter "$LATEST_COMMENTER" \
+                --arg comment "$COMMENT_EXCERPT" \
+                '. + {latest_commenter: $commenter, latest_comment: $comment}')
+              
+              COMMENTED_ISSUES=$(echo "$COMMENTED_ISSUES" | jq --argjson issue "$ISSUE_WITH_COMMENTER" \
+                '. + [$issue]')
+            fi
+          done
+          
+          # Exclude issues that are already in "new issues" (created in this window)
+          # We only want to show "commented on existing issues"
+          COMMENTED_ISSUES=$(echo "$COMMENTED_ISSUES" | jq --arg since "$SINCE" \
+            '[.[] | select(.created_at < $since)]')
+          
+          COMMENTED_COUNT=$(echo "$COMMENTED_ISSUES" | jq 'length')
+          
+          echo "commented_count=$COMMENTED_COUNT" >> $GITHUB_OUTPUT
+          echo "$COMMENTED_ISSUES" > /tmp/commented_issues.json
+          
+          echo "Found $COMMENTED_COUNT issues with user comments"
+
+      - name: Build Slack message
+        id: message
+        run: |
+          NEW_COUNT="${{ steps.issues.outputs.new_count }}"
+          REOPENED_COUNT="${{ steps.issues.outputs.reopened_count }}"
+          COMMENTED_COUNT="${{ steps.comments.outputs.commented_count }}"
+          CLOSED_COUNT="${{ steps.issues.outputs.closed_count }}"
+          PR_OPENED_COUNT="${{ steps.issues.outputs.pr_opened_count }}"
+          
+          # Check if there's anything to report
+          if [ "$NEW_COUNT" -eq 0 ] && [ "$REOPENED_COUNT" -eq 0 ] && [ "$COMMENTED_COUNT" -eq 0 ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No issues to report"
+            exit 0
+          fi
+          
+          echo "skip=false" >> $GITHUB_OUTPUT
+          
+          # Build the Slack blocks JSON
+          BLOCKS='[]'
+          
+          # Header block with repo and time range
+          BLOCKS=$(echo "$BLOCKS" | jq \
+            --arg repo "${{ github.repository }}" \
+            --arg hours "${{ env.HOURS_LOOKBACK }}" \
+            '. + [{
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "📊 Daily Issues Digest - \($repo) | Last \($hours) hours",
+                "emoji": true
+              }
+            }]')
+          
+          # Summary counters
+          BLOCKS=$(echo "$BLOCKS" | jq \
+            --arg new "$NEW_COUNT" \
+            --arg reopened "$REOPENED_COUNT" \
+            --arg commented "$COMMENTED_COUNT" \
+            --arg closed "$CLOSED_COUNT" \
+            --arg prs "$PR_OPENED_COUNT" \
+            '. + [{
+              "type": "context",
+              "elements": [{
+                "type": "mrkdwn",
+                "text": "🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed | 🔀 \($prs) PRs opened"
+              }]
+            }]')
+          
+          # Divider
+          BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+          
+          # New Issues Section
+          if [ "$NEW_COUNT" -gt 0 ]; then
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*🆕 New Issues*"
+              }
+            }]')
+            
+            # Add each new issue with "What happened?" excerpt
+            # Extract text between "### What happened?" and "### Steps to reproduce"
+            while IFS= read -r issue_json; do
+              [ -z "$issue_json" ] && continue
+              
+              NUMBER=$(echo "$issue_json" | jq -r '.number')
+              TITLE=$(echo "$issue_json" | jq -r '.title')
+              URL=$(echo "$issue_json" | jq -r '.html_url')
+              USER=$(echo "$issue_json" | jq -r '.user.login')
+              BODY=$(echo "$issue_json" | jq -r '.body // ""')
+              BOT_COMMENT=$(echo "$issue_json" | jq -r '.bot_comment // ""')
+              
+              # Extract "What happened?" section
+              # Get text after "### What happened?" and before "### Steps to reproduce"
+              WHAT_HAPPENED=$(echo "$BODY" | sed -n '/### What happened?/,/### Steps to reproduce/p' | sed '1d;$d' | head -5 | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-200)
+              
+              # Clean up the excerpt
+              WHAT_HAPPENED=$(echo "$WHAT_HAPPENED" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+              
+              # Build the issue block (use \n for newline in Slack mrkdwn)
+              ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE* (_by $USER_)"
+              
+              # Add "What happened?" if available
+              if [ -n "$WHAT_HAPPENED" ] && [ "$WHAT_HAPPENED" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  📝 _${WHAT_HAPPENED}..._"
+              fi
+              
+              # Add bot triage comment if available
+              if [ -n "$BOT_COMMENT" ] && [ "$BOT_COMMENT" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  🤖 _${BOT_COMMENT}..._"
+              fi
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $text
+                  }
+                }]')
+            done < <(cat /tmp/new_issues.json | jq -c '.[]')
+          fi
+          
+          # Reopened/Updated Issues Section
+          if [ "$REOPENED_COUNT" -gt 0 ]; then
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*🔄 Reopened/Recently Updated Issues*"
+              }
+            }]')
+            
+            # Add each reopened issue with last comment
+            while IFS= read -r issue_json; do
+              [ -z "$issue_json" ] && continue
+              
+              NUMBER=$(echo "$issue_json" | jq -r '.number')
+              TITLE=$(echo "$issue_json" | jq -r '.title')
+              URL=$(echo "$issue_json" | jq -r '.html_url')
+              LAST_COMMENT=$(echo "$issue_json" | jq -r '.last_comment // ""')
+              LAST_COMMENTER=$(echo "$issue_json" | jq -r '.last_commenter // ""')
+              
+              # Build the issue text
+              ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE*"
+              
+              # Add last comment if available
+              if [ -n "$LAST_COMMENT" ] && [ "$LAST_COMMENT" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  💬 _${LAST_COMMENTER}: ${LAST_COMMENT}..._"
+              fi
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $text
+                  }
+                }]')
+            done < <(cat /tmp/reopened_issues.json | jq -c '.[]')
+          fi
+          
+          # Issues with User Comments Section (excluding bots)
+          if [ "$COMMENTED_COUNT" -gt 0 ]; then
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*💬 Issues with New Comments*"
+              }
+            }]')
+            
+            # Add each commented issue with comment content
+            while IFS= read -r issue_json; do
+              [ -z "$issue_json" ] && continue
+              
+              NUMBER=$(echo "$issue_json" | jq -r '.number')
+              TITLE=$(echo "$issue_json" | jq -r '.title')
+              URL=$(echo "$issue_json" | jq -r '.html_url')
+              COMMENTER=$(echo "$issue_json" | jq -r '.latest_commenter // ""')
+              COMMENT=$(echo "$issue_json" | jq -r '.latest_comment // ""')
+              
+              # Build the issue text
+              ISSUE_TEXT="• <$URL|#$NUMBER>: *$TITLE*"
+              
+              # Add comment content if available
+              if [ -n "$COMMENT" ] && [ "$COMMENT" != "" ]; then
+                ISSUE_TEXT="${ISSUE_TEXT}\n  💬 _${COMMENTER}: ${COMMENT}..._"
+              else
+                ISSUE_TEXT="${ISSUE_TEXT}\n  💬 _comment by ${COMMENTER}_"
+              fi
+              
+              BLOCKS=$(echo "$BLOCKS" | jq --arg text "$ISSUE_TEXT" \
+                '. + [{
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": $text
+                  }
+                }]')
+            done < <(cat /tmp/commented_issues.json | jq -c '.[]')
+          fi
+          
+          # Footer with link to all issues
+          BLOCKS=$(echo "$BLOCKS" | jq --arg url "https://github.com/${{ github.repository }}/issues" \
+            '. + [{
+              "type": "context",
+              "elements": [{
+                "type": "mrkdwn",
+                "text": "<\($url)|View all issues →>"
+              }]
+            }]')
+          
+          # Check block count (Slack limit is 50)
+          BLOCK_COUNT=$(echo "$BLOCKS" | jq 'length')
+          echo "Block count: $BLOCK_COUNT"
+          
+          if [ "$BLOCK_COUNT" -gt 50 ]; then
+            echo "⚠️ Block count exceeds Slack limit (50). Creating compact summary..."
+            
+            # Build compact fallback message
+            # Priority: 1) All new issues, 2) Commented issues, 3) Reopened issues
+            # Slack section text limit is ~3000 chars, so we fit as many as possible
+            
+            BLOCKS='[]'
+            
+            # Header
+            BLOCKS=$(echo "$BLOCKS" | jq \
+              --arg repo "${{ github.repository }}" \
+              --arg hours "${{ env.HOURS_LOOKBACK }}" \
+              '. + [{
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "📊 Daily Issues Digest - \($repo) | Last \($hours) hours",
+                  "emoji": true
+                }
+              }]')
+            
+            # Summary counters
+            BLOCKS=$(echo "$BLOCKS" | jq \
+              --arg new "$NEW_COUNT" \
+              --arg reopened "$REOPENED_COUNT" \
+              --arg commented "$COMMENTED_COUNT" \
+              --arg closed "$CLOSED_COUNT" \
+              --arg prs "$PR_OPENED_COUNT" \
+              '. + [{
+                "type": "context",
+                "elements": [{
+                  "type": "mrkdwn",
+                  "text": "🆕 \($new) new | 🔄 \($reopened) updated | 💬 \($commented) commented | ✅ \($closed) closed | 🔀 \($prs) PRs opened"
+                }]
+              }]')
+            
+            # Divider
+            BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+            
+            # Calculate remaining blocks (50 - header - summary - divider - note - footer = 45)
+            REMAINING_BLOCKS=45
+            
+            # 1. PRIORITY: All New Issues (use multiple blocks if needed)
+            if [ "$NEW_COUNT" -gt 0 ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*🆕 New Issues*"
+                }
+              }]')
+              REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+              
+              # Show ALL new issues, split into blocks of ~30 each (to stay under 3000 char limit)
+              BATCH_SIZE=30
+              BATCH_NUM=0
+              while true; do
+                SKIP=$((BATCH_NUM * BATCH_SIZE))
+                NEW_LIST=$(cat /tmp/new_issues.json | jq -r \
+                  ".[$SKIP:$((SKIP + BATCH_SIZE))] | .[] | \"• <\\(.html_url)|#\\(.number)>: \\(.title)\"")
+                
+                [ -z "$NEW_LIST" ] && break
+                [ "$REMAINING_BLOCKS" -le 3 ] && break
+                
+                BLOCKS=$(echo "$BLOCKS" | jq --arg list "$NEW_LIST" \
+                  '. + [{
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $list
+                    }
+                  }]')
+                
+                REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+                BATCH_NUM=$((BATCH_NUM + 1))
+              done
+            fi
+            
+            # 2. SECOND PRIORITY: Commented Issues
+            if [ "$COMMENTED_COUNT" -gt 0 ] && [ "$REMAINING_BLOCKS" -gt 3 ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*💬 Issues with New Comments*"
+                }
+              }]')
+              REMAINING_BLOCKS=$((REMAINING_BLOCKS - 2))
+              
+              # Show as many commented issues as blocks allow
+              BATCH_SIZE=30
+              BATCH_NUM=0
+              while true; do
+                SKIP=$((BATCH_NUM * BATCH_SIZE))
+                COMMENTED_LIST=$(cat /tmp/commented_issues.json | jq -r \
+                  ".[$SKIP:$((SKIP + BATCH_SIZE))] | .[] | \"• <\\(.html_url)|#\\(.number)>: \\(.title)\"")
+                
+                [ -z "$COMMENTED_LIST" ] && break
+                [ "$REMAINING_BLOCKS" -le 3 ] && break
+                
+                BLOCKS=$(echo "$BLOCKS" | jq --arg list "$COMMENTED_LIST" \
+                  '. + [{
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $list
+                    }
+                  }]')
+                
+                REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+                BATCH_NUM=$((BATCH_NUM + 1))
+              done
+            fi
+            
+            # 3. LOWEST PRIORITY: Reopened Issues (only if space remains)
+            if [ "$REOPENED_COUNT" -gt 0 ] && [ "$REMAINING_BLOCKS" -gt 3 ]; then
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{"type": "divider"}]')
+              BLOCKS=$(echo "$BLOCKS" | jq '. + [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*🔄 Reopened/Updated Issues*"
+                }
+              }]')
+              REMAINING_BLOCKS=$((REMAINING_BLOCKS - 2))
+              
+              # Show as many reopened issues as blocks allow
+              BATCH_SIZE=30
+              BATCH_NUM=0
+              while true; do
+                SKIP=$((BATCH_NUM * BATCH_SIZE))
+                REOPENED_LIST=$(cat /tmp/reopened_issues.json | jq -r \
+                  ".[$SKIP:$((SKIP + BATCH_SIZE))] | .[] | \"• <\\(.html_url)|#\\(.number)>: \\(.title)\"")
+                
+                [ -z "$REOPENED_LIST" ] && break
+                [ "$REMAINING_BLOCKS" -le 2 ] && break
+                
+                BLOCKS=$(echo "$BLOCKS" | jq --arg list "$REOPENED_LIST" \
+                  '. + [{
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": $list
+                    }
+                  }]')
+                
+                REMAINING_BLOCKS=$((REMAINING_BLOCKS - 1))
+                BATCH_NUM=$((BATCH_NUM + 1))
+              done
+            fi
+            
+            # Note about compact mode
+            BLOCKS=$(echo "$BLOCKS" | jq \
+              '. + [{
+                "type": "context",
+                "elements": [{
+                  "type": "mrkdwn",
+                  "text": "⚠️ _Compact mode: Showing titles only. Click links for details._"
+                }]
+              }]')
+            
+            # Footer
+            BLOCKS=$(echo "$BLOCKS" | jq --arg url "https://github.com/${{ github.repository }}/issues" \
+              '. + [{
+                "type": "context",
+                "elements": [{
+                  "type": "mrkdwn",
+                  "text": "<\($url)|View all issues →>"
+                }]
+              }]')
+          fi
+          
+          # Save the blocks JSON
+          echo "$BLOCKS" > /tmp/slack_blocks.json
+          
+          # Create the full payload
+          PAYLOAD=$(jq -n \
+            --arg text "📊 Daily Issues Digest for ${{ github.repository }}" \
+            --argjson blocks "$(cat /tmp/slack_blocks.json)" \
+            '{text: $text, blocks: $blocks}')
+          
+          echo "$PAYLOAD" > /tmp/slack_payload.json
+          echo "Slack payload built successfully ($(echo "$BLOCKS" | jq 'length') blocks)"
+
+      - name: Send to Slack
+        if: steps.message.outputs.skip != 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_ISSUES }}
+        run: |
+          # Verify webhook URL is configured
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "❌ Error: SLACK_WEBHOOK_URL_ISSUES secret is not configured!"
+            echo "Please add the Slack webhook URL as a repository secret."
+            exit 1
+          fi
+          
+          # Send to Slack with retry on failure
+          RETRY_COUNT=0
+          MAX_RETRIES=3
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl --fail -X POST \
+              -H 'Content-type: application/json' \
+              --data @/tmp/slack_payload.json \
+              "$SLACK_WEBHOOK_URL"; then
+              echo "✅ Digest sent to Slack!"
+              exit 0
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ Slack send failed, retrying in 5 seconds... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+                sleep 5
+              fi
+            fi
+          done
+          
+          echo "❌ Failed to send to Slack after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: No updates to report
+        if: steps.message.outputs.skip == 'true'
+        run: |
+          echo "ℹ️ No new or reopened issues in the last ${{ env.HOURS_LOOKBACK }} hours. Skipping Slack notification."
