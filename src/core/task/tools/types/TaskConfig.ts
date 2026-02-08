@@ -38,6 +38,7 @@ export interface TaskConfig {
 	yoloModeToggled: boolean
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	enableParallelToolCalling: boolean
+	isSubagentExecution: boolean
 	context: vscode.ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)
@@ -104,6 +105,7 @@ export interface TaskCallbacks {
 	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
 
 	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
+	cancelRunningCommandTool?: () => Promise<boolean>
 
 	doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>
 

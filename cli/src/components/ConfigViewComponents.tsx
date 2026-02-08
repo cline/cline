@@ -46,14 +46,7 @@ export interface SkillInfo {
 	enabled: boolean
 }
 
-export const EXCLUDED_KEYS = new Set([
-	"taskHistory",
-	"primaryRootIndex",
-	"subagentsEnabled",
-	"subagentTerminalOutputLineLimit",
-	"welcomeViewCompleted",
-	"isNewUser",
-])
+export const EXCLUDED_KEYS = new Set(["taskHistory", "primaryRootIndex", "welcomeViewCompleted", "isNewUser"])
 
 export const EDITABLE_TYPES: Set<ValueType> = new Set(["string", "number", "boolean"])
 export const MAX_VISIBLE = 12
@@ -135,7 +128,7 @@ export function parseValue(input: string, type: ValueType): unknown {
 		return input.toLowerCase() === "true" || input === "1"
 	}
 	if (type === "number") {
-		const num = parseFloat(input)
+		const num = Number.parseFloat(input)
 		return Number.isNaN(num) ? 0 : num
 	}
 	if (type === "object") {

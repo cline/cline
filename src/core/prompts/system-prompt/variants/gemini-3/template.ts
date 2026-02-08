@@ -10,7 +10,6 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.CLI_SUBAGENTS}}}
 
 ====
 

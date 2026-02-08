@@ -29,7 +29,6 @@ export const config = createVariant(ModelFamily.TRINITY)
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
-		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.RULES,
 		SystemPromptSection.SYSTEM_INFO,
@@ -55,6 +54,7 @@ export const config = createVariant(ModelFamily.TRINITY)
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.USE_SKILL,
+		ClineDefaultTool.USE_SUBAGENTS,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.TRINITY,

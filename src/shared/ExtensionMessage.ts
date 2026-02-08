@@ -65,7 +65,6 @@ export interface ExtensionState {
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
 	maxConsecutiveMistakes: number
-	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean
@@ -105,7 +104,6 @@ export interface ExtensionState {
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
-	subagentsEnabled?: boolean
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean
@@ -153,6 +151,7 @@ export type ClineAsk =
 	| "condense"
 	| "summarize_task"
 	| "report_bug"
+	| "use_subagents"
 
 export type ClineSay =
 	| "task"
@@ -189,6 +188,8 @@ export type ClineSay =
 	| "task_progress"
 	| "hook_status"
 	| "hook_output_stream"
+	| "subagent"
+	| "use_subagents"
 	| "conditional_rules_applied"
 
 export interface ClineSayTool {
@@ -268,6 +269,31 @@ export interface ClineSayGenerateExplanation {
 	error?: string
 }
 
+export type SubagentExecutionStatus = "pending" | "running" | "completed" | "failed"
+
+export interface SubagentStatusItem {
+	index: number
+	prompt: string
+	status: SubagentExecutionStatus
+	toolCalls: number
+	inputTokens: number
+	outputTokens: number
+	result?: string
+	error?: string
+}
+
+export interface ClineSaySubagentStatus {
+	status: "running" | "completed" | "failed"
+	total: number
+	completed: number
+	successes: number
+	failures: number
+	toolCalls: number
+	inputTokens: number
+	outputTokens: number
+	items: SubagentStatusItem[]
+}
+
 export type BrowserActionResult = {
 	screenshot?: string
 	logs?: string
@@ -281,6 +307,10 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+}
+
+export interface ClineAskUseSubagents {
+	prompts: string[]
 }
 
 export interface ClinePlanModeResponse {
