@@ -10,6 +10,10 @@ export function getFocusChainFilePath(taskDir: string, taskId: string): string {
 	return path.join(taskDir, `focus_chain_taskid_${taskId}.md`)
 }
 
+export function getFocusChainJsonFilePath(taskDir: string, taskId: string): string {
+	return path.join(taskDir, `focus_chain_taskid_${taskId}.json`)
+}
+
 /**
  * Create the standard markdown content structure for a focusChain file
  */
