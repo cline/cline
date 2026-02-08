@@ -5,13 +5,6 @@ sidebarTitle: "Worktrees"
 
 Worktrees let you work on multiple branches simultaneously, each in its own folder. This enables Cline to work on tasks in parallel across separate VS Code windows, or lets Cline work independently while you continue coding in your main workspace.
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/worktrees-overview.png"
-		alt="Worktrees view showing multiple linked worktrees"
-	/>
-</Frame>
-
 ## What Are Git Worktrees?
 
 A Git worktree is a linked copy of your repository in a separate folder, checked out to a specific branch. All worktrees share the same Git history and `.git` directory, but each has its own working directory with different code checked out.
@@ -123,13 +116,6 @@ When you're done working in a worktree and ready to merge your changes back to t
 3. Choose whether to delete the worktree after merging
 4. Click **Merge**
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/worktrees-merge.png"
-		alt="Merge worktree modal"
-	/>
-</Frame>
-
 #### Handling Merge Conflicts
 
 If your branch has conflicts with the main branch, Cline will detect them and show you the conflicting files. You have two options:
@@ -225,6 +211,24 @@ Worktrees are not available in certain workspace configurations:
 - **Subfolder of a repository**: If you've opened a subfolder within a Git repository (not the root), worktrees are disabled. Open the repository root folder instead.
 
 The Worktrees view will display a message explaining the limitation if either of these applies to your workspace.
+
+## Using Worktrees with Cline CLI
+
+Cline CLI's `--cwd` flag unlocks powerful command-line worktree workflows:
+
+- **Parallel execution**: Run multiple Cline instances simultaneously in different worktrees
+- **Context piping**: Pipe output from one worktree as input to another for iterative refinement
+- **Combined with other features**: Use with `--config` for different models per worktree, or `--thinking` for deep analysis
+
+Example:
+```bash
+# Run parallel tasks in different worktrees
+cline --cwd ~/worktree-a -y "refactor authentication" &
+cline --cwd ~/worktree-b -y "add unit tests" &
+wait
+```
+
+For complete CLI worktree patterns and examples, see [Worktree Workflows](/cline-cli/samples/worktree-workflows).
 
 ## Troubleshooting
 

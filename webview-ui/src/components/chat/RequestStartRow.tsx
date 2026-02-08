@@ -1,6 +1,6 @@
-import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
-import { Mode } from "@shared/storage/types"
-import { LucideIcon } from "lucide-react"
+import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import type { Mode } from "@shared/storage/types"
+import type { LucideIcon } from "lucide-react"
 import type React from "react"
 import { useMemo } from "react"
 import { cleanPathPrefix } from "../common/CodeAccordian"
@@ -206,6 +206,9 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	// Only show currentActivities if there are NO completed tools
 	// (otherwise they'll be shown in the unified ToolGroupRenderer list)
 	const shouldShowActivities = currentActivities.length > 0 && !hasCompletedTools
+
+	// Initial loading ("Thinking..." before any content) is handled by the MessagesArea Footer
+	// to avoid flicker during the handoff between Footer and this component.
 
 	return (
 		<div>

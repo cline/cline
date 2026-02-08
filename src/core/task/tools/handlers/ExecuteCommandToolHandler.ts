@@ -18,6 +18,43 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 // Default timeout for commands in yolo mode and background exec mode
 const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
+const LONG_RUNNING_COMMAND_TIMEOUT_SECONDS = 300
+
+const LONG_RUNNING_COMMAND_PATTERNS: RegExp[] = [
+	/\b(npm|pnpm|yarn|bun)\s+(install|ci|build|test)\b/i,
+	/\b(npm|pnpm|yarn|bun)\s+run\s+(build|test|lint|typecheck|check)\b/i,
+	/\b(pip|pip3|uv)\s+install\b/i,
+	/\b(poetry|pipenv)\s+install\b/i,
+	/\b(cargo|go|mvn|gradle|gradlew)\s+(build|test|check|install)\b/i,
+	/\b(make|cmake|ctest)\b/i,
+	/\b(pytest|tox|nox|jest|vitest|mocha)\b/i,
+	/\b(docker|podman)\s+build\b/i,
+	/\b(torchrun|deepspeed|accelerate\s+launch)\b/i,
+	/\bffmpeg\b/i,
+	/\bpython(?:\d+(?:\.\d+)?)?\s+.*\b(train|finetune)\b/i,
+]
+
+export function isLikelyLongRunningCommand(command: string): boolean {
+	const normalized = command.trim().replace(/\s+/g, " ")
+	return LONG_RUNNING_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+export function resolveCommandTimeoutSeconds(
+	command: string,
+	timeoutParam: string | undefined,
+	useManagedTimeout: boolean,
+): number | undefined {
+	if (!useManagedTimeout) {
+		return undefined
+	}
+
+	const parsed = timeoutParam ? Number.parseInt(timeoutParam, 10) : Number.NaN
+	if (Number.isFinite(parsed) && parsed > 0) {
+		return parsed
+	}
+
+	return isLikelyLongRunningCommand(command) ? LONG_RUNNING_COMMAND_TIMEOUT_SECONDS : DEFAULT_COMMAND_TIMEOUT_SECONDS
+}
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.BASH
@@ -39,11 +76,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// since it may become an ask based on the requires_approval parameter
 			// So we wait for the complete block
 			return
-		} else {
-			await uiHelpers
-				.ask("command" as ClineAsk, uiHelpers.removeClosingTag(block, "command", command), block.partial)
-				.catch(() => {})
 		}
+		await uiHelpers
+			.ask("command" as ClineAsk, uiHelpers.removeClosingTag(block, "command", command), block.partial)
+			.catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -72,10 +108,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Handling of timeout while in yolo mode or background exec mode
-		if (config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec") {
-			const parsed = timeoutParam ? parseInt(timeoutParam, 10) : NaN
-			timeoutSeconds = parsed > 0 ? parsed : DEFAULT_COMMAND_TIMEOUT_SECONDS
-		}
+		timeoutSeconds = resolveCommandTimeoutSeconds(
+			command,
+			timeoutParam,
+			config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec",
+		)
 
 		// Pre-process command for certain models
 		if (config.api.getModel().id.includes("gemini")) {

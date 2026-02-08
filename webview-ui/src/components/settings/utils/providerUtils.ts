@@ -70,6 +70,19 @@ import {
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 
+export function supportsReasoningEffortForModelId(modelId?: string, allowShortOpenAiIds = false): boolean {
+	if (!modelId) {
+		return false
+	}
+
+	const id = modelId.toLowerCase()
+	if (id.includes("gemini") || id.includes("gpt") || id.startsWith("openai/o") || id.includes("/o") || id.includes("grok")) {
+		return true
+	}
+
+	return allowShortOpenAiIds && id.startsWith("o")
+}
+
 /**
  * Returns the static model list for a provider.
  * For providers with dynamic models (openrouter, cline, ollama, etc.), returns undefined.

@@ -101,12 +101,15 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
+  optional string openai_codex_oauth_credentials = 46;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 146; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
+
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -251,7 +254,6 @@ message Settings {
   optional bool use_auto_condense = 143;
   optional bool cline_web_tools_enabled = 144;
   optional string preferred_language = 145;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 146;
   optional PlanActMode mode = 147;
   optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;
@@ -260,7 +262,6 @@ message Settings {
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
-  optional bool skills_enabled = 156;
   optional bool opt_out_of_remote_config = 157;
   optional bool open_telemetry_enabled = 158;
   optional string open_telemetry_metrics_exporter = 159;
@@ -277,7 +278,8 @@ message Settings {
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
-  map<string, string> open_ai_headers = 173;
+  optional bool auto_approve_all_toggled = 174;
+  map<string, string> open_ai_headers = 175;
 }
 
 message DictationSettings {
@@ -384,7 +386,9 @@ message UpdateTaskSettingsRequest {
 
 // Message for updating settings
 message UpdateSettingsRequest {
+  reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
+  reserved 38; // was skills_enabled (removed - now always enabled)
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -399,7 +403,6 @@ message UpdateSettingsRequest {
   optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
@@ -421,7 +424,6 @@ message UpdateSettingsRequest {
   optional bool enable_parallel_tool_calling = 35;
   optional bool background_edit_enabled = 36;
   optional string oca_reasoning_effort = 37;
-  optional bool skills_enabled = 38;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
 }

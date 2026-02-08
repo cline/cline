@@ -1,50 +1,274 @@
 ---
-title: "Installation"
-description: "Install Cline CLI and authenticate with your account"
+title: "Installation & Setup"
+description: "Install Cline CLI on macOS, Linux, or Windows and configure your AI provider"
 ---
+
+Cline CLI brings the full power of Cline to your terminal. In just a few minutes, you can install the CLI, authenticate with your preferred AI provider, and start running tasks from any directory on your machine.
 
 ## Prerequisites
 
-Cline CLI requires Node.js version 20 or higher. We recommend using Node.js 22 for the best experience.
+Cline CLI requires **Node.js version 20 or higher**. We recommend Node.js 22 for the best experience.
 
-To check your Node.js version:
+Check your Node.js version:
 
 ```bash
 node --version
 ```
 
-## Installation
+If you need to install or update Node.js, visit [nodejs.org](https://nodejs.org) or use a version manager like [nvm](https://github.com/nvm-sh/nvm).
+
+## Install Cline CLI
+
+Install globally via npm:
 
 ```bash
 npm install -g cline
 ```
 
-After installation, authenticate with your Cline account:
+Verify the installation:
+
+```bash
+cline version
+```
+
+<Tip>
+To install a specific version, use `npm install -g cline@2.0.0`. Check [npm](https://www.npmjs.com/package/cline) for available versions.
+</Tip>
+
+## Authenticate
+
+After installation, run the authentication wizard:
 
 ```bash
 cline auth
 ```
 
-This starts an authentication wizard to sign you in and configure your preferred AI model provider.
+This launches an interactive wizard with multiple options. Choose the method that works best for your workflow.
+
+### Option 1: Sign in with Cline (Recommended)
+
+Select **"Sign in with Cline"** to authenticate with your Cline account via OAuth. Your browser opens automatically to complete sign-in.
+
+### Option 2: Sign in with ChatGPT Subscription
+
+If you have a ChatGPT Plus or Pro subscription, select **"Sign in with ChatGPT Subscription"**. This uses OpenAI's Codex OAuth to authenticate with your existing subscription.
+
+### Option 3: Import from Existing Tools
+
+Already using another AI coding CLI? Cline can import your existing configuration:
+
+- **Import from Codex CLI** - Imports credentials from `~/.codex/auth.json`
+- **Import from OpenCode** - Imports configuration from `~/.local/share/opencode/auth.json`
+
+### Option 4: Bring Your Own API Key
+
+Select **"Bring your own API key"** to manually configure any supported provider. Or skip the wizard entirely with flags:
+
+```bash
+# Anthropic (Claude)
+cline auth -p anthropic -k sk-ant-api-xxxxx -m claude-sonnet-4-5-20250929
+
+# OpenAI
+cline auth -p openai-native -k sk-xxxxx -m gpt-4o
+
+# OpenRouter
+cline auth -p openrouter -k sk-or-xxxxx -m anthropic/claude-sonnet-4-5-20250929
+
+# OpenAI-compatible provider with custom base URL
+cline auth -p openai -k your-api-key -b https://api.example.com/v1
+```
+
+**Quick Setup Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-p, --provider <id>` | Provider ID (e.g., `anthropic`, `openai-native`, `openrouter`) |
+| `-k, --apikey <key>` | Your API key |
+| `-m, --modelid <id>` | Model ID (e.g., `claude-sonnet-4-5-20250929`, `gpt-4o`) |
+| `-b, --baseurl <url>` | Base URL for OpenAI-compatible providers |
+
+<Tip>
+Flags are especially useful for scripting, CI/CD environments, or setting up multiple machines.
+</Tip>
+
+### Supported Providers
+
+| Provider | Provider ID | Notes |
+|----------|-------------|-------|
+| Anthropic | `anthropic` | Direct Claude API access |
+| OpenAI | `openai-native` | GPT-4o, GPT-4, etc. |
+| OpenAI Codex | `openai-codex` | ChatGPT subscription OAuth |
+| OpenRouter | `openrouter` | Access multiple providers |
+| AWS Bedrock | `bedrock` | Claude via AWS |
+| Google Gemini | `gemini` | Gemini Pro, etc. |
+| X AI (Grok) | `xai` | Grok models |
+| Cerebras | `cerebras` | Fast inference |
+| DeepSeek | `deepseek` | DeepSeek models |
+| Ollama | `ollama` | Local models |
+| LM Studio | `lmstudio` | Local models |
+| OpenAI Compatible | `openai` | Any OpenAI-compatible API |
+
+## Verify Your Setup
+
+Confirm everything is working with a simple test:
+
+```bash
+cline "What is 2 + 2?"
+```
+
+If Cline responds with an answer, your installation and authentication are complete.
+
+Check your current configuration:
+
+```bash
+cline config
+```
 
 ## Quick Start
 
-Get started with Cline in seconds:
+Now you're ready to use Cline. Choose how you want to work:
+
+### Interactive Mode
+
+Launch the interactive CLI for development:
 
 ```bash
 cline
 ```
 
-That's it! Running `cline` in any directory starts an interactive session where you can chat with the AI agent. Type your task, review the plan, and type `/act` when ready to execute.
+You'll see the Cline welcome screen. Type your task and press Enter. Use:
+- `Tab` to toggle between Plan and Act modes
+- `Shift+Tab` to enable auto-approve
+- `/help` for available commands
 
-For even faster execution without interaction:
+[Learn more about interactive mode →](/cline-cli/interactive-mode)
+
+### Direct Task Execution
+
+Run a task directly from your shell:
 
 ```bash
-cline "Add unit tests to utils.js"
+cline "Add error handling to utils.js"
 ```
 
-This runs Cline with a single command, perfect for quick tasks or automation.
+For non-interactive execution (perfect for scripts and CI/CD):
 
-<Tip>
-New to Cline CLI? Start with interactive mode (`cline`) to see how it works. Once comfortable, explore [the three core flows](/cline-cli/three-core-flows) for advanced usage patterns.
-</Tip>
+```bash
+cline -y "Run tests and fix any failures"
+```
+
+[Learn more about CLI workflows →](/cline-cli/three-core-flows)
+
+## Switching Providers
+
+To change your configured provider at any time:
+
+```bash
+cline auth
+```
+
+You can also use the settings panel in interactive mode:
+
+```bash
+cline
+# Then type: /settings
+# Navigate to the API tab
+```
+
+## Updating
+
+Check for updates and install the latest version:
+
+```bash
+cline update
+```
+
+Or update manually via npm:
+
+```bash
+npm update -g cline
+```
+
+## Troubleshooting
+
+### Command Not Found
+
+If `cline` is not found after installation:
+
+1. Ensure npm global bin is in your PATH:
+   ```bash
+   npm bin -g
+   ```
+
+2. Add the path to your shell configuration (`.bashrc`, `.zshrc`, etc.):
+   ```bash
+   export PATH="$PATH:$(npm bin -g)"
+   ```
+
+3. Restart your terminal or source your shell config.
+
+### Permission Errors
+
+If you get permission errors during installation:
+
+```bash
+# Option 1: Use a Node version manager (recommended)
+# nvm, fnm, or volta handle permissions automatically
+
+# Option 2: Fix npm permissions
+# See: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally
+```
+
+### OAuth Flow Issues
+
+If the browser doesn't open automatically during OAuth:
+1. Copy the URL from the terminal
+2. Paste it in your browser manually
+3. Complete the sign-in flow
+4. Return to the terminal
+
+### API Key Validation
+
+If your API key is rejected:
+1. Verify the key is correct and hasn't expired
+2. Check that you've selected the correct provider
+3. Ensure your API account has the necessary permissions
+
+**Provider-specific tips:**
+- **Anthropic**: Keys start with `sk-ant-`
+- **OpenAI**: Keys start with `sk-`
+- **AWS Bedrock**: Requires AWS credentials configured separately. See [AWS Bedrock documentation](/provider-config/aws-bedrock/api-key).
+
+## Uninstallation
+
+To remove Cline CLI:
+
+```bash
+npm uninstall -g cline
+```
+
+To also remove configuration data:
+
+```bash
+rm -rf ~/.cline
+```
+
+## Next Steps
+
+<Columns cols={2}>
+  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+    Master the interactive CLI with shortcuts and slash commands.
+  </Card>
+  
+  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
+    Learn interactive mode, direct execution, and automation patterns.
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+    Configure settings, rules, workflows, and environment variables.
+  </Card>
+  
+  <Card title="CLI Reference" icon="book" href="/cline-cli/cli-reference">
+    Complete command documentation with all flags and options.
+  </Card>
+</Columns>
