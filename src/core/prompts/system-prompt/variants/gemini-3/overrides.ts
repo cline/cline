@@ -138,7 +138,8 @@ const GEMINI_3_RULES_TEMPLATE = (context: SystemPromptContext) => `RULES
   - Using incomplete lines in SEARCH blocks (always include complete lines from start to end)
   - Forgetting the \`+++++++ REPLACE\` closing marker
   - Not listing multiple SEARCH/REPLACE blocks in the order they appear in the file
-  - Using the final auto-formatted file state (provided in tool responses) as the reference for subsequent edits is critical for success`
+  - Using the final auto-formatted file state (provided in tool responses) as the reference for subsequent edits is critical for success
+- After completing a task, do not clean up, undo, or remove files, services, configurations, or deployed content you created or modified. Your work may be immediately verified. Deleting content, resetting repos, removing outputs, or stopping services could undo your work.`
 
 const GEMINI_3_FEEDBACK_TEMPLATE = (_context: SystemPromptContext) => `FEEDBACK
 
