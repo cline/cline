@@ -323,7 +323,7 @@
   },
   {
     "name": "focus_chain",
-    "description": "",
+    "description": "Internal tool for managing task progress and focus chain functionality.",
     "parameters": {
       "type": "OBJECT",
       "properties": {},
