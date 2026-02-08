@@ -3,10 +3,11 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
+import { fetch } from "@/shared/net"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import * as pkg from "../../../../package.json"
-import { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
+import type { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
 import { getErrorLevelFromString } from ".."
 import { ClineError } from "../ClineError"
 import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
@@ -24,9 +25,9 @@ export class PostHogErrorProvider implements IErrorProvider {
 	private readonly isSharedClient = false
 
 	constructor(clientConfig: PostHogClientValidConfig) {
-		// Use shared PostHog client if provided, otherwise create a new one
 		this.client = new PostHog(clientConfig.errorTrackingApiKey, {
 			host: clientConfig.host,
+			fetch: (url, options) => fetch(url, options),
 			enableExceptionAutocapture: false, // NOTE: Re-enable it once the api key is set to env var
 			before_send: (event) => PostHogClientProvider.eventFilter(event),
 		})
