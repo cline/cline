@@ -67,7 +67,7 @@ export class RequestyHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
-		const reasoningEffort = this.options.reasoningEffort || "medium"
+		const reasoningEffort = this.options.reasoningEffort || "low"
 		const reasoning = { reasoning_effort: reasoningEffort }
 		const reasoningArgs = model.id.startsWith("openai/o") ? reasoning : {}
 

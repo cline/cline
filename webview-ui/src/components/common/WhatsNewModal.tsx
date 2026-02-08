@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react"
+import React, { useCallback } from "react"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"
@@ -16,32 +16,11 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels, navigateToSettingsModelPicker } =
-		useExtensionState()
+	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const clickedModelsRef = useRef<Set<string>>(new Set())
 
 	// Get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
-
-	const setModel = useCallback(
-		(modelId: string) => {
-			handleFieldsChange({
-				planModeOpenRouterModelId: modelId,
-				actModeOpenRouterModelId: modelId,
-				planModeOpenRouterModelInfo: openRouterModels[modelId],
-				actModeOpenRouterModelInfo: openRouterModels[modelId],
-				planModeApiProvider: "cline",
-				actModeApiProvider: "cline",
-			})
-
-			clickedModelsRef.current.add(modelId)
-			setShowChatModelSelector(true)
-			onClose()
-		},
-		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
-	)
 
 	const navigateToModelPicker = useCallback(
 		(initialModelTab: "recommended" | "free", modelId?: string) => {
@@ -64,29 +43,12 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
-	type InlineModelLinkProps =
-		| { type: "model"; modelId: string; label: string }
-		| { type: "picker"; pickerTab: "recommended" | "free"; modelId: string; label: string }
+	type InlineModelLinkProps = { pickerTab: "recommended" | "free"; modelId: string; label: string }
 
 	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
-		if (props.type === "picker") {
-			return (
-				<span
-					onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
-					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-					{props.label}
-				</span>
-			)
-		}
-
-		const isClicked = clickedModelsRef.current.has(props.modelId)
-		if (isClicked) {
-			return null
-		}
-
 		return (
 			<span
-				onClick={() => setModel(props.modelId)}
+				onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
 				style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 				{props.label}
 			</span>
@@ -123,19 +85,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						</li>
 						<li className="mb-2">
 							<strong> Anthropic Opus 4.6 is now available!</strong> Experience Anthropic's latest and most capable
-							model.{" "}
-							<InlineModelLink
-								label="Try now"
-								modelId="anthropic/claude-opus-4.6"
-								pickerTab="recommended"
-								type="picker"
-							/>
+							model. <InlineModelLink label="Try now" modelId="anthropic/claude-opus-4.6" pickerTab="recommended" />
 						</li>
 						<li className="mb-2">
 							<strong>🎉 Free promo: Minimax-2.1 and Kimi-k2.5!</strong> Available free for a limited time.{" "}
-							<InlineModelLink label="Minimax-2.1" modelId="minimax/minimax-m2.1" pickerTab="free" type="picker" />
+							<InlineModelLink label="Minimax-2.1" modelId="minimax/minimax-m2.1" pickerTab="free" />
 							{" | "}
-							<InlineModelLink label="Kimi-k2.5" modelId="moonshotai/kimi-k2.5" pickerTab="free" type="picker" />
+							<InlineModelLink label="Kimi-k2.5" modelId="moonshotai/kimi-k2.5" pickerTab="free" />
 						</li>
 					</ul>
 
