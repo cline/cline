@@ -233,6 +233,18 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.registerMcpServer",
+				"title": "Register MCP Server",
+				"enablement": "false",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.unregisterMcpServer",
+				"title": "Unregister MCP Server",
+				"enablement": "false",
+				"category": "Cline"
+			},
+			{
 				"command": "cline.reviewComment.reply",
 				"title": "Reply",
 				"category": "Cline",
