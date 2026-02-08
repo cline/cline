@@ -1,5 +1,7 @@
 // Import proper AWS SDK types
-import type { ContentBlock, Message } from "@aws-sdk/client-bedrock-runtime"
+
+import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import type { ContentBlock, Message, ToolConfiguration } from "@aws-sdk/client-bedrock-runtime"
 import {
 	BedrockRuntimeClient,
 	ConversationRole,
@@ -13,6 +15,7 @@ import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
+import type { ClineTool } from "@/shared/tools"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
@@ -62,6 +65,7 @@ interface ContentBlockStart {
 	start?: {
 		type?: string
 		thinking?: string
+		toolUse?: ToolUseStart
 	}
 	contentBlock?: {
 		type?: string
@@ -81,7 +85,20 @@ interface ContentBlockDelta {
 		reasoningContent?: {
 			text?: string
 		}
+		toolUse?: ToolUseDelta
 	}
+}
+
+// Tool use types returned by Bedrock ConverseStream API.
+// The @aws-sdk/client-bedrock-runtime types don't fully cover these
+// fields in the streaming response, so we define them here.
+interface ToolUseStart {
+	toolUseId: string
+	name: string
+}
+
+interface ToolUseDelta {
+	input: string
 }
 
 // Define types for supported content types
@@ -129,7 +146,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	@withRetry({ maxRetries: 4 })
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
@@ -149,29 +166,29 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Check if this is an Amazon Nova model
 		if (baseModelId.includes("amazon.nova")) {
-			yield* this.createNovaMessage(systemPrompt, messages, modelId, model)
+			yield* this.createNovaMessage(systemPrompt, messages, modelId, model, tools)
 			return
 		}
 
 		if (baseModelId.includes("openai")) {
-			yield* this.createOpenAIMessage(systemPrompt, messages, modelId, model)
+			yield* this.createOpenAIMessage(systemPrompt, messages, modelId, model, tools)
 			return
 		}
 
 		// Check if this is a Qwen model
 		if (baseModelId.includes("qwen")) {
-			yield* this.createQwenMessage(systemPrompt, messages, modelId, model)
+			yield* this.createQwenMessage(systemPrompt, messages, modelId, model, tools)
 			return
 		}
 
 		// Check if this is a Deepseek model
 		if (baseModelId.includes("deepseek")) {
-			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
+			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model, tools)
 			return
 		}
 
 		// Default: Use Anthropic Converse API for all Anthropic models
-		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model, enable1mContextWindow)
+		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model, enable1mContextWindow, tools)
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -351,13 +368,16 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message using the Deepseek R1 model through AWS Bedrock
+	 * Creates a message using the Deepseek R1 model through AWS Bedrock.
+	 * DeepSeek R1 uses InvokeModelWithResponseStream (not the Converse API)
+	 * and does not support native tool calling, so tools are intentionally unused.
 	 */
 	private async *createDeepseekMessage(
 		systemPrompt: string,
 		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		_tools?: ClineTool[],
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
@@ -542,6 +562,42 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
+	 * Converts Cline's tool definitions (Anthropic format with `input_schema`) to the
+	 * Bedrock Converse API `ToolConfiguration` shape. Returns `undefined` when no tools
+	 * are provided so callers can conditionally spread into the command params.
+	 */
+	private mapClineToolsToBedrockToolConfig(tools?: ClineTool[]): ToolConfiguration | undefined {
+		if (!tools || tools.length === 0) {
+			return undefined
+		}
+
+		const isAnthropicTool = (tool: ClineTool): tool is AnthropicTool => "input_schema" in tool
+
+		const bedrockTools = tools.filter(isAnthropicTool).map((tool) => {
+			return {
+				toolSpec: {
+					name: tool.name,
+					description: tool.description || tool.name || "Tool",
+					inputSchema: {
+						json: tool.input_schema,
+					},
+				},
+			}
+		})
+
+		if (bedrockTools.length === 0) {
+			return undefined
+		}
+
+		const toolConfig: ToolConfiguration = {
+			tools: bedrockTools as unknown as ToolConfiguration["tools"],
+			toolChoice: { auto: {} },
+		}
+
+		return toolConfig
+	}
+
+	/**
 	 * Executes a Converse API stream command and handles the response
 	 * Common implementation for both Anthropic and Nova models
 	 */
@@ -554,6 +610,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				// Buffer content by contentBlockIndex to handle multi-block responses correctly
 				const contentBuffers: Record<number, string> = {}
 				const blockTypes = new Map<number, "reasoning" | "text">()
+				const activeToolCalls: Map<number, { toolUseId: string; name: string }> = new Map()
 
 				for await (const chunk of response.stream) {
 					// Debug logging to see actual response structure
@@ -602,6 +659,16 @@ export class AwsBedrockHandler implements ApiHandler {
 					if (chunk.contentBlockStart) {
 						const blockStart = chunk.contentBlockStart as ContentBlockStart
 						const blockIndex = chunk.contentBlockStart.contentBlockIndex
+
+						if (blockStart.start?.toolUse) {
+							const toolUse = blockStart.start.toolUse
+							if (toolUse.toolUseId && toolUse.name && blockIndex !== undefined) {
+								activeToolCalls.set(blockIndex, {
+									toolUseId: toolUse.toolUseId,
+									name: toolUse.name,
+								})
+							}
+						}
 
 						// Check for thinking block in various possible formats
 						if (
@@ -656,6 +723,22 @@ export class AwsBedrockHandler implements ApiHandler {
 										reasoning: reasoningText,
 									}
 								}
+							} else if (delta?.toolUse?.input !== undefined) {
+								const toolCall = activeToolCalls.get(blockIndex)
+								const toolInput = delta.toolUse.input
+								if (toolCall && typeof toolInput === "string") {
+									yield {
+										type: "tool_calls",
+										tool_call: {
+											call_id: toolCall.toolUseId,
+											function: {
+												id: toolCall.toolUseId,
+												name: toolCall.name,
+												arguments: toolInput,
+											},
+										},
+									}
+								}
 							} else if (chunk.contentBlockDelta.delta?.text) {
 								// Handle regular text content
 								const textContent = chunk.contentBlockDelta.delta.text
@@ -685,6 +768,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							// Clean up buffers and tracking for this block
 							delete contentBuffers[blockIndex]
 							blockTypes.delete(blockIndex)
+							activeToolCalls.delete(blockIndex)
 						}
 					}
 
@@ -786,6 +870,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 		enable1mContextWindow: boolean,
+		tools?: ClineTool[],
 	): ApiStream {
 		// Format messages for Anthropic model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
@@ -808,11 +893,13 @@ export class AwsBedrockHandler implements ApiHandler {
 		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
 
 		// Prepare request for Anthropic model using Converse API
+		const toolConfig = this.mapClineToolsToBedrockToolConfig(tools)
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
 			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
 				...(reasoningOn && {
@@ -858,6 +945,47 @@ export class AwsBedrockHandler implements ApiHandler {
 						// Image content
 						if (item.type === "image") {
 							return this.processImageContent(item)
+						}
+
+						if (item.type === "tool_use") {
+							return {
+								toolUse: {
+									toolUseId: item.id,
+									name: item.name,
+									input: item.input,
+								},
+							}
+						}
+
+						if (item.type === "tool_result") {
+							const content = (() => {
+								if (typeof item.content === "string") {
+									return [{ text: item.content }]
+								}
+								if (Array.isArray(item.content)) {
+									return item.content
+										.map((block) => {
+											if (block.type === "text") {
+												return { text: block.text }
+											}
+											if (block.type === "image") {
+												return this.processImageContent(block)
+											}
+											return null
+										})
+										.filter((block): block is ContentBlock => block !== null)
+								}
+
+								return [{ text: JSON.stringify(item.content) }]
+							})()
+
+							return {
+								toolResult: {
+									toolUseId: item.tool_use_id,
+									content,
+									status: item.is_error ? "error" : "success",
+								},
+							}
 						}
 
 						// Log unsupported content types for debugging
@@ -971,6 +1099,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		tools?: ClineTool[],
 	): ApiStream {
 		// Format messages for Nova model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
@@ -991,11 +1120,13 @@ export class AwsBedrockHandler implements ApiHandler {
 		const systemMessages = this.prepareSystemMessages(systemPrompt, enableCaching || false)
 
 		// Prepare request for Nova model
+		const toolConfig = this.mapClineToolsToBedrockToolConfig(tools)
 		const command = new ConverseStreamCommand({
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
 			inferenceConfig: this.getInferenceConfig(model.info, "nova"),
+			...(toolConfig ? { toolConfig } : {}),
 		})
 
 		// Execute the streaming request using unified handler
@@ -1011,6 +1142,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		tools?: ClineTool[],
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
@@ -1022,6 +1154,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
 
 		// Prepare the non-streaming Converse command
+		const toolConfig = this.mapClineToolsToBedrockToolConfig(tools)
 		const command = new ConverseCommand({
 			modelId: modelId,
 			messages: formattedMessages,
@@ -1030,6 +1163,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				maxTokens: model.info.maxTokens || 8192,
 				temperature: 0,
 			},
+			...(toolConfig ? { toolConfig } : {}),
 		})
 
 		try {
@@ -1146,6 +1280,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		tools?: ClineTool[],
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
@@ -1157,6 +1292,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const systemMessages = systemPrompt ? [{ text: systemPrompt }] : undefined
 
 		// Prepare the non-streaming Converse command
+		const toolConfig = this.mapClineToolsToBedrockToolConfig(tools)
 		const command = new ConverseCommand({
 			modelId: modelId,
 			messages: formattedMessages,
@@ -1165,6 +1301,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				maxTokens: model.info.maxTokens || 8192,
 				temperature: 0,
 			},
+			...(toolConfig ? { toolConfig } : {}),
 		})
 
 		try {
