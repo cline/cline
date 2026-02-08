@@ -812,6 +812,7 @@ export const ChatRowContent = memo(
 										<div className="mb-1 opacity-80 uppercase">Arguments</div>
 										<CodeAccordian
 											code={useMcpServer.arguments}
+											forceWrap={true}
 											isExpanded={true}
 											language="json"
 											onToggleExpand={handleToggle}
