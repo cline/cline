@@ -9,8 +9,9 @@ import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
+import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { getModeSpecificFields } from "./utils/providerUtils"
+import { getModeSpecificFields, supportsReasoningEffortForModelId } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 export interface VercelModelPickerProps {
@@ -159,20 +160,26 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 		}
 	}, [selectedIndex])
 
+	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
+	const showReasoningEffort = useMemo(() => supportsReasoningEffortForModelId(selectedModelId), [selectedModelId])
+
 	const showBudgetSlider = useMemo(() => {
+		if (showReasoningEffort) {
+			return false
+		}
 		return (
-			selectedModelId?.toLowerCase().includes("claude-opus-4.6") ||
-			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
-			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
-			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
-			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
-			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
-			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
-			selectedModelId?.toLowerCase().includes("claude-opus-4.5") ||
-			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet")
+			selectedModelIdLower.includes("claude-opus-4.6") ||
+			selectedModelIdLower.includes("claude-haiku-4.5") ||
+			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.5") ||
+			selectedModelIdLower.includes("claude-sonnet-4") ||
+			selectedModelIdLower.includes("claude-opus-4.1") ||
+			selectedModelIdLower.includes("claude-opus-4") ||
+			selectedModelIdLower.includes("claude-opus-4.5") ||
+			selectedModelIdLower.includes("claude-3-7-sonnet") ||
+			selectedModelIdLower.includes("claude-3.7-sonnet")
 		)
-	}, [selectedModelId])
+	}, [selectedModelIdLower, showReasoningEffort])
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -261,6 +268,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 			{hasInfo && selectedModelInfo ? (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
 					<ModelInfoView
 						isPopup={isPopup}

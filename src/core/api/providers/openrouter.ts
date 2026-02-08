@@ -22,7 +22,6 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
-	geminiThinkingLevel?: string
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -69,10 +68,9 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
-			this.options.geminiThinkingLevel,
 		)
 
-		let didOutputUsage: boolean = false
+		let didOutputUsage = false
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
@@ -101,12 +99,9 @@ export class OpenRouterHandler implements ApiHandler {
 					// Format error details
 					const errorDetails = typeof error === "object" ? JSON.stringify(error, null, 2) : String(error)
 					throw new Error(`OpenRouter Mid-Stream Error: ${errorDetails}`)
-				} else {
-					// Fallback if error details are not available
-					throw new Error(
-						`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`,
-					)
 				}
+				// Fallback if error details are not available
+				throw new Error(`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`)
 			}
 
 			if (!this.lastGenerationId && chunk.id) {

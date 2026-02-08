@@ -15,7 +15,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
@@ -259,7 +259,6 @@ const USER_SETTINGS_FIELDS = {
 	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
-	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
 	mode: { default: "act" as Mode },
 	dictationSettings: {
 		default: DEFAULT_DICTATION_SETTINGS as DictationSettings,
