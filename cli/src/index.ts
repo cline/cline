@@ -15,7 +15,6 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -397,8 +396,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	BannerService.initialize(webview.controller)
 
 	telemetryService.captureExtensionActivated()
 	telemetryService.captureHostEvent("cline_cli", "initialized")

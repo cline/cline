@@ -11,7 +11,6 @@ import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { ExtensionRegistryInfo } from "./registry"
-import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
@@ -68,8 +67,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// =============== Webview services ===============
 	const webview = HostProvider.get().createWebviewProvider()
-	// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
-	BannerService.initialize(webview.controller)
 
 	const stateManager = StateManager.get()
 	// Non-blocking announcement check and display
