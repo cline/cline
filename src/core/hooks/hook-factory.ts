@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { openAiCodexDefaultModelId, openAiCodexModels, openAiNativeDefaultModelId, openAiNativeModels } from "@/shared/api"
 import { Logger } from "@/shared/services/Logger"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
@@ -177,6 +178,7 @@ export abstract class HookRunner<Name extends HookName> {
 	 * - timestamp: Execution time in milliseconds since epoch
 	 * - workspaceRoots: Array of workspace folder paths
 	 * - userId: Cline user ID, machine ID, or generated UUID
+	 * - modelId: Currently selected provider and model in "provider:modelId" format
 	 *
 	 * This separation allows hook scripts to receive consistent metadata without
 	 * requiring callers to manually provide it each time.
@@ -185,16 +187,106 @@ export abstract class HookRunner<Name extends HookName> {
 	 * @returns Complete HookInput ready to be serialized and sent to the hook script
 	 */
 	protected async completeParams(params: NamedHookInput<Name>): Promise<HookInput> {
-		const workspaceRoots =
-			StateManager.get()
-				.getGlobalStateKey("workspaceRoots")
-				?.map((root) => root.path) || []
+		const stateManager = StateManager.get()
+		const workspaceRoots = stateManager.getGlobalStateKey("workspaceRoots")?.map((root) => root.path) || []
+
+		// Build modelId using the same format shown under the prompt input field in the VSCode extension
+		// (see webview-ui/src/components/chat/ChatTextArea.tsx)
+		const mode = stateManager.getGlobalSettingsKey("mode") || "act"
+		const apiProvider =
+			mode === "plan"
+				? stateManager.getGlobalSettingsKey("planModeApiProvider")
+				: stateManager.getGlobalSettingsKey("actModeApiProvider")
+
+		// Helper to get a mode-specific settings key
+		const getSetting = <T>(planKey: string, actKey: string): T | undefined =>
+			(mode === "plan"
+				? stateManager.getGlobalSettingsKey(planKey as any)
+				: stateManager.getGlobalSettingsKey(actKey as any)) as T | undefined
+
+		// Get the correct model ID based on provider
+		// This mirrors webview-ui/src/components/settings/utils/providerUtils.ts normalizeApiConfiguration()
+		// Each provider may have its own dedicated model ID field
+		const formattedModelId = (() => {
+			const apiModelId = getSetting<string>("planModeApiModelId", "actModeApiModelId")
+
+			switch (apiProvider) {
+				// Providers using openRouterModelId
+				case "cline":
+					return `cline:${getSetting<string>("planModeOpenRouterModelId", "actModeOpenRouterModelId") || ""}`
+				case "openrouter":
+					return `openrouter:${getSetting<string>("planModeOpenRouterModelId", "actModeOpenRouterModelId") || ""}`
+
+				// OpenAI compatible - uses openAiModelId
+				case "openai":
+					return `openai-compat:${getSetting<string>("planModeOpenAiModelId", "actModeOpenAiModelId") || ""}`
+
+				// OpenAI native - validate against known models
+				case "openai-native":
+					return `openai-native:${apiModelId && apiModelId in openAiNativeModels ? apiModelId : openAiNativeDefaultModelId}`
+
+				// OpenAI Codex - validate against known models
+				case "openai-codex":
+					return `openai-codex:${apiModelId && apiModelId in openAiCodexModels ? apiModelId : openAiCodexDefaultModelId}`
+
+				// Providers with their own dedicated model ID fields
+				case "requesty":
+					return `requesty:${getSetting<string>("planModeRequestyModelId", "actModeRequestyModelId") || ""}`
+				case "ollama":
+					return `ollama:${getSetting<string>("planModeOllamaModelId", "actModeOllamaModelId") || ""}`
+				case "lmstudio":
+					return `lmstudio:${getSetting<string>("planModeLmStudioModelId", "actModeLmStudioModelId") || ""}`
+				case "litellm":
+					return `litellm:${getSetting<string>("planModeLiteLlmModelId", "actModeLiteLlmModelId") || ""}`
+				case "groq":
+					return `groq:${getSetting<string>("planModeGroqModelId", "actModeGroqModelId") || ""}`
+				case "baseten":
+					return `baseten:${getSetting<string>("planModeBasetenModelId", "actModeBasetenModelId") || ""}`
+				case "huggingface":
+					return `huggingface:${getSetting<string>("planModeHuggingFaceModelId", "actModeHuggingFaceModelId") || ""}`
+				case "huawei-cloud-maas":
+					return `huawei-cloud-maas:${getSetting<string>("planModeHuaweiCloudMaasModelId", "actModeHuaweiCloudMaasModelId") || ""}`
+				case "vercel-ai-gateway":
+					return `vercel-ai-gateway:${getSetting<string>("planModeVercelAiGatewayModelId", "actModeVercelAiGatewayModelId") || ""}`
+				case "fireworks":
+					return `fireworks:${getSetting<string>("planModeFireworksModelId", "actModeFireworksModelId") || ""}`
+				case "oca":
+					return `oca:${getSetting<string>("planModeOcaModelId", "actModeOcaModelId") || ""}`
+				case "aihubmix":
+					return `aihubmix:${getSetting<string>("planModeAihubmixModelId", "actModeAihubmixModelId") || ""}`
+				case "nousResearch":
+					return `nousResearch:${getSetting<string>("planModeNousResearchModelId", "actModeNousResearchModelId") || ""}`
+				case "hicap":
+					return `hicap:${getSetting<string>("planModeHicapModelId", "actModeHicapModelId") || ""}`
+				case "together":
+					return `together:${getSetting<string>("planModeTogetherModelId", "actModeTogetherModelId") || ""}`
+
+				// VSCode LM has special format: vendor/family
+				case "vscode-lm": {
+					const selector = getSetting<{ vendor?: string; family?: string }>(
+						"planModeVsCodeLmModelSelector",
+						"actModeVsCodeLmModelSelector",
+					)
+					return `vscode-lm:${selector ? `${selector.vendor || ""}/${selector.family || ""}` : ""}`
+				}
+
+				// Dify has hardcoded model
+				case "dify":
+					return "dify:dify-workflow"
+
+				// All other providers use apiModelId (anthropic, bedrock, vertex, gemini, deepseek, etc.)
+				default:
+					return `${apiProvider || ""}:${apiModelId || ""}`
+			}
+		})()
+
 		return {
 			clineVersion,
 			hookName: this.hookName,
 			timestamp: Date.now().toString(),
 			workspaceRoots,
 			userId: getDistinctId(), // Always available: Cline User ID, machine ID, or generated UUID
+			modelId: formattedModelId,
 			...params,
 		}
 	}
@@ -353,7 +445,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					}
 
 					return output
-				} catch (parseError) {
+				} catch (_parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					// Scan from the end to find the last complete JSON object
 					// This handles cases where hooks output debug info before the actual JSON response
