@@ -54,7 +54,7 @@ interface TaskOptions {
 	verbose?: boolean
 	cwd?: string
 	config?: string
-	thinking?: boolean
+	thinking?: boolean | string
 	reasoningEffort?: string
 	yolo?: boolean
 	timeout?: string
@@ -115,8 +115,21 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
-	// Set thinking budget based on --thinking flag
-	const thinkingBudget = options.thinking ? 1024 : 0
+	// Set thinking budget based on --thinking flag (boolean or number)
+	let thinkingBudget = 0
+	if (options.thinking) {
+		if (typeof options.thinking === "string") {
+			const parsed = Number.parseInt(options.thinking, 10)
+			if (Number.isNaN(parsed) || parsed < 0) {
+				printWarning(`Invalid --thinking value '${options.thinking}'. Using default 1024.`)
+				thinkingBudget = 1024
+			} else {
+				thinkingBudget = parsed
+			}
+		} else {
+			thinkingBudget = 1024
+		}
+	}
 	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
 	setModeScopedState(currentMode, (mode) => {
 		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
@@ -686,7 +699,7 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
-	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
 	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
@@ -917,7 +930,7 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
-	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
 	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
