@@ -237,6 +237,7 @@ export class McpHub {
 			if (settings) {
 				try {
 					await this.updateServerConnections(settings.mcpServers)
+					await this.restoreRemoteConfiguredServers(settings.mcpServers)
 				} catch (error) {
 					Logger.error("Failed to process MCP settings change:", error)
 				}
@@ -952,6 +953,70 @@ export class McpHub {
 		const { autoApprove: _oldAutoApprove, timeout: _oldTimeout, ...oldConnectionConfig } = oldConfig
 		const { autoApprove: _newAutoApprove, timeout: _newTimeout, ...newConnectionConfig } = newConfig
 		return !deepEqual(oldConnectionConfig, newConnectionConfig)
+	}
+
+	/**
+	 * Restores remotely configured MCP servers that were manually deleted from the settings file.
+	 * This ensures enterprise-managed servers cannot be accidentally removed by users editing the file.
+	 *
+	 * @param currentServers The current servers in the settings file after the manual edit
+	 */
+	private async restoreRemoteConfiguredServers(currentServers: Record<string, McpServerConfig>): Promise<void> {
+		try {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+			const remoteMCPServers = remoteConfig.remoteMCPServers
+
+			if (!remoteMCPServers || remoteMCPServers.length === 0) {
+				return
+			}
+
+			const missingServers: Array<{ name: string; url: string }> = []
+			for (const remoteServer of remoteMCPServers) {
+				const existingServer = currentServers[remoteServer.name]
+				if (!existingServer || !("url" in existingServer) || existingServer.url !== remoteServer.url) {
+					missingServers.push(remoteServer)
+				}
+			}
+
+			if (missingServers.length === 0) {
+				return
+			}
+
+			Logger.log(`[MCP] Restoring ${missingServers.length} remotely configured server(s) that were manually removed`)
+
+			this.isUpdatingFromRemoteConfig = true
+
+			try {
+				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+				const content = await fs.readFile(settingsPath, "utf-8")
+				const config = JSON.parse(content)
+
+				if (!config.mcpServers || typeof config.mcpServers !== "object") {
+					config.mcpServers = {}
+				}
+
+				for (const server of missingServers) {
+					config.mcpServers[server.name] = {
+						url: server.url,
+						type: "streamableHttp",
+						disabled: false,
+						autoApprove: [],
+					}
+				}
+
+				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+
+				const validatedSettings = await this.readAndValidateMcpSettingsFile()
+				if (validatedSettings) {
+					await this.updateServerConnections(validatedSettings.mcpServers)
+				}
+			} finally {
+				this.isUpdatingFromRemoteConfig = false
+			}
+		} catch (error) {
+			Logger.error("[MCP] Failed to restore remotely configured servers:", error)
+		}
 	}
 
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
