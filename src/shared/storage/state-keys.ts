@@ -90,6 +90,9 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
+	// Prompts library catalog and cache timestamp
+	promptsCatalog: { default: undefined as any | undefined },
+	promptsCatalogTimestamp: { default: undefined as number | undefined },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts

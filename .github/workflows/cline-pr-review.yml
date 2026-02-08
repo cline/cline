@@ -67,7 +67,7 @@ jobs:
 
       - name: Configure Cline with Anthropic
         run: |
-          npx cline auth --provider anthropic \
+          cline auth --provider anthropic \
             --apikey "${{ secrets.ANTHROPIC_API_KEY }}" \
             --modelid claude-opus-4-5-20251101
 
@@ -103,7 +103,7 @@ jobs:
               ]
             }
         run: |
-          npx cline --yolo 'You'\''re a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+          cline --yolo 'You'\''re a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
           PR: #'"${PR_NUMBER}"'
 

@@ -136,6 +136,11 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "cline.promptsButtonClicked",
+				"title": "Prompts Library",
+				"icon": "$(book)"
+			},
+			{
 				"command": "cline.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
@@ -280,13 +285,18 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "cline.promptsButtonClicked",
 					"group": "navigation@2",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "cline.mcpButtonClicked",
 					"group": "navigation@3",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.historyButtonClicked",
+					"group": "navigation@4",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
