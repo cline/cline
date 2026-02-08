@@ -112,6 +112,12 @@ const FEATURE_SETTINGS = {
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
 	},
+	doubleCheckCompletion: {
+		stateKey: "doubleCheckCompletionEnabled",
+		default: false,
+		label: "Double-check completion",
+		description: "Reject first completion attempt and require re-verification",
+	},
 } as const
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS

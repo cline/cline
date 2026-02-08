@@ -271,6 +271,7 @@ const USER_SETTINGS_FIELDS = {
 	enableParallelToolCalling: { default: true as boolean },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
+	doubleCheckCompletionEnabled: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

@@ -112,6 +112,7 @@ export interface ExtensionState {
 	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
+	doubleCheckCompletionEnabled?: boolean
 	banners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
 }

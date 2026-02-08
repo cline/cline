@@ -57,6 +57,7 @@ interface TaskOptions {
 	thinking?: boolean | string
 	reasoningEffort?: string
 	yolo?: boolean
+	doubleCheckCompletion?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
@@ -152,6 +153,12 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (options.yolo) {
 		StateManager.get().setGlobalState("yoloModeToggled", true)
 		telemetryService.captureHostEvent("yolo_flag", "true")
+	}
+
+	// Set double-check completion based on flag
+	if (options.doubleCheckCompletion) {
+		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
+		telemetryService.captureHostEvent("double_check_completion_flag", "true")
 	}
 }
 
@@ -702,6 +709,7 @@ program
 	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
 	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
 	.option("--json", "Output messages as JSON instead of styled text")
+	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
 		if (options.taskId) {
@@ -933,6 +941,7 @@ program
 	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
 	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
 	.option("--json", "Output messages as JSON instead of styled text")
+	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action(async (prompt, options) => {
