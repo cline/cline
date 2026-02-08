@@ -236,7 +236,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<DropdownList ref={dropdownListRef}>
+						<DropdownList ref={dropdownListRef} role="listbox">
 							{modelSearchResults.length > 0 ? (
 								modelSearchResults.map((item, index) => (
 									<DropdownItem
@@ -247,7 +247,8 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 											setIsDropdownVisible(false)
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => (itemRefs.current[index] = el)}
+										role="option">
 										<span dangerouslySetInnerHTML={{ __html: item.html }} />
 									</DropdownItem>
 								))
