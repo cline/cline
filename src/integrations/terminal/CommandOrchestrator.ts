@@ -36,6 +36,7 @@ import type {
 	ITerminalManager,
 	OrchestrationOptions,
 	OrchestrationResult,
+	TerminalCompletionDetails,
 	TerminalProcessResultPromise,
 } from "./types"
 
@@ -91,7 +92,7 @@ export async function orchestrateCommandExecution(
 
 	// Chunked terminal output buffering
 	let outputBuffer: string[] = []
-	let outputBufferSize: number = 0
+	let outputBufferSize = 0
 	let chunkTimer: NodeJS.Timeout | null = null
 
 	// Track if buffer gets stuck
@@ -351,6 +352,7 @@ export async function orchestrateCommandExecution(
 	})
 
 	let completed = false
+	let completionDetails: TerminalCompletionDetails | undefined
 	let completionTimer: NodeJS.Timeout | null = null
 
 	// Start timer to detect if waiting for completion takes too long
@@ -361,8 +363,9 @@ export async function orchestrateCommandExecution(
 		}
 	}, COMPLETION_TIMEOUT_MS)
 
-	process.once("completed", async () => {
+	process.once("completed", async (details?: TerminalCompletionDetails) => {
 		completed = true
+		completionDetails = details
 		// Clear the completion timer
 		if (completionTimer) {
 			clearTimeout(completionTimer)
@@ -514,6 +517,8 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: completionDetails?.exitCode,
+			signal: completionDetails?.signal,
 		}
 	}
 
@@ -537,29 +542,45 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: completionDetails?.exitCode,
+			signal: completionDetails?.signal,
 		}
 	}
 
 	if (completed) {
+		const exitCode = completionDetails?.exitCode
+		const signal = completionDetails?.signal
+		const hasExitCode = typeof exitCode === "number"
 		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+		const statusMessage = hasExitCode
+			? exitCode === 0
+				? "Command executed successfully (exit code 0)."
+				: `Command failed with exit code ${exitCode}.`
+			: signal
+				? `Command terminated by signal ${signal}.`
+				: "Command executed."
+
 		return {
 			userRejected: false,
-			result: `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
+			result: `${statusMessage}${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
 			completed: true,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode,
+			signal,
 		}
-	} else {
-		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
-		return {
-			userRejected: false,
-			result: `Command is still running in the user's terminal.${
-				result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-			}${logFileMsg}\n\nYou will be updated on the terminal status and new output in the future.`,
-			completed: false,
-			outputLines: resultOutputLines,
-			logFilePath: largeOutputLogPath || undefined,
-		}
+	}
+	const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+	return {
+		userRejected: false,
+		result: `Command is still running in the user's terminal.${
+			result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+		}${logFileMsg}\n\nYou will be updated on the terminal status and new output in the future.`,
+		completed: false,
+		outputLines: resultOutputLines,
+		logFilePath: largeOutputLogPath || undefined,
+		exitCode: completionDetails?.exitCode,
+		signal: completionDetails?.signal,
 	}
 }
 

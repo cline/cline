@@ -66,6 +66,7 @@ import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenMod
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
+import fs from "fs/promises"
 import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
@@ -1615,6 +1616,51 @@ export class Task {
 		return { model, providerId, customPrompt, mode }
 	}
 
+	private async writePromptMetadataArtifacts(params: { systemPrompt: string; providerInfo: ApiProviderInfo }): Promise<void> {
+		const enabledFlag = process.env.CLINE_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
+		const enabled = enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes"
+		if (!enabled) {
+			return
+		}
+
+		try {
+			const configuredDir = process.env.CLINE_PROMPT_ARTIFACT_DIR?.trim()
+			const artifactDir = configuredDir
+				? path.isAbsolute(configuredDir)
+					? configuredDir
+					: path.resolve(this.cwd, configuredDir)
+				: path.resolve(this.cwd, ".cline-prompt-artifacts")
+
+			await fs.mkdir(artifactDir, { recursive: true })
+
+			const ts = new Date().toISOString()
+			const safeTs = ts.replace(/[:.]/g, "-")
+			const baseName = `task-${this.taskId}-req-${this.taskState.apiRequestCount}-${safeTs}`
+			const manifestPath = path.join(artifactDir, `${baseName}.manifest.json`)
+			const promptPath = path.join(artifactDir, `${baseName}.system_prompt.md`)
+
+			const manifest = {
+				taskId: this.taskId,
+				ulid: this.ulid,
+				apiRequestCount: this.taskState.apiRequestCount,
+				ts,
+				cwd: this.cwd,
+				mode: params.providerInfo.mode,
+				provider: params.providerInfo.providerId,
+				model: params.providerInfo.model.id,
+				apiRequestId: this.getApiRequestIdSafe(),
+				systemPromptPath: promptPath,
+			}
+
+			await Promise.all([
+				fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8"),
+				fs.writeFile(promptPath, params.systemPrompt, "utf8"),
+			])
+		} catch (error) {
+			Logger.error("Failed to write prompt metadata artifacts:", error)
+		}
+	}
+
 	private getApiRequestIdSafe(): string | undefined {
 		const apiLike = this.api as Partial<{
 			getLastRequestId: () => string | undefined
@@ -1832,6 +1878,7 @@ export class Task {
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length
+		await this.writePromptMetadataArtifacts({ systemPrompt, providerInfo })
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
