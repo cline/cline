@@ -153,6 +153,24 @@ import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 
+/**
+ * Persistent input storage that survives React remounts (e.g., during terminal resize).
+ * Keyed by a stable identifier so each task/session maintains its own input state.
+ */
+interface PersistedInputState {
+	text: string
+	cursorPos: number
+	pastedTexts: Map<number, string>
+	pasteCounter: number
+}
+
+const inputStateStorage = new Map<string, PersistedInputState>()
+
+function getInputStorageKey(controller: any, taskId?: string): string {
+	// Use taskId if available, otherwise fall back to controller instance
+	return taskId || (controller?.task?.taskId ?? "default")
+}
+
 interface ChatViewProps {
 	controller?: any
 	onExit?: () => void
@@ -351,6 +369,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		insertText: insertTextAtCursor,
 	} = useTextInput()
 
+	// Get storage key for persisting input across remounts
+	const storageKey = useMemo(() => getInputStorageKey(ctrl, taskId), [ctrl, taskId])
+
 	// Refs for text input and cursor position (used by useHomeEndKeys and to avoid stale closures in useInput)
 	const textInputRef = useRef(textInput)
 	textInputRef.current = textInput
@@ -367,8 +388,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [userScrolled, setUserScrolled] = useState(false)
 
 	// Pasted text storage - maps placeholder number to full pasted content
-	const [pastedTexts, setPastedTexts] = useState<Map<number, string>>(new Map())
-	const pasteCounterRef = useRef(0)
+	const [pastedTexts, setPastedTexts] = useState<Map<number, string>>(() => {
+		return inputStateStorage.get(storageKey)?.pastedTexts ?? new Map()
+	})
+	const pasteCounterRef = useRef<number>(inputStateStorage.get(storageKey)?.pasteCounter ?? 0)
 	// Track paste timing to combine chunks that arrive in rapid succession
 	const lastPasteTimeRef = useRef<number>(0)
 	const activePasteNumRef = useRef<number>(0)
@@ -401,6 +424,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Track when we're exiting to hide UI elements before exit
 	const [isExiting, setIsExiting] = useState(false)
+
+	// Restore input state from storage on mount (after resize remount)
+	useEffect(() => {
+		const stored = inputStateStorage.get(storageKey)
+		if (stored) {
+			setTextInput(stored.text)
+			setCursorPos(stored.cursorPos)
+			setPastedTexts(stored.pastedTexts)
+			pasteCounterRef.current = stored.pasteCounter
+		}
+	}, [storageKey, setTextInput, setCursorPos])
+
+	// Persist input state to storage whenever it changes (survives remount)
+	useEffect(() => {
+		if (textInput || pastedTexts.size > 0) {
+			inputStateStorage.set(storageKey, {
+				text: textInput,
+				cursorPos,
+				pastedTexts: new Map(pastedTexts),
+				pasteCounter: pasteCounterRef.current,
+			})
+		}
+	}, [storageKey, textInput, cursorPos, pastedTexts])
 
 	// Task switch handling: when switching tasks via /history, we clear the terminal and
 	// increment a counter used as the root Box's key. This forces React to remount the tree,
@@ -494,12 +540,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		clearState() // Force clear React state (bypasses empty messages check)
 		setTextInput("")
 		setCursorPos(0)
+		// Clear persisted state
+		inputStateStorage.delete(storageKey)
 
 		// Post the now-empty state
 		if (ctrl) {
 			ctrl.postStateToWebview()
 		}
-	}, [ctrl, clearState])
+	}, [ctrl, clearState, storageKey])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
@@ -760,6 +808,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			setCursorPos(0)
 			setPastedTexts(new Map()) // Clear stored pastes
 			pasteCounterRef.current = 0
+			// Clear persisted state
+			inputStateStorage.delete(storageKey)
 
 			try {
 				await ctrl.task.handleWebviewAskResponse(responseType, expandedText)
@@ -767,7 +817,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// Controller may be disposed
 			}
 		},
-		[ctrl, pendingAsk, pastedTexts],
+		[ctrl, pendingAsk, pastedTexts, storageKey],
 	)
 
 	// Handle cancel/interrupt
@@ -858,6 +908,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			setCursorPos(0)
 			setPastedTexts(new Map()) // Clear stored pastes
 			pasteCounterRef.current = 0
+			// Clear persisted state
+			inputStateStorage.delete(storageKey)
 
 			try {
 				// Convert image paths to data URLs if needed
@@ -885,7 +937,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				onError?.()
 			}
 		},
-		[ctrl, onError, pastedTexts],
+		[ctrl, onError, pastedTexts, storageKey],
 	)
 
 	// Auto-submit initial prompt if provided
