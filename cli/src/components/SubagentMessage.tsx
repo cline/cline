@@ -3,6 +3,7 @@ import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React from "react"
 import { COLORS } from "../constants/colors"
+import { useTerminalSize } from "../hooks/useTerminalSize"
 import { jsonParseSafe } from "../utils/parser"
 
 interface SubagentMessageProps {
@@ -10,6 +11,9 @@ interface SubagentMessageProps {
 	isStreaming?: boolean
 	mode?: "act" | "plan"
 }
+
+const TREE_PREFIX_WIDTH = 5
+const MIN_PROMPT_WIDTH = 20
 
 const DotRow: React.FC<{ children: React.ReactNode; color?: string; flashing?: boolean }> = ({
 	children,
@@ -58,9 +62,108 @@ function formatSubagentStats(entry: SubagentStatusItem): string {
 	return `${entry.toolCalls} ${toolUses} · ${tokensUsed} tokens · ${totalCost}`
 }
 
+function wrapPrompt(text: string, width: number): string[] {
+	if (!text) {
+		return [""]
+	}
+
+	const normalizedWidth = Math.max(1, width)
+	const wrappedLines: string[] = []
+	const paragraphs = text.split("\n")
+
+	for (const paragraph of paragraphs) {
+		const words = paragraph.trim().split(/\s+/).filter(Boolean)
+		if (words.length === 0) {
+			wrappedLines.push("")
+			continue
+		}
+
+		let line = ""
+		for (const word of words) {
+			if (!line) {
+				if (word.length <= normalizedWidth) {
+					line = word
+					continue
+				}
+
+				let remaining = word
+				while (remaining.length > normalizedWidth) {
+					wrappedLines.push(remaining.slice(0, normalizedWidth))
+					remaining = remaining.slice(normalizedWidth)
+				}
+				line = remaining
+				continue
+			}
+
+			if (line.length + 1 + word.length <= normalizedWidth) {
+				line = `${line} ${word}`
+				continue
+			}
+
+			wrappedLines.push(line)
+
+			if (word.length <= normalizedWidth) {
+				line = word
+				continue
+			}
+
+			let remaining = word
+			while (remaining.length > normalizedWidth) {
+				wrappedLines.push(remaining.slice(0, normalizedWidth))
+				remaining = remaining.slice(normalizedWidth)
+			}
+			line = remaining
+		}
+
+		if (line) {
+			wrappedLines.push(line)
+		}
+	}
+
+	return wrappedLines.length > 0 ? wrappedLines : [text]
+}
+
+const TreePromptRow: React.FC<{
+	prefix: React.ReactNode
+	continuationPrefix: string
+	prompt: string
+	promptWidth: number
+	color?: string
+}> = ({ prefix, continuationPrefix, prompt, promptWidth, color }) => {
+	const lines = wrapPrompt(prompt, promptWidth)
+
+	return (
+		<Box flexDirection="column" width="100%">
+			{lines.map((line, index) => (
+				<Box flexDirection="row" key={`${line}-${index}`} width="100%">
+					<Box flexShrink={0} width={TREE_PREFIX_WIDTH}>
+						{index === 0 ? prefix : <Text color="gray">{continuationPrefix}</Text>}
+					</Box>
+					<Box flexGrow={1}>
+						<Text color={color}>{line}</Text>
+					</Box>
+				</Box>
+			))}
+		</Box>
+	)
+}
+
+const TreeStatsRow: React.FC<{ prefix: string; stats: string }> = ({ prefix, stats }) => (
+	<Box flexDirection="row" width="100%">
+		<Box flexShrink={0} width={TREE_PREFIX_WIDTH}>
+			<Text color="gray">{prefix}</Text>
+		</Box>
+		<Box flexGrow={1}>
+			<Text color="gray">⎿ {stats}</Text>
+		</Box>
+	</Box>
+)
+
 export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode, isStreaming }) => {
 	const { type, ask, say, text, partial } = message
 	const toolColor = mode === "plan" ? "yellow" : COLORS.primaryBlue
+	const { columns } = useTerminalSize()
+	const promptWidth = Math.max(MIN_PROMPT_WIDTH, columns - 2 - TREE_PREFIX_WIDTH)
 
 	if ((type === "ask" && ask === "use_subagents") || say === "use_subagents") {
 		const parsed = text
@@ -90,10 +193,16 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 					{prompts.map((prompt, index) => {
 						const isLastPrompt = index === prompts.length - 1
 						const branch = isLastPrompt ? "└─" : "├─"
+						const continuationPrefix = isLastPrompt ? "     " : "│    "
 						return (
-							<Text color={toolColor} key={`${prompt}-${index}`}>
-								{branch} {prompt}
-							</Text>
+							<TreePromptRow
+								color={toolColor}
+								continuationPrefix={continuationPrefix}
+								key={`${prompt}-${index}`}
+								prefix={<Text color={toolColor}>{`${branch} `}</Text>}
+								prompt={prompt}
+								promptWidth={promptWidth}
+							/>
 						)
 					})}
 				</Box>
@@ -132,19 +241,26 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 				<Box flexDirection="column" marginLeft={2} width="100%">
 					{items.map((entry, index) => {
 						const isLastEntry = index === items.length - 1
-						const branch = isLastEntry ? "└─ " : "├─ "
-						const connector = isLastEntry ? "   " : "│  "
+						const branch = isLastEntry ? "└─" : "├─"
+						const continuationPrefix = isLastEntry ? "     " : "│    "
 						const key = `${entry.index}-${index}`
 
 						if (entry.status === "completed") {
 							return (
 								<Box flexDirection="column" key={key}>
-									<Text color="green">
-										{branch}✓ {entry.prompt}
-									</Text>
-									<Text color="gray">
-										{connector}⎿ {formatSubagentStats(entry)}
-									</Text>
+									<TreePromptRow
+										color="green"
+										continuationPrefix={continuationPrefix}
+										prefix={
+											<Box flexDirection="row">
+												<Text color="gray">{`${branch} `}</Text>
+												<Text color="green">✓</Text>
+											</Box>
+										}
+										prompt={entry.prompt}
+										promptWidth={promptWidth}
+									/>
+									<TreeStatsRow prefix={continuationPrefix} stats={formatSubagentStats(entry)} />
 								</Box>
 							)
 						}
@@ -152,32 +268,44 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 						if (entry.status === "failed") {
 							return (
 								<Box flexDirection="column" key={key}>
-									<Text color="red">
-										{branch}✗ {entry.prompt}
-									</Text>
-									<Text color="gray">
-										{connector}⎿ {formatSubagentStats(entry)}
-									</Text>
+									<TreePromptRow
+										color="red"
+										continuationPrefix={continuationPrefix}
+										prefix={
+											<Box flexDirection="row">
+												<Text color="gray">{`${branch} `}</Text>
+												<Text color="red">✗</Text>
+											</Box>
+										}
+										prompt={entry.prompt}
+										promptWidth={promptWidth}
+									/>
+									<TreeStatsRow prefix={continuationPrefix} stats={formatSubagentStats(entry)} />
 								</Box>
 							)
 						}
 
 						return (
 							<Box flexDirection="column" key={key}>
-								<Box flexDirection="row">
-									<Text color="gray">{branch}</Text>
-									{entry.status === "running" ? (
-										<Text color={toolColor}>
-											<Spinner type="dots" />
-										</Text>
-									) : (
-										<Text color={toolColor}>•</Text>
-									)}
-									<Text color={toolColor}> {entry.prompt}</Text>
-								</Box>
-								<Text color="gray">
-									{connector}⎿ {formatSubagentStats(entry)}
-								</Text>
+								<TreePromptRow
+									color={toolColor}
+									continuationPrefix={continuationPrefix}
+									prefix={
+										<Box flexDirection="row">
+											<Text color="gray">{branch} </Text>
+											{entry.status === "running" ? (
+												<Text color={toolColor}>
+													<Spinner type="dots" />
+												</Text>
+											) : (
+												<Text color={toolColor}>•</Text>
+											)}
+										</Box>
+									}
+									prompt={entry.prompt}
+									promptWidth={promptWidth}
+								/>
+								<TreeStatsRow prefix={continuationPrefix} stats={formatSubagentStats(entry)} />
 							</Box>
 						)
 					})}
