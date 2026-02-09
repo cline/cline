@@ -63,7 +63,7 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 					</Text>
 					<Text>
 						{"  "}
-						<Text color="white">Option+←/→</Text> - Move by word
+						<Text color="white">Alt/Option+←/→</Text> - Move by word
 					</Text>
 				</Box>
 
