@@ -129,10 +129,8 @@ export class OpenAiHandler implements ApiHandler {
 		if (isReasoningModelFamily) {
 			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
 			temperature = undefined // does not support temperature
-			if (this.options.reasoningEffort !== undefined) {
-				const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
-				reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
-			}
+			const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+			reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
 		}
 
 		const stream = await client.chat.completions.create({

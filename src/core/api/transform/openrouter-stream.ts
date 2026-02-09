@@ -7,7 +7,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
-import { isOpenaiReasoningEffort } from "@shared/storage/types"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
@@ -197,7 +197,7 @@ export async function createOpenRouterStream(
 		openRouterProviderSorting = undefined
 	}
 
-	const normalizedReasoningEffort = isOpenaiReasoningEffort(reasoningEffort) ? reasoningEffort : "low"
+	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"

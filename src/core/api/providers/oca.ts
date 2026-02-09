@@ -238,7 +238,7 @@ export class OcaHandler implements ApiHandler {
 		}
 
 		if (this.options.ocaModelInfo?.supportsReasoningEffort) {
-			chatCompletionsParams["reasoning_effort"] = this.options.ocaReasoningEffort || ("low" as any)
+			chatCompletionsParams["reasoning_effort"] = this.options.ocaReasoningEffort || ("medium" as any)
 		}
 
 		const stream = await client.chat.completions.create(chatCompletionsParams)

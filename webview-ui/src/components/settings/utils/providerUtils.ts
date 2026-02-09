@@ -69,18 +69,10 @@ import {
 	xaiModels,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import * as reasoningSupport from "@shared/utils/reasoning-support"
 
-export function supportsReasoningEffortForModelId(modelId?: string, allowShortOpenAiIds = false): boolean {
-	if (!modelId) {
-		return false
-	}
-
-	const id = modelId.toLowerCase()
-	if (id.includes("gemini") || id.includes("gpt") || id.startsWith("openai/o") || id.includes("/o") || id.includes("grok")) {
-		return true
-	}
-
-	return allowShortOpenAiIds && id.startsWith("o")
+export function supportsReasoningEffortForModelId(modelId?: string, _allowShortOpenAiIds = false): boolean {
+	return reasoningSupport.supportsReasoningEffortForModel(modelId)
 }
 
 /**
