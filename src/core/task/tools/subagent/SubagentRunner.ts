@@ -10,6 +10,7 @@ import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
+import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { TaskState } from "../../TaskState"
@@ -196,6 +197,29 @@ export class SubagentRunner {
 		return this.abortRequested || this.baseConfig.taskState.abort
 	}
 
+	private async getWorkspaceMetadataEnvironmentBlock(): Promise<string | null> {
+		try {
+			const workspacesJson =
+				(await this.baseConfig.workspaceManager?.buildWorkspacesJson()) ??
+				JSON.stringify(
+					{
+						workspaces: {
+							[this.baseConfig.cwd]: {
+								hint: path.basename(this.baseConfig.cwd) || this.baseConfig.cwd,
+							},
+						},
+					},
+					null,
+					2,
+				)
+
+			return `<environment_details>\n# Workspace Configuration\n${workspacesJson}\n</environment_details>`
+		} catch (error) {
+			Logger.warn("[SubagentRunner] Failed to build workspace metadata block", error)
+			return null
+		}
+	}
+
 	async run(prompt: string, onProgress: (update: SubagentProgressUpdate) => void): Promise<SubagentRunResult> {
 		this.abortRequested = false
 		const state = new TaskState()
@@ -215,7 +239,11 @@ export class SubagentRunner {
 		try {
 			const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
 			const apiConfiguration = this.baseConfig.services.stateManager.getApiConfiguration()
-			const api = buildApiHandler(apiConfiguration, mode)
+			const effectiveApiConfiguration = {
+				...apiConfiguration,
+				ulid: this.baseConfig.ulid,
+			}
+			const api = buildApiHandler(effectiveApiConfiguration, mode)
 			this.activeApiAbort = api.abort?.bind(api)
 
 			const providerId = (
@@ -252,6 +280,7 @@ export class SubagentRunner {
 			const promptRegistry = PromptRegistry.getInstance()
 			const systemPrompt = (await promptRegistry.get(context)) + SUBAGENT_SYSTEM_SUFFIX
 			const nativeTools = useNativeToolCalls ? this.buildNativeTools(context) : undefined
+			const workspaceMetadataEnvironmentBlock = await this.getWorkspaceMetadataEnvironmentBlock()
 
 			if (useNativeToolCalls && (!nativeTools || nativeTools.length === 0)) {
 				const error = "Subagent tool requires native tool calling support."
@@ -274,6 +303,16 @@ export class SubagentRunner {
 							type: "text",
 							text: prompt,
 						} as ClineTextContentBlock,
+						// Server-side task loop checks require workspace metadata to be present in the
+						// initial user message of subagent runs.
+						...(workspaceMetadataEnvironmentBlock
+							? [
+									{
+										type: "text",
+										text: workspaceMetadataEnvironmentBlock,
+									} as ClineTextContentBlock,
+								]
+							: []),
 					],
 				},
 			]
