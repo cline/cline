@@ -61,7 +61,6 @@ import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
-import SubagentApprovalRow from "./SubagentApprovalRow"
 import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
 import UserMessage from "./UserMessage"
@@ -767,7 +766,7 @@ export const ChatRowContent = memo(
 		}
 
 		if (message.ask === "use_subagents" || message.say === "use_subagents") {
-			return <SubagentApprovalRow message={message} />
+			return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
 		}
 
 		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
