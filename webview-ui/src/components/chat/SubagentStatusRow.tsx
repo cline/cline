@@ -1,6 +1,14 @@
 import { ClineMessage, ClineSaySubagentStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
-import { CheckIcon, CircleSlashIcon, CircleXIcon, LoaderCircleIcon } from "lucide-react"
-import { useMemo } from "react"
+import {
+	BotIcon,
+	CheckIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	CircleSlashIcon,
+	CircleXIcon,
+	LoaderCircleIcon,
+} from "lucide-react"
+import { useMemo, useState } from "react"
 
 interface SubagentStatusRowProps {
 	message: ClineMessage
@@ -8,7 +16,9 @@ interface SubagentStatusRowProps {
 	lastModifiedMessage?: ClineMessage
 }
 
-const statusLabel = (status: SubagentExecutionStatus): string => {
+type DisplayStatus = SubagentExecutionStatus | "cancelled"
+
+const statusLabel = (status: DisplayStatus): string => {
 	switch (status) {
 		case "pending":
 			return "Pending"
@@ -18,21 +28,25 @@ const statusLabel = (status: SubagentExecutionStatus): string => {
 			return "Completed"
 		case "failed":
 			return "Failed"
+		case "cancelled":
+			return "Cancelled"
 		default:
 			return "Unknown"
 	}
 }
 
-const aggregateIcon = (status: ClineSaySubagentStatus["status"]) => {
+const statusIcon = (status: DisplayStatus) => {
 	switch (status) {
 		case "running":
-			return <LoaderCircleIcon className="size-2 mr-2 animate-spin text-link" />
+			return <LoaderCircleIcon className="size-2 animate-spin text-link shrink-0 mt-[1px]" />
 		case "completed":
-			return <CheckIcon className="size-2 mr-2 text-success" />
+			return <CheckIcon className="size-2 text-success shrink-0 mt-[1px]" />
 		case "failed":
-			return <CircleXIcon className="size-2 mr-2 text-error" />
+			return <CircleXIcon className="size-2 text-error shrink-0 mt-[1px]" />
+		case "cancelled":
+			return <CircleSlashIcon className="size-2 text-foreground shrink-0 mt-[1px]" />
 		default:
-			return <LoaderCircleIcon className="size-2 mr-2 animate-spin text-link" />
+			return <BotIcon className="size-2 text-foreground/70 shrink-0 mt-[1px]" />
 	}
 }
 
@@ -45,6 +59,7 @@ const formatCount = (value: number | undefined): string => {
 }
 
 export default function SubagentStatusRow({ message, isLast, lastModifiedMessage }: SubagentStatusRowProps) {
+	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 	const data = useMemo(() => {
 		try {
 			if (!message.text) {
@@ -63,45 +78,66 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 	const wasCancelled =
 		data.status === "running" &&
 		(!isLast || lastModifiedMessage?.ask === "resume_task" || lastModifiedMessage?.ask === "resume_completed_task")
-	const displayStatus: ClineSaySubagentStatus["status"] = wasCancelled ? "failed" : data.status
+
+	const singular = data.items.length === 1
+	const title = singular ? "Cline wants to use a subagent:" : "Cline wants to use subagents:"
+	const toggleItem = (index: number) => {
+		setExpandedItems((prev) => ({
+			...prev,
+			[index]: !prev[index],
+		}))
+	}
 
 	return (
 		<div className="bg-code border border-editor-group-border rounded-sm py-2.5 px-3">
-			<div className="flex items-center">
-				{wasCancelled ? <CircleSlashIcon className="size-2 mr-2" /> : aggregateIcon(displayStatus)}
-				<span className="font-semibold text-foreground">Subagent batch</span>
-				{wasCancelled && <span className="ml-2 text-xs opacity-80">Cancelled</span>}
-				<div className="ml-2 text-xs opacity-80">
-					{data.completed}/{data.total} complete, {data.successes} succeeded, {data.failures} failed
-				</div>
-			</div>
-			<div className="mt-2 text-xs opacity-75">
-				{formatCount(data.toolCalls)} tool calls, {formatCount(data.inputTokens)} input tokens,{" "}
-				{formatCount(data.outputTokens)} output tokens
-			</div>
+			<div className="text-sm text-foreground">{title}</div>
 			<div className="mt-2 space-y-2">
-				{data.items.map((entry) => (
-					<div
-						className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
-						key={entry.index}>
-						<div className="flex items-center justify-between gap-2">
-							<div className="text-xs font-medium text-foreground">
-								[{entry.index}] {statusLabel(entry.status)}
+				{data.items.map((entry) => {
+					const displayStatus: DisplayStatus =
+						wasCancelled && (entry.status === "running" || entry.status === "pending") ? "cancelled" : entry.status
+					const hasDetails = Boolean(
+						(entry.result && entry.status === "completed") || (entry.error && entry.status === "failed"),
+					)
+					const isExpanded = expandedItems[entry.index] === true
+					return (
+						<div
+							className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
+							key={entry.index}>
+							<div className="flex items-start gap-2">
+								{statusIcon(displayStatus)}
+								<div className="min-w-0 flex-1">
+									<div className="text-xs font-medium text-foreground whitespace-pre-wrap break-words">
+										Subagent: "{entry.prompt}"
+									</div>
+									<div className="mt-1 text-[11px] opacity-70">
+										#{entry.index} | {statusLabel(displayStatus)} | {formatCount(entry.toolCalls)} tools
+										called | {formatCount(entry.contextTokens)} tokens used
+									</div>
+									{hasDetails && (
+										<button
+											aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
+											className="mt-1 text-[11px] opacity-80 flex items-center gap-1.5 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground"
+											onClick={() => toggleItem(entry.index)}
+											type="button">
+											{isExpanded ? (
+												<ChevronDownIcon className="size-2" />
+											) : (
+												<ChevronRightIcon className="size-2" />
+											)}
+											<span>{isExpanded ? "Hide output" : "Show output"}</span>
+										</button>
+									)}
+								</div>
 							</div>
-							<div className="text-[11px] opacity-70">
-								{formatCount(entry.toolCalls || 0)} tools, {formatCount(entry.inputTokens || 0)} in,{" "}
-								{formatCount(entry.outputTokens || 0)} out
-							</div>
+							{isExpanded && entry.result && entry.status === "completed" && (
+								<div className="mt-2 text-xs opacity-80 whitespace-pre-wrap break-words">{entry.result}</div>
+							)}
+							{isExpanded && entry.error && entry.status === "failed" && (
+								<div className="mt-2 text-xs text-error whitespace-pre-wrap break-words">{entry.error}</div>
+							)}
 						</div>
-						<div className="mt-1 text-xs font-editor whitespace-pre-wrap break-words">{entry.prompt}</div>
-						{entry.result && entry.status === "completed" && (
-							<div className="mt-1 text-xs opacity-80 whitespace-pre-wrap break-words">{entry.result}</div>
-						)}
-						{entry.error && entry.status === "failed" && (
-							<div className="mt-1 text-xs text-error whitespace-pre-wrap break-words">{entry.error}</div>
-						)}
-					</div>
-				))}
+					)
+				})}
 			</div>
 		</div>
 	)

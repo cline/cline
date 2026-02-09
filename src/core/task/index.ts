@@ -76,6 +76,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import {
+	type CommandExecutionOptions,
 	CommandExecutor,
 	CommandExecutorCallbacks,
 	FullCommandExecutorConfig,
@@ -1549,8 +1550,12 @@ export class Task {
 	}
 
 	// Tools
-	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
-		return this.commandExecutor.execute(command, timeoutSeconds)
+	async executeCommandTool(
+		command: string,
+		timeoutSeconds: number | undefined,
+		options?: CommandExecutionOptions,
+	): Promise<[boolean, ClineToolResponseContent]> {
+		return this.commandExecutor.execute(command, timeoutSeconds, options)
 	}
 
 	/**

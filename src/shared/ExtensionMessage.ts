@@ -37,7 +37,6 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 export const DEFAULT_PLATFORM = "unknown"
 
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
-
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
@@ -278,6 +277,9 @@ export interface SubagentStatusItem {
 	toolCalls: number
 	inputTokens: number
 	outputTokens: number
+	contextTokens: number
+	contextWindow: number
+	contextUsagePercentage: number
 	result?: string
 	error?: string
 }
@@ -291,6 +293,9 @@ export interface ClineSaySubagentStatus {
 	toolCalls: number
 	inputTokens: number
 	outputTokens: number
+	contextWindow: number
+	maxContextTokens: number
+	maxContextUsagePercentage: number
 	items: SubagentStatusItem[]
 }
 

@@ -147,6 +147,9 @@ describe("SubagentToolHandler", () => {
 				outputTokens: 3,
 				cacheWriteTokens: 0,
 				cacheReadTokens: 0,
+				contextTokens: 5,
+				contextWindow: 200000,
+				contextUsagePercentage: 0.0025,
 			},
 		})
 
@@ -161,8 +164,8 @@ describe("SubagentToolHandler", () => {
 		})
 
 		sinon.assert.notCalled(callbacks.ask)
-		const approvalSayCalls = callbacks.say.getCalls().filter((call: any) => call.args[0] === "use_subagents")
-		assert.ok(approvalSayCalls.length >= 1)
+		const subagentStatusCalls = callbacks.say.getCalls().filter((call: any) => call.args[0] === "subagent")
+		assert.ok(subagentStatusCalls.length >= 1)
 	})
 
 	it("fans out prompts in parallel and emits aggregated status", async () => {
@@ -175,7 +178,16 @@ describe("SubagentToolHandler", () => {
 			maxActiveRuns = Math.max(maxActiveRuns, activeRuns)
 			onProgress({
 				status: "running",
-				stats: { toolCalls: 0, inputTokens: 0, outputTokens: 0, cacheWriteTokens: 0, cacheReadTokens: 0 },
+				stats: {
+					toolCalls: 0,
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheWriteTokens: 0,
+					cacheReadTokens: 0,
+					contextTokens: 0,
+					contextWindow: 200000,
+					contextUsagePercentage: 0,
+				},
 			})
 			await delay(10)
 			activeRuns--
@@ -188,6 +200,9 @@ describe("SubagentToolHandler", () => {
 					outputTokens: 3,
 					cacheWriteTokens: 0,
 					cacheReadTokens: 0,
+					contextTokens: 5,
+					contextWindow: 200000,
+					contextUsagePercentage: 0.0025,
 				},
 			}
 		})
@@ -228,6 +243,9 @@ describe("SubagentToolHandler", () => {
 						outputTokens: 0,
 						cacheWriteTokens: 0,
 						cacheReadTokens: 0,
+						contextTokens: 0,
+						contextWindow: 200000,
+						contextUsagePercentage: 0,
 					},
 				}
 			}
@@ -240,6 +258,9 @@ describe("SubagentToolHandler", () => {
 					outputTokens: 0,
 					cacheWriteTokens: 0,
 					cacheReadTokens: 0,
+					contextTokens: 0,
+					contextWindow: 200000,
+					contextUsagePercentage: 0,
 				},
 			}
 		})
