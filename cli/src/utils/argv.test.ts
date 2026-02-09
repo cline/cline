@@ -19,4 +19,16 @@ describe("normalizeCliArgvForPrompt", () => {
 		const output = normalizeCliArgvForPrompt(input)
 		expect(output).toEqual(input)
 	})
+
+	it("does not modify known non-prompt subcommands", () => {
+		const input = ["node", "cline", "auth", "--modelid", "- test"]
+		const output = normalizeCliArgvForPrompt(input)
+		expect(output).toEqual(input)
+	})
+
+	it("does not modify when dash-prefixed prose is not final token", () => {
+		const input = ["node", "cline", "task", "- You are given", "--verbose"]
+		const output = normalizeCliArgvForPrompt(input)
+		expect(output).toEqual(input)
+	})
 })

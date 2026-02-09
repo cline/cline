@@ -6,12 +6,22 @@ export function normalizeCliArgvForPrompt(argv: string[]): string[] {
 	}
 
 	const args = [...argv]
-	for (let i = 2; i < args.length; i++) {
-		const token = args[i]
-		if (/^-\s/.test(token)) {
-			args.splice(i, 0, "--")
-			return args
-		}
+	const subcommand = args[2]
+	const isPromptCapableSubcommand = subcommand === "task" || subcommand === "t"
+	const isKnownNonPromptSubcommand = new Set(["history", "h", "config", "auth", "version", "update", "dev"]).has(
+		subcommand,
+	)
+	const canContainPrompt = isPromptCapableSubcommand || !isKnownNonPromptSubcommand
+
+	if (!canContainPrompt) {
+		return args
+	}
+
+	// Keep this narrow: only guard final prompt position used by Harbor/task wrappers.
+	const lastIndex = args.length - 1
+	if (lastIndex >= 2 && /^-\s/.test(args[lastIndex])) {
+		args.splice(lastIndex, 0, "--")
+		return args
 	}
 
 	return args
