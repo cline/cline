@@ -31,9 +31,9 @@ describe("ChatMessage subagent rendering", () => {
 		const frame = lastFrame() || ""
 
 		expect(frame).toContain("Cline wants to run subagents")
-		expect(frame).toContain("├─ Find codebase stats and size")
-		expect(frame).toContain("├─ Find funny comments and easter eggs")
-		expect(frame).toContain("└─ Find unusual patterns and history")
+		expect(frame).toContain("├─   Find codebase stats and size")
+		expect(frame).toContain("├─   Find funny comments and easter eggs")
+		expect(frame).toContain("└─   Find unusual patterns and history")
 	})
 
 	it("renders subagent progress rows with compact token stats and completion checks", () => {
