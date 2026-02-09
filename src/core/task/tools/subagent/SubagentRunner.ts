@@ -7,7 +7,7 @@ import { PromptRegistry } from "@core/prompts/system-prompt"
 import { ClineToolSet } from "@core/prompts/system-prompt/registry/ClineToolSet"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
-import { ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
+import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
 import { HostProvider } from "@/hosts/host-provider"
@@ -52,6 +52,7 @@ interface SubagentRunStats {
 }
 
 interface SubagentToolCall {
+	toolUseId: string
 	id?: string
 	call_id?: string
 	signature?: string
@@ -119,13 +120,41 @@ function normalizeToolCallArguments(argumentsPayload: unknown): string {
 	}
 }
 
+function resolveToolUseId(call: { id?: string; call_id?: string; name?: string }, index: number): string {
+	const id = call.id?.trim()
+	if (id) {
+		return id
+	}
+
+	const callId = call.call_id?.trim()
+	if (callId) {
+		return callId
+	}
+
+	const fallbackId = `subagent_tool_${Date.now()}_${index + 1}`
+	Logger.warn(`[SubagentRunner] Missing tool call id for '${call.name || "unknown"}'; using fallback '${fallbackId}'`)
+	return fallbackId
+}
+
+function toAssistantToolUseBlock(call: SubagentToolCall): ClineAssistantToolUseBlock {
+	return {
+		type: "tool_use",
+		id: call.toolUseId,
+		name: call.name,
+		input: call.input,
+		call_id: call.call_id,
+		signature: call.signature,
+	}
+}
+
 function parseNonNativeToolCalls(assistantText: string): SubagentToolCall[] {
 	const parsedBlocks = parseAssistantMessageV2(assistantText)
 
 	return parsedBlocks
 		.filter((block): block is ToolUse => block.type === "tool_use")
 		.filter((block) => !block.partial)
-		.map((block) => ({
+		.map((block, index) => ({
+			toolUseId: resolveToolUseId({ call_id: block.call_id, name: block.name }, index),
 			name: block.name,
 			input: block.params,
 			call_id: block.call_id,
@@ -312,7 +341,8 @@ export class SubagentRunner {
 					}
 				}
 
-				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall) => ({
+				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
+					toolUseId: resolveToolUseId(toolCall, index),
 					id: toolCall.id,
 					call_id: toolCall.call_id,
 					signature: toolCall.signature,
@@ -320,11 +350,25 @@ export class SubagentRunner {
 					input: toolCall.input,
 					isNativeToolCall: true,
 				}))
-				const finalizedToolCalls: SubagentToolCall[] = useNativeToolCalls
-					? nativeFinalizedToolCalls
-					: nativeFinalizedToolCalls.length > 0
-						? nativeFinalizedToolCalls
-						: parseNonNativeToolCalls(assistantText)
+				const parsedNonNativeToolCalls = parseNonNativeToolCalls(assistantText)
+				const fallbackNonNativeToolCalls = nativeFinalizedToolCalls.map((toolCall) => ({
+					...toolCall,
+					isNativeToolCall: false,
+				}))
+
+				let finalizedToolCalls: SubagentToolCall[] = []
+				if (useNativeToolCalls) {
+					finalizedToolCalls = nativeFinalizedToolCalls
+				} else if (parsedNonNativeToolCalls.length > 0) {
+					finalizedToolCalls = parsedNonNativeToolCalls
+				} else if (fallbackNonNativeToolCalls.length > 0) {
+					// Defensive fallback: if non-native mode receives structured tool call chunks,
+					// execute them but serialize results as plain text to avoid tool_result pairing mismatches.
+					Logger.warn(
+						"[SubagentRunner] Received structured tool_calls while native tool calling is disabled; falling back to non-native result serialization.",
+					)
+					finalizedToolCalls = fallbackNonNativeToolCalls
+				}
 				const assistantContent = [] as any[]
 				if (assistantText.trim().length > 0) {
 					assistantContent.push({
@@ -334,7 +378,7 @@ export class SubagentRunner {
 					})
 				}
 				if (useNativeToolCalls) {
-					assistantContent.push(...finalizedToolCalls)
+					assistantContent.push(...finalizedToolCalls.map(toAssistantToolUseBlock))
 				}
 
 				if (assistantContent.length > 0) {
@@ -365,7 +409,7 @@ export class SubagentRunner {
 						if (call.isNativeToolCall) {
 							toolResultBlocks.push({
 								type: "tool_result",
-								tool_use_id: call.id || call.call_id,
+								tool_use_id: call.toolUseId,
 								call_id: call.call_id,
 								content: deniedResult,
 							})
@@ -386,12 +430,12 @@ export class SubagentRunner {
 						params: toolCallParams,
 						partial: false,
 						isNativeToolCall: call.isNativeToolCall,
-						call_id: call.call_id,
+						call_id: call.call_id || call.toolUseId,
 						signature: call.signature,
 					}
 
-					if (call.call_id && call.id) {
-						state.toolUseIdMap.set(call.call_id, call.id)
+					if (call.call_id) {
+						state.toolUseIdMap.set(call.call_id, call.toolUseId)
 					}
 
 					const subagentConfig = this.createSubagentTaskConfig(state)
@@ -415,7 +459,7 @@ export class SubagentRunner {
 					if (call.isNativeToolCall) {
 						toolResultBlocks.push({
 							type: "tool_result",
-							tool_use_id: call.id || call.call_id,
+							tool_use_id: call.toolUseId,
 							call_id: call.call_id,
 							content: serializedToolResult,
 						})
