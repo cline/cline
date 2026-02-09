@@ -5,11 +5,7 @@
  * evaluating success criteria, and coordinating approval flows.
  */
 
-import { exec } from "child_process"
-import { EventEmitter } from "events"
-import { v4 as uuidv4 } from "uuid"
-
-import { Logger } from "@shared/services/Logger"
+import type { DagBridge } from "@services/dag/DagBridge"
 import type {
 	Bead,
 	BeadFileChange,
@@ -18,7 +14,10 @@ import type {
 	SuccessCriteriaResult,
 	SuccessCriterion,
 } from "@shared/beads"
-import type { DagBridge } from "@services/dag/DagBridge"
+import { Logger } from "@shared/services/Logger"
+import { exec } from "child_process"
+import { EventEmitter } from "events"
+import { v4 as uuidv4 } from "uuid"
 
 /**
  * Events emitted by the BeadManager.
@@ -100,10 +99,7 @@ export class BeadManager extends EventEmitter {
 	/**
 	 * Start a new task with the given definition.
 	 */
-	async startTask(
-		description: string,
-		successCriteria: SuccessCriterion[] = [{ type: "done_tag" }]
-	): Promise<Bead> {
+	async startTask(description: string, successCriteria: SuccessCriterion[] = [{ type: "done_tag" }]): Promise<Bead> {
 		if (this.state.status !== "idle" && this.state.status !== "completed" && this.state.status !== "failed") {
 			throw new Error(`Cannot start task: manager is in ${this.state.status} state`)
 		}
@@ -469,7 +465,7 @@ export class BeadManager extends EventEmitter {
 						Logger.debug(`[BeadManager] Test output:\n${stdout}`)
 					}
 					resolve(true)
-				}
+				},
 			)
 		})
 	}
@@ -519,7 +515,7 @@ export function createBeadManager(
 		testCommand?: string
 		commitMode?: "shadow" | "workspace"
 		autoApprove?: boolean
-	}
+	},
 ): BeadManager {
 	const manager = new BeadManager(workspaceRoot, dagBridge)
 

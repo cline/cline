@@ -739,9 +739,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			} else {
 				// Use invoke-with-response-stream endpoint with Anthropic-native cache_control
 				// Apply cache_control to system prompt and user messages for older Claude models
-				const systemWithCache = [
-					{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
-				]
+				const systemWithCache = [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }]
 
 				// Apply cache_control to the last two user messages for optimal caching
 				const messagesWithCache = messages.map((msg, index) => {

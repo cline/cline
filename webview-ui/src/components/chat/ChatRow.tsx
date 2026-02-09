@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { BeadCompletedMessage, BeadFailedMessage, BeadReviewMessage, BeadStartedMessage } from "./BeadMessage"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
@@ -63,7 +64,6 @@ import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
 import { ThinkingRow } from "./ThinkingRow"
 import UserMessage from "./UserMessage"
-import { BeadCompletedMessage, BeadFailedMessage, BeadReviewMessage, BeadStartedMessage } from "./BeadMessage"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
@@ -1123,11 +1123,11 @@ export const ChatRowContent = memo(
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					case "bead_started":
-						return <BeadStartedMessage message={message} isLast={isLast} />
+						return <BeadStartedMessage isLast={isLast} message={message} />
 					case "bead_completed":
-						return <BeadCompletedMessage message={message} isLast={isLast} />
+						return <BeadCompletedMessage isLast={isLast} message={message} />
 					case "bead_failed":
-						return <BeadFailedMessage message={message} isLast={isLast} />
+						return <BeadFailedMessage isLast={isLast} message={message} />
 					default:
 						return (
 							<div>
@@ -1234,7 +1234,9 @@ export const ChatRowContent = memo(
 							<div>
 								<div className={HEADER_CLASSNAMES}>
 									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Beadsmith wants to condense your conversation:</span>
+									<span className="text-foreground font-bold">
+										Beadsmith wants to condense your conversation:
+									</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</div>
@@ -1281,7 +1283,7 @@ export const ChatRowContent = memo(
 						)
 					}
 					case "bead_review":
-						return <BeadReviewMessage message={message} isLast={isLast} />
+						return <BeadReviewMessage isLast={isLast} message={message} />
 					default:
 						return <InvisibleSpacer />
 				}

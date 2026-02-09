@@ -13,8 +13,8 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import {
-	getCapabilities,
 	getBeadsmithUIOnboardingGroups,
+	getCapabilities,
 	getOverviewLabel,
 	getPriceRange,
 	getSpeedLabel,

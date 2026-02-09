@@ -6,30 +6,28 @@
  */
 
 export {
+	type BeadCommitOptions,
+	type BeadCommitResult,
+	BeadCommitService,
+	createBeadCommitService,
+} from "./BeadCommitService"
+export {
 	BeadManager,
-	createBeadManager,
 	type BeadManagerConfig,
 	type BeadManagerEvents,
+	createBeadManager,
 } from "./BeadManager"
 
 export {
-	SuccessCriteriaEvaluator,
-	createSuccessCriteriaEvaluator,
-	type EvaluationContext,
-	type TestRunResult,
-} from "./SuccessCriteriaEvaluator"
-
-export {
+	BeadFileNames,
 	BeadStorage,
 	createBeadStorage,
 	getBeadStorage,
-	BeadFileNames,
 	type IBeadStorage,
 } from "./BeadStorage"
-
 export {
-	BeadCommitService,
-	createBeadCommitService,
-	type BeadCommitOptions,
-	type BeadCommitResult,
-} from "./BeadCommitService"
+	createSuccessCriteriaEvaluator,
+	type EvaluationContext,
+	SuccessCriteriaEvaluator,
+	type TestRunResult,
+} from "./SuccessCriteriaEvaluator"

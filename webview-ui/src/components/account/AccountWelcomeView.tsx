@@ -10,7 +10,8 @@ export const AccountWelcomeView = () => {
 			<ClineLogoVariable className="size-16 mb-4" environment={environment} />
 
 			<p className="text-center">
-				Beadsmith integrates with your existing AI providers. Configure your preferred provider in Settings to get started.
+				Beadsmith integrates with your existing AI providers. Configure your preferred provider in Settings to get
+				started.
 			</p>
 
 			<div className="text-sm text-center">
@@ -25,8 +26,7 @@ export const AccountWelcomeView = () => {
 			</div>
 
 			<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0 mt-4">
-				Beadsmith is a fork of{" "}
-				<VSCodeLink href="https://github.com/cline/cline">Cline</VSCodeLink>.
+				Beadsmith is a fork of <VSCodeLink href="https://github.com/cline/cline">Cline</VSCodeLink>.
 			</p>
 		</div>
 	)

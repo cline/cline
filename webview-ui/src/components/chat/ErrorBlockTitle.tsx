@@ -58,7 +58,9 @@ export const ErrorBlockTitle = ({
 		} else if (apiRequestFailedMessage) {
 			// Handle failed request
 			const beadsmithError = BeadsmithError.parse(apiRequestFailedMessage)
-			const titleText = beadsmithError?.isErrorType(BeadsmithErrorType.Balance) ? "Credit Limit Reached" : "API Request Failed"
+			const titleText = beadsmithError?.isErrorType(BeadsmithErrorType.Balance)
+				? "Credit Limit Reached"
+				: "API Request Failed"
 			details.title = titleText
 			details.classNames.push("font-bold text-(--vscode-errorForeground)")
 		} else if (retryStatus) {

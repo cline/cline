@@ -16,9 +16,7 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className={cn("text-(--vscode-foreground) m-0", titleColor)}>
-					About Beadsmith
-				</h3>
+				<h3 className={cn("text-(--vscode-foreground) m-0", titleColor)}>About Beadsmith</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 			<div className="grow overflow-hidden pr-[8px] flex flex-col">

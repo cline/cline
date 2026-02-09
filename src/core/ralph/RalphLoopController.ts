@@ -11,14 +11,14 @@
  * - Optional bead integration for reviewable checkpoints
  */
 
-import { EventEmitter } from "events"
+import { Logger } from "@shared/services/Logger"
 import { exec } from "child_process"
+import { EventEmitter } from "events"
 import { promisify } from "util"
 import { v4 as uuidv4 } from "uuid"
 
-import { Logger } from "@shared/services/Logger"
-
 const execAsync = promisify(exec)
+
 import type { BeadManager } from "@core/beads/BeadManager"
 
 /**
@@ -177,7 +177,12 @@ export class RalphLoopController extends EventEmitter {
 	 * Check if the loop can be started.
 	 */
 	canStart(): boolean {
-		return this.state.status === "idle" || this.state.status === "completed" || this.state.status === "failed" || this.state.status === "cancelled"
+		return (
+			this.state.status === "idle" ||
+			this.state.status === "completed" ||
+			this.state.status === "failed" ||
+			this.state.status === "cancelled"
+		)
 	}
 
 	/**
@@ -231,7 +236,10 @@ export class RalphLoopController extends EventEmitter {
 	 * Called when an iteration completes with a response.
 	 * Returns whether the loop should continue.
 	 */
-	async completeIteration(response: string, tokensUsed: number): Promise<{ shouldContinue: boolean; needsContextReset: boolean }> {
+	async completeIteration(
+		response: string,
+		tokensUsed: number,
+	): Promise<{ shouldContinue: boolean; needsContextReset: boolean }> {
 		if (this.state.status !== "running") {
 			return { shouldContinue: false, needsContextReset: false }
 		}
@@ -434,10 +442,7 @@ export class RalphLoopController extends EventEmitter {
 /**
  * Create a RalphLoopController instance with optional configuration.
  */
-export function createRalphLoopController(
-	beadManager?: BeadManager,
-	options?: Partial<RalphLoopConfig>
-): RalphLoopController {
+export function createRalphLoopController(beadManager?: BeadManager, options?: Partial<RalphLoopConfig>): RalphLoopController {
 	const controller = new RalphLoopController(beadManager)
 
 	if (options) {

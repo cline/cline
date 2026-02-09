@@ -2,6 +2,17 @@
  * Conversion utilities for DAG types between DagBridge (TypeScript) and Proto messages.
  */
 
+import type {
+	AnalysisWarning as DagAnalysisWarning,
+	EdgeConfidence as DagEdgeConfidence,
+	EdgeType as DagEdgeType,
+	GraphEdge as DagGraphEdge,
+	GraphNode as DagGraphNode,
+	GraphSummary as DagGraphSummary,
+	ImpactReport as DagImpactReport,
+	NodeType as DagNodeType,
+	ProjectGraph as DagProjectGraph,
+} from "@services/dag/types"
 import {
 	EdgeConfidence,
 	EdgeType,
@@ -14,17 +25,6 @@ import {
 	WarningSeverity,
 	WarningType,
 } from "@shared/proto/beadsmith/dag"
-import type {
-	AnalysisWarning as DagAnalysisWarning,
-	EdgeConfidence as DagEdgeConfidence,
-	EdgeType as DagEdgeType,
-	GraphEdge as DagGraphEdge,
-	GraphNode as DagGraphNode,
-	GraphSummary as DagGraphSummary,
-	ImpactReport as DagImpactReport,
-	NodeType as DagNodeType,
-	ProjectGraph as DagProjectGraph,
-} from "@services/dag/types"
 
 /**
  * Convert DagBridge NodeType to proto NodeType

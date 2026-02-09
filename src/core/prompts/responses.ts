@@ -138,7 +138,10 @@ Otherwise, if you have not completed the task and do not need additional informa
 			return `${beadsmithIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (beadsmithIgnoreParsed.length === 0 || (beadsmithIgnoreParsed.length === 1 && beadsmithIgnoreParsed[0] === "")) {
+		} else if (
+			beadsmithIgnoreParsed.length === 0 ||
+			(beadsmithIgnoreParsed.length === 1 && beadsmithIgnoreParsed[0] === "")
+		) {
 			return "No files found."
 		} else {
 			return beadsmithIgnoreParsed.join("\n")

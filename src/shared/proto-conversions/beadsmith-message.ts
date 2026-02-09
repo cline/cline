@@ -1,5 +1,14 @@
-import { BeadsmithAsk as AppBeadsmithAsk, BeadsmithMessage as AppBeadsmithMessage, BeadsmithSay as AppBeadsmithSay } from "@shared/ExtensionMessage"
-import { BeadsmithAsk, BeadsmithMessageType, BeadsmithSay, BeadsmithMessage as ProtoBeadsmithMessage } from "@shared/proto/beadsmith/ui"
+import {
+	BeadsmithAsk as AppBeadsmithAsk,
+	BeadsmithMessage as AppBeadsmithMessage,
+	BeadsmithSay as AppBeadsmithSay,
+} from "@shared/ExtensionMessage"
+import {
+	BeadsmithAsk,
+	BeadsmithMessageType,
+	BeadsmithSay,
+	BeadsmithMessage as ProtoBeadsmithMessage,
+} from "@shared/proto/beadsmith/ui"
 
 // Helper function to convert BeadsmithAsk string to enum
 function convertBeadsmithAskToProtoEnum(ask: AppBeadsmithAsk | undefined): BeadsmithAsk | undefined {

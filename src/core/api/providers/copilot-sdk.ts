@@ -1,6 +1,6 @@
 import { CopilotClient } from "@github/copilot-sdk"
-import { ParseEntry, parse } from "shell-quote"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { ParseEntry, parse } from "shell-quote"
 import {
 	BeadsmithAssistantToolUseBlock,
 	BeadsmithContent,

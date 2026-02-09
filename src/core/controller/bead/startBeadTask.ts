@@ -1,13 +1,13 @@
+import type { SuccessCriterion } from "@shared/beads"
 import {
 	BeadTaskResponse,
 	BeadTaskStatus,
 	BeadUpdateEvent,
 	BeadUpdateType,
-	StartBeadTaskRequest,
 	SuccessCriterion as ProtoSuccessCriterion,
 	SuccessCriterionType as ProtoSuccessCriterionType,
+	StartBeadTaskRequest,
 } from "@shared/proto/beadsmith/bead"
-import type { SuccessCriterion } from "@shared/beads"
 import { Logger } from "@shared/services/Logger"
 import { Controller } from ".."
 import { sendBeadUpdateEvent } from "./subscribeToBeadUpdates"

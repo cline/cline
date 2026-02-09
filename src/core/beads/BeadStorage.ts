@@ -5,19 +5,13 @@
  * durability for the Ralph Wiggum loop pattern.
  */
 
-import fs from "fs/promises"
-import * as path from "path"
+import { ensureTaskDirectoryExists } from "@core/storage/disk"
+import type { Bead, BeadManagerState, BeadTaskDefinition, BeadTaskStatus, BeadTaskSummary } from "@shared/beads"
 
 import { Logger } from "@shared/services/Logger"
 import { fileExistsAtPath } from "@utils/fs"
-import type {
-	Bead,
-	BeadManagerState,
-	BeadTaskDefinition,
-	BeadTaskStatus,
-	BeadTaskSummary,
-} from "@shared/beads"
-import { ensureTaskDirectoryExists } from "@core/storage/disk"
+import fs from "fs/promises"
+import * as path from "path"
 
 /**
  * File names used for bead storage.
@@ -212,9 +206,7 @@ export class BeadStorage implements IBeadStorage {
 			const beadsDir = await this.ensureBeadsDir(taskId)
 
 			const files = await fs.readdir(beadsDir)
-			const beadFiles = files.filter(
-				(f) => f.startsWith("bead_") && f.endsWith(".json")
-			)
+			const beadFiles = files.filter((f) => f.startsWith("bead_") && f.endsWith(".json"))
 
 			const beads: Bead[] = []
 			for (const file of beadFiles) {

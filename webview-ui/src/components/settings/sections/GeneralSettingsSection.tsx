@@ -42,8 +42,8 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 					</Tooltip>
 
 					<p className="text-sm mt-[5px] text-description">
-						Help improve Beadsmith by sending usage data and error reports. No code, prompts, or personal information are
-						ever sent. See our{" "}
+						Help improve Beadsmith by sending usage data and error reports. No code, prompts, or personal information
+						are ever sent. See our{" "}
 						<VSCodeLink
 							className="text-inherit"
 							href="https://docs.cline.bot/more-info/telemetry"

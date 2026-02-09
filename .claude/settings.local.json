@@ -37,7 +37,10 @@
 			"Bash(node -e:*)",
 			"Bash(python:*)",
 			"Bash(node scripts/setup-dag-engine.mjs:*)",
-			"Bash(Get-Content \"C:\\\\Users\\\\DANIEL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-DanielHalwell-PythonProjects-beadsmith\\\\tasks\\\\b7cd3d7.output\" -Tail 30)"
+			"Bash(Get-Content \"C:\\\\Users\\\\DANIEL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-DanielHalwell-PythonProjects-beadsmith\\\\tasks\\\\b7cd3d7.output\" -Tail 30)",
+			"Bash(git push:*)",
+			"Bash(git add:*)",
+			"Bash(git commit -m \"$\\(cat <<''EOF''\nfix: remaining unstaged changes from cline to beadsmith conversion\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
 		]
 	}
 }

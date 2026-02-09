@@ -20,7 +20,10 @@ const IDLE_TIMEOUT_MS = 3000
  * Hook that detects when the DOM has been idle for IDLE_TIMEOUT_MS
  * Uses MutationObserver to track actual content changes
  */
-export function useIdleIndicator(scrollContainerRef: React.RefObject<HTMLDivElement>, beadsmithMessages: BeadsmithMessage[]): boolean {
+export function useIdleIndicator(
+	scrollContainerRef: React.RefObject<HTMLDivElement>,
+	beadsmithMessages: BeadsmithMessage[],
+): boolean {
 	const [showIdleIndicator, setShowIdleIndicator] = useState(false)
 	const idleTimerRef = useRef<NodeJS.Timeout | null>(null)
 	const timerStartTimeRef = useRef<number | null>(null)

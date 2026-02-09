@@ -68,11 +68,7 @@ const AppContent = () => {
 			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-			{showAccount && (
-				<AccountView
-					onDone={hideAccount}
-				/>
-			)}
+			{showAccount && <AccountView onDone={hideAccount} />}
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
 			{showDag && <DagPanel className="h-full" onDone={hideDag} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}

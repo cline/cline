@@ -58,9 +58,7 @@ function meetsMinimumVersion(version) {
  */
 function findPython() {
 	// Try common Python executable names
-	const pythonCandidates = process.platform === "win32"
-		? ["python", "python3", "py -3"]
-		: ["python3", "python"]
+	const pythonCandidates = process.platform === "win32" ? ["python", "python3", "py -3"] : ["python3", "python"]
 
 	for (const candidate of pythonCandidates) {
 		try {
@@ -95,9 +93,8 @@ function findPython() {
  */
 async function venvExists() {
 	try {
-		const pythonBin = process.platform === "win32"
-			? path.join(VENV_DIR, "Scripts", "python.exe")
-			: path.join(VENV_DIR, "bin", "python")
+		const pythonBin =
+			process.platform === "win32" ? path.join(VENV_DIR, "Scripts", "python.exe") : path.join(VENV_DIR, "bin", "python")
 
 		await fs.access(pythonBin)
 		return true
@@ -133,9 +130,7 @@ function createVenv(pythonPath) {
  * Get the path to the venv's pip executable
  */
 function getVenvPip() {
-	return process.platform === "win32"
-		? path.join(VENV_DIR, "Scripts", "pip.exe")
-		: path.join(VENV_DIR, "bin", "pip")
+	return process.platform === "win32" ? path.join(VENV_DIR, "Scripts", "pip.exe") : path.join(VENV_DIR, "bin", "pip")
 }
 
 /**

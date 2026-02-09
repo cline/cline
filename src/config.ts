@@ -220,7 +220,9 @@ class BeadsmithEndpoint {
 	 */
 	public setEnvironment(env: string) {
 		if (this.onPremiseConfig) {
-			throw new Error("Cannot change environment in on-premise mode. Endpoints are configured via ~/.beadsmith/endpoints.json")
+			throw new Error(
+				"Cannot change environment in on-premise mode. Endpoints are configured via ~/.beadsmith/endpoints.json",
+			)
 		}
 
 		switch (env.toLowerCase()) {

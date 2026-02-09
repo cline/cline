@@ -508,8 +508,8 @@ const BeadsmithRulesToggleModal: React.FC = () => {
 						<div className="text-xs text-description mb-4">
 							{currentView === "rules" ? (
 								<p>
-									Rules allow you to provide Beadsmith with system-level guidance. Think of them as a persistent way
-									to include context and preferences for your projects or globally for every conversation.{" "}
+									Rules allow you to provide Beadsmith with system-level guidance. Think of them as a persistent
+									way to include context and preferences for your projects or globally for every conversation.{" "}
 									<VSCodeLink
 										className="text-xs"
 										href="https://docs.cline.bot/features/beadsmith-rules"
@@ -530,14 +530,14 @@ const BeadsmithRulesToggleModal: React.FC = () => {
 								</p>
 							) : currentView === "skills" ? (
 								<p>
-									Skills are reusable instruction sets that Beadsmith can activate on-demand. When a task matches a
-									skill's description, Beadsmith uses the <span className="font-bold">use_skill</span> tool to load
-									the full instructions.
+									Skills are reusable instruction sets that Beadsmith can activate on-demand. When a task
+									matches a skill's description, Beadsmith uses the <span className="font-bold">use_skill</span>{" "}
+									tool to load the full instructions.
 								</p>
 							) : (
 								<p>
-									Hooks allow you to execute custom scripts at specific points in Beadsmith's execution lifecycle,
-									enabling automation and integration with external tools.
+									Hooks allow you to execute custom scripts at specific points in Beadsmith's execution
+									lifecycle, enabling automation and integration with external tools.
 								</p>
 							)}
 						</div>

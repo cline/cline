@@ -6,10 +6,10 @@
  * - workspace: Commits directly to the current working branch
  */
 
-import simpleGit, { type SimpleGit } from "simple-git"
+import type { Bead } from "@shared/beads"
 
 import { Logger } from "@shared/services/Logger"
-import type { Bead } from "@shared/beads"
+import simpleGit, { type SimpleGit } from "simple-git"
 
 /**
  * Options for creating a bead commit.

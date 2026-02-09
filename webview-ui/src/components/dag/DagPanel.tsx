@@ -385,7 +385,7 @@ export const DagPanel = memo<DagPanelProps>(({ className, onDone }) => {
 			{graph?.summary && <SummaryStats summary={graph.summary} />}
 
 			{/* Content area */}
-			<div ref={containerRef} className="flex-1 overflow-y-auto">
+			<div className="flex-1 overflow-y-auto" ref={containerRef}>
 				{graph && groupedNodes.size > 0 ? (
 					viewMode === "graph" ? (
 						<ForceGraph
@@ -394,8 +394,8 @@ export const DagPanel = memo<DagPanelProps>(({ className, onDone }) => {
 							impactNodeIds={impactNodeIds}
 							nodes={graph.nodes}
 							onNodeClick={handleNodeClick}
-							width={graphDimensions.width}
 							selectedNodeId={selectedNode?.id}
+							width={graphDimensions.width}
 						/>
 					) : (
 						<div>

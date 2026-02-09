@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
+import type { BeadManagerState } from "@shared/beads"
 import sinon from "sinon"
 import { BeadManager } from "../BeadManager"
-import type { BeadManagerState } from "@shared/beads"
 
 describe("BeadManager", () => {
 	let manager: BeadManager

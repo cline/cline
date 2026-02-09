@@ -147,18 +147,12 @@ const RalphLoopStatus = memo(({ state, onPause, onResume, onCancel, onViewDetail
 	return (
 		<div className={cn("rounded-sm border", statusConfig.bgColor, statusConfig.borderColor)}>
 			{/* Header - Always visible */}
-			<div
-				className="flex items-center justify-between px-3 py-2 cursor-pointer"
-				onClick={handleToggleExpand}>
+			<div className="flex items-center justify-between px-3 py-2 cursor-pointer" onClick={handleToggleExpand}>
 				<div className="flex items-center gap-2">
 					{statusConfig.icon}
-					<span className={cn("font-semibold text-sm", statusConfig.color)}>
-						Ralph Loop - {statusConfig.label}
-					</span>
+					<span className={cn("font-semibold text-sm", statusConfig.color)}>Ralph Loop - {statusConfig.label}</span>
 					{state.status === "running" && state.beadsEnabled && state.pendingBeadApproval && (
-						<span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded-full">
-							Awaiting Approval
-						</span>
+						<span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded-full">Awaiting Approval</span>
 					)}
 				</div>
 
@@ -228,15 +222,12 @@ const RalphLoopStatus = memo(({ state, onPause, onResume, onCancel, onViewDetail
 							<div className="space-y-1 max-h-32 overflow-y-auto">
 								{state.iterations.slice(-5).map((iteration) => (
 									<div
-										key={iteration.number}
-										className={cn(
-											"flex items-center justify-between px-2 py-1.5 rounded-sm text-xs",
-											{
-												"bg-success/10": iteration.status === "completed",
-												"bg-error/10": iteration.status === "failed",
-												"bg-link/10": iteration.status === "current",
-											},
-										)}>
+										className={cn("flex items-center justify-between px-2 py-1.5 rounded-sm text-xs", {
+											"bg-success/10": iteration.status === "completed",
+											"bg-error/10": iteration.status === "failed",
+											"bg-link/10": iteration.status === "current",
+										})}
+										key={iteration.number}>
 										<div className="flex items-center gap-1.5">
 											{iteration.status === "completed" && (
 												<CheckCircleIcon className="size-3 text-success" />
@@ -267,20 +258,20 @@ const RalphLoopStatus = memo(({ state, onPause, onResume, onCancel, onViewDetail
 						{state.status === "running" && (
 							<>
 								<button
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-warning/20 text-warning border border-warning/30 rounded-sm text-xs hover:bg-warning/30 transition-colors"
 									onClick={(e) => {
 										e.stopPropagation()
 										onPause()
-									}}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-warning/20 text-warning border border-warning/30 rounded-sm text-xs hover:bg-warning/30 transition-colors">
+									}}>
 									<PauseIcon className="size-3" />
 									Pause
 								</button>
 								<button
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-error/20 text-error border border-error/30 rounded-sm text-xs hover:bg-error/30 transition-colors"
 									onClick={(e) => {
 										e.stopPropagation()
 										onCancel()
-									}}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-error/20 text-error border border-error/30 rounded-sm text-xs hover:bg-error/30 transition-colors">
+									}}>
 									<CircleStopIcon className="size-3" />
 									Cancel
 								</button>
@@ -290,36 +281,34 @@ const RalphLoopStatus = memo(({ state, onPause, onResume, onCancel, onViewDetail
 						{state.status === "paused" && (
 							<>
 								<button
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-success/20 text-success border border-success/30 rounded-sm text-xs hover:bg-success/30 transition-colors"
 									onClick={(e) => {
 										e.stopPropagation()
 										onResume()
-									}}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-success/20 text-success border border-success/30 rounded-sm text-xs hover:bg-success/30 transition-colors">
+									}}>
 									<PlayIcon className="size-3" />
 									Resume
 								</button>
 								<button
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-error/20 text-error border border-error/30 rounded-sm text-xs hover:bg-error/30 transition-colors"
 									onClick={(e) => {
 										e.stopPropagation()
 										onCancel()
-									}}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-error/20 text-error border border-error/30 rounded-sm text-xs hover:bg-error/30 transition-colors">
+									}}>
 									<CircleStopIcon className="size-3" />
 									Cancel
 								</button>
 							</>
 						)}
 
-						{(state.status === "completed" ||
-							state.status === "failed" ||
-							state.status === "cancelled") &&
+						{(state.status === "completed" || state.status === "failed" || state.status === "cancelled") &&
 							onViewDetails && (
 								<button
+									className="flex items-center gap-1.5 px-3 py-1.5 bg-link/20 text-link border border-link/30 rounded-sm text-xs hover:bg-link/30 transition-colors"
 									onClick={(e) => {
 										e.stopPropagation()
 										onViewDetails()
-									}}
-									className="flex items-center gap-1.5 px-3 py-1.5 bg-link/20 text-link border border-link/30 rounded-sm text-xs hover:bg-link/30 transition-colors">
+									}}>
 									View Details
 								</button>
 							)}

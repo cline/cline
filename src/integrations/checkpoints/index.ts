@@ -244,7 +244,10 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			const beadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages()
 			const messageIndex = beadsmithMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 			// Find the last message before messageIndex that has a lastCheckpointHash
-			const lastHashIndex = findLastIndex(beadsmithMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
+			const lastHashIndex = findLastIndex(
+				beadsmithMessages.slice(0, messageIndex),
+				(m) => m.lastCheckpointHash !== undefined,
+			)
 			const message = beadsmithMessages[messageIndex]
 			const lastMessageWithHash = beadsmithMessages[lastHashIndex]
 

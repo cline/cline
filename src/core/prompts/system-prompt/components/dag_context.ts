@@ -54,11 +54,15 @@ export async function getDagContextSection(variant: PromptVariant, context: Syst
 		const impactDetails: string[] = []
 
 		if (impact.affectedFiles && impact.affectedFiles.length > 0) {
-			impactDetails.push(`- Affected files: ${impact.affectedFiles.slice(0, 10).join(", ")}${impact.affectedFiles.length > 10 ? ` (+${impact.affectedFiles.length - 10} more)` : ""}`)
+			impactDetails.push(
+				`- Affected files: ${impact.affectedFiles.slice(0, 10).join(", ")}${impact.affectedFiles.length > 10 ? ` (+${impact.affectedFiles.length - 10} more)` : ""}`,
+			)
 		}
 
 		if (impact.affectedFunctions && impact.affectedFunctions.length > 0) {
-			impactDetails.push(`- Affected functions: ${impact.affectedFunctions.slice(0, 10).join(", ")}${impact.affectedFunctions.length > 10 ? ` (+${impact.affectedFunctions.length - 10} more)` : ""}`)
+			impactDetails.push(
+				`- Affected functions: ${impact.affectedFunctions.slice(0, 10).join(", ")}${impact.affectedFunctions.length > 10 ? ` (+${impact.affectedFunctions.length - 10} more)` : ""}`,
+			)
 		}
 
 		if (impact.suggestedTests && impact.suggestedTests.length > 0) {
@@ -67,7 +71,9 @@ export async function getDagContextSection(variant: PromptVariant, context: Syst
 
 		if (impact.confidenceBreakdown) {
 			const cb = impact.confidenceBreakdown
-			impactDetails.push(`- Edge confidence: ${cb.high || 0} high, ${cb.medium || 0} medium, ${cb.low || 0} low, ${cb.unsafe || 0} unsafe`)
+			impactDetails.push(
+				`- Edge confidence: ${cb.high || 0} high, ${cb.medium || 0} medium, ${cb.low || 0} low, ${cb.unsafe || 0} unsafe`,
+			)
 		}
 
 		if (impactDetails.length > 0) {

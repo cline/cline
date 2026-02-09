@@ -58,9 +58,7 @@ export const BeadStartedMessage = memo(({ message }: BeadMessageProps) => {
 				<CirclePlayIcon className="size-2 text-link" />
 				<span className="font-semibold text-link">Ralph Loop - Iteration {info.beadNumber}</span>
 			</div>
-			{info.taskDescription && (
-				<div className="ml-6 opacity-80 text-sm break-words">{info.taskDescription}</div>
-			)}
+			{info.taskDescription && <div className="ml-6 opacity-80 text-sm break-words">{info.taskDescription}</div>}
 		</div>
 	)
 })
@@ -102,13 +100,13 @@ export const BeadCompletedMessage = memo(({ message }: BeadMessageProps) => {
 				{info.filesChanged.length > 0 && (
 					<div className="flex items-center gap-1.5 opacity-80">
 						<FileTextIcon className="size-1.5" />
-						<span>{info.filesChanged.length} file{info.filesChanged.length !== 1 ? "s" : ""} changed</span>
+						<span>
+							{info.filesChanged.length} file{info.filesChanged.length !== 1 ? "s" : ""} changed
+						</span>
 					</div>
 				)}
 
-				{info.tokensUsed > 0 && (
-					<div className="opacity-70 text-xs">{info.tokensUsed.toLocaleString()} tokens used</div>
-				)}
+				{info.tokensUsed > 0 && <div className="opacity-70 text-xs">{info.tokensUsed.toLocaleString()} tokens used</div>}
 
 				{hasErrors && (
 					<div className="mt-2 pt-2 border-t border-warning/30">
@@ -153,9 +151,7 @@ export const BeadFailedMessage = memo(({ message }: BeadMessageProps) => {
 					))}
 				</ul>
 
-				{info.canRetry && (
-					<div className="text-xs opacity-70 mt-2">The loop will retry with fresh context.</div>
-				)}
+				{info.canRetry && <div className="text-xs opacity-70 mt-2">The loop will retry with fresh context.</div>}
 			</div>
 		</div>
 	)

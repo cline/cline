@@ -1089,7 +1089,10 @@ export const DiffEditNewFormatStreaming: Story = {
 				createMessage(5, "say", "task", "Add TypeScript types to the user module"),
 				createMessage(4.7, "say", "text", "I'll add TypeScript types to improve type safety."),
 			])
-			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, beadsmithMessages: messages }), [messages])
+			const mockState = useMemo(
+				() => createMockState({ backgroundEditEnabled: true, beadsmithMessages: messages }),
+				[messages],
+			)
 
 			useEffect(() => {
 				// Simulate streaming: progressively add more content
@@ -1212,7 +1215,9 @@ function validateEmail(email: string): boolean {
 ]
 
 export const DiffEditReplaceDiffFormat: Story = {
-	decorators: [createStoryDecorator({ backgroundEditEnabled: true, beadsmithMessages: createReplaceDiffFormatPatchMessages() })],
+	decorators: [
+		createStoryDecorator({ backgroundEditEnabled: true, beadsmithMessages: createReplaceDiffFormatPatchMessages() }),
+	],
 	parameters: {
 		docs: {
 			description: {
@@ -1229,7 +1234,10 @@ export const DiffEditReplaceDiffFormatStreaming: Story = {
 				createMessage(5, "say", "task", "Update error handling"),
 				createMessage(4.7, "say", "text", "I'll improve the error handling in the API client."),
 			])
-			const mockState = useMemo(() => createMockState({ backgroundEditEnabled: true, beadsmithMessages: messages }), [messages])
+			const mockState = useMemo(
+				() => createMockState({ backgroundEditEnabled: true, beadsmithMessages: messages }),
+				[messages],
+			)
 
 			useEffect(() => {
 				const completePatch = `------- SEARCH

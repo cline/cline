@@ -91,10 +91,10 @@ export function getModelsForProvider(
 			return vertexModels
 		case "gemini":
 			return geminiModels
-	case "openai-native":
-		return openAiNativeModels
-	case "openai-codex":
-		return openAiCodexModels
+		case "openai-native":
+			return openAiNativeModels
+		case "openai-codex":
+			return openAiCodexModels
 		case "deepseek":
 			return deepSeekModels
 		case "qwen":

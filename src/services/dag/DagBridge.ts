@@ -5,22 +5,13 @@
  * communication for dependency analysis requests.
  */
 
-import { spawn, spawnSync, type ChildProcess } from "child_process"
+import { Logger } from "@shared/services/Logger"
+import { type ChildProcess, spawn, spawnSync } from "child_process"
 import { EventEmitter } from "events"
 import * as fs from "fs"
 import * as path from "path"
 import * as vscode from "vscode"
-
-import { Logger } from "@shared/services/Logger"
-import type {
-	DagServiceStatus,
-	GraphEdge,
-	GraphNode,
-	ImpactReport,
-	JsonRpcRequest,
-	JsonRpcResponse,
-	ProjectGraph,
-} from "./types"
+import type { DagServiceStatus, GraphEdge, GraphNode, ImpactReport, JsonRpcRequest, JsonRpcResponse, ProjectGraph } from "./types"
 
 /**
  * Result of Python validation check.
@@ -41,9 +32,7 @@ const MIN_PYTHON_VERSION = { major: 3, minor: 12 }
 /**
  * Parse Python version string like "Python 3.12.1" into components.
  */
-function parsePythonVersion(
-	versionString: string,
-): { major: number; minor: number; patch: number } | null {
+function parsePythonVersion(versionString: string): { major: number; minor: number; patch: number } | null {
 	const match = versionString.match(/Python\s+(\d+)\.(\d+)(?:\.(\d+))?/)
 	if (!match) {
 		return null
@@ -80,9 +69,7 @@ export function validatePythonSetup(extensionPath: string): PythonValidationResu
 	const enginePath = path.join(extensionPath, "dag-engine")
 	const venvPath = path.join(enginePath, ".venv")
 	const isWindows = process.platform === "win32"
-	const venvPython = isWindows
-		? path.join(venvPath, "Scripts", "python.exe")
-		: path.join(venvPath, "bin", "python")
+	const venvPython = isWindows ? path.join(venvPath, "Scripts", "python.exe") : path.join(venvPath, "bin", "python")
 
 	// Check if venv exists
 	if (!fs.existsSync(venvPath)) {
@@ -98,8 +85,7 @@ export function validatePythonSetup(extensionPath: string): PythonValidationResu
 		return {
 			valid: false,
 			error: "DAG engine Python executable not found in virtual environment",
-			suggestion:
-				"The virtual environment may be corrupted. Delete dag-engine/.venv and run 'npm run setup:dag'.",
+			suggestion: "The virtual environment may be corrupted. Delete dag-engine/.venv and run 'npm run setup:dag'.",
 		}
 	}
 
@@ -247,11 +233,7 @@ export class DagBridge extends EventEmitter {
 	private consecutiveHealthFailures = 0
 	private readonly maxConsecutiveHealthFailures = 3
 
-	constructor(
-		pythonPath: string,
-		extensionPath: string,
-		options?: DagBridgeOptions
-	) {
+	constructor(pythonPath: string, extensionPath: string, options?: DagBridgeOptions) {
 		super()
 		this.pythonPath = pythonPath
 		this.extensionPath = extensionPath
@@ -418,7 +400,7 @@ export class DagBridge extends EventEmitter {
 			const err = error instanceof Error ? error : new Error(String(error))
 			Logger.warn(
 				`[DAG Bridge] Health check failed (${this.consecutiveHealthFailures}/${this.maxConsecutiveHealthFailures}):`,
-				error
+				error,
 			)
 			this.emit("healthCheckFailed", err)
 
@@ -441,9 +423,7 @@ export class DagBridge extends EventEmitter {
 
 		if (this.restartAttempts >= this.maxRestartAttempts) {
 			const err = new Error("DAG engine failed to restart after multiple attempts")
-			Logger.error(
-				`[DAG Bridge] Max restart attempts (${this.maxRestartAttempts}) reached, giving up`
-			)
+			Logger.error(`[DAG Bridge] Max restart attempts (${this.maxRestartAttempts}) reached, giving up`)
 			this.emit("restartFailed", err)
 			this.emit("error", err)
 			return
@@ -538,7 +518,7 @@ export class DagBridge extends EventEmitter {
 	async getImpact(
 		filePath: string,
 		functionName?: string,
-		options?: { maxDepth?: number; minConfidence?: string }
+		options?: { maxDepth?: number; minConfidence?: string },
 	): Promise<ImpactReport> {
 		const result = await this.call("get_impact", {
 			file: filePath,
@@ -590,9 +570,12 @@ export class DagBridge extends EventEmitter {
 	/**
 	 * Query nodes in the cached graph by file path, name, and/or type.
 	 */
-	async queryNodes(
-		options: { filePath?: string; name?: string; type?: string; limit?: number }
-	): Promise<{ nodes: GraphNode[]; totalCount: number }> {
+	async queryNodes(options: {
+		filePath?: string
+		name?: string
+		type?: string
+		limit?: number
+	}): Promise<{ nodes: GraphNode[]; totalCount: number }> {
 		const result = await this.call("query_nodes", {
 			file_path: options.filePath,
 			name: options.name,
@@ -668,7 +651,7 @@ export class DagBridge extends EventEmitter {
 						pending.reject(new Error(response.error.message))
 					} else {
 						// Convert snake_case keys from Python to camelCase for TypeScript
-					pending.resolve(snakeToCamelKeys(response.result))
+						pending.resolve(snakeToCamelKeys(response.result))
 					}
 				}
 			} catch (_error) {

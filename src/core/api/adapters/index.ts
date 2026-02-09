@@ -41,7 +41,8 @@ export function transformToolCallMessages(
 
 	// Determine which conversion to apply
 	const hasApplyPatchNative = nativeToolSet.has(BeadsmithDefaultTool.APPLY_PATCH)
-	const hasFileEditNative = nativeToolSet.has(BeadsmithDefaultTool.FILE_EDIT) || nativeToolSet.has(BeadsmithDefaultTool.FILE_NEW)
+	const hasFileEditNative =
+		nativeToolSet.has(BeadsmithDefaultTool.FILE_EDIT) || nativeToolSet.has(BeadsmithDefaultTool.FILE_NEW)
 
 	const hasApplyPatchUsed = usedToolSet.has(BeadsmithDefaultTool.APPLY_PATCH)
 	const hasFileEditUsed = usedToolSet.has(BeadsmithDefaultTool.FILE_EDIT) || usedToolSet.has(BeadsmithDefaultTool.FILE_NEW)

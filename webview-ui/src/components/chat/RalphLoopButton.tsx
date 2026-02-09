@@ -9,7 +9,7 @@ import { StartBeadTaskRequest, SuccessCriterion, SuccessCriterionType } from "@s
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { RepeatIcon } from "lucide-react"
 import React, { useCallback, useState } from "react"
-import { RalphLoopModal, type RalphLoopConfig, type PlanStep } from "@/components/ralph"
+import { type PlanStep, type RalphLoopConfig, RalphLoopModal } from "@/components/ralph"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { BeadServiceClient } from "@/services/grpc-client"

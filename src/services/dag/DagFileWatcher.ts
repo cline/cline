@@ -5,10 +5,9 @@
  * and debounces updates to avoid excessive re-analysis.
  */
 
-import * as vscode from "vscode"
-
 import type { BeadsmithIgnoreController } from "@core/ignore/BeadsmithIgnoreController"
 import { Logger } from "@shared/services/Logger"
+import * as vscode from "vscode"
 import type { DagBridge } from "./DagBridge"
 
 /**
@@ -71,11 +70,7 @@ export class DagFileWatcher {
 
 	private readonly eventHandlers: Partial<DagFileWatcherEvents> = {}
 
-	constructor(
-		dagBridge: DagBridge,
-		workspaceRoot: string,
-		options?: DagFileWatcherOptions
-	) {
+	constructor(dagBridge: DagBridge, workspaceRoot: string, options?: DagFileWatcherOptions) {
 		this.dagBridge = dagBridge
 		this.workspaceRoot = workspaceRoot
 		this.debounceMs = options?.debounceMs ?? 1000
@@ -316,7 +311,7 @@ export class DagFileWatcher {
 		this.pendingDeletions.clear()
 
 		Logger.info(
-			`[DAG File Watcher] Triggering analysis for ${changedFiles.length} changed, ${deletedFiles.length} deleted files`
+			`[DAG File Watcher] Triggering analysis for ${changedFiles.length} changed, ${deletedFiles.length} deleted files`,
 		)
 		this.emit("analysisTriggered", changedFiles, deletedFiles)
 
@@ -365,14 +360,11 @@ export class DagFileWatcher {
 	/**
 	 * Emit an event.
 	 */
-	private emit<K extends keyof DagFileWatcherEvents>(
-		event: K,
-		...args: Parameters<DagFileWatcherEvents[K]>
-	): void {
+	private emit<K extends keyof DagFileWatcherEvents>(event: K, ...args: Parameters<DagFileWatcherEvents[K]>): void {
 		const handler = this.eventHandlers[event]
 		if (handler) {
 			// biome-ignore lint/suspicious/noExplicitAny: Event handler types vary
-			(handler as any)(...args)
+			;(handler as any)(...args)
 		}
 	}
 }
@@ -380,10 +372,7 @@ export class DagFileWatcher {
 /**
  * Create a DagFileWatcher instance with default settings from VS Code configuration.
  */
-export function createDagFileWatcher(
-	dagBridge: DagBridge,
-	workspaceRoot: string
-): DagFileWatcher {
+export function createDagFileWatcher(dagBridge: DagBridge, workspaceRoot: string): DagFileWatcher {
 	const config = vscode.workspace.getConfiguration("beadsmith")
 	const debounceMs = config.get<number>("dag.fileWatcherDebounceMs", 1000)
 	const autoAnalyse = config.get<boolean>("dag.autoAnalyseOnFileChange", true)

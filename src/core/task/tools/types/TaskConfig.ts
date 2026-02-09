@@ -8,8 +8,8 @@ import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import type { McpHub } from "@services/mcp/McpHub"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import type { BeadFileChange } from "@shared/beads"
 import type { BrowserSettings } from "@shared/BrowserSettings"
+import type { BeadFileChange } from "@shared/beads"
 import type { BeadsmithAsk, BeadsmithSay } from "@shared/ExtensionMessage"
 import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import type { BeadsmithContent } from "@shared/messages/content"
@@ -88,7 +88,13 @@ export interface TaskServices {
  * All callback functions available to tool handlers
  */
 export interface TaskCallbacks {
-	say: (type: BeadsmithSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (
+		type: BeadsmithSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	) => Promise<number | undefined>
 
 	ask: (
 		type: BeadsmithAsk,

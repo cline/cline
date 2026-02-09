@@ -439,7 +439,9 @@ export class BeadsmithAuthProvider {
 		}
 	}
 
-	private async fetchRemoteUserInfo(tokenData: BeadsmithAuthApiTokenExchangeResponse["data"]): Promise<BeadsmithAccountUserInfo> {
+	private async fetchRemoteUserInfo(
+		tokenData: BeadsmithAuthApiTokenExchangeResponse["data"],
+	): Promise<BeadsmithAccountUserInfo> {
 		try {
 			const userResponse = await axios.get(`${BeadsmithEnv.config().apiBaseUrl}/api/v1/users/me`, {
 				headers: {

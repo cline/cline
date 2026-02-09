@@ -212,7 +212,10 @@ function findImmediateNextToolTimestamp(hookIndex: number, messages: BeadsmithMe
  * @param originalMessages Original messages array (used to find tools)
  * @returns Map of tool timestamp -> array of PreToolUse hooks for that tool
  */
-function buildPreToolUseMap(processedMessages: BeadsmithMessage[], originalMessages: BeadsmithMessage[]): Map<number, BeadsmithMessage[]> {
+function buildPreToolUseMap(
+	processedMessages: BeadsmithMessage[],
+	originalMessages: BeadsmithMessage[],
+): Map<number, BeadsmithMessage[]> {
 	const map = new Map<number, BeadsmithMessage[]>()
 
 	// Build timestamp-to-index map once to avoid O(n) findIndex calls
@@ -273,7 +276,10 @@ function buildPreToolUseMap(processedMessages: BeadsmithMessage[], originalMessa
  * @param preToolUseMap Map of tool timestamp -> PreToolUse hooks
  * @returns Reordered messages array
  */
-function reorderWithPreToolUseHooks(messages: BeadsmithMessage[], preToolUseMap: Map<number, BeadsmithMessage[]>): BeadsmithMessage[] {
+function reorderWithPreToolUseHooks(
+	messages: BeadsmithMessage[],
+	preToolUseMap: Map<number, BeadsmithMessage[]>,
+): BeadsmithMessage[] {
 	const result: BeadsmithMessage[] = []
 	const addedHooks = new Set<number>()
 	const addedTools = new Set<number>()

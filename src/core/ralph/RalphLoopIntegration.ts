@@ -6,13 +6,12 @@
  * whether to continue the loop or finish.
  */
 
-import { EventEmitter } from "events"
-
-import { Logger } from "@shared/services/Logger"
-import type { RalphLoopController, RalphLoopState, RalphLoopConfig } from "./RalphLoopController"
-import { createRalphLoopController } from "./RalphLoopController"
 import type { BeadManager } from "@core/beads/BeadManager"
 import { createBeadManager } from "@core/beads/BeadManager"
+import { Logger } from "@shared/services/Logger"
+import { EventEmitter } from "events"
+import type { RalphLoopConfig, RalphLoopController, RalphLoopState } from "./RalphLoopController"
+import { createRalphLoopController } from "./RalphLoopController"
 
 /**
  * Integration state combining loop state with task context.
@@ -179,7 +178,10 @@ export class RalphLoopIntegration extends EventEmitter {
 	 * Called when a task response is received.
 	 * Returns whether the loop should continue.
 	 */
-	async onTaskResponse(response: string, tokensUsed: number): Promise<{
+	async onTaskResponse(
+		response: string,
+		tokensUsed: number,
+	): Promise<{
 		shouldContinue: boolean
 		needsContextReset: boolean
 		prompt?: string

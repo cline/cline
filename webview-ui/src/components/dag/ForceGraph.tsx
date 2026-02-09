@@ -4,12 +4,7 @@
  * Displays nodes and edges with interactive zoom, pan, and click handlers.
  */
 
-import {
-	type GraphEdge,
-	type GraphNode,
-	edgeTypeToJSON,
-	edgeConfidenceToJSON,
-} from "@shared/proto/beadsmith/dag"
+import { edgeConfidenceToJSON, edgeTypeToJSON, type GraphEdge, type GraphNode } from "@shared/proto/beadsmith/dag"
 import * as d3 from "d3"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
@@ -281,7 +276,7 @@ export const ForceGraph = memo<ForceGraphProps>(
 
 		return (
 			<div className={cn("relative", className)}>
-				<svg ref={svgRef} width={width} height={height} className="bg-background border border-foreground/10 rounded">
+				<svg className="bg-background border border-foreground/10 rounded" height={height} ref={svgRef} width={width}>
 					{/* D3 will populate this */}
 				</svg>
 

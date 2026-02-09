@@ -8,7 +8,7 @@
  * - Enabling/disabling beads (checkpoints)
  */
 
-import { VSCodeButton, VSCodeCheckbox, VSCodeTextField, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -139,17 +139,15 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 	return (
 		<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
 			<div
-				ref={modalRef}
-				className="bg-editor-background border border-editor-group-border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
+				className="bg-editor-background border border-editor-group-border rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+				ref={modalRef}>
 				{/* Header */}
 				<div className="flex items-center justify-between px-4 py-3 border-b border-editor-group-border">
 					<div className="flex items-center gap-2">
 						<CirclePlayIcon className="size-4 text-link" />
 						<span className="font-semibold text-lg">Start Ralph Loop</span>
 					</div>
-					<button
-						onClick={onClose}
-						className="p-1 rounded hover:bg-list-hover-background transition-colors">
+					<button className="p-1 rounded hover:bg-list-hover-background transition-colors" onClick={onClose}>
 						<XIcon className="size-4" />
 					</button>
 				</div>
@@ -157,9 +155,8 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 				{/* Step Indicators */}
 				<div className="flex items-center justify-center gap-2 px-4 py-3 border-b border-editor-group-border bg-code">
 					{steps.map((step, index) => (
-						<div key={step.key} className="flex items-center">
+						<div className="flex items-center" key={step.key}>
 							<button
-								onClick={() => setCurrentStep(step.key)}
 								className={cn(
 									"flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors",
 									currentStep === step.key
@@ -167,13 +164,12 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 										: index < currentStepIndex
 											? "bg-success/20 text-success hover:bg-success/30"
 											: "bg-list-hover-background text-muted-foreground hover:bg-list-active-selection-background",
-								)}>
+								)}
+								onClick={() => setCurrentStep(step.key)}>
 								{step.icon}
 								{step.label}
 							</button>
-							{index < steps.length - 1 && (
-								<ChevronRightIcon className="size-3 mx-1 text-muted-foreground" />
-							)}
+							{index < steps.length - 1 && <ChevronRightIcon className="size-3 mx-1 text-muted-foreground" />}
 						</div>
 					))}
 				</div>
@@ -183,11 +179,9 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 					{currentStep === "task" && (
 						<div className="space-y-4">
 							<div>
-								<label className="block text-sm font-medium mb-2">
-									What do you want to accomplish?
-								</label>
+								<label className="block text-sm font-medium mb-2">What do you want to accomplish?</label>
 								<VSCodeTextArea
-									value={config.taskDescription}
+									className="w-full"
 									onInput={(e) =>
 										setConfig((prev) => ({
 											...prev,
@@ -196,7 +190,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 									}
 									placeholder="Describe your task in detail. Be specific about what success looks like..."
 									rows={6}
-									className="w-full"
+									value={config.taskDescription}
 								/>
 								<p className="text-xs text-muted-foreground mt-1">
 									The more detailed your description, the better the AI can help plan and execute.
@@ -222,23 +216,23 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 									Break down your task into steps (optional)
 								</label>
 								<p className="text-xs text-muted-foreground mb-3">
-									Define the steps you expect the AI to take. This helps track progress and ensures
-									nothing is missed.
+									Define the steps you expect the AI to take. This helps track progress and ensures nothing is
+									missed.
 								</p>
 
 								{/* Existing steps */}
 								<div className="space-y-2 mb-4">
 									{plan.map((step, index) => (
 										<div
-											key={step.id}
-											className="flex items-center gap-2 p-2 bg-code rounded-sm border border-editor-group-border">
+											className="flex items-center gap-2 p-2 bg-code rounded-sm border border-editor-group-border"
+											key={step.id}>
 											<span className="text-xs text-muted-foreground w-6">{index + 1}.</span>
 											<span className={cn("flex-1 text-sm", step.completed && "line-through opacity-50")}>
 												{step.description}
 											</span>
 											<button
-												onClick={() => handleRemovePlanStep(step.id)}
-												className="p-1 rounded hover:bg-error/20 text-error transition-colors">
+												className="p-1 rounded hover:bg-error/20 text-error transition-colors"
+												onClick={() => handleRemovePlanStep(step.id)}>
 												<XIcon className="size-3" />
 											</button>
 										</div>
@@ -248,7 +242,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 								{/* Add new step */}
 								<div className="flex gap-2">
 									<VSCodeTextField
-										value={newStepText}
+										className="flex-1"
 										onInput={(e) => setNewStepText((e.target as HTMLInputElement).value)}
 										onKeyDown={(e) => {
 											if (e.key === "Enter") {
@@ -256,9 +250,9 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 											}
 										}}
 										placeholder="Add a step..."
-										className="flex-1"
+										value={newStepText}
 									/>
-									<VSCodeButton onClick={handleAddPlanStep} disabled={!newStepText.trim()}>
+									<VSCodeButton disabled={!newStepText.trim()} onClick={handleAddPlanStep}>
 										Add
 									</VSCodeButton>
 								</div>
@@ -281,7 +275,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 								<div>
 									<label className="block text-sm font-medium mb-2">Max Iterations</label>
 									<VSCodeTextField
-										value={config.maxIterations.toString()}
+										className="w-full"
 										onInput={(e) => {
 											const value = (e.target as HTMLInputElement).value.replace(/\D/g, "")
 											setConfig((prev) => ({
@@ -289,7 +283,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 												maxIterations: parseInt(value) || 50,
 											}))
 										}}
-										className="w-full"
+										value={config.maxIterations.toString()}
 									/>
 									<p className="text-xs text-muted-foreground mt-1">
 										Maximum loops before stopping (default: 50)
@@ -299,7 +293,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 								<div>
 									<label className="block text-sm font-medium mb-2">Completion Signal</label>
 									<VSCodeTextField
-										value={config.completionPromise}
+										className="w-full"
 										onInput={(e) =>
 											setConfig((prev) => ({
 												...prev,
@@ -307,11 +301,9 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 											}))
 										}
 										placeholder="COMPLETE"
-										className="w-full"
+										value={config.completionPromise}
 									/>
-									<p className="text-xs text-muted-foreground mt-1">
-										String that signals task completion
-									</p>
+									<p className="text-xs text-muted-foreground mt-1">String that signals task completion</p>
 								</div>
 							</div>
 
@@ -325,7 +317,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 									<div>
 										<label className="block text-xs font-medium mb-1">Test Command</label>
 										<VSCodeTextField
-											value={config.testCommand}
+											className="w-full"
 											onInput={(e) =>
 												setConfig((prev) => ({
 													...prev,
@@ -333,14 +325,14 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 												}))
 											}
 											placeholder="npm test"
-											className="w-full"
+											value={config.testCommand}
 										/>
 									</div>
 
 									<div>
 										<label className="block text-xs font-medium mb-1">Type Check Command</label>
 										<VSCodeTextField
-											value={config.typeCheckCommand}
+											className="w-full"
 											onInput={(e) =>
 												setConfig((prev) => ({
 													...prev,
@@ -348,14 +340,14 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 												}))
 											}
 											placeholder="npm run check-types"
-											className="w-full"
+											value={config.typeCheckCommand}
 										/>
 									</div>
 
 									<div>
 										<label className="block text-xs font-medium mb-1">Lint Command</label>
 										<VSCodeTextField
-											value={config.lintCommand}
+											className="w-full"
 											onInput={(e) =>
 												setConfig((prev) => ({
 													...prev,
@@ -363,7 +355,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 												}))
 											}
 											placeholder="npm run lint"
-											className="w-full"
+											value={config.lintCommand}
 										/>
 									</div>
 								</div>
@@ -383,8 +375,8 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 									<div>
 										<label className="text-sm font-medium">Enable Beads (Checkpoints)</label>
 										<p className="text-xs text-muted-foreground mt-0.5">
-											Create reviewable checkpoints at each iteration. You can approve or reject
-											changes before they're applied.
+											Create reviewable checkpoints at each iteration. You can approve or reject changes
+											before they're applied.
 										</p>
 									</div>
 								</div>
@@ -442,8 +434,8 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 
 							<div className="bg-link/10 border border-link/30 rounded-sm p-3">
 								<p className="text-sm">
-									Ready to start? The loop will run until the AI signals completion or reaches the
-									maximum iterations.
+									Ready to start? The loop will run until the AI signals completion or reaches the maximum
+									iterations.
 								</p>
 							</div>
 						</div>
@@ -454,9 +446,7 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 				<div className="flex items-center justify-between px-4 py-3 border-t border-editor-group-border bg-code">
 					<div>
 						{currentStepIndex > 0 && (
-							<VSCodeButton
-								appearance="secondary"
-								onClick={() => setCurrentStep(steps[currentStepIndex - 1].key)}>
+							<VSCodeButton appearance="secondary" onClick={() => setCurrentStep(steps[currentStepIndex - 1].key)}>
 								<ChevronLeftIcon className="size-3 mr-1" />
 								Back
 							</VSCodeButton>
@@ -470,13 +460,13 @@ const RalphLoopModal = memo(({ isVisible, onClose, onStart }: RalphLoopModalProp
 
 						{currentStepIndex < steps.length - 1 ? (
 							<VSCodeButton
-								onClick={() => setCurrentStep(steps[currentStepIndex + 1].key)}
-								disabled={currentStep === "task" && !canProceedFromTask}>
+								disabled={currentStep === "task" && !canProceedFromTask}
+								onClick={() => setCurrentStep(steps[currentStepIndex + 1].key)}>
 								Next
 								<ChevronRightIcon className="size-3 ml-1" />
 							</VSCodeButton>
 						) : (
-							<VSCodeButton onClick={handleStart} disabled={!canStart}>
+							<VSCodeButton disabled={!canStart} onClick={handleStart}>
 								<PlayIcon className="size-3 mr-1" />
 								Start Loop
 							</VSCodeButton>

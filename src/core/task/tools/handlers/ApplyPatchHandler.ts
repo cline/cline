@@ -687,7 +687,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return summaries
 	}
 
-	private async handleApproval(config: TaskConfig, block: ToolUse, message: BeadsmithSayTool, rawInput: string): Promise<boolean> {
+	private async handleApproval(
+		config: TaskConfig,
+		block: ToolUse,
+		message: BeadsmithSayTool,
+		rawInput: string,
+	): Promise<boolean> {
 		const patch = { ...message, content: rawInput }
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)

@@ -122,7 +122,7 @@ export abstract class WebviewProvider {
 				<noscript>You need to enable JavaScript to run this app.</noscript>
 				<div id="root"></div>
 				<script type="module" nonce="${nonce}" src="${scriptUrl}"></script>
-				${process.env.IS_DEV ? '<script src="http://localhost:8097"></script>' : ''} 
+				${process.env.IS_DEV ? '<script src="http://localhost:8097"></script>' : ""} 
 			</body>
 		</html>
 		`

@@ -1,10 +1,10 @@
+import type { ProjectGraph as DagProjectGraph } from "@services/dag/types"
 import { EmptyRequest } from "@shared/proto/beadsmith/common"
 import { DagUpdateEvent, DagUpdateType } from "@shared/proto/beadsmith/dag"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 import { convertSummary } from "./dag-conversions"
-import type { ProjectGraph as DagProjectGraph } from "@services/dag/types"
 
 // Keep track of active DAG update subscriptions
 const activeDagUpdateSubscriptions = new Set<StreamingResponseHandler<DagUpdateEvent>>()

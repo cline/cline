@@ -301,8 +301,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Dictation
 							</VSCodeCheckbox>
 							<p className="text-xs text-description mt-1">
-								Enables speech-to-text transcription using your Beadsmith account. Uses the Aqua Voice's Avalon model,
-								at $0.0065 credits per minute of audio processed. 5 minutes max per message.
+								Enables speech-to-text transcription using your Beadsmith account. Uses the Aqua Voice's Avalon
+								model, at $0.0065 credits per minute of audio processed. 5 minutes max per message.
 							</p>
 						</div>
 					)}
@@ -446,8 +446,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<p className="text-xs">
 							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 							<span className="text-description">
-								Enables iterative task execution with approval checkpoints. Each "bead" is a discrete unit of
-								work that can be reviewed, approved, or rejected before continuing.
+								Enables iterative task execution with approval checkpoints. Each "bead" is a discrete unit of work
+								that can be reviewed, approved, or rejected before continuing.
 							</span>
 						</p>
 					</div>
@@ -484,7 +484,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									<VSCodeOption value="workspace">Workspace (current branch)</VSCodeOption>
 								</VSCodeDropdown>
 								<p className="text-xs text-description mt-1">
-									Shadow commits to a hidden branch for easy rollback. Workspace commits to your current working branch.
+									Shadow commits to a hidden branch for easy rollback. Workspace commits to your current working
+									branch.
 								</p>
 							</div>
 							<div className="mb-3">
@@ -496,11 +497,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<VSCodeTextField
 									className="w-full"
 									id="bead-test-command"
-									placeholder="npm test"
 									onChange={(e: any) => {
 										const value = e.target.value || undefined
 										updateSetting("beadTestCommand", value)
 									}}
+									placeholder="npm test"
 									value={beadTestCommand || ""}
 								/>
 								<p className="text-xs text-description mt-1">
@@ -561,8 +562,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<p className="text-xs">
 							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 							<span className="text-description">
-								Enables dependency graph analysis to understand cross-file impact before making changes.
-								Requires Python 3.12+ to be installed.
+								Enables dependency graph analysis to understand cross-file impact before making changes. Requires
+								Python 3.12+ to be installed.
 							</span>
 						</p>
 						{dagEnabled && (

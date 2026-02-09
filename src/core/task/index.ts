@@ -3,7 +3,6 @@ import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { BeadManager, BeadManagerConfig } from "@core/beads"
-import type { BeadFileChange } from "@shared/beads"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -55,9 +54,16 @@ import { listFiles } from "@services/glob/list-files"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
+import type { BeadFileChange } from "@shared/beads"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { BeadsmithApiReqCancelReason, BeadsmithApiReqInfo, BeadsmithAsk, BeadsmithMessage, BeadsmithSay } from "@shared/ExtensionMessage"
+import {
+	BeadsmithApiReqCancelReason,
+	BeadsmithApiReqInfo,
+	BeadsmithAsk,
+	BeadsmithMessage,
+	BeadsmithSay,
+} from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
@@ -434,7 +440,9 @@ export class Task {
 				const lastApiReqStartedIndex = findLastIndex(beadsmithMessages, (m) => m.say === "api_req_started")
 				if (lastApiReqStartedIndex !== -1) {
 					try {
-						const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[lastApiReqStartedIndex].text || "{}")
+						const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(
+							beadsmithMessages[lastApiReqStartedIndex].text || "{}",
+						)
 						currentApiReqInfo.retryStatus = {
 							attempt: attempt, // attempt is already 1-indexed from retry.ts
 							maxAttempts: maxRetries, // total attempts
@@ -597,7 +605,9 @@ export class Task {
 			this.beadManager = controllerBeadManager
 			this.toolExecutor.setBeadManager(this.beadManager)
 			this.setupBeadEventListeners()
-			Logger.info(`[Task ${this.taskId}] Reusing Controller's active BeadManager (bead ${controllerBeadManager.getState().currentBeadNumber})`)
+			Logger.info(
+				`[Task ${this.taskId}] Reusing Controller's active BeadManager (bead ${controllerBeadManager.getState().currentBeadNumber})`,
+			)
 			return
 		}
 
@@ -1213,7 +1223,10 @@ export class Task {
 		}
 
 		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
-		const lastApiReqStartedIndex = findLastIndex(savedBeadsmithMessages, (m) => m.type === "say" && m.say === "api_req_started")
+		const lastApiReqStartedIndex = findLastIndex(
+			savedBeadsmithMessages,
+			(m) => m.type === "say" && m.say === "api_req_started",
+		)
 		if (lastApiReqStartedIndex !== -1) {
 			const lastApiReqStarted = savedBeadsmithMessages[lastApiReqStartedIndex]
 			const { cost, cancelReason }: BeadsmithApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
@@ -1689,7 +1702,10 @@ export class Task {
 	}
 
 	// Tools
-	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, BeadsmithToolResponseContent]> {
+	async executeCommandTool(
+		command: string,
+		timeoutSeconds: number | undefined,
+	): Promise<[boolean, BeadsmithToolResponseContent]> {
 		return this.commandExecutor.execute(command, timeoutSeconds)
 	}
 
@@ -1950,7 +1966,9 @@ export class Task {
 							unsafe: impact.confidenceBreakdown.unsafe || 0,
 						},
 					}
-					Logger.debug(`[Task ${this.taskId}] DAG impact for ${primaryFile}: ${impact.affectedFiles.length} affected files`)
+					Logger.debug(
+						`[Task ${this.taskId}] DAG impact for ${primaryFile}: ${impact.affectedFiles.length} affected files`,
+					)
 				} catch (error) {
 					Logger.debug(`[Task ${this.taskId}] Failed to get DAG impact:`, error)
 					// Don't fail the request if DAG analysis fails
@@ -2063,7 +2081,8 @@ export class Task {
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
 					// ToDo: Allow the user to change their input if this is the case.
 					if (truncatedConversationHistory.length > 3) {
-						beadsmithError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
+						beadsmithError.message =
+							"Context window exceeded. Click retry to truncate the conversation and try again."
 						this.taskState.didAutomaticallyRetryFailedApiRequest = false
 					}
 				}
@@ -2077,7 +2096,9 @@ export class Task {
 				)
 				if (lastApiReqStartedIndex !== -1) {
 					const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
-					const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[lastApiReqStartedIndex].text || "{}")
+					const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(
+						beadsmithMessages[lastApiReqStartedIndex].text || "{}",
+					)
 					delete currentApiReqInfo.retryStatus
 
 					await this.messageStateHandler.updateBeadsmithMessage(lastApiReqStartedIndex, {
@@ -2148,7 +2169,9 @@ export class Task {
 					)
 					if (autoRetryApiReqIndex !== -1) {
 						const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
-						const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[autoRetryApiReqIndex].text || "{}")
+						const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(
+							beadsmithMessages[autoRetryApiReqIndex].text || "{}",
+						)
 						delete currentApiReqInfo.streamingFailedMessage
 						await this.messageStateHandler.updateBeadsmithMessage(autoRetryApiReqIndex, {
 							text: JSON.stringify(currentApiReqInfo),
@@ -2189,7 +2212,9 @@ export class Task {
 				)
 				if (manualRetryApiReqIndex !== -1) {
 					const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
-					const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[manualRetryApiReqIndex].text || "{}")
+					const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(
+						beadsmithMessages[manualRetryApiReqIndex].text || "{}",
+					)
 					delete currentApiReqInfo.streamingFailedMessage
 					await this.messageStateHandler.updateBeadsmithMessage(manualRetryApiReqIndex, {
 						text: JSON.stringify(currentApiReqInfo),
@@ -2351,7 +2376,10 @@ export class Task {
 		}
 	}
 
-	async recursivelyMakeBeadsmithRequests(userContent: BeadsmithContent[], includeFileDetails: boolean = false): Promise<boolean> {
+	async recursivelyMakeBeadsmithRequests(
+		userContent: BeadsmithContent[],
+		includeFileDetails: boolean = false,
+	): Promise<boolean> {
 		// Check abort flag at the very start to prevent any execution after cancellation
 		if (this.taskState.abort) {
 			throw new Error("Task instance aborted")
@@ -2432,10 +2460,14 @@ export class Task {
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
-		const previousApiReqIndex = findLastIndex(this.messageStateHandler.getBeadsmithMessages(), (m) => m.say === "api_req_started")
+		const previousApiReqIndex = findLastIndex(
+			this.messageStateHandler.getBeadsmithMessages(),
+			(m) => m.say === "api_req_started",
+		)
 
 		// Save checkpoint if this is the first API request
-		const isFirstRequest = this.messageStateHandler.getBeadsmithMessages().filter((m) => m.say === "api_req_started").length === 0
+		const isFirstRequest =
+			this.messageStateHandler.getBeadsmithMessages().filter((m) => m.say === "api_req_started").length === 0
 
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (

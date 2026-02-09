@@ -393,7 +393,10 @@ EOF`,
 		testCases.forEach((testCase) => {
 			it(testCase.name, () => {
 				// When native tools are FILE_EDIT/FILE_NEW and messages use apply_patch, convert FROM apply_patch
-				const result = transformToolCallMessages(testCase.input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
+				const result = transformToolCallMessages(testCase.input, [
+					BeadsmithDefaultTool.FILE_EDIT,
+					BeadsmithDefaultTool.FILE_NEW,
+				])
 				// Find all tool_use blocks in the result
 				const toolUseBlocks: Anthropic.ContentBlock[] = []
 				for (const message of result) {

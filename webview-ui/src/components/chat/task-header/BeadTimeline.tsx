@@ -113,13 +113,9 @@ export const BeadTimeline = memo<BeadTimelineProps>(({ className }) => {
 					{getStatusIcon(status)}
 					<span className="font-medium text-sm">Ralph Loop</span>
 					<span
-						className={cn(
-							"rounded-lg px-2 py-0.25 text-xs font-medium",
-							"bg-badge-foreground/20 text-foreground",
-							{
-								"bg-success text-black": status === "completed",
-							},
-						)}>
+						className={cn("rounded-lg px-2 py-0.25 text-xs font-medium", "bg-badge-foreground/20 text-foreground", {
+							"bg-success text-black": status === "completed",
+						})}>
 						Bead {currentBeadNumber || 0}
 					</span>
 				</div>

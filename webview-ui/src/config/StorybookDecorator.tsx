@@ -5,7 +5,12 @@ import "../../src/index.css"
 import { cn } from "@heroui/react"
 import type { Decorator } from "@storybook/react-vite"
 import React from "react"
-import { ClineAuthContext, BeadsmithAuthContextType, BeadsmithAuthProvider, useBeadsmithAuth } from "@/context/BeadsmithAuthContext"
+import {
+	BeadsmithAuthContextType,
+	BeadsmithAuthProvider,
+	ClineAuthContext,
+	useBeadsmithAuth,
+} from "@/context/BeadsmithAuthContext"
 import {
 	ExtensionStateContext,
 	ExtensionStateContextProvider,
@@ -72,7 +77,11 @@ const BeadsmithAuthProviderWithOverrides: React.FC<{
 }
 
 export const createStorybookDecorator =
-	(overrideStates?: Partial<ExtensionStateContextType>, classNames?: string, authOverrides?: Partial<BeadsmithAuthContextType>) =>
+	(
+		overrideStates?: Partial<ExtensionStateContextType>,
+		classNames?: string,
+		authOverrides?: Partial<BeadsmithAuthContextType>,
+	) =>
 	(Story: any) => (
 		<ExtensionStateProviderWithOverrides overrides={overrideStates}>
 			<BeadsmithAuthProviderWithOverrides overrides={authOverrides}>

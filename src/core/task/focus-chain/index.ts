@@ -24,7 +24,13 @@ export interface FocusChainDependencies {
 	mode: Mode
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
-	say: (type: BeadsmithSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (
+		type: BeadsmithSay,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	) => Promise<number | undefined>
 	focusChainSettings: FocusChainSettings
 }
 

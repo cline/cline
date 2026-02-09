@@ -146,7 +146,10 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 async function fetchApiKeysForOrganization(organizationId: string): Promise<APIKeySettings> {
 	try {
 		// Fetch API keys string using helper
-		const response = await makeAuthenticatedRequest<{ providerApiKeys: string }>(BEADSMITH_API_ENDPOINT.API_KEYS, organizationId)
+		const response = await makeAuthenticatedRequest<{ providerApiKeys: string }>(
+			BEADSMITH_API_ENDPOINT.API_KEYS,
+			organizationId,
+		)
 
 		// Parse and return API keys
 		return parseApiKeys(response?.providerApiKeys)

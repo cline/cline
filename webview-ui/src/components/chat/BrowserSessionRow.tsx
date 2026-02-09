@@ -1,5 +1,5 @@
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
-import { BrowserAction, BrowserActionResult, BeadsmithMessage, BeadsmithSayBrowserAction } from "@shared/ExtensionMessage"
+import { BeadsmithMessage, BeadsmithSayBrowserAction, BrowserAction, BrowserActionResult } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/beadsmith/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"

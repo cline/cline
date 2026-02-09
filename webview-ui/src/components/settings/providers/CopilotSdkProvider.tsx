@@ -78,11 +78,11 @@ export const CopilotSdkProvider = ({ showModelOptions, isPopup, currentMode }: C
 			</p>
 
 			<ApiKeyField
+				helpText="Optional GitHub token for the Copilot CLI. Leave empty to use your logged-in GitHub user."
 				initialValue={apiConfiguration?.copilotGithubToken || ""}
 				onChange={(value) => handleFieldChange("copilotGithubToken", value)}
-				providerName="GitHub Copilot"
 				placeholder="Optional GitHub token..."
-				helpText="Optional GitHub token for the Copilot CLI. Leave empty to use your logged-in GitHub user."
+				providerName="GitHub Copilot"
 			/>
 
 			<VSCodeCheckbox
@@ -107,4 +107,3 @@ export const CopilotSdkProvider = ({ showModelOptions, isPopup, currentMode }: C
 		</div>
 	)
 }
-

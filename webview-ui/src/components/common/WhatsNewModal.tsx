@@ -10,9 +10,7 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
-	const {
-		navigateToSettings,
-	} = useExtensionState()
+	const { navigateToSettings } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const setOpenAiCodexProvider = useCallback(() => {

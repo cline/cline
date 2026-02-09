@@ -1,4 +1,4 @@
-import { BrowserAction, BrowserActionResult, browserActions, BeadsmithSayBrowserAction } from "@shared/ExtensionMessage"
+import { BeadsmithSayBrowserAction, BrowserAction, BrowserActionResult, browserActions } from "@shared/ExtensionMessage"
 import { BeadsmithDefaultTool } from "@/shared/tools"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"

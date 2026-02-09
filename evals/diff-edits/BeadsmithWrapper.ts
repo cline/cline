@@ -1,15 +1,11 @@
-import { OpenRouterHandler } from "../../src/api/providers/openrouter"
-import { OpenAiNativeHandler } from "../../src/api/providers/openai-native"
 import { Anthropic } from "@anthropic-ai/sdk"
-
-import {
-	parseAssistantMessageV2,
-	AssistantMessageContent,
-} from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
+import { OpenAiNativeHandler } from "../../src/api/providers/openai-native"
+import { OpenRouterHandler } from "../../src/api/providers/openrouter"
 import { constructNewFileContent as constructNewFileContent_06_06_25 } from "./diff-apply/diff-06-06-25"
 import { constructNewFileContent as constructNewFileContent_06_23_25 } from "./diff-apply/diff-06-23-25"
 import { constructNewFileContent as constructNewFileContent_06_25_25 } from "./diff-apply/diff-06-25-25"
 import { constructNewFileContent as constructNewFileContent_06_26_25 } from "./diff-apply/diff-06-26-25"
+import { AssistantMessageContent, parseAssistantMessageV2 } from "./parsing/parse-assistant-message-06-06-25" // "../../src/core/assistant-message"
 
 type ParseAssistantMessageFn = (message: string) => AssistantMessageContent[]
 type ConstructNewFileContentFn = (diff: string, original: string, strict: boolean) => Promise<string | any>
@@ -25,8 +21,8 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	"diff-06-26-25": constructNewFileContent_06_26_25,
 }
 
-import { TestInput, TestResult, ExtractedToolCall } from "./types"
 import { log } from "./helpers"
+import { ExtractedToolCall, TestInput, TestResult } from "./types"
 export { TestInput, TestResult, ExtractedToolCall }
 
 interface StreamResult {
@@ -64,7 +60,7 @@ async function processStream(
 	let cacheWriteTokens = 0
 	let cacheReadTokens = 0
 	let totalCost = 0
-	
+
 	// Timing tracking
 	let timeToFirstTokenMs: number | null = null
 	let timeToFirstEditMs: number | null = null
@@ -94,12 +90,12 @@ async function processStream(
 				break
 			case "text":
 				assistantMessage += chunk.text
-				
+
 				// Try to detect first tool call by parsing accumulated message
 				if (timeToFirstEditMs === null) {
 					try {
 						const parsed = parseAssistantMessageV2(assistantMessage)
-						const hasToolCall = parsed.some(block => block.type === "tool_use")
+						const hasToolCall = parsed.some((block) => block.type === "tool_use")
 						if (hasToolCall) {
 							timeToFirstEditMs = Date.now() - startTime
 						}
@@ -201,7 +197,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 			// Live mode: provider-specific API call logic
 			try {
 				let handler: OpenRouterHandler | OpenAiNativeHandler
-				
+
 				if (provider === "openai") {
 					const openAiOptions = {
 						openAiNativeApiKey: apiKey,
@@ -224,7 +220,7 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 					}
 					handler = new OpenRouterHandler(openRouterOptions)
 				}
-				
+
 				streamResult = await processStream(handler, systemPrompt, messages)
 			} catch (error: any) {
 				return {
@@ -319,12 +315,12 @@ export async function runSingleEvaluation(input: TestInput): Promise<TestResult>
 
 		// checking if the diff edit succeeds, if it failed it will throw an error
 		let diffSuccess = true
-		let replacementData: any = undefined
+		let replacementData: any
 		try {
 			const result = await constructNewFileContent(diffToolContent, originalFile, true)
-			
+
 			// Check if result is an object with replacements (new format)
-			if (typeof result === 'object' && result !== null && 'replacements' in result) {
+			if (typeof result === "object" && result !== null && "replacements" in result) {
 				replacementData = result.replacements
 			}
 			// If it's just a string, diffSuccess stays true and replacementData stays undefined

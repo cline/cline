@@ -252,7 +252,10 @@ describe("Filesystem Utilities", () => {
 		// Verify both workflows and other directories are excluded
 		multiExcludeFiles.length.should.equal(2) // only the 2 files in root
 
-		const rootOnlyFiles = [path.resolve(beadsmithrulesDirPath, "config.json"), path.resolve(beadsmithrulesDirPath, "settings.js")]
+		const rootOnlyFiles = [
+			path.resolve(beadsmithrulesDirPath, "config.json"),
+			path.resolve(beadsmithrulesDirPath, "settings.js"),
+		]
 
 		multiExcludeFiles.sort().should.deepEqual(rootOnlyFiles.sort())
 	})
@@ -309,7 +312,10 @@ describe("Filesystem Utilities", () => {
 		// Verify both workflows and hooks directories are excluded
 		multiExcludeFiles.length.should.equal(2) // only the 2 files in root
 
-		const rootOnlyFiles = [path.resolve(beadsmithrulesDirPath, "config.json"), path.resolve(beadsmithrulesDirPath, "settings.js")]
+		const rootOnlyFiles = [
+			path.resolve(beadsmithrulesDirPath, "config.json"),
+			path.resolve(beadsmithrulesDirPath, "settings.js"),
+		]
 
 		multiExcludeFiles.sort().should.deepEqual(rootOnlyFiles.sort())
 	})

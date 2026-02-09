@@ -72,9 +72,10 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 						{vsCodeLmModels.map((model) => {
 							// Use model.id for uniqueness, fall back to vendor/family for display
 							const uniqueKey = model.id || `${model.vendor}/${model.family}`
-							const displayName = model.id && model.id !== model.family
-								? `${model.vendor} - ${model.id}`
-								: `${model.vendor} - ${model.family}`
+							const displayName =
+								model.id && model.id !== model.family
+									? `${model.vendor} - ${model.id}`
+									: `${model.vendor} - ${model.family}`
 							return (
 								<VSCodeOption key={uniqueKey} value={`${model.vendor}/${model.family}/${model.id || ""}`}>
 									{displayName}

@@ -134,8 +134,15 @@ export class ToolExecutor {
 			files?: string[]
 		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
-		private sayAndCreateMissingParamError: (toolName: BeadsmithDefaultTool, paramName: string, relPath?: string) => Promise<any>,
-		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: BeadsmithAsk | BeadsmithSay) => Promise<void>,
+		private sayAndCreateMissingParamError: (
+			toolName: BeadsmithDefaultTool,
+			paramName: string,
+			relPath?: string,
+		) => Promise<any>,
+		private removeLastPartialMessageIfExistsWithType: (
+			type: "ask" | "say",
+			askOrSay: BeadsmithAsk | BeadsmithSay,
+		) => Promise<void>,
 		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,

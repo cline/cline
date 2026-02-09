@@ -117,7 +117,8 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-quote text-foreground">
 						<div>
-							Beadsmith tried to access <code>{message.text}</code> which is blocked by the <code>.beadsmithignore</code>
+							Beadsmith tried to access <code>{message.text}</code> which is blocked by the{" "}
+							<code>.beadsmithignore</code>
 							file.
 						</div>
 					</div>

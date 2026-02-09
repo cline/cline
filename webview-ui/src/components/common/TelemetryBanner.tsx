@@ -24,8 +24,8 @@ export const TelemetryBanner: React.FC = () => {
 			<h3 className="m-0">Help Improve Beadsmith</h3>
 			<i>(and access experimental features)</i>
 			<p className="m-0">
-				Beadsmith collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or personal
-				information is ever sent.
+				Beadsmith collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or
+				personal information is ever sent.
 			</p>
 			<p className="m-0">
 				<span>You can turn this setting off in </span>

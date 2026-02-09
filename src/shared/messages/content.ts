@@ -54,9 +54,13 @@ export interface BeadsmithAssistantThinkingBlock extends Anthropic.ThinkingBlock
 	summary?: unknown[] | BeadsmithReasoningDetailParam[]
 }
 
-export interface BeadsmithAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, BeadsmithSharedMessageParam {}
+export interface BeadsmithAssistantRedactedThinkingBlock
+	extends Anthropic.RedactedThinkingBlockParam,
+		BeadsmithSharedMessageParam {}
 
-export type BeadsmithToolResponseContent = BeadsmithPromptInputContent | Array<BeadsmithTextContentBlock | BeadsmithImageContentBlock>
+export type BeadsmithToolResponseContent =
+	| BeadsmithPromptInputContent
+	| Array<BeadsmithTextContentBlock | BeadsmithImageContentBlock>
 
 export type BeadsmithUserContent =
 	| BeadsmithTextContentBlock

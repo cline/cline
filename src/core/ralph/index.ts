@@ -6,20 +6,20 @@
  */
 
 export {
-	RalphLoopController,
+	type BackpressureResult,
 	createRalphLoopController,
 	type RalphLoopConfig,
-	type RalphLoopState,
+	RalphLoopController,
 	type RalphLoopEvents,
-	type BackpressureResult,
+	type RalphLoopState,
 } from "./RalphLoopController"
 
 export {
-	RalphLoopIntegration,
-	getRalphLoopIntegration,
-	resetRalphLoopIntegration,
-	type RalphIntegrationState,
-	type RalphIntegrationEvents,
 	type ContextResetCallback,
+	getRalphLoopIntegration,
+	type RalphIntegrationEvents,
+	type RalphIntegrationState,
+	RalphLoopIntegration,
+	resetRalphLoopIntegration,
 	type StartIterationCallback,
 } from "./RalphLoopIntegration"

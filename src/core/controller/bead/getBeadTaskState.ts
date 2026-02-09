@@ -1,13 +1,13 @@
+import type { Bead, BeadManagerState } from "@shared/beads"
 import {
+	BeadTaskStateResponse,
+	BeadTaskStatus,
 	Bead as ProtoBead,
 	BeadManagerState as ProtoBeadManagerState,
 	BeadStatus as ProtoBeadStatus,
 	BeadTaskDefinition as ProtoBeadTaskDefinition,
-	BeadTaskStateResponse,
-	BeadTaskStatus,
 } from "@shared/proto/beadsmith/bead"
 import { EmptyRequest } from "@shared/proto/beadsmith/common"
-import type { Bead, BeadManagerState } from "@shared/beads"
 import { Controller } from ".."
 
 /**

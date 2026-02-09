@@ -126,8 +126,8 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							{inputError && <div className="text-(--vscode-errorForeground) text-xs mt-1">{inputError}</div>}
 						</div>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Set how long Beadsmith waits for shell integration to activate before executing commands. Increase this
-							value if you experience terminal connection timeouts.
+							Set how long Beadsmith waits for shell integration to activate before executing commands. Increase
+							this value if you experience terminal connection timeouts.
 						</p>
 					</div>
 
@@ -140,8 +140,8 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							</VSCodeCheckbox>
 						</div>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							When enabled, Beadsmith will reuse existing terminal windows that aren't in the current working directory.
-							Disable this if you experience issues with task lockout after a terminal command.
+							When enabled, Beadsmith will reuse existing terminal windows that aren't in the current working
+							directory. Disable this if you experience issues with task lockout after a terminal command.
 						</p>
 					</div>
 					{isVsCodePlatform && (

@@ -4,10 +4,10 @@
  * Supports multiple criterion types: tests_pass, done_tag, no_errors, custom.
  */
 
-import { spawn } from "child_process"
+import type { BeadTestResult, SuccessCriteriaResult, SuccessCriterion, SuccessCriterionType } from "@shared/beads"
 
 import { Logger } from "@shared/services/Logger"
-import type { SuccessCriteriaResult, SuccessCriterion, SuccessCriterionType, BeadTestResult } from "@shared/beads"
+import { spawn } from "child_process"
 
 /**
  * Context for evaluating success criteria.
@@ -279,7 +279,7 @@ export class SuccessCriteriaEvaluator {
  */
 export function createSuccessCriteriaEvaluator(
 	workspaceRoot: string,
-	options?: { testTimeout?: number }
+	options?: { testTimeout?: number },
 ): SuccessCriteriaEvaluator {
 	return new SuccessCriteriaEvaluator(workspaceRoot, options)
 }

@@ -245,11 +245,14 @@ export class BeadsmithHandler implements ApiHandler {
 				}
 				Object.assign(headers, await buildBeadsmithExtraHeaders())
 
-				const response = await axios.get(`${this.beadsmithAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
-					headers,
-					timeout: 15_000, // this request hangs sometimes
-					...getAxiosSettings(),
-				})
+				const response = await axios.get(
+					`${this.beadsmithAccountService.baseUrl}/generation?id=${this.lastGenerationId}`,
+					{
+						headers,
+						timeout: 15_000, // this request hangs sometimes
+						...getAxiosSettings(),
+					},
+				)
 
 				const generation = response.data
 				return {
