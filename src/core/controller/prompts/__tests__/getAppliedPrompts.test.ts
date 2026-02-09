@@ -1,19 +1,33 @@
+import { EmptyRequest } from "@shared/proto/cline/common"
 import * as assert from "assert"
 import * as sinon from "sinon"
-import * as fs from "node:fs/promises"
-import { getAppliedPrompts } from "@/core/controller/prompts/getAppliedPrompts"
-import * as pathUtils from "@/utils/path"
-import { EmptyRequest } from "@shared/proto/cline/common"
+
+// Use require for proxyquire to work in this test environment
+const proxyquire = require("proxyquire")
+
+// Create stubs at module scope
+const getWorkspacePathStub = sinon.stub()
+const fsReaddirStub = sinon.stub()
+
+// Load module with proxyquire at module scope
+const { getAppliedPrompts } = proxyquire("../getAppliedPrompts", {
+	"@/utils/path": {
+		getWorkspacePath: getWorkspacePathStub,
+	},
+	"node:fs/promises": {
+		readdir: fsReaddirStub,
+		"@noCallThru": true,
+	},
+})
 
 describe("getAppliedPrompts", () => {
-	let getWorkspacePathStub: sinon.SinonStub
-	let fsReaddirStub: sinon.SinonStub
 	let mockController: any
 
 	beforeEach(() => {
-		getWorkspacePathStub = sinon.stub(pathUtils, "getWorkspacePath")
-		fsReaddirStub = sinon.stub(fs, "readdir")
 		mockController = {}
+		// Reset stubs before each test
+		getWorkspacePathStub.reset()
+		fsReaddirStub.reset()
 	})
 
 	afterEach(() => {
@@ -31,9 +45,7 @@ describe("getAppliedPrompts", () => {
 
 		it("should scan .clinerules/ directory correctly", async () => {
 			getWorkspacePathStub.resolves("/workspace")
-			fsReaddirStub
-				.withArgs(sinon.match(/\.clinerules$/))
-				.resolves(["prompt1.md", "prompt2.md"] as any)
+			fsReaddirStub.withArgs(sinon.match(/\.clinerules$/)).resolves(["prompt1.md", "prompt2.md"] as any)
 			fsReaddirStub.withArgs(sinon.match(/workflows$/)).resolves([] as any)
 
 			const result = await getAppliedPrompts(mockController, EmptyRequest.create({}))
@@ -44,9 +56,7 @@ describe("getAppliedPrompts", () => {
 		it("should scan workflows/ directory correctly", async () => {
 			getWorkspacePathStub.resolves("/workspace")
 			fsReaddirStub.withArgs(sinon.match(/\.clinerules$/)).resolves([] as any)
-			fsReaddirStub
-				.withArgs(sinon.match(/workflows$/))
-				.resolves(["workflow1.md", "workflow2.md"] as any)
+			fsReaddirStub.withArgs(sinon.match(/workflows$/)).resolves(["workflow1.md", "workflow2.md"] as any)
 
 			const result = await getAppliedPrompts(mockController, EmptyRequest.create({}))
 
@@ -55,9 +65,7 @@ describe("getAppliedPrompts", () => {
 
 		it("should extract prompt IDs from .md filenames", async () => {
 			getWorkspacePathStub.resolves("/workspace")
-			fsReaddirStub
-				.withArgs(sinon.match(/\.clinerules$/))
-				.resolves(["test-prompt.md", "another-prompt.md"] as any)
+			fsReaddirStub.withArgs(sinon.match(/\.clinerules$/)).resolves(["test-prompt.md", "another-prompt.md"] as any)
 			fsReaddirStub.withArgs(sinon.match(/workflows$/)).resolves([] as any)
 
 			const result = await getAppliedPrompts(mockController, EmptyRequest.create({}))

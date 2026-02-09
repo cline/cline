@@ -1,21 +1,36 @@
+import { ApplyPromptRequest } from "@shared/proto/cline/prompts"
 import * as assert from "assert"
 import * as sinon from "sinon"
-import * as fs from "node:fs/promises"
-import { applyPrompt } from "@/core/controller/prompts/applyPrompt"
-import * as pathUtils from "@/utils/path"
-import { ApplyPromptRequest } from "@shared/proto/cline/prompts"
+
+// Use require for proxyquire to work in this test environment
+const proxyquire = require("proxyquire")
+
+// Create stubs at module scope
+const getWorkspacePathStub = sinon.stub()
+const fsMkdirStub = sinon.stub()
+const fsWriteFileStub = sinon.stub()
+
+// Load module with proxyquire at module scope
+const { applyPrompt } = proxyquire("../applyPrompt", {
+	"@/utils/path": {
+		getWorkspacePath: getWorkspacePathStub,
+	},
+	"node:fs/promises": {
+		mkdir: fsMkdirStub,
+		writeFile: fsWriteFileStub,
+		"@noCallThru": true,
+	},
+})
 
 describe("applyPrompt", () => {
-	let getWorkspacePathStub: sinon.SinonStub
-	let fsMkdirStub: sinon.SinonStub
-	let fsWriteFileStub: sinon.SinonStub
 	let mockController: any
 
 	beforeEach(() => {
-		getWorkspacePathStub = sinon.stub(pathUtils, "getWorkspacePath")
-		fsMkdirStub = sinon.stub(fs, "mkdir")
-		fsWriteFileStub = sinon.stub(fs, "writeFile")
 		mockController = {}
+		// Reset stubs before each test
+		getWorkspacePathStub.reset()
+		fsMkdirStub.reset()
+		fsWriteFileStub.reset()
 	})
 
 	afterEach(() => {
@@ -91,9 +106,7 @@ describe("applyPrompt", () => {
 
 			await applyPrompt(mockController, request)
 
-			assert.ok(
-				fsWriteFileStub.calledWith(sinon.match(/test-prompt-with-spaces\.md$/), sinon.match.any, sinon.match.any),
-			)
+			assert.ok(fsWriteFileStub.calledWith(sinon.match(/test-prompt-with-spaces\.md$/), sinon.match.any, sinon.match.any))
 		})
 
 		it("should handle special characters in prompt name", async () => {

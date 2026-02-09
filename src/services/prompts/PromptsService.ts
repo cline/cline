@@ -84,16 +84,19 @@ export class PromptsService {
 
 						if (frontmatterMatch) {
 							const frontmatter = frontmatterMatch[1]
-							const descMatch = frontmatter.match(/description:\s*["']?(.*?)["']?\n/)
-							const authorMatch = frontmatter.match(/author:\s*["']?(.*?)["']?\n/)
-							const categoryMatch = frontmatter.match(/category:\s*["']?(.*?)["']?\n/)
+							const descMatch = frontmatter.match(/description:\s*["']?(.*?)["']?(?:\n|$)/)
+							const authorMatch = frontmatter.match(/author:\s*["']?(.*?)["']?(?:\n|$)/)
+							const categoryMatch = frontmatter.match(/category:\s*["']?(.*?)["']?(?:\n|$)/)
 							const tagsMatch = frontmatter.match(/tags:\s*\[(.*?)\]/)
 
 							if (descMatch) description = descMatch[1]
 							if (authorMatch) author = authorMatch[1]
 							if (categoryMatch) category = categoryMatch[1]
 							if (tagsMatch) {
-								tags.push(...tagsMatch[1].split(",").map((t: string) => t.trim().replace(/["']/g, "")))
+								const tagContent = tagsMatch[1].trim()
+								if (tagContent) {
+									tags.push(...tagContent.split(",").map((t: string) => t.trim().replace(/["']/g, "")))
+								}
 							}
 						}
 
@@ -102,9 +105,7 @@ export class PromptsService {
 						// Extract username from GitHub URL if present
 						let authorName = author || "Unknown"
 						if (author) {
-							const githubMatch = author.match(
-								/(?:^|[\s<([])(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s?#()>\]]+)/i,
-							)
+							const githubMatch = author.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s?#()>\]]+)/i)
 							if (githubMatch) {
 								authorName = githubMatch[1]
 							}

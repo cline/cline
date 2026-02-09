@@ -1,19 +1,33 @@
+import { RemovePromptRequest } from "@shared/proto/cline/prompts"
 import * as assert from "assert"
 import * as sinon from "sinon"
-import * as fs from "node:fs/promises"
-import { removePrompt } from "@/core/controller/prompts/removePrompt"
-import * as pathUtils from "@/utils/path"
-import { RemovePromptRequest } from "@shared/proto/cline/prompts"
+
+// Use require for proxyquire to work in this test environment
+const proxyquire = require("proxyquire")
+
+// Create stubs at module scope
+const getWorkspacePathStub = sinon.stub()
+const fsUnlinkStub = sinon.stub()
+
+// Load module with proxyquire at module scope
+const { removePrompt } = proxyquire("../removePrompt", {
+	"@/utils/path": {
+		getWorkspacePath: getWorkspacePathStub,
+	},
+	"node:fs/promises": {
+		unlink: fsUnlinkStub,
+		"@noCallThru": true,
+	},
+})
 
 describe("removePrompt", () => {
-	let getWorkspacePathStub: sinon.SinonStub
-	let fsUnlinkStub: sinon.SinonStub
 	let mockController: any
 
 	beforeEach(() => {
-		getWorkspacePathStub = sinon.stub(pathUtils, "getWorkspacePath")
-		fsUnlinkStub = sinon.stub(fs, "unlink")
 		mockController = {}
+		// Reset stubs before each test
+		getWorkspacePathStub.reset()
+		fsUnlinkStub.reset()
 	})
 
 	afterEach(() => {
