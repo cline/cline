@@ -10,6 +10,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	return [
 		"cline",
 		"anthropic",
+		"bedrock",
 		"gemini",
 		"vertex",
 		"openrouter",
