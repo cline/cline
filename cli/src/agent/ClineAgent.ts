@@ -62,7 +62,12 @@ import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ClineSessionEmitter } from "./ClineSessionEmitter.js"
 import { translateMessage } from "./messageTranslator.js"
 import { handlePermissionResponse } from "./permissionHandler.js"
-import type { AcpSessionState, ClineAcpSession, ClineAgentOptions, PermissionHandler } from "./types.js"
+import type { ClineAcpSession, ClineAgentOptions, PermissionHandler } from "./public-types.js"
+import type { AcpSessionState } from "./types.js"
+
+interface InternalClineAcpSession extends ClineAcpSession {
+	controller?: Controller
+}
 
 // Map providers to their static model lists and defaults (copied from ModelPicker.tsx)
 const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
@@ -102,7 +107,22 @@ function getModelList(provider: string): string[] {
 export class ClineAgent implements acp.Agent {
 	private readonly options: ClineAgentOptions
 	private readonly ctx: CliContextResult
-	readonly sessions: Map<string, ClineAcpSession> = new Map()
+
+	/**
+	 * Internal session map using the full type (includes `controller`).
+	 * Exposed publicly via the `sessions` getter using the public type
+	 * so that generated declarations don't leak internal types.
+	 */
+	private readonly _sessions: Map<string, InternalClineAcpSession> = new Map()
+
+	/**
+	 * Map of active sessions by session ID.
+	 *
+	 * The public type intentionally omits internal fields like `controller`.
+	 */
+	get sessions(): ReadonlyMap<string, ClineAcpSession> {
+		return this._sessions as ReadonlyMap<string, ClineAcpSession>
+	}
 
 	/** Runtime state for active sessions */
 	private readonly sessionStates: Map<string, AcpSessionState> = new Map()
@@ -130,7 +150,7 @@ export class ClineAgent implements acp.Agent {
 
 	constructor(options: ClineAgentOptions) {
 		this.options = options
-		this.ctx = initializeCliContext()
+		this.ctx = initializeCliContext({ clineDir: options.clineDir })
 	}
 
 	/**
@@ -280,7 +300,7 @@ export class ClineAgent implements acp.Agent {
 		const controller = new Controller(this.ctx.extensionContext)
 
 		// Create session record with all resources
-		const session: ClineAcpSession = {
+		const session: InternalClineAcpSession = {
 			sessionId,
 			cwd: params.cwd,
 			mode: (await controller.getStateToPostToWebview()).mode,
@@ -290,7 +310,7 @@ export class ClineAgent implements acp.Agent {
 			controller,
 		}
 
-		this.sessions.set(sessionId, session)
+		this._sessions.set(sessionId, session)
 
 		// Initialize session state
 		const sessionState: AcpSessionState = {
@@ -377,7 +397,7 @@ export class ClineAgent implements acp.Agent {
 	 * @experimental This is an unstable API that may change.
 	 */
 	async unstable_setSessionModel(params: acp.SetSessionModelRequest): Promise<acp.SetSessionModelResponse> {
-		const session = this.sessions.get(params.sessionId)
+		const session = this._sessions.get(params.sessionId)
 
 		if (!session) {
 			throw new Error(`Session not found: ${params.sessionId}`)
@@ -440,7 +460,7 @@ export class ClineAgent implements acp.Agent {
 	 * 6. Return when task completes, is cancelled, or needs user input
 	 */
 	async prompt(params: acp.PromptRequest): Promise<acp.PromptResponse> {
-		const session = this.sessions.get(params.sessionId)
+		const session = this._sessions.get(params.sessionId)
 		const sessionState = this.sessionStates.get(params.sessionId)
 
 		if (!session || !sessionState) {
@@ -645,7 +665,7 @@ export class ClineAgent implements acp.Agent {
 		message: ClineMessageType,
 		permissionRequest: Omit<acp.RequestPermissionRequest, "sessionId">,
 	): Promise<void> {
-		const session = this.sessions.get(sessionId)
+		const session = this._sessions.get(sessionId)
 		const controller = session?.controller
 
 		if (!controller?.task) {
@@ -879,7 +899,7 @@ export class ClineAgent implements acp.Agent {
 	 * stop any ongoing processing for the specified session.
 	 */
 	async cancel(params: acp.CancelNotification): Promise<void> {
-		const session = this.sessions.get(params.sessionId)
+		const session = this._sessions.get(params.sessionId)
 		const sessionState = this.sessionStates.get(params.sessionId)
 
 		Logger.debug("[ClineAgent] cancel called:", {
@@ -910,7 +930,7 @@ export class ClineAgent implements acp.Agent {
 	 * - "act": Execute actions to accomplish the task
 	 */
 	async setSessionMode(params: acp.SetSessionModeRequest): Promise<acp.SetSessionModeResponse> {
-		const session = this.sessions.get(params.sessionId)
+		const session = this._sessions.get(params.sessionId)
 
 		if (!session) {
 			throw new Error(`Session not found: ${params.sessionId}`)
@@ -1084,11 +1104,11 @@ export class ClineAgent implements acp.Agent {
 	}
 
 	async shutdown(): Promise<void> {
-		for (const [sessionId, session] of this.sessions) {
+		for (const [sessionId, session] of this._sessions) {
 			await session.controller?.task?.abortTask()
 			await session.controller?.stateManager.flushPendingState()
 			await session.controller?.dispose()
-			this.sessions.delete(sessionId)
+			this._sessions.delete(sessionId)
 			this.sessionStates.delete(sessionId)
 		}
 

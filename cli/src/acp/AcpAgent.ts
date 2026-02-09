@@ -59,13 +59,7 @@ export class AcpAgent implements acp.Agent {
 	 * Get the current active session ID from the ClineAgent.
 	 */
 	private getCurrentSessionId(): string | undefined {
-		// Find the session that's currently processing
-		for (const [sessionId, session] of this.clineAgent.sessions) {
-			if (session.controller?.task) {
-				return sessionId
-			}
-		}
-		// Fall back to the first session if none is actively processing
+		// Return the first session ID (ACP typically has one active session)
 		const firstSession = this.clineAgent.sessions.keys().next()
 		return firstSession.done ? undefined : firstSession.value
 	}
