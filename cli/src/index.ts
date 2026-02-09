@@ -86,9 +86,9 @@ function normalizeReasoningEffort(value?: string): OpenaiReasoningEffort | undef
 	}
 
 	printWarning(
-		`Invalid --reasoning-effort '${value}'. Using 'low'. Valid values: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}.`,
+		`Invalid --reasoning-effort '${value}'. Using 'medium'. Valid values: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}.`,
 	)
-	return "low"
+	return "medium"
 }
 
 function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
