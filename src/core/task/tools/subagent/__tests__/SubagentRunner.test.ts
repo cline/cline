@@ -259,4 +259,115 @@ describe("SubagentRunner", () => {
 		assert.equal(result.result, "done")
 		assert.equal(createMessage.callCount, 2)
 	})
+
+	it("builds subagent api handler with the parent task ulid", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "text",
+				text: "done",
+			}
+		})
+
+		sinon.stub(PromptRegistry.getInstance(), "get").resolves("system prompt")
+		const buildApiHandlerStub = sinon.stub(coreApi, "buildApiHandler").returns({
+			abort: sinon.stub(),
+			getModel: () => ({
+				id: "anthropic/claude-sonnet-4.5",
+				info: {
+					contextWindow: 200_000,
+					apiFormat: ApiFormat.ANTHROPIC_CHAT,
+					supportsPromptCache: true,
+				},
+			}),
+			createMessage,
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		initializeHostProvider()
+
+		const config = createTaskConfig(true)
+		const runner = new SubagentRunner(config)
+		sinon
+			.stub(runner as unknown as { buildNativeTools: () => unknown[] }, "buildNativeTools")
+			.returns([{ name: "list_files" }])
+
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(buildApiHandlerStub.called, true)
+		sinon.assert.calledWithMatch(buildApiHandlerStub, sinon.match({ ulid: "ulid-1" }), "act")
+	})
+
+	it("includes workspace metadata only in the initial user message", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
+			const initialUser = conversation[0] as {
+				role: string
+				content: Array<{ type?: string; text?: string }>
+			}
+			assert.equal(initialUser.role, "user")
+			const initialTexts = initialUser.content
+				.filter((block) => block.type === "text")
+				.map((block) => block.text || "")
+				.join("\n")
+			assert.match(initialTexts, /# Workspace Configuration/)
+
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_workspace_1",
+						name: ClineDefaultTool.LIST_FILES,
+						arguments: JSON.stringify({ path: ".", recursive: false }),
+					},
+				},
+			}
+		})
+		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
+			const followUpUser = conversation[2] as {
+				role: string
+				content: Array<{ type?: string; text?: string }>
+			}
+			assert.equal(followUpUser.role, "user")
+			const followUpTexts = followUpUser.content
+				.filter((block) => block.type === "text")
+				.map((block) => block.text || "")
+				.join("\n")
+			assert.equal(followUpTexts.includes("# Workspace Configuration"), false)
+
+			yield {
+				type: "text",
+				text: "done",
+			}
+		})
+
+		sinon.stub(PromptRegistry.getInstance(), "get").resolves("system prompt")
+		sinon.stub(coreApi, "buildApiHandler").returns({
+			abort: sinon.stub(),
+			getModel: () => ({
+				id: "anthropic/claude-sonnet-4.5",
+				info: {
+					contextWindow: 200_000,
+					apiFormat: ApiFormat.ANTHROPIC_CHAT,
+					supportsPromptCache: true,
+				},
+			}),
+			createMessage,
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		initializeHostProvider()
+
+		const config = createTaskConfig(true)
+		const runner = new SubagentRunner(config)
+		sinon
+			.stub(runner as unknown as { buildNativeTools: () => unknown[] }, "buildNativeTools")
+			.returns([{ name: "list_files" }])
+
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.equal(createMessage.callCount, 2)
+	})
 })
