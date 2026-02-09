@@ -857,6 +857,7 @@ export class Controller {
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
@@ -939,6 +940,7 @@ export class Controller {
 			strictPlanModeEnabled,
 			yoloModeToggled,
 			useAutoCondense,
+			subagentsEnabled,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,

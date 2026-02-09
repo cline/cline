@@ -265,6 +265,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		subagentsEnabled: false,
 		clineWebToolsEnabled: { user: true, featureFlag: false },
 		worktreesEnabled: { user: true, featureFlag: false },
 		autoCondenseThreshold: undefined,

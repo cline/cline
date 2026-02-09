@@ -50,6 +50,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				useAutoCondense,
 				clineWebToolsEnabled,
 				worktreesEnabled,
+				subagentsEnabled,
 				focusChainSettings,
 				browserSettings,
 				defaultTerminalProfile,
@@ -160,6 +161,17 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			// Update worktrees setting
 			if (worktreesEnabled !== undefined) {
 				controller.stateManager.setGlobalState("worktreesEnabled", worktreesEnabled)
+			}
+
+			// Update subagents setting (requires telemetry on state change)
+			if (subagentsEnabled !== undefined) {
+				const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
+				const isEnabled = !!subagentsEnabled
+				controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
+
+				if (wasEnabled !== isEnabled) {
+					telemetryService.captureSubagentToggle(isEnabled)
+				}
 			}
 
 			// Update focus chain settings (requires telemetry on state change)

@@ -82,6 +82,12 @@ const TABS: PanelTab[] = [
 
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
+	subagents: {
+		stateKey: "subagentsEnabled",
+		default: false,
+		label: "Subagents",
+		description: "Let Cline run focused subagents in parallel to explore the codebase for you",
+	},
 	autoCondense: {
 		stateKey: "useAutoCondense",
 		default: false,

@@ -36,6 +36,13 @@ interface FeatureToggle {
 
 const agentFeatures: FeatureToggle[] = [
 	{
+		id: "subagents",
+		label: "Subagents",
+		description: "Let Cline run focused subagents in parallel to explore the codebase for you.",
+		stateKey: "subagentsEnabled",
+		settingKey: "subagentsEnabled",
+	},
+	{
 		id: "native-tool-call",
 		label: "Native Tool Call",
 		description: "Use native function calling when available",
@@ -184,6 +191,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
+		subagentsEnabled,
 		clineWebToolsEnabled,
 		worktreesEnabled,
 		focusChainSettings,
@@ -209,6 +217,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
+		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
 		enableParallelToolCalling,

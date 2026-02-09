@@ -85,6 +85,7 @@ export interface ExtensionState {
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
+	subagentsEnabled?: boolean
 	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings

@@ -1844,6 +1844,7 @@ export class Task {
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			subagentsEnabled: this.stateManager.getGlobalSettingsKey("subagentsEnabled"),
 			clineWebToolsEnabled:
 				this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
 			isMultiRootEnabled: multiRootEnabled,
