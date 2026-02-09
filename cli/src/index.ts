@@ -19,10 +19,12 @@ import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
+import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@/shared/storage/types"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
@@ -32,12 +34,12 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { restoreConsole } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
+import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
 import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
-import { selectOutputMode } from "./utils/mode-selection"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
@@ -53,11 +55,76 @@ interface TaskOptions {
 	verbose?: boolean
 	cwd?: string
 	config?: string
-	thinking?: boolean
+	thinking?: boolean | string
+	reasoningEffort?: string
+	maxConsecutiveMistakes?: string
 	yolo?: boolean
+	doubleCheckCompletion?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
+}
+
+let telemetryDisposed = false
+
+async function disposeTelemetryServices(): Promise<void> {
+	if (telemetryDisposed) {
+		return
+	}
+
+	telemetryDisposed = true
+	await Promise.allSettled([
+		telemetryService.dispose(),
+		PostHogClientProvider.getInstance().dispose(),
+	])
+}
+
+async function disposeCliContext(ctx: CliContext): Promise<void> {
+	await ctx.controller.stateManager.flushPendingState()
+	await ctx.controller.dispose()
+	await ErrorService.get().dispose()
+	await disposeTelemetryServices()
+}
+
+function setModeScopedState(currentMode: "act" | "plan", setter: (mode: "act" | "plan") => void): void {
+	const stateManager = StateManager.get()
+	setter(currentMode)
+
+	const separateModels = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting") ?? false
+	if (!separateModels) {
+		const otherMode: "act" | "plan" = currentMode === "act" ? "plan" : "act"
+		setter(otherMode)
+	}
+}
+
+function normalizeReasoningEffort(value?: string): OpenaiReasoningEffort | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+
+	const normalized = value.toLowerCase()
+	if (isOpenaiReasoningEffort(normalized)) {
+		return normalized
+	}
+
+	printWarning(
+		`Invalid --reasoning-effort '${value}'. Using 'medium'. Valid values: ${OPENAI_REASONING_EFFORT_OPTIONS.join(", ")}.`,
+	)
+	return "medium"
+}
+
+function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+
+	const parsed = Number.parseInt(value, 10)
+	if (Number.isNaN(parsed) || parsed < 1) {
+		printWarning(`Invalid --max-consecutive-mistakes value '${value}'. Expected integer >= 1.`)
+		return undefined
+	}
+
+	return parsed
 }
 
 /**
@@ -86,19 +153,55 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
-	// Set thinking budget based on --thinking flag
-	const thinkingBudget = options.thinking ? 1024 : 0
-	const currentMode = StateManager.get().getGlobalSettingsKey("mode") || "act"
-	const thinkingKey = currentMode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-	StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+	// Set thinking budget based on --thinking flag (boolean or number)
+	let thinkingBudget = 0
+	if (options.thinking) {
+		if (typeof options.thinking === "string") {
+			const parsed = Number.parseInt(options.thinking, 10)
+			if (Number.isNaN(parsed) || parsed < 0) {
+				printWarning(`Invalid --thinking value '${options.thinking}'. Using default 1024.`)
+				thinkingBudget = 1024
+			} else {
+				thinkingBudget = parsed
+			}
+		} else {
+			thinkingBudget = 1024
+		}
+	}
+	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+	setModeScopedState(currentMode, (mode) => {
+		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+		StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+	})
 	if (options.thinking) {
 		telemetryService.captureHostEvent("thinking_flag", "true")
+	}
+
+	const reasoningEffort = normalizeReasoningEffort(options.reasoningEffort)
+	if (reasoningEffort !== undefined) {
+		setModeScopedState(currentMode, (mode) => {
+			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
+			StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+		})
+		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
+	}
+
+	const maxConsecutiveMistakes = normalizeMaxConsecutiveMistakes(options.maxConsecutiveMistakes)
+	if (maxConsecutiveMistakes !== undefined) {
+		StateManager.get().setGlobalState("maxConsecutiveMistakes", maxConsecutiveMistakes)
+		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
 	// Set yolo mode based on --yolo flag
 	if (options.yolo) {
 		StateManager.get().setGlobalState("yoloModeToggled", true)
 		telemetryService.captureHostEvent("yolo_flag", "true")
+	}
+
+	// Set double-check completion based on flag
+	if (options.doubleCheckCompletion) {
+		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
+		telemetryService.captureHostEvent("double_check_completion_flag", "true")
 	}
 }
 
@@ -151,9 +254,7 @@ async function runTaskInPlainTextMode(
 	const hasAuth = await isAuthConfigured()
 	if (!hasAuth) {
 		printWarning("Not authenticated. Please run 'cline auth' first to configure your API credentials.")
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
+		await disposeCliContext(ctx)
 		exit(1)
 	}
 
@@ -168,13 +269,11 @@ async function runTaskInPlainTextMode(
 		imageDataUrls: taskConfig.imageDataUrls,
 		verbose: options.verbose,
 		jsonOutput: options.json,
-		timeoutSeconds: options.timeout ? parseInt(options.timeout, 10) : undefined,
+		timeoutSeconds: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
 	})
 
 	// Cleanup
-	await ctx.controller.stateManager.flushPendingState()
-	await ctx.controller.dispose()
-	await ErrorService.get().dispose()
+	await disposeCliContext(ctx)
 
 	// Ensure stdout is fully drained before exiting - critical for piping
 	await drainStdout()
@@ -186,9 +285,7 @@ async function runTaskInPlainTextMode(
  */
 function createInkCleanup(ctx: CliContext, onTaskError?: () => boolean): () => Promise<void> {
 	return async () => {
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
+		await disposeCliContext(ctx)
 		if (onTaskError?.()) {
 			printWarning("Task ended with errors.")
 			exit(1)
@@ -248,10 +345,11 @@ function setupSignalHandlers() {
 				if (task) {
 					task.abortTask()
 				}
-				await activeContext.controller.stateManager.flushPendingState()
-				await activeContext.controller.dispose()
+				await disposeCliContext(activeContext)
+			} else {
+				await ErrorService.get().dispose()
+				await disposeTelemetryServices()
 			}
-			await ErrorService.get().dispose()
 		} catch {
 			// Best effort cleanup
 		}
@@ -304,8 +402,18 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		workspaceDir: workspacePath,
 	})
 
-	await ClineEndpoint.initialize()
+	// Set up output channel and Logger early so ClineEndpoint.initialize logs are captured
+	const outputChannel = window.createOutputChannel("Cline CLI")
+	const logToChannel = (message: string) => outputChannel.appendLine(message)
+
+	// Configure the shared Logging class early to capture all initialization logs
+	Logger.subscribe(logToChannel)
+
+	await ClineEndpoint.initialize(EXTENSION_DIR)
 	await initializeDistinctId(extensionContext)
+
+	// Auto-update check (after endpoints initialized, so we can detect bundled configs)
+	autoUpdateOnStartup(CLI_VERSION)
 
 	// Initialize/reset session tracking for this CLI run
 	Session.reset()
@@ -314,11 +422,9 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		AuthHandler.getInstance().setEnabled(true)
 	}
 
-	const outputChannel = window.createOutputChannel("Cline CLI")
 	outputChannel.appendLine(
 		`Cline CLI initialized. Data dir: ${DATA_DIR}, Extension dir: ${EXTENSION_DIR}, Log dir: ${CLINE_CLI_DIR.log}`,
 	)
-	const logToChannel = (message: string) => outputChannel.appendLine(message)
 
 	HostProvider.initialize(
 		() => new CliWebviewProvider(extensionContext as any),
@@ -339,16 +445,13 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
 	openAiCodexOAuthManager.initialize(extensionContext)
 
-	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg))
-
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
 
 	BannerService.initialize(webview.controller)
 
-	telemetryService.captureExtensionActivated()
-	telemetryService.captureHostEvent("cline_cli", "initialized")
+	await telemetryService.captureExtensionActivated()
+	await telemetryService.captureHostEvent("cline_cli", "initialized")
 
 	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
 	activeContext = ctx
@@ -430,8 +533,7 @@ async function runTask(prompt: string, options: TaskOptions & { images?: string[
 				taskError = true
 			},
 			onWelcomeExit: () => {
-				// User pressed Esc
-				exit(0)
+				// User pressed Esc; Ink exits and cleanup handles process exit.
 			},
 		}),
 		createInkCleanup(ctx, () => taskError),
@@ -447,8 +549,8 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 	const taskHistory = StateManager.get().getGlobalStateKey("taskHistory") || []
 	// Sort by timestamp (newest first) before pagination
 	const sortedHistory = [...taskHistory].sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
-	const limit = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit || 10
-	const initialPage = typeof options.page === "string" ? parseInt(options.page, 10) : options.page || 1
+	const limit = typeof options.limit === "string" ? Number.parseInt(options.limit, 10) : options.limit || 10
+	const initialPage = typeof options.page === "string" ? Number.parseInt(options.page, 10) : options.page || 1
 	const totalCount = sortedHistory.length
 	const totalPages = Math.ceil(totalCount / limit)
 
@@ -456,9 +558,7 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 
 	if (sortedHistory.length === 0) {
 		printInfo("No task history found.")
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
+		await disposeCliContext(ctx)
 		exit(0)
 	}
 
@@ -472,9 +572,7 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 			isRawModeSupported: checkRawModeSupport(),
 		}),
 		async () => {
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
+			await disposeCliContext(ctx)
 			exit(0)
 		},
 	)
@@ -503,9 +601,7 @@ async function showConfig(options: { config?: string }) {
 			isRawModeSupported: checkRawModeSupport(),
 		}),
 		async () => {
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
+			await disposeCliContext(ctx)
 			exit(0)
 		},
 	)
@@ -581,17 +677,15 @@ async function runAuth(options: {
 			baseurl: options.baseurl,
 		})
 
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
-
 		if (!result.success) {
 			printWarning(result.error || "Quick setup failed")
-			telemetryService.captureHostEvent("auth", "error")
+			await telemetryService.captureHostEvent("auth", "error")
+			await disposeCliContext(ctx)
 			exit(1)
 		}
 
-		telemetryService.captureHostEvent("auth", "completed")
+		await telemetryService.captureHostEvent("auth", "completed")
+		await disposeCliContext(ctx)
 		exit(0)
 	}
 
@@ -605,7 +699,6 @@ async function runAuth(options: {
 			isRawModeSupported: checkRawModeSupport(),
 			onComplete: () => {
 				telemetryService.captureHostEvent("auth", "completed")
-				exit(0)
 			},
 			onError: () => {
 				telemetryService.captureHostEvent("auth", "error")
@@ -613,16 +706,10 @@ async function runAuth(options: {
 			},
 		}),
 		async () => {
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
-			exit(0)
+			await disposeCliContext(ctx)
+			exit(authError ? 1 : 0)
 		},
 	)
-
-	if (authError) {
-		process.exit(1)
-	}
 }
 
 // Setup CLI commands
@@ -646,8 +733,11 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
-	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
+	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
+	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
+	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
 		if (options.taskId) {
@@ -788,9 +878,7 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 	if (!historyItem) {
 		printWarning(`Task not found: ${taskId}`)
 		printInfo("Use 'cline history' to see available tasks.")
-		await ctx.controller.stateManager.flushPendingState()
-		await ctx.controller.dispose()
-		await ErrorService.get().dispose()
+		await disposeCliContext(ctx)
 		exit(1)
 	}
 
@@ -823,7 +911,7 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 				taskError = true
 			},
 			onWelcomeExit: () => {
-				exit(0)
+				// User pressed Esc; Ink exits and cleanup handles process exit.
 			},
 		}),
 		createInkCleanup(ctx, () => taskError),
@@ -850,16 +938,14 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 			controller: ctx.controller,
 			isRawModeSupported: checkRawModeSupport(),
 			onWelcomeExit: () => {
-				exit(0)
+				// User pressed Esc; Ink exits and cleanup handles process exit.
 			},
 			onError: () => {
 				hadError = true
 			},
 		}),
 		async () => {
-			await ctx.controller.stateManager.flushPendingState()
-			await ctx.controller.dispose()
-			await ErrorService.get().dispose()
+			await disposeCliContext(ctx)
 			exit(hadError ? 1 : 0)
 		},
 	)
@@ -876,8 +962,11 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
 	.option("--config <path>", "Configuration directory")
-	.option("--thinking", "Enable extended thinking (1024 token budget)")
+	.option("--thinking [tokens]", "Enable extended thinking (default: 1024 tokens)")
+	.option("--reasoning-effort <effort>", "Reasoning effort: none|low|medium|high|xhigh")
+	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
+	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action(async (prompt, options) => {
@@ -946,9 +1035,6 @@ program
 			await showWelcome(options)
 		}
 	})
-
-// Background auto-update check (non-blocking)
-autoUpdateOnStartup(CLI_VERSION)
 
 // Parse and run
 program.parse()

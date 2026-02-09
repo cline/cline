@@ -1,5 +1,6 @@
-import { EventMessage, PostHog } from "posthog-node"
+import { type EventMessage, PostHog } from "posthog-node"
 import { ClineEndpoint } from "@/config"
+import { fetch } from "@/shared/net"
 import { posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"
 
@@ -30,6 +31,7 @@ export class PostHogClientProvider {
 		this.client = posthogConfig.apiKey
 			? new PostHog(posthogConfig.apiKey, {
 					host: posthogConfig.host,
+					fetch: (url, options) => fetch(url, options),
 					enableExceptionAutocapture: false, // This is only enabled for error services
 					before_send: (event) => PostHogClientProvider.eventFilter(event),
 				})
