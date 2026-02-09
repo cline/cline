@@ -1,0 +1,20 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"declarationMap": false,
+		"noCheck": true,
+		"noResolve": true,
+		"outDir": "dist/types"
+	},
+	"include": [
+		"src/exports.ts",
+		"src/agent/public-types.ts",
+		"src/agent/ClineAgent.ts",
+		"src/agent/ClineSessionEmitter.ts",
+		"src/agent/types.ts",
+		"src/agent/messageTranslator.ts",
+		"src/agent/permissionHandler.ts"
+	]
+}
