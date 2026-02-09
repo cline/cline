@@ -60,9 +60,15 @@
 				"icon": "square-terminal",
 				"groups": [
 					{
+						"group": "Quickstart",
+						"pages": [
+							"introduction/overview",
+							"getting-started/quick-start"
+						]
+					},
+					{
 						"group": "Getting Started",
 						"pages": [
-							"getting-started/quick-start",
 							"getting-started/what-is-cline",
 							"getting-started/installing-cline",
 							"getting-started/authorizing-with-cline",
@@ -298,7 +304,7 @@
 		{
 			"name": "Overview",
 			"icon": "house",
-			"url": "getting-started/what-is-cline"
+			"url": "introduction/overview"
 		}
 	],
 	"redirects": [
@@ -316,10 +322,6 @@
 		},
 		{
 			"source": "/introduction/welcome",
-			"destination": "/getting-started/what-is-cline"
-		},
-		{
-			"source": "/introduction/overview",
 			"destination": "/getting-started/what-is-cline"
 		},
 		{
