@@ -146,13 +146,14 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 				<span className="font-bold text-foreground">{title}</span>
 			</div>
 			<div className="space-y-2">
-				{data.items.map((entry) => {
+				{data.items.map((entry, _index) => {
 					const displayStatus: DisplayStatus =
 						wasCancelled && (entry.status === "running" || entry.status === "pending") ? "cancelled" : entry.status
 					const hasDetails = Boolean(
 						(entry.result && entry.status === "completed") || (entry.error && entry.status === "failed"),
 					)
 					const isExpanded = expandedItems[entry.index] === true
+					const shouldShowStats = entry.status !== "pending"
 					return (
 						<div
 							className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
@@ -165,14 +166,16 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 									</div>
 								</div>
 							</div>
-							<div className="mt-1 text-[11px] opacity-70">
-								{formatCount(entry.toolCalls)} tools called | {formatCount(entry.contextTokens)} tokens used |{" "}
-								{formatCost(entry.totalCost)}
-							</div>
+							{shouldShowStats && (
+								<div className="mt-1 text-[11px] opacity-70">
+									{formatCount(entry.toolCalls)} tools called | {formatCount(entry.contextTokens)} tokens used |{" "}
+									{formatCost(entry.totalCost)}
+								</div>
+							)}
 							{hasDetails && (
 								<button
 									aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
-									className="mt-1 text-[11px] opacity-80 flex items-center gap-1.5 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground"
+									className={`${shouldShowStats ? "mt-1" : "mt-2"} text-[11px] opacity-80 flex items-center gap-1.5 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground`}
 									onClick={() => toggleItem(entry.index)}
 									type="button">
 									{isExpanded ? (

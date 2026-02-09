@@ -1,10 +1,13 @@
 import { strict as assert } from "node:assert"
 import { setTimeout as delay } from "node:timers/promises"
 import { ClineSubagentUsageInfo } from "@shared/ExtensionMessage"
+import { ClineDefaultTool } from "@shared/tools"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { TaskState } from "../../../TaskState"
 import { SubagentRunner } from "../../subagent/SubagentRunner"
+import type { TaskConfig } from "../../types/TaskConfig"
+import { createUIHelpers } from "../../types/UIHelpers"
 import { UseSubagentsToolHandler } from "../SubagentToolHandler"
 
 function createConfig(options?: {
@@ -39,7 +42,7 @@ function createConfig(options?: {
 		runUserPromptSubmitHook: sinon.stub().resolves({}),
 	}
 
-	const config: any = {
+	const config = {
 		taskId: "task-1",
 		ulid: "ulid-1",
 		cwd: "/tmp",
@@ -89,7 +92,7 @@ function createConfig(options?: {
 		coordinator: {
 			getHandler: sinon.stub(),
 		},
-	}
+	} as unknown as TaskConfig
 
 	return { config, callbacks, taskState }
 }
@@ -105,7 +108,7 @@ describe("SubagentToolHandler", () => {
 
 		const result = await handler.execute(config, {
 			type: "tool_use",
-			name: "use_subagents" as any,
+			name: ClineDefaultTool.USE_SUBAGENTS,
 			params: {},
 			partial: false,
 		})
@@ -115,6 +118,62 @@ describe("SubagentToolHandler", () => {
 		sinon.assert.calledOnce(callbacks.sayAndCreateMissingParamError)
 	})
 
+	it("streams partial use_subagents approval as ask when not auto-approved", async () => {
+		const { config, callbacks } = createConfig({ autoApproveSafe: false, autoApproveAll: false })
+		const handler = new UseSubagentsToolHandler()
+		const uiHelpers = createUIHelpers(config)
+
+		await handler.handlePartialBlock(
+			{
+				type: "tool_use",
+				name: ClineDefaultTool.USE_SUBAGENTS,
+				params: {
+					prompt_1: "first prompt",
+					prompt_2: "second prompt",
+				},
+				partial: true,
+			},
+			uiHelpers,
+		)
+
+		sinon.assert.calledOnce(callbacks.removeLastPartialMessageIfExistsWithType)
+		sinon.assert.calledWithExactly(callbacks.removeLastPartialMessageIfExistsWithType, "say", "use_subagents")
+		sinon.assert.calledOnce(callbacks.ask)
+		sinon.assert.calledWithMatch(callbacks.ask, "use_subagents", sinon.match.string, true)
+
+		const payload = JSON.parse(callbacks.ask.firstCall.args[1])
+		assert.deepEqual(payload.prompts, ["first prompt", "second prompt"])
+		sinon.assert.notCalled(callbacks.say)
+	})
+
+	it("streams partial use_subagents approval as say when auto-approved", async () => {
+		const { config, callbacks } = createConfig({ autoApproveSafe: true, autoApproveAll: false })
+		const handler = new UseSubagentsToolHandler()
+		const uiHelpers = createUIHelpers(config)
+
+		await handler.handlePartialBlock(
+			{
+				type: "tool_use",
+				name: ClineDefaultTool.USE_SUBAGENTS,
+				params: {
+					prompt_1: "first prompt",
+					prompt_2: "second prompt",
+				},
+				partial: true,
+			},
+			uiHelpers,
+		)
+
+		sinon.assert.calledOnce(callbacks.removeLastPartialMessageIfExistsWithType)
+		sinon.assert.calledWithExactly(callbacks.removeLastPartialMessageIfExistsWithType, "ask", "use_subagents")
+		sinon.assert.calledOnce(callbacks.say)
+		sinon.assert.calledWithMatch(callbacks.say, "use_subagents", sinon.match.string, undefined, undefined, true)
+
+		const payload = JSON.parse(callbacks.say.firstCall.args[1])
+		assert.deepEqual(payload.prompts, ["first prompt", "second prompt"])
+		sinon.assert.notCalled(callbacks.ask)
+	})
+
 	it("uses one approval for the full batch and stops on denial", async () => {
 		const { config, callbacks, taskState } = createConfig({ taskAskResponse: "noButtonClicked" })
 		const runStub = sinon.stub(SubagentRunner.prototype, "run")
@@ -122,7 +181,7 @@ describe("SubagentToolHandler", () => {
 
 		const result = await handler.execute(config, {
 			type: "tool_use",
-			name: "use_subagents" as any,
+			name: ClineDefaultTool.USE_SUBAGENTS,
 			params: {
 				prompt_1: "one",
 				prompt_2: "two",
@@ -158,7 +217,7 @@ describe("SubagentToolHandler", () => {
 		const handler = new UseSubagentsToolHandler()
 		await handler.execute(config, {
 			type: "tool_use",
-			name: "use_subagents" as any,
+			name: ClineDefaultTool.USE_SUBAGENTS,
 			params: {
 				prompt_1: "one",
 			},
@@ -166,7 +225,7 @@ describe("SubagentToolHandler", () => {
 		})
 
 		sinon.assert.notCalled(callbacks.ask)
-		const subagentStatusCalls = callbacks.say.getCalls().filter((call: any) => call.args[0] === "subagent")
+		const subagentStatusCalls = callbacks.say.getCalls().filter((call) => call.args[0] === "subagent")
 		assert.ok(subagentStatusCalls.length >= 1)
 	})
 
@@ -175,7 +234,7 @@ describe("SubagentToolHandler", () => {
 		let activeRuns = 0
 		let maxActiveRuns = 0
 
-		sinon.stub(SubagentRunner.prototype, "run").callsFake(async (_prompt: string, onProgress: any) => {
+		sinon.stub(SubagentRunner.prototype, "run").callsFake(async (_prompt: string, onProgress) => {
 			activeRuns++
 			maxActiveRuns = Math.max(maxActiveRuns, activeRuns)
 			onProgress({
@@ -214,7 +273,7 @@ describe("SubagentToolHandler", () => {
 		const handler = new UseSubagentsToolHandler()
 		const result = await handler.execute(config, {
 			type: "tool_use",
-			name: "use_subagents" as any,
+			name: ClineDefaultTool.USE_SUBAGENTS,
 			params: {
 				prompt_1: "one",
 				prompt_2: "two",
@@ -227,12 +286,12 @@ describe("SubagentToolHandler", () => {
 		assert.ok((result as string).includes("Total: 3"))
 		assert.ok(maxActiveRuns > 1)
 
-		const subagentStatusCalls = callbacks.say.getCalls().filter((call: any) => call.args[0] === "subagent")
+		const subagentStatusCalls = callbacks.say.getCalls().filter((call) => call.args[0] === "subagent")
 		assert.ok(subagentStatusCalls.length >= 2)
 		const finalCall = subagentStatusCalls[subagentStatusCalls.length - 1]
 		assert.equal(finalCall.args[4], false)
 
-		const usageCalls = callbacks.say.getCalls().filter((call: any) => call.args[0] === "subagent_usage")
+		const usageCalls = callbacks.say.getCalls().filter((call) => call.args[0] === "subagent_usage")
 		assert.equal(usageCalls.length, 1)
 		const usagePayload = JSON.parse(usageCalls[0].args[1]) as ClineSubagentUsageInfo
 		assert.equal(usagePayload.source, "subagents")
@@ -284,7 +343,7 @@ describe("SubagentToolHandler", () => {
 		const handler = new UseSubagentsToolHandler()
 		const result = await handler.execute(config, {
 			type: "tool_use",
-			name: "use_subagents" as any,
+			name: ClineDefaultTool.USE_SUBAGENTS,
 			params: {
 				prompt_1: "succeed",
 				prompt_2: "fail",

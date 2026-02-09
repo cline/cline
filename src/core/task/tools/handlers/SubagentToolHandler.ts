@@ -39,8 +39,26 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 		return "[subagents]"
 	}
 
-	async handlePartialBlock(_block: ToolUse, _uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		return
+	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const prompts = PROMPT_KEYS.map((key) => uiHelpers.removeClosingTag(block, key, block.params[key]?.trim()))
+			.map((prompt) => prompt?.trim())
+			.filter((prompt): prompt is string => !!prompt)
+
+		if (prompts.length === 0) {
+			return
+		}
+
+		const partialMessage = JSON.stringify({ prompts } satisfies ClineAskUseSubagents)
+		const autoApproveResult = uiHelpers.shouldAutoApproveTool(this.name)
+		const [shouldAutoApprove] = Array.isArray(autoApproveResult) ? autoApproveResult : [autoApproveResult, false]
+
+		if (shouldAutoApprove) {
+			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "use_subagents")
+			await uiHelpers.say("use_subagents", partialMessage, undefined, undefined, block.partial)
+		} else {
+			await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "use_subagents")
+			await uiHelpers.ask("use_subagents", partialMessage, block.partial).catch(() => {})
+		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {

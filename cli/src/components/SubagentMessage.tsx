@@ -1,4 +1,4 @@
-import type { ClineAskUseSubagents, ClineMessage, ClineSaySubagentStatus, SubagentStatusItem } from "@shared/ExtensionMessage"
+import type { ClineAskUseSubagents, ClineMessage, ClineSaySubagentStatus } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React from "react"
@@ -55,11 +55,16 @@ function formatCompactCost(cost: number | undefined): string {
 	}).format(value)
 }
 
-function formatSubagentStats(entry: SubagentStatusItem): string {
-	const toolUses = entry.toolCalls === 1 ? "tool use" : "tool uses"
-	const tokensUsed = formatCompactTokens(entry.contextTokens)
-	const totalCost = formatCompactCost(entry.totalCost)
-	return `${entry.toolCalls} ${toolUses} · ${tokensUsed} tokens · ${totalCost}`
+function formatSubagentStatsValues(
+	toolCalls: number | undefined,
+	contextTokens: number | undefined,
+	totalCost: number | undefined,
+) {
+	const safeToolCalls = Number.isFinite(toolCalls) ? Math.max(0, toolCalls || 0) : 0
+	const toolUses = safeToolCalls === 1 ? "tool use" : "tool uses"
+	const tokensUsed = formatCompactTokens(contextTokens || 0)
+	const formattedCost = formatCompactCost(totalCost || 0)
+	return `${safeToolCalls} ${toolUses} · ${tokensUsed} tokens · ${formattedCost}`
 }
 
 function wrapPrompt(text: string, width: number): string[] {
@@ -177,7 +182,7 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 			return (
 				<Box flexDirection="column" marginBottom={1} width="100%">
 					<DotRow color={toolColor}>
-						<Text color={toolColor}>Cline wants to run subagents</Text>
+						<Text color={toolColor}>Cline wants to run subagents:</Text>
 					</DotRow>
 				</Box>
 			)
@@ -187,22 +192,30 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 		return (
 			<Box flexDirection="column" marginBottom={1} width="100%">
 				<DotRow color={toolColor} flashing={partial === true && isStreaming}>
-					<Text color={toolColor}>{singular ? "Cline wants to run a subagent" : "Cline wants to run subagents"}</Text>
+					<Text color={toolColor}>{singular ? "Cline wants to run a subagent:" : "Cline wants to run subagents:"}</Text>
 				</DotRow>
 				<Box flexDirection="column" marginLeft={2} width="100%">
 					{prompts.map((prompt, index) => {
 						const isLastPrompt = index === prompts.length - 1
 						const branch = isLastPrompt ? "└─" : "├─"
 						const continuationPrefix = isLastPrompt ? "     " : "│    "
+						const shouldShowPromptStats = partial !== true || !isLastPrompt
 						return (
-							<TreePromptRow
-								color={toolColor}
-								continuationPrefix={continuationPrefix}
-								key={`${prompt}-${index}`}
-								prefix={<Text color={toolColor}>{`${branch} `}</Text>}
-								prompt={prompt}
-								promptWidth={promptWidth}
-							/>
+							<Box flexDirection="column" key={`${prompt}-${index}`}>
+								<TreePromptRow
+									color={toolColor}
+									continuationPrefix={continuationPrefix}
+									prefix={<Text color={toolColor}>{`${branch} `}</Text>}
+									prompt={prompt}
+									promptWidth={promptWidth}
+								/>
+								{shouldShowPromptStats && (
+									<TreeStatsRow
+										prefix={continuationPrefix}
+										stats={formatSubagentStatsValues(undefined, undefined, undefined)}
+									/>
+								)}
+							</Box>
 						)
 					})}
 				</Box>
@@ -235,7 +248,7 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 			<Box flexDirection="column" marginBottom={1} width="100%">
 				<DotRow color={toolColor} flashing={partial === true && isStreaming}>
 					<Text color={toolColor}>
-						{items.length === 1 ? "Cline is running a subagent" : "Cline is running subagents"}
+						{items.length === 1 ? "Cline is running a subagent:" : "Cline is running subagents:"}
 					</Text>
 				</DotRow>
 				<Box flexDirection="column" marginLeft={2} width="100%">
@@ -244,6 +257,7 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 						const branch = isLastEntry ? "└─" : "├─"
 						const continuationPrefix = isLastEntry ? "     " : "│    "
 						const key = `${entry.index}-${index}`
+						const shouldShowStats = true
 
 						if (entry.status === "completed") {
 							return (
@@ -260,7 +274,10 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 										prompt={entry.prompt}
 										promptWidth={promptWidth}
 									/>
-									<TreeStatsRow prefix={continuationPrefix} stats={formatSubagentStats(entry)} />
+									<TreeStatsRow
+										prefix={continuationPrefix}
+										stats={formatSubagentStatsValues(entry.toolCalls, entry.contextTokens, entry.totalCost)}
+									/>
 								</Box>
 							)
 						}
@@ -280,7 +297,10 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 										prompt={entry.prompt}
 										promptWidth={promptWidth}
 									/>
-									<TreeStatsRow prefix={continuationPrefix} stats={formatSubagentStats(entry)} />
+									<TreeStatsRow
+										prefix={continuationPrefix}
+										stats={formatSubagentStatsValues(entry.toolCalls, entry.contextTokens, entry.totalCost)}
+									/>
 								</Box>
 							)
 						}
@@ -305,7 +325,12 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 									prompt={entry.prompt}
 									promptWidth={promptWidth}
 								/>
-								<TreeStatsRow prefix={continuationPrefix} stats={formatSubagentStats(entry)} />
+								{shouldShowStats && (
+									<TreeStatsRow
+										prefix={continuationPrefix}
+										stats={formatSubagentStatsValues(entry.toolCalls, entry.contextTokens, entry.totalCost)}
+									/>
+								)}
 							</Box>
 						)
 					})}
