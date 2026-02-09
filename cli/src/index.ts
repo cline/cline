@@ -41,6 +41,7 @@ import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
+import { normalizeCliArgvForPrompt } from "./utils/argv"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 
@@ -1015,4 +1016,4 @@ program
 autoUpdateOnStartup(CLI_VERSION)
 
 // Parse and run
-program.parse()
+program.parse(normalizeCliArgvForPrompt(process.argv))

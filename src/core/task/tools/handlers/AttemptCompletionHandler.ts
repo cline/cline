@@ -64,6 +64,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		// Double-check completion: reject attempt_completion calls that haven't been re-verified
 		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionPending) {
+			Logger.info(
+				`[AttemptCompletion] double-check intercepted first completion attempt (taskId=${config.taskId}, ulid=${config.ulid})`,
+			)
 			config.taskState.doubleCheckCompletionPending = true
 			// Remove the partial completion_result message that was shown during streaming
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
@@ -84,6 +87,9 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			)
 		}
 		// Reset so the next attempt_completion pair triggers double-check again
+		if (config.doubleCheckCompletionEnabled && config.taskState.doubleCheckCompletionPending) {
+			Logger.info(`[AttemptCompletion] double-check passed; accepting completion attempt (taskId=${config.taskId})`)
+		}
 		config.taskState.doubleCheckCompletionPending = false
 
 		// Run PreToolUse hook before execution
