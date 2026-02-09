@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { getEnvironmentColor } from "@/utils/environmentColors"
 import { formatSize } from "@/utils/format"
+import ViewHeader from "../common/ViewHeader"
 import HistoryViewItem from "./HistoryViewItem"
 
 type HistoryViewProps = {
@@ -292,16 +292,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	return (
 		<div className="fixed overflow-hidden inset-0 flex flex-col w-full">
 			{/* HEADER */}
-			<div className="flex justify-between items-center py-2.5 px-5">
-				<h3
-					className="m-0"
-					style={{
-						color: getEnvironmentColor(environment),
-					}}>
-					History
-				</h3>
-				<Button onClick={() => onDone()}>Done</Button>
-			</div>
+			<ViewHeader environment={environment} onDone={onDone} title="History" />
 
 			{/* FILTERS */}
 			<div className="flex flex-col gap-3 px-3">
