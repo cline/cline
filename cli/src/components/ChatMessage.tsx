@@ -17,6 +17,7 @@ import { useTerminalSize } from "../hooks/useTerminalSize"
 import { jsonParseSafe } from "../utils/parser"
 import { getToolDescription, isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { DiffView } from "./DiffView"
+import { SubagentMessage } from "./SubagentMessage"
 
 /**
  * Add "(Tab)" hint after "Act mode" mentions.
@@ -224,7 +225,7 @@ function truncate(text: string, maxLength: number): string {
 /**
  * Format tool result for display
  */
-function formatToolResult(result: string, maxLines: number = 5): string[] {
+function formatToolResult(result: string, maxLines = 5): string[] {
 	const lines = result.split("\n")
 	if (lines.length <= maxLines) {
 		return lines
@@ -444,6 +445,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 				</Box>
 			</Box>
 		)
+	}
+
+	if ((type === "ask" && ask === "use_subagents") || say === "use_subagents" || say === "subagent") {
+		return <SubagentMessage isStreaming={isStreaming} message={message} mode={mode} />
 	}
 
 	// MCP response
