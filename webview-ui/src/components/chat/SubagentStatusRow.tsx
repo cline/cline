@@ -7,6 +7,7 @@ import {
 	CircleSlashIcon,
 	CircleXIcon,
 	LoaderCircleIcon,
+	NetworkIcon,
 } from "lucide-react"
 import { useMemo, useState } from "react"
 
@@ -89,9 +90,12 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 	}
 
 	return (
-		<div className="bg-code border border-editor-group-border rounded-sm py-2.5 px-3">
-			<div className="text-sm text-foreground">{title}</div>
-			<div className="mt-2 space-y-2">
+		<div className="mb-2">
+			<div className="flex items-center gap-2.5 mb-3">
+				<NetworkIcon className="size-2 text-foreground" />
+				<span className="font-bold text-foreground">{title}</span>
+			</div>
+			<div className="space-y-2">
 				{data.items.map((entry) => {
 					const displayStatus: DisplayStatus =
 						wasCancelled && (entry.status === "running" || entry.status === "pending") ? "cancelled" : entry.status
@@ -107,28 +111,28 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 								{statusIcon(displayStatus)}
 								<div className="min-w-0 flex-1">
 									<div className="text-xs font-medium text-foreground whitespace-pre-wrap break-words">
-										Subagent: "{entry.prompt}"
+										"{entry.prompt}"
 									</div>
-									<div className="mt-1 text-[11px] opacity-70">
-										#{entry.index} | {statusLabel(displayStatus)} | {formatCount(entry.toolCalls)} tools
-										called | {formatCount(entry.contextTokens)} tokens used
-									</div>
-									{hasDetails && (
-										<button
-											aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
-											className="mt-1 text-[11px] opacity-80 flex items-center gap-1.5 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground"
-											onClick={() => toggleItem(entry.index)}
-											type="button">
-											{isExpanded ? (
-												<ChevronDownIcon className="size-2" />
-											) : (
-												<ChevronRightIcon className="size-2" />
-											)}
-											<span>{isExpanded ? "Hide output" : "Show output"}</span>
-										</button>
-									)}
 								</div>
 							</div>
+							<div className="mt-1 text-[11px] opacity-70">
+								{statusLabel(displayStatus)} | {formatCount(entry.toolCalls)} tools called |{" "}
+								{formatCount(entry.contextTokens)} tokens used
+							</div>
+							{hasDetails && (
+								<button
+									aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
+									className="mt-1 text-[11px] opacity-80 flex items-center gap-1.5 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground"
+									onClick={() => toggleItem(entry.index)}
+									type="button">
+									{isExpanded ? (
+										<ChevronDownIcon className="size-2" />
+									) : (
+										<ChevronRightIcon className="size-2" />
+									)}
+									<span>{isExpanded ? "Hide output" : "Show output"}</span>
+								</button>
+							)}
 							{isExpanded && entry.result && entry.status === "completed" && (
 								<div className="mt-2 text-xs opacity-80 whitespace-pre-wrap break-words">{entry.result}</div>
 							)}
