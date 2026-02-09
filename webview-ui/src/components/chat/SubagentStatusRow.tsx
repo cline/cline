@@ -1,4 +1,10 @@
-import { ClineMessage, ClineSaySubagentStatus, SubagentExecutionStatus } from "@shared/ExtensionMessage"
+import {
+	ClineAskUseSubagents,
+	ClineMessage,
+	ClineSaySubagentStatus,
+	SubagentExecutionStatus,
+	SubagentStatusItem,
+} from "@shared/ExtensionMessage"
 import {
 	BotIcon,
 	CheckIcon,
@@ -18,22 +24,11 @@ interface SubagentStatusRowProps {
 }
 
 type DisplayStatus = SubagentExecutionStatus | "cancelled"
+type SubagentRowStatus = "pending" | "running" | "completed" | "failed"
 
-const statusLabel = (status: DisplayStatus): string => {
-	switch (status) {
-		case "pending":
-			return "Pending"
-		case "running":
-			return "Running"
-		case "completed":
-			return "Completed"
-		case "failed":
-			return "Failed"
-		case "cancelled":
-			return "Cancelled"
-		default:
-			return "Unknown"
-	}
+interface SubagentRowData {
+	status: SubagentRowStatus
+	items: SubagentStatusItem[]
 }
 
 const statusIcon = (status: DisplayStatus) => {
@@ -59,18 +54,55 @@ const formatCount = (value: number | undefined): string => {
 	return Intl.NumberFormat("en-US").format(value || 0)
 }
 
-export default function SubagentStatusRow({ message, isLast, lastModifiedMessage }: SubagentStatusRowProps) {
-	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
-	const data = useMemo(() => {
-		try {
-			if (!message.text) {
+function parseSubagentRowData(message: ClineMessage): SubagentRowData | null {
+	if (!message.text) {
+		return null
+	}
+
+	try {
+		if (message.ask === "use_subagents" || message.say === "use_subagents") {
+			const parsed = JSON.parse(message.text) as ClineAskUseSubagents
+			if (!Array.isArray(parsed.prompts)) {
 				return null
 			}
-			return JSON.parse(message.text) as ClineSaySubagentStatus
-		} catch {
+			const prompts = parsed.prompts.map((prompt) => prompt?.trim()).filter((prompt): prompt is string => !!prompt)
+			if (prompts.length === 0) {
+				return null
+			}
+
+			return {
+				status: "pending",
+				items: prompts.map((prompt, index) => ({
+					index: index + 1,
+					prompt,
+					status: "pending",
+					toolCalls: 0,
+					inputTokens: 0,
+					outputTokens: 0,
+					contextTokens: 0,
+					contextWindow: 0,
+					contextUsagePercentage: 0,
+				})),
+			}
+		}
+
+		const parsed = JSON.parse(message.text) as ClineSaySubagentStatus
+		if (!Array.isArray(parsed.items)) {
 			return null
 		}
-	}, [message.text])
+
+		return {
+			status: parsed.status,
+			items: parsed.items,
+		}
+	} catch {
+		return null
+	}
+}
+
+export default function SubagentStatusRow({ message, isLast, lastModifiedMessage }: SubagentStatusRowProps) {
+	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
+	const data = useMemo(() => parseSubagentRowData(message), [message])
 
 	if (!data) {
 		return <div className="text-foreground opacity-80">Subagent status update unavailable.</div>
@@ -122,8 +154,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 								</div>
 							</div>
 							<div className="mt-1 text-[11px] opacity-70">
-								{statusLabel(displayStatus)} | {formatCount(entry.toolCalls)} tools called |{" "}
-								{formatCount(entry.contextTokens)} tokens used
+								{formatCount(entry.toolCalls)} tools called | {formatCount(entry.contextTokens)} tokens used
 							</div>
 							{hasDetails && (
 								<button
