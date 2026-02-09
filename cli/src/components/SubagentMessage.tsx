@@ -40,10 +40,22 @@ function formatCompactTokens(tokens: number | undefined): string {
 		.toLowerCase()
 }
 
+function formatCompactCost(cost: number | undefined): string {
+	const value = Number.isFinite(cost) ? Math.max(0, cost || 0) : 0
+	const maximumFractionDigits = value >= 0.01 ? 2 : 4
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits,
+	}).format(value)
+}
+
 function formatSubagentStats(entry: SubagentStatusItem): string {
 	const toolUses = entry.toolCalls === 1 ? "tool use" : "tool uses"
 	const tokensUsed = formatCompactTokens(entry.contextTokens)
-	return `${entry.toolCalls} ${toolUses} · ${tokensUsed} tokens`
+	const totalCost = formatCompactCost(entry.totalCost)
+	return `${entry.toolCalls} ${toolUses} · ${tokensUsed} tokens · ${totalCost}`
 }
 
 export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode, isStreaming }) => {

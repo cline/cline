@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert"
 import { setTimeout as delay } from "node:timers/promises"
+import { ClineSubagentUsageInfo } from "@shared/ExtensionMessage"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { TaskState } from "../../../TaskState"
@@ -147,6 +148,7 @@ describe("SubagentToolHandler", () => {
 				outputTokens: 3,
 				cacheWriteTokens: 0,
 				cacheReadTokens: 0,
+				totalCost: 0.25,
 				contextTokens: 5,
 				contextWindow: 200000,
 				contextUsagePercentage: 0.0025,
@@ -184,6 +186,7 @@ describe("SubagentToolHandler", () => {
 					outputTokens: 0,
 					cacheWriteTokens: 0,
 					cacheReadTokens: 0,
+					totalCost: 0,
 					contextTokens: 0,
 					contextWindow: 200000,
 					contextUsagePercentage: 0,
@@ -200,6 +203,7 @@ describe("SubagentToolHandler", () => {
 					outputTokens: 3,
 					cacheWriteTokens: 0,
 					cacheReadTokens: 0,
+					totalCost: 0.25,
 					contextTokens: 5,
 					contextWindow: 200000,
 					contextUsagePercentage: 0.0025,
@@ -227,6 +231,16 @@ describe("SubagentToolHandler", () => {
 		assert.ok(subagentStatusCalls.length >= 2)
 		const finalCall = subagentStatusCalls[subagentStatusCalls.length - 1]
 		assert.equal(finalCall.args[4], false)
+
+		const usageCalls = callbacks.say.getCalls().filter((call: any) => call.args[0] === "subagent_usage")
+		assert.equal(usageCalls.length, 1)
+		const usagePayload = JSON.parse(usageCalls[0].args[1]) as ClineSubagentUsageInfo
+		assert.equal(usagePayload.source, "subagents")
+		assert.equal(usagePayload.tokensIn, 6)
+		assert.equal(usagePayload.tokensOut, 9)
+		assert.equal(usagePayload.cacheWrites, 0)
+		assert.equal(usagePayload.cacheReads, 0)
+		assert.equal(usagePayload.cost, 0.75)
 	})
 
 	it("continues after per-subagent failures and reports both outcomes", async () => {
@@ -243,6 +257,7 @@ describe("SubagentToolHandler", () => {
 						outputTokens: 0,
 						cacheWriteTokens: 0,
 						cacheReadTokens: 0,
+						totalCost: 0,
 						contextTokens: 0,
 						contextWindow: 200000,
 						contextUsagePercentage: 0,
@@ -258,6 +273,7 @@ describe("SubagentToolHandler", () => {
 					outputTokens: 0,
 					cacheWriteTokens: 0,
 					cacheReadTokens: 0,
+					totalCost: 0,
 					contextTokens: 0,
 					contextWindow: 200000,
 					contextUsagePercentage: 0,

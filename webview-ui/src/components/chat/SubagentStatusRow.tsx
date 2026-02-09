@@ -54,6 +54,17 @@ const formatCount = (value: number | undefined): string => {
 	return Intl.NumberFormat("en-US").format(value || 0)
 }
 
+const formatCost = (value: number | undefined): string => {
+	const normalized = Number.isFinite(value) ? Math.max(0, value || 0) : 0
+	const maximumFractionDigits = normalized >= 0.01 ? 2 : 4
+	return Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits,
+	}).format(normalized)
+}
+
 function parseSubagentRowData(message: ClineMessage): SubagentRowData | null {
 	if (!message.text) {
 		return null
@@ -79,6 +90,7 @@ function parseSubagentRowData(message: ClineMessage): SubagentRowData | null {
 					toolCalls: 0,
 					inputTokens: 0,
 					outputTokens: 0,
+					totalCost: 0,
 					contextTokens: 0,
 					contextWindow: 0,
 					contextUsagePercentage: 0,
@@ -154,7 +166,8 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 								</div>
 							</div>
 							<div className="mt-1 text-[11px] opacity-70">
-								{formatCount(entry.toolCalls)} tools called | {formatCount(entry.contextTokens)} tokens used
+								{formatCount(entry.toolCalls)} tools called | {formatCount(entry.contextTokens)} tokens used |{" "}
+								{formatCost(entry.totalCost)}
 							</div>
 							{hasDetails && (
 								<button

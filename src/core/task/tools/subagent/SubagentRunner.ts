@@ -13,6 +13,7 @@ import { ClineDefaultTool } from "@shared/tools"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
 import type { TaskConfig } from "../types/TaskConfig"
 
@@ -47,6 +48,7 @@ interface SubagentRunStats {
 	outputTokens: number
 	cacheWriteTokens: number
 	cacheReadTokens: number
+	totalCost: number
 	contextTokens: number
 	contextWindow: number
 	contextUsagePercentage: number
@@ -229,6 +231,7 @@ export class SubagentRunner {
 			outputTokens: 0,
 			cacheWriteTokens: 0,
 			cacheReadTokens: 0,
+			totalCost: 0,
 			contextTokens: 0,
 			contextWindow: 0,
 			contextUsagePercentage: 0,
@@ -324,6 +327,7 @@ export class SubagentRunner {
 				let requestOutputTokens = 0
 				let requestCacheWriteTokens = 0
 				let requestCacheReadTokens = 0
+				let requestTotalCost: number | undefined
 
 				let assistantText = ""
 				let assistantTextSignature: string | undefined
@@ -343,6 +347,7 @@ export class SubagentRunner {
 							requestOutputTokens += chunk.outputTokens || 0
 							requestCacheWriteTokens += chunk.cacheWriteTokens || 0
 							requestCacheReadTokens += chunk.cacheReadTokens || 0
+							requestTotalCost = chunk.totalCost ?? requestTotalCost
 							stats.contextTokens =
 								requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
 							stats.contextUsagePercentage =
@@ -379,6 +384,17 @@ export class SubagentRunner {
 						return { status: "failed", error, stats }
 					}
 				}
+
+				const calculatedRequestCost =
+					requestTotalCost ??
+					calculateApiCostAnthropic(
+						providerInfo.model.info,
+						requestInputTokens,
+						requestOutputTokens,
+						requestCacheWriteTokens,
+						requestCacheReadTokens,
+					)
+				stats.totalCost += calculatedRequestCost || 0
 
 				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
 					toolUseId: resolveToolUseId(toolCall, index),

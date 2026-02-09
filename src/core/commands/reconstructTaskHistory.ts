@@ -241,8 +241,10 @@ function extractTaskInformation(clineMessages: ClineMessage[], metadata: any): T
 	let cacheReads = 0
 	let totalCost = 0
 
-	// Look for api_req_started messages with token info
-	const apiReqMessages = clineMessages.filter((msg) => msg.type === "say" && msg.say === "api_req_started" && msg.text)
+	// Look for usage-carrying messages with token info
+	const apiReqMessages = clineMessages.filter(
+		(msg) => msg.type === "say" && (msg.say === "api_req_started" || msg.say === "subagent_usage") && msg.text,
+	)
 
 	for (const msg of apiReqMessages) {
 		try {
