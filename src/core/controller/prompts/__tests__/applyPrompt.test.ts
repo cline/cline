@@ -53,7 +53,7 @@ describe("applyPrompt", () => {
 			const result = await applyPrompt(mockController, request)
 
 			assert.strictEqual(result.value, true)
-			assert.ok(fsMkdirStub.calledWith("/workspace/.clinerules"))
+			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]workspace[/\\]\.clinerules$/)))
 		})
 
 		it("should create workflows/ directory for WORKFLOW type", async () => {
@@ -71,7 +71,8 @@ describe("applyPrompt", () => {
 			const result = await applyPrompt(mockController, request)
 
 			assert.strictEqual(result.value, true)
-			assert.ok(fsMkdirStub.calledWith("/workspace/workflows"))
+			// Use regex to match both / and \ path separators (cross-platform)
+			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]workspace[/\\]workflows$/)))
 		})
 
 		it("should write file with correct content", async () => {
@@ -141,8 +142,8 @@ describe("applyPrompt", () => {
 
 			await applyPrompt(mockController, request)
 
-			// Should remove leading/trailing dashes
-			assert.ok(fsWriteFileStub.calledWith(sinon.match(/\/test\.md$/), sinon.match.any, sinon.match.any))
+			// Should remove leading/trailing dashes (use [/\\] for cross-platform)
+			assert.ok(fsWriteFileStub.calledWith(sinon.match(/[/\\]test\.md$/), sinon.match.any, sinon.match.any))
 		})
 
 		it("should return success when file is written", async () => {
