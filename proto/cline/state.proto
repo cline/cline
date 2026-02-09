@@ -280,6 +280,7 @@ message Settings {
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
   map<string, string> open_ai_headers = 175;
+  optional bool double_check_completion_enabled = 176;
 }
 
 message DictationSettings {
@@ -426,6 +427,7 @@ message UpdateSettingsRequest {
   optional string oca_reasoning_effort = 37;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
+  optional bool double_check_completion_enabled = 41;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
