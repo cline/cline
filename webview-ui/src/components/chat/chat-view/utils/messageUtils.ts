@@ -63,6 +63,11 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "resume_task":
 			case "resume_completed_task":
 				return false
+			case "use_subagents":
+				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
+					return false
+				}
+				break
 		}
 		switch (message.say) {
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
@@ -93,6 +98,11 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				break
 			case "mcp_server_request_started":
 				return false
+			case "use_subagents":
+				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
+					return false
+				}
+				break
 		}
 		return true
 	})

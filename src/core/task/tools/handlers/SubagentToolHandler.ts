@@ -31,7 +31,7 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.USE_SUBAGENTS
 
 	getDescription(_block: ToolUse): string {
-		return "[subagent batch]"
+		return "[subagents]"
 	}
 
 	async handlePartialBlock(_block: ToolUse, _uiHelpers: StronglyTypedUIHelpers): Promise<void> {
@@ -64,7 +64,6 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 		const didAutoApprove = !!autoApproveSafe
 
 		if (didAutoApprove) {
-			await config.callbacks.say("use_subagents", approvalBody, undefined, undefined, false)
 			telemetryService.captureToolUsage(
 				config.ulid,
 				this.name,
@@ -115,6 +114,9 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			toolCalls: 0,
 			inputTokens: 0,
 			outputTokens: 0,
+			contextTokens: 0,
+			contextWindow: 0,
+			contextUsagePercentage: 0,
 		}))
 
 		const emitStatus = async (status: ClineSaySubagentStatus["status"], partial: boolean) => {
@@ -124,6 +126,9 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			const toolCalls = entries.reduce((acc, entry) => acc + (entry.toolCalls || 0), 0)
 			const inputTokens = entries.reduce((acc, entry) => acc + (entry.inputTokens || 0), 0)
 			const outputTokens = entries.reduce((acc, entry) => acc + (entry.outputTokens || 0), 0)
+			const contextWindow = entries.reduce((acc, entry) => Math.max(acc, entry.contextWindow || 0), 0)
+			const maxContextTokens = entries.reduce((acc, entry) => Math.max(acc, entry.contextTokens || 0), 0)
+			const maxContextUsagePercentage = entries.reduce((acc, entry) => Math.max(acc, entry.contextUsagePercentage || 0), 0)
 
 			const payload: ClineSaySubagentStatus = {
 				status,
@@ -134,14 +139,23 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 				toolCalls,
 				inputTokens,
 				outputTokens,
+				contextWindow,
+				maxContextTokens,
+				maxContextUsagePercentage,
 				items: entries,
 			}
 
 			await config.callbacks.say("subagent", JSON.stringify(payload), undefined, undefined, partial)
 		}
 
+		let statusUpdateQueue: Promise<void> = Promise.resolve()
+		const queueStatusUpdate = (status: ClineSaySubagentStatus["status"], partial: boolean): Promise<void> => {
+			statusUpdateQueue = statusUpdateQueue.catch(() => undefined).then(() => emitStatus(status, partial))
+			return statusUpdateQueue
+		}
+
 		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "subagent")
-		await emitStatus("running", true)
+		await queueStatusUpdate("running", true)
 
 		const runners = prompts.map(() => new SubagentRunner(config))
 		const abortPollInterval = setInterval(() => {
@@ -174,8 +188,11 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 					current.toolCalls = update.stats.toolCalls || 0
 					current.inputTokens = update.stats.inputTokens || 0
 					current.outputTokens = update.stats.outputTokens || 0
+					current.contextTokens = update.stats.contextTokens || 0
+					current.contextWindow = update.stats.contextWindow || 0
+					current.contextUsagePercentage = update.stats.contextUsagePercentage || 0
 				}
-				await emitStatus("running", true)
+				await queueStatusUpdate("running", true)
 			}),
 		)
 
@@ -193,24 +210,27 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			entries[index].toolCalls = result.value.stats.toolCalls || 0
 			entries[index].inputTokens = result.value.stats.inputTokens || 0
 			entries[index].outputTokens = result.value.stats.outputTokens || 0
+			entries[index].contextTokens = result.value.stats.contextTokens || 0
+			entries[index].contextWindow = result.value.stats.contextWindow || 0
+			entries[index].contextUsagePercentage = result.value.stats.contextUsagePercentage || 0
 		})
 
 		const failures = entries.filter((entry) => entry.status === "failed").length
-		await emitStatus(failures > 0 ? "failed" : "completed", false)
+		await queueStatusUpdate(failures > 0 ? "failed" : "completed", false)
 
 		const successCount = entries.length - failures
 		const totalToolCalls = entries.reduce((acc, entry) => acc + (entry.toolCalls || 0), 0)
-		const totalInputTokens = entries.reduce((acc, entry) => acc + (entry.inputTokens || 0), 0)
-		const totalOutputTokens = entries.reduce((acc, entry) => acc + (entry.outputTokens || 0), 0)
+		const maxContextUsagePercentage = entries.reduce((acc, entry) => Math.max(acc, entry.contextUsagePercentage || 0), 0)
+		const maxContextTokens = entries.reduce((acc, entry) => Math.max(acc, entry.contextTokens || 0), 0)
+		const contextWindow = entries.reduce((acc, entry) => Math.max(acc, entry.contextWindow || 0), 0)
 
 		const summary = [
-			`Subagent batch complete.`,
+			"Subagent results:",
 			`Total: ${entries.length}`,
 			`Succeeded: ${successCount}`,
 			`Failed: ${failures}`,
 			`Tool calls: ${totalToolCalls}`,
-			`Input tokens: ${totalInputTokens}`,
-			`Output tokens: ${totalOutputTokens}`,
+			`Peak context usage: ${maxContextTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${maxContextUsagePercentage.toFixed(1)}%)`,
 			"",
 			...entries.map((entry) => {
 				const header = `[${entry.index}] ${entry.status.toUpperCase()} - ${entry.prompt}`

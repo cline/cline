@@ -19,6 +19,7 @@ import { Logger } from "@/shared/services/Logger"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
 import type {
+	CommandExecutionOptions,
 	CommandExecutorCallbacks,
 	CommandExecutorConfig,
 	ITerminalManager,
@@ -94,7 +95,11 @@ export class CommandExecutor {
 	 * @param timeoutSeconds Optional timeout in seconds
 	 * @returns [userRejected, result] tuple
 	 */
-	async execute(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
+	async execute(
+		command: string,
+		timeoutSeconds: number | undefined,
+		options?: CommandExecutionOptions,
+	): Promise<[boolean, ClineToolResponseContent]> {
 		// Strip leading `cd` to workspace from command
 		const workspaceCdPrefix = `cd ${this.cwd} && `
 		if (command.startsWith(workspaceCdPrefix)) {
@@ -102,7 +107,7 @@ export class CommandExecutor {
 		}
 
 		// Select the appropriate terminal manager
-		const useStandalone = this.terminalExecutionMode === "backgroundExec"
+		const useStandalone = options?.useBackgroundExecution || this.terminalExecutionMode === "backgroundExec"
 		const manager = useStandalone ? this.standaloneManager : this.terminalManager
 		Logger.info(`Executing command in ${useStandalone ? "standalone" : "VSCode"} terminal: ${command}`)
 
@@ -125,6 +130,7 @@ export class CommandExecutor {
 		const result = await orchestrateCommandExecution(process, manager, this.callbacks, {
 			command,
 			timeoutSeconds,
+			suppressUserInteraction: options?.suppressUserInteraction,
 			// When "Proceed While Running" is triggered, track the command in the manager
 			// Returns the log file path so the orchestrator can send it to the UI
 			// existingOutput contains all output lines captured so far

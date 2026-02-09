@@ -46,6 +46,9 @@ interface SubagentRunStats {
 	outputTokens: number
 	cacheWriteTokens: number
 	cacheReadTokens: number
+	contextTokens: number
+	contextWindow: number
+	contextUsagePercentage: number
 }
 
 interface SubagentToolCall {
@@ -172,6 +175,9 @@ export class SubagentRunner {
 			outputTokens: 0,
 			cacheWriteTokens: 0,
 			cacheReadTokens: 0,
+			contextTokens: 0,
+			contextWindow: 0,
+			contextUsagePercentage: 0,
 		}
 
 		onProgress({ status: "running", stats })
@@ -191,6 +197,7 @@ export class SubagentRunner {
 				mode,
 				customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
 			}
+			stats.contextWindow = providerInfo.model.info.contextWindow || 0
 			const useNativeToolCalls =
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				!!this.baseConfig.services.stateManager.getGlobalStateKey("nativeToolCallEnabled")
@@ -244,6 +251,10 @@ export class SubagentRunner {
 			while (true) {
 				const streamHandler = new StreamResponseHandler()
 				const { toolUseHandler } = streamHandler.getHandlers()
+				let requestInputTokens = 0
+				let requestOutputTokens = 0
+				let requestCacheWriteTokens = 0
+				let requestCacheReadTokens = 0
 
 				let assistantText = ""
 				let assistantTextSignature: string | undefined
@@ -259,6 +270,14 @@ export class SubagentRunner {
 							stats.outputTokens += chunk.outputTokens || 0
 							stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
 							stats.cacheReadTokens += chunk.cacheReadTokens || 0
+							requestInputTokens += chunk.inputTokens || 0
+							requestOutputTokens += chunk.outputTokens || 0
+							requestCacheWriteTokens += chunk.cacheWriteTokens || 0
+							requestCacheReadTokens += chunk.cacheReadTokens || 0
+							stats.contextTokens =
+								requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
+							stats.contextUsagePercentage =
+								stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
 							onProgress({ stats: { ...stats } })
 							break
 						case "text":
@@ -438,12 +457,19 @@ export class SubagentRunner {
 			...this.baseConfig,
 			taskState: state,
 			isSubagentExecution: true,
+			vscodeTerminalExecutionMode: "backgroundExec",
 			callbacks: {
 				...baseCallbacks,
+				say: async () => undefined,
+				sayAndCreateMissingParamError: async (_toolName, paramName) =>
+					formatResponse.toolError(formatResponse.missingToolParameterError(paramName)),
 				executeCommandTool: async (command: string, timeoutSeconds: number | undefined) => {
 					this.activeCommandExecutions += 1
 					try {
-						return await baseCallbacks.executeCommandTool(command, timeoutSeconds)
+						return await baseCallbacks.executeCommandTool(command, timeoutSeconds, {
+							useBackgroundExecution: true,
+							suppressUserInteraction: true,
+						})
 					} finally {
 						this.activeCommandExecutions = Math.max(0, this.activeCommandExecutions - 1)
 					}

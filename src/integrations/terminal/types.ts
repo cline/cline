@@ -342,6 +342,22 @@ export interface CommandExecutorCallbacks {
 }
 
 /**
+ * Optional per-command execution behavior overrides.
+ */
+export interface CommandExecutionOptions {
+	/**
+	 * Force command execution in standalone/background terminal mode for this command.
+	 * This is useful for subagent runs and headless-style execution flows.
+	 */
+	useBackgroundExecution?: boolean
+	/**
+	 * Suppress command interaction/output UI messages (ask/say) for this command execution.
+	 * Command output is still captured and returned as the tool result.
+	 */
+	suppressUserInteraction?: boolean
+}
+
+/**
  * Configuration for CommandExecutor
  */
 export interface CommandExecutorConfig {
@@ -388,6 +404,11 @@ export interface OrchestrationOptions {
 	 * Defaults to "vscode" for backward compatibility.
 	 */
 	terminalType?: "vscode" | "standalone"
+	/**
+	 * If true, suppresses command-output ask/say UI interactions.
+	 * Output is still collected and included in the final result.
+	 */
+	suppressUserInteraction?: boolean
 }
 
 /**
