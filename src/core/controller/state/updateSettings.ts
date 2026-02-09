@@ -158,6 +158,18 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
 		}
 
+		// Update subagents setting
+		if (request.subagentsEnabled !== undefined) {
+			const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
+			const isEnabled = !!request.subagentsEnabled
+			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
+
+			// Capture telemetry when setting changes
+			if (wasEnabled !== isEnabled) {
+				telemetryService.captureSubagentToggle(isEnabled)
+			}
+		}
+
 		if (request.dictationSettings !== undefined) {
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {

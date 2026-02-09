@@ -10,7 +10,7 @@ const generic: ClineToolSpec = {
 	name: "use_subagents",
 	description:
 		"Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window.",
-	contextRequirements: (context) => !context.isSubagentRun,
+	contextRequirements: (context) => context.subagentsEnabled === true && !context.isSubagentRun,
 	parameters: [
 		{
 			name: "prompt_1",

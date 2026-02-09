@@ -14,9 +14,11 @@ function createConfig(options?: {
 	autoApproveSafe?: boolean
 	autoApproveAll?: boolean
 	taskAskResponse?: "yesButtonClicked" | "noButtonClicked"
+	subagentsEnabled?: boolean
 }) {
 	const taskState = new TaskState()
 	const askResponse = options?.taskAskResponse ?? "yesButtonClicked"
+	const subagentsEnabled = options?.subagentsEnabled ?? true
 
 	const callbacks = {
 		say: sinon.stub().resolves(undefined),
@@ -79,6 +81,9 @@ function createConfig(options?: {
 					if (key === "customPrompt") {
 						return undefined
 					}
+					if (key === "subagentsEnabled") {
+						return subagentsEnabled
+					}
 					return undefined
 				},
 				getApiConfiguration: () => ({
@@ -116,6 +121,25 @@ describe("SubagentToolHandler", () => {
 		assert.equal(result, "missing")
 		assert.equal(taskState.consecutiveMistakeCount, 1)
 		sinon.assert.calledOnce(callbacks.sayAndCreateMissingParamError)
+	})
+
+	it("returns an error when subagents are disabled", async () => {
+		const { config } = createConfig({ subagentsEnabled: false })
+		const handler = new UseSubagentsToolHandler()
+
+		const result = await handler.execute(config, {
+			type: "tool_use",
+			name: ClineDefaultTool.USE_SUBAGENTS,
+			params: {
+				prompt_1: "first prompt",
+			},
+			partial: false,
+		})
+
+		assert.equal(
+			result,
+			"The tool execution failed with the following error:\n<error>\nSubagents are disabled. Enable them in Settings > Features to use this tool.\n</error>",
+		)
 	})
 
 	it("streams partial use_subagents approval as ask when not auto-approved", async () => {

@@ -62,6 +62,11 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
+		const subagentsEnabled = config.services.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		if (!subagentsEnabled) {
+			return formatResponse.toolError("Subagents are disabled. Enable them in Settings > Features to use this tool.")
+		}
+
 		const prompts = PROMPT_KEYS.map((key) => block.params[key]?.trim()).filter((prompt): prompt is string => !!prompt)
 
 		if (prompts.length === 0) {
