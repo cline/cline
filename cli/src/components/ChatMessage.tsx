@@ -25,7 +25,7 @@ import { SubagentMessage } from "./SubagentMessage"
  * Matches just "Act mode" without requiring "to " prefix because markdown
  * processing may split "toggle to **Act mode**" into separate text chunks.
  */
-function addActModeHint(text: string): React.ReactNode[] {
+function addActModeHint(text: string, keyPrefix: string): React.ReactNode[] {
 	// Match "Act mode" in various capitalizations, but not if already followed by (Tab)
 	const actModeRegex = /\bact\s+mode\b(?!\s*\(tab\))/gi
 	const parts = text.split(actModeRegex)
@@ -42,7 +42,7 @@ function addActModeHint(text: string): React.ReactNode[] {
 		}
 		if (matches[i]) {
 			nodes.push(
-				<React.Fragment key={`act-mode-${i}`}>
+				<React.Fragment key={`${keyPrefix}-act-mode-${i}`}>
 					{matches[i]}
 					<Text color="gray"> (Tab)</Text>
 				</React.Fragment>,
@@ -60,6 +60,8 @@ function addActModeHint(text: string): React.ReactNode[] {
  */
 function renderInlineMarkdown(text: string): React.ReactNode[] {
 	const nodes: React.ReactNode[] = []
+	let hintCallIndex = 0
+	const addHintedText = (value: string) => addActModeHint(value, `hint-${hintCallIndex++}`)
 	// Match **bold**, *italic*, or `code` - order matters (** before *)
 	const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
 	let lastIndex = 0
@@ -69,7 +71,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 		// Add text before match (with Act Mode hint processing)
 		if (match.index > lastIndex) {
 			const beforeText = text.slice(lastIndex, match.index)
-			nodes.push(...addActModeHint(beforeText))
+			nodes.push(...addHintedText(beforeText))
 		}
 
 		const fullMatch = match[0]
@@ -78,7 +80,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 		if (fullMatch.startsWith("**") && fullMatch.endsWith("**")) {
 			// Bold - also process for Act Mode hints inside bold text
 			const boldContent = fullMatch.slice(2, -2)
-			const hintedContent = addActModeHint(boldContent)
+			const hintedContent = addHintedText(boldContent)
 			nodes.push(
 				<Text bold key={key}>
 					{hintedContent}
@@ -101,10 +103,10 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 
 	// Add remaining text (with Act Mode hint processing)
 	if (lastIndex < text.length) {
-		nodes.push(...addActModeHint(text.slice(lastIndex)))
+		nodes.push(...addHintedText(text.slice(lastIndex)))
 	}
 
-	return nodes.length > 0 ? nodes : addActModeHint(text)
+	return nodes.length > 0 ? nodes : addHintedText(text)
 }
 
 /**
