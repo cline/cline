@@ -7,7 +7,9 @@ import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
+	CLAUDE_OPUS_1M_TIERS,
 	CLAUDE_SONNET_1M_TIERS,
+	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
@@ -72,12 +74,40 @@ interface OpenRouterRawModelInfo {
 	supported_parameters?: OpenRouterSupportedParams[] | null
 }
 
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
+
 /**
  * Core function: Refreshes the OpenRouter models and returns application types
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
+	const cache = StateManager.get().getModelsCache("openRouter")
+	if (cache) {
+		return cache
+	}
+
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels(controller)
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
 	let models: Record<string, ModelInfo> = {}
@@ -134,6 +164,12 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
+						break
+					case "anthropic/claude-opus-4.6":
+						modelInfo.contextWindow = 200_000 // restrict to 200k, 1m variant created below
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 6.25
+						modelInfo.cacheReadsPrice = 0.5
 						break
 					case "anthropic/claude-opus-4.5":
 						modelInfo.supportsPromptCache = true
@@ -227,7 +263,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 
 				models[rawModel.id] = modelInfo
 
-				// add custom :1m model variant
+				// add custom :1m model variant for sonnet
 				if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
 					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
@@ -237,12 +273,21 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					// sonnet 4.5
 					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
 				}
+
+				// add custom :1m model variant for opus 4.6
+				if (rawModel.id === "anthropic/claude-opus-4.6") {
+					const claudeOpus1mModelInfo = cloneDeep(modelInfo)
+					claudeOpus1mModelInfo.contextWindow = 1_000_000
+					claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
+					models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo
+				}
 			}
+			// Save models and cache them in memory
+			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
+			Logger.log("OpenRouter models fetched and saved")
 		} else {
-			Logger.error("Invalid response from OpenRouter API")
+			throw new Error("Invalid response data when fetching OpenRouter models")
 		}
-		await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-		Logger.log("OpenRouter models fetched and saved")
 	} catch (error) {
 		Logger.error("Error fetching OpenRouter models:", error)
 

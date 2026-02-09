@@ -8,15 +8,15 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { type BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
@@ -110,9 +110,11 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
-// a special jp inference profile was created for sonnet 4.5 & haiku 4.5
+// a special jp inference profile was created for opus 4.6, sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
 const JP_SUPPORTED_CRIS_MODELS = [
+	"anthropic.claude-opus-4-6-v1",
+	"anthropic.claude-opus-4-6-v1:1m",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",

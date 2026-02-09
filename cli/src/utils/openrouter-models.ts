@@ -38,9 +38,9 @@ export async function fetchOpenRouterModels(): Promise<string[]> {
 				throw new Error(`Failed to fetch: ${response.status}`)
 			}
 
-			const data = await response.json()
+			const data = (await response.json()) as { data?: OpenRouterModel[] }
 			if (data?.data) {
-				const models = (data.data as OpenRouterModel[]).map((m) => m.id).sort((a, b) => a.localeCompare(b))
+				const models = data.data.map((m) => m.id).sort((a, b) => a.localeCompare(b))
 				cachedModels = models
 				return models
 			}

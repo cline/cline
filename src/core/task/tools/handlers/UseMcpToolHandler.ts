@@ -2,6 +2,7 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
+import { truncateContent } from "@/shared/content-limits"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
@@ -203,6 +204,9 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			if (toolResultImages.length > 0 && !supportsImages) {
 				toolResultText += `\n\n[${toolResultImages.length} images were provided in the response, and while they are displayed to the user, you do not have the ability to view them.]`
 			}
+
+			// Truncate response if it exceeds 400KB to prevent context overflow
+			toolResultText = truncateContent(toolResultText)
 
 			// Return formatted result (only pass images if model supports them)
 			return formatResponse.toolResult(toolResultText, supportsImages ? toolResultImages : undefined)

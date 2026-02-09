@@ -12,8 +12,9 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { parsePrice } from "../utils/pricingUtils"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -36,6 +37,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
 
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
@@ -243,7 +245,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					className={`codicon ${modelConfigurationSelected ? "codicon-chevron-down" : "codicon-chevron-right"}`}
 					style={{
 						marginRight: "4px",
-					}}></span>
+					}}
+				/>
 				<span
 					style={{
 						fontWeight: 700,
@@ -401,7 +404,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			</p>
 
 			{showModelOptions && (
-				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+				<>
+					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+				</>
 			)}
 		</div>
 	)

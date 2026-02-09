@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process"
 import { realpathSync } from "node:fs"
 import { exit } from "node:process"
+import { ClineEndpoint } from "@/config"
 import { fetch } from "@/shared/net"
 import { printInfo, printWarning } from "./display"
 
@@ -19,9 +20,26 @@ interface InstallationInfo {
 }
 
 /**
- * Detect how the CLI was installed and return the appropriate update command.
+ * Check if a version string is a nightly build.
  */
-function getInstallationInfo(): InstallationInfo {
+function isNightlyVersion(version: string): boolean {
+	return version.includes("-nightly.")
+}
+
+/**
+ * Get the npm tag to use based on the current version.
+ */
+function getNpmTag(currentVersion: string): string {
+	return isNightlyVersion(currentVersion) ? "nightly" : "latest"
+}
+
+/**
+ * Detect how the CLI was installed and return the appropriate update command.
+ * Uses the correct npm tag based on whether the current version is nightly.
+ */
+function getInstallationInfo(currentVersion: string): InstallationInfo {
+	const tag = getNpmTag(currentVersion)
+
 	try {
 		const scriptPath = realpathSync(process.argv[1] || "").replace(/\\/g, "/")
 
@@ -34,7 +52,7 @@ function getInstallationInfo(): InstallationInfo {
 		if (scriptPath.includes("/.pnpm/global") || scriptPath.includes("/pnpm/global")) {
 			return {
 				packageManager: PackageManager.PNPM,
-				updateCommand: "pnpm add -g cline@latest",
+				updateCommand: `pnpm add -g cline@${tag}`,
 			}
 		}
 
@@ -42,7 +60,7 @@ function getInstallationInfo(): InstallationInfo {
 		if (scriptPath.includes("/.yarn/") || scriptPath.includes("/yarn/global")) {
 			return {
 				packageManager: PackageManager.YARN,
-				updateCommand: "yarn global add cline@latest",
+				updateCommand: `yarn global add cline@${tag}`,
 			}
 		}
 
@@ -50,7 +68,7 @@ function getInstallationInfo(): InstallationInfo {
 		if (scriptPath.includes("/.bun/bin")) {
 			return {
 				packageManager: PackageManager.BUN,
-				updateCommand: "bun add -g cline@latest",
+				updateCommand: `bun add -g cline@${tag}`,
 			}
 		}
 
@@ -58,7 +76,7 @@ function getInstallationInfo(): InstallationInfo {
 		if (scriptPath.includes("/node_modules/cline/")) {
 			return {
 				packageManager: PackageManager.NPM,
-				updateCommand: "npm install -g cline@latest",
+				updateCommand: `npm install -g cline@${tag}`,
 			}
 		}
 	} catch {
@@ -70,10 +88,12 @@ function getInstallationInfo(): InstallationInfo {
 
 /**
  * Fetch the latest version from npm registry.
+ * Uses the appropriate tag based on whether the current version is nightly.
  */
-async function getLatestVersion(): Promise<string | null> {
+async function getLatestVersion(currentVersion: string): Promise<string | null> {
 	try {
-		const response = await fetch("https://registry.npmjs.org/cline/latest")
+		const tag = getNpmTag(currentVersion)
+		const response = await fetch(`https://registry.npmjs.org/cline/${tag}`)
 		if (!response.ok) return null
 		const data = (await response.json()) as { version: string }
 		return data.version || null
@@ -88,7 +108,7 @@ async function getLatestVersion(): Promise<string | null> {
  * process to install if a newer version is available.
  *
  * Supports npm, pnpm, yarn, and bun global installs.
- * Skipped for npx, local dev, and unknown installations.
+ * Skipped for npx, local dev, unknown installations, and bundled enterprise packages.
  * Can be disabled with CLINE_NO_AUTO_UPDATE=1 environment variable.
  */
 export function autoUpdateOnStartup(currentVersion: string): void {
@@ -102,7 +122,12 @@ export function autoUpdateOnStartup(currentVersion: string): void {
 		return
 	}
 
-	const { updateCommand } = getInstallationInfo()
+	// Skip if using bundled enterprise config (single source of truth)
+	if (ClineEndpoint.isBundledConfig()) {
+		return
+	}
+
+	const { updateCommand } = getInstallationInfo(currentVersion)
 	if (!updateCommand) {
 		return
 	}
@@ -113,7 +138,7 @@ export function autoUpdateOnStartup(currentVersion: string): void {
 
 async function checkAndUpdate(currentVersion: string, updateCommand: string): Promise<void> {
 	try {
-		const latestVersion = await getLatestVersion()
+		const latestVersion = await getLatestVersion(currentVersion)
 		if (!latestVersion) return
 
 		// Only update if latest is newer
@@ -138,10 +163,10 @@ async function checkAndUpdate(currentVersion: string, updateCommand: string): Pr
 export async function checkForUpdates(currentVersion: string, options?: { verbose?: boolean }) {
 	printInfo("Checking for updates...")
 
-	const { updateCommand, packageManager } = getInstallationInfo()
+	const { updateCommand, packageManager } = getInstallationInfo(currentVersion)
 
 	try {
-		const latestVersion = await getLatestVersion()
+		const latestVersion = await getLatestVersion(currentVersion)
 		if (!latestVersion) {
 			printWarning("Failed to check for updates: could not fetch latest version")
 			exit(1)
@@ -218,20 +243,60 @@ export async function checkForUpdates(currentVersion: string, options?: { verbos
 	}
 }
 
+interface ParsedVersion {
+	base: number[]
+	isNightly: boolean
+	timestamp: number
+}
+
 /**
- * Compare two semantic version strings
+ * Parse a version string into its components.
+ * Handles both stable versions (2.0.0) and nightly versions (2.0.0-nightly.1736365200).
+ */
+function parseVersion(version: string): ParsedVersion {
+	const nightlyMatch = version.match(/^(\d+\.\d+\.\d+)-nightly\.(\d+)$/)
+	if (nightlyMatch) {
+		return {
+			base: nightlyMatch[1].split(".").map(Number),
+			isNightly: true,
+			timestamp: parseInt(nightlyMatch[2], 10),
+		}
+	}
+	return {
+		base: version.split(".").map(Number),
+		isNightly: false,
+		timestamp: 0,
+	}
+}
+
+/**
+ * Compare two semantic version strings.
+ * Handles both stable versions and nightly versions.
+ * Nightly versions are compared by their timestamps.
  * Returns: 1 if v1 > v2, -1 if v1 < v2, 0 if equal
  */
 function compareVersions(v1: string, v2: string): number {
-	const parts1 = v1.split(".").map(Number)
-	const parts2 = v2.split(".").map(Number)
+	const p1 = parseVersion(v1)
+	const p2 = parseVersion(v2)
 
-	for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-		const part1 = parts1[i] || 0
-		const part2 = parts2[i] || 0
+	// Compare base versions first
+	for (let i = 0; i < Math.max(p1.base.length, p2.base.length); i++) {
+		const part1 = p1.base[i] || 0
+		const part2 = p2.base[i] || 0
 
 		if (part1 > part2) return 1
 		if (part1 < part2) return -1
+	}
+
+	// Base versions are equal, check nightly status
+	// Nightly is considered less than stable (it's a pre-release)
+	if (p1.isNightly && !p2.isNightly) return -1
+	if (!p1.isNightly && p2.isNightly) return 1
+
+	// Both are nightly, compare timestamps
+	if (p1.isNightly && p2.isNightly) {
+		if (p1.timestamp > p2.timestamp) return 1
+		if (p1.timestamp < p2.timestamp) return -1
 	}
 
 	return 0

@@ -38,11 +38,11 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
 	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
 
-	// Initialize ClineEndpoint configuration first (reads ~/.cline/endpoints.json if present)
+	// Initialize ClineEndpoint configuration (reads bundled and ~/.cline/endpoints.json if present)
 	// This must be done before any other code that calls ClineEnv.config()
 	// Throws ClineConfigurationError if config file exists but is invalid
 	const { ClineEndpoint } = await import("./config")
-	await ClineEndpoint.initialize()
+	await ClineEndpoint.initialize(HostProvider.get().extensionFsPath)
 
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)

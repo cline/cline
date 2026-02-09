@@ -103,15 +103,17 @@
 
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getProviderModelIdKey } from "@shared/storage"
+import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
+// biome-ignore lint/style/useImportType: JSX requires React as a value (jsx: "react" in tsconfig)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
@@ -121,6 +123,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
+import { useHomeEndKeys } from "../hooks/useHomeEndKeys"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
 import { moveCursorDown, moveCursorUp } from "../utils/cursor"
@@ -135,6 +138,7 @@ import {
 import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
+import { waitFor } from "../utils/timeout"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { shutdownEvent } from "../vscode-shim"
 import { ActionButtons, type ButtonActionType, getButtonConfig, getVisibleButtons } from "./ActionButtons"
@@ -207,9 +211,9 @@ function getGitDiffStats(cwd?: string): GitDiffStats | null {
 		const delMatch = output.match(/(\d+) deletion/)
 
 		return {
-			files: filesMatch ? parseInt(filesMatch[1], 10) : 0,
-			additions: addMatch ? parseInt(addMatch[1], 10) : 0,
-			deletions: delMatch ? parseInt(delMatch[1], 10) : 0,
+			files: filesMatch ? Number.parseInt(filesMatch[1], 10) : 0,
+			additions: addMatch ? Number.parseInt(addMatch[1], 10) : 0,
+			deletions: delMatch ? Number.parseInt(delMatch[1], 10) : 0,
 		}
 	} catch {
 		return null
@@ -220,7 +224,7 @@ function getGitDiffStats(cwd?: string): GitDiffStats | null {
  * Create a progress bar for context window usage
  * Returns { filled, empty } strings to allow different coloring
  */
-function createContextBar(used: number, total: number, width: number = 8): { filled: string; empty: string } {
+function createContextBar(used: number, total: number, width = 8): { filled: string; empty: string } {
 	const ratio = Math.min(used / total, 1)
 	// Use ceil so any usage > 0 shows at least one bar
 	const filledCount = used > 0 ? Math.max(1, Math.ceil(ratio * width)) : 0
@@ -310,7 +314,7 @@ function parseAskOptions(text: string): string[] {
  */
 function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
 	return text.replace(/\[Pasted text #(\d+) \+\d+ lines\]/g, (match, num) => {
-		const content = pastedTexts.get(parseInt(num, 10))
+		const content = pastedTexts.get(Number.parseInt(num, 10))
 		return content ?? match
 	})
 }
@@ -346,6 +350,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		deleteCharBefore,
 		insertText: insertTextAtCursor,
 	} = useTextInput()
+
+	// Refs for text input and cursor position (used by useHomeEndKeys and to avoid stale closures in useInput)
+	const textInputRef = useRef(textInput)
+	textInputRef.current = textInput
+	const cursorPosRef = useRef(cursorPos)
+	cursorPosRef.current = cursorPos
+
 	const [fileResults, setFileResults] = useState<FileSearchResult[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0) // For file menu
 	const [historyIndex, setHistoryIndex] = useState(-1) // -1 = not browsing history, 0+ = history item index
@@ -381,6 +392,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		| null
 	>(null)
 
+	// Handle Home/End keys from raw stdin (Ink doesn't expose these in useInput)
+	useHomeEndKeys({
+		onHome: useCallback(() => setCursorPos(0), [setCursorPos]),
+		onEnd: useCallback(() => setCursorPos(textInputRef.current.length), [setCursorPos]),
+		isActive: !activePanel, // Only active when no panel is open
+	})
+
 	// Track when we're exiting to hide UI elements before exit
 	const [isExiting, setIsExiting] = useState(false)
 
@@ -410,7 +428,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		return stateManager.getGlobalSettingsKey("mode") || "act"
 	})
 
-	const [yolo, setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
+	const [yolo, _setYolo] = useState<boolean>(() => StateManager.get().getGlobalSettingsKey("yoloModeToggled") ?? false)
 	const [autoApproveAll, setAutoApproveAll] = useState<boolean>(
 		() => StateManager.get().getGlobalSettingsKey("autoApproveAllToggled") ?? false,
 	)
@@ -438,11 +456,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Get model ID based on current mode and provider
 	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
 	// Re-read when activePanel changes (settings panel closes) to pick up changes
+	// Falls back to provider's default model if no model has been explicitly set
 	const modelId = useMemo(() => {
 		if (!provider) return ""
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
-		return (stateManager.getGlobalSettingsKey(modelKey as string) as string) || ""
+		return (stateManager.getGlobalSettingsKey(modelKey) as string) || getProviderDefaultModelId(provider as ApiProvider) || ""
 	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {
@@ -591,8 +610,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return true
 		})
 
-		// Combine command messages with their output (like webview does)
-		return combineCommandSequences(filtered)
+		// Combine hook messages with their output, then command messages (like webview does)
+		// CLI always has hooks enabled, so we always apply combineHookSequences
+		const withHooks = combineHookSequences(filtered)
+		return combineCommandSequences(withHooks)
 	}, [messages])
 
 	// Detect task switches by watching first message timestamp change.
@@ -868,6 +889,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	)
 
 	// Auto-submit initial prompt if provided
+	// When taskId is also provided, this sends the prompt to resume the existing task
+	// When no taskId, this creates a new task with the prompt
 	useEffect(() => {
 		const autoSubmit = async () => {
 			if (!initialPrompt && (!initialImages || initialImages.length === 0)) {
@@ -888,8 +911,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (initialPrompt) {
 					setTerminalTitle(initialPrompt)
 				}
-				// initialImages are already data URLs from index.ts processing
-				await ctrl.initTask(initialPrompt || "", initialImages && initialImages.length > 0 ? initialImages : undefined)
+
+				if (taskId) {
+					// Resuming an existing task with a prompt - wait for task to load first
+					// The task loading happens in the other useEffect via showTaskWithId
+					// We need to wait for it to complete before sending the resume message
+					const task = await waitFor(() => ctrl.task, 5000)
+
+					if (task) {
+						// Send the prompt as a message to resume the task
+						await task.handleWebviewAskResponse("messageResponse", initialPrompt || "")
+					} else {
+						// Task failed to load, fall back to creating new task
+						Logger.error(`Failed to load task ${taskId} for resume, creating new task instead`)
+						await ctrl.initTask(
+							initialPrompt || "",
+							initialImages && initialImages.length > 0 ? initialImages : undefined,
+						)
+					}
+				} else {
+					// New task - use initTask
+					// initialImages are already data URLs from index.ts processing
+					await ctrl.initTask(
+						initialPrompt || "",
+						initialImages && initialImages.length > 0 ? initialImages : undefined,
+					)
+				}
 			} catch (_error) {
 				onError?.()
 			}
@@ -953,30 +1000,48 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
 	// Handle keyboard input
+	//
+	// KEYBOARD PRIORITY ORDER (first match wins):
+	// 1. Mouse escape sequences -> filtered out (from AsciiMotionCli tracking)
+	// 2. Option+arrow escape sequences -> word navigation (handleKeyboardSequence)
+	// 3. Option+arrow via key.meta -> word navigation (backup for when Ink parses it)
+	// 4. Panel open -> bail (let panel handle its own input)
+	// 5. Slash menu open -> menu navigation (up/down/tab/return/escape)
+	// 6. File menu open -> menu navigation (up/down/tab/return/escape)
+	// 7. History navigation -> up/down when input empty or matches history item
+	// 8. Button actions -> "1"/"2" keys when buttons shown and no text typed
+	// 9. Ask responses -> return to send, numbers for option selection
+	// 10. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
+	// 11. Large paste detection -> collapse into placeholder
+	// 12. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
+	//
+	// Note: Home/End keys are handled separately by useHomeEndKeys hook because
+	// Ink doesn't expose them in useInput (it sets input='' for these keys).
+	//
 	useInput((input, key) => {
-		// Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
+		// 1. Filter out mouse escape sequences from AsciiMotionCli's mouse tracking
 		if (isMouseEscapeSequence(input)) {
 			return
 		}
 
-		// Handle keyboard escape sequences (Option+arrows, Home/End, etc.)
+		// 2. Handle Option+arrow escape sequences for word navigation
 		if (handleKeyboardSequence(input)) {
 			return
 		}
 
-		// Handle Option+arrow via key.meta (how Ink reports it on Mac)
+		// 3. Handle Option+arrow via key.meta (backup - Ink sometimes parses these instead of passing raw sequence)
 		if (key.meta) {
 			if (key.leftArrow) {
-				setCursorPos(findWordStart(textInput, cursorPos))
+				setCursorPos(findWordStart(textInputRef.current, cursorPosRef.current))
 				return
 			}
 			if (key.rightArrow) {
-				setCursorPos(findWordEnd(textInput, cursorPos))
+				setCursorPos(findWordEnd(textInputRef.current, cursorPosRef.current))
 				return
 			}
 		}
 
-		// When a panel is open, let the panel handle its own input
+		// 4. When a panel is open, let the panel handle its own input
 		if (activePanel) {
 			return
 		}
@@ -984,7 +1049,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
-		// Slash command menu navigation (takes priority over file menu)
+		// 5. Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
 			if (key.upArrow) {
 				setSelectedSlashIndex((i) => Math.max(0, i - 1))
@@ -1064,7 +1129,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// File mention menu navigation
+		// 6. File mention menu navigation
 		if (inFileMenu) {
 			if (key.upArrow) {
 				setSelectedIndex((i) => Math.max(0, i - 1))
@@ -1092,7 +1157,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// History navigation with up/down arrows
+		// 7. History navigation with up/down arrows
 		// Only works when: input is empty, or input matches the currently selected history item
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
 			const historyItems = getHistoryItems()
@@ -1142,7 +1207,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle button actions (1 for primary, 2 for secondary)
+		// 8. Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
 		if (
 			buttonConfig.enableButtons &&
@@ -1157,7 +1222,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				if (hasPrimary && buttonConfig.primaryAction) {
 					handleButtonAction(buttonConfig.primaryAction, true)
 					return
-				} else if (hasSecondary && !hasPrimary && buttonConfig.secondaryAction) {
+				}
+				if (hasSecondary && !hasPrimary && buttonConfig.secondaryAction) {
 					handleButtonAction(buttonConfig.secondaryAction, false)
 					return
 				}
@@ -1169,7 +1235,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle ask responses for options and text input
+		// 9. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as ClineAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
 			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
@@ -1178,7 +1244,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 			// Number selection for options (only when no text typed yet)
 			if (askType === "options") {
-				const num = parseInt(input, 10)
+				const num = Number.parseInt(input, 10)
 				if (textInput === "" && !Number.isNaN(num) && num >= 1 && num <= askOptions.length) {
 					const selectedOption = askOptions[num - 1]
 					sendAskResponse("messageResponse", selectedOption)
@@ -1187,12 +1253,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
+		// 10. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
 		if (key.ctrl && input && handleCtrlShortcut(input)) {
 			return
 		}
 
-		// Detect paste by checking if input length exceeds threshold
+		// 11. Detect paste by checking if input length exceeds threshold
 		// Large pastes mess up the terminal UI, so we collapse them into a placeholder
 		// Terminal sends large pastes in multiple chunks, so we combine chunks that arrive rapidly
 		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
@@ -1220,10 +1286,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				}
 				pasteUpdateTimeoutRef.current = setTimeout(() => {
 					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
-					setTextInput((prev) => {
-						const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-						return prev.replace(pattern, newPlaceholder)
-					})
+					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
+					const newText = textInputRef.current.replace(pattern, newPlaceholder)
+					textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
+					setTextInput(newText)
 					// Update cursor to be right after the placeholder
 					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
 					Logger.info(`Paste #${pasteNum} complete: ${activePasteLinesRef.current} lines`)
@@ -1236,7 +1302,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			pasteCounterRef.current += 1
 			const pasteNum = pasteCounterRef.current
 			activePasteNumRef.current = pasteNum
-			activePasteStartPosRef.current = cursorPos // Track where placeholder starts
+			const currentCursorPos = cursorPosRef.current // Use ref to avoid stale closure
+			activePasteStartPosRef.current = currentCursorPos // Track where placeholder starts
 			// Count line breaks in the pasted content (handle both \n and \r)
 			const extraLines = input.match(/[\r\n]/g)?.length || 0
 			activePasteLinesRef.current = extraLines // Track total lines
@@ -1248,12 +1315,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				return next
 			})
 
-			setTextInput((prev) => prev.slice(0, cursorPos) + placeholder + prev.slice(cursorPos))
-			setCursorPos(cursorPos + placeholder.length)
+			const newText =
+				textInputRef.current.slice(0, currentCursorPos) + placeholder + textInputRef.current.slice(currentCursorPos)
+			textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
+			setTextInput(newText)
+			setCursorPos(currentCursorPos + placeholder.length)
 			return // Exit early - don't also add the raw input via normal handling below
 		}
 
-		// Normal input handling
+		// 12. Normal input handling
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
@@ -1278,15 +1348,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 		if (key.rightArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos((pos) => Math.min(textInput.length, pos + 1))
+			setCursorPos((pos) => Math.min(textInputRef.current.length, pos + 1))
 			return
 		}
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorUp(textInput, cursorPos))
+			setCursorPos(moveCursorUp(textInputRef.current, cursorPosRef.current))
 			return
 		}
 		if (key.downArrow && !inSlashMenu && !inFileMenu) {
-			setCursorPos(moveCursorDown(textInput, cursorPos))
+			setCursorPos(moveCursorDown(textInputRef.current, cursorPosRef.current))
 			return
 		}
 		// Normal input (single char or short paste)
@@ -1352,10 +1422,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			{/* Dynamic region - only current streaming message + input */}
 			<Box flexDirection="column" width="100%">
-				{/* Animated robot and welcome text - only shown before messages start and user hasn't scrolled */}
+				{/* Animated robot and welcome text - only shown before messages start and user hasn't interacted */}
 				{isWelcomeState && (
 					<Box flexDirection="column" marginBottom={1}>
-						<AsciiMotionCli onScroll={() => setUserScrolled(true)} />
+						<AsciiMotionCli onInteraction={() => setUserScrolled(true)} />
 						<Text> </Text>
 						<Text bold color="white">
 							{centerText("What can I do for you?")}

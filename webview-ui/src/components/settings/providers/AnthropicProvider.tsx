@@ -1,17 +1,20 @@
 import { anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
+import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
+	"claude-opus-4-6",
+	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
@@ -36,7 +39,7 @@ interface AnthropicProviderProps {
  * The Anthropic provider configuration component
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
@@ -56,12 +59,16 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
 
-			<BaseUrlField
-				initialValue={apiConfiguration?.anthropicBaseUrl}
-				label="Use custom base URL"
-				onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
-				placeholder="Default: https://api.anthropic.com"
-			/>
+			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}>
+				<BaseUrlField
+					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
+					initialValue={apiConfiguration?.anthropicBaseUrl}
+					label="Use custom base URL"
+					onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
+					placeholder="Default: https://api.anthropic.com"
+					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
+				/>
+			</RemotelyConfiguredInputWrapper>
 
 			{showModelOptions && (
 				<>
@@ -75,6 +82,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 								currentMode,
 							)
 						}
+						selectedModelId={selectedModelId}
+					/>
+
+					{/* Context window switcher for Claude Opus 4.6 */}
+					<ContextWindowSwitcher
+						base1mModelId={`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`}
+						base200kModelId="claude-opus-4-6"
+						onModelChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>
 

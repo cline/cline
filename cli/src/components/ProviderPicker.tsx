@@ -5,30 +5,11 @@
 import React, { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiConfiguration } from "@/shared/api"
-import providersData from "@/shared/providers/providers.json"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import { getProviderLabel, useValidProviders } from "../utils/providers"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
-// Create a lookup map from provider value to display label
-const providerLabels: Record<string, string> = Object.fromEntries(
-	providersData.list.map((p: { value: string; label: string }) => [p.value, p.label]),
-)
-
-// Get provider order from providers.json (same order as webview)
-const providerOrder: string[] = providersData.list.map((p: { value: string }) => p.value)
-
-/**
- * Providers that are not supported in CLI.
- * - vscode-lm: Requires VS Code's Language Model API (see ENG-1490 for OAuth-based support)
- */
-export const CLI_EXCLUDED_PROVIDERS = new Set<string>(["vscode-lm"])
-
-export function getProviderLabel(providerId: string): string {
-	return providerLabels[providerId] || providerId
-}
-
-export function getProviderOrder(): string[] {
-	return providerOrder
-}
+// Re-export for backwards compatibility
+export { getProviderLabel }
 
 /**
  * Check if a provider is configured (has required credentials/settings)
@@ -37,8 +18,8 @@ export function getProviderOrder(): string[] {
 function isProviderConfigured(providerId: string, config: ApiConfiguration): boolean {
 	switch (providerId) {
 		case "cline":
-			// Check if user has Cline account auth data stored
-			return !!(config as Record<string, unknown>)["cline:clineAccountId"]
+			// Check if user has Cline API key or Cline account auth data stored
+			return !!(config.clineApiKey ?? config["cline:clineAccountId"])
 		case "anthropic":
 			return !!config.apiKey
 		case "openrouter":
@@ -144,17 +125,16 @@ interface ProviderPickerProps {
 export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActive = true }) => {
 	// Get API configuration to check which providers are configured
 	const apiConfig = StateManager.get().getApiConfiguration()
+	const sorted = useValidProviders()
 
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const items: SearchableListItem[] = useMemo(() => {
-		const sorted = providerOrder.filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
-
-		return sorted.map((providerId) => ({
+		return sorted.map((providerId: string) => ({
 			id: providerId,
 			label: getProviderLabel(providerId),
 			suffix: isProviderConfigured(providerId, apiConfig) ? "(Configured)" : undefined,
 		}))
-	}, [apiConfig])
+	}, [apiConfig, sorted])
 
 	return <SearchableList isActive={isActive} items={items} onSelect={(item) => onSelect(item.id)} />
 }
