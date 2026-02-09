@@ -1,0 +1,101 @@
+name: Cline PR Manual Verification Plan
+
+on:
+  # Manual trigger only. Run from terminal:
+  #   gh workflow run cline-pr-manual-verification-plan.yml -f pr_number=1234
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to generate a verification plan for"
+        required: true
+        type: string
+
+concurrency:
+  group: pr-verification-plan-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  cline-pr-manual-verification-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # SECURITY: These permissions are intentionally restrictive.
+    # - contents: read  -> cline can read the codebase but CANNOT write/push any code
+    # - pull-requests: write -> cline can post reviews and inline suggestions
+    # - issues: read -> cline can search for related issues
+    # NOTE: Even with pull-requests: write, cline CANNOT merge PRs because branch protection
+    # requires 1 approval from a Code Owner. The GITHUB_TOKEN cannot bypass this.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Print HEAD commit
+        run: |
+          echo "HEAD is at: $(git rev-parse HEAD)"
+          echo "Short: $(git rev-parse --short HEAD)"
+          git log -1 --format="Commit: %H%nAuthor: %an <%ae>%nDate: %ad%nMessage: %s"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Configure Cline with Cline Provider
+        run: |
+          npx cline@nightly auth --provider cline \
+            --apikey "${{ secrets.CLINE_API_KEY }}" \
+            --modelid anthropic/claude-opus-4.6
+
+      - name: Get PR number
+        id: pr
+        run: echo "number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+
+      - name: Get PR branch info
+        id: branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          BASE_REF=$(gh pr view "$PR_NUM" --json baseRefName -q '.baseRefName')
+          HEAD_REF=$(gh pr view "$PR_NUM" --json headRefName -q '.headRefName')
+          MERGE_BASE=$(git merge-base "origin/${BASE_REF}" HEAD)
+          echo "base_ref=${BASE_REF}" >> $GITHUB_OUTPUT
+          echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "merge_base=${MERGE_BASE}" >> $GITHUB_OUTPUT
+          echo "merge_base_short=$(git rev-parse --short ${MERGE_BASE})" >> $GITHUB_OUTPUT
+
+      - name: Generate manual verification plan with Cline
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          GITHUB_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ steps.branches.outputs.base_ref }}
+          HEAD_REF: ${{ steps.branches.outputs.head_ref }}
+          MERGE_BASE: ${{ steps.branches.outputs.merge_base }}
+          CLINE_COMMAND_PERMISSIONS: |
+            {
+              "allow": [
+                "gh pr diff *",
+                "gh pr view *",
+                "gh pr checks *",
+                "gh pr list *",
+                "gh label list *",
+                "gh issue list *",
+                "gh issue view *",
+                "git log *",
+                "gh pr comment ${{ steps.pr.outputs.number }} *",
+                "gh pr edit ${{ steps.pr.outputs.number }} *",
+                "gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/comments *",
+                "gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/reviews *"
+              ]
+            }
+        run: |
+          npx cline@nightly --yolo --verbose 'Please come up to speed on the changes in the diff between `git --no-pager diff '"${MERGE_BASE}"'..HEAD` (PR #'"${PR_NUMBER}"': '"${HEAD_REF}"' → '"${BASE_REF}"') and assess the architecture decisions made in this change set.  We are interested also in coming up with an effective set of steps for manual verification of the changes to show that the change set is fully working as intended.'
