@@ -76,9 +76,15 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 		return <div className="text-foreground opacity-80">Subagent status update unavailable.</div>
 	}
 
+	const resumedBeforeNextVisibleMessage =
+		isLast && lastModifiedMessage?.say === "api_req_started" && (lastModifiedMessage.ts ?? 0) > message.ts
+
 	const wasCancelled =
 		data.status === "running" &&
-		(!isLast || lastModifiedMessage?.ask === "resume_task" || lastModifiedMessage?.ask === "resume_completed_task")
+		(!isLast ||
+			lastModifiedMessage?.ask === "resume_task" ||
+			lastModifiedMessage?.ask === "resume_completed_task" ||
+			resumedBeforeNextVisibleMessage)
 
 	const singular = data.items.length === 1
 	const title = singular ? "Cline wants to use a subagent:" : "Cline wants to use subagents:"
