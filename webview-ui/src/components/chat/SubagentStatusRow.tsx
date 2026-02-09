@@ -132,6 +132,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 
 	const singular = data.items.length === 1
 	const title = singular ? "Cline wants to use a subagent:" : "Cline wants to use subagents:"
+	const isPromptConstructionRow = message.ask === "use_subagents" || message.say === "use_subagents"
 	const toggleItem = (index: number) => {
 		setExpandedItems((prev) => ({
 			...prev,
@@ -146,14 +147,16 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 				<span className="font-bold text-foreground">{title}</span>
 			</div>
 			<div className="space-y-2">
-				{data.items.map((entry, _index) => {
+				{data.items.map((entry, index) => {
 					const displayStatus: DisplayStatus =
 						wasCancelled && (entry.status === "running" || entry.status === "pending") ? "cancelled" : entry.status
 					const hasDetails = Boolean(
 						(entry.result && entry.status === "completed") || (entry.error && entry.status === "failed"),
 					)
 					const isExpanded = expandedItems[entry.index] === true
-					const shouldShowStats = entry.status !== "pending"
+					const isStreamingPromptUnderConstruction =
+						isPromptConstructionRow && message.partial === true && index === data.items.length - 1
+					const shouldShowStats = !isStreamingPromptUnderConstruction
 					return (
 						<div
 							className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
@@ -168,7 +171,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 							</div>
 							{shouldShowStats && (
 								<div className="mt-1 text-[11px] opacity-70">
-									{formatCount(entry.toolCalls)} tools called | {formatCount(entry.contextTokens)} tokens used |{" "}
+									{formatCount(entry.toolCalls)} tools called · {formatCount(entry.contextTokens)} tokens ·{" "}
 									{formatCost(entry.totalCost)}
 								</div>
 							)}
