@@ -138,6 +138,11 @@ export class VercelAIGatewayHandler implements ApiHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
+		// If we have a model ID but no model info, preserve the selected model ID
+		// and fall back only the metadata to defaults.
+		if (modelId) {
+			return { id: modelId, info: openRouterDefaultModelInfo }
+		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }

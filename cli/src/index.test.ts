@@ -32,6 +32,7 @@ describe("CLI Commands", () => {
 			.option("--config <path>", "Configuration directory")
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
+			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
 			.action(() => {})
 
 		program
@@ -70,6 +71,7 @@ describe("CLI Commands", () => {
 			.option("--config <path>", "Configuration directory")
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
+			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
 			.action(() => {})
 	})
 
@@ -160,6 +162,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--reasoning-effort", "high"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().reasoningEffort).toBe("high")
+		})
+
+		it("should parse --max-consecutive-mistakes option", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--max-consecutive-mistakes", "999"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().maxConsecutiveMistakes).toBe("999")
 		})
 
 		it("should parse short flags", () => {
@@ -306,6 +315,11 @@ describe("CLI Commands", () => {
 		it("should parse --reasoning-effort option", () => {
 			program.parse(["node", "cli", "--reasoning-effort", "medium"])
 			expect(program.opts().reasoningEffort).toBe("medium")
+		})
+
+		it("should parse --max-consecutive-mistakes option", () => {
+			program.parse(["node", "cli", "--max-consecutive-mistakes", "7"])
+			expect(program.opts().maxConsecutiveMistakes).toBe("7")
 		})
 	})
 
