@@ -1,0 +1,287 @@
+---
+title: "Bundled Endpoints Configuration"
+description: "Enterprise guide for distributing Cline with pre-configured endpoints"
+---
+
+# Bundled Endpoints Configuration
+
+This guide explains how enterprise customers can distribute Cline with pre-configured endpoints bundled directly into the installation packages.
+
+## Overview
+
+Cline supports bundling custom endpoint configurations directly into distribution packages (VSIX, NPM, or JetBrains). This eliminates the need for end users to manually configure endpoints, ensuring consistent configuration across your organization.
+
+### Configuration Priority
+
+When Cline starts, it checks for endpoints configuration in this order:
+
+1. **Bundled endpoints.json** (in extension installation directory) - Highest priority
+2. **User endpoints.json** (`~/.cline/endpoints.json`) - Fallback
+3. **Built-in endpoints** (standard Cline URLs) - Default
+
+When a bundled `endpoints.json` is found, Cline automatically switches to self-hosted mode and uses those endpoints exclusively.
+
+## Prerequisites
+
+- Official Cline release package (VSIX, TGZ, or ZIP)
+- Your `endpoints.json` configuration file
+- `jq` command-line tool (for JSON validation)
+- `unzip`, `zip`, `tar` utilities
+
+## Creating endpoints.json
+
+Create a JSON file with your organization's endpoints:
+
+```json
+{
+  "appBaseUrl": "https://cline.yourcompany.com",
+  "apiBaseUrl": "https://api-cline.yourcompany.com",
+  "mcpBaseUrl": "https://api-cline.yourcompany.com/v1/mcp"
+}
+```
+
+### Required Fields
+
+All three fields are required and must be valid URLs:
+
+- **appBaseUrl**: Web application base URL
+- **apiBaseUrl**: API server base URL  
+- **mcpBaseUrl**: MCP (Model Context Protocol) server URL
+
+### Validation
+
+The packaging scripts automatically validate:
+- Valid JSON syntax
+- All required fields present
+- Non-empty string values
+- Valid URL format (must start with `http://` or `https://`)
+
+## Packaging Scripts
+
+Cline provides three scripts for adding bundled endpoints to packages:
+
+### VSCode Extension (VSIX)
+
+```bash
+./scripts/add-endpoints-to-vsix.sh \
+  cline-3.55.0.vsix \
+  cline-3.55.0-enterprise.vsix \
+  endpoints.json
+```
+
+This script:
+1. Extracts the VSIX package
+2. Adds `endpoints.json` to the `extension/` directory
+3. Repackages as a new VSIX file
+
+### NPM Package (CLI)
+
+```bash
+./scripts/add-endpoints-to-npm.sh \
+  cline-3.55.0.tgz \
+  cline-3.55.0-enterprise.tgz \
+  endpoints.json
+```
+
+This script:
+1. Extracts the NPM tarball
+2. Adds `endpoints.json` to the package root
+3. Repackages as a new tarball
+
+### JetBrains Plugin (ZIP)
+
+```bash
+./scripts/add-endpoints-to-jetbrains.sh \
+  cline-jetbrains-3.55.0.zip \
+  cline-jetbrains-3.55.0-enterprise.zip \
+  endpoints.json
+```
+
+This script:
+1. Extracts the ZIP package
+2. Adds `endpoints.json` to the plugin directory
+3. Repackages as a new ZIP file
+
+## Distribution Workflow
+
+### 1. Download Official Release
+
+Download the official Cline package for your platform:
+
+```bash
+# VSCode - from marketplace or GitHub releases
+curl -LO https://github.com/cline/cline/releases/download/v3.55.0/cline-3.55.0.vsix
+
+# NPM - from npm registry
+npm pack @cline/cline@3.55.0
+
+# JetBrains - from marketplace or GitHub releases
+curl -LO https://github.com/cline/cline/releases/download/v3.55.0/cline-jetbrains-3.55.0.zip
+```
+
+### 2. Create Endpoints Configuration
+
+Create your `endpoints.json` file:
+
+```json
+{
+  "appBaseUrl": "https://cline.internal.company.com",
+  "apiBaseUrl": "https://cline-api.internal.company.com",
+  "mcpBaseUrl": "https://cline-api.internal.company.com/v1/mcp"
+}
+```
+
+### 3. Run Packaging Script
+
+Choose the appropriate script for your platform:
+
+```bash
+# VSCode
+./scripts/add-endpoints-to-vsix.sh \
+  cline-3.55.0.vsix \
+  cline-3.55.0-yourcompany.vsix \
+  endpoints.json
+
+# CLI
+./scripts/add-endpoints-to-npm.sh \
+  cline-3.55.0.tgz \
+  cline-3.55.0-yourcompany.tgz \
+  endpoints.json
+
+# JetBrains
+./scripts/add-endpoints-to-jetbrains.sh \
+  cline-jetbrains-3.55.0.zip \
+  cline-jetbrains-3.55.0-yourcompany.zip \
+  endpoints.json
+```
+
+### 4. Distribute to Users
+
+Distribute the enterprise package to your users through your internal channels:
+
+- **VSCode**: Install via `code --install-extension cline-3.55.0-yourcompany.vsix`
+- **CLI**: Install via `npm install -g cline-3.55.0-yourcompany.tgz`
+- **JetBrains**: Install through IDE plugin manager from disk
+
+## Verification
+
+After installation, verify the configuration is active:
+
+1. Launch Cline
+2. Check the logs for: `"Cline running in self-hosted mode with custom endpoints"`
+3. Confirm that environment switching is disabled (as expected in self-hosted mode)
+
+## User Experience
+
+### What Users See
+
+- Cline automatically uses the bundled endpoints
+- No manual configuration required
+- Environment switching is disabled (prevents accidental misconfiguration)
+- All API calls route to your organization's infrastructure
+
+### User Override
+
+Users **cannot** override bundled endpoints through the UI. The bundled configuration takes absolute precedence. This ensures:
+- Consistent configuration across the organization
+- No accidental connections to external services
+- Simplified deployment and support
+
+If users have a `~/.cline/endpoints.json` file, it will be ignored when bundled configuration is present.
+
+## Troubleshooting
+
+### Invalid Configuration Error
+
+If users see an error about invalid configuration on startup:
+
+```
+ClineConfigurationError: Invalid JSON in bundled endpoints configuration file
+```
+
+**Solution**: The bundled `endpoints.json` is malformed. Repackage with a valid JSON file.
+
+### Missing Required Field Error
+
+```
+ClineConfigurationError: Missing required field "apiBaseUrl" in endpoints configuration file
+```
+
+**Solution**: Ensure all three required fields are present in `endpoints.json`.
+
+### Invalid URL Error
+
+```
+ClineConfigurationError: Field "appBaseUrl" must be a valid URL. Got: "not-a-url"
+```
+
+**Solution**: All URLs must start with `http://` or `https://`.
+
+## Security Considerations
+
+1. **Bundle Validation**: The packaging scripts validate JSON structure and required fields
+2. **Read-Only Configuration**: Users cannot modify bundled endpoints through the UI
+3. **Self-Hosted Mode**: Automatic switch to self-hosted mode prevents external connections
+4. **Audit Trail**: All endpoint access is logged with configuration source
+
+## Updating Endpoints
+
+To update endpoints for existing installations:
+
+1. Create updated `endpoints.json`
+2. Repackage the same Cline version with new endpoints
+3. Distribute updated package
+4. Users reinstall/update the package
+
+The version number remains the same since only configuration changed, not the Cline code.
+
+## Support
+
+For questions or issues with bundled endpoints:
+
+1. Verify your `endpoints.json` is valid JSON with all required fields
+2. Check that URLs are accessible from user networks
+3. Review Cline logs for configuration loading messages
+4. Contact your Cline support representative for assistance
+
+## Example: Complete Workflow
+
+Here's a complete example for VSCode deployment:
+
+```bash
+# 1. Download official release
+curl -LO https://github.com/cline/cline/releases/download/v3.55.0/cline-3.55.0.vsix
+
+# 2. Create endpoints configuration
+cat > endpoints.json << 'EOF'
+{
+  "appBaseUrl": "https://cline.acme.internal",
+  "apiBaseUrl": "https://cline-api.acme.internal",
+  "mcpBaseUrl": "https://cline-api.acme.internal/v1/mcp"
+}
+EOF
+
+# 3. Validate JSON
+jq empty endpoints.json  # Should succeed silently
+
+# 4. Run packaging script
+./scripts/add-endpoints-to-vsix.sh \
+  cline-3.55.0.vsix \
+  cline-3.55.0-acme.vsix \
+  endpoints.json
+
+# 5. Verify output
+unzip -l cline-3.55.0-acme.vsix | grep endpoints.json
+# Should show: extension/endpoints.json
+
+# 6. Test installation (on test machine)
+code --install-extension cline-3.55.0-acme.vsix
+
+# 7. Distribute to organization
+# Upload to internal package repository
+# or distribute via configuration management system
+```
+
+## Changelog
+
+- **v3.55.0**: Initial release of bundled endpoints support
