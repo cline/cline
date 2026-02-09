@@ -805,6 +805,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages, maxM
 	const displayMessages = messages.filter((m) => {
 		// Skip api_req_finished, they're just markers
 		if (m.say === "api_req_finished") return false
+		// Skip hidden aggregated usage messages
+		if (m.say === "subagent_usage") return false
 		// Skip empty text messages
 		if (m.say === "text" && !m.text?.trim()) return false
 		// Skip checkpoint messages

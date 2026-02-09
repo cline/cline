@@ -1,6 +1,11 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { ClineAskUseSubagents, ClineSaySubagentStatus, SubagentStatusItem } from "@shared/ExtensionMessage"
+import {
+	ClineAskUseSubagents,
+	ClineSaySubagentStatus,
+	ClineSubagentUsageInfo,
+	SubagentStatusItem,
+} from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -114,6 +119,7 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			toolCalls: 0,
 			inputTokens: 0,
 			outputTokens: 0,
+			totalCost: 0,
 			contextTokens: 0,
 			contextWindow: 0,
 			contextUsagePercentage: 0,
@@ -188,6 +194,7 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 					current.toolCalls = update.stats.toolCalls || 0
 					current.inputTokens = update.stats.inputTokens || 0
 					current.outputTokens = update.stats.outputTokens || 0
+					current.totalCost = update.stats.totalCost || 0
 					current.contextTokens = update.stats.contextTokens || 0
 					current.contextWindow = update.stats.contextWindow || 0
 					current.contextUsagePercentage = update.stats.contextUsagePercentage || 0
@@ -198,6 +205,11 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 
 		const settled = await Promise.allSettled(execution)
 		clearInterval(abortPollInterval)
+		let usageTokensIn = 0
+		let usageTokensOut = 0
+		let usageCacheWrites = 0
+		let usageCacheReads = 0
+		let usageCost = 0
 		settled.forEach((result, index) => {
 			if (result.status === "rejected") {
 				entries[index].status = "failed"
@@ -210,13 +222,30 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			entries[index].toolCalls = result.value.stats.toolCalls || 0
 			entries[index].inputTokens = result.value.stats.inputTokens || 0
 			entries[index].outputTokens = result.value.stats.outputTokens || 0
+			entries[index].totalCost = result.value.stats.totalCost || 0
 			entries[index].contextTokens = result.value.stats.contextTokens || 0
 			entries[index].contextWindow = result.value.stats.contextWindow || 0
 			entries[index].contextUsagePercentage = result.value.stats.contextUsagePercentage || 0
+
+			usageTokensIn += result.value.stats.inputTokens || 0
+			usageTokensOut += result.value.stats.outputTokens || 0
+			usageCacheWrites += result.value.stats.cacheWriteTokens || 0
+			usageCacheReads += result.value.stats.cacheReadTokens || 0
+			usageCost += result.value.stats.totalCost || 0
 		})
 
 		const failures = entries.filter((entry) => entry.status === "failed").length
 		await queueStatusUpdate(failures > 0 ? "failed" : "completed", false)
+
+		const subagentUsagePayload: ClineSubagentUsageInfo = {
+			source: "subagents",
+			tokensIn: usageTokensIn,
+			tokensOut: usageTokensOut,
+			cacheWrites: usageCacheWrites,
+			cacheReads: usageCacheReads,
+			cost: usageCost,
+		}
+		await config.callbacks.say("subagent_usage", JSON.stringify(subagentUsagePayload))
 
 		const successCount = entries.length - failures
 		const totalToolCalls = entries.reduce((acc, entry) => acc + (entry.toolCalls || 0), 0)

@@ -190,6 +190,7 @@ export type ClineSay =
 	| "hook_output_stream"
 	| "subagent"
 	| "use_subagents"
+	| "subagent_usage"
 	| "conditional_rules_applied"
 
 export interface ClineSayTool {
@@ -278,6 +279,7 @@ export interface SubagentStatusItem {
 	toolCalls: number
 	inputTokens: number
 	outputTokens: number
+	totalCost: number
 	contextTokens: number
 	contextWindow: number
 	contextUsagePercentage: number
@@ -350,6 +352,15 @@ export interface ClineApiReqInfo {
 		delaySec: number
 		errorSnippet?: string
 	}
+}
+
+export interface ClineSubagentUsageInfo {
+	source: "subagents"
+	tokensIn: number
+	tokensOut: number
+	cacheWrites: number
+	cacheReads: number
+	cost: number
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"

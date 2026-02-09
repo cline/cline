@@ -107,6 +107,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
 		subagent: ClineSay.SUBAGENT_STATUS,
 		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
+		subagent_usage: ClineSay.SUBAGENT_USAGE,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
@@ -158,6 +159,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
 		[ClineSay.SUBAGENT_STATUS]: "subagent",
 		[ClineSay.USE_SUBAGENTS_SAY]: "use_subagents",
+		[ClineSay.SUBAGENT_USAGE]: "subagent_usage",
 	}
 
 	return mapping[say]
