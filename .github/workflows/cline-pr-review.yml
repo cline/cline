@@ -60,16 +60,11 @@ jobs:
           node-version: 22
           cache: "npm"
 
-      - name: Install and Verify Cline CLI
+      - name: Configure Cline with Cline Provider
         run: |
-          npm install -g cline
-          cline version # verify installation
-
-      - name: Configure Cline with Anthropic
-        run: |
-          npx cline auth --provider anthropic \
-            --apikey "${{ secrets.ANTHROPIC_API_KEY }}" \
-            --modelid claude-opus-4-5-20251101
+          npx cline@nightly auth --provider cline \
+            --apikey "${{ secrets.CLINE_API_KEY }}" \
+            --modelid anthropic/claude-opus-4.6
 
       - name: Get PR number
         id: pr
@@ -103,7 +98,7 @@ jobs:
               ]
             }
         run: |
-          npx cline --yolo 'You'\''re a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+          npx cline@nightly --yolo --verbose 'You'\''re a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
           PR: #'"${PR_NUMBER}"'
 
