@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/huh"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // BYOProviderOption represents a selectable BYO (bring-your-own) provider option
@@ -14,7 +14,7 @@ type BYOProviderOption struct {
 }
 
 // GetBYOProviderList returns the list of supported BYO providers for CLI configuration.
-// This list excludes Cline provider which is handled separately.
+// This list excludes Beadsmith provider which is handled separately.
 func GetBYOProviderList() []BYOProviderOption {
 	return []BYOProviderOption{
 		{Name: "Anthropic", Provider: cline.ApiProvider_ANTHROPIC},

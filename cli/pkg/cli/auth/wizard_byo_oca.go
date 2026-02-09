@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/huh"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
@@ -60,7 +60,7 @@ func PromptForOcaConfig(ctx context.Context, manager *task.Manager) (*OcaConfig,
 // ApplyOcaConfig applies OCA configuration using partial updates
 func ApplyOcaConfig(ctx context.Context, manager *task.Manager, config *OcaConfig) error {
 	// Build the API configuration with all OCA fields
-	apiConfig := &cline.ModelsApiConfiguration{}
+	apiConfig := &beadsmith.ModelsApiConfiguration{}
 
 	// Set profile authentication fields (always required)
 	optionalFields := &OcaOptionalFields{}
@@ -85,7 +85,7 @@ func ApplyOcaConfig(ctx context.Context, manager *task.Manager, config *OcaConfi
 	fieldMask := &fieldmaskpb.FieldMask{Paths: optionalPaths}
 
 	// Apply the partial update
-	request := &cline.UpdateApiConfigurationPartialRequest{
+	request := &beadsmith.UpdateApiConfigurationPartialRequest{
 		ApiConfiguration: apiConfig,
 		UpdateMask:       fieldMask,
 	}
@@ -129,7 +129,7 @@ func NewOcaAuthStatusListener(parentCtx context.Context) (*OcaAuthStatusListener
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Subscribe to OCA auth status updates
-	stream, err := client.Ocaaccount.OcaSubscribeToAuthStatusUpdate(ctx, &cline.EmptyRequest{})
+	stream, err := client.Ocaaccount.OcaSubscribeToAuthStatusUpdate(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to subscribe to OCA auth updates: %w", err)
@@ -343,8 +343,8 @@ func ensureOcaAuthenticated(ctx context.Context) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	// Initiate login (opens the browser with a callback URL from Cline Core)
-	response, err := client.Ocaaccount.OcaAccountLoginClicked(waitCtx, &cline.EmptyRequest{})
+	// Initiate login (opens the browser with a callback URL from Beadsmith Core)
+	response, err := client.Ocaaccount.OcaAccountLoginClicked(waitCtx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to initiate OCA login: %w", err)
 	}

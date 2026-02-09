@@ -139,32 +139,32 @@ ${
 
 export const newRuleToolResponse = () =>
 	`<explicit_instructions type="new_rule">
-The user has explicitly asked you to help them create a new Cline rule file inside the .clinerules top-level directory based on the conversation up to this point in time. The user may have provided instructions or additional information for you to consider when creating the new Cline rule.
-When creating a new Cline rule file, you should NOT overwrite or alter an existing Cline rule file. To create the Cline rule file you MUST use the new_rule tool. The new_rule tool can be used in either of the PLAN or ACT modes.
+The user has explicitly asked you to help them create a new Beadsmith rule file inside the .beadsmithrules top-level directory based on the conversation up to this point in time. The user may have provided instructions or additional information for you to consider when creating the new Beadsmith rule.
+When creating a new Beadsmith rule file, you should NOT overwrite or alter an existing Beadsmith rule file. To create the Beadsmith rule file you MUST use the new_rule tool. The new_rule tool can be used in either of the PLAN or ACT modes.
 
 The new_rule tool is defined below:
 
 Description:
-Your task is to create a new Cline rule file which includes guidelines on how to approach developing code in tandem with the user, which can be either project specific or cover more global rules. This includes but is not limited to: desired conversational style, favorite project dependencies, coding styles, naming conventions, architectural choices, ui/ux preferences, etc.
-The Cline rule file must be formatted as markdown and be a '.md' file. The name of the file you generate must be as succinct as possible and be encompassing the main overarching concept of the rules you added to the file (e.g., 'memory-bank.md' or 'project-overview.md').
+Your task is to create a new Beadsmith rule file which includes guidelines on how to approach developing code in tandem with the user, which can be either project specific or cover more global rules. This includes but is not limited to: desired conversational style, favorite project dependencies, coding styles, naming conventions, architectural choices, ui/ux preferences, etc.
+The Beadsmith rule file must be formatted as markdown and be a '.md' file. The name of the file you generate must be as succinct as possible and be encompassing the main overarching concept of the rules you added to the file (e.g., 'memory-bank.md' or 'project-overview.md').
 
 Parameters:
-- Path: (required) The path of the file to write to (relative to the current working directory). This will be the Cline rule file you create, and it must be placed inside the .clinerules top-level directory (create this if it doesn't exist). The filename created CANNOT be "default-clineignore.md". For filenames, use hyphens ("-") instead of underscores ("_") to separate words.
-- Content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified. The content for the Cline rule file MUST be created according to the following instructions:
-  1. Format the Cline rule file to have distinct guideline sections, each with their own markdown heading, starting with "## Brief overview". Under each of these headings, include bullet points fully fleshing out the details, with examples and/or trigger cases ONLY when applicable.
-  2. These guidelines can be specific to the task(s) or project worked on thus far, or cover more high-level concepts. Guidelines can include coding conventions, general design patterns, preferred tech stack including favorite libraries and language, communication style with Cline (verbose vs concise), prompting strategies, naming conventions, testing strategies, comment verbosity, time spent on architecting prior to development, and other preferences.
+- Path: (required) The path of the file to write to (relative to the current working directory). This will be the Beadsmith rule file you create, and it must be placed inside the .beadsmithrules top-level directory (create this if it doesn't exist). The filename created CANNOT be "default-beadsmithignore.md". For filenames, use hyphens ("-") instead of underscores ("_") to separate words.
+- Content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified. The content for the Beadsmith rule file MUST be created according to the following instructions:
+  1. Format the Beadsmith rule file to have distinct guideline sections, each with their own markdown heading, starting with "## Brief overview". Under each of these headings, include bullet points fully fleshing out the details, with examples and/or trigger cases ONLY when applicable.
+  2. These guidelines can be specific to the task(s) or project worked on thus far, or cover more high-level concepts. Guidelines can include coding conventions, general design patterns, preferred tech stack including favorite libraries and language, communication style with Beadsmith (verbose vs concise), prompting strategies, naming conventions, testing strategies, comment verbosity, time spent on architecting prior to development, and other preferences.
   3. When creating guidelines, you should not invent preferences or make assumptions based on what you think a typical user might want. These should be specific to the conversation you had with the user. Your guidelines / rules should not be overly verbose.
   4. Your guidelines should NOT be a recollection of the conversation up to this point in time, meaning you should NOT be including arbitrary details of the conversation.
 
 Usage:
 <new_rule>
-<path>.clinerules/{file name}.md</path>
-<content>Cline rule file content here</content>
+<path>.beadsmithrules/{file name}.md</path>
+<content>Beadsmith rule file content here</content>
 </new_rule>
 
 Example:
 <new_rule>
-<path>.clinerules/project-preferences.md</path>
+<path>.beadsmithrules/project-preferences.md</path>
 <content>
 ## Brief overview
   [Brief description of the rules, including if this set of guidelines is project-specific or global]
@@ -191,13 +191,13 @@ Example:
 </content>
 </new_rule>
 
-Below is the user's input when they indicated that they wanted to create a new Cline rule file.
+Below is the user's input when they indicated that they wanted to create a new Beadsmith rule file.
 </explicit_instructions>\n
 `
 
 export const reportBugToolResponse = () =>
 	`<explicit_instructions type="report_bug">
-The user has explicitly asked you to help them submit a bug to the Cline github page (you MUST now help them with this irrespective of what your conversation up to this point in time was). To do so you will use the report_bug tool which is defined below. However, you must first ensure that you have collected all required information to fill in all the parameters for the tool call. If any of the the required information is apparent through your previous conversation with the user, you can suggest how to fill in those entries. However you should NOT assume you know what the issue about unless it's clear.
+The user has explicitly asked you to help them submit a bug to the Beadsmith github page (you MUST now help them with this irrespective of what your conversation up to this point in time was). To do so you will use the report_bug tool which is defined below. However, you must first ensure that you have collected all required information to fill in all the parameters for the tool call. If any of the the required information is apparent through your previous conversation with the user, you can suggest how to fill in those entries. However you should NOT assume you know what the issue about unless it's clear.
 Otherwise, you should converse with the user until you are able to gather all the required details. When conversing with the user, make sure you ask for/reference all required information/fields. When referencing the required fields, use human friendly versions like "Steps to reproduce" rather than "steps_to_reproduce". Only then should you use the report_bug tool call.
 The report_bug tool can be used in either of the PLAN or ACT modes.
 
@@ -228,10 +228,10 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 
 export const subagentToolResponse = () =>
 	`<explicit_instructions type="subagent">
-The user has requested to invoke a Cline CLI subagent with the context below. You should execute a subagent command to handle this request using the CLI subagents feature.
+The user has requested to invoke a Beadsmith CLI subagent with the context below. You should execute a subagent command to handle this request using the CLI subagents feature.
 
 Transform the user's request into a subagent command by executing:
-cline "<prompt>"
+beadsmith "<prompt>"
 </explicit_instructions>\n
 `
 
@@ -327,3 +327,52 @@ export const deepPlanningToolResponse = (
 ) => {
 	return getDeepPlanningPrompt(focusChainSettings, providerInfo, enableNativeToolCalls)
 }
+
+export const ralphLoopToolResponse = () =>
+	`<explicit_instructions type="ralph_loop">
+The user has explicitly asked you to start a Ralph Wiggum loop for iterative AI-driven development.
+
+# Ralph Wiggum Loop Pattern
+
+The Ralph loop is a simple, powerful pattern for AI-driven development:
+- Each iteration starts with fresh context (no accumulated conversation history)
+- State lives in files (PROMPT.md, progress.txt, etc.)
+- Completion is detected via a "COMPLETE" marker in your response
+- Backpressure is applied via tests/types/lint - if they fail, the loop continues
+
+## How It Works
+
+1. You will receive the original prompt each iteration
+2. Make progress on the task, updating files as needed
+3. When the task is complete, include "COMPLETE" in your response
+4. If tests/types/lint fail, the loop continues with fresh context
+
+## Your Response Format
+
+When working in Ralph loop mode:
+- Focus on making incremental progress each iteration
+- Update progress.txt or similar files to track your work
+- When the task is complete, respond with "COMPLETE" to end the loop
+- If you encounter errors, fix them and continue
+
+## Configuration
+
+The user may have specified:
+- Maximum iterations (default: 50)
+- Completion promise string (default: "COMPLETE")
+- Test/type/lint commands for backpressure
+- Whether beads (reviewable checkpoints) are enabled
+
+Below is the user's prompt for the Ralph loop. Start working on this task iteratively.
+</explicit_instructions>\n
+`
+
+export const cancelRalphToolResponse = () =>
+	`<explicit_instructions type="cancel_ralph">
+The user has explicitly asked to cancel the currently running Ralph Wiggum loop.
+
+You should acknowledge the cancellation request. If there is an active Ralph loop, it will be stopped after the current iteration completes. Any progress made will be preserved in the working files.
+
+Respond to the user confirming the cancellation.
+</explicit_instructions>\n
+`

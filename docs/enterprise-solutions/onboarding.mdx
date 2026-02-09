@@ -1,29 +1,29 @@
 ---
 title: "Onboarding"
 
-description: "This guide explains how administrators configure SSO provisioning and user management in Cline Enterprise."
+description: "This guide explains how administrators configure SSO provisioning and user management in Beadsmith Enterprise."
 ---
 
 ## Overview
-Cline Enterprise integrates with your existing identity provider (IdP) via WorkOS to deliver secure SSO and zero-touch user lifecycle management. In this guide, you'll connect your IdP (Okta, Azure AD, Google Workspace, or any SAML/OIDC provider), enable just-in-time (JIT) provisioning so new users are created automatically on first sign-in, and configure role mapping so permissions stay aligned with your directory—no manual invites or seat reconciliations required.
+Beadsmith Enterprise integrates with your existing identity provider (IdP) via WorkOS to deliver secure SSO and zero-touch user lifecycle management. In this guide, you'll connect your IdP (Okta, Azure AD, Google Workspace, or any SAML/OIDC provider), enable just-in-time (JIT) provisioning so new users are created automatically on first sign-in, and configure role mapping so permissions stay aligned with your directory—no manual invites or seat reconciliations required.
 
 
 ## Prerequisites
 
-- [Cline Enterprise License](https://cline.bot/enterprise)
+- [Beadsmith Enterprise License](https://beadsmith.bot/enterprise)
 - Access to your identity provider (IdP) configuration (e.g., Okta, Azure AD, Google Workspace)
 - Knowledge of your organization's SSO requirements
 
 ## Configuration Steps
 
-### Step 1: Onboard to Cline Enterprise license
+### Step 1: Onboard to Beadsmith Enterprise license
 
 Your IdP administrator will receive an email with a link to register their organization with WorkOS during onboarding.
 
 ### Step 2: Configure Your Identity Provider
 
 <Info>
-For a short overview of where SSO configuration lives (Cline dashboard vs WorkOS vs your IdP), see [SSO Setup](/enterprise-solutions/sso-setup).
+For a short overview of where SSO configuration lives (Beadsmith dashboard vs WorkOS vs your IdP), see [SSO Setup](/enterprise-solutions/sso-setup).
 </Info>
 
 Connect your identity provider (IdP) to WorkOS:
@@ -38,7 +38,7 @@ For more explicit instruction on connecting your IdP, refer to the [WorkOS SSO d
 
 ### Step 3: Configure User Provisioning
 
-Cline Enterprise uses **just-in-time provisioning** that works automatically:
+Beadsmith Enterprise uses **just-in-time provisioning** that works automatically:
 
 - **Organizations are created automatically**
 - **Users gain access automatically** on their first SSO sign-in, once their credentials have been configured by the IdP administrator.
@@ -51,14 +51,14 @@ No additional configuration is needed. Users are provisioned automatically when 
 
 User roles are mapped automatically from your IdP:
 
-- **Admin** in IdP → **Admin** role in Cline (Note: The first Owner of the org is created manually during onboarding)
-- **Member** in IdP → **Member** role in Cline
+- **Admin** in IdP → **Admin** role in Beadsmith (Note: The first Owner of the org is created manually during onboarding)
+- **Member** in IdP → **Member** role in Beadsmith
 
 <Info>
     For what each role can access, see the [Roles and Permissions](/enterprise-solutions/team-management/managing-members) page.
 </Info>
 
-If needed, you can configure additional user attributes in the Cline Admin console:
+If needed, you can configure additional user attributes in the Beadsmith Admin console:
 
 1. Go to **Settings → Authentication → User Attributes**
 2. Map attributes such as email and name based on your IdP configuration
@@ -71,7 +71,7 @@ Before allowing users to sign in, test the SSO flow to ensure everything is conf
 
 **To test the connection:**
 
-1. In the WorkOS dashboard (or Cline Admin console if available), locate and click **Test SSO Connection**
+1. In the WorkOS dashboard (or Beadsmith Admin console if available), locate and click **Test SSO Connection**
 2. You'll be redirected to your IdP's login page
 3. Enter valid credentials for a test user
 4. After successful authentication, you should be redirected back
@@ -83,15 +83,15 @@ Before allowing users to sign in, test the SSO flow to ensure everything is conf
 
 ### User Access
 
-Once SSO is configured, users in your IdP can access Cline automatically without manual invites or account setup.
+Once SSO is configured, users in your IdP can access Beadsmith automatically without manual invites or account setup.
 
 **First-time sign-in flow:**
 
-1. User navigates to Cline and clicks **Sign in with SSO**
+1. User navigates to Beadsmith and clicks **Sign in with SSO**
 2. User authenticates via your organization's IdP
-3. Cline automatically creates their account in your Organization
+3. Beadsmith automatically creates their account in your Organization
 4. Role is assigned based on their IdP role (see [Step 4](#step-4-configure-user-attributes-mapping))
-5. User is redirected to Cline and can begin working
+5. User is redirected to Beadsmith and can begin working
 
 **What happens automatically:**
 - Account creation with correct organization assignment
@@ -126,7 +126,7 @@ Steps to verify successful configuration:
 2. **Verify User Provisioning**: Confirm that the user is automatically created and has appropriate role permissions
 3. **Check User Attributes**: Verify that user information (name, email, organization) is correctly populated
 4. **Test Role Changes**: Update a user's role in your IdP and verify it syncs on their next login
-5. **Test User Deprovisioning**: Remove a user from your IdP and verify they lose access to Cline on their next login attempt
+5. **Test User Deprovisioning**: Remove a user from your IdP and verify they lose access to Beadsmith on their next login attempt
 6. **Review Audit Logs**: Check WorkOS audit logs to ensure authentication events are being recorded
 
 ---

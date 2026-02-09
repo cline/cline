@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // StreamingDisplay manages streaming message display with deduplication
@@ -34,7 +34,7 @@ func NewStreamingDisplay(state *types.ConversationState, renderer *Renderer) *St
 }
 
 // HandlePartialMessage processes partial messages with streaming support
-func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
+func (s *StreamingDisplay) HandlePartialMessage(msg *types.BeadsmithMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -1,19 +1,19 @@
-import { String } from "@shared/proto/cline/common"
-import { ClineEnv } from "@/config"
+import { String } from "@shared/proto/beadsmith/common"
+import { BeadsmithEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { WebviewProvider } from "@/core/webview"
-import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { BEADSMITH_API_ENDPOINT } from "@/shared/beadsmith/api"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { buildBasicClineHeaders } from "../EnvUtils"
+import { buildBasicBeadsmithHeaders } from "../EnvUtils"
 import { AuthService } from "./AuthService"
 
 export class AuthServiceMock extends AuthService {
 	protected constructor(controller: Controller) {
 		super(controller)
 
-		if (process?.env?.CLINE_ENVIRONMENT !== "local") {
+		if (process?.env?.BEADSMITH_ENVIRONMENT !== "local") {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
@@ -38,25 +38,25 @@ export class AuthServiceMock extends AuthService {
 	}
 
 	override async getAuthToken(): Promise<string | null> {
-		if (!this._clineAuthInfo) {
+		if (!this._beadsmithAuthInfo) {
 			return null
 		}
-		return this._clineAuthInfo.idToken
+		return this._beadsmithAuthInfo.idToken
 	}
 
 	override async createAuthRequest(): Promise<String> {
 		// Use URL object for more graceful query construction
-		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
+		const authUrl = new URL(BeadsmithEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
-		if (this._authenticated && this._clineAuthInfo) {
+		if (this._authenticated && this._beadsmithAuthInfo) {
 			Logger.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
 		}
 
 		try {
-			// Use token exchange endpoint like ClineAuthProvider
-			const tokenExchangeUri = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, ClineEnv.config().apiBaseUrl)
+			// Use token exchange endpoint like BeadsmithAuthProvider
+			const tokenExchangeUri = new URL(BEADSMITH_API_ENDPOINT.TOKEN_EXCHANGE, BeadsmithEnv.config().apiBaseUrl)
 			const tokenType = "personal"
 			const testCode = `test-${tokenType}-token`
 
@@ -64,7 +64,7 @@ export class AuthServiceMock extends AuthService {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					...(await buildBasicClineHeaders()),
+					...(await buildBasicBeadsmithHeaders()),
 				},
 				body: JSON.stringify({
 					code: testCode,
@@ -84,18 +84,18 @@ export class AuthServiceMock extends AuthService {
 
 			const authData = responseData.data
 
-			// Convert to ClineAuthInfo format matching ClineAuthProvider
-			this._clineAuthInfo = {
+			// Convert to BeadsmithAuthInfo format matching BeadsmithAuthProvider
+			this._beadsmithAuthInfo = {
 				idToken: authData.accessToken,
 				refreshToken: authData.refreshToken,
 				expiresAt: new Date(authData.expiresAt).getTime() / 1000,
 				userInfo: {
-					id: authData.userInfo.clineUserId || authData.userInfo.subject,
+					id: authData.userInfo.beadsmithUserId || authData.userInfo.subject,
 					email: authData.userInfo.email,
 					displayName: authData.userInfo.name,
 					createdAt: new Date().toISOString(),
 					organizations: authData.organizations,
-					appBaseUrl: ClineEnv.config().appBaseUrl,
+					appBaseUrl: BeadsmithEnv.config().appBaseUrl,
 					subject: authData.userInfo.subject,
 				},
 				provider: this._provider?.name || "mock",
@@ -112,7 +112,7 @@ export class AuthServiceMock extends AuthService {
 		} catch (error) {
 			Logger.error("Error signing in with mock server:", error)
 			this._authenticated = false
-			this._clineAuthInfo = null
+			this._beadsmithAuthInfo = null
 			throw error
 		}
 
@@ -132,18 +132,18 @@ export class AuthServiceMock extends AuthService {
 
 	override async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
 		try {
-			if (this._clineAuthInfo) {
+			if (this._beadsmithAuthInfo) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
 				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
-				this._clineAuthInfo = null
+				this._beadsmithAuthInfo = null
 			}
 		} catch (error) {
 			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
-			this._clineAuthInfo = null
+			this._beadsmithAuthInfo = null
 			return
 		}
 	}

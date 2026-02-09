@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/common"
 	_ "github.com/glebarez/go-sqlite"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -43,10 +43,10 @@ type LockManager struct {
 }
 
 // NewLockManager creates a new lock manager
-func NewLockManager(clineDir string) (*LockManager, error) {
-	dbPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "locks.db")
+func NewLockManager(beadsmithDir string) (*LockManager, error) {
+	dbPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "locks.db")
 
-	// Ensure the directory exists (for future DB creation by cline-core)
+	// Ensure the directory exists (for future DB creation by beadsmith-core)
 	dbDir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
@@ -86,7 +86,7 @@ func (lm *LockManager) ensureConnection() error {
 		return nil
 	}
 
-	// Check if database exists now (created by cline-core)
+	// Check if database exists now (created by beadsmith-core)
 	if _, err := os.Stat(lm.dbPath); os.IsNotExist(err) {
 		return fmt.Errorf("database not available")
 	}
@@ -248,8 +248,8 @@ func (lm *LockManager) ListInstancesWithHealthCheck(ctx context.Context) ([]*com
 }
 
 // GetDefaultInstance reads the default instance from the settings file
-func GetDefaultInstance(clineDir string) (string, error) {
-	settingsPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+func GetDefaultInstance(beadsmithDir string) (string, error) {
+	settingsPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -272,27 +272,27 @@ func GetDefaultInstance(clineDir string) (string, error) {
 }
 
 // SetDefaultInstance writes the default instance to the settings file with proper locking
-func SetDefaultInstance(clineDir, address string) error {
+func SetDefaultInstance(beadsmithDir, address string) error {
 	// Create lock manager for this operation
-	lockManager, err := NewLockManager(clineDir)
+	lockManager, err := NewLockManager(beadsmithDir)
 	if err != nil {
 		return fmt.Errorf("Warning: SQLite unavailable, writing without lock: %v\n", err)
 	}
 	defer lockManager.Close()
 
-	settingsPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+	settingsPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 
 	// Generate a unique identifier for this CLI process
 	heldBy := fmt.Sprintf("cli-process-%d", os.Getpid())
 
 	// Use file lock for the write operation
 	return lockManager.WithFileLock(settingsPath, heldBy, func() error {
-		return writeDefaultInstanceJSONToDisk(clineDir, address)
+		return writeDefaultInstanceJSONToDisk(beadsmithDir, address)
 	})
 }
 
-func writeDefaultInstanceJSONToDisk(clineDir, address string) error {
-	settingsDir := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings")
+func writeDefaultInstanceJSONToDisk(beadsmithDir, address string) error {
+	settingsDir := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings")
 	if err := os.MkdirAll(settingsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create settings directory: %w", err)
 	}

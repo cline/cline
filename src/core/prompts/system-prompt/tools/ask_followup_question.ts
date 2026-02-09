@@ -1,11 +1,11 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
-const generic: ClineToolSpec = {
+const generic: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
-	id: ClineDefaultTool.ASK,
+	id: BeadsmithDefaultTool.ASK,
 	name: "ask_followup_question",
 	description:
 		"Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.",
@@ -29,9 +29,9 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
-	id: ClineDefaultTool.ASK,
+	id: BeadsmithDefaultTool.ASK,
 	name: "ask_followup_question",
 	description:
 		"Ask user a question for clarifying or gathering information needed to complete the task. For example, ask the user clarifying questions about a key implementation decision. You should only ask one question.",
@@ -52,7 +52,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	...NATIVE_NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
 }

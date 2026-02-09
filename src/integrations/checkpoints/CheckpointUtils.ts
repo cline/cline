@@ -87,7 +87,7 @@ export async function validateWorkspacePath(workspacePath: string): Promise<void
 export async function getWorkingDirectory(): Promise<string> {
 	const cwd = await getCwd()
 	if (!cwd) {
-		throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
+		throw new Error("No workspace detected. Please open Beadsmith in a workspace to use checkpoints.")
 	}
 
 	await validateWorkspacePath(cwd)

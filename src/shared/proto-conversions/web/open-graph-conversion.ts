@@ -1,5 +1,5 @@
 import { OpenGraphData as DomainOpenGraphData } from "@integrations/misc/link-preview"
-import { OpenGraphData as ProtoOpenGraphData } from "@shared/proto/cline/web"
+import { OpenGraphData as ProtoOpenGraphData } from "@shared/proto/beadsmith/web"
 
 /**
  * Converts domain OpenGraphData objects to proto OpenGraphData objects

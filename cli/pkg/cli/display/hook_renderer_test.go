@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 func TestHookRenderer_RenderHookStatus_FailedShowsErrorAndScript(t *testing.T) {
@@ -15,10 +15,10 @@ func TestHookRenderer_RenderHookStatus_FailedShowsErrorAndScript(t *testing.T) {
 		ToolName:    "execute_command",
 		Status:      "failed",
 		ExitCode:    2,
-		ScriptPaths: []string{"repo/.clinerules/hooks/PreToolUse"},
+		ScriptPaths: []string{"repo/.beadsmithrules/hooks/PreToolUse"},
 		Error: &types.HookError{
 			Message:    "boom",
-			ScriptPath: "repo/.clinerules/hooks/PreToolUse",
+			ScriptPath: "repo/.beadsmithrules/hooks/PreToolUse",
 		},
 	})
 
@@ -28,7 +28,7 @@ func TestHookRenderer_RenderHookStatus_FailedShowsErrorAndScript(t *testing.T) {
 	if !strings.Contains(msg, "- Error: boom") {
 		t.Fatalf("expected error line in rendered output, got: %q", msg)
 	}
-	if !strings.Contains(msg, "- Script: `repo/.clinerules/hooks/PreToolUse`") {
+	if !strings.Contains(msg, "- Script: `repo/.beadsmithrules/hooks/PreToolUse`") {
 		t.Fatalf("expected script line in rendered output, got: %q", msg)
 	}
 }
@@ -44,12 +44,12 @@ func TestHookRenderer_RenderHookStatus_PendingToolInfoAppearsDirectlyUnderHeader
 			Tool: "write_to_file",
 			Path: "src/foo.ts",
 		},
-		ScriptPaths: []string{"repo/.clinerules/hooks/PreToolUse"},
+		ScriptPaths: []string{"repo/.beadsmithrules/hooks/PreToolUse"},
 	})
 
 	header := "### Cline hook running: PreToolUse"
 	pending := "- Pending: write_to_file src/foo.ts"
-	runningHook := "- Running hook: `repo/.clinerules/hooks/PreToolUse`"
+	runningHook := "- Running hook: `repo/.beadsmithrules/hooks/PreToolUse`"
 
 	headerIdx := strings.Index(msg, header)
 	if headerIdx == -1 {

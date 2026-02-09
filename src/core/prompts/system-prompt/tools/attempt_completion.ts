@@ -1,10 +1,10 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 
-const id = ClineDefaultTool.ATTEMPT
+const id = BeadsmithDefaultTool.ATTEMPT
 
-const generic: ClineToolSpec = {
+const generic: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "attempt_completion",
@@ -31,14 +31,14 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 			instruction:
 				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (required if you used task_progress in previous tool uses)",
-			dependencies: [ClineDefaultTool.TODO],
+			dependencies: [BeadsmithDefaultTool.TODO],
 			description:
 				"If you were using task_progress to update the task progress, you must include the completed list in the result as well.",
 		},
 	],
 }
 
-const GPT_5: ClineToolSpec = {
+const GPT_5: BeadsmithToolSpec = {
 	variant: ModelFamily.GPT_5,
 	id,
 	name: "attempt_completion",
@@ -65,14 +65,14 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 			instruction:
 				"A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (required if you used task_progress in previous tool uses)",
-			dependencies: [ClineDefaultTool.TODO],
+			dependencies: [BeadsmithDefaultTool.TODO],
 			description:
 				"If you were using task_progress to update the task progress, you must include the completed list in the result as well.",
 		},
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id,
 	name: "attempt_completion",
@@ -93,14 +93,14 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 		{
 			name: "task_progress",
 			required: false,
-			dependencies: [ClineDefaultTool.TODO],
+			dependencies: [BeadsmithDefaultTool.TODO],
 			instruction:
 				"A checklist showing task progress with the latest status of each subtasks included previously, if any. If you are calling attempt completion, and all items in this list have been completed, they must be marked as completed in this response.",
 		},
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	...NATIVE_NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
 }

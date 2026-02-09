@@ -11,10 +11,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/output"
-	"github.com/cline/cli/pkg/cli/slash"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/slash"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // InputHandler manages interactive user input during follow mode
@@ -32,7 +32,7 @@ type InputHandler struct {
 	cancelChan           chan struct{}
 	feedbackApproval     bool                // Track if we're in feedback after approval
 	feedbackApproved     bool                // Track the approval decision
-	approvalMessage      *types.ClineMessage // Store the approval message for determining action
+	approvalMessage      *types.BeadsmithMessage // Store the approval message for determining action
 	slashCommandRegistry *slash.Registry     // Slash command registry for autocomplete
 	ctx                  context.Context     // Context for restart callback
 }
@@ -238,7 +238,7 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 }
 
 // determineAutoApprovalAction determines which auto-approval action to enable based on the ask type
-func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
+func determineAutoApprovalAction(msg *types.BeadsmithMessage) (string, error) {
 	switch types.AskType(msg.Ask) {
 	case types.AskTypeTool:
 		// Parse tool message to determine if it's a read or edit operation
@@ -296,7 +296,7 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 }
 
 // promptForApproval displays an approval prompt for tool/command requests
-func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
+func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.BeadsmithMessage) (bool, string, error) {
 	// Store the approval message for later use in determining auto-approval action
 	ih.approvalMessage = msg
 

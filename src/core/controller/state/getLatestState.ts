@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { State } from "@shared/proto/cline/state"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { State } from "@shared/proto/beadsmith/state"
 import { Controller } from "../index"
 
 /**

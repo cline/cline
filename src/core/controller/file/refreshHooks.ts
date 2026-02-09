@@ -1,4 +1,4 @@
-import { HookInfo, HooksToggles, WorkspaceHooks } from "@shared/proto/cline/file"
+import { HookInfo, HooksToggles, WorkspaceHooks } from "@shared/proto/beadsmith/file"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
@@ -11,7 +11,7 @@ export async function refreshHooks(
 	_request?: any,
 	globalHooksDirOverride?: string,
 ): Promise<HooksToggles> {
-	const globalHooksDir = globalHooksDirOverride || path.join(os.homedir(), "Documents", "Cline", "Hooks")
+	const globalHooksDir = globalHooksDirOverride || path.join(os.homedir(), "Documents", "Beadsmith", "Hooks")
 	const isWindows = process.platform === "win32"
 
 	// Collect global hooks
@@ -39,7 +39,7 @@ export async function refreshHooks(
 	const workspaceHooksList: WorkspaceHooks[] = []
 
 	for (const workspacePath of workspacePaths.paths) {
-		const workspaceHooksDir = path.join(workspacePath, ".clinerules", "hooks")
+		const workspaceHooksDir = path.join(workspacePath, ".beadsmithrules", "hooks")
 		const hooks: HookInfo[] = []
 
 		for (const hookName of VALID_HOOK_TYPES) {

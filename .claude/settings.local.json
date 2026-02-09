@@ -1,0 +1,43 @@
+{
+	"permissions": {
+		"allow": [
+			"Bash(npm run protos:*)",
+			"Bash(npm install)",
+			"Bash(npm run check-types:*)",
+			"Bash(npm run compile:*)",
+			"Bash(grep:*)",
+			"Bash(git mv:*)",
+			"Bash(find cli -type f -name \"*.go\" -exec sed -i \"\ns/You have been signed out of Cline/You have been signed out of Beadsmith/g\ns/signed in to Cline/signed in to Beadsmith/g\ns/HandleChangeClineModel/HandleChangeBeadsmithModel/g\ns/authenticated with Cline/authenticated with Beadsmith/g\ns/Cline model selection/Beadsmith model selection/g\ns/SelectClineModel/SelectBeadsmithModel/g\ns/Configuring default Cline model/Configuring default Beadsmith model/g\ns/SetDefaultClineModel/SetDefaultBeadsmithModel/g\ns/Cline-authenticated/Beadsmith-authenticated/g\n\" {} ;)",
+			"Bash(dir:*)",
+			"Bash(npx tsc:*)",
+			"Bash(find:*)",
+			"Bash(node scripts/generate-state-proto.mjs:*)",
+			"Bash(npm install:*)",
+			"Bash(head:*)",
+			"Bash(wc:*)",
+			"Bash(npm run test:unit:*)",
+			"Bash(npx mocha:*)",
+			"Bash(powershell -Command \"Expand-Archive -Path ''copilot-cli.skill'' -DestinationPath ''.'' -Force\")",
+			"Bash(powershell -Command \"Copy-Item ''copilot-cli.skill'' ''copilot-cli.zip''; Expand-Archive -Path ''copilot-cli.zip'' -DestinationPath ''.'' -Force; Remove-Item ''copilot-cli.zip''\")",
+			"Bash(powershell -Command:*)",
+			"Bash(gemini -p:*)",
+			"Bash(codex exec:*)",
+			"Bash(copilot \"Analyze this repository for production deployment readiness. Check: 1\\) GitHub Actions workflow status 2\\) Branch protection recommendations 3\\) CI/CD configuration 4\\) Open issues that might block release 5\\) PR hygiene 6\\) Release process maturity. Provide actionable recommendations.\")",
+			"Bash(copilot:*)",
+			"Bash(codex --full-auto \"Fix the following security issues in this codebase:\n\n1. In src/core/webview/WebviewProvider.ts, wrap the localhost:8097 dev script with an IS_DEV check so it only loads in development mode. Find the line with ''http://localhost:8097'' and wrap it with process.env.IS_DEV condition.\n\n2. In webview-ui/src/components/common/MermaidBlock.tsx, change securityLevel from ''loose'' to ''strict'' to prevent XSS.\n\n3. For the highlight function in webview-ui/src/components/history/HistoryView.tsx, ensure it escapes HTML entities before wrapping with span tags.\n\nMake these changes now.\")",
+			"Bash(codex --full-auto \"Fix the Ralph loop bug in src/core/ralph/RalphLoopController.ts. \n\nThe runSuccessCriteria method has TODO comments where test commands are logged but never executed. Instead, results are always set to true.\n\nImplement actual command execution:\n1. Import exec or spawn from child_process\n2. Replace the TODO sections with actual command execution\n3. Return true only if command exits with code 0\n4. Use 60 second timeout for tests, 30 seconds for type check and lint\n5. Follow the pattern used in src/core/beads/BeadManager.ts runTests method\n\nMake these changes now.\")",
+			"Bash(npx replace-in-files-cli:*)",
+			"Bash(npm run lint:*)",
+			"Bash(npm run build:webview:*)",
+			"Bash(npm show:*)",
+			"Bash(npm run:*)",
+			"Bash(more:*)",
+			"Bash(node --check:*)",
+			"Bash(timeout 10 cat:*)",
+			"Bash(node -e:*)",
+			"Bash(python:*)",
+			"Bash(node scripts/setup-dag-engine.mjs:*)",
+			"Bash(Get-Content \"C:\\\\Users\\\\DANIEL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-DanielHalwell-PythonProjects-beadsmith\\\\tasks\\\\b7cd3d7.output\" -Tail 30)"
+		]
+	}
+}

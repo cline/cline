@@ -1,5 +1,5 @@
-import type { AddRemoteMcpServerRequest } from "@shared/proto/cline/mcp"
-import { McpServers } from "@shared/proto/cline/mcp"
+import type { AddRemoteMcpServerRequest } from "@shared/proto/beadsmith/mcp"
+import { McpServers } from "@shared/proto/beadsmith/mcp"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"

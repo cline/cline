@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/cli/slash"
+	"github.com/beadsmith/cli/pkg/cli/slash"
 )
 
 const maxVisibleCompletions = 7

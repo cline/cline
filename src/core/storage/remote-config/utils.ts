@@ -142,8 +142,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 	}
 
-	const clineSettings = remoteConfig.providerSettings?.Cline
-	if (clineSettings) {
+	const beadsmithSettings = remoteConfig.providerSettings?.Cline
+	if (beadsmithSettings) {
 		transformed.planModeApiProvider = "cline"
 		transformed.actModeApiProvider = "cline"
 		providers.push("cline")

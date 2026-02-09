@@ -1,4 +1,4 @@
-import { SkillsToggles, ToggleSkillRequest } from "@shared/proto/cline/file"
+import { SkillsToggles, ToggleSkillRequest } from "@shared/proto/beadsmith/file"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 

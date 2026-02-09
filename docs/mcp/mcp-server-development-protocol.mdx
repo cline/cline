@@ -1,13 +1,13 @@
 ---
 title: "MCP Server Development Protocol"
-description: "This protocol is designed to streamline the development process of building MCP servers with Cline."
+description: "This protocol is designed to streamline the development process of building MCP servers with Beadsmith."
 ---
 
-> **Build and share your MCP servers with the world.** Once you've created a great MCP server, submit it to the [Cline MCP Marketplace](https://github.com/cline/mcp-marketplace) to make it discoverable and one-click installable by thousands of developers.
+> **Build and share your MCP servers with the world.** Once you've created a great MCP server, submit it to the [Beadsmith MCP Marketplace](https://github.com/beadsmith/mcp-marketplace) to make it discoverable and one-click installable by thousands of developers.
 
 ## What Are MCP Servers?
 
-Model Context Protocol (MCP) servers extend AI assistants like Cline by giving them the ability to:
+Model Context Protocol (MCP) servers extend AI assistants like Beadsmith by giving them the ability to:
 
 -   Access external APIs and services
 -   Retrieve real-time data
@@ -18,19 +18,19 @@ Without MCP, AI assistants are powerful but isolated. With MCP, they gain the ab
 
 ## The Development Protocol
 
-The heart of effective MCP server development is following a structured protocol. This protocol is implemented through a `.clinerules` file that lives at the **root** of your MCP working directory (/Users/your-name/Documents/Cline/MCP).
+The heart of effective MCP server development is following a structured protocol. This protocol is implemented through a `.beadsmithrules` file that lives at the **root** of your MCP working directory (/Users/your-name/Documents/Beadsmith/MCP).
 
-### Using `.clinerules` Files
+### Using `.beadsmithrules` Files
 
-A `.clinerules` file is a special configuration that Cline reads automatically when working in the directory where it's placed. These files:
+A `.beadsmithrules` file is a special configuration that Beadsmith reads automatically when working in the directory where it's placed. These files:
 
--   Configure Cline's behavior and enforce best practices
--   Switch Cline into a specialized MCP development mode
+-   Configure Beadsmith's behavior and enforce best practices
+-   Switch Beadsmith into a specialized MCP development mode
 -   Provide a step-by-step protocol for building servers
 -   Implement safety measures like preventing premature completion
 -   Guide you through planning, implementation, and testing phases
 
-Here's the complete MCP Server Development Protocol that should be placed in your `.clinerules` file:
+Here's the complete MCP Server Development Protocol that should be placed in your `.beadsmithrules` file:
 
 ````markdown
 # MCP Server Development Protocol
@@ -160,7 +160,7 @@ Only after ALL tools have been tested can attempt_completion be used.
 -   NEVER skip testing before completion
 ````
 
-When this `.clinerules` file is present in your working directory, Cline will:
+When this `.beadsmithrules` file is present in your working directory, Beadsmith will:
 
 1. Start in **PLAN MODE** to design your server before implementation
 2. Enforce proper implementation patterns in **ACT MODE**
@@ -171,13 +171,13 @@ When this `.clinerules` file is present in your working directory, Cline will:
 
 Creating an MCP server requires just a few simple steps to get started:
 
-### 1. Create a `.clinerules` file (IMPORTANT)
+### 1. Create a `.beadsmithrules` file (IMPORTANT)
 
-First, add a `.clinerules` file to the root of your MCP working directory using the protocol above. This file configures Cline to use the MCP development protocol when working in this folder.
+First, add a `.beadsmithrules` file to the root of your MCP working directory using the protocol above. This file configures Beadsmith to use the MCP development protocol when working in this folder.
 
 ### 2. Start a Chat with a Clear Description
 
-Begin your Cline chat by clearly describing what you want to build. Be specific about:
+Begin your Beadsmith chat by clearly describing what you want to build. Be specific about:
 
 -   The purpose of your MCP server
 -   Which API or service you want to integrate with
@@ -193,7 +193,7 @@ analysis, and retrieve company financial information.
 
 ### 3. Work Through the Protocol
 
-Cline will automatically start in PLAN MODE, guiding you through the planning process:
+Beadsmith will automatically start in PLAN MODE, guiding you through the planning process:
 
 -   Discussing the problem scope
 -   Reviewing API documentation
@@ -204,20 +204,20 @@ When ready, switch to ACT MODE using the toggle at the bottom of the chat to beg
 
 ### 4. Provide API Documentation Early
 
-One of the most effective ways to help Cline build your MCP server is to share official API documentation right at the start:
+One of the most effective ways to help Beadsmith build your MCP server is to share official API documentation right at the start:
 
 ```plaintext
 Here's the API documentation for the service:
 [Paste API documentation here]
 ```
 
-Providing comprehensive API details (endpoints, authentication, data structures) significantly improves Cline's ability to implement an effective MCP server.
+Providing comprehensive API details (endpoints, authentication, data structures) significantly improves Beadsmith's ability to implement an effective MCP server.
 
 ## Understanding the Two Modes
 
 ### PLAN MODE
 
-In this collaborative phase, you work with Cline to design your MCP server:
+In this collaborative phase, you work with Beadsmith to design your MCP server:
 
 -   Define the problem scope
 -   Choose appropriate APIs
@@ -227,7 +227,7 @@ In this collaborative phase, you work with Cline to design your MCP server:
 
 ### ACT MODE
 
-Once planning is complete, Cline helps implement the server:
+Once planning is complete, Beadsmith helps implement the server:
 
 -   Set up the project structure
 -   Write the implementation code
@@ -243,7 +243,7 @@ Let's walk through the development process of our AlphaAdvantage MCP server, whi
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/planning-phase.gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/planning-phase.gif"
 		alt="Planning phase demonstration"
 	/>
 </Frame>
@@ -271,7 +271,7 @@ During the planning phase, we:
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/building-mcp-plugin.gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/building-mcp-plugin.gif"
 		alt="Building MCP plugin demonstration"
 	/>
 </Frame>
@@ -598,7 +598,7 @@ try {
 
 ## MCP Resources
 
-Resources let your MCP servers expose data to Cline without executing code. They're perfect for providing context like files, API responses, or database records that Cline can reference during conversations.
+Resources let your MCP servers expose data to Beadsmith without executing code. They're perfect for providing context like files, API responses, or database records that Beadsmith can reference during conversations.
 
 ### Adding Resources to Your MCP Server
 
@@ -639,7 +639,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 })
 ```
 
-Resources make your MCP servers more context-aware, allowing Cline to access specific information without requiring you to copy/paste. For more information, refer to the [official documentation](https://modelcontextprotocol.io/docs/concepts/resources).
+Resources make your MCP servers more context-aware, allowing Beadsmith to access specific information without requiring you to copy/paste. For more information, refer to the [official documentation](https://modelcontextprotocol.io/docs/concepts/resources).
 
 ## Common Challenges and Solutions
 

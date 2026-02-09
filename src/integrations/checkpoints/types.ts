@@ -13,6 +13,14 @@ export interface ICheckpointManager {
 
 	presentMultifileDiff?(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean): Promise<void>
 
+	/**
+	 * Present a diff view for bead review, showing changes since a specific checkpoint hash.
+	 * @param startCheckpointHash The checkpoint hash from when the bead started
+	 * @param beadNumber The bead number for display in the diff title
+	 * @returns Promise that resolves when the diff view is opened
+	 */
+	presentBeadDiff?(startCheckpointHash: string, beadNumber: number): Promise<void>
+
 	// Optional method for multi-root specific initialization
 	initialize?(): Promise<void>
 

@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { AddRemoteMcpServerRequest, McpServers } from "@shared/proto/cline/mcp"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { AddRemoteMcpServerRequest, McpServers } from "@shared/proto/beadsmith/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { VSCodeButton, VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"

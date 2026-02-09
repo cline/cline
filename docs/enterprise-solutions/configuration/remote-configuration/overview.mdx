@@ -1,15 +1,15 @@
 ---
 title: "SaaS Provider Configuration"
 sidebarTitle: "Overview"
-description: "Configure inference providers through the Cline hosted admin console for centralized organization management"
+description: "Configure inference providers through the Beadsmith hosted admin console for centralized organization management"
 ---
 
 
-SaaS Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
+SaaS Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Beadsmith hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
 
 ## How Remote Configuration Works
 
-Remote configuration operates through Cline's hosted service at [app.cline.bot](https://app.cline.bot), where administrators can:
+Remote configuration operates through Beadsmith's hosted service at [app.beadsmith.bot](https://app.beadsmith.bot), where administrators can:
 
 <CardGroup cols={2}>
   <Card title="Centralized Setup" icon="gear">
@@ -31,11 +31,11 @@ Remote configuration operates through Cline's hosted service at [app.cline.bot](
 
 ## Supported Providers
 
-Cline supports remote configuration for the following inference providers:
+Beadsmith supports remote configuration for the following inference providers:
 
 | Provider | Use Case | Configuration | Member Setup |
 |----------|----------|---------------|--------------|
-| **Cline** | Organizations using Cline's native provider with centralized API key management | API provider selection, model access | No individual API keys needed - fully managed by organization |
+| **Beadsmith** | Organizations using Beadsmith's native provider with centralized API key management | API provider selection, model access | No individual API keys needed - fully managed by organization |
 | **Amazon Bedrock** | Organizations using AWS infrastructure | Region selection, VPC endpoints, cross-region inference, prompt caching | AWS credential configuration in VS Code |
 | **LiteLLM** | Organizations requiring multi-model access through a unified proxy | Proxy endpoint, authentication, model routing | API key or endpoint configuration in VS Code (or centralized with Master Key) |
 | **Google Vertex AI** | Organizations using Google Cloud Platform | Project ID, region selection, model access | Service account or credential configuration in VS Code |
@@ -47,11 +47,11 @@ The typical remote configuration process follows these steps:
 
 <Steps>
 <Step title="Administrator Setup">
-Access the Cline admin console and configure the desired inference provider with organization-wide settings.
+Access the Beadsmith admin console and configure the desired inference provider with organization-wide settings.
 </Step>
 
 <Step title="Automatic Distribution">
-Provider configuration is automatically distributed to all organization members signed into Cline.
+Provider configuration is automatically distributed to all organization members signed into Beadsmith.
 </Step>
 
 <Step title="Member Credential Setup">
@@ -59,7 +59,7 @@ Team members add their individual credentials (API keys, AWS profiles, etc.) to 
 </Step>
 
 <Step title="Immediate Access">
-Once credentials are configured, members can immediately start using the inference provider through Cline.
+Once credentials are configured, members can immediately start using the inference provider through Beadsmith.
 </Step>
 </Steps>
 
@@ -83,7 +83,7 @@ To get started with provider remote configuration:
 1. **Choose Your Provider**: Select the inference provider that best fits your organization's needs and existing infrastructure
 2. **Admin Configuration**: Follow the provider-specific admin configuration guide
 3. **Member Onboarding**: Have team members complete the provider-specific member configuration
-4. **Start Developing**: Begin using Cline with centrally managed inference provider access
+4. **Start Developing**: Begin using Beadsmith with centrally managed inference provider access
 
 Select your provider below to begin the configuration process:
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // Command represents a slash command available for autocomplete
@@ -42,14 +42,14 @@ func NewRegistry(ctx context.Context) *Registry {
 	return r
 }
 
-// FetchFromBackend fetches available commands from cline-core backend
+// FetchFromBackend fetches available commands from beadsmith-core backend
 func (r *Registry) FetchFromBackend(ctx context.Context) error {
 	grpcClient, err := global.GetDefaultClient(ctx)
 	if err != nil && global.Config.Verbose {
 		fmt.Printf("Warning: could not get gRPC client: %v\n", err)
 		return nil
 	}
-	resp, err := grpcClient.Slash.GetAvailableSlashCommands(ctx, &cline.EmptyRequest{})
+	resp, err := grpcClient.Slash.GetAvailableSlashCommands(ctx, &beadsmith.EmptyRequest{})
 	if err != nil && global.Config.Verbose {
 		fmt.Printf("Warning: could not get gRPC client: %v\n", err)
 		return nil

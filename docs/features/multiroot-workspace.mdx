@@ -3,11 +3,11 @@ title: "Multi-Root Workspaces"
 sidebarTitle: "Multi-Root Workspaces"
 ---
 
-Cline works with VSCode's multi-root workspaces, letting you manage multiple project folders or repositories in a single window. Whether you're working with a monorepo or separate Git repositories, Cline can read files, write code, and run commands across all of them.
+Beadsmith works with VSCode's multi-root workspaces, letting you manage multiple project folders or repositories in a single window. Whether you're working with a monorepo or separate Git repositories, Beadsmith can read files, write code, and run commands across all of them.
 
 <Frame>
   <video
-    src="https://storage.googleapis.com/cline_public_images/multiworkspace.mp4"
+    src="https://storage.googleapis.com/beadsmith_public_images/multiworkspace.mp4"
     autoPlay
     muted
     loop
@@ -18,7 +18,7 @@ Cline works with VSCode's multi-root workspaces, letting you manage multiple pro
 
 <Warning>
 Multi-root workspaces have two limitations:
-- **Cline rules** only work in the primary workspace folder
+- **Beadsmith rules** only work in the primary workspace folder
 - **Checkpoints** are disabled (restored when you return to a single folder)
 
 See [Current Limitations](#current-limitations) for details.
@@ -30,7 +30,7 @@ Before diving in, it helps to understand the two common patterns for organizing 
 
 ### Why Use Multi-Root Workspaces?
 
-Cline can complete tasks that span multiple projects or repositories:
+Beadsmith can complete tasks that span multiple projects or repositories:
 
 - **Refactoring**: Update an API contract and fix all consumers across repos
 - **Feature development**: Implement a feature that touches frontend, backend, and shared code
@@ -72,7 +72,7 @@ my-company/                    # Single Git repo
     └── .git/
 ```
 
-Cline supports both patterns, as well as hybrid setups where some folders are Git repositories and others are not. The key difference: with multiple repositories, each folder has its own `.git` directory and Cline tracks them independently.
+Beadsmith supports both patterns, as well as hybrid setups where some folders are Git repositories and others are not. The key difference: with multiple repositories, each folder has its own `.git` directory and Beadsmith tracks them independently.
 
 ### Adding Folders to Your Workspace
 
@@ -87,11 +87,11 @@ For detailed instructions, see [Microsoft's multi-root workspace guide](https://
 
 ## Working with Multiple Repositories
 
-When you open separate Git repositories in one workspace, Cline treats each as an independent project with its own version control.
+When you open separate Git repositories in one workspace, Beadsmith treats each as an independent project with its own version control.
 
-### What Cline Tracks Per Repository
+### What Beadsmith Tracks Per Repository
 
-For each workspace folder, Cline detects:
+For each workspace folder, Beadsmith detects:
 
 | Property | Description |
 |----------|-------------|
@@ -100,17 +100,17 @@ For each workspace folder, Cline detects:
 | **VCS Type** | Git, Mercurial, or None |
 | **Commit Hash** | Current HEAD commit (for Git/Mercurial repos) |
 
-This means Cline understands that your frontend and backend might be at different commits, on different branches, or even use different version control systems.
+This means Beadsmith understands that your frontend and backend might be at different commits, on different branches, or even use different version control systems.
 
 <Note>
-While Cline detects VCS information for all workspace folders, certain features only use the **primary workspace** (the first folder): [Cline rules](/features/cline-rules), [workflows](/features/slash-commands/workflows/index), and [Git-related features](/features/at-mentions/git-mentions) like `@git` mentions.
+While Beadsmith detects VCS information for all workspace folders, certain features only use the **primary workspace** (the first folder): [Beadsmith rules](/features/beadsmith-rules), [workflows](/features/slash-commands/workflows/index), and [Git-related features](/features/at-mentions/git-mentions) like `@git` mentions.
 </Note>
 
 ## Referencing Files Across Workspaces
 
 ### Natural Language References
 
-Cline understands natural references to your workspaces:
+Beadsmith understands natural references to your workspaces:
 
 ```
 "Read the package.json in the frontend folder"
@@ -137,7 +137,7 @@ For explicit references, use the `@workspace:path` syntax:
 This syntax is especially useful when:
 - Multiple workspaces have files with the same name
 - You want to be explicit about which project you mean
-- Cline needs to resolve ambiguity
+- Beadsmith needs to resolve ambiguity
 
 ### How Workspace Names Work
 
@@ -175,7 +175,7 @@ All folders share one Git history. Changes across packages are atomic.
 └── proto/              (git: github.com/acme/service-protos)
 ```
 
-Each service has its own repository. Cline can update the proto definitions and regenerate clients across all services.
+Each service has its own repository. Beadsmith can update the proto definitions and regenerate clients across all services.
 
 **Example prompt:** *"Add a new field to the UserProfile message in proto, then update user-service and gateway to handle it"*
 
@@ -189,7 +189,7 @@ Each service has its own repository. Cline can update the proto definitions and 
 └── types/          (git: github.com/acme/shared-types)
 ```
 
-The types repository defines interfaces used by both client and server. When you update a type, Cline can fix both consumers.
+The types repository defines interfaces used by both client and server. When you update a type, Beadsmith can fix both consumers.
 
 ### Hybrid Setup
 
@@ -201,21 +201,21 @@ The types repository defines interfaces used by both client and server. When you
 └── scripts/        (no VCS - local automation)
 ```
 
-Mix of repositories and plain folders. Cline adapts to each folder's configuration.
+Mix of repositories and plain folders. Beadsmith adapts to each folder's configuration.
 
 ## Current Limitations
 
 Two features have limitations in multi-root workspace mode:
 
-### Cline Rules
+### Beadsmith Rules
 
-[Cline rules](/features/cline-rules) (`.clinerules/` directory) only work in the **primary workspace** (the first folder in your workspace). Rules in other workspace folders are ignored.
+[Beadsmith rules](/features/beadsmith-rules) (`.beadsmithrules/` directory) only work in the **primary workspace** (the first folder in your workspace). Rules in other workspace folders are ignored.
 
-**Workaround:** Place shared rules in the primary workspace, or use global rules (`~/Documents/Cline/Rules/`) which apply everywhere.
+**Workaround:** Place shared rules in the primary workspace, or use global rules (`~/Documents/Beadsmith/Rules/`) which apply everywhere.
 
 ### Checkpoints
 
-[Checkpoints](/features/checkpoints) are disabled in multi-root workspace mode. Cline displays a warning when this happens.
+[Checkpoints](/features/checkpoints) are disabled in multi-root workspace mode. Beadsmith displays a warning when this happens.
 
 **Why:** Checkpoints use a shadow Git repository to track changes. With multiple repositories, coordinating checkpoints across independent Git histories adds complexity that isn't yet supported.
 
@@ -230,7 +230,7 @@ Both limitations are restored when you return to a single-folder workspace.
 1. **Group related projects** that often need coordinated changes
 2. **Use a workspace file** for reproducible setups across your team
 3. **Name folders clearly** so workspace hints are intuitive
-4. **Consider the primary workspace** for Cline rules placement
+4. **Consider the primary workspace** for Beadsmith rules placement
 
 ### Effective Prompting
 
@@ -242,8 +242,8 @@ Both limitations are restored when you return to a single-folder workspace.
 ### Working with Large Workspaces
 
 - Break large tasks into workspace-specific operations when possible
-- Use [Plan mode](/features/plan-and-act) to let Cline understand structure first
-- Add a `.clineignore` file to reduce noise, speed up scanning, and keep Cline focused on source code:
+- Use [Plan mode](/features/plan-and-act) to let Beadsmith understand structure first
+- Add a `.beadsmithignore` file to reduce noise, speed up scanning, and keep Beadsmith focused on source code:
 
 ```text
 # Dependencies
@@ -257,4 +257,4 @@ Both limitations are restored when you return to a single-folder workspace.
 **/.git/
 ```
 
-For more patterns and gotchas, see the [.clineignore File Guide](/prompting/prompt-engineering-guide#clineignore-file-guide).
+For more patterns and gotchas, see the [.beadsmithignore File Guide](/prompting/prompt-engineering-guide#beadsmithignore-file-guide).

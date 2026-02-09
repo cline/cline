@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/clerror"
+	"github.com/beadsmith/cli/pkg/cli/clerror"
 )
 
 // ErrorSeverity represents the severity level of an error
@@ -73,7 +73,7 @@ func (sr *SystemMessageRenderer) RenderError(severity ErrorSeverity, title, body
 }
 
 // RenderBalanceError renders a special balance/credits error with helpful info
-func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.ClineError) error {
+func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.BeadsmithError) error {
 	var parts []string
 
 	// Header
@@ -114,8 +114,8 @@ func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.ClineError) err
 	} else {
 		// Fallback - show both personal and org URLs
 		parts = append(parts, "**→ Buy credits:**")
-		parts = append(parts, "  - Personal: https://app.cline.bot/dashboard/account?tab=credits")
-		parts = append(parts, "  - Organization: https://app.cline.bot/dashboard/organization?tab=credits")
+		parts = append(parts, "  - Personal: https://app.beadsmith.bot/dashboard/account?tab=credits")
+		parts = append(parts, "  - Organization: https://app.beadsmith.bot/dashboard/organization?tab=credits")
 	}
 
 	// Request ID (less prominent at the end)
@@ -132,7 +132,7 @@ func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.ClineError) err
 }
 
 // RenderAuthError renders an authentication error with helpful guidance
-func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.ClineError) error {
+func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.BeadsmithError) error {
 	var parts []string
 
 	// Header
@@ -151,7 +151,7 @@ func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.ClineError) error 
 	parts = append(parts, "**Next Steps:**")
 	parts = append(parts, "- Check your API key configuration")
 	parts = append(parts, "- Run `cline auth` to authenticate")
-	parts = append(parts, "- Verify your account status at https://app.cline.bot")
+	parts = append(parts, "- Verify your account status at https://app.beadsmith.bot")
 
 	// Request ID
 	if err.RequestID != "" {
@@ -167,7 +167,7 @@ func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.ClineError) error 
 }
 
 // RenderRateLimitError renders a rate limit error with request ID
-func (sr *SystemMessageRenderer) RenderRateLimitError(err *clerror.ClineError) error {
+func (sr *SystemMessageRenderer) RenderRateLimitError(err *clerror.BeadsmithError) error {
 	var parts []string
 
 	// Header
@@ -199,7 +199,7 @@ func (sr *SystemMessageRenderer) RenderRateLimitError(err *clerror.ClineError) e
 }
 
 // RenderAPIError renders a generic API error with all available details
-func (sr *SystemMessageRenderer) RenderAPIError(err *clerror.ClineError) error {
+func (sr *SystemMessageRenderer) RenderAPIError(err *clerror.BeadsmithError) error {
 	var parts []string
 
 	// Header

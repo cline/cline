@@ -1,7 +1,7 @@
 import { Logger } from "@/shared/services/Logger"
-import type { ClineDefaultTool } from "@/shared/tools"
-import { ClineToolSet } from "../registry/ClineToolSet"
-import { type ClineToolSpec, resolveInstruction } from "../spec"
+import type { BeadsmithDefaultTool } from "@/shared/tools"
+import { BeadsmithToolSet } from "../registry/BeadsmithToolSet"
+import { type BeadsmithToolSpec, resolveInstruction } from "../spec"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
@@ -133,12 +133,12 @@ export class PromptBuilder {
 	}
 
 	private static getEnabledTools(variant: PromptVariant, context: SystemPromptContext) {
-		let resolvedTools: ReturnType<typeof ClineToolSet.getTools> = []
+		let resolvedTools: ReturnType<typeof BeadsmithToolSet.getTools> = []
 
 		// If the variant explicitly lists tools, resolve each by id with fallback to GENERIC
 		if (variant?.tools?.length) {
 			const requestedIds = [...variant.tools]
-			resolvedTools = ClineToolSet.getToolsForVariantWithFallback(variant.family, requestedIds)
+			resolvedTools = BeadsmithToolSet.getToolsForVariantWithFallback(variant.family, requestedIds)
 
 			// Preserve requested order
 			resolvedTools = requestedIds
@@ -146,7 +146,7 @@ export class PromptBuilder {
 				.filter((t): t is NonNullable<typeof t> => Boolean(t))
 		} else {
 			// Otherwise, use all tools registered for the variant, or generic if none
-			resolvedTools = ClineToolSet.getTools(variant.family)
+			resolvedTools = BeadsmithToolSet.getTools(variant.family)
 			// Sort by id for stable ordering
 			resolvedTools = resolvedTools.sort((a, b) => a.config.id.localeCompare(b.config.id))
 		}
@@ -166,7 +166,7 @@ export class PromptBuilder {
 		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids, context)))
 	}
 
-	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[], context: SystemPromptContext): string {
+	public static tool(config: BeadsmithToolSpec, registry: BeadsmithDefaultTool[], context: SystemPromptContext): string {
 		// Skip tools without parameters or description - those are placeholder tools
 		if (!config.parameters?.length && !config.description?.length) {
 			return ""

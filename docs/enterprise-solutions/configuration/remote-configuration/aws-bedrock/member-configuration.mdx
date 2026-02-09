@@ -10,11 +10,11 @@ As a team member, you can connect your local development environment to your org
 
 To successfully connect to your organization's AWS Bedrock setup, you'll need a few things ready.
 
-**Cline extension installed and configured**  
-The Cline extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Cline yet, follow our [installation guide](/getting-started/installing-cline).
+**Beadsmith extension installed and configured**  
+The Beadsmith extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Beadsmith yet, follow our [installation guide](/getting-started/installing-beadsmith).
 
 <Info>
-**Quick Check**: Open the Cline panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
+**Quick Check**: Open the Beadsmith panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
 </Info>
 
 **AWS credentials with Bedrock access**  
@@ -27,17 +27,17 @@ If you don't have AWS credentials yet, reach out to your IT or cloud team to get
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/VS%20Code%20Bedrock%20API%20Key.gif"
+		src="https://assets.int.beadsmith.bot/assets/VS%20Code%20Bedrock%20API%20Key.gif"
 	/>
 </Frame>
 
 ## Configuration Steps
 
 <Steps>
-<Step title="Open Cline Settings">
-Open VS Code and access the Cline settings panel using either of these methods:
+<Step title="Open Beadsmith Settings">
+Open VS Code and access the Beadsmith settings panel using either of these methods:
 
-- Click the settings icon (⚙️) in the Cline panel
+- Click the settings icon (⚙️) in the Beadsmith panel
 - Click on the API Provider dropdown located directly below the chat area (it will display as `bedrock.anthropic.claude-sonnet-4-20250514-v1:0` or similar)
 
 </Step>
@@ -63,14 +63,14 @@ Use an existing AWS CLI profile configured on your machine.
 
 1. Select the **AWS Profile** radio button
 2. Choose or enter the profile name from your `~/.aws/credentials` file
-3. Cline will use the credentials associated with that profile
+3. Beadsmith will use the credentials associated with that profile
 </Accordion>
 
 <Accordion title="AWS Credentials">
 Use your default AWS credential chain (environment variables, EC2 instance roles, etc.).
 
 1. Select the **AWS Credentials** radio button
-2. Cline will automatically detect credentials from your environment using the standard AWS credential provider chain
+2. Beadsmith will automatically detect credentials from your environment using the standard AWS credential provider chain
 </Accordion>
 </AccordionGroup>
 
@@ -90,7 +90,7 @@ Additional settings like cross-region inference and global inference profile wil
 </Step>
 
 <Step title="Test the Connection">
-Send a test message in Cline to verify your credentials work correctly with the configured Bedrock region.
+Send a test message in Beadsmith to verify your credentials work correctly with the configured Bedrock region.
 
 <Tip>
 **Testing Recommendation**
@@ -110,7 +110,7 @@ Verify your chosen credential method has the necessary IAM permissions to call B
 Ask your administrator to confirm which region is configured for your organization. Ensure your AWS credentials have access to Bedrock in that specific region. [View AWS Global Infrastructure](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/)
 
 **Don't see AWS Bedrock as an option**  
-Confirm you're signed into the correct Cline organization. Verify your administrator has saved the Bedrock configuration. Try signing out and back into the extension.
+Confirm you're signed into the correct Beadsmith organization. Verify your administrator has saved the Bedrock configuration. Try signing out and back into the extension.
 
 **AWS Credentials option not finding credentials**  
 Verify AWS CLI is installed and configured with `aws configure` ([AWS CLI Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)). Check that credentials are present in `~/.aws/credentials`. For EC2/ECS environments, ensure IAM roles are properly attached. If using environment variables, set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.

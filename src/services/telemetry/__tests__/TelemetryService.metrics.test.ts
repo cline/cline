@@ -61,7 +61,7 @@ class FakeProvider implements ITelemetryProvider {
 function createTelemetryService(provider: FakeProvider): TelemetryService {
 	return new TelemetryService([provider], {
 		extension_version: "test",
-		cline_type: "cline-unit-tests",
+		beadsmith_type: "cline-unit-tests",
 		platform: "test-platform",
 		platform_version: "1.0.0",
 		os_type: "darwin",
@@ -114,7 +114,7 @@ describe("TelemetryService metrics", () => {
 				TelemetryService.METRICS.TASK.COST_TOTAL,
 			],
 		)
-		const costEntry = provider.counters.find((entry) => entry.name === "cline.cost.total")
+		const costEntry = provider.counters.find((entry) => entry.name === "beadsmith.cost.total")
 		assert.ok(costEntry)
 		assert.strictEqual(costEntry?.attributes.ulid, "task-2")
 		assert.strictEqual(costEntry?.attributes.provider, "openai")
@@ -145,7 +145,7 @@ describe("TelemetryService metrics", () => {
 		const service = createTelemetryService(provider)
 
 		service.captureWorkspaceInitialized(3, ["Git"], 500)
-		const initialSeries = provider.gauges.get("cline.workspace.active_roots")
+		const initialSeries = provider.gauges.get("beadsmith.workspace.active_roots")
 		assert.ok(initialSeries)
 		assert.strictEqual(initialSeries.size, 1)
 		const [initialEntry] = Array.from(initialSeries.values())
@@ -154,7 +154,7 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(initialEntry.attributes.extension_version, "test")
 
 		service.captureWorkspaceInitialized(1, ["Git"], 200)
-		const updatedSeries = provider.gauges.get("cline.workspace.active_roots")
+		const updatedSeries = provider.gauges.get("beadsmith.workspace.active_roots")
 		assert.ok(updatedSeries)
 		assert.strictEqual(updatedSeries.size, 1)
 		const [updatedEntry] = Array.from(updatedSeries.values())

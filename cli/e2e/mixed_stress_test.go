@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/common"
 )
 
 // 9. Mixed localhost vs 127.0.0.1 addresses coexist and are both healthy
 func TestMixedLocalhostVs127Coexist(t *testing.T) {
-	clineDir := setTempClineDir(t)
+	beadsmithDir := setTempBeadsmithDir(t)
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
@@ -30,7 +30,7 @@ func TestMixedLocalhostVs127Coexist(t *testing.T) {
 
 	// Manually add a SQLite entry for the same port but 127.0.0.1 host
 	addr127 := fmt.Sprintf("127.0.0.1:%d", inst.CorePort())
-	dbPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "locks.db")
+	dbPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "locks.db")
 
 	if err := insertRemoteInstanceIntoSQLite(t, dbPath, addr127, inst.CorePort(), inst.HostPort()); err != nil {
 		t.Fatalf("insert 127 alias entry: %v", err)
@@ -48,7 +48,7 @@ func TestMixedLocalhostVs127Coexist(t *testing.T) {
 
 // 10. Start-stop stress: loop starting then killing instances; ensure no leftovers
 func TestStartStopStress(t *testing.T) {
-	_ = setTempClineDir(t)
+	_ = setTempBeadsmithDir(t)
 
 	for i := 0; i < 3; i++ { // keep small for CI time
 		ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
@@ -102,9 +102,9 @@ func TestStartStopStress(t *testing.T) {
 		waitForAddressRemoved(t, newAddr, longTimeout)
 
 		// Verify instance is removed from SQLite database
-		clineDir := os.Getenv("CLINE_DIR")
-		if clineDir != "" {
-			dbPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "locks.db")
+		beadsmithDir := os.Getenv("BEADSMITH_DIR")
+		if beadsmithDir != "" {
+			dbPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "locks.db")
 			if verifyInstanceExistsInSQLite(t, dbPath, newAddr) {
 				t.Fatalf("expected instance removed from SQLite database: %s", newAddr)
 			}

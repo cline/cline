@@ -22,8 +22,8 @@ func TestMain(m *testing.M) {
 	}
 	repoRoot := filepath.Clean(filepath.Join(wd, "..", ".."))
 
-	cliBin := filepath.Join(repoRoot, "cli", "bin", "cline")
-	coreJS := filepath.Join(repoRoot, "dist-standalone", "cline-core.js")
+	cliBin := filepath.Join(repoRoot, "cli", "bin", "beadsmith")
+	coreJS := filepath.Join(repoRoot, "dist-standalone", "beadsmith-core.js")
 
 	missing := []string{}
 	if _, err := os.Stat(cliBin); err != nil {

@@ -3,9 +3,9 @@ title: "Terminal Mentions"
 sidebarTitle: "Terminal Mentions"
 ---
 
-The terminal mention lets you bring your terminal output directly into your conversation with Cline. Just type `@terminal` and Cline can see the recent output from your terminal.
+The terminal mention lets you bring your terminal output directly into your conversation with Beadsmith. Just type `@terminal` and Beadsmith can see the recent output from your terminal.
 
-When you type `@` in chat, select "Terminal" from the menu or just type `@terminal` directly. Cline will immediately see the recent output from your active terminal, including error messages, build logs, or command results.
+When you type `@` in chat, select "Terminal" from the menu or just type `@terminal` directly. Beadsmith will immediately see the recent output from your active terminal, including error messages, build logs, or command results.
 
 I use the terminal mention all the time when I'm dealing with build errors, test failures, or debugging output. Instead of trying to copy and paste terminal output (which often loses formatting), I just ask:
 
@@ -15,7 +15,7 @@ I'm getting this error when running my tests: @terminal
 What's causing this and how can I fix it?
 ```
 
-This gives Cline the complete terminal output with all its formatting intact. Cline can then analyze the error messages, stack traces, and surrounding context to provide more accurate help.
+This gives Beadsmith the complete terminal output with all its formatting intact. Beadsmith can then analyze the error messages, stack traces, and surrounding context to provide more accurate help.
 
 The terminal mention is especially powerful when combined with file mentions. When I'm debugging a failed API call, I'll reference both:
 
@@ -28,15 +28,15 @@ And the endpoint implementation: @/src/server/routes/users.js
 What am I doing wrong?
 ```
 
-This approach gives Cline everything it needs - the exact error output, the client code, and the server implementation - all without me having to copy anything manually.
+This approach gives Beadsmith everything it needs - the exact error output, the client code, and the server implementation - all without me having to copy anything manually.
 
-Next time you're running into issues with command output or build errors, try using `@terminal` instead of copying the output. You'll get more accurate help because Cline can see the complete terminal context with proper formatting.
+Next time you're running into issues with command output or build errors, try using `@terminal` instead of copying the output. You'll get more accurate help because Beadsmith can see the complete terminal context with proper formatting.
 
 ## How It Works Under the Hood
 
 When you use the terminal mention in your message, here's what happens behind the scenes:
 
-1. When you send your message, Cline detects the `@terminal` pattern in your text
+1. When you send your message, Beadsmith detects the `@terminal` pattern in your text
 2. The extension calls `getLatestTerminalOutput()` which accesses VSCode's terminal API
 3. It captures the recent output buffer from your active terminal
 4. The terminal output is appended to your message in a structured format:
@@ -66,8 +66,8 @@ If you're experiencing issues with terminal mentions or terminal integration in 
 Common issues include:
 
 -   Terminal mentions not capturing output
--   "Shell Integration Unavailable" messages in Cline chat
--   Commands executing but output not visible to Cline
+-   "Shell Integration Unavailable" messages in Beadsmith chat
+-   Commands executing but output not visible to Beadsmith
 -   Terminal integration working inconsistently
 
 The troubleshooting guide provides platform-specific solutions and detailed configuration steps to resolve these issues.

@@ -220,7 +220,7 @@ describe("ContextManager", () => {
 							content: [
 								{
 									type: "text",
-									text: "[plan_mode_respond] Result:\n<user_message>\n'test2.txt' (see below for file content)\n</user_message>\n\n<file_content path=\"/Users/toshi/Desktop/cline_testing_repo/test2.txt\">\ntest\n\n</file_content>",
+									text: "[plan_mode_respond] Result:\n<user_message>\n'test2.txt' (see below for file content)\n</user_message>\n\n<file_content path=\"/Users/toshi/Desktop/beadsmith_testing_repo/test2.txt\">\ntest\n\n</file_content>",
 								},
 							],
 						},
@@ -236,7 +236,7 @@ describe("ContextManager", () => {
 							content: [
 								{
 									type: "text",
-									text: "[write_to_file for '/Users/toshi/Desktop/cline_testing_repo/test2.txt'] Result:\nThe content was successfully saved.\n\n<final_file_content path=\"/Users/toshi/Desktop/cline_testing_repo/test2.txt\">\ntest\n\n</final_file_content>",
+									text: "[write_to_file for '/Users/toshi/Desktop/beadsmith_testing_repo/test2.txt'] Result:\nThe content was successfully saved.\n\n<final_file_content path=\"/Users/toshi/Desktop/beadsmith_testing_repo/test2.txt\">\ntest\n\n</final_file_content>",
 								},
 							],
 						},
@@ -264,7 +264,7 @@ describe("ContextManager", () => {
 							content: [
 								{
 									type: "text",
-									text: "[replace_in_file for '/Users/toshi/Desktop/cline_testing_repo/test2.txt'] Result:\nThe content was successfully saved.\n\n<final_file_content path=\"/Users/toshi/Desktop/cline_testing_repo/test2.txt\">\ntest2\n\n</final_file_content>",
+									text: "[replace_in_file for '/Users/toshi/Desktop/beadsmith_testing_repo/test2.txt'] Result:\nThe content was successfully saved.\n\n<final_file_content path=\"/Users/toshi/Desktop/beadsmith_testing_repo/test2.txt\">\ntest2\n\n</final_file_content>",
 								},
 							],
 						},

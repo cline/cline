@@ -1,12 +1,12 @@
 ---
 title: "Skills"
 sidebarTitle: "Skills"
-description: "Extend Cline with reusable, on-demand instruction sets for specialized tasks"
+description: "Extend Beadsmith with reusable, on-demand instruction sets for specialized tasks"
 ---
 
-Skills are modular instruction sets that extend Cline's capabilities for specific tasks. Each skill packages detailed guidance, workflows, and optional resources that Cline loads only when relevant to your request.
+Skills are modular instruction sets that extend Beadsmith's capabilities for specific tasks. Each skill packages detailed guidance, workflows, and optional resources that Beadsmith loads only when relevant to your request.
 
-Unlike rules (which are always active), skills load on-demand. You can install dozens of skills without affecting context or performance because Cline only sees the skill name and description until it's actually needed.
+Unlike rules (which are always active), skills load on-demand. You can install dozens of skills without affecting context or performance because Beadsmith only sees the skill name and description until it's actually needed.
 
 <Note>
 Skills is an experimental feature. Enable it in Settings → Features → Enable Skills.
@@ -17,9 +17,9 @@ Skills is an experimental feature. Enable it in Settings → Features → Enable
 Consider how you'd onboard a new team member: you wouldn't dump every document on them at once. You'd give them a brief overview, then point them to detailed guides when they're working on specific tasks.
 
 Skills work the same way:
-- **At startup**: Cline sees only a brief description of each skill
-- **When triggered**: Cline loads the full instructions for that specific skill
-- **As needed**: Skills can bundle additional files that Cline reads only when referenced
+- **At startup**: Beadsmith sees only a brief description of each skill
+- **When triggered**: Beadsmith loads the full instructions for that specific skill
+- **As needed**: Skills can bundle additional files that Beadsmith reads only when referenced
 
 This progressive loading means you can package extensive domain knowledge without burning context tokens on information that isn't relevant to the current task.
 
@@ -46,7 +46,7 @@ description: Brief description of what this skill does and when to use it.
 
 # My Skill
 
-Detailed instructions for Cline to follow when this skill is activated.
+Detailed instructions for Beadsmith to follow when this skill is activated.
 
 ## Steps
 
@@ -57,21 +57,21 @@ Detailed instructions for Cline to follow when this skill is activated.
 
 **Required fields:**
 - `name`: Must exactly match the directory name
-- `description`: Tells Cline when to use this skill (max 1024 characters)
+- `description`: Tells Beadsmith when to use this skill (max 1024 characters)
 
-The description is critical because it's how Cline decides whether to activate a skill. Be specific about what the skill does and when it should be used.
+The description is critical because it's how Beadsmith decides whether to activate a skill. Be specific about what the skill does and when it should be used.
 
 ## Where Skills Live
 
 Skills can be stored in two locations:
 
 **Global Skills** apply to all your projects:
-- **macOS/Linux:** `~/.cline/skills/`
-- **Windows:** `C:\Users\USERNAME\.cline\skills\`
+- **macOS/Linux:** `~/.beadsmith/skills/`
+- **Windows:** `C:\Users\USERNAME\.beadsmith\skills\`
 
 **Project Skills** apply only to the current workspace:
-- `.cline/skills/` (recommended)
-- `.clinerules/skills/`
+- `.beadsmith/skills/` (recommended)
+- `.beadsmithrules/skills/`
 - `.claude/skills/` (for Claude Code compatibility)
 
 When a global skill and project skill have the same name, the global skill takes precedence. This lets you customize skills for your personal workflow while still using project defaults.
@@ -87,9 +87,9 @@ Click the scale icon below the chat input to open the rules and workflows panel.
 
 Skills are enabled by default when discovered. Toggle them off if you want them available but not active for the current project.
 
-## How Cline Uses Skills
+## How Beadsmith Uses Skills
 
-When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `use_skill` tool, which loads the full instructions.
+When you send a message, Beadsmith sees a list of available skills with their descriptions. If your request matches a skill's description, Beadsmith activates it using the `use_skill` tool, which loads the full instructions.
 
 For example, if you have a skill for deploying to AWS:
 
@@ -100,7 +100,7 @@ description: Deploy applications to AWS using CDK. Use when deploying, updating 
 ---
 ```
 
-Asking "deploy this to AWS" would trigger Cline to activate the skill, load its detailed instructions, and follow them to complete your request.
+Asking "deploy this to AWS" would trigger Beadsmith to activate the skill, load its detailed instructions, and follow them to complete your request.
 
 ## Example: Data Analysis Skill
 
@@ -159,7 +159,7 @@ For visualization, prefer matplotlib or seaborn depending on complexity.
 
 ## Bundling Supporting Files
 
-Skills can include additional files that Cline accesses only when needed:
+Skills can include additional files that Beadsmith accesses only when needed:
 
 ```
 complex-skill/
@@ -186,7 +186,7 @@ python scripts/validate.py
 ```
 ````
 
-Cline reads these files using `read_file` when the instructions reference them. Scripts can be executed directly, with only the output entering the context (not the script code itself).
+Beadsmith reads these files using `read_file` when the instructions reference them. Scripts can be executed directly, with only the output entering the context (not the script code itself).
 
 ## Ideas for Skills
 
@@ -211,7 +211,7 @@ The best skills encode institutional knowledge that would otherwise live only in
 
 | Feature | Purpose | When Active |
 |---------|---------|-------------|
-| **Rules** | Define how Cline should behave | Always (or contextually) |
+| **Rules** | Define how Beadsmith should behave | Always (or contextually) |
 | **Workflows** | Step-by-step task automation | Invoked with `/workflow.md` |
 | **Skills** | Domain expertise loaded on-demand | Triggered by matching requests |
 
@@ -219,13 +219,13 @@ The best skills encode institutional knowledge that would otherwise live only in
 
 **Workflows** are explicit sequences you invoke for specific tasks (like `/release.md` for a release process).
 
-**Skills** are expertise that Cline activates automatically when relevant (like data analysis knowledge when you're working with CSV files).
+**Skills** are expertise that Beadsmith activates automatically when relevant (like data analysis knowledge when you're working with CSV files).
 
 Use rules for ongoing constraints, workflows for explicit automation, and skills for domain knowledge that should be available but not always active.
 
 ## Related Features
 
-- [Cline Rules](/features/cline-rules) for always-active project guidance
+- [Beadsmith Rules](/features/beadsmith-rules) for always-active project guidance
 - [Workflows](/features/slash-commands/workflows/index) for explicit task automation
 - [Hooks](/features/hooks/index) for injecting custom logic at key moments
 

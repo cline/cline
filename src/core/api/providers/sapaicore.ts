@@ -10,7 +10,7 @@ import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels }
 import axios from "axios"
 import JSON5 from "json5"
 import OpenAI from "openai"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -119,7 +119,7 @@ namespace Bedrock {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	export function formatMessagesForConverseAPI(messages: ClineStorageMessage[]): BedrockMessage[] {
+	export function formatMessagesForConverseAPI(messages: BeadsmithStorageMessage[]): BedrockMessage[] {
 		return messages.map((message) => {
 			// Determine role (user or assistant)
 			const role = message.role === "user" ? BedrockConversationRole.USER : BedrockConversationRole.ASSISTANT
@@ -319,7 +319,7 @@ namespace Gemini {
 	 */
 	export function prepareRequestPayload(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		model: { id: SapAiCoreModelId; info: ModelInfo },
 	): any {
 		const contents = messages.map(convertAnthropicMessageToGemini)
@@ -359,9 +359,43 @@ export class SapAiCoreHandler implements ApiHandler {
 	private deployments?: Deployment[]
 	private aiCoreDestination?: HttpDestination
 	private destinationExpiresAt?: number
+	private lastCredentialsHash?: string
 
 	constructor(options: SapAiCoreHandlerOptions) {
 		this.options = options
+	}
+
+	/**
+	 * Computes a hash of the current credentials for change detection
+	 */
+	private getCredentialsHash(): string {
+		const credentialParts = [
+			this.options.sapAiCoreClientId || "",
+			this.options.sapAiCoreClientSecret || "",
+			this.options.sapAiCoreTokenUrl || "",
+			this.options.sapAiCoreBaseUrl || "",
+			this.options.sapAiResourceGroup || "",
+		]
+		return credentialParts.join("|")
+	}
+
+	/**
+	 * Checks if credentials have changed since last authentication
+	 */
+	private haveCredentialsChanged(): boolean {
+		const currentHash = this.getCredentialsHash()
+		return this.lastCredentialsHash !== undefined && this.lastCredentialsHash !== currentHash
+	}
+
+	/**
+	 * Invalidates cached authentication state (called when credentials change)
+	 */
+	private invalidateAuthState(): void {
+		this.token = undefined
+		this.aiCoreDestination = undefined
+		this.destinationExpiresAt = undefined
+		this.deployments = undefined
+		Logger.debug("[SapAiCoreHandler] Auth state invalidated due to credentials change")
 	}
 
 	/**
@@ -438,20 +472,31 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	private async getToken(): Promise<string> {
+		// Check if credentials have changed - if so, invalidate cached state
+		if (this.haveCredentialsChanged()) {
+			this.invalidateAuthState()
+		}
+
 		if (!this.token || this.token.expires_at < Date.now()) {
 			this.token = await this.authenticate()
+			// Store credentials hash after successful auth
+			this.lastCredentialsHash = this.getCredentialsHash()
 		}
 		return this.token.access_token
 	}
 
-	// TODO: these fallback fetching deployment id methods can be removed in future version if decided that users migration to fetching deployment id in design-time (open SAP AI Core provider UI) considered as completed.
+	/**
+	 * Fetches deployments from AI Core at runtime.
+	 * @deprecated This is a fallback for users who haven't configured deployment IDs in the UI.
+	 * Users should open the SAP AI Core provider settings to pre-configure deployment IDs for better performance.
+	 */
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
-			"AI-Client-Type": "Cline",
+			"AI-Client-Type": "Beadsmith",
 		}
 
 		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments?$top=10000&$skip=0`
@@ -503,7 +548,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[]): ApiStream {
 		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
@@ -511,8 +556,12 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 	}
 
-	// TODO: support credentials changes after initial setup
 	private async ensureAiCoreEnvSetup() {
+		// Check if credentials have changed - if so, invalidate all cached auth state
+		if (this.haveCredentialsChanged()) {
+			this.invalidateAuthState()
+		}
+
 		if (!this.aiCoreDestination || !this.destinationExpiresAt || this.destinationExpiresAt < Date.now()) {
 			this.validateCredentials()
 			this.aiCoreDestination = await this.createAiCoreDestination()
@@ -523,10 +572,13 @@ export class SapAiCoreHandler implements ApiHandler {
 				throw new Error("Destination is missing required authTokens with expiresIn")
 			}
 			this.destinationExpiresAt = Date.now() + parseInt(expiresIn, 10) * 1000
+
+			// Store credentials hash to detect future changes
+			this.lastCredentialsHash = this.getCredentialsHash()
 		}
 	}
 
-	private async *createMessageWithOrchestration(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	private async *createMessageWithOrchestration(systemPrompt: string, messages: BeadsmithStorageMessage[]): ApiStream {
 		try {
 			await this.ensureAiCoreEnvSetup()
 			const model = this.getModel()
@@ -560,7 +612,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			// messagesHistory: Contains the conversation context (user/assistant messages).
 			// Unlike the `messages` field that validates input, this does not validate
 			// template placeholders such as {{?userResponse}}, allowing content to be
-			// sent directly to the LLM with the Cline system prompt without validation errors.
+			// sent directly to the LLM with the Beadsmith system prompt without validation errors.
 			const response = await orchestrationClient.stream({
 				messagesHistory: sapMessages,
 			})
@@ -583,21 +635,25 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 	}
 
-	private async *createMessageWithDeployments(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	private async *createMessageWithDeployments(systemPrompt: string, messages: BeadsmithStorageMessage[]): ApiStream {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
-			"AI-Client-Type": "Cline",
+			"AI-Client-Type": "Beadsmith",
 		}
 
 		const model = this.getModel()
 		let deploymentId = this.options.deploymentId
 
 		if (!deploymentId) {
-			// Fallback to runtime deployment id fetching for users who haven't opened the SAP provider UI
-			Logger.log(`No pre-configured deployment ID found for model ${model.id}, falling back to runtime fetching`)
+			// Fallback to runtime deployment ID fetching (deprecated)
+			Logger.warn(
+				`[SapAiCoreHandler] No pre-configured deployment ID for model "${model.id}". ` +
+					`Falling back to runtime discovery which adds latency. ` +
+					`To fix: Open SAP AI Core provider settings in Beadsmith to configure deployment IDs.`,
+			)
 			deploymentId = await this.getDeploymentForModel(model.id)
 		}
 
@@ -681,12 +737,40 @@ export class SapAiCoreHandler implements ApiHandler {
 					messages: messagesWithCache,
 				}
 			} else {
-				// Use invoke-with-response-stream endpoint
-				// TODO: add caching support using Anthropic-native cache_control blocks
+				// Use invoke-with-response-stream endpoint with Anthropic-native cache_control
+				// Apply cache_control to system prompt and user messages for older Claude models
+				const systemWithCache = [
+					{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+				]
+
+				// Apply cache_control to the last two user messages for optimal caching
+				const messagesWithCache = messages.map((msg, index) => {
+					if (msg.role === "user" && (index === lastUserMsgIndex || index === secondLastMsgUserIndex)) {
+						// Clone the message and add cache_control to the last content block
+						if (typeof msg.content === "string") {
+							return {
+								...msg,
+								content: [{ type: "text", text: msg.content, cache_control: { type: "ephemeral" } }],
+							}
+						} else if (Array.isArray(msg.content)) {
+							const contentWithCache = [...msg.content]
+							if (contentWithCache.length > 0) {
+								const lastBlock = contentWithCache[contentWithCache.length - 1]
+								contentWithCache[contentWithCache.length - 1] = {
+									...lastBlock,
+									cache_control: { type: "ephemeral" },
+								} as typeof lastBlock
+							}
+							return { ...msg, content: contentWithCache }
+						}
+					}
+					return msg
+				})
+
 				payload = {
 					max_tokens: model.info.maxTokens,
-					system: systemPrompt,
-					messages,
+					system: systemWithCache,
+					messages: messagesWithCache,
 					anthropic_version: "bedrock-2023-05-31",
 				}
 			}
@@ -1144,7 +1228,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
 	}
-	private convertMessageParamToSAPMessages(messages: ClineStorageMessage[]): ChatMessage[] {
+	private convertMessageParamToSAPMessages(messages: BeadsmithStorageMessage[]): ChatMessage[] {
 		// Use the existing OpenAI converter since the logic is identical
 		return convertToOpenAiMessages(messages) as ChatMessage[]
 	}

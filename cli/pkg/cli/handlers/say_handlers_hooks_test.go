@@ -22,11 +22,11 @@ func TestFormatHookPath_PrefersWorkspaceRelative(t *testing.T) {
 		t.Fatalf("Chdir: %v", err)
 	}
 
-	inside := filepath.Join(root, ".clinerules", "hooks", "pre.sh")
+	inside := filepath.Join(root, ".beadsmithrules", "hooks", "pre.sh")
 	got := formatHookPath(inside)
 	// Repo-scoped hook scripts should always include the repo name (the directory
-	// immediately containing .clinerules) even when running inside that repo.
-	expected := "workspace/" + filepath.ToSlash(filepath.Join(".clinerules", "hooks", "pre.sh"))
+	// immediately containing .beadsmithrules) even when running inside that repo.
+	expected := "workspace/" + filepath.ToSlash(filepath.Join(".beadsmithrules", "hooks", "pre.sh"))
 	if got != expected {
 		t.Fatalf("expected formatted path to be %q. got=%q", expected, got)
 	}

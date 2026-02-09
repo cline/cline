@@ -62,7 +62,7 @@ jobs:
           allowed_non_write_users: "*"
           claude_args: --model claude-opus-4-5-20251101 --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
           prompt: |
-            You're a GitHub PR reviewer for the open source Cline repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
+            You're a GitHub PR reviewer for the open source Beadsmith repository. Your goal is to give the PR author helpful feedback and give maintainers the context they need to review efficiently.
 
             PR: #${{ steps.pr.outputs.number }}
 

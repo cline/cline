@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
-// ClineMessage represents a conversation message in the CLI
-type ClineMessage struct {
+// BeadsmithMessage represents a conversation message in the CLI
+type BeadsmithMessage struct {
 	Type                        MessageType `json:"type"`
 	Text                        string      `json:"text"`
 	Timestamp                   int64       `json:"ts"`
@@ -187,64 +187,64 @@ type HookError struct {
 }
 
 // GetTimestamp returns a formatted timestamp string
-func (m *ClineMessage) GetTimestamp() string {
+func (m *BeadsmithMessage) GetTimestamp() string {
 	return time.Unix(m.Timestamp/1000, 0).Format("15:04:05")
 }
 
 // IsAsk returns true if this is an ASK message
-func (m *ClineMessage) IsAsk() bool {
+func (m *BeadsmithMessage) IsAsk() bool {
 	return m.Type == MessageTypeAsk
 }
 
 // IsSay returns true if this is a SAY message
-func (m *ClineMessage) IsSay() bool {
+func (m *BeadsmithMessage) IsSay() bool {
 	return m.Type == MessageTypeSay
 }
 
 // GetMessageKey returns a unique key for this message based on timestamp
-func (m *ClineMessage) GetMessageKey() string {
+func (m *BeadsmithMessage) GetMessageKey() string {
 	return strconv.FormatInt(m.Timestamp, 10)
 }
 
 // ExtractMessagesFromStateJSON parses the state JSON and extracts messages
-func ExtractMessagesFromStateJSON(stateJson string) ([]*ClineMessage, error) {
-	// Parse the state JSON to extract clineMessages
+func ExtractMessagesFromStateJSON(stateJson string) ([]*BeadsmithMessage, error) {
+	// Parse the state JSON to extract beadsmithMessages
 	var rawState map[string]interface{}
 	if err := json.Unmarshal([]byte(stateJson), &rawState); err != nil {
 		return nil, fmt.Errorf("failed to parse state JSON: %w", err)
 	}
 
-	// Try to extract clineMessages
-	clineMessagesRaw, exists := rawState["clineMessages"]
+	// Try to extract beadsmithMessages
+	beadsmithMessagesRaw, exists := rawState["beadsmithMessages"]
 	if !exists {
-		return []*ClineMessage{}, nil
+		return []*BeadsmithMessage{}, nil
 	}
 
 	// Convert to JSON and back to get proper Message structs
-	clineMessagesJson, err := json.Marshal(clineMessagesRaw)
+	beadsmithMessagesJson, err := json.Marshal(beadsmithMessagesRaw)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal clineMessages: %w", err)
+		return nil, fmt.Errorf("failed to marshal beadsmithMessages: %w", err)
 	}
 
-	var messages []*ClineMessage
-	if err := json.Unmarshal(clineMessagesJson, &messages); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal clineMessages: %w", err)
+	var messages []*BeadsmithMessage
+	if err := json.Unmarshal(beadsmithMessagesJson, &messages); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal beadsmithMessages: %w", err)
 	}
 
 	return messages, nil
 }
 
-// ConvertProtoToMessage converts a protobuf ClineMessage to our local Message struct
-func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
+// ConvertProtoToMessage converts a protobuf BeadsmithMessage to our local Message struct
+func ConvertProtoToMessage(protoMsg *cline.BeadsmithMessage) *BeadsmithMessage {
 	var msgType MessageType
 	var say, ask string
 
 	// Convert message type
 	switch protoMsg.Type {
-	case cline.ClineMessageType_ASK:
+	case cline.BeadsmithMessageType_ASK:
 		msgType = MessageTypeAsk
 		ask = convertProtoAskType(protoMsg.Ask)
-	case cline.ClineMessageType_SAY:
+	case cline.BeadsmithMessageType_SAY:
 		msgType = MessageTypeSay
 		say = convertProtoSayType(protoMsg.Say)
 	default:
@@ -252,7 +252,7 @@ func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
 		say = "unknown"
 	}
 
-	return &ClineMessage{
+	return &BeadsmithMessage{
 		Type:                        msgType,
 		Text:                        protoMsg.Text,
 		Timestamp:                   protoMsg.Ts,
@@ -267,37 +267,37 @@ func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
 }
 
 // convertProtoAskType converts protobuf ask type to string
-func convertProtoAskType(askType cline.ClineAsk) string {
+func convertProtoAskType(askType cline.BeadsmithAsk) string {
 	switch askType {
-	case cline.ClineAsk_FOLLOWUP:
+	case cline.BeadsmithAsk_FOLLOWUP:
 		return string(AskTypeFollowup)
-	case cline.ClineAsk_PLAN_MODE_RESPOND:
+	case cline.BeadsmithAsk_PLAN_MODE_RESPOND:
 		return string(AskTypePlanModeRespond)
-	case cline.ClineAsk_COMMAND:
+	case cline.BeadsmithAsk_COMMAND:
 		return string(AskTypeCommand)
-	case cline.ClineAsk_COMMAND_OUTPUT:
+	case cline.BeadsmithAsk_COMMAND_OUTPUT:
 		return string(AskTypeCommandOutput)
-	case cline.ClineAsk_COMPLETION_RESULT:
+	case cline.BeadsmithAsk_COMPLETION_RESULT:
 		return string(AskTypeCompletionResult)
-	case cline.ClineAsk_TOOL:
+	case cline.BeadsmithAsk_TOOL:
 		return string(AskTypeTool)
-	case cline.ClineAsk_API_REQ_FAILED:
+	case cline.BeadsmithAsk_API_REQ_FAILED:
 		return string(AskTypeAPIReqFailed)
-	case cline.ClineAsk_RESUME_TASK:
+	case cline.BeadsmithAsk_RESUME_TASK:
 		return string(AskTypeResumeTask)
-	case cline.ClineAsk_RESUME_COMPLETED_TASK:
+	case cline.BeadsmithAsk_RESUME_COMPLETED_TASK:
 		return string(AskTypeResumeCompletedTask)
-	case cline.ClineAsk_MISTAKE_LIMIT_REACHED:
+	case cline.BeadsmithAsk_MISTAKE_LIMIT_REACHED:
 		return string(AskTypeMistakeLimitReached)
-	case cline.ClineAsk_BROWSER_ACTION_LAUNCH:
+	case cline.BeadsmithAsk_BROWSER_ACTION_LAUNCH:
 		return string(AskTypeBrowserActionLaunch)
-	case cline.ClineAsk_USE_MCP_SERVER:
+	case cline.BeadsmithAsk_USE_MCP_SERVER:
 		return string(AskTypeUseMcpServer)
-	case cline.ClineAsk_NEW_TASK:
+	case cline.BeadsmithAsk_NEW_TASK:
 		return string(AskTypeNewTask)
-	case cline.ClineAsk_CONDENSE:
+	case cline.BeadsmithAsk_CONDENSE:
 		return string(AskTypeCondense)
-	case cline.ClineAsk_REPORT_BUG:
+	case cline.BeadsmithAsk_REPORT_BUG:
 		return string(AskTypeReportBug)
 	default:
 		return "unknown"
@@ -305,71 +305,71 @@ func convertProtoAskType(askType cline.ClineAsk) string {
 }
 
 // convertProtoSayType converts protobuf say type to string
-func convertProtoSayType(sayType cline.ClineSay) string {
+func convertProtoSayType(sayType cline.BeadsmithSay) string {
 	switch sayType {
-	case cline.ClineSay_TASK:
+	case cline.BeadsmithSay_TASK:
 		return string(SayTypeTask)
-	case cline.ClineSay_ERROR:
+	case cline.BeadsmithSay_ERROR:
 		return string(SayTypeError)
-	case cline.ClineSay_API_REQ_STARTED:
+	case cline.BeadsmithSay_API_REQ_STARTED:
 		return string(SayTypeAPIReqStarted)
-	case cline.ClineSay_API_REQ_FINISHED:
+	case cline.BeadsmithSay_API_REQ_FINISHED:
 		return string(SayTypeAPIReqFinished)
-	case cline.ClineSay_TEXT:
+	case cline.BeadsmithSay_TEXT:
 		return string(SayTypeText)
-	case cline.ClineSay_REASONING:
+	case cline.BeadsmithSay_REASONING:
 		return string(SayTypeReasoning)
-	case cline.ClineSay_COMPLETION_RESULT_SAY:
+	case cline.BeadsmithSay_COMPLETION_RESULT_SAY:
 		return string(SayTypeCompletionResult)
-	case cline.ClineSay_USER_FEEDBACK:
+	case cline.BeadsmithSay_USER_FEEDBACK:
 		return string(SayTypeUserFeedback)
-	case cline.ClineSay_USER_FEEDBACK_DIFF:
+	case cline.BeadsmithSay_USER_FEEDBACK_DIFF:
 		return string(SayTypeUserFeedbackDiff)
-	case cline.ClineSay_API_REQ_RETRIED:
+	case cline.BeadsmithSay_API_REQ_RETRIED:
 		return string(SayTypeAPIReqRetried)
-	case cline.ClineSay_ERROR_RETRY:
+	case cline.BeadsmithSay_ERROR_RETRY:
 		return string(SayTypeErrorRetry)
-	case cline.ClineSay_COMMAND_SAY:
+	case cline.BeadsmithSay_COMMAND_SAY:
 		return string(SayTypeCommand)
-	case cline.ClineSay_COMMAND_OUTPUT_SAY:
+	case cline.BeadsmithSay_COMMAND_OUTPUT_SAY:
 		return string(SayTypeCommandOutput)
-	case cline.ClineSay_TOOL_SAY:
+	case cline.BeadsmithSay_TOOL_SAY:
 		return string(SayTypeTool)
-	case cline.ClineSay_SHELL_INTEGRATION_WARNING:
+	case cline.BeadsmithSay_SHELL_INTEGRATION_WARNING:
 		return string(SayTypeShellIntegrationWarning)
-	case cline.ClineSay_BROWSER_ACTION_LAUNCH_SAY:
+	case cline.BeadsmithSay_BROWSER_ACTION_LAUNCH_SAY:
 		return string(SayTypeBrowserActionLaunch)
-	case cline.ClineSay_BROWSER_ACTION:
+	case cline.BeadsmithSay_BROWSER_ACTION:
 		return string(SayTypeBrowserAction)
-	case cline.ClineSay_BROWSER_ACTION_RESULT:
+	case cline.BeadsmithSay_BROWSER_ACTION_RESULT:
 		return string(SayTypeBrowserActionResult)
-	case cline.ClineSay_MCP_SERVER_REQUEST_STARTED:
+	case cline.BeadsmithSay_MCP_SERVER_REQUEST_STARTED:
 		return string(SayTypeMcpServerRequestStarted)
-	case cline.ClineSay_MCP_SERVER_RESPONSE:
+	case cline.BeadsmithSay_MCP_SERVER_RESPONSE:
 		return string(SayTypeMcpServerResponse)
-	case cline.ClineSay_MCP_NOTIFICATION:
+	case cline.BeadsmithSay_MCP_NOTIFICATION:
 		return string(SayTypeMcpNotification)
-	case cline.ClineSay_USE_MCP_SERVER_SAY:
+	case cline.BeadsmithSay_USE_MCP_SERVER_SAY:
 		return string(SayTypeUseMcpServer)
-	case cline.ClineSay_DIFF_ERROR:
+	case cline.BeadsmithSay_DIFF_ERROR:
 		return string(SayTypeDiffError)
-	case cline.ClineSay_DELETED_API_REQS:
+	case cline.BeadsmithSay_DELETED_API_REQS:
 		return string(SayTypeDeletedAPIReqs)
-	case cline.ClineSay_CLINEIGNORE_ERROR:
+	case cline.BeadsmithSay_CLINEIGNORE_ERROR:
 		return string(SayTypeClineignoreError)
-	case cline.ClineSay_CHECKPOINT_CREATED:
+	case cline.BeadsmithSay_CHECKPOINT_CREATED:
 		return string(SayTypeCheckpointCreated)
-	case cline.ClineSay_LOAD_MCP_DOCUMENTATION:
+	case cline.BeadsmithSay_LOAD_MCP_DOCUMENTATION:
 		return string(SayTypeLoadMcpDocumentation)
-	case cline.ClineSay_INFO:
+	case cline.BeadsmithSay_INFO:
 		return string(SayTypeInfo)
-	case cline.ClineSay_TASK_PROGRESS:
+	case cline.BeadsmithSay_TASK_PROGRESS:
 		return string(SayTypeTaskProgress)
-	case cline.ClineSay_HOOK_STATUS:
+	case cline.BeadsmithSay_HOOK_STATUS:
 		return string(SayTypeHookStatus)
-	case cline.ClineSay_HOOK_OUTPUT_STREAM:
+	case cline.BeadsmithSay_HOOK_OUTPUT_STREAM:
 		return string(SayTypeHookOutputStream)
-	case cline.ClineSay_COMMAND_PERMISSION_DENIED:
+	case cline.BeadsmithSay_COMMAND_PERMISSION_DENIED:
 		return string(SayTypeCommandPermissionDenied)
 	default:
 		return "unknown"

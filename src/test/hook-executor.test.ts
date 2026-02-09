@@ -9,7 +9,7 @@ import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
-import { ClineMessage } from "../shared/ExtensionMessage"
+import { BeadsmithMessage } from "../shared/ExtensionMessage"
 
 /**
  * Unit tests for the hook-executor module
@@ -27,7 +27,7 @@ describe("Hook Executor", () => {
 	let tempDir: string
 	let baseTempDir: string // Store base directory for cleanup
 	let testHandler: MessageStateHandler
-	let mockMessages: ClineMessage[]
+	let mockMessages: BeadsmithMessage[]
 	let stateManagerStub: sinon.SinonStub
 
 	/**
@@ -71,14 +71,14 @@ setTimeout(() => {
 
 		// Create temporary directory for test hooks
 		baseTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
-		// Create .clinerules/hooks subdirectory structure
-		tempDir = path.join(baseTempDir, ".clinerules", "hooks")
+		// Create .beadsmithrules/hooks subdirectory structure
+		tempDir = path.join(baseTempDir, ".beadsmithrules", "hooks")
 		await fs.mkdir(tempDir, { recursive: true })
 		testHandler = createTestHandler()
 		mockMessages = []
 
 		// Mock StateManager to return baseTempDir as workspace root
-		// This allows HookFactory to find hooks in baseTempDir/.clinerules/hooks/
+		// This allows HookFactory to find hooks in baseTempDir/.beadsmithrules/hooks/
 		stateManagerStub = sinon.stub(StateManager, "get").returns({
 			getGlobalStateKey: (key: string) => {
 				if (key === "workspaceRoots") {
@@ -355,14 +355,14 @@ setTimeout(() => {
 
 			await createHookScript("TaskStart", {}, 1) // Exit with error
 
-			const messages: ClineMessage[] = []
+			const messages: BeadsmithMessage[] = []
 			const mockHandler = {
 				...testHandler,
-				getClineMessages: () => messages,
-				addToClineMessages: async (msg: ClineMessage) => {
+				getBeadsmithMessages: () => messages,
+				addToBeadsmithMessages: async (msg: BeadsmithMessage) => {
 					messages.push(msg)
 				},
-				updateClineMessage: async (index: number, updates: Partial<ClineMessage>) => {
+				updateBeadsmithMessage: async (index: number, updates: Partial<BeadsmithMessage>) => {
 					if (messages[index]) {
 						Object.assign(messages[index], updates)
 					}
@@ -382,7 +382,7 @@ setTimeout(() => {
 				},
 				isCancellable: true,
 				say: async (type: any, text?: string) => {
-					const msg: ClineMessage = {
+					const msg: BeadsmithMessage = {
 						ts: Date.now(),
 						type: "say",
 						say: type,
@@ -409,7 +409,7 @@ setTimeout(() => {
 				cancel: false,
 			})
 
-			const messages: ClineMessage[] = []
+			const messages: BeadsmithMessage[] = []
 
 			await executeHook({
 				hookName: "TaskStart",
@@ -424,7 +424,7 @@ setTimeout(() => {
 				},
 				isCancellable: true,
 				say: async (type: any, text?: string) => {
-					const msg: ClineMessage = {
+					const msg: BeadsmithMessage = {
 						ts: Date.now(),
 						type: "say",
 						say: type,
@@ -451,11 +451,11 @@ setTimeout(() => {
 				cancel: false,
 			})
 
-			const messages: ClineMessage[] = []
+			const messages: BeadsmithMessage[] = []
 			const mockHandler = {
 				...testHandler,
-				getClineMessages: () => messages,
-				updateClineMessage: async (index: number, updates: Partial<ClineMessage>) => {
+				getBeadsmithMessages: () => messages,
+				updateBeadsmithMessage: async (index: number, updates: Partial<BeadsmithMessage>) => {
 					if (messages[index]) {
 						Object.assign(messages[index], updates)
 					}
@@ -475,7 +475,7 @@ setTimeout(() => {
 				},
 				isCancellable: true,
 				say: async (type: any, text?: string) => {
-					const msg: ClineMessage = {
+					const msg: BeadsmithMessage = {
 						ts: Date.now(),
 						type: "say",
 						say: type,

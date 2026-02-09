@@ -2,7 +2,7 @@ import * as fs from "fs/promises"
 import * as vscode from "vscode"
 import { sanitizeCellForLLM } from "@/integrations/misc/notebook-utils"
 import { ExtensionRegistryInfo } from "@/registry"
-import { CommandContext } from "@/shared/proto/index.cline"
+import { CommandContext } from "@/shared/proto/index.beadsmith"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../../core/controller"
 import { WebviewProvider } from "../../core/webview"
@@ -56,7 +56,7 @@ export async function getContextForCommand(
 	options?: {
 		/**
 		 * When true, the editor keeps focus when showing the sidebar webview.
-		 * Use this for non-interruptive flows (e.g. copy terminal output to Cline).
+		 * Use this for non-interruptive flows (e.g. copy terminal output to Beadsmith).
 		 */
 		preserveEditorFocus?: boolean
 	},

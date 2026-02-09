@@ -1,10 +1,10 @@
 import { Controller } from "@core/controller"
 import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
 import { Logger } from "@/shared/services/Logger"
-import { ClineAPI } from "./cline"
+import { BeadsmithAPI } from "./beadsmith"
 
-export function createClineAPI(sidebarController: Controller): ClineAPI {
-	const api: ClineAPI = {
+export function createBeadsmithAPI(sidebarController: Controller): BeadsmithAPI {
+	const api: BeadsmithAPI = {
 		startNewTask: async (task?: string, images?: string[]) => {
 			await sidebarController.clearTask()
 			await sidebarController.postStateToWebview()

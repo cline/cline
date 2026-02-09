@@ -1,7 +1,7 @@
 import type { ModelInfo as ModelInfoType } from "@shared/api"
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider } from "@shared/api"
-import { StringRequest } from "@shared/proto/cline/common"
-import { UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { StringRequest } from "@shared/proto/beadsmith/common"
+import { UpdateSettingsRequest } from "@shared/proto/beadsmith/state"
 import { Mode } from "@shared/storage/types"
 import { ArrowLeftRight, Brain, Check, ChevronDownIcon, Search, Settings } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -37,6 +37,7 @@ const SETTINGS_ONLY_PROVIDERS: ApiProvider[] = [
 	"ollama",
 	"lmstudio",
 	"vscode-lm",
+	"copilot-sdk",
 	"requesty",
 	"hicap",
 	"dify",
@@ -213,12 +214,12 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		return queryWords.every((word) => searchText.includes(word))
 	}, [])
 
-	// Filtered models - for OpenRouter/Vercel show all by default, for Cline only when searching
+	// Filtered models - for OpenRouter/Vercel show all by default, for Beadsmith only when searching
 	const filteredModels = useMemo(() => {
-		const isCline = selectedProvider === "cline"
+		const isBeadsmith = selectedProvider === "cline"
 
 		// For Cline: only show non-featured models when searching
-		if (isCline && !searchQuery) {
+		if (isBeadsmith && !searchQuery) {
 			return []
 		}
 
@@ -233,14 +234,14 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		// Filter out current model
 		models = models.filter((m) => m.id !== selectedModelId)
 
-		// For Cline when searching, also filter out featured models (they're shown separately)
-		if (isCline) {
+		// For Beadsmith when searching, also filter out featured models (they're shown separately)
+		if (isBeadsmith) {
 			const featuredIds = new Set([...recommendedModels, ...freeModels].map((m) => m.id))
 			models = models.filter((m) => !featuredIds.has(m.id))
 		}
 
 		// For openrouter/vercel-ai-gateway (not cline): put favorites first
-		if (!isCline && (selectedProvider === "openrouter" || selectedProvider === "vercel-ai-gateway")) {
+		if (!isBeadsmith && (selectedProvider === "openrouter" || selectedProvider === "vercel-ai-gateway")) {
 			const favoriteSet = new Set(favoritedModelIds || [])
 			const favoritedModels = models.filter((m) => favoriteSet.has(m.id))
 			const nonFavoritedModels = models.filter((m) => !favoriteSet.has(m.id))
@@ -254,7 +255,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		return models
 	}, [searchQuery, matchesSearch, selectedModelId, selectedProvider, allModels, favoritedModelIds])
 
-	// Featured models for Cline provider (recommended + free)
+	// Featured models for Beadsmith provider (recommended + free)
 	const featuredModels = useMemo(() => {
 		if (selectedProvider !== "cline") {
 			return []
@@ -300,7 +301,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 					modeToUse,
 				)
 			} else if (OPENROUTER_MODEL_PROVIDERS.includes(selectedProvider)) {
-				// Cline and OpenRouter use openRouter fields
+				// Beadsmith and OpenRouter use openRouter fields
 				const modelInfoToUse = modelInfo || openRouterModels[modelId]
 				handleModeFieldsChange(
 					{
@@ -549,7 +550,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 		onOpenChange(!isOpen)
 	}, [isOpen, onOpenChange])
 
-	const isClineProvider = selectedProvider === "cline"
+	const isBeadsmithProvider = selectedProvider === "cline"
 	const isSearching = !!searchQuery
 
 	return (
@@ -714,8 +715,8 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 								</SplitModeRow>
 							) : selectedModelId && modelBelongsToProvider ? (
 								(() => {
-									// Check if current model has a featured label (only for Cline provider)
-									const currentFeaturedModel = isClineProvider
+									// Check if current model has a featured label (only for Beadsmith provider)
+									const currentFeaturedModel = isBeadsmithProvider
 										? [...recommendedModels, ...freeModels].find((m) => m.id === selectedModelId)
 										: undefined
 									return (
@@ -748,7 +749,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 							) : null}
 
 							{/* For Cline: Show recommended models */}
-							{isClineProvider &&
+							{isBeadsmithProvider &&
 								featuredModels.map((model, index) => (
 									<ModelItemContainer
 										$isSelected={index === selectedIndex}
@@ -764,7 +765,7 @@ const ModelPickerModal: React.FC<ModelPickerModalProps> = ({ isOpen, onOpenChang
 									</ModelItemContainer>
 								))}
 
-							{/* All other models (for non-Cline always, for Cline only when searching) */}
+							{/* All other models (for non-Cline always, for Beadsmith only when searching) */}
 							{filteredModels.map((model, index) => {
 								const globalIndex = featuredModels.length + index
 								const isFavorite = (favoritedModelIds || []).includes(model.id)

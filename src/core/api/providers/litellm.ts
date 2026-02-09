@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import { StateManager } from "@/core/storage/StateManager"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { isAnthropicModelId } from "@/utils/model-utils"
@@ -207,7 +207,7 @@ export class LiteLlmHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[]): ApiStream {
 		const client = this.ensureClient()
 
 		const formattedMessages = convertToOpenAiMessages(messages)
@@ -304,7 +304,7 @@ export class LiteLlmHandler implements ApiHandler {
 			drop_params: true,
 			...(!isCodexModel && { stream_options: { include_usage: true } }), // Codex models are only on the responses api, which doesn't take the stream_options parameter. we will need to migrate to the responses api for this to work
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
-			...(this.options.ulid && { litellm_session_id: `cline-${this.options.ulid}` }), // Add session ID for LiteLLM tracking
+			...(this.options.ulid && { litellm_session_id: `beadsmith-${this.options.ulid}` }), // Add session ID for LiteLLM tracking
 		} as LiteLlmChatCompletionCreateParams)
 
 		for await (const chunk of stream) {

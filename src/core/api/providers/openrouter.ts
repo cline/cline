@@ -5,7 +5,7 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -45,7 +45,7 @@ export class OpenRouterHandler implements ApiHandler {
 					apiKey: this.options.openRouterApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
-						"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
+						"X-Title": "Beadsmith", // Optional. Shows in rankings on openrouter.ai.
 					},
 					fetch, // Use configured fetch with proxy support
 				})
@@ -57,7 +57,7 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
@@ -176,25 +176,62 @@ export class OpenRouterHandler implements ApiHandler {
 
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
-			await setTimeoutPromise(500) // FIXME: necessary delay to ensure generation endpoint is ready
 			try {
-				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
-				const generation = (await generationIterator.next()).value
-				// Logger.log("OpenRouter generation details:", generation)
-				return {
-					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
-					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+				const generation = await this.fetchGenerationDetailsWithRetry(this.lastGenerationId)
+				if (generation) {
+					return {
+						type: "usage",
+						cacheWriteTokens: 0,
+						cacheReadTokens: generation.native_tokens_cached || 0,
+						inputTokens: (generation.native_tokens_prompt || 0) - (generation.native_tokens_cached || 0),
+						outputTokens: generation.native_tokens_completion || 0,
+						totalCost: generation.total_cost || 0,
+					}
 				}
 			} catch (error) {
 				// ignore if fails
 				Logger.error("Error fetching OpenRouter generation details:", error)
 			}
 		}
+		return undefined
+	}
+
+	/**
+	 * Fetches generation details with built-in retry and validation.
+	 * Retries if the generation endpoint returns incomplete data (not yet ready).
+	 */
+	private async fetchGenerationDetailsWithRetry(
+		genId: string,
+		maxAttempts: number = 5,
+		baseDelay: number = 200,
+	): Promise<any | undefined> {
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			if (attempt > 0) {
+				// Exponential backoff: 200ms, 400ms, 800ms, 1600ms
+				const delay = Math.min(baseDelay * 2 ** (attempt - 1), 2000)
+				await setTimeoutPromise(delay)
+			}
+
+			try {
+				const generationIterator = this.fetchGenerationDetails(genId)
+				const generation = (await generationIterator.next()).value
+
+				// Check if the generation data is valid/complete
+				// OpenRouter may return empty or incomplete data if not ready
+				if (generation && (generation.native_tokens_prompt || generation.total_cost !== undefined)) {
+					return generation
+				}
+
+				Logger.debug(`[OpenRouter] Generation data not ready (attempt ${attempt + 1}/${maxAttempts})`)
+			} catch (error) {
+				// Last attempt - propagate error
+				if (attempt === maxAttempts - 1) {
+					throw error
+				}
+				Logger.debug(`[OpenRouter] Generation fetch failed (attempt ${attempt + 1}/${maxAttempts}): ${error}`)
+			}
+		}
+
 		return undefined
 	}
 

@@ -2,10 +2,10 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 
-export type ClineTool = OpenAITool | AnthropicTool | GoogleTool
+export type BeadsmithTool = OpenAITool | AnthropicTool | GoogleTool
 
 // Define available tool ids
-export enum ClineDefaultTool {
+export enum BeadsmithDefaultTool {
 	ASK = "ask_followup_question",
 	ATTEMPT = "attempt_completion",
 	BASH = "execute_command",
@@ -36,18 +36,18 @@ export enum ClineDefaultTool {
 
 // Array of all tool names for compatibility
 // Automatically generated from the enum values
-export const toolUseNames = Object.values(ClineDefaultTool) as ClineDefaultTool[]
+export const toolUseNames = Object.values(BeadsmithDefaultTool) as BeadsmithDefaultTool[]
 
 // Tools that are safe to run in parallel with the initial checkpoint commit
 // These are tools that do not modify the workspace state
 export const READ_ONLY_TOOLS = [
-	ClineDefaultTool.LIST_FILES,
-	ClineDefaultTool.FILE_READ,
-	ClineDefaultTool.SEARCH,
-	ClineDefaultTool.LIST_CODE_DEF,
-	ClineDefaultTool.BROWSER,
-	ClineDefaultTool.ASK,
-	ClineDefaultTool.WEB_SEARCH,
-	ClineDefaultTool.WEB_FETCH,
-	ClineDefaultTool.USE_SKILL,
+	BeadsmithDefaultTool.LIST_FILES,
+	BeadsmithDefaultTool.FILE_READ,
+	BeadsmithDefaultTool.SEARCH,
+	BeadsmithDefaultTool.LIST_CODE_DEF,
+	BeadsmithDefaultTool.BROWSER,
+	BeadsmithDefaultTool.ASK,
+	BeadsmithDefaultTool.WEB_SEARCH,
+	BeadsmithDefaultTool.WEB_FETCH,
+	BeadsmithDefaultTool.USE_SKILL,
 ] as const

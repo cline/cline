@@ -9,11 +9,11 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/common"
 	client2 "github.com/cline/grpc-go/client"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -22,7 +22,7 @@ const (
 	platformCLI       = "CLI"
 	platformJetBrains = "JetBrains"
 	platformNA        = "N/A"
-	hostPlatformCLI   = "Cline CLI" // Value returned by host bridge for CLI instances
+	hostPlatformCLI   = "Beadsmith CLI" // Value returned by host bridge for CLI instances
 )
 
 // detectInstancePlatform connects to an instance's host bridge and determines its platform
@@ -42,7 +42,7 @@ func detectInstancePlatform(ctx context.Context, instance *common.CoreInstanceIn
 		return platformNA, err
 	}
 
-	hostVersion, err := hostClient.Env.GetHostVersion(ctx, &cline.EmptyRequest{})
+	hostVersion, err := hostClient.Env.GetHostVersion(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return platformNA, err
 	}
@@ -62,8 +62,8 @@ func NewInstanceCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "instance",
 		Aliases: []string{"i"},
-		Short:   "Manage Cline instances",
-		Long:    `List and manage multiple Cline instances similar to kubectl contexts.`,
+		Short:   "Manage Beadsmith instances",
+		Long:    `List and manage multiple Beadsmith instances similar to kubectl contexts.`,
 	}
 
 	cmd.AddCommand(newInstanceListCommand())
@@ -80,8 +80,8 @@ func newInstanceKillCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "kill <address>",
 		Aliases: []string{"k"},
-		Short:   "Kill a Cline instance by address",
-		Long:    `Kill a running Cline instance and clean up its registry entry.`,
+		Short:   "Kill a Beadsmith instance by address",
+		Long:    `Kill a running Beadsmith instance and clean up its registry entry.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if killAllCLI && len(args) > 0 {
 				return fmt.Errorf("cannot specify both --all-cli flag and address argument")
@@ -120,7 +120,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.InstanceRegistry)
 	}
 
 	if len(instances) == 0 {
-		fmt.Println("No Cline instances found to kill.")
+		fmt.Println("No Beadsmith instances found to kill.")
 		return nil
 	}
 
@@ -254,7 +254,7 @@ func killInstanceProcess(ctx context.Context, registry *global.InstanceRegistry,
 		return killResult{address: address, alreadyDead: true, err: nil}
 	}
 
-	processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{})
+	processInfo, err := client.State.GetProcessInfo(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return killResult{address: address, alreadyDead: true, err: nil}
 	}
@@ -273,8 +273,8 @@ func newInstanceListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"l"},
-		Short:   "List all registered Cline instances",
-		Long:    `List all registered Cline instances with their status and connection details.`,
+		Short:   "List all registered Beadsmith instances",
+		Long:    `List all registered Beadsmith instances with their status and connection details.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if global.Instances == nil {
 				return fmt.Errorf("clients not initialized")
@@ -291,7 +291,7 @@ func newInstanceListCommand() *cobra.Command {
 			defaultInstance := registry.GetDefaultInstance()
 
 			if len(instances) == 0 {
-				fmt.Println("No Cline instances found.")
+				fmt.Println("No Beadsmith instances found.")
 				fmt.Println("Run 'cline instance new' to start a new instance, or 'cline task new \"...\"' to auto-start one.")
 				return nil
 			}
@@ -325,7 +325,7 @@ func newInstanceListCommand() *cobra.Command {
 				if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
 					// Get PID from core
 					if client, err := registry.GetClient(ctx, instance.CoreAddress); err == nil {
-						if processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{}); err == nil {
+						if processInfo, err := client.State.GetProcessInfo(ctx, &beadsmith.EmptyRequest{}); err == nil {
 							pid = fmt.Sprintf("%d", processInfo.ProcessId)
 							// Update version from RPC if available
 							if processInfo.Version != nil && *processInfo.Version != "" && *processInfo.Version != "unknown" {
@@ -422,8 +422,8 @@ func newInstanceDefaultCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "default <address>",
 		Aliases: []string{"d"},
-		Short:   "Set the default Cline instance",
-		Long:    `Set the default Cline instance to use for subsequent commands.`,
+		Short:   "Set the default Beadsmith instance",
+		Long:    `Set the default Beadsmith instance to use for subsequent commands.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			address := args[0]
@@ -459,8 +459,8 @@ func newInstanceNewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "new",
 		Aliases: []string{"n"},
-		Short:   "Create a new Cline instance",
-		Long:    `Create a new Cline instance with automatically assigned ports.`,
+		Short:   "Create a new Beadsmith instance",
+		Long:    `Create a new Beadsmith instance with automatically assigned ports.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
@@ -468,7 +468,7 @@ func newInstanceNewCommand() *cobra.Command {
 				return fmt.Errorf("clients not initialized")
 			}
 
-			fmt.Println("Starting new Cline instance...")
+			fmt.Println("Starting new Beadsmith instance...")
 
 			instance, err := global.Instances.StartNewInstance(ctx)
 			if err != nil {

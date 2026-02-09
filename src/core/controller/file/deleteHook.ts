@@ -1,4 +1,4 @@
-import { DeleteHookRequest, DeleteHookResponse } from "@shared/proto/cline/file"
+import { DeleteHookRequest, DeleteHookResponse } from "@shared/proto/beadsmith/file"
 import fs from "fs/promises"
 import path from "path"
 import { HookDiscoveryCache } from "../../hooks/HookDiscoveryCache"

@@ -1,7 +1,7 @@
 import { isLocalModel } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
@@ -42,14 +42,14 @@ export const config = createVariant(ModelFamily.XS)
 		SystemPromptSection.SKILLS,
 	)
 	.tools(
-		ClineDefaultTool.BASH,
-		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
-		ClineDefaultTool.SEARCH,
-		ClineDefaultTool.ASK,
-		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.PLAN_MODE,
+		BeadsmithDefaultTool.BASH,
+		BeadsmithDefaultTool.FILE_READ,
+		BeadsmithDefaultTool.FILE_NEW,
+		BeadsmithDefaultTool.FILE_EDIT,
+		BeadsmithDefaultTool.SEARCH,
+		BeadsmithDefaultTool.ASK,
+		BeadsmithDefaultTool.ATTEMPT,
+		BeadsmithDefaultTool.PLAN_MODE,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,

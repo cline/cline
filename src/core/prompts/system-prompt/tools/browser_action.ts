@@ -1,10 +1,10 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 
-const id = ClineDefaultTool.BROWSER
+const id = BeadsmithDefaultTool.BROWSER
 
-const GENERIC: ClineToolSpec = {
+const GENERIC: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "browser_action",
@@ -57,7 +57,7 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id,
 	name: "browser_action",

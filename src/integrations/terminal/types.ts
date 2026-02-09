@@ -4,7 +4,7 @@
  * the StandaloneTerminalManager used in CLI/JetBrains environments.
  */
 
-import type { ClineToolResponseContent } from "@shared/messages"
+import type { BeadsmithToolResponseContent } from "@shared/messages"
 import type { EventEmitter } from "events"
 
 // =============================================================================
@@ -329,9 +329,9 @@ export interface CommandExecutorCallbacks {
 	 * Update a cline message by index
 	 * Supports updating commandCompleted status and/or text content
 	 */
-	updateClineMessage: (index: number, updates: { commandCompleted?: boolean; text?: string }) => Promise<void>
+	updateBeadsmithMessage: (index: number, updates: { commandCompleted?: boolean; text?: string }) => Promise<void>
 	/** Get cline messages array */
-	getClineMessages: () => Array<{ ask?: string; say?: string; text?: string }>
+	getBeadsmithMessages: () => Array<{ ask?: string; say?: string; text?: string }>
 	/** Add content to user message for next API request */
 	addToUserMessageContent: (content: { type: string; text: string }) => void
 }
@@ -392,7 +392,7 @@ export interface OrchestrationResult {
 	/** Whether the user rejected/cancelled the command */
 	userRejected: boolean
 	/** The result content to return */
-	result: ClineToolResponseContent
+	result: BeadsmithToolResponseContent
 	/** Whether the command completed */
 	completed: boolean
 	/** All output lines captured */

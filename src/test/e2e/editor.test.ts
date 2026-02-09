@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test"
-import { addSelectedCodeToClineWebview, openTab, toggleNotifications } from "./utils/common"
+import { addSelectedCodeToBeadsmithWebview, openTab, toggleNotifications } from "./utils/common"
 import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 
 e2e.describe("Code Actions and Editor Panel", () => {
@@ -20,7 +20,7 @@ e2e.describe("Code Actions and Editor Panel", () => {
 			await expect(sidebarInput).not.toBeFocused()
 
 			// Sidebar should be opened and visible after adding code to Cline
-			await addSelectedCodeToClineWebview(page)
+			await addSelectedCodeToBeadsmithWebview(page)
 			await expect(sidebarInput).not.toBeEmpty()
 			await expect(sidebarInput).toBeFocused()
 		})

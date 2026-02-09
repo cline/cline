@@ -25,7 +25,7 @@ describe("Skills Utility Functions", () => {
 
 	// Use path.join for OS-independent paths
 	const TEST_CWD = path.join("/test", "project")
-	const GLOBAL_SKILLS_DIR = path.join("/home", "user", ".cline", "skills")
+	const GLOBAL_SKILLS_DIR = path.join("/home", "user", ".beadsmith", "skills")
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -77,8 +77,8 @@ Instructions here`)
 			expect(skills[0].source).to.equal("global")
 		})
 
-		it("should discover skills from project .clinerules/skills directory", async () => {
-			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+		it("should discover skills from project .beadsmithrules/skills directory", async () => {
+			const projectSkillsDir = path.join(TEST_CWD, ".beadsmithrules", "skills")
 			const skillDir = path.join(projectSkillsDir, "explaining-code")
 			const skillMdPath = path.join(skillDir, "SKILL.md")
 
@@ -101,14 +101,14 @@ Use analogies and ASCII diagrams when explaining code.`)
 		})
 
 		it("should discover skills from project .cline/skills directory", async () => {
-			const clineSkillsDir = path.join(TEST_CWD, ".cline", "skills")
-			const skillDir = path.join(clineSkillsDir, "debugging")
+			const beadsmithSkillsDir = path.join(TEST_CWD, ".beadsmith", "skills")
+			const skillDir = path.join(beadsmithSkillsDir, "debugging")
 			const skillMdPath = path.join(skillDir, "SKILL.md")
 
-			fileExistsStub.withArgs(clineSkillsDir).resolves(true)
+			fileExistsStub.withArgs(beadsmithSkillsDir).resolves(true)
 			fileExistsStub.withArgs(skillMdPath).resolves(true)
-			isDirectoryStub.withArgs(clineSkillsDir).resolves(true)
-			readdirStub.withArgs(clineSkillsDir).resolves(["debugging"])
+			isDirectoryStub.withArgs(beadsmithSkillsDir).resolves(true)
+			readdirStub.withArgs(beadsmithSkillsDir).resolves(["debugging"])
 			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
 			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
 name: debugging
@@ -213,7 +213,7 @@ description: Global coding skill
 Global instructions`)
 
 			// Setup project skill with same name (lower priority)
-			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+			const projectSkillsDir = path.join(TEST_CWD, ".beadsmithrules", "skills")
 			const projectSkillDir = path.join(projectSkillsDir, "coding")
 			const projectSkillMdPath = path.join(projectSkillDir, "SKILL.md")
 
@@ -253,7 +253,7 @@ description: A global skill
 Content`)
 
 			// Setup project skill with different name
-			const projectSkillsDir = path.join(TEST_CWD, ".clinerules", "skills")
+			const projectSkillsDir = path.join(TEST_CWD, ".beadsmithrules", "skills")
 			const projectSkillDir = path.join(projectSkillsDir, "project-skill")
 			const projectSkillMdPath = path.join(projectSkillDir, "SKILL.md")
 

@@ -1,4 +1,4 @@
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import { SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.beadsmith"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"

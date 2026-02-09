@@ -1,9 +1,9 @@
 ---
 title: "VS Code Language Model API"
-description: "Learn how to use Cline with the experimental VS Code Language Model API, enabling access to models from GitHub Copilot and other compatible extensions."
+description: "Learn how to use Beadsmith with the experimental VS Code Language Model API, enabling access to models from GitHub Copilot and other compatible extensions."
 ---
 
-Cline offers _experimental_ support for the [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/language-model). This API enables extensions to grant access to language models directly within the VS Code environment. Consequently, you might be able to leverage models from:
+Beadsmith offers _experimental_ support for the [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/language-model). This API enables extensions to grant access to language models directly within the VS Code environment. Consequently, you might be able to leverage models from:
 
 -   **GitHub Copilot:** Provided you have an active Copilot subscription and the extension installed.
 -   **Other VS Code Extensions:** Any extension that implements the Language Model API.
@@ -19,8 +19,8 @@ Cline offers _experimental_ support for the [VS Code Language Model API](https:/
 
 ### Configuration Steps
 
-1. **Ensure Copilot Account is Active and Extensions are installed:** User logged into either the Copilot or Copilot Chat extension should be able to gain access via Cline.
-2. **Access Cline Settings:** Click the gear icon (⚙️) located in the Cline panel.
+1. **Ensure Copilot Account is Active and Extensions are installed:** User logged into either the Copilot or Copilot Chat extension should be able to gain access via Beadsmith.
+2. **Access Beadsmith Settings:** Click the gear icon (⚙️) located in the Beadsmith panel.
 3. **Choose Provider:** Select "VS Code LM API" from the "API Provider" dropdown menu.
 4. **Select Model:** If the Copilot extension(s) are installed and the user is logged into their Copilot account, the "Language Model" dropdown will populate with available models after a short time. The naming convention is `vendor/family`. For instance, if Copilot is active, you might encounter options such as:
     - `copilot - gpt-3.5-turbo`
@@ -37,10 +37,10 @@ For best results with the VSCode LM API Provider, we suggest using the OpenAI Mo
 ### Current Limitations
 
 -   **Experimental API Status:** The VS Code Language Model API is still under active development. Anticipate potential changes and instability.
--   **Dependency on Extensions:** This feature is entirely contingent on other extensions making models available. Cline does not directly control the list of accessible models.
+-   **Dependency on Extensions:** This feature is entirely contingent on other extensions making models available. Beadsmith does not directly control the list of accessible models.
 -   **Restricted Functionality:** The VS Code Language Model API might not encompass all features available through other API providers (e.g., image input capabilities, streaming responses, detailed usage metrics).
--   **No Direct Cost Management:** Users are subject to the pricing structures and terms of service of the extension providing the model. Cline cannot directly monitor or regulate associated costs.
--   **GitHub Copilot Rate Throttling:** When employing the VS Code LM API with GitHub Copilot, be mindful that GitHub may enforce rate limits on Copilot usage. These limitations are governed by GitHub, not Cline.
+-   **No Direct Cost Management:** Users are subject to the pricing structures and terms of service of the extension providing the model. Beadsmith cannot directly monitor or regulate associated costs.
+-   **GitHub Copilot Rate Throttling:** When employing the VS Code LM API with GitHub Copilot, be mindful that GitHub may enforce rate limits on Copilot usage. These limitations are governed by GitHub, not Beadsmith.
 
 ### Troubleshooting Tips
 

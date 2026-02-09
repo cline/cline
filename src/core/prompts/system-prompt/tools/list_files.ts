@@ -1,11 +1,11 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
-const id = ClineDefaultTool.LIST_FILES
+const id = BeadsmithDefaultTool.LIST_FILES
 
-const generic: ClineToolSpec = {
+const generic: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "list_files",
@@ -30,7 +30,7 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_GPT_5,
 	id,
 	name: "list_files",
@@ -52,7 +52,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	...NATIVE_GPT_5,
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 }

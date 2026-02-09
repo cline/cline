@@ -1,10 +1,10 @@
 ---
 title: "Hooks Overview"
 sidebarTitle: "Overview"
-description: "Inject custom logic into Cline's workflow to validate operations, monitor tool usage, and shape AI decisions"
+description: "Inject custom logic into Beadsmith's workflow to validate operations, monitor tool usage, and shape AI decisions"
 ---
 
-Hooks let you inject custom logic into Cline's workflow at key moments. Think of them as automated checkpoints where you can validate operations before they execute, monitor tool usage as it happens, and shape how Cline makes decisions.
+Hooks let you inject custom logic into Beadsmith's workflow at key moments. Think of them as automated checkpoints where you can validate operations before they execute, monitor tool usage as it happens, and shape how Beadsmith makes decisions.
 
 Hooks run automatically when specific events happen during development. They receive detailed information about each operation, can block problematic actions before they cause issues, and can inject context that guides future AI decisions.
 
@@ -19,14 +19,14 @@ The real power comes from combining these capabilities. You can:
 ## Getting Started
 
 <Frame>
-	<img src="https://storage.googleapis.com/cline_public_images/hooks.gif" alt="Hooks in action" />
+	<img src="https://storage.googleapis.com/beadsmith_public_images/hooks.gif" alt="Hooks in action" />
 </Frame>
 
 <Note>
 Hooks work across all platforms: Windows, macOS, and Linux. The bash examples in this documentation work with standard shells on all platforms (including Git Bash or WSL on Windows).
 </Note>
 
-Setting up hooks in Cline is user-friendly with the built-in hooks management interface. Here's how to get started:
+Setting up hooks in Beadsmith is user-friendly with the built-in hooks management interface. Here's how to get started:
 
 <Steps>
 <Step title="Access the Hooks Interface">
@@ -36,7 +36,7 @@ Navigate to the Hooks management interface:
   <img src="/assets/hooks/hooks-interface-with-dropdown.png" alt="Hooks management interface showing Global Hooks and project-specific hooks with dropdown menu" />
 </Frame>
 
-1. Open Cline (ensure hooks are enabled in settings)
+1. Open Beadsmith (ensure hooks are enabled in settings)
 2. Look for the **Hooks** tab at the top (alongside Rules and Workflows)
 3. Click on **Hooks** to open the hooks management panel
 
@@ -47,11 +47,11 @@ The interface shows you all available hook types and existing hooks organized by
 Hooks are automatically organized by location in the interface:
 
 **Global Hooks** - Apply to all workspaces:
-- Stored in `~/Documents/Cline/Hooks/`
+- Stored in `~/Documents/Beadsmith/Hooks/`
 - Perfect for personal coding standards and universal rules
 
 **Project-Specific Hooks** - Apply only to current project:
-- Stored in `.clinerules/hooks/` within your repo
+- Stored in `.beadsmithrules/hooks/` within your repo
 - Great for project-specific validation and team workflows
 - Can be committed to version control for team sharing
 
@@ -86,12 +86,12 @@ Always review a hook's code before enabling it. Hooks execute automatically duri
 </Step>
 
 <Step title="Test Your Hook">
-To develop and refine your hook, you'll need to trigger it multiple times during testing. Each hook type is triggered by different events in Cline's workflow. For example:
+To develop and refine your hook, you'll need to trigger it multiple times during testing. Each hook type is triggered by different events in Beadsmith's workflow. For example:
 
 - **TaskStart** hooks trigger when you start a new task
-- **PreToolUse** hooks trigger before Cline executes tools like file editing
+- **PreToolUse** hooks trigger before Beadsmith executes tools like file editing
 - **PostToolUse** hooks trigger after tool execution completes
-- **UserPromptSubmit** hooks trigger when you submit a message to Cline
+- **UserPromptSubmit** hooks trigger when you submit a message to Beadsmith
 
 For complete details on when each hook type is triggered and how to test them effectively, see the [Hook Reference](/features/hooks/hook-reference) documentation. This includes the specific conditions that trigger each hook and examples of how to invoke them during development.
 </Step>
@@ -123,7 +123,7 @@ Once you understand the basics, hooks open up creative possibilities:
   </Card>
 </CardGroup>
 
-The key is combining hooks with external tools. A hook can be the glue between Cline's workflow and the rest of your development ecosystem.
+The key is combining hooks with external tools. A hook can be the glue between Beadsmith's workflow and the rest of your development ecosystem.
 
 ## Explore the Documentation
 
@@ -139,15 +139,15 @@ The key is combining hooks with external tools. A hook can be the glue between C
 
 ## CLI support
 
-Hooks are also available in the [Cline CLI](/cline-cli/overview). You can enable or disable hooks when running tasks from the command line:
+Hooks are also available in the [Beadsmith CLI](/beadsmith-cli/overview). You can enable or disable hooks when running tasks from the command line:
 
 ```bash
 # Enable hooks for a task
-cline "What does this repo do?" -s hooks_enabled=true
+beadsmith "What does this repo do?" -s hooks_enabled=true
 
 # Configure hooks globally via CLI
-cline config set hooks-enabled=true
-cline config get hooks-enabled
+beadsmith config set hooks-enabled=true
+beadsmith config get hooks-enabled
 ```
 
 This allows you to integrate hooks into automated workflows, CI/CD pipelines, and headless task execution.
@@ -158,9 +158,9 @@ Hooks in the CLI are only supported on macOS and Linux. Windows support is not y
 
 ## Related features
 
-Hooks complement other Cline features:
+Hooks complement other Beadsmith features:
 
-- [Cline Rules](/features/cline-rules) define high-level guidance that hooks can enforce
+- [Beadsmith Rules](/features/beadsmith-rules) define high-level guidance that hooks can enforce
 - [Checkpoints](/features/checkpoints) let you roll back changes if a hook didn't catch an issue
 - [Auto-Approve](/features/auto-approve) works well with hooks as safety nets for automated operations
-- [Cline CLI](/cline-cli/overview) enables hooks in terminal-based and automated workflows
+- [Beadsmith CLI](/beadsmith-cli/overview) enables hooks in terminal-based and automated workflows

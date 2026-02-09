@@ -1,10 +1,10 @@
 ---
 title: "MCP Integration"
 sidebarTitle: "Overview"
-description: "Configure Model Context Protocol (MCP) servers and marketplace integrations for enterprise Cline deployments"
+description: "Configure Model Context Protocol (MCP) servers and marketplace integrations for enterprise Beadsmith deployments"
 ---
 
-Model Context Protocol (MCP) provides standardized communication between AI models and external data sources, tools, and services. Enterprise MCP integration allows you to securely connect Cline to your organization's systems while maintaining governance and compliance.
+Model Context Protocol (MCP) provides standardized communication between AI models and external data sources, tools, and services. Enterprise MCP integration allows you to securely connect Beadsmith to your organization's systems while maintaining governance and compliance.
 
 ## Enterprise MCP Benefits
 
@@ -30,7 +30,7 @@ Model Context Protocol (MCP) provides standardized communication between AI mode
 
 ```mermaid
 graph TB
-    A[Cline Enterprise] --> B[MCP Hub]
+    A[Beadsmith Enterprise] --> B[MCP Hub]
     B --> C[MCP Marketplace]
     B --> D[Remote MCP Servers]
     B --> E[Internal MCP Servers]
@@ -83,7 +83,7 @@ mcp:
     # Server discovery
     discovery:
       methods: ["marketplace", "remote", "local"]
-      marketplace_url: "https://mcp.cline.bot/marketplace"
+      marketplace_url: "https://mcp.beadsmith.bot/marketplace"
       
     # Security settings
     security:
@@ -115,7 +115,7 @@ mcp:
   servers:
     - name: "github-dev"
       type: "marketplace"
-      package: "@cline/mcp-github"
+      package: "@beadsmith/mcp-github"
       version: "latest"
       config:
         github_token: "${GITHUB_DEV_TOKEN}"
@@ -145,7 +145,7 @@ mcp:
   servers:
     - name: "github-prod"
       type: "marketplace"
-      package: "@cline/mcp-github"
+      package: "@beadsmith/mcp-github"
       version: "1.2.3"  # Pinned version
       config:
         github_token: "${GITHUB_PROD_TOKEN}"
@@ -188,11 +188,11 @@ Manage MCP server deployments with GitOps:
 
 ```yaml
 # mcp-server-manifest.yaml
-apiVersion: mcp.cline.bot/v1
+apiVersion: mcp.beadsmith.bot/v1
 kind: MCPServer
 metadata:
   name: custom-api-server
-  namespace: cline-enterprise
+  namespace: beadsmith-enterprise
 spec:
   image: company/custom-mcp-server:v1.0.0
   replicas: 3
@@ -234,7 +234,7 @@ mcp:
   hub:
     replicaCount: 3
     image:
-      repository: cline/mcp-hub-enterprise
+      repository: beadsmith/mcp-hub-enterprise
       tag: "1.5.2"
       
   servers:
@@ -320,7 +320,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: mcp-server-policy
-  namespace: cline-enterprise
+  namespace: beadsmith-enterprise
 spec:
   podSelector:
     matchLabels:
@@ -333,10 +333,10 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: cline-enterprise
+              name: beadsmith-enterprise
         - podSelector:
             matchLabels:
-              app: cline-core
+              app: beadsmith-core
       ports:
         - protocol: TCP
           port: 8080
@@ -441,7 +441,7 @@ Create custom MCP servers using the enterprise SDK:
 
 ```typescript
 // custom-mcp-server.ts
-import { MCPServer, Tool, Resource } from '@cline/mcp-enterprise-sdk';
+import { MCPServer, Tool, Resource } from '@beadsmith/mcp-enterprise-sdk';
 
 class CustomAPIServer extends MCPServer {
   constructor() {

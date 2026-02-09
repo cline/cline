@@ -20,13 +20,13 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{
 		name: "newrule",
-		description: "Create a new Cline rule based on your conversation",
+		description: "Create a new Beadsmith rule based on your conversation",
 		section: "default",
 		cliCompatible: true,
 	},
 	{
 		name: "reportbug",
-		description: "Create a Github issue with Cline",
+		description: "Create a Github issue with Beadsmith",
 		section: "default",
 		cliCompatible: true,
 	},
@@ -38,7 +38,7 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{
 		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
+		description: "Invoke a Beadsmith CLI subagent for focused research tasks",
 		section: "default",
 		cliCompatible: true,
 	},
@@ -49,6 +49,16 @@ export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
 	{
 		name: "explain-changes",
 		description: "Explain code changes between git refs (PRs, commits, branches, etc.)",
+		section: "default",
+	},
+	{
+		name: "ralph-loop",
+		description: "Start a Ralph Wiggum loop for iterative AI-driven development",
+		section: "default",
+	},
+	{
+		name: "cancel-ralph",
+		description: "Cancel the currently running Ralph loop",
 		section: "default",
 	},
 ]

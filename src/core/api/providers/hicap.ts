@@ -1,7 +1,7 @@
 import { hicapModelInfoSaneDefaults, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -44,7 +44,7 @@ export class HicapHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.hicapModelId ?? ""
 

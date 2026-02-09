@@ -1,13 +1,13 @@
 {
-	"name": "cline",
+	"name": "beadsmith",
 	"version": "1.0.10",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"main": "cline-core.js",
 	"bin": {
-		"cline": "./bin/cline",
+		"beadsmith": "./bin/cline",
 		"cline-host": "./bin/cline-host"
 	},
-	"man": "./man/cline.1",
+	"man": "./man/beadsmith.1",
 	"scripts": {
 		"postinstall": "node postinstall.js"
 	},
@@ -23,7 +23,7 @@
 		"node": ">=20.0.0"
 	},
 	"keywords": [
-		"cline",
+		"beadsmith",
 		"claude",
 		"dev",
 		"mcp",
@@ -38,14 +38,14 @@
 		"cli"
 	],
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "Beadsmith Bot Inc."
 	},
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://beadsmith.bot",
 	"bugs": {
 		"url": "https://github.com/cline/cline/issues"
 	},

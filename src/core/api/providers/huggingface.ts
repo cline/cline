@@ -2,7 +2,7 @@ import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, Model
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -36,7 +36,7 @@ export class HuggingFaceHandler implements ApiHandler {
 					baseURL: "https://router.huggingface.co/v1",
 					apiKey: this.options.huggingFaceApiKey,
 					defaultHeaders: {
-						"User-Agent": "Cline/1.0",
+						"User-Agent": "Beadsmith/1.0",
 					},
 					fetch, // Use configured fetch with proxy support
 				})
@@ -69,7 +69,7 @@ export class HuggingFaceHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = this.ensureClient()
 			const model = this.getModel()
@@ -127,12 +127,15 @@ export class HuggingFaceHandler implements ApiHandler {
 		}
 
 		const modelId = this.options.huggingFaceModelId
-
-		// List all available models for debugging
-		const _availableModels = Object.keys(huggingFaceModels)
 		let result: { id: HuggingFaceModelId; info: ModelInfo }
 
-		if (modelId && modelId in huggingFaceModels) {
+		// Use provided model info if available (allows custom context windows)
+		if (this.options.huggingFaceModelInfo && modelId) {
+			result = {
+				id: modelId as HuggingFaceModelId,
+				info: this.options.huggingFaceModelInfo,
+			}
+		} else if (modelId && modelId in huggingFaceModels) {
 			const id = modelId as HuggingFaceModelId
 			const modelInfo = huggingFaceModels[id]
 			result = { id, info: modelInfo }

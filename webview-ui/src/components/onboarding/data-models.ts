@@ -1,5 +1,5 @@
-import type { OpenRouterModelInfo } from "@shared/proto/cline/models"
-import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
+import type { OpenRouterModelInfo } from "@shared/proto/beadsmith/models"
+import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/beadsmith/state"
 
 export interface OnboardingModelsByGroup {
 	free: ModelGroup[]
@@ -11,7 +11,7 @@ interface ModelGroup {
 	models: OnboardingModel[]
 }
 
-export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
+export function getBeadsmithUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
 	const { models } = groupedModels
 
 	const freeModels = models.filter((m) => m.group === "free")

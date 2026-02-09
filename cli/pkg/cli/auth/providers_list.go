@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // ProviderDisplay represents a configured provider for display purposes
@@ -28,18 +28,18 @@ type ProviderListResult struct {
 	apiConfig    map[string]interface{} // Store the raw apiConfig for scanning all providers
 }
 
-// GetProviderConfigurations retrieves and parses provider configurations from Cline Core state
+// GetProviderConfigurations retrieves and parses provider configurations from Beadsmith Core state
 func GetProviderConfigurations(ctx context.Context) (*ProviderListResult, error) {
 	if global.Config.Verbose {
-		fmt.Println("[DEBUG] Retrieving provider configurations from Cline Core")
+		fmt.Println("[DEBUG] Retrieving provider configurations from Beadsmith Core")
 	}
 
-	// Get latest state from Cline Core
+	// Get latest state from Beadsmith Core
 	grpcClient, err := global.GetDefaultClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider configs due to unable to get gRPC client: %w", err)
 	}
-	state, err := grpcClient.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := grpcClient.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state: %w", err)
 	}
@@ -240,7 +240,7 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_OLLAMA, true
 	case "cerebras":
 		return cline.ApiProvider_CEREBRAS, true
-	case "cline":
+	case "beadsmith":
 		return cline.ApiProvider_CLINE, true
 	case "oca":
 		return cline.ApiProvider_OCA, true
@@ -276,7 +276,7 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 	case cline.ApiProvider_CEREBRAS:
 		return "cerebras"
 	case cline.ApiProvider_CLINE:
-		return "cline"
+		return "beadsmith"
 	case cline.ApiProvider_OCA:
 		return "oca"
 	case cline.ApiProvider_HICAP:
@@ -437,8 +437,8 @@ func FormatProviderList(result *ProviderListResult) string {
 func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([]cline.ApiProvider, error) {
 	verboseLog("[DEBUG] Detecting all configured providers...")
 
-	// Get latest state from Cline Core
-	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
+	// Get latest state from Beadsmith Core
+	state, err := manager.GetClient().State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state: %w", err)
 	}
@@ -463,10 +463,10 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 
 	var configuredProviders []cline.ApiProvider
 
-	// Check for Cline provider (uses authentication instead of API key)
+	// Check for Beadsmith provider (uses authentication instead of API key)
 	if IsAuthenticated(ctx) {
 		configuredProviders = append(configuredProviders, cline.ApiProvider_CLINE)
-		verboseLog("[DEBUG] Cline provider is authenticated")
+		verboseLog("[DEBUG] Beadsmith provider is authenticated")
 	}
 
 	// Check OCA provider via global auth subscription (state presence)

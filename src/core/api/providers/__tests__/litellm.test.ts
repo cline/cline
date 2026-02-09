@@ -2,7 +2,7 @@ import { LiteLlmHandler, type LiteLlmModelInfoResponse } from "@core/api/provide
 import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
 import { expect } from "chai"
 import sinon from "sinon"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { mockFetchForTesting } from "@/shared/net"
 
 const fakeClient = {
@@ -109,7 +109,7 @@ describe("LiteLlmHandler", () => {
 
 			it("sends the system prompt and messages with the openai format", async () => {
 				const systemPrompt = "Test System Prompt"
-				const messages: ClineStorageMessage[] = [
+				const messages: BeadsmithStorageMessage[] = [
 					{
 						role: "user",
 						content: "first message",
@@ -161,7 +161,7 @@ describe("LiteLlmHandler", () => {
 
 			it("inserts the cache control in the system prompt and the last two user messages", async () => {
 				const systemPrompt = "Test System Prompt"
-				const messages: ClineStorageMessage[] = [
+				const messages: BeadsmithStorageMessage[] = [
 					{
 						role: "user",
 						content: "first message",

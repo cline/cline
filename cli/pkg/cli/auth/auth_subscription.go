@@ -6,8 +6,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // AuthStatusListener manages subscription to auth status updates
@@ -30,7 +30,7 @@ func NewAuthStatusListener(parentCtx context.Context) (*AuthStatusListener, erro
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	// Subscribe to auth status updates
-	stream, err := client.Account.SubscribeToAuthStatusUpdate(ctx, &cline.EmptyRequest{})
+	stream, err := client.Account.SubscribeToAuthStatusUpdate(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to subscribe to auth updates: %w", err)

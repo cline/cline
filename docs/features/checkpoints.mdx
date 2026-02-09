@@ -7,25 +7,25 @@ Checkpoints automatically save snapshots of your workspace after each step in a 
 
 ## How Checkpoints Work
 
-Cline creates a checkpoint after each tool use (file edits, commands, etc.). These checkpoints:
+Beadsmith creates a checkpoint after each tool use (file edits, commands, etc.). These checkpoints:
 
 -   Work alongside your Git workflow without interference
 -   Maintain context between restores
 -   Use a shadow Git repository to track changes
 
-For example, if you're working on a feature and Cline makes multiple file changes, each change creates a checkpoint. This means you can review each modification and, if needed, roll back to any point without affecting your main Git repository.
+For example, if you're working on a feature and Beadsmith makes multiple file changes, each change creates a checkpoint. This means you can review each modification and, if needed, roll back to any point without affecting your main Git repository.
 
 ## Enabling or Disabling Checkpoints
 
-Checkpoints are enabled by default in Cline. To toggle this feature:
+Checkpoints are enabled by default in Beadsmith. To toggle this feature:
 
-1. Open the Cline settings by clicking the gear icon in the Cline panel
+1. Open the Beadsmith settings by clicking the gear icon in the Beadsmith panel
 2. Go to "Feature Settings"
 3. Toggle the **"Enable Checkpoints"** checkbox on or off
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/checkpoints.gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/checkpoints.gif"
 		alt="Checkpoints toggle in settings"
 	/>
 </Frame>
@@ -48,7 +48,7 @@ After each tool use, you can:
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(13).png"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/image%20(13).png"
 		alt="Checkpoint comparison and restore options"
 	/>
 </Frame>
@@ -63,15 +63,15 @@ To restore to a previous point:
     - **Restore Task Only**: Keep codebase changes but revert task context
     - **Restore Workspace Only**: Reset codebase while preserving task context
 
-Example: If Cline makes changes you don't like while styling a component, you can use "Restore Workspace Only" to revert the code changes while keeping the conversation context, allowing you to try a different approach.
+Example: If Beadsmith makes changes you don't like while styling a component, you can use "Restore Workspace Only" to revert the code changes while keeping the conversation context, allowing you to try a different approach.
 
 <Frame caption="Reverting both codebase and task to before any changes were made to start fresh">
-	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/checkpointsDemo.gif" alt="Checkpoint restore demo" />
+	<img src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/checkpointsDemo.gif" alt="Checkpoint restore demo" />
 </Frame>
 
 ## Use Cases
 
-Checkpoints let you be more experimental with Cline. While human coding is often methodical and iterative, AI can make substantial changes quickly. Checkpoints help you track these changes and revert if needed.
+Checkpoints let you be more experimental with Beadsmith. While human coding is often methodical and iterative, AI can make substantial changes quickly. Checkpoints help you track these changes and revert if needed.
 
 ### Using Auto-Approve Mode
 

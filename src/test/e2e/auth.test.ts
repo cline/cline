@@ -17,9 +17,9 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	// Verify provider selector is visible
 	await expect(providerSelectorInput).toBeVisible()
 
-	// Test Cline provider option
+	// Test Beadsmith provider option
 	await providerSelectorInput.click({ delay: 100 })
-	// Wait for dropdown to appear and find Cline option
+	// Wait for dropdown to appear and find Beadsmith option
 	await expect(sidebar.getByTestId("provider-option-cline")).toBeVisible()
 	await sidebar.getByTestId("provider-option-cline").click({ delay: 100 })
 	await expect(sidebar.getByRole("button", { name: "Sign Up with Cline" })).toBeVisible()
@@ -52,8 +52,8 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 
 	// Verify you are now in the chat page after setup was completed and the dialog was closed.
 	// cline logo container
-	const clineLogo = sidebar.locator(".size-20")
-	await expect(clineLogo).toBeVisible()
+	const beadsmithLogo = sidebar.locator(".size-20")
+	await expect(beadsmithLogo).toBeVisible()
 	const chatInputBox = sidebar.getByTestId("chat-input")
 	await expect(chatInputBox).toBeVisible()
 

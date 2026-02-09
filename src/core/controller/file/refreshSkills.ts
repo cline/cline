@@ -1,4 +1,4 @@
-import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
+import { RefreshedSkills, SkillInfo } from "@shared/proto/beadsmith/file"
 import fs from "fs/promises"
 import path from "path"
 import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
@@ -107,8 +107,8 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 	const localSkills: SkillInfo[] = []
 	if (primaryWorkspace) {
 		const localDirs = [
-			path.join(primaryWorkspace, ".clinerules", "skills"),
-			path.join(primaryWorkspace, ".cline", "skills"),
+			path.join(primaryWorkspace, ".beadsmithrules", "skills"),
+			path.join(primaryWorkspace, ".beadsmith", "skills"),
 			path.join(primaryWorkspace, ".claude", "skills"),
 		]
 

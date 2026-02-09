@@ -3,22 +3,22 @@ title: "Terminal Integration"
 sidebarTitle: "Terminal Integration"
 ---
 
-Cline's terminal integration lets you bring your terminal output directly into your conversations with Cline. Instead of copying and pasting error messages or command results, you can send them to Cline with a simple right-click in the terminal.
+Beadsmith's terminal integration lets you bring your terminal output directly into your conversations with Beadsmith. Instead of copying and pasting error messages or command results, you can send them to Beadsmith with a simple right-click in the terminal.
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/terminal-integration.png"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/terminal-integration.png"
 		alt="Terminal Integration"
 	/>
 </Frame>
 
 ## Right-Click Terminal Integration
 
-When you're working in the VSCode terminal and see output you want to discuss with Cline:
+When you're working in the VSCode terminal and see output you want to discuss with Beadsmith:
 
 1. Right-click in the terminal
-2. Select "Add to Cline" from the context menu
-3. The terminal output is immediately sent to the Cline chat panel
+2. Select "Add to Beadsmith" from the context menu
+3. The terminal output is immediately sent to the Beadsmith chat panel
 
 This is perfect for:
 
@@ -29,9 +29,9 @@ This is perfect for:
 
 The right-click terminal integration is especially useful when you're already working in the terminal and encounter an issue.
 
-Instead of switching context to the Cline chat panel and typing a description of the problem, you can send the terminal output directly to Cline with just a couple of clicks.
+Instead of switching context to the Beadsmith chat panel and typing a description of the problem, you can send the terminal output directly to Beadsmith with just a couple of clicks.
 
-Alternatively, you can use the [`@terminal`](/features/at-mentions/terminal-mentions) mention to send the full terminal output to Cline.
+Alternatively, you can use the [`@terminal`](/features/at-mentions/terminal-mentions) mention to send the full terminal output to Beadsmith.
 
 <Tip>
 	For information about using `@terminal` mentions in your chat messages, see the [Terminal
@@ -40,20 +40,20 @@ Alternatively, you can use the [`@terminal`](/features/at-mentions/terminal-ment
 
 ## How Terminal Integration Works
 
-When you use the right-click terminal integration, Cline:
+When you use the right-click terminal integration, Beadsmith:
 
 1. Captures the terminal output with all formatting preserved
 2. Includes the complete context, including command history and results
 3. Formats it appropriately for the AI to understand
 4. Enables the AI to see exactly what you're seeing
 
-This gives Cline the full context it needs to provide accurate help with terminal-related issues.
+This gives Beadsmith the full context it needs to provide accurate help with terminal-related issues.
 
 ## Behind the Scenes
 
 The terminal integration uses a clever technique to capture terminal output:
 
-1. When you trigger the integration, Cline:
+1. When you trigger the integration, Beadsmith:
 
     - Temporarily saves your current clipboard content
     - Selects all terminal content (or uses your existing selection)
@@ -70,15 +70,15 @@ This approach ensures that all terminal output, including colors and formatting,
 
 ## Tips for Effective Use
 
--   **Use terminal integration for error messages**: When you encounter an error in the terminal, sending it to Cline often results in faster resolution than trying to describe the error.
+-   **Use terminal integration for error messages**: When you encounter an error in the terminal, sending it to Beadsmith often results in faster resolution than trying to describe the error.
 
 -   **Select specific output when needed**: By default, the integration captures all terminal content, but you can also select specific lines before right-clicking to focus on just the relevant output.
 
--   **Combine terminal outputs with file mentions**: After sending terminal output to Cline, you can enhance your question by mentioning relevant files using the @ mentions feature.
+-   **Combine terminal outputs with file mentions**: After sending terminal output to Beadsmith, you can enhance your question by mentioning relevant files using the @ mentions feature.
 
 -   **Contextualize build & test outputs with the terminal**: Terminal integration is particularly useful for understanding complex build errors or test failures that span multiple lines.
 
-Next time you're staring at a cryptic error message in your terminal, try using Cline's terminal integration instead of copying and pasting. You'll get more accurate help because Cline can see the complete terminal context with proper formatting.
+Next time you're staring at a cryptic error message in your terminal, try using Beadsmith's terminal integration instead of copying and pasting. You'll get more accurate help because Beadsmith can see the complete terminal context with proper formatting.
 
 ## Troubleshooting Terminal Issues
 
@@ -93,6 +93,6 @@ The troubleshooting guide covers:
 -   Terminal settings optimization
 
 <Tip>
-	**Quick Fix**: Most terminal issues can be resolved by switching to bash in the Cline settings and increasing the shell
+	**Quick Fix**: Most terminal issues can be resolved by switching to bash in the Beadsmith settings and increasing the shell
 	integration timeout to 10 seconds.
 </Tip>

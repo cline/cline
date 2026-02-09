@@ -1,5 +1,5 @@
-import type { ToggleAgentsRuleRequest } from "@shared/proto/cline/file"
-import { ClineRulesToggles } from "@shared/proto/cline/file"
+import type { ToggleAgentsRuleRequest } from "@shared/proto/beadsmith/file"
+import { BeadsmithRulesToggles } from "@shared/proto/beadsmith/file"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
@@ -9,7 +9,7 @@ import type { Controller } from "../index"
  * @param request The toggle request
  * @returns The updated Agents rule toggles
  */
-export async function toggleAgentsRule(controller: Controller, request: ToggleAgentsRuleRequest): Promise<ClineRulesToggles> {
+export async function toggleAgentsRule(controller: Controller, request: ToggleAgentsRuleRequest): Promise<BeadsmithRulesToggles> {
 	const { rulePath, enabled } = request
 
 	if (!rulePath || typeof enabled !== "boolean") {
@@ -28,7 +28,7 @@ export async function toggleAgentsRule(controller: Controller, request: ToggleAg
 	// Get the current state to return in the response
 	const agentsToggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
 
-	return ClineRulesToggles.create({
+	return BeadsmithRulesToggles.create({
 		toggles: agentsToggles,
 	})
 }

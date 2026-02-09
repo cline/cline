@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { EnvironmentMetadataEntry, TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
-import { ClineMessage } from "@shared/ExtensionMessage"
+import { BeadsmithMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
@@ -50,12 +50,12 @@ export const GlobalFileNames = {
 	groqModels: "groq_models.json",
 	basetenModels: "baseten_models.json",
 	hicapModels: "hicap_models.json",
-	mcpSettings: "cline_mcp_settings.json",
-	clineRules: ".clinerules",
-	workflows: ".clinerules/workflows",
-	hooksDir: ".clinerules/hooks",
-	clineruleSkillsDir: ".clinerules/skills",
-	clineSkillsDir: ".cline/skills",
+	mcpSettings: "beadsmith_mcp_settings.json",
+	beadsmithRules: ".beadsmithrules",
+	workflows: ".beadsmithrules/workflows",
+	hooksDir: ".beadsmithrules/hooks",
+	beadsmithruleSkillsDir: ".beadsmithrules/skills",
+	beadsmithSkillsDir: ".cline/skills",
 	claudeSkillsDir: ".claude/skills",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
@@ -103,16 +103,16 @@ export async function getDocumentsPath(): Promise<string> {
 }
 
 /**
- * Returns the cross-platform path to the Cline home directory (~/.cline).
+ * Returns the cross-platform path to the Beadsmith home directory (~/.beadsmith).
  * This works on macOS, Linux, and Windows:
- * - macOS: /Users/username/.cline
- * - Linux: /home/username/.cline
- * - Windows: C:\Users\username\.cline
+ * - macOS: /Users/username/.beadsmith
+ * - Linux: /home/username/.beadsmith
+ * - Windows: C:\Users\username\.beadsmith
  *
- * This is intended to eventually replace ~/Documents/Cline as the global config location.
+ * This is intended to eventually replace ~/Documents/Beadsmith as the global config location.
  */
-export function getClineHomePath(): string {
-	return path.join(os.homedir(), ".cline")
+export function getBeadsmithHomePath(): string {
+	return path.join(os.homedir(), ".beadsmith")
 }
 
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
@@ -121,61 +121,61 @@ export async function ensureTaskDirectoryExists(taskId: string): Promise<string>
 
 export async function ensureRulesDirectoryExists(): Promise<string> {
 	const userDocumentsPath = await getDocumentsPath()
-	const clineRulesDir = path.join(userDocumentsPath, "Cline", "Rules")
+	const beadsmithRulesDir = path.join(userDocumentsPath, "Beadsmith", "Rules")
 	try {
-		await fs.mkdir(clineRulesDir, { recursive: true })
+		await fs.mkdir(beadsmithRulesDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		return path.join(os.homedir(), "Documents", "Beadsmith", "Rules") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
-	return clineRulesDir
+	return beadsmithRulesDir
 }
 
 export async function ensureWorkflowsDirectoryExists(): Promise<string> {
 	const userDocumentsPath = await getDocumentsPath()
-	const clineWorkflowsDir = path.join(userDocumentsPath, "Cline", "Workflows")
+	const beadsmithWorkflowsDir = path.join(userDocumentsPath, "Beadsmith", "Workflows")
 	try {
-		await fs.mkdir(clineWorkflowsDir, { recursive: true })
+		await fs.mkdir(beadsmithWorkflowsDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Workflows") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		return path.join(os.homedir(), "Documents", "Beadsmith", "Workflows") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
-	return clineWorkflowsDir
+	return beadsmithWorkflowsDir
 }
 
 export async function ensureMcpServersDirectoryExists(): Promise<string> {
 	const userDocumentsPath = await getDocumentsPath()
-	const mcpServersDir = path.join(userDocumentsPath, "Cline", "MCP")
+	const mcpServersDir = path.join(userDocumentsPath, "Beadsmith", "MCP")
 	try {
 		await fs.mkdir(mcpServersDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "MCP") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+		return path.join(os.homedir(), "Documents", "Beadsmith", "MCP") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
 	}
 	return mcpServersDir
 }
 
 export async function ensureHooksDirectoryExists(): Promise<string> {
 	const userDocumentsPath = await getDocumentsPath()
-	const clineHooksDir = path.join(userDocumentsPath, "Cline", "Hooks")
+	const beadsmithHooksDir = path.join(userDocumentsPath, "Beadsmith", "Hooks")
 	try {
-		await fs.mkdir(clineHooksDir, { recursive: true })
+		await fs.mkdir(beadsmithHooksDir, { recursive: true })
 	} catch (_error) {
-		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+		return path.join(os.homedir(), "Documents", "Beadsmith", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
-	return clineHooksDir
+	return beadsmithHooksDir
 }
 
 /**
- * Returns the global skills directory path (~/.cline/skills).
+ * Returns the global skills directory path (~/.beadsmith/skills).
  * Creates the directory if it doesn't exist.
  */
 export async function ensureSkillsDirectoryExists(): Promise<string> {
-	const clineSkillsDir = path.join(getClineHomePath(), "skills")
+	const beadsmithSkillsDir = path.join(getBeadsmithHomePath(), "skills")
 	try {
-		await fs.mkdir(clineSkillsDir, { recursive: true })
+		await fs.mkdir(beadsmithSkillsDir, { recursive: true })
 	} catch (_error) {
 		// Fallback - return the path even if mkdir fails, we'll fail gracefully later
-		return clineSkillsDir
+		return beadsmithSkillsDir
 	}
-	return clineSkillsDir
+	return beadsmithSkillsDir
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
@@ -222,7 +222,7 @@ export async function saveApiConversationHistory(taskId: string, apiConversation
 	}
 }
 
-export async function getSavedClineMessages(taskId: string): Promise<ClineMessage[]> {
+export async function getSavedBeadsmithMessages(taskId: string): Promise<BeadsmithMessage[]> {
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.uiMessages)
 	if (await fileExistsAtPath(filePath)) {
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -238,7 +238,7 @@ export async function getSavedClineMessages(taskId: string): Promise<ClineMessag
 	return []
 }
 
-export async function saveClineMessages(taskId: string, uiMessages: ClineMessage[]) {
+export async function saveBeadsmithMessages(taskId: string, uiMessages: BeadsmithMessage[]) {
 	try {
 		const taskDir = await ensureTaskDirectoryExists(taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
@@ -263,7 +263,7 @@ export async function collectEnvironmentMetadata(): Promise<Omit<EnvironmentMeta
 			os_arch: os.arch(),
 			host_name: hostVersion.platform || "Unknown",
 			host_version: hostVersion.version || "Unknown",
-			cline_version: ExtensionRegistryInfo.version,
+			beadsmith_version: ExtensionRegistryInfo.version,
 		}
 	} catch (error) {
 		Logger.error("Failed to collect environment metadata:", error)
@@ -274,7 +274,7 @@ export async function collectEnvironmentMetadata(): Promise<Omit<EnvironmentMeta
 			os_arch: os.arch(),
 			host_name: "Unknown",
 			host_version: "Unknown",
-			cline_version: "Unknown",
+			beadsmith_version: "Unknown",
 		}
 	}
 }
@@ -475,7 +475,7 @@ export async function getGlobalHooksDir(): Promise<string | undefined> {
 /**
  * Gets the paths to all hooks directories to search for hooks, including:
  * 1. The global hooks directory (if it exists)
- * 2. Each workspace root's .clinerules/hooks directory (if they exist)
+ * 2. Each workspace root's .beadsmithrules/hooks directory (if they exist)
  *
  * Note: Hooks from different directories may be executed concurrently.
  * No execution order is guaranteed between hooks from different directories.
@@ -499,7 +499,7 @@ export async function getAllHooksDirs(): Promise<string[]> {
 }
 
 /**
- * Gets the paths to the workspace's .clinerules/hooks directories to search for
+ * Gets the paths to the workspace's .beadsmithrules/hooks directories to search for
  * hooks. A workspace may not use hooks, and the resulting array will be empty. A
  * multi-root workspace may have multiple hooks directories.
  */
@@ -512,7 +512,7 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
 	return (
 		await Promise.all(
 			workspaceRootPaths.map(async (workspaceRootPath) => {
-				// Look for a .clinerules/hooks folder in this workspace root.
+				// Look for a .beadsmithrules/hooks folder in this workspace root.
 				const candidate = path.join(workspaceRootPath, GlobalFileNames.hooksDir)
 				return (await isDirectory(candidate)) ? candidate : undefined
 			}),

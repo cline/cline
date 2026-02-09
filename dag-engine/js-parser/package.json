@@ -1,0 +1,16 @@
+{
+  "name": "beadsmith-dag-js-parser",
+  "version": "0.1.0",
+  "description": "JavaScript/TypeScript parser for Beadsmith DAG analysis",
+  "main": "parser.js",
+  "bin": {
+    "beadsmith-dag-js-parser": "./parser.js"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.28.6",
+    "@babel/traverse": "^7.28.6"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

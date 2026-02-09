@@ -12,7 +12,7 @@ let _distinctId: string = ""
  * Some environments don't return a value for the machine ID. For these situations we generated
  * a unique ID and store it locally.
  */
-export const _GENERATED_MACHINE_ID_KEY = "cline.generatedMachineId"
+export const _GENERATED_MACHINE_ID_KEY = "beadsmith.generatedMachineId"
 
 export async function initializeDistinctId(context: ExtensionContext, uuid: () => string = uuidv4) {
 	// Try to read the ID from storage.
@@ -53,7 +53,7 @@ async function getMachineId(): Promise<string | undefined> {
 
 /*
  * Set the distinct ID for logging and telemetry.
- * This is updated to Cline User ID when authenticated.
+ * This is updated to Beadsmith User ID when authenticated.
  */
 export function setDistinctId(newId: string) {
 	if (_distinctId && _distinctId !== newId) {
@@ -64,7 +64,7 @@ export function setDistinctId(newId: string) {
 
 /*
  * Unique identifier for the current user
- * If authenticated, this will be the Cline User ID.
+ * If authenticated, this will be the Beadsmith User ID.
  * Else, this will be the machine ID, or the anonymous ID as a fallback.
  */
 export function getDistinctId() {

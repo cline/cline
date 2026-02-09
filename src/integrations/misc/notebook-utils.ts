@@ -1,6 +1,6 @@
 /**
  * Shared utilities for processing Jupyter notebooks for LLM context.
- * Used by both the context menu commands (addToCline, etc.) and file reading (extract-text.ts).
+ * Used by both the context menu commands (addToBeadsmith, etc.) and file reading (extract-text.ts).
  */
 
 /**

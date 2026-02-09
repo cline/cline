@@ -1,14 +1,14 @@
 ---
 title: "Rules"
 sidebarTitle: "Rules"
-description: "Custom instruction files that guide Cline's behavior in your enterprise deployment"
+description: "Custom instruction files that guide Beadsmith's behavior in your enterprise deployment"
 ---
 
-Rules are custom instruction files that provide Cline with guidelines about your coding preferences, standards, and best practices. These instructions get added to Cline's context when working on tasks.
+Rules are custom instruction files that provide Beadsmith with guidelines about your coding preferences, standards, and best practices. These instructions get added to Beadsmith's context when working on tasks.
 
 ## What are Rules?
 
-Rules are simple markdown files stored in a `.clinerules/` directory that contain your team's conventions, preferences, and guidelines. They help Cline understand your:
+Rules are simple markdown files stored in a `.beadsmithrules/` directory that contain your team's conventions, preferences, and guidelines. They help Beadsmith understand your:
 
 - Coding style and conventions
 - Preferred libraries and frameworks
@@ -51,9 +51,9 @@ Here's a simple rule file that guides TypeScript development:
   <Tab title="Using /newrule Command">
     The easiest way to create a rule is with the `/newrule` command:
     
-    1. During a conversation with Cline, type `/newrule`
-    2. Cline will analyze your conversation and preferences
-    3. It creates an appropriately named `.md` file in `.clinerules/`
+    1. During a conversation with Beadsmith, type `/newrule`
+    2. Beadsmith will analyze your conversation and preferences
+    3. It creates an appropriately named `.md` file in `.beadsmithrules/`
     
     **Example:**
     ```
@@ -66,14 +66,14 @@ Here's a simple rule file that guides TypeScript development:
   <Tab title="Manual Creation">
     You can also create rule files manually:
     
-    1. Create a `.clinerules/` directory in your repository root
+    1. Create a `.beadsmithrules/` directory in your repository root
     2. Add markdown files with your guidelines
     3. Use descriptive names like `react-patterns.md` or `api-conventions.md`
     
     **File structure:**
     ```
     your-repo/
-    ├── .clinerules/
+    ├── .beadsmithrules/
     │   ├── typescript-style.md
     │   ├── testing-standards.md
     │   └── code-review-checklist.md
@@ -86,7 +86,7 @@ Here's a simple rule file that guides TypeScript development:
 
 <CardGroup cols={2}>
   <Card title="Workspace Rules" icon="folder">
-    **Location:** `.clinerules/` in your repository
+    **Location:** `.beadsmithrules/` in your repository
     
     **Scope:** Specific to that project
     
@@ -94,7 +94,7 @@ Here's a simple rule file that guides TypeScript development:
   </Card>
   
   <Card title="Global Rules" icon="globe">
-    **Location:** `Documents/Cline/` directory
+    **Location:** `Documents/Beadsmith/` directory
     
     **Scope:** All your projects
     
@@ -108,12 +108,12 @@ Here's a simple rule file that guides TypeScript development:
 
 You can enable or disable individual rule files:
 
-1. Click the rules icon in Cline's interface
+1. Click the rules icon in Beadsmith's interface
 2. Toggle rules on/off as needed
 3. Changes apply immediately to new tasks
 
 <Note>
-Disabling a rule removes it from Cline's context, but keeps the file intact. You can re-enable it anytime.
+Disabling a rule removes it from Beadsmith's context, but keeps the file intact. You can re-enable it anytime.
 </Note>
 
 ### Enterprise Remote Rules
@@ -126,7 +126,7 @@ See [Self-Hosted Configuration](/enterprise-solutions/configuration/infrastructu
 
 ## Compatible Formats
 
-Cline also respects rules from other AI coding tools:
+Beadsmith also respects rules from other AI coding tools:
 
 | File/Directory | Tool | Location |
 |----------------|------|----------|
@@ -136,10 +136,10 @@ Cline also respects rules from other AI coding tools:
 | `AGENTS.md` | Various | Workspace root + recursive search |
 
 <Note>
-**AGENTS.md behavior:** Cline only searches for nested `AGENTS.md` files recursively if a top-level `AGENTS.md` exists in your workspace root. If found, all `AGENTS.md` files are combined with their relative paths as headers.
+**AGENTS.md behavior:** Beadsmith only searches for nested `AGENTS.md` files recursively if a top-level `AGENTS.md` exists in your workspace root. If found, all `AGENTS.md` files are combined with their relative paths as headers.
 </Note>
 
-These files work the same way as `.clinerules/` files and can be toggled on/off independently.
+These files work the same way as `.beadsmithrules/` files and can be toggled on/off independently.
 
 ## Best Practices
 
@@ -165,7 +165,7 @@ These files work the same way as `.clinerules/` files and can be toggled on/off 
   </Accordion>
   
   <Accordion title="Don't Overdo It" icon="gauge-simple-high">
-    Too many rules can overwhelm Cline's context:
+    Too many rules can overwhelm Beadsmith's context:
     - Start with 3-5 essential rules
     - Add more only when truly needed
     - Remove outdated rules promptly

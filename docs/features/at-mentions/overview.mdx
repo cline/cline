@@ -3,69 +3,69 @@ title: "@ Mentions Overview"
 sidebarTitle: "Overview"
 ---
 
-@ mentions are one of Cline's most powerful features, letting you seamlessly bring external context into your conversations. Instead of copying and pasting code, error messages, or documentation, you can simply reference them with an @ symbol.
+@ mentions are one of Beadsmith's most powerful features, letting you seamlessly bring external context into your conversations. Instead of copying and pasting code, error messages, or documentation, you can simply reference them with an @ symbol.
 
 <Frame>
-	<img src="https://storage.googleapis.com/cline_public_images/docs/assets/at-mentions.png" alt="@ Mentions Overview" />
+	<img src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/at-mentions.png" alt="@ Mentions Overview" />
 </Frame>
 
-When you type `@` in the chat input, Cline shows a menu of available mention types. These mentions let you reference files, folders, problems, terminal output, git changes, and even web content directly in your conversations.
+When you type `@` in the chat input, Beadsmith shows a menu of available mention types. These mentions let you reference files, folders, problems, terminal output, git changes, and even web content directly in your conversations.
 
 ## Available @ Mentions
 
-Cline supports several types of @ mentions, each designed to bring different kinds of context into your conversations:
+Beadsmith supports several types of @ mentions, each designed to bring different kinds of context into your conversations:
 
 <Columns cols={2}>
   <Card title="File Mentions" icon="file" href="/features/at-mentions/file-mentions">
-    Reference any file in your workspace with `@/path/to/file`. Cline sees the complete file content, including imports, related
+    Reference any file in your workspace with `@/path/to/file`. Beadsmith sees the complete file content, including imports, related
     functions, and surrounding context.
   </Card>
 
 {" "}
 
 <Card title="Folder Mentions" icon="folder" href="/features/at-mentions/folder-mentions">
-	Reference entire directories with `@/path/to/folder/`. Cline sees the folder structure and all file contents, perfect for
+	Reference entire directories with `@/path/to/folder/`. Beadsmith sees the folder structure and all file contents, perfect for
 	understanding complex interactions between multiple files.
 </Card>
 
 {" "}
 
 <Card title="Problem Mentions" icon="triangle-exclamation" href="/features/at-mentions/problem-mentions">
-	Use `@problems` to show Cline all the errors and warnings in your workspace. Cline sees the complete list with file locations
+	Use `@problems` to show Beadsmith all the errors and warnings in your workspace. Beadsmith sees the complete list with file locations
 	and error messages.
 </Card>
 
 {" "}
 
 <Card title="Terminal Mentions" icon="terminal" href="/features/at-mentions/terminal-mentions">
-	Use `@terminal` to share your recent terminal output. Cline sees the complete output with formatting preserved, perfect for
+	Use `@terminal` to share your recent terminal output. Beadsmith sees the complete output with formatting preserved, perfect for
 	debugging build errors or test failures.
 </Card>
 
 {" "}
 
 <Card title="Git Mentions" icon="code-branch" href="/features/at-mentions/git-mentions">
-	Reference uncommitted changes with `@git-changes` or specific commits with `@[commit-hash]`. Cline sees the complete diff,
+	Reference uncommitted changes with `@git-changes` or specific commits with `@[commit-hash]`. Beadsmith sees the complete diff,
 	commit message, and other relevant information.
 </Card>
 
   <Card title="URL Mentions" icon="globe" href="/features/at-mentions/url-mentions">
-    Reference web content with `@https://example.com`. Cline fetches and sees the complete webpage content, perfect for
+    Reference web content with `@https://example.com`. Beadsmith fetches and sees the complete webpage content, perfect for
     referencing documentation or GitHub issues.
   </Card>
 </Columns>
 
 ## Why @ Mentions Matter
 
-@ mentions transform how you interact with Cline by:
+@ mentions transform how you interact with Beadsmith by:
 
 1. **Eliminating copy-paste**: No more copying and pasting code, error messages, or terminal output. Just reference them directly.
 
-2. **Preserving context**: Cline sees the complete context, including imports, related functions, and surrounding code that might be relevant.
+2. **Preserving context**: Beadsmith sees the complete context, including imports, related functions, and surrounding code that might be relevant.
 
 3. **Maintaining formatting**: Terminal output, error messages, and web content keep their formatting, making them easier to understand.
 
-4. **Enabling complex workflows**: Combine multiple @ mentions to give Cline a complete picture of your problem:
+4. **Enabling complex workflows**: Combine multiple @ mentions to give Beadsmith a complete picture of your problem:
 
     ```
     I'm getting these errors: @problems
@@ -87,16 +87,16 @@ To use @ mentions:
 3. For files and folders, navigate through your workspace structure
 4. Send your message as usual
 
-Cline will automatically process the mentions and include the referenced content in the context sent to the AI.
+Beadsmith will automatically process the mentions and include the referenced content in the context sent to the AI.
 
-Try using @ mentions in your next conversation with Cline - you'll be amazed at how much more efficient and effective your interactions become when you can seamlessly bring in external context.
+Try using @ mentions in your next conversation with Beadsmith - you'll be amazed at how much more efficient and effective your interactions become when you can seamlessly bring in external context.
 
 ## How It Works Under the Hood
 
 When you use @ mentions in your messages, there's a sophisticated process happening behind the scenes:
 
-1. **Detection**: When you send a message, Cline scans the text for @ mention patterns using regular expressions
-2. **Processing**: For each detected mention, Cline:
+1. **Detection**: When you send a message, Beadsmith scans the text for @ mention patterns using regular expressions
+2. **Processing**: For each detected mention, Beadsmith:
     - Determines the mention type (file, folder, problems, terminal, git, URL)
     - Fetches the relevant content (file contents, terminal output, etc.)
     - Formats the content appropriately

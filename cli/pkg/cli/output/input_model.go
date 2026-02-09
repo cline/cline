@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/cli/slash"
+	"github.com/beadsmith/cli/pkg/cli/slash"
 )
 
 // InputType represents the type of input being collected

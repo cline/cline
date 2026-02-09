@@ -1,4 +1,4 @@
-name: Trigger Jetbrains Plugin <-> Cline Tests
+name: Trigger Jetbrains Plugin <-> Beadsmith Tests
 on:
   pull_request_target:
     types: [opened, reopened]

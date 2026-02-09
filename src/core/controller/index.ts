@@ -1,12 +1,15 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { BeadManager, createBeadManager, getBeadStorage } from "@core/beads"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import { BeadsmithIgnoreController } from "@core/ignore/BeadsmithIgnoreController"
 import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
-import { ClineAccountService } from "@services/account/ClineAccountService"
+import { BeadsmithAccountService } from "@services/account/BeadsmithAccountService"
+import { createDagBridge, DagBridge, DagFileWatcher } from "@services/dag"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -25,7 +28,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import type * as vscode from "vscode"
-import { ClineEnv } from "@/config"
+import { BeadsmithEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -35,7 +38,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
-import { BannerCardData } from "@/shared/cline/banner"
+import { BannerCardData } from "@/shared/beadsmith/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -53,9 +56,10 @@ import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { clearRemoteConfig } from "../storage/remote-config/utils"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
+import { sendIncrementalUpdateEvent } from "./dag/subscribeToDagUpdates"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
-import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
-import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
+import { getBeadsmithOnboardingModels } from "./models/getBeadsmithOnboardingModels"
+import { appendBeadsmithStealthModels } from "./models/refreshOpenRouterModels"
 import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
@@ -70,10 +74,28 @@ export class Controller {
 	task?: Task
 
 	mcpHub: McpHub
-	accountService: ClineAccountService
+	accountService: BeadsmithAccountService
 	authService: AuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
+
+	// DAG analysis bridge for dependency graph analysis
+	dagBridge?: DagBridge
+
+	// DAG file watcher for incremental analysis on file changes
+	private dagFileWatcher?: DagFileWatcher
+
+	// Ignore controller for DAG analysis (separate from Task's ignore controller)
+	private dagIgnoreController?: BeadsmithIgnoreController
+
+	// DAG state for UI display
+	private dagIsAnalyzing = false
+	private dagError?: string
+	private dagLastUpdated?: string
+	private dagSummary?: { files: number; functions: number; edges: number }
+
+	// BeadManager for Ralph Wiggum loop pattern (lazy-initialized)
+	private _beadManager?: BeadManager
 
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
@@ -107,6 +129,245 @@ export class Controller {
 	}
 
 	/**
+	 * Get or create the BeadManager for bead task orchestration.
+	 * The BeadManager is created lazily when first accessed.
+	 * @param workspaceRoot The workspace root path (required for first initialization)
+	 */
+	async ensureBeadManager(workspaceRoot?: string): Promise<BeadManager> {
+		if (!this._beadManager) {
+			const cwd = workspaceRoot || this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+			this._beadManager = createBeadManager(cwd)
+
+			// Wire up storage persistence on state changes
+			const beadStorage = getBeadStorage()
+			this._beadManager.on("stateChanged", (state) => {
+				if (state.currentTask) {
+					beadStorage.saveState(state.currentTask.id, state).catch((error) => {
+						Logger.error("[Controller] Failed to persist bead state:", error)
+					})
+				}
+			})
+
+			// Wire up task completion summary storage
+			this._beadManager.on("taskCompleted", (summary) => {
+				if (this._beadManager) {
+					const state = this._beadManager.getState()
+					if (state.currentTask) {
+						beadStorage
+							.saveTaskSummary(state.currentTask.id, {
+								beadCount: summary.beadCount,
+								totalTokensUsed: summary.totalTokensUsed,
+								success: summary.success,
+								status: state.status,
+								completedAt: Date.now(),
+							})
+							.catch((error) => {
+								Logger.error("[Controller] Failed to save task summary:", error)
+							})
+					}
+				}
+			})
+		}
+		return this._beadManager
+	}
+
+	/**
+	 * Get the BeadManager if it's been initialized.
+	 */
+	getBeadManager(): BeadManager | undefined {
+		return this._beadManager
+	}
+
+	/**
+	 * Get or create the DagBridge for dependency graph analysis.
+	 * The DagBridge is created lazily when first accessed.
+	 * Respects the dagEnabled setting - if disabled, throws an error.
+	 *
+	 * Validates Python prerequisites before starting the DAG engine.
+	 * Shows user-friendly notifications with setup instructions if
+	 * prerequisites are not met.
+	 *
+	 * @param workspaceRoot Optional workspace root for the file watcher
+	 */
+	async ensureDagBridge(workspaceRoot?: string): Promise<DagBridge> {
+		// Check if DAG is enabled
+		const dagEnabled = this.stateManager.getGlobalSettingsKey("dagEnabled")
+		if (!dagEnabled) {
+			throw new Error("DAG analysis is disabled. Enable it in settings to use this feature.")
+		}
+
+		if (!this.dagBridge) {
+			this.dagBridge = createDagBridge(this.context)
+
+			// Wire up event handlers
+			this.dagBridge.on("ready", () => {
+				Logger.info("[Controller] DAG Bridge ready")
+				this.dagError = undefined
+				void this.postStateToWebview()
+			})
+
+			this.dagBridge.on("error", (error) => {
+				Logger.error("[Controller] DAG Bridge error:", error)
+				this.dagIsAnalyzing = false
+				this.dagError = error instanceof Error ? error.message : String(error)
+				void this.postStateToWebview()
+			})
+
+			this.dagBridge.on("graphUpdated", (graph) => {
+				Logger.debug("[Controller] DAG graph updated")
+				this.dagIsAnalyzing = false
+				this.dagLastUpdated = new Date().toISOString()
+				this.dagError = undefined
+				// Update summary from graph
+				if (graph?.summary) {
+					this.dagSummary = {
+						files: graph.summary.totalFiles ?? 0,
+						functions: graph.summary.totalSymbols ?? 0,
+						edges: graph.summary.totalEdges ?? 0,
+					}
+				}
+				void this.postStateToWebview()
+			})
+
+			try {
+				await this.dagBridge.start()
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				Logger.error("[Controller] Failed to start DAG bridge:", errorMessage)
+
+				// Clear the bridge reference so it can be retried later
+				this.dagBridge = undefined
+
+				// Set error state for UI display
+				this.dagError = errorMessage
+				void this.postStateToWebview()
+
+				// Show user-friendly notification with setup instructions
+				const isPythonSetupError =
+					errorMessage.includes("virtual environment") ||
+					errorMessage.includes("Python") ||
+					errorMessage.includes("setup:dag")
+
+				if (isPythonSetupError) {
+					HostProvider.window.showMessage({
+						type: ShowMessageType.WARNING,
+						message:
+							"DAG analysis requires Python 3.12+. Run 'npm run setup:dag' in the terminal to set up the DAG engine.",
+					})
+				} else {
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Failed to start DAG analysis: ${errorMessage}`,
+					})
+				}
+
+				throw error
+			}
+
+			// Start the file watcher if we have a workspace root
+			const cwd = workspaceRoot || this.workspaceManager?.getPrimaryRoot()?.path
+			if (cwd) {
+				await this.ensureDagFileWatcher(cwd)
+			}
+		}
+		return this.dagBridge
+	}
+
+	/**
+	 * Get or create the DagFileWatcher for incremental DAG analysis.
+	 * Requires an initialized DagBridge.
+	 * @param workspaceRoot The workspace root path to watch
+	 */
+	private async ensureDagFileWatcher(workspaceRoot: string): Promise<DagFileWatcher> {
+		if (!this.dagFileWatcher && this.dagBridge) {
+			// Get settings for file watcher from StateManager
+			const dagAutoRefresh = this.stateManager.getGlobalSettingsKey("dagAutoRefresh")
+			const dagAutoRefreshDelayMs = this.stateManager.getGlobalSettingsKey("dagAutoRefreshDelayMs")
+
+			// Create ignore controller for DAG analysis if not already created
+			if (!this.dagIgnoreController) {
+				this.dagIgnoreController = new BeadsmithIgnoreController(workspaceRoot)
+				await this.dagIgnoreController.initialize()
+			}
+
+			// Create with settings from StateManager and ignore controller
+			this.dagFileWatcher = new DagFileWatcher(this.dagBridge, workspaceRoot, {
+				debounceMs: dagAutoRefreshDelayMs,
+				autoAnalyse: dagAutoRefresh,
+				ignoreController: this.dagIgnoreController,
+			})
+
+			// Wire up events to emit DAG update events and update state
+			this.dagFileWatcher.on("analysisTriggered", (changedFiles, deletedFiles) => {
+				Logger.debug(
+					`[Controller] DAG file watcher triggered analysis: ${changedFiles.length} changed, ${deletedFiles.length} deleted`,
+				)
+				this.dagIsAnalyzing = true
+				this.dagError = undefined
+				void this.postStateToWebview()
+				void sendIncrementalUpdateEvent(changedFiles, deletedFiles)
+			})
+
+			this.dagFileWatcher.on("analysisCompleted", () => {
+				Logger.debug("[Controller] DAG incremental analysis completed")
+				this.dagIsAnalyzing = false
+				this.dagLastUpdated = new Date().toISOString()
+				void this.postStateToWebview()
+			})
+
+			this.dagFileWatcher.on("analysisError", (error) => {
+				Logger.error("[Controller] DAG file watcher analysis error:", error)
+				this.dagIsAnalyzing = false
+				this.dagError = error instanceof Error ? error.message : String(error)
+				void this.postStateToWebview()
+			})
+
+			// Start watching
+			this.dagFileWatcher.start()
+			Logger.info(`[Controller] DAG file watcher started for ${workspaceRoot}`)
+		}
+		return this.dagFileWatcher!
+	}
+
+	/**
+	 * Stop the DAG services (bridge, file watcher, and ignore controller).
+	 * Used when DAG is disabled or on dispose.
+	 */
+	stopDagServices(): void {
+		if (this.dagFileWatcher) {
+			this.dagFileWatcher.dispose()
+			this.dagFileWatcher = undefined
+			Logger.info("[Controller] DAG file watcher stopped")
+		}
+
+		if (this.dagIgnoreController) {
+			void this.dagIgnoreController.dispose()
+			this.dagIgnoreController = undefined
+		}
+
+		if (this.dagBridge) {
+			this.dagBridge.stop()
+			this.dagBridge = undefined
+			Logger.info("[Controller] DAG bridge stopped")
+		}
+	}
+
+	/**
+	 * Get the DagBridge if it's been initialized.
+	 */
+	getDagBridge(): DagBridge | undefined {
+		return this.dagBridge
+	}
+
+	/**
+	 * Get the DAG ignore controller if it's been initialized.
+	 * Used for filtering ignored files from DAG analysis results.
+	 */
+	getDagIgnoreController(): BeadsmithIgnoreController | undefined {
+		return this.dagIgnoreController
+	}
+
+	/**
 	 * Starts the periodic remote config fetching timer
 	 * Fetches immediately and then every hour
 	 */
@@ -133,7 +394,7 @@ export class Controller {
 		})
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
-		this.accountService = ClineAccountService.getInstance()
+		this.accountService = BeadsmithAccountService.getInstance()
 
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
 			this.startRemoteConfigTimer()
@@ -154,7 +415,7 @@ export class Controller {
 		// Check CLI installation status once on startup
 		checkCliInstallation(this)
 
-		Logger.log("[Controller] ClineProvider instantiated")
+		Logger.log("[Controller] BeadsmithProvider instantiated")
 	}
 
 	/*
@@ -168,6 +429,9 @@ export class Controller {
 			clearInterval(this.remoteConfigTimer)
 			this.remoteConfigTimer = undefined
 		}
+
+		// Stop DAG services (bridge and file watcher)
+		this.stopDagServices()
 
 		await this.clearTask()
 		this.mcpHub.dispose()
@@ -194,7 +458,7 @@ export class Controller {
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: "Successfully logged out of Cline",
+				message: "Successfully logged out of Beadsmith",
 			})
 		} catch (_error) {
 			HostProvider.window.showMessage({
@@ -499,7 +763,7 @@ export class Controller {
 		try {
 			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
-			const clineProvider: ApiProvider = "cline"
+			const beadsmithProvider: ApiProvider = "cline"
 
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
@@ -514,14 +778,14 @@ export class Controller {
 			if (planActSeparateModelsSetting) {
 				// Only update the current mode's provider
 				if (currentMode === "plan") {
-					updatedConfig.planModeApiProvider = clineProvider
+					updatedConfig.planModeApiProvider = beadsmithProvider
 				} else {
-					updatedConfig.actModeApiProvider = clineProvider
+					updatedConfig.actModeApiProvider = beadsmithProvider
 				}
 			} else {
 				// Update both modes to keep them in sync
-				updatedConfig.planModeApiProvider = clineProvider
-				updatedConfig.actModeApiProvider = clineProvider
+				updatedConfig.planModeApiProvider = beadsmithProvider
+				updatedConfig.actModeApiProvider = beadsmithProvider
 			}
 
 			// Update the API configuration through cache service
@@ -541,7 +805,7 @@ export class Controller {
 			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to log in to Cline",
+				message: "Failed to log in to Beadsmith",
 			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
@@ -623,7 +887,7 @@ export class Controller {
 
 	// MCP Marketplace
 	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
-		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
+		const response = await axios.get(`${BeadsmithEnv.config().mcpBaseUrl}/marketplace`, {
 			headers: {
 				"Content-Type": "application/json",
 				"User-Agent": "cline-vscode-extension",
@@ -734,7 +998,7 @@ export class Controller {
 				const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
 				const models = JSON.parse(fileContents)
 				// Append stealth models
-				return appendClineStealthModels(models)
+				return appendBeadsmithStealthModels(models)
 			}
 		} catch (error) {
 			Logger.error("Error reading cached OpenRouter models:", error)
@@ -806,7 +1070,7 @@ export class Controller {
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
-		const onboardingModels = getClineOnboardingModels()
+		const onboardingModels = getBeadsmithOnboardingModels()
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
@@ -826,7 +1090,7 @@ export class Controller {
 		const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
 		const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
-		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
+		const globalBeadsmithRulesToggles = this.stateManager.getGlobalSettingsKey("globalBeadsmithRulesToggles")
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
 		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles")
 		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles")
@@ -853,7 +1117,7 @@ export class Controller {
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled")
 
-		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
+		const localBeadsmithRulesToggles = this.stateManager.getWorkspaceStateKey("localBeadsmithRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 		const localAgentsRulesToggles = this.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
@@ -861,7 +1125,7 @@ export class Controller {
 		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		const beadsmithMessages = this.task?.messageStateHandler.getBeadsmithMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
@@ -874,8 +1138,8 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
-		const clineConfig = ClineEnv.config()
-		const environment = clineConfig.environment
+		const beadsmithConfig = BeadsmithEnv.config()
+		const environment = beadsmithConfig.environment
 		const banners = await this.getBanners()
 
 		// Check OpenAI Codex authentication status
@@ -892,7 +1156,7 @@ export class Controller {
 			version,
 			apiConfiguration,
 			currentTaskItem,
-			clineMessages,
+			beadsmithMessages,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
 			checkpointManagerErrorMessage,
 			autoApprovalSettings,
@@ -914,8 +1178,8 @@ export class Controller {
 			platform,
 			environment,
 			distinctId,
-			globalClineRulesToggles: globalClineRulesToggles || {},
-			localClineRulesToggles: localClineRulesToggles || {},
+			globalBeadsmithRulesToggles: globalBeadsmithRulesToggles || {},
+			localBeadsmithRulesToggles: localBeadsmithRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
 			localAgentsRulesToggles: localAgentsRulesToggles || {},
@@ -951,8 +1215,8 @@ export class Controller {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
 				featureFlag: true, // Multi-root workspace is now always enabled
 			},
-			clineWebToolsEnabled: {
-				user: this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
+			beadsmithWebToolsEnabled: {
+				user: this.stateManager.getGlobalSettingsKey("beadsmithWebToolsEnabled"),
 				featureFlag: featureFlagsService.getWebtoolsEnabled(),
 			},
 			worktreesEnabled: {
@@ -973,6 +1237,19 @@ export class Controller {
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			banners,
 			openAiCodexIsAuthenticated,
+			// Bead settings
+			beadsEnabled: this.stateManager.getGlobalSettingsKey("beadsEnabled"),
+			beadAutoApprove: this.stateManager.getGlobalSettingsKey("beadAutoApprove"),
+			beadCommitMode: this.stateManager.getGlobalSettingsKey("beadCommitMode"),
+			beadTestCommand: this.stateManager.getGlobalSettingsKey("beadTestCommand"),
+			ralphMaxIterations: this.stateManager.getGlobalSettingsKey("ralphMaxIterations"),
+			ralphTokenBudget: this.stateManager.getGlobalSettingsKey("ralphTokenBudget"),
+			// DAG state
+			dagEnabled: this.stateManager.getGlobalSettingsKey("dagEnabled"),
+			dagIsAnalyzing: this.dagIsAnalyzing,
+			dagError: this.dagError,
+			dagLastUpdated: this.dagLastUpdated,
+			dagSummary: this.dagSummary,
 		}
 	}
 
@@ -990,10 +1267,10 @@ export class Controller {
 	/*
 	Now that we use retainContextWhenHidden, we don't have to store a cache of cline messages in the user's state, but we could to reduce memory footprint in long conversations.
 
-	- We have to be careful of what state is shared between ClineProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+	- We have to be careful of what state is shared between BeadsmithProvider instances since there could be multiple instances of the extension running at once. For example when we cached cline messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
 	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notify the other instances that the API key has changed.
 
-	We need to use a unique identifier for each ClineProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+	We need to use a unique identifier for each BeadsmithProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 
 	// conversation history to send in API requests
 

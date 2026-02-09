@@ -1,0 +1,303 @@
+syntax = "proto3";
+
+package beadsmith;
+
+import "beadsmith/bead.proto";
+import "beadsmith/common.proto";
+
+option go_package = "github.com/beadsmith/grpc-go/beadsmith";
+option java_multiple_files = true;
+option java_package = "bot.beadsmith.proto";
+
+// Enum for BeadsmithMessage type
+enum BeadsmithMessageType {
+  ASK = 0;
+  SAY = 1;
+}
+
+// Enum for BeadsmithAsk types
+enum BeadsmithAsk {
+  FOLLOWUP = 0;
+  PLAN_MODE_RESPOND = 1;
+  COMMAND = 2;
+  COMMAND_OUTPUT = 3;
+  COMPLETION_RESULT = 4;
+  TOOL = 5;
+  API_REQ_FAILED = 6;
+  RESUME_TASK = 7;
+  RESUME_COMPLETED_TASK = 8;
+  MISTAKE_LIMIT_REACHED = 9;
+  BROWSER_ACTION_LAUNCH = 10;
+  USE_MCP_SERVER = 11;
+  NEW_TASK = 12;
+  CONDENSE = 13;
+  REPORT_BUG = 14;
+  SUMMARIZE_TASK = 15;
+  ACT_MODE_RESPOND = 16;
+  BEAD_REVIEW = 17;
+}
+
+// Enum for BeadsmithSay types
+enum BeadsmithSay {
+  TASK = 0;
+  ERROR = 1;
+  API_REQ_STARTED = 2;
+  API_REQ_FINISHED = 3;
+  TEXT = 4;
+  REASONING = 5;
+  COMPLETION_RESULT_SAY = 6;
+  USER_FEEDBACK = 7;
+  USER_FEEDBACK_DIFF = 8;
+  API_REQ_RETRIED = 9;
+  COMMAND_SAY = 10;
+  COMMAND_OUTPUT_SAY = 11;
+  TOOL_SAY = 12;
+  SHELL_INTEGRATION_WARNING = 13;
+  BROWSER_ACTION_LAUNCH_SAY = 14;
+  BROWSER_ACTION = 15;
+  BROWSER_ACTION_RESULT = 16;
+  MCP_SERVER_REQUEST_STARTED = 17;
+  MCP_SERVER_RESPONSE = 18;
+  MCP_NOTIFICATION = 19;
+  USE_MCP_SERVER_SAY = 20;
+  DIFF_ERROR = 21;
+  DELETED_API_REQS = 22;
+  BEADSMITHIGNORE_ERROR = 23;
+  CHECKPOINT_CREATED = 24;
+  LOAD_MCP_DOCUMENTATION = 25;
+  INFO = 26;
+  TASK_PROGRESS = 27;
+  ERROR_RETRY = 28;
+  GENERATE_EXPLANATION = 29;
+  HOOK_STATUS = 30;
+  HOOK_OUTPUT_STREAM = 31;
+  COMMAND_PERMISSION_DENIED = 32;
+  CONDITIONAL_RULES_APPLIED = 33;
+  BEAD_STARTED = 34;
+  BEAD_COMPLETED = 35;
+  BEAD_FAILED = 36;
+}
+
+// Enum for BeadsmithSayTool tool types
+enum BeadsmithSayToolType {
+  EDITED_EXISTING_FILE = 0;
+  NEW_FILE_CREATED = 1;
+  READ_FILE = 2;
+  LIST_FILES_TOP_LEVEL = 3;
+  LIST_FILES_RECURSIVE = 4;
+  LIST_CODE_DEFINITION_NAMES = 5;
+  SEARCH_FILES = 6;
+  WEB_FETCH = 7;
+  FILE_DELETED = 8;
+}
+
+// Enum for browser actions
+enum BrowserAction {
+  LAUNCH = 0;
+  CLICK = 1;
+  TYPE = 2;
+  SCROLL_DOWN = 3;
+  SCROLL_UP = 4;
+  CLOSE = 5;
+}
+
+// Enum for MCP server request types
+enum McpServerRequestType {
+  USE_MCP_TOOL = 0;
+  ACCESS_MCP_RESOURCE = 1;
+}
+
+// Enum for API request cancel reasons
+enum BeadsmithApiReqCancelReason {
+  STREAMING_FAILED = 0;
+  USER_CANCELLED = 1;
+  RETRIES_EXHAUSTED = 2;
+}
+
+// Message for conversation history deleted range
+message ConversationHistoryDeletedRange {
+  int32 start_index = 1;
+  int32 end_index = 2;
+}
+
+// Message for BeadsmithSayTool
+message BeadsmithSayTool {
+  BeadsmithSayToolType tool = 1;
+  string path = 2;
+  string diff = 3;
+  string content = 4;
+  string regex = 5;
+  string file_pattern = 6;
+  bool operation_is_located_in_workspace = 7;
+}
+
+// Message for BeadsmithSayBrowserAction
+message BeadsmithSayBrowserAction {
+  BrowserAction action = 1;
+  string coordinate = 2;
+  string text = 3;
+}
+
+// Message for BrowserActionResult
+message BrowserActionResult {
+  string screenshot = 1;
+  string logs = 2;
+  string current_url = 3;
+  string current_mouse_position = 4;
+}
+
+// Message for BeadsmithAskUseMcpServer
+message BeadsmithAskUseMcpServer {
+  string server_name = 1;
+  McpServerRequestType type = 2;
+  string tool_name = 3;
+  string arguments = 4;
+  string uri = 5;
+}
+
+// Message for BeadsmithPlanModeResponse
+message BeadsmithPlanModeResponse {
+  string response = 1;
+  repeated string options = 2;
+  string selected = 3;
+}
+
+// Message for BeadsmithAskQuestion
+message BeadsmithAskQuestion {
+  string question = 1;
+  repeated string options = 2;
+  string selected = 3;
+}
+
+// Message for BeadsmithAskNewTask
+message BeadsmithAskNewTask {
+  string context = 1;
+}
+
+// Message for API request retry status
+message ApiReqRetryStatus {
+  int32 attempt = 1;
+  int32 max_attempts = 2;
+  int32 delay_sec = 3;
+  string error_snippet = 4;
+}
+
+// Message for BeadsmithApiReqInfo
+message BeadsmithApiReqInfo {
+  string request = 1;
+  int32 tokens_in = 2;
+  int32 tokens_out = 3;
+  int32 cache_writes = 4;
+  int32 cache_reads = 5;
+  double cost = 6;
+  BeadsmithApiReqCancelReason cancel_reason = 7;
+  string streaming_failed_message = 8;
+  ApiReqRetryStatus retry_status = 9;
+}
+
+// Note: Bead (Ralph Loop) messages are imported from bead.proto:
+// - BeadFileChange
+// - BeadImpactSummary
+// - BeadTestResult
+// - BeadsmithAskBeadReview
+// - BeadsmithSayBeadStarted
+// - BeadsmithSayBeadCompleted
+// - BeadsmithSayBeadFailed
+
+message BeadsmithModelInfo {
+  string provider_id = 1;
+  string model_id = 2;
+}
+
+// Main BeadsmithMessage type
+message BeadsmithMessage {
+  int64 ts = 1;
+  BeadsmithMessageType type = 2;
+  BeadsmithAsk ask = 3;
+  BeadsmithSay say = 4;
+  string text = 5;
+  string reasoning = 6;
+  repeated string images = 7;
+  repeated string files = 8;
+  bool partial = 9;
+  string last_checkpoint_hash = 10;
+  bool is_checkpoint_checked_out = 11;
+  bool is_operation_outside_workspace = 12;
+  int32 conversation_history_index = 13;
+  ConversationHistoryDeletedRange conversation_history_deleted_range = 14;
+
+  // Additional fields for specific ask/say types
+  BeadsmithSayTool say_tool = 15;
+  BeadsmithSayBrowserAction say_browser_action = 16;
+  BrowserActionResult browser_action_result = 17;
+  BeadsmithAskUseMcpServer ask_use_mcp_server = 18;
+  BeadsmithPlanModeResponse plan_mode_response = 19;
+  BeadsmithAskQuestion ask_question = 20;
+  BeadsmithAskNewTask ask_new_task = 21;
+  BeadsmithApiReqInfo api_req_info = 22;
+  BeadsmithModelInfo model_info = 23;
+
+  // Bead (Ralph Loop) fields
+  BeadsmithAskBeadReview ask_bead_review = 24;
+  BeadsmithSayBeadStarted say_bead_started = 25;
+  BeadsmithSayBeadCompleted say_bead_completed = 26;
+  BeadsmithSayBeadFailed say_bead_failed = 27;
+}
+
+message ShowWebviewEvent {
+  bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
+}
+
+// UiService provides methods for managing UI interactions
+service UiService {
+  // Scrolls to a specific settings section in the settings view
+  rpc scrollToSettings(StringRequest) returns (KeyValuePair);
+
+  // Sets the terminal execution mode (vscodeTerminal or backgroundExec)
+  rpc setTerminalExecutionMode(BooleanRequest) returns (KeyValuePair);
+
+  // Marks the current announcement as shown and returns whether an announcement should still be shown
+  rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
+
+  // Subscribe to addToInput events (when user adds content via context menu)
+  rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
+
+  // Subscribe to MCP button clicked events
+  rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to history button click events
+  rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
+  rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to account button click events
+  rpc subscribeToAccountButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to settings button clicked events
+  rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to worktrees button clicked events
+  rpc subscribeToWorktreesButtonClicked(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to partial message updates (streaming Beadsmith messages as they're built)
+  rpc subscribeToPartialMessage(EmptyRequest) returns (stream BeadsmithMessage);
+
+  // Initialize webview when it launches
+  rpc initializeWebview(EmptyRequest) returns (Empty);
+
+  // Subscribe to relinquish control events
+  rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
+
+  // Subscribe to show webview events
+  rpc subscribeToShowWebview(EmptyRequest) returns (stream ShowWebviewEvent);
+
+  // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
+  rpc getWebviewHtml(EmptyRequest) returns (String);
+
+  // Opens a URL in the default browser
+  rpc openUrl(StringRequest) returns (Empty);
+
+  // Opens the Beadsmith walkthrough
+  rpc openWalkthrough(EmptyRequest) returns (Empty);
+}

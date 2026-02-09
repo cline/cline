@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 
@@ -14,8 +14,8 @@ func ParseTaskSettings(settingsFlags []string) (*cline.Settings, *cline.Secrets,
 		return nil, nil, nil
 	}
 
-	settings := &cline.Settings{}
-	secrets := &cline.Secrets{}
+	settings := &beadsmith.Settings{}
+	secrets := &beadsmith.Secrets{}
 	nestedSettings := make(map[string]map[string]string)
 
 	for _, flag := range settingsFlags {
@@ -399,13 +399,13 @@ func setNestedField(settings *cline.Settings, parentField string, childFields ma
 	switch parentField {
 	case "auto_approval_settings":
 		if settings.AutoApprovalSettings == nil {
-			settings.AutoApprovalSettings = &cline.AutoApprovalSettings{}
+			settings.AutoApprovalSettings = &beadsmith.AutoApprovalSettings{}
 		}
 		return setAutoApprovalSettings(settings.AutoApprovalSettings, childFields)
 
 	case "browser_settings":
 		if settings.BrowserSettings == nil {
-			settings.BrowserSettings = &cline.BrowserSettings{}
+			settings.BrowserSettings = &beadsmith.BrowserSettings{}
 		}
 		return setBrowserSettings(settings.BrowserSettings, childFields)
 
@@ -431,7 +431,7 @@ func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[st
 			if strings.HasPrefix(key, "actions.") {
 				actionField := strings.TrimPrefix(key, "actions.")
 				if settings.Actions == nil {
-					settings.Actions = &cline.AutoApprovalActions{}
+					settings.Actions = &beadsmith.AutoApprovalActions{}
 				}
 				if err := setAutoApprovalAction(settings.Actions, actionField, value); err != nil {
 					return err
@@ -486,7 +486,7 @@ func setBrowserSettings(settings *cline.BrowserSettings, fields map[string]strin
 				return err
 			}
 			if settings.Viewport == nil {
-				settings.Viewport = &cline.Viewport{}
+				settings.Viewport = &beadsmith.Viewport{}
 			}
 			settings.Viewport.Width = val
 		case "viewport_height":
@@ -495,7 +495,7 @@ func setBrowserSettings(settings *cline.BrowserSettings, fields map[string]strin
 				return err
 			}
 			if settings.Viewport == nil {
-				settings.Viewport = &cline.Viewport{}
+				settings.Viewport = &beadsmith.Viewport{}
 			}
 			settings.Viewport.Height = val
 		case "remote_browser_host":
@@ -622,7 +622,7 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 		return cline.ApiProvider_MISTRAL, nil
 	case "vscode_lm":
 		return cline.ApiProvider_VSCODE_LM, nil
-	case "cline":
+	case "beadsmith":
 		return cline.ApiProvider_CLINE, nil
 	case "litellm":
 		return cline.ApiProvider_LITELLM, nil

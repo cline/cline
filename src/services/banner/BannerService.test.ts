@@ -6,7 +6,7 @@
  * to prevent blocking the extension. Tests will be re-enabled when API is stable.
  */
 
-import type { BannerRules } from "@shared/ClineBanner"
+import type { BannerRules } from "@shared/BeadsmithBanner"
 import axios from "axios"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"

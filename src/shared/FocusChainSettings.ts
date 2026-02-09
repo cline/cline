@@ -1,11 +1,11 @@
 export interface FocusChainSettings {
 	// Enable/disable the focus chain feature
 	enabled: boolean
-	// Interval (in messages) to remind Cline about focus chain
-	remindClineInterval: number
+	// Interval (in messages) to remind Beadsmith about focus chain
+	remindBeadsmithInterval: number
 }
 
 export const DEFAULT_FOCUS_CHAIN_SETTINGS: FocusChainSettings = {
 	enabled: true,
-	remindClineInterval: 6,
+	remindBeadsmithInterval: 6,
 }

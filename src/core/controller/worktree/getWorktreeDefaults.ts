@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { WorktreeDefaults } from "@shared/proto/cline/worktree"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { WorktreeDefaults } from "@shared/proto/beadsmith/worktree"
 import { getWorkspacePath } from "@utils/path"
 import path from "path"
 import { getDocumentsPath } from "@/core/storage/disk"
@@ -28,9 +28,9 @@ export async function getWorktreeDefaults(_controller: Controller, _request: Emp
 	const suffix = generateRandomSuffix()
 
 	// Generate suggested branch name
-	const suggestedBranch = `worktree/cline-${suffix}`
+	const suggestedBranch = `worktree/beadsmith-${suffix}`
 
-	// Generate suggested path in Documents/Cline/Worktrees/<project-name>-<suffix>
+	// Generate suggested path in Documents/Beadsmith/Worktrees/<project-name>-<suffix>
 	const documentsPath = await getDocumentsPath()
 	const cwd = await getWorkspacePath()
 
@@ -40,7 +40,7 @@ export async function getWorktreeDefaults(_controller: Controller, _request: Emp
 		projectName = path.basename(cwd)
 	}
 
-	const suggestedPath = path.join(documentsPath, "Cline", "Worktrees", `${projectName}-${suffix}`)
+	const suggestedPath = path.join(documentsPath, "Beadsmith", "Worktrees", `${projectName}-${suffix}`)
 
 	return WorktreeDefaults.create({
 		suggestedBranch,

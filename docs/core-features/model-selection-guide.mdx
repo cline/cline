@@ -3,38 +3,38 @@ title: "Model Selection Guide"
 description: "Last updated: August 20, 2025."
 ---
 
-New models drop constantly, so this guide focuses on what's working well with Cline right now. We'll keep it updated as the landscape shifts.
+New models drop constantly, so this guide focuses on what's working well with Beadsmith right now. We'll keep it updated as the landscape shifts.
 
 <Callout type="tip">
-**New to model selection?** Start with [Module 2 of Cline's Learning Path](https://cline.bot/learn) for a comprehensive guide to choosing and configuring models.
+**New to model selection?** Start with [Module 2 of Beadsmith's Learning Path](https://beadsmith.bot/learn) for a comprehensive guide to choosing and configuring models.
 </Callout>
 
 ## What is an AI Model?
 
-Think of an AI model as the "brain" that powers Cline. When you ask Cline to write code, fix bugs, or refactor your project, it's the model that actually understands your request and generates the response.
+Think of an AI model as the "brain" that powers Beadsmith. When you ask Beadsmith to write code, fix bugs, or refactor your project, it's the model that actually understands your request and generates the response.
 
 **Key points:**
 - **Models are trained AI systems** that understand natural language and code
 - **Different models have different strengths** some excel at complex reasoning, others prioritize speed or cost
-- **You choose which model Cline uses** like picking between different experts for different tasks
+- **You choose which model Beadsmith uses** like picking between different experts for different tasks
 - **Models are accessed via API providers** - companies like Anthropic, OpenAI, and OpenRouter host these models
 
-**Why it matters:** The model you choose directly impacts Cline's capabilities, response quality, speed, and cost. A premium model might handle complex refactoring beautifully but cost more, while a budget model works great for routine tasks at a fraction of the price.
+**Why it matters:** The model you choose directly impacts Beadsmith's capabilities, response quality, speed, and cost. A premium model might handle complex refactoring beautifully but cost more, while a budget model works great for routine tasks at a fraction of the price.
 
-## How to Select a Model in Cline
+## How to Select a Model in Beadsmith
 
-Follow these 5 simple steps to get Cline up and running with your preferred AI model:
+Follow these 5 simple steps to get Beadsmith up and running with your preferred AI model:
 
-### Step 1: Open Cline Settings
+### Step 1: Open Beadsmith Settings
 
-First, you need to access Cline's configuration panel.
+First, you need to access Beadsmith's configuration panel.
 
 **Two ways to open settings:**
-- **Quick method**: Click the **gear icon (⚙️)** in the top-right corner of Cline's chat interface
-- **Command palette**: Press **Cmd/Ctrl + Shift + P** → type "Cline: Open Settings"
+- **Quick method**: Click the **gear icon (⚙️)** in the top-right corner of Beadsmith's chat interface
+- **Command palette**: Press **Cmd/Ctrl + Shift + P** → type "Beadsmith: Open Settings"
 
 <Frame>
-  <img src="https://storage.googleapis.com/cline_public_images/step1-config.png" alt="Cline Settings Panel" />
+  <img src="https://storage.googleapis.com/beadsmith_public_images/step1-config.png" alt="Beadsmith Settings Panel" />
 </Frame>
 
 The settings panel will open, showing configuration options with "API Provider" at the top.
@@ -49,14 +49,14 @@ Choose your preferred AI provider from the dropdown menu.
 
 
 <Frame>
-  <img src="https://storage.googleapis.com/cline_public_images/step2-provider.png" alt="Cline Settings Panel" />
+  <img src="https://storage.googleapis.com/beadsmith_public_images/step2-provider.png" alt="Beadsmith Settings Panel" />
 </Frame>
 
 **Popular providers at a glance:**
 
 | Provider | Best For | Notes |
 |----------|----------|-------|
-| **Cline** | Easiest setup | No API keys needed, access to multiple models including stealth models |
+| **Beadsmith** | Easiest setup | No API keys needed, access to multiple models including stealth models |
 | **OpenRouter** | Value seekers | Multiple models, competitive pricing |
 | **Anthropic** | Reliability | Claude models, most dependable tool usage |
 | **OpenAI** | Latest tech | GPT models |
@@ -67,18 +67,18 @@ Choose your preferred AI provider from the dropdown menu.
 See the [full provider list](/provider-config) for more options including Cerebras, Vertex AI, Azure, and more.
 
 <Info>
-**Recommended for beginners:** Start with **Cline** as your provider - no API key management needed, instant access to multiple models, and occasional free inferencing through partner providers.
+**Recommended for beginners:** Start with **Beadsmith** as your provider - no API key management needed, instant access to multiple models, and occasional free inferencing through partner providers.
 </Info>
 
 ### Step 3: Add Your API Key (or Sign In)
 
 The next step depends on which provider you selected.
 
-#### If you selected **Cline** as your provider:
+#### If you selected **Beadsmith** as your provider:
 
-- **No API key needed!** Simply sign in with your Cline account
+- **No API key needed!** Simply sign in with your Beadsmith account
 - Click the **Sign In** button when prompted
-- You'll be redirected to [app.cline.bot](https://app.cline.bot) to authenticate
+- You'll be redirected to [app.beadsmith.bot](https://app.beadsmith.bot) to authenticate
 - After signing in, return to your IDE
 
 #### If you selected any other provider:
@@ -96,12 +96,12 @@ You'll need to get an API key from your chosen provider:
 
 3. **Copy the API key** to your clipboard
 
-4. **Paste your key** in the **"API Key"** field in Cline settings
+4. **Paste your key** in the **"API Key"** field in Beadsmith settings
 
 5. **Save automatically** - Your key is stored securely in your editor's secrets storage
 
 <Frame>
-  <img src="https://storage.googleapis.com/cline_public_images/step3-API.png" alt="Cline API Selection" />
+  <img src="https://storage.googleapis.com/beadsmith_public_images/step3-API.png" alt="Beadsmith API Selection" />
 </Frame>
 
 <Warning>
@@ -113,7 +113,7 @@ You'll need to get an API key from your chosen provider:
 Once your API key is added (or you've signed in), the **"Model"** dropdown becomes available.
 
 <Frame>
-  <img src="https://storage.googleapis.com/cline_public_images/step4-model.png" alt="Cline Model Selection" />
+  <img src="https://storage.googleapis.com/beadsmith_public_images/step4-model.png" alt="Beadsmith Model Selection" />
 </Frame>
 
 **Quick model selection guide:**
@@ -134,11 +134,11 @@ You can switch models at any time without losing your conversation. Try differen
 
 See the [model comparison tables](#current-top-models) below for detailed specifications and pricing.
 
-### Step 5: Start Using Cline
+### Step 5: Start Using Beadsmith
 
-**Congratulations! You're all set up.** Here's how to start coding with Cline:
+**Congratulations! You're all set up.** Here's how to start coding with Beadsmith:
 
-1. **Type your request** in the Cline chat box
+1. **Type your request** in the Beadsmith chat box
    - Example: "Create a React component for a login form"
    - Example: "Debug this TypeScript error"
    - Example: "Refactor this function to be more efficient"
@@ -199,4 +199,4 @@ For detailed model comparisons, pricing, and performance metrics, see:
 
 ## What Others Are Using
 
-Check [OpenRouter's Cline usage stats](https://openrouter.ai/apps?url=https%3A%2F%2Fcline.bot%2F) to see real usage patterns from the community.
+Check [OpenRouter's Beadsmith usage stats](https://openrouter.ai/apps?url=https%3A%2F%2Fbeadsmith.bot%2F) to see real usage patterns from the community.

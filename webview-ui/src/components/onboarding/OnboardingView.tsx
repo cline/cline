@@ -1,8 +1,8 @@
 import type { ModelInfo } from "@shared/api"
-import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
+import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.beadsmith"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, StarIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import ClineLogoWhite from "@/assets/BeadsmithLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,7 @@ import ApiConfigurationSection from "../settings/sections/ApiConfigurationSectio
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import {
 	getCapabilities,
-	getClineUIOnboardingGroups,
+	getBeadsmithUIOnboardingGroups,
 	getOverviewLabel,
 	getPriceRange,
 	getSpeedLabel,
@@ -281,7 +281,7 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
 
-	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
+	const models = useMemo(() => getBeadsmithUIOnboardingGroups(onboardingModels), [onboardingModels])
 
 	useEffect(() => {
 		setSearchTerm("")
@@ -318,8 +318,8 @@ const OnboardingView = ({ onboardingModels }: { onboardingModels: OnboardingMode
 					actModeOpenRouterModelId: selectedModelId,
 					planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
 					actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-					planModeApiProvider: "cline",
-					actModeApiProvider: "cline",
+					planModeApiProvider: "openrouter",
+					actModeApiProvider: "openrouter",
 				})
 			}
 			hideAccount()

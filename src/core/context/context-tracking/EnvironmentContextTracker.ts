@@ -37,7 +37,7 @@ export class EnvironmentContextTracker {
 			a.os_arch === b.os_arch &&
 			a.host_name === b.host_name &&
 			a.host_version === b.host_version &&
-			a.cline_version === b.cline_version
+			a.beadsmith_version === b.beadsmith_version
 		)
 	}
 }

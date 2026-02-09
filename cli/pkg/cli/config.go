@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cline/cli/pkg/cli/config"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
+	"github.com/beadsmith/cli/pkg/cli/config"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
 	"github.com/spf13/cobra"
 )
 
@@ -87,7 +87,7 @@ func newConfigGetCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	cmd.Flags().StringVar(&address, "address", "", "specific Beadsmith instance address to use")
 	return cmd
 }
 
@@ -98,7 +98,7 @@ func newConfigListCommand() *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"l"},
 		Short:   "List all configuration settings",
-		Long:    `List all configuration settings from the Cline instance.`,
+		Long:    `List all configuration settings from the Beadsmith instance.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
@@ -112,7 +112,7 @@ func newConfigListCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	cmd.Flags().StringVar(&address, "address", "", "specific Beadsmith instance address to use")
 	return cmd
 }
 
@@ -147,6 +147,6 @@ unspecified fields. Only the fields you explicitly set will be updated.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	cmd.Flags().StringVar(&address, "address", "", "specific Beadsmith instance address to use")
 	return cmd
 }

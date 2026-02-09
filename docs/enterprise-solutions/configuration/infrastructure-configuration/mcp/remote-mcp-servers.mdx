@@ -30,7 +30,7 @@ Remote MCP servers enable you to deploy custom integrations and connect to inter
 
 ```mermaid
 graph TB
-    A[Cline Enterprise] --> B[MCP Gateway]
+    A[Beadsmith Enterprise] --> B[MCP Gateway]
     B --> C[Load Balancer]
     C --> D[Remote MCP Server 1]
     C --> E[Remote MCP Server 2] 
@@ -61,7 +61,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: custom-api-mcp-server
-  namespace: cline-enterprise
+  namespace: beadsmith-enterprise
   labels:
     app: custom-api-mcp
     version: v1.2.0
@@ -139,7 +139,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: custom-api-mcp-service
-  namespace: cline-enterprise
+  namespace: beadsmith-enterprise
 spec:
   selector:
     app: custom-api-mcp
@@ -157,7 +157,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: custom-api-mcp-ingress
-  namespace: cline-enterprise
+  namespace: beadsmith-enterprise
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
@@ -267,7 +267,7 @@ resource "aws_instance" "mcp_server" {
   tags = {
     Name = "mcp-server-${count.index + 1}"
     Environment = var.environment
-    Project = "cline-enterprise"
+    Project = "beadsmith-enterprise"
   }
 }
 
@@ -658,7 +658,7 @@ import {
   Tool, 
   Resource, 
   ServerConfig 
-} from '@cline/mcp-enterprise-sdk';
+} from '@beadsmith/mcp-enterprise-sdk';
 import { DatabaseService } from './services/database';
 import { APIService } from './services/api';
 import { AuditLogger } from './utils/audit-logger';
@@ -787,7 +787,7 @@ class CreateTicketTool implements Tool {
       description,
       priority,
       reporter: context.user.email,
-      source: 'cline-mcp'
+      source: 'beadsmith-mcp'
     });
     
     // Audit log

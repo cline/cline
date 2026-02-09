@@ -1,10 +1,10 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 
-const GENERIC: ClineToolSpec = {
+const GENERIC: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
-	id: ClineDefaultTool.BASH,
+	id: BeadsmithDefaultTool.BASH,
 	name: "execute_command",
 	description: `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}{{MULTI_ROOT_HINT}}`,
 	parameters: [
@@ -34,10 +34,10 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_GPT_5,
-	id: ClineDefaultTool.BASH,
-	name: ClineDefaultTool.BASH,
+	id: BeadsmithDefaultTool.BASH,
+	name: BeadsmithDefaultTool.BASH,
 	description:
 		"Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task.",
 	parameters: [
@@ -57,15 +57,15 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	...NATIVE_GPT_5,
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 }
 
-const GEMINI_3: ClineToolSpec = {
+const GEMINI_3: BeadsmithToolSpec = {
 	variant: ModelFamily.GEMINI_3,
-	id: ClineDefaultTool.BASH,
-	name: ClineDefaultTool.BASH,
+	id: BeadsmithDefaultTool.BASH,
+	name: BeadsmithDefaultTool.BASH,
 	description:
 		"Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. When chaining commands, use the shell operator && (not the HTML entity &amp;&amp;). If using search/grep commands, be careful to not use vague search terms that may return thousands of results. When in PLAN MODE, you may use the execute_command tool, but only in a non-destructive manner and in a way that does not alter any files.",
 	parameters: [
@@ -85,4 +85,4 @@ const GEMINI_3: ClineToolSpec = {
 	],
 }
 
-export const execute_command_variants: ClineToolSpec[] = [GENERIC, NATIVE_GPT_5, NATIVE_NEXT_GEN, GEMINI_3]
+export const execute_command_variants: BeadsmithToolSpec[] = [GENERIC, NATIVE_GPT_5, NATIVE_NEXT_GEN, GEMINI_3]

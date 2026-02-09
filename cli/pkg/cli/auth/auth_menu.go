@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/huh"
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // contextKey is a distinct type for context keys to avoid collisions
@@ -20,25 +20,25 @@ const authInstanceAddressKey contextKey = "authInstanceAddress"
 type AuthAction string
 
 const (
-	AuthActionClineLogin         AuthAction = "cline_login"
+	AuthActionBeadsmithLogin         AuthAction = "beadsmith_login"
 	AuthActionBYOSetup           AuthAction = "provider_setup"
-	AuthActionChangeClineModel   AuthAction = "change_cline_model"
+	AuthActionChangeBeadsmithModel   AuthAction = "change_beadsmith_model"
 	AuthActionSelectOrganization AuthAction = "select_organization"
 	AuthActionSelectProvider     AuthAction = "select_provider"
 	AuthActionExit               AuthAction = "exit_wizard"
 )
 
-//  Cline Auth Menu
+//  Beadsmith Auth Menu
 //  Example Layout
 //
-//	┃ Cline Account: <authenticated/not authenticated>
+//	┃ Beadsmith Account: <authenticated/not authenticated>
 //	┃ Active Provider: <provider name or none configured>
 //	┃ Active Model: <model name or none configured>
 //	┃
 //	┃ What would you like to do?
-//	┃   Change Cline model (only if authenticated)				- hidden if not authenticated
-//	┃   Authenticate with Cline account / Sign out of Cline		- changes based on auth status
-//	┃   Select active provider (Cline or BYO)					- always shown. Used to switch between Cline and BYO providers
+//	┃   Change Beadsmith model (only if authenticated)				- hidden if not authenticated
+//	┃   Authenticate with Beadsmith account / Sign out of Beadsmith		- changes based on auth status
+//	┃   Select active provider (Beadsmith or BYO)					- always shown. Used to switch between Cline and BYO providers
 //	┃   Configure BYO API providers								- always shown. Launches provider setup wizard
 //	┃   Exit authorization wizard								- always shown. Exits the auth menu
 
@@ -102,8 +102,8 @@ func getAuthInstanceAddress(ctx context.Context) string {
 
 // HandleAuthMenuNoArgs prepares the auth menu when no arguments are provided
 func HandleAuthMenuNoArgs(ctx context.Context) error {
-	// Check if Cline is authenticated
-	isClineAuth := IsAuthenticated(ctx)
+	// Check if Beadsmith is authenticated
+	isBeadsmithAuth := IsAuthenticated(ctx)
 
 	// Get current provider config for display
 	var currentProvider string
@@ -117,15 +117,15 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 
 	// Fetch organizations if authenticated
 	var hasOrganizations bool
-	if isClineAuth {
+	if isBeadsmithAuth {
 		if client, err := global.GetDefaultClient(ctx); err == nil {
-			if orgsResponse, err := client.Account.GetUserOrganizations(ctx, &cline.EmptyRequest{}); err == nil {
+			if orgsResponse, err := client.Account.GetUserOrganizations(ctx, &beadsmith.EmptyRequest{}); err == nil {
 				hasOrganizations = len(orgsResponse.GetOrganizations()) > 0
 			}
 		}
 	}
 
-	action, err := ShowAuthMenuWithStatus(isClineAuth, hasOrganizations, currentProvider, currentModel)
+	action, err := ShowAuthMenuWithStatus(isBeadsmithAuth, hasOrganizations, currentProvider, currentModel)
 	if err != nil {
 		// Check if user cancelled - propagate for clean exit
 		if err == huh.ErrUserAborted {
@@ -135,12 +135,12 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	}
 
 	switch action {
-	case AuthActionClineLogin:
-		return HandleClineAuth(ctx)
+	case AuthActionBeadsmithLogin:
+		return HandleBeadsmithAuth(ctx)
 	case AuthActionBYOSetup:
 		return HandleAPIProviderSetup(ctx)
-	case AuthActionChangeClineModel:
-		return HandleChangeClineModel(ctx)
+	case AuthActionChangeBeadsmithModel:
+		return HandleChangeBeadsmithModel(ctx)
 	case AuthActionSelectOrganization:
 		return HandleSelectOrganization(ctx)
 	case AuthActionSelectProvider:
@@ -152,15 +152,15 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	}
 }
 
-// ShowAuthMenuWithStatus displays the main auth menu with Cline + provider status
-func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, currentProvider, currentModel string) (AuthAction, error) {
+// ShowAuthMenuWithStatus displays the main auth menu with Beadsmith + provider status
+func ShowAuthMenuWithStatus(isBeadsmithAuthenticated bool, hasOrganizations bool, currentProvider, currentModel string) (AuthAction, error) {
 	var action AuthAction
 	var options []huh.Option[AuthAction]
 
 	// Build menu options based on authentication status
-	if isClineAuthenticated {
+	if isBeadsmithAuthenticated {
 		options = []huh.Option[AuthAction]{
-			huh.NewOption("Change Cline model", AuthActionChangeClineModel),
+			huh.NewOption("Change Beadsmith model", AuthActionChangeBeadsmithModel),
 		}
 
 		// Add organization selection if user has organizations
@@ -169,15 +169,15 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 		}
 
 		options = append(options,
-			huh.NewOption("Sign out of Cline", AuthActionClineLogin),
-			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
+			huh.NewOption("Sign out of Beadsmith", AuthActionBeadsmithLogin),
+			huh.NewOption("Select active provider (Beadsmith or BYO)", AuthActionSelectProvider),
 			huh.NewOption("Configure BYO API providers", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
 		)
 	} else {
 		options = []huh.Option[AuthAction]{
-			huh.NewOption("Authenticate with Cline account", AuthActionClineLogin),
-			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
+			huh.NewOption("Authenticate with Beadsmith account", AuthActionBeadsmithLogin),
+			huh.NewOption("Select active provider (Beadsmith or BYO)", AuthActionSelectProvider),
 			huh.NewOption("Configure BYO API providers", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
 		}
@@ -187,14 +187,14 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 	var title string
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 
-	// Always show Cline authentication status
-	if isClineAuthenticated {
-		title = fmt.Sprintf("Cline Account: %s Authenticated\n", renderer.Green("✓"))
+	// Always show Beadsmith authentication status
+	if isBeadsmithAuthenticated {
+		title = fmt.Sprintf("Beadsmith Account: %s Authenticated\n", renderer.Green("✓"))
 	} else {
-		title = fmt.Sprintf("Cline Account: %s Not authenticated\n", renderer.Red("✗"))
+		title = fmt.Sprintf("Beadsmith Account: %s Not authenticated\n", renderer.Red("✗"))
 	}
 
-	// Show active provider and model if configured (regardless of Cline auth status)
+	// Show active provider and model if configured (regardless of Beadsmith auth status)
 	if currentProvider != "" && currentModel != "" {
 		title += fmt.Sprintf("Active Provider: %s\nActive Model: %s\n",
 			renderer.White(currentProvider),
@@ -235,7 +235,7 @@ func HandleAPIProviderSetup(ctx context.Context) error {
 	return wizard.Run()
 }
 
-// HandleSelectProvider allows users to switch between Cline provider and BYO providers
+// HandleSelectProvider allows users to switch between Beadsmith provider and BYO providers
 func HandleSelectProvider(ctx context.Context) error {
 	// Get task manager
 	manager, err := createTaskManager(ctx)
@@ -297,7 +297,7 @@ func HandleSelectProvider(ctx context.Context) error {
 	// Apply the selected provider
 	if selectedProvider == cline.ApiProvider_CLINE {
 		// Configure Cline as the active provider
-		return SelectClineModel(ctx, manager)
+		return SelectBeadsmithModel(ctx, manager)
 	} else {
 		// Switch to the selected BYO provider
 		return SwitchToBYOProvider(ctx, manager, selectedProvider)

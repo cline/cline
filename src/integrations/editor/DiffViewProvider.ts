@@ -7,7 +7,7 @@ import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
-import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.beadsmith"
 import { Logger } from "@/shared/services/Logger"
 import { detectEncoding } from "../misc/extract-text"
 import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
@@ -129,17 +129,17 @@ export abstract class DiffViewProvider {
 	 * Getting diagnostics before and after the file edit is a better approach than
 	 * automatically tracking problems in real-time. This method ensures we only
 	 * report new problems that are a direct result of this specific edit.
-	 * Since these are new problems resulting from Cline's edit, we know they're
-	 * directly related to the work he's doing. This eliminates the risk of Cline
+	 * Since these are new problems resulting from Beadsmith's edit, we know they're
+	 * directly related to the work he's doing. This eliminates the risk of Beadsmith
 	 * going off-task or getting distracted by unrelated issues, which was a problem
 	 * with the previous auto-debug approach. Some users' machines may be slow to
 	 * update diagnostics, so this approach provides a good balance between automation
-	 * and avoiding potential issues where Cline might get stuck in loops due to
+	 * and avoiding potential issues where Beadsmith might get stuck in loops due to
 	 * outdated problem information. If no new problems show up by the time the user
 	 * accepts the changes, they can always debug later using the '@problems' mention.
-	 * This way, Cline only becomes aware of new problems resulting from his edits
+	 * This way, Beadsmith only becomes aware of new problems resulting from his edits
 	 * and can address them accordingly. If problems don't change immediately after
-	 * applying a fix, Cline won't be notified, which is generally fine since the
+	 * applying a fix, Beadsmith won't be notified, which is generally fine since the
 	 * initial fix is usually correct and it may just take time for linters to catch up.
 	 */
 	private async getNewDiagnosticProblems(): Promise<string> {

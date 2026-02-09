@@ -1,0 +1,50 @@
+---
+title: "Installation"
+description: "Install Beadsmith CLI and authenticate with your account"
+---
+
+## Prerequisites
+
+Beadsmith CLI requires Node.js version 20 or higher. We recommend using Node.js 22 for the best experience.
+
+To check your Node.js version:
+
+```bash
+node --version
+```
+
+## Installation
+
+```bash
+npm install -g beadsmith
+```
+
+After installation, authenticate with your Beadsmith account:
+
+```bash
+beadsmith auth
+```
+
+This starts an authentication wizard to sign you in and configure your preferred AI model provider.
+
+## Quick Start
+
+Get started with Beadsmith in seconds:
+
+```bash
+beadsmith
+```
+
+That's it! Running `beadsmith` in any directory starts an interactive session where you can chat with the AI agent. Type your task, review the plan, and type `/act` when ready to execute.
+
+For even faster execution without interaction:
+
+```bash
+beadsmith "Add unit tests to utils.js"
+```
+
+This runs Beadsmith with a single command, perfect for quick tasks or automation.
+
+<Tip>
+New to Beadsmith CLI? Start with interactive mode (`beadsmith`) to see how it works. Once comfortable, explore [the three core flows](/beadsmith-cli/three-core-flows) for advanced usage patterns.
+</Tip>

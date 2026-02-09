@@ -1,4 +1,4 @@
-import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import { BeadsmithMessage, BeadsmithSayTool } from "@shared/ExtensionMessage"
 import { Mode } from "@shared/storage/types"
 import { LucideIcon } from "lucide-react"
 import type React from "react"
@@ -11,13 +11,13 @@ import { ThinkingRow } from "./ThinkingRow"
 import { TypewriterText } from "./TypewriterText"
 
 interface RequestStartRowProps {
-	message: ClineMessage
+	message: BeadsmithMessage
 	apiRequestFailedMessage?: string
 	apiReqStreamingFailedMessage?: string
 	cost?: number
 	reasoningContent?: string
 	responseStarted?: boolean
-	clineMessages: ClineMessage[]
+	beadsmithMessages: BeadsmithMessage[]
 	mode?: Mode
 	classNames?: string
 	isExpanded: boolean
@@ -38,7 +38,7 @@ const formatSearchRegex = (regex: string, path: string, filePattern?: string): s
 	return filePattern && filePattern !== "*" ? `"${terms}" in ${cleanedPath}/ (${filePattern})` : `"${terms}" in ${cleanedPath}/`
 }
 // Format activity text based on tool type
-const getActivityText = (tool: ClineSayTool): string | null => {
+const getActivityText = (tool: BeadsmithSayTool): string | null => {
 	const cleanedPath = cleanPathPrefix(tool.path || "")
 	switch (tool.tool) {
 		case "readFile":
@@ -57,10 +57,10 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 
 // Collect tools in a given range, with optional stop condition
 const collectToolsInRange = (
-	messages: ClineMessage[],
+	messages: BeadsmithMessage[],
 	startIdx: number,
 	endIdx: number,
-	stopCondition?: (msg: ClineMessage) => boolean,
+	stopCondition?: (msg: BeadsmithMessage) => boolean,
 ): { icon: LucideIcon; text: string }[] => {
 	const activities: { icon: LucideIcon; text: string }[] = []
 
@@ -78,7 +78,7 @@ const collectToolsInRange = (
 		}
 
 		try {
-			const tool = JSON.parse(msg.text || "{}") as ClineSayTool
+			const tool = JSON.parse(msg.text || "{}") as BeadsmithSayTool
 			const activityText = getActivityText(tool)
 			if (activityText) {
 				const toolIcon = getIconByToolName(tool.tool)
@@ -92,7 +92,7 @@ const collectToolsInRange = (
 }
 
 // Find current api_req and determine if it has cost
-const findCurrentApiReq = (messages: ClineMessage[]): { index: number; hasCost: boolean } | null => {
+const findCurrentApiReq = (messages: BeadsmithMessage[]): { index: number; hasCost: boolean } | null => {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const msg = messages[i]
 		if (msg.say === "api_req_started" && msg.text) {
@@ -108,7 +108,7 @@ const findCurrentApiReq = (messages: ClineMessage[]): { index: number; hasCost: 
 }
 
 // Find the most recent completed api_req before the given index
-const findPrevCompletedApiReq = (messages: ClineMessage[], beforeIdx: number): number => {
+const findPrevCompletedApiReq = (messages: BeadsmithMessage[], beforeIdx: number): number => {
 	for (let i = beforeIdx - 1; i >= 0; i--) {
 		const msg = messages[i]
 		if (msg.say === "api_req_started" && msg.text) {
@@ -134,7 +134,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	cost,
 	reasoningContent,
 	responseStarted,
-	clineMessages,
+	beadsmithMessages,
 	mode,
 	handleToggle,
 	isExpanded,
@@ -144,7 +144,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
 	const hasReasoning = !!reasoningContent
-	const hasCompletionResult = clineMessages.some(
+	const hasCompletionResult = beadsmithMessages.some(
 		(msg) => msg.ask === "completion_result" || msg.say === "completion_result" || msg.ask === "plan_mode_respond",
 	)
 
@@ -160,13 +160,13 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 
 	// Check if this api_req will be absorbed into a tool group (reasoning will disappear)
 	const willBeAbsorbed = useMemo(() => {
-		return isApiReqAbsorbable(message.ts, clineMessages)
-	}, [message.ts, clineMessages])
+		return isApiReqAbsorbable(message.ts, beadsmithMessages)
+	}, [message.ts, beadsmithMessages])
 
 	// Find all exploratory tool activities that are currently in flight.
 	// Tools come AFTER the api_req_started message, so we look from currentApiReq forward.
 	const currentActivities = useMemo(() => {
-		const currentApiReq = findCurrentApiReq(clineMessages)
+		const currentApiReq = findCurrentApiReq(beadsmithMessages)
 		if (!currentApiReq) {
 			return []
 		}
@@ -174,21 +174,21 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 		if (!currentApiReq.hasCost) {
 			// CASE A: Current api_req is INCOMPLETE
 			// Look for ask === "tool" messages AFTER the current api_req_started
-			return collectToolsInRange(clineMessages, currentApiReq.index + 1, clineMessages.length)
+			return collectToolsInRange(beadsmithMessages, currentApiReq.index + 1, beadsmithMessages.length)
 		}
 		// CASE B: Current api_req is COMPLETE - no activities to show
 		return []
-	}, [clineMessages])
+	}, [beadsmithMessages])
 
 	// Check if there are any completed tools in the tool group
 	const hasCompletedTools = useMemo(() => {
 		// Look for any completed low-stakes tool messages that would be in a tool group
-		return clineMessages.some((msg, idx) => {
+		return beadsmithMessages.some((msg, idx) => {
 			if (msg.say === "tool" && isLowStakesTool(msg)) {
 				// Check if this tool is from a completed API request
 				// (looking backwards for an api_req with cost)
 				for (let i = idx - 1; i >= 0; i--) {
-					const prevMsg = clineMessages[i]
+					const prevMsg = beadsmithMessages[i]
 					if (prevMsg.say === "api_req_started" && prevMsg.text) {
 						try {
 							const info = JSON.parse(prevMsg.text)
@@ -201,7 +201,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 			}
 			return false
 		})
-	}, [clineMessages])
+	}, [beadsmithMessages])
 
 	// Only show currentActivities if there are NO completed tools
 	// (otherwise they'll be shown in the unified ToolGroupRenderer list)

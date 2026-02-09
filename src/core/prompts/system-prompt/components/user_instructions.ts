@@ -10,13 +10,13 @@ The following additional instructions are provided by the user, and should be fo
 
 export async function getUserInstructions(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
 	const customInstructions = buildUserInstructions(
-		context.globalClineRulesFileInstructions,
-		context.localClineRulesFileInstructions,
+		context.globalBeadsmithRulesFileInstructions,
+		context.localBeadsmithRulesFileInstructions,
 		context.localCursorRulesFileInstructions,
 		context.localCursorRulesDirInstructions,
 		context.localWindsurfRulesFileInstructions,
 		context.localAgentsRulesFileInstructions,
-		context.clineIgnoreInstructions,
+		context.beadsmithIgnoreInstructions,
 		context.preferredLanguageInstructions,
 	)
 
@@ -33,24 +33,24 @@ export async function getUserInstructions(variant: PromptVariant, context: Syste
 }
 
 function buildUserInstructions(
-	globalClineRulesFileInstructions?: string,
-	localClineRulesFileInstructions?: string,
+	globalBeadsmithRulesFileInstructions?: string,
+	localBeadsmithRulesFileInstructions?: string,
 	localCursorRulesFileInstructions?: string,
 	localCursorRulesDirInstructions?: string,
 	localWindsurfRulesFileInstructions?: string,
 	localAgentsRulesFileInstructions?: string,
-	clineIgnoreInstructions?: string,
+	beadsmithIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
 ): string | undefined {
 	const customInstructions = []
 	if (preferredLanguageInstructions) {
 		customInstructions.push(preferredLanguageInstructions)
 	}
-	if (globalClineRulesFileInstructions) {
-		customInstructions.push(globalClineRulesFileInstructions)
+	if (globalBeadsmithRulesFileInstructions) {
+		customInstructions.push(globalBeadsmithRulesFileInstructions)
 	}
-	if (localClineRulesFileInstructions) {
-		customInstructions.push(localClineRulesFileInstructions)
+	if (localBeadsmithRulesFileInstructions) {
+		customInstructions.push(localBeadsmithRulesFileInstructions)
 	}
 	if (localCursorRulesFileInstructions) {
 		customInstructions.push(localCursorRulesFileInstructions)
@@ -64,8 +64,8 @@ function buildUserInstructions(
 	if (localAgentsRulesFileInstructions) {
 		customInstructions.push(localAgentsRulesFileInstructions)
 	}
-	if (clineIgnoreInstructions) {
-		customInstructions.push(clineIgnoreInstructions)
+	if (beadsmithIgnoreInstructions) {
+		customInstructions.push(beadsmithIgnoreInstructions)
 	}
 	if (customInstructions.length === 0) {
 		return undefined

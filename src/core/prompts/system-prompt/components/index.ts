@@ -1,8 +1,10 @@
 import { SystemPromptSection } from "../templates/placeholders"
 import { getActVsPlanModeSection } from "./act_vs_plan_mode"
 import { getAgentRoleSection } from "./agent_role"
+import { getBeadModeSection } from "./bead_mode"
 import { getCapabilitiesSection } from "./capabilities"
 import { getCliSubagentsSection } from "./cli_subagents"
+import { getDagContextSection } from "./dag_context"
 import { getEditingFilesSection } from "./editing_files"
 import { getFeedbackSection } from "./feedback"
 import { getMcp } from "./mcp"
@@ -15,7 +17,7 @@ import { getToolUseSection } from "./tool_use"
 import { getUserInstructions } from "./user_instructions"
 
 /**
- * Registers all tool variants with the ClineToolSet provider.
+ * Registers all tool variants with the BeadsmithToolSet provider.
  * This function should be called once during application initialization
  * to make all tools available for use.
  */
@@ -53,5 +55,7 @@ export function getSystemPromptComponents() {
 			fn: getFeedbackSection,
 		},
 		{ id: SystemPromptSection.TASK_PROGRESS, fn: getUpdatingTaskProgress },
+		{ id: SystemPromptSection.DAG_CONTEXT, fn: getDagContextSection },
+		{ id: SystemPromptSection.BEAD_MODE, fn: getBeadModeSection },
 	]
 }

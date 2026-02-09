@@ -4,7 +4,7 @@
  * This module provides terminal management functionality that works across:
  * - VSCode Extension (using VSCode's terminal API or background execution)
  * - CLI (using StandaloneTerminalManager)
- * - JetBrains (using StandaloneTerminalManager via cline-core)
+ * - JetBrains (using StandaloneTerminalManager via beadsmith-core)
  *
  * @example
  * ```typescript

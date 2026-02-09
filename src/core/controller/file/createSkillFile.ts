@@ -1,4 +1,4 @@
-import { CreateSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
+import { CreateSkillRequest, SkillsToggles } from "@shared/proto/beadsmith/file"
 import fs from "fs/promises"
 import path from "path"
 import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
@@ -64,7 +64,7 @@ export async function createSkillFile(controller: Controller, request: CreateSki
 			throw new Error("No workspace folder open")
 		}
 		// Create in .cline/skills by default
-		const localSkillsDir = path.join(primaryWorkspace, ".cline", "skills")
+		const localSkillsDir = path.join(primaryWorkspace, ".beadsmith", "skills")
 		await fs.mkdir(localSkillsDir, { recursive: true })
 		skillDir = path.join(localSkillsDir, sanitizedName)
 	}

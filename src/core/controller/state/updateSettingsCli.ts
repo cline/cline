@@ -1,15 +1,15 @@
 import { buildApiHandler } from "@core/api"
 
-import { Empty } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/beadsmith/common"
 import {
 	PlanActMode,
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	UpdateSettingsRequestCli,
-} from "@shared/proto/cline/state"
+} from "@shared/proto/beadsmith/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineEnv } from "@/config"
+import { BeadsmithEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -46,7 +46,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 	try {
 		if (request.environment !== undefined) {
-			ClineEnv.setEnvironment(request.environment)
+			BeadsmithEnv.setEnvironment(request.environment)
 			await accountLogoutClicked(controller, Empty.create())
 		}
 
@@ -65,7 +65,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				telemetrySetting,
 				yoloModeToggled,
 				useAutoCondense,
-				clineWebToolsEnabled,
+				beadsmithWebToolsEnabled,
 				worktreesEnabled,
 				focusChainSettings,
 				browserSettings,
@@ -161,12 +161,12 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				controller.stateManager.setGlobalState("useAutoCondense", useAutoCondense)
 			}
 
-			// Update Cline web tools setting (requires telemetry)
-			if (clineWebToolsEnabled !== undefined) {
+			// Update Beadsmith web tools setting (requires telemetry)
+			if (beadsmithWebToolsEnabled !== undefined) {
 				if (controller.task) {
-					telemetryService.captureClineWebToolsToggle(controller.task.ulid, clineWebToolsEnabled)
+					telemetryService.captureBeadsmithWebToolsToggle(controller.task.ulid, beadsmithWebToolsEnabled)
 				}
-				controller.stateManager.setGlobalState("clineWebToolsEnabled", clineWebToolsEnabled)
+				controller.stateManager.setGlobalState("beadsmithWebToolsEnabled", beadsmithWebToolsEnabled)
 			}
 
 			// Update worktrees setting
@@ -182,7 +182,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 				const newFocusChainSettings = {
 					enabled: isEnabled,
-					remindClineInterval: focusChainSettings.remindClineInterval,
+					remindBeadsmithInterval: focusChainSettings.remindBeadsmithInterval,
 				}
 				controller.stateManager.setGlobalState("focusChainSettings", newFocusChainSettings)
 

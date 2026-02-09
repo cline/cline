@@ -1,15 +1,15 @@
 import { buildApiHandler } from "@core/api"
-import { Empty } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/beadsmith/common"
 import {
 	PlanActMode,
 	McpDisplayMode as ProtoMcpDisplayMode,
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	UpdateSettingsRequest,
-} from "@shared/proto/cline/state"
+} from "@shared/proto/beadsmith/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
-import { ClineEnv } from "@/config"
+import { BeadsmithEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { HostProvider } from "@/hosts/host-provider"
@@ -29,8 +29,8 @@ import { accountLogoutClicked } from "../account/accountLogoutClicked"
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
-		if (request.clineEnv !== undefined) {
-			ClineEnv.setEnvironment(request.clineEnv)
+		if (request.beadsmithEnv !== undefined) {
+			BeadsmithEnv.setEnvironment(request.beadsmithEnv)
 			await accountLogoutClicked(controller, Empty.create())
 		}
 
@@ -188,11 +188,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		// Update cline web tools setting
-		if (request.clineWebToolsEnabled !== undefined) {
+		if (request.beadsmithWebToolsEnabled !== undefined) {
 			if (controller.task) {
-				telemetryService.captureClineWebToolsToggle(controller.task.ulid, request.clineWebToolsEnabled)
+				telemetryService.captureBeadsmithWebToolsToggle(controller.task.ulid, request.beadsmithWebToolsEnabled)
 			}
-			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
+			controller.stateManager.setGlobalState("beadsmithWebToolsEnabled", request.beadsmithWebToolsEnabled)
 		}
 
 		// Update worktrees setting
@@ -230,7 +230,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 				const focusChainSettings = {
 					enabled: isEnabled,
-					remindClineInterval: request.focusChainSettings.remindClineInterval,
+					remindBeadsmithInterval: request.focusChainSettings.remindBeadsmithInterval,
 				}
 				controller.stateManager.setGlobalState("focusChainSettings", focusChainSettings)
 
@@ -377,6 +377,37 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.enableParallelToolCalling !== undefined) {
 			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
+		}
+
+		// Update beads (Ralph Loop) settings
+		if (request.beadsEnabled !== undefined) {
+			controller.stateManager.setGlobalState("beadsEnabled", !!request.beadsEnabled)
+		}
+
+		if (request.beadAutoApprove !== undefined) {
+			controller.stateManager.setGlobalState("beadAutoApprove", !!request.beadAutoApprove)
+		}
+
+		if (request.beadCommitMode !== undefined) {
+			const mode = request.beadCommitMode === "workspace" ? "workspace" : "shadow"
+			controller.stateManager.setGlobalState("beadCommitMode", mode)
+		}
+
+		if (request.beadTestCommand !== undefined) {
+			controller.stateManager.setGlobalState("beadTestCommand", request.beadTestCommand || undefined)
+		}
+
+		if (request.ralphMaxIterations !== undefined) {
+			controller.stateManager.setGlobalState("ralphMaxIterations", Number(request.ralphMaxIterations))
+		}
+
+		if (request.ralphTokenBudget !== undefined) {
+			controller.stateManager.setGlobalState("ralphTokenBudget", Number(request.ralphTokenBudget))
+		}
+
+		// Update DAG settings
+		if (request.dagEnabled !== undefined) {
+			controller.stateManager.setGlobalState("dagEnabled", !!request.dagEnabled)
 		}
 
 		if (request.optOutOfRemoteConfig !== undefined) {

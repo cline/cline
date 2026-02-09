@@ -1,5 +1,5 @@
-import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/ClineAccount"
-import type { UsageTransaction as ProtoUsageTransaction } from "@shared/proto/cline/account"
+import type { UsageTransaction as BeadsmithAccountUsageTransaction } from "@shared/BeadsmithAccount"
+import type { UsageTransaction as ProtoUsageTransaction } from "@shared/proto/beadsmith/account"
 
 export const getMainRole = (roles?: string[]) => {
 	if (!roles) {
@@ -16,7 +16,7 @@ export const getMainRole = (roles?: string[]) => {
 	return "Member"
 }
 
-export const getClineUris = (base: string, type: "dashboard" | "credits", route?: "account" | "organization") => {
+export const getBeadsmithUris = (base: string, type: "dashboard" | "credits", route?: "account" | "organization") => {
 	const dashboard = new URL("dashboard", base)
 
 	if (type === "dashboard") {
@@ -30,10 +30,10 @@ export const getClineUris = (base: string, type: "dashboard" | "credits", route?
 }
 
 /**
- * Converts a protobuf UsageTransaction to a ClineAccount UsageTransaction
+ * Converts a protobuf UsageTransaction to a BeadsmithAccount UsageTransaction
  * by adding the missing id and metadata fields
  */
-export function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransaction): ClineAccountUsageTransaction {
+export function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransaction): BeadsmithAccountUsageTransaction {
 	return {
 		...protoTransaction,
 		id: protoTransaction.generationId, // Use generationId as the id
@@ -46,8 +46,8 @@ export function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransac
 }
 
 /**
- * Converts an array of protobuf UsageTransactions to ClineAccount UsageTransactions
+ * Converts an array of protobuf UsageTransactions to BeadsmithAccount UsageTransactions
  */
-export function convertProtoUsageTransactions(protoTransactions: ProtoUsageTransaction[]): ClineAccountUsageTransaction[] {
+export function convertProtoUsageTransactions(protoTransactions: ProtoUsageTransaction[]): BeadsmithAccountUsageTransaction[] {
 	return protoTransactions.map(convertProtoUsageTransaction)
 }

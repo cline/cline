@@ -2,6 +2,8 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
+import { BeadManager, BeadManagerConfig } from "@core/beads"
+import type { BeadFileChange } from "@shared/beads"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -9,10 +11,10 @@ import { EnvironmentContextTracker } from "@core/context/context-tracking/Enviro
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
 import {
-	getGlobalClineRules,
-	getLocalClineRules,
-	refreshClineRulesToggles,
-} from "@core/context/instructions/user-instructions/cline-rules"
+	getGlobalBeadsmithRules,
+	getLocalBeadsmithRules,
+	refreshBeadsmithRulesToggles,
+} from "@core/context/instructions/user-instructions/beadsmith-rules"
 import {
 	getLocalAgentsRules,
 	getLocalCursorRules,
@@ -22,7 +24,7 @@ import {
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { BeadsmithIgnoreController } from "@core/ignore/BeadsmithIgnoreController"
 import { parseMentions } from "@core/mentions"
 import { CommandPermissionController } from "@core/permissions"
 import { summarizeTask } from "@core/prompts/contextManagement"
@@ -33,7 +35,7 @@ import {
 	ensureTaskDirectoryExists,
 	GlobalFileNames,
 	getSavedApiConversationHistory,
-	getSavedClineMessages,
+	getSavedBeadsmithMessages,
 } from "@core/storage/disk"
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
@@ -55,13 +57,13 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { BeadsmithApiReqCancelReason, BeadsmithApiReqInfo, BeadsmithAsk, BeadsmithMessage, BeadsmithSay } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
-import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
-import { ClineAskResponse } from "@shared/WebviewMessage"
+import { convertBeadsmithMessageToProto } from "@shared/proto-conversions/beadsmith-message"
+import { BeadsmithDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
+import { BeadsmithAskResponse } from "@shared/WebviewMessage"
 import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
@@ -80,24 +82,24 @@ import {
 	FullCommandExecutorConfig,
 	StandaloneTerminalManager,
 } from "@/integrations/terminal"
-import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
+import { BeadsmithError, BeadsmithErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import {
-	ClineAssistantContent,
-	ClineContent,
-	ClineImageContentBlock,
-	ClineMessageModelInfo,
-	ClineStorageMessage,
-	ClineTextContentBlock,
-	ClineToolResponseContent,
-	ClineUserContent,
+	BeadsmithAssistantContent,
+	BeadsmithContent,
+	BeadsmithImageContentBlock,
+	BeadsmithMessageModelInfo,
+	BeadsmithStorageMessage,
+	BeadsmithTextContentBlock,
+	BeadsmithToolResponseContent,
+	BeadsmithUserContent,
 } from "@/shared/messages"
-import { ApiFormat } from "@/shared/proto/cline/models"
+import { ApiFormat } from "@/shared/proto/beadsmith/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
-import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
+import { isBeadsmithCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
-import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
+import { ensureLocalBeadsmithDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
@@ -111,7 +113,7 @@ import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
 
-export type ToolResponse = ClineToolResponseContent
+export type ToolResponse = BeadsmithToolResponseContent
 
 type TaskParams = {
 	controller: Controller
@@ -204,7 +206,7 @@ export class Task {
 	private diffViewProvider: DiffViewProvider
 	public checkpointManager?: ICheckpointManager
 	private initialCheckpointCommitPromise?: Promise<string | undefined>
-	private clineIgnoreController: ClineIgnoreController
+	private beadsmithIgnoreController: BeadsmithIgnoreController
 	private commandPermissionController: CommandPermissionController
 	private toolExecutor: ToolExecutor
 	/**
@@ -225,6 +227,9 @@ export class Task {
 
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
+
+	// Bead (Ralph Wiggum Loop) Manager
+	private beadManager?: BeadManager
 
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
@@ -280,7 +285,7 @@ export class Task {
 		this.postStateToWebview = postStateToWebview
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
-		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.beadsmithIgnoreController = new BeadsmithIgnoreController(cwd)
 		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
 		// Determine terminal execution mode and create appropriate terminal manager
@@ -425,11 +430,11 @@ export class Task {
 			...apiConfiguration,
 			ulid: this.ulid,
 			onRetryAttempt: async (attempt: number, maxRetries: number, delay: number, error: any) => {
-				const clineMessages = this.messageStateHandler.getClineMessages()
-				const lastApiReqStartedIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
+				const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+				const lastApiReqStartedIndex = findLastIndex(beadsmithMessages, (m) => m.say === "api_req_started")
 				if (lastApiReqStartedIndex !== -1) {
 					try {
-						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqStartedIndex].text || "{}")
+						const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[lastApiReqStartedIndex].text || "{}")
 						currentApiReqInfo.retryStatus = {
 							attempt: attempt, // attempt is already 1-indexed from retry.ts
 							maxAttempts: maxRetries, // total attempts
@@ -439,7 +444,7 @@ export class Task {
 						// Clear previous cancelReason and streamingFailedMessage if we are retrying
 						delete currentApiReqInfo.cancelReason
 						delete currentApiReqInfo.streamingFailedMessage
-						await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
+						await this.messageStateHandler.updateBeadsmithMessage(lastApiReqStartedIndex, {
 							text: JSON.stringify(currentApiReqInfo),
 						})
 
@@ -510,7 +515,7 @@ export class Task {
 		const commandExecutorCallbacks: CommandExecutorCallbacks = {
 			say: this.say.bind(this) as CommandExecutorCallbacks["say"],
 			ask: async (type: string, text?: string, partial?: boolean) => {
-				const result = await this.ask(type as ClineAsk, text, partial)
+				const result = await this.ask(type as BeadsmithAsk, text, partial)
 				return {
 					response: result.response,
 					text: result.text,
@@ -520,13 +525,13 @@ export class Task {
 			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
-			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
-				await this.messageStateHandler.updateClineMessage(index, updates)
+			updateBeadsmithMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
+				await this.messageStateHandler.updateBeadsmithMessage(index, updates)
 			},
-			getClineMessages: () => this.messageStateHandler.getClineMessages() as Array<{ ask?: string; say?: string }>,
+			getBeadsmithMessages: () => this.messageStateHandler.getBeadsmithMessages() as Array<{ ask?: string; say?: string }>,
 			addToUserMessageContent: (content: { type: string; text: string }) => {
-				// Cast to ClineTextContentBlock which is compatible with ClineContent
-				this.taskState.userMessageContent.push({ type: "text", text: content.text } as ClineTextContentBlock)
+				// Cast to BeadsmithTextContentBlock which is compatible with BeadsmithContent
+				this.taskState.userMessageContent.push({ type: "text", text: content.text } as BeadsmithTextContentBlock)
 			},
 		}
 
@@ -542,7 +547,7 @@ export class Task {
 			this.diffViewProvider,
 			this.mcpHub,
 			this.fileContextTracker,
-			this.clineIgnoreController,
+			this.beadsmithIgnoreController,
 			this.commandPermissionController,
 			this.contextManager,
 			this.stateManager,
@@ -568,17 +573,141 @@ export class Task {
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
 		)
+
+		// Initialize BeadManager if beads are enabled
+		this.initializeBeadManager()
+	}
+
+	/**
+	 * Initialize BeadManager if beads are enabled in settings.
+	 * If the Controller already has an active BeadManager (from startBeadTask),
+	 * reuse it so the Task inherits the loop configuration and state.
+	 * Otherwise, create a fresh one from settings.
+	 */
+	private initializeBeadManager(): void {
+		const beadsEnabled = this.stateManager.getGlobalSettingsKey("beadsEnabled")
+		if (!beadsEnabled) {
+			return
+		}
+
+		// Check if the Controller already has an active BeadManager (set by startBeadTask RPC)
+		const controllerBeadManager = this.controller.getBeadManager()
+		if (controllerBeadManager && controllerBeadManager.getState().status !== "idle") {
+			// Reuse the Controller's BeadManager so we inherit the Ralph Loop config
+			this.beadManager = controllerBeadManager
+			this.toolExecutor.setBeadManager(this.beadManager)
+			this.setupBeadEventListeners()
+			Logger.info(`[Task ${this.taskId}] Reusing Controller's active BeadManager (bead ${controllerBeadManager.getState().currentBeadNumber})`)
+			return
+		}
+
+		// Create a fresh BeadManager with workspace root
+		this.beadManager = new BeadManager(this.cwd)
+
+		// Configure from settings
+		const config: Partial<BeadManagerConfig> = {
+			maxIterations: this.stateManager.getGlobalSettingsKey("ralphMaxIterations"),
+			tokenBudget: this.stateManager.getGlobalSettingsKey("ralphTokenBudget"),
+			testCommand: this.stateManager.getGlobalSettingsKey("beadTestCommand"),
+			commitMode: this.stateManager.getGlobalSettingsKey("beadCommitMode"),
+			autoApprove: this.stateManager.getGlobalSettingsKey("beadAutoApprove"),
+		}
+		this.beadManager.configure(config)
+
+		// Wire to ToolExecutor
+		this.toolExecutor.setBeadManager(this.beadManager)
+
+		// Set up event listeners to emit bead messages
+		this.setupBeadEventListeners()
+
+		Logger.info(`[Task ${this.taskId}] BeadManager initialized with config:`, config)
+	}
+
+	/**
+	 * Set up event listeners on BeadManager to emit bead messages to webview.
+	 */
+	private setupBeadEventListeners(): void {
+		if (!this.beadManager) return
+
+		this.beadManager.on("beadStarted", async (bead) => {
+			// Save a checkpoint at bead start for diff presentation later
+			if (this.checkpointManager) {
+				try {
+					const commitHash = await this.checkpointManager.commit()
+					if (commitHash) {
+						bead.startCheckpointHash = commitHash
+						Logger.info(`[Task ${this.taskId}] Bead ${bead.beadNumber} started with checkpoint: ${commitHash}`)
+					}
+				} catch (error) {
+					Logger.error(`[Task ${this.taskId}] Failed to create start checkpoint for bead:`, error)
+				}
+			}
+
+			const message = {
+				beadNumber: bead.beadNumber,
+				taskId: bead.taskId,
+				taskDescription: this.beadManager?.getState().currentTask?.description ?? "",
+			}
+			await this.say("bead_started", JSON.stringify(message))
+		})
+
+		this.beadManager.on("beadCompleted", async (bead) => {
+			const message = {
+				beadNumber: bead.beadNumber,
+				filesChanged: bead.filesChanged.map((f: BeadFileChange) => f.filePath),
+				tokensUsed: bead.tokensUsed,
+				success: bead.status === "approved",
+				errors: bead.errors.length > 0 ? bead.errors : undefined,
+			}
+			await this.say("bead_completed", JSON.stringify(message))
+		})
+
+		this.beadManager.on("beadFailed", async (bead, errors) => {
+			const state = this.beadManager?.getState()
+			const maxIterations = state?.currentTask?.maxIterations ?? 10
+			const currentBeadNumber = state?.currentBeadNumber ?? 0
+			const message = {
+				beadNumber: bead.beadNumber,
+				errors,
+				canRetry: currentBeadNumber < maxIterations,
+			}
+			await this.say("bead_failed", JSON.stringify(message))
+		})
+
+		this.beadManager.on("beadAwaitingApproval", async (bead) => {
+			// Present the diff view if we have a start checkpoint hash
+			if (bead.startCheckpointHash && this.checkpointManager?.presentBeadDiff) {
+				try {
+					await this.checkpointManager.presentBeadDiff(bead.startCheckpointHash, bead.beadNumber)
+				} catch (error) {
+					Logger.error(`[Task ${this.taskId}] Failed to present bead diff:`, error)
+				}
+			}
+
+			const message = {
+				beadNumber: bead.beadNumber,
+				filesChanged: bead.filesChanged,
+				impactSummary: bead.impactSummary,
+				testResults: bead.testResults,
+				commitHash: bead.commitHash,
+			}
+			await this.ask("bead_review", JSON.stringify(message))
+		})
+
+		this.beadManager.on("taskCompleted", async (summary) => {
+			Logger.info(`[Task ${this.taskId}] Bead task completed:`, summary)
+		})
 	}
 
 	// Communicate with webview
 
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
 	async ask(
-		type: ClineAsk,
+		type: BeadsmithAsk,
 		text?: string,
 		partial?: boolean,
 	): Promise<{
-		response: ClineAskResponse
+		response: BeadsmithAskResponse
 		text?: string
 		images?: string[]
 		files?: string[]
@@ -586,27 +715,27 @@ export class Task {
 	}> {
 		// Allow resume asks even when aborted to enable resume button after cancellation
 		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
-			throw new Error("Cline instance aborted")
+			throw new Error("Beadsmith instance aborted")
 		}
 		let askTs: number
 		if (partial !== undefined) {
-			const clineMessages = this.messageStateHandler.getClineMessages()
-			const lastMessage = clineMessages.at(-1)
-			const lastMessageIndex = clineMessages.length - 1
+			const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+			const lastMessage = beadsmithMessages.at(-1)
+			const lastMessageIndex = beadsmithMessages.length - 1
 
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+					await this.messageStateHandler.updateBeadsmithMessage(lastMessageIndex, {
 						text,
 						partial,
 					})
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-					// await this.saveClineMessagesAndUpdateHistory()
+					// await this.saveBeadsmithMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const protoMessage = convertBeadsmithMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				} else {
@@ -616,7 +745,7 @@ export class Task {
 					// this.askResponseImages = undefined
 					askTs = Date.now()
 					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
+					await this.messageStateHandler.addToBeadsmithMessages({
 						ts: askTs,
 						type: "ask",
 						ask: type,
@@ -644,12 +773,12 @@ export class Task {
 					askTs = lastMessage.ts
 					this.taskState.lastMessageTs = askTs
 					// lastMessage.ts = askTs
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+					await this.messageStateHandler.updateBeadsmithMessage(lastMessageIndex, {
 						text,
 						partial: false,
 					})
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const protoMessage = convertBeadsmithMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 				} else {
 					// this is a new partial=false message, so add it like normal
@@ -659,7 +788,7 @@ export class Task {
 					this.taskState.askResponseFiles = undefined
 					askTs = Date.now()
 					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
+					await this.messageStateHandler.addToBeadsmithMessages({
 						ts: askTs,
 						type: "ask",
 						ask: type,
@@ -670,14 +799,14 @@ export class Task {
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
-			// const lastMessage = this.clineMessages.at(-1)
+			// const lastMessage = this.beadsmithMessages.at(-1)
 			this.taskState.askResponse = undefined
 			this.taskState.askResponseText = undefined
 			this.taskState.askResponseImages = undefined
 			this.taskState.askResponseFiles = undefined
 			askTs = Date.now()
 			this.taskState.lastMessageTs = askTs
-			await this.messageStateHandler.addToClineMessages({
+			await this.messageStateHandler.addToBeadsmithMessages({
 				ts: askTs,
 				type: "ask",
 				ask: type,
@@ -705,7 +834,7 @@ export class Task {
 		return result
 	}
 
-	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
+	async handleWebviewAskResponse(askResponse: BeadsmithAskResponse, text?: string, images?: string[], files?: string[]) {
 		this.taskState.askResponse = askResponse
 		this.taskState.askResponseText = text
 		this.taskState.askResponseImages = images
@@ -713,7 +842,7 @@ export class Task {
 	}
 
 	async say(
-		type: ClineSay,
+		type: BeadsmithSay,
 		text?: string,
 		images?: string[],
 		files?: string[],
@@ -721,18 +850,18 @@ export class Task {
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
 		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
-			throw new Error("Cline instance aborted")
+			throw new Error("Beadsmith instance aborted")
 		}
 
 		const providerInfo = this.getCurrentProviderInfo()
-		const modelInfo: ClineMessageModelInfo = {
+		const modelInfo: BeadsmithMessageModelInfo = {
 			providerId: providerInfo.providerId,
 			modelId: providerInfo.model.id,
 			mode: providerInfo.mode,
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
+			const lastMessage = this.messageStateHandler.getBeadsmithMessages().at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
@@ -742,14 +871,14 @@ export class Task {
 					lastMessage.images = images
 					lastMessage.files = files
 					lastMessage.partial = partial
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const protoMessage = convertBeadsmithMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
 					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
+					await this.messageStateHandler.addToBeadsmithMessages({
 						ts: sayTs,
 						type: "say",
 						say: type,
@@ -774,16 +903,16 @@ export class Task {
 					lastMessage.partial = false
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const protoMessage = convertBeadsmithMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 					return undefined
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
 					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
+					await this.messageStateHandler.addToBeadsmithMessages({
 						ts: sayTs,
 						type: "say",
 						say: type,
@@ -800,7 +929,7 @@ export class Task {
 			// this is a new non-partial message, so add it like normal
 			const sayTs = Date.now()
 			this.taskState.lastMessageTs = sayTs
-			await this.messageStateHandler.addToClineMessages({
+			await this.messageStateHandler.addToBeadsmithMessages({
 				ts: sayTs,
 				type: "say",
 				say: type,
@@ -814,22 +943,22 @@ export class Task {
 		}
 	}
 
-	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
+	async sayAndCreateMissingParamError(toolName: BeadsmithDefaultTool, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
+			`Beadsmith tried to use ${toolName}${
 				relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`,
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
 	}
 
-	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: ClineAsk | ClineSay) {
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const lastMessage = clineMessages.at(-1)
+	async removeLastPartialMessageIfExistsWithType(type: "ask" | "say", askOrSay: BeadsmithAsk | BeadsmithSay) {
+		const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+		const lastMessage = beadsmithMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
-			this.messageStateHandler.setClineMessages(clineMessages.slice(0, -1))
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			this.messageStateHandler.setBeadsmithMessages(beadsmithMessages.slice(0, -1))
+			await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 		}
 	}
 
@@ -865,7 +994,7 @@ export class Task {
 		this.taskState.didFinishAbortingStream = true
 
 		// Save conversation state to disk
-		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 		await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
 
 		// Update UI
@@ -880,7 +1009,7 @@ export class Task {
 	 * @param apiConversationHistory The full API conversation history
 	 * @returns Tuple with start and end indices for the deleted range
 	 */
-	private calculatePreCompactDeletedRange(apiConversationHistory: ClineStorageMessage[]): [number, number] {
+	private calculatePreCompactDeletedRange(apiConversationHistory: BeadsmithStorageMessage[]): [number, number] {
 		const newDeletedRange = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
@@ -891,7 +1020,7 @@ export class Task {
 	}
 
 	private async runUserPromptSubmitHook(
-		userContent: ClineContent[],
+		userContent: BeadsmithContent[],
 		_context: "initial_task" | "resume" | "feedback",
 	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
 		const hooksEnabled = getHooksEnabledSafe()
@@ -927,7 +1056,7 @@ export class Task {
 			// Set flag to allow Controller.cancelTask() to proceed
 			this.taskState.didFinishAbortingStream = true
 			// Save BOTH files so Controller.cancelTask() can find the task
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 			await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
 			await this.postStateToWebview()
 		}
@@ -943,14 +1072,14 @@ export class Task {
 
 	public async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
 		try {
-			await this.clineIgnoreController.initialize()
+			await this.beadsmithIgnoreController.initialize()
 		} catch (error) {
-			Logger.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize BeadsmithIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
-		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
-		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
-		this.messageStateHandler.setClineMessages([])
+		// conversationHistory (for API) and beadsmithMessages (for webview) need to be in sync
+		// if the extension process were killed, then on restart the beadsmithMessages might not be empty, so we need to set it to [] when we create a new Beadsmith client (otherwise webview would show stale messages from previous session)
+		this.messageStateHandler.setBeadsmithMessages([])
 		this.messageStateHandler.setApiConversationHistory([])
 
 		await this.postStateToWebview()
@@ -959,9 +1088,9 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		const imageBlocks: ClineImageContentBlock[] = formatResponse.imageBlocks(images)
+		const imageBlocks: BeadsmithImageContentBlock[] = formatResponse.imageBlocks(images)
 
-		const userContent: ClineUserContent[] = [
+		const userContent: BeadsmithUserContent[] = [
 			{
 				type: "text",
 				text: `<task>\n${task}\n</task>`,
@@ -1065,36 +1194,36 @@ export class Task {
 
 	public async resumeTaskFromHistory() {
 		try {
-			await this.clineIgnoreController.initialize()
+			await this.beadsmithIgnoreController.initialize()
 		} catch (error) {
-			Logger.error("Failed to initialize ClineIgnoreController:", error)
+			Logger.error("Failed to initialize BeadsmithIgnoreController:", error)
 			// Optionally, inform the user or handle the error appropriately
 		}
 
-		const savedClineMessages = await getSavedClineMessages(this.taskId)
+		const savedBeadsmithMessages = await getSavedBeadsmithMessages(this.taskId)
 
 		// Remove any resume messages that may have been added before
 
 		const lastRelevantMessageIndex = findLastIndex(
-			savedClineMessages,
+			savedBeadsmithMessages,
 			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
 		)
 		if (lastRelevantMessageIndex !== -1) {
-			savedClineMessages.splice(lastRelevantMessageIndex + 1)
+			savedBeadsmithMessages.splice(lastRelevantMessageIndex + 1)
 		}
 
 		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
-		const lastApiReqStartedIndex = findLastIndex(savedClineMessages, (m) => m.type === "say" && m.say === "api_req_started")
+		const lastApiReqStartedIndex = findLastIndex(savedBeadsmithMessages, (m) => m.type === "say" && m.say === "api_req_started")
 		if (lastApiReqStartedIndex !== -1) {
-			const lastApiReqStarted = savedClineMessages[lastApiReqStartedIndex]
-			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+			const lastApiReqStarted = savedBeadsmithMessages[lastApiReqStartedIndex]
+			const { cost, cancelReason }: BeadsmithApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
 			if (cost === undefined && cancelReason === undefined) {
-				savedClineMessages.splice(lastApiReqStartedIndex, 1)
+				savedBeadsmithMessages.splice(lastApiReqStartedIndex, 1)
 			}
 		}
 
-		await this.messageStateHandler.overwriteClineMessages(savedClineMessages)
-		this.messageStateHandler.setClineMessages(await getSavedClineMessages(this.taskId))
+		await this.messageStateHandler.overwriteBeadsmithMessages(savedBeadsmithMessages)
+		this.messageStateHandler.setBeadsmithMessages(await getSavedBeadsmithMessages(this.taskId))
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
@@ -1106,14 +1235,14 @@ export class Task {
 		await ensureTaskDirectoryExists(this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
 
-		const lastClineMessage = this.messageStateHandler
-			.getClineMessages()
+		const lastBeadsmithMessage = this.messageStateHandler
+			.getBeadsmithMessages()
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
 
-		let askType: ClineAsk
-		if (lastClineMessage?.ask === "completion_result") {
+		let askType: BeadsmithAsk
+		if (lastBeadsmithMessage?.ask === "completion_result") {
 			askType = "resume_completed_task"
 		} else {
 			askType = "resume_task"
@@ -1125,12 +1254,12 @@ export class Task {
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 
 		// Initialize newUserContent array for hook context
-		const newUserContent: ClineContent[] = []
+		const newUserContent: BeadsmithContent[] = []
 
 		// Run TaskResume hook AFTER user clicks resume button
 		const hooksEnabled = getHooksEnabledSafe()
 		if (hooksEnabled) {
-			const clineMessages = this.messageStateHandler.getClineMessages()
+			const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
 			const taskResumeResult = await executeHook({
 				hookName: "TaskResume",
 				hookInput: {
@@ -1140,8 +1269,8 @@ export class Task {
 							ulid: this.ulid,
 						},
 						previousState: {
-							lastMessageTs: lastClineMessage?.ts?.toString() || "",
-							messageCount: clineMessages.length.toString(),
+							lastMessageTs: lastBeadsmithMessage?.ts?.toString() || "",
+							messageCount: beadsmithMessages.length.toString(),
 							conversationHistoryDeleted: (this.taskState.conversationHistoryDeletedRange !== undefined).toString(),
 						},
 					},
@@ -1198,15 +1327,15 @@ export class Task {
 		const existingApiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
 		// Remove the last user message so we can update it with the resume message
-		let modifiedOldUserContent: ClineContent[] // either the last message if its user message, or the user message before the last (assistant) message
-		let modifiedApiConversationHistory: ClineStorageMessage[] // need to remove the last user message to replace with new modified user message
+		let modifiedOldUserContent: BeadsmithContent[] // either the last message if its user message, or the user message before the last (assistant) message
+		let modifiedApiConversationHistory: BeadsmithStorageMessage[] // need to remove the last user message to replace with new modified user message
 		if (existingApiConversationHistory.length > 0) {
 			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
 			if (lastMessage.role === "assistant") {
 				modifiedApiConversationHistory = [...existingApiConversationHistory]
 				modifiedOldUserContent = []
 			} else if (lastMessage.role === "user") {
-				const existingUserContent: ClineContent[] = Array.isArray(lastMessage.content)
+				const existingUserContent: BeadsmithContent[] = Array.isArray(lastMessage.content)
 					? lastMessage.content
 					: [{ type: "text", text: lastMessage.content }]
 				modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
@@ -1225,7 +1354,7 @@ export class Task {
 		newUserContent.push(...modifiedOldUserContent)
 
 		const agoText = (() => {
-			const timestamp = lastClineMessage?.ts ?? Date.now()
+			const timestamp = lastBeadsmithMessage?.ts ?? Date.now()
 			const now = Date.now()
 			const diff = now - timestamp
 			const minutes = Math.floor(diff / 60000)
@@ -1244,7 +1373,7 @@ export class Task {
 			return "just now"
 		})()
 
-		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
+		const wasRecent = lastBeadsmithMessage?.ts && Date.now() - lastBeadsmithMessage.ts < 30_000
 
 		// Check if there are pending file context warnings before calling taskResumption
 		const pendingContextWarning = await this.fileContextTracker.retrieveAndClearPendingFileContextWarning()
@@ -1334,11 +1463,11 @@ export class Task {
 		await this.initiateTaskLoop(newUserContent)
 	}
 
-	private async initiateTaskLoop(userContent: ClineContent[]): Promise<void> {
+	private async initiateTaskLoop(userContent: BeadsmithContent[]): Promise<void> {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 		while (!this.taskState.abort) {
-			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
+			const didEndLoop = await this.recursivelyMakeBeadsmithRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
 			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
@@ -1393,8 +1522,8 @@ export class Task {
 		}
 
 		// Check if we're at a button-only state (no active work, just waiting for user action)
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const lastMessage = clineMessages.at(-1)
+		const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+		const lastMessage = beadsmithMessages.at(-1)
 		const isAtButtonOnlyState =
 			lastMessage?.type === "ask" &&
 			(lastMessage.ask === "resume_task" ||
@@ -1477,14 +1606,14 @@ export class Task {
 
 					// TaskCancel completed successfully
 					// Present resume button after successful TaskCancel hook
-					const lastClineMessage = this.messageStateHandler
-						.getClineMessages()
+					const lastBeadsmithMessage = this.messageStateHandler
+						.getBeadsmithMessages()
 						.slice()
 						.reverse()
 						.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
 
-					let askType: ClineAsk
-					if (lastClineMessage?.ask === "completion_result") {
+					let askType: BeadsmithAsk
+					if (lastBeadsmithMessage?.ask === "completion_result") {
 						askType = "resume_completed_task"
 					} else {
 						askType = "resume_task"
@@ -1505,7 +1634,7 @@ export class Task {
 
 			// PHASE 5: Immediately update UI to reflect abort state
 			try {
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 				await this.postStateToWebview()
 			} catch (error) {
 				Logger.error("Failed to post state after setting abort flag", error)
@@ -1528,7 +1657,7 @@ export class Task {
 			this.terminalManager.disposeAll()
 			this.urlContentFetcher.closeBrowser()
 			await this.browserSession.dispose()
-			this.clineIgnoreController.dispose()
+			this.beadsmithIgnoreController.dispose()
 			this.fileContextTracker.dispose()
 			// need to await for when we want to make sure directories/files are reverted before
 			// re-starting the task from a checkpoint
@@ -1560,7 +1689,7 @@ export class Task {
 	}
 
 	// Tools
-	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
+	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, BeadsmithToolResponseContent]> {
 		return this.commandExecutor.execute(command, timeoutSeconds)
 	}
 
@@ -1589,8 +1718,8 @@ export class Task {
 			abortController.abort()
 
 			// Update hook message status to "cancelled"
-			const clineMessages = this.messageStateHandler.getClineMessages()
-			const hookMessageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
+			const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+			const hookMessageIndex = beadsmithMessages.findIndex((m) => m.ts === messageTs)
 			if (hookMessageIndex !== -1) {
 				const cancelledMetadata = {
 					hookName,
@@ -1598,7 +1727,7 @@ export class Task {
 					status: "cancelled",
 					exitCode: 130, // Standard SIGTERM exit code
 				}
-				await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+				await this.messageStateHandler.updateBeadsmithMessage(hookMessageIndex, {
 					text: JSON.stringify(cancelledMetadata),
 				})
 			}
@@ -1649,7 +1778,7 @@ export class Task {
 					apiConversationHistory,
 					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 					contextManager: this.contextManager,
-					clineMessages: this.messageStateHandler.getClineMessages(),
+					beadsmithMessages: this.messageStateHandler.getBeadsmithMessages(),
 					messageStateHandler: this.messageStateHandler,
 					compactionStrategy: "standard-truncation-lastquarter",
 					deletedRange,
@@ -1685,7 +1814,7 @@ export class Task {
 
 		this.taskState.conversationHistoryDeletedRange = newDeletedRange
 
-		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),
 			await ensureTaskDirectoryExists(this.taskId),
@@ -1722,11 +1851,11 @@ export class Task {
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		let isSubagentsEnabledAndCliInstalled = false
 		if (subagentsEnabled) {
-			const clineCliInstalled = await isClineCliInstalled()
-			isSubagentsEnabledAndCliInstalled = subagentsEnabled && clineCliInstalled
+			const beadsmithCliInstalled = await isBeadsmithCliInstalled()
+			isSubagentsEnabledAndCliInstalled = subagentsEnabled && beadsmithCliInstalled
 		}
 
-		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
+		const { globalToggles, localToggles } = await refreshBeadsmithRulesToggles(this.controller, this.cwd)
 		const { windsurfLocalToggles, cursorLocalToggles, agentsLocalToggles } = await refreshExternalRulesToggles(
 			this.controller,
 			this.cwd,
@@ -1738,12 +1867,12 @@ export class Task {
 			workspaceManager: this.workspaceManager,
 		})
 
-		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
-		const globalRules = await getGlobalClineRules(globalClineRulesFilePath, globalToggles, { evaluationContext })
-		const globalClineRulesFileInstructions = globalRules.instructions
+		const globalBeadsmithRulesFilePath = await ensureRulesDirectoryExists()
+		const globalRules = await getGlobalBeadsmithRules(globalBeadsmithRulesFilePath, globalToggles, { evaluationContext })
+		const globalBeadsmithRulesFileInstructions = globalRules.instructions
 
-		const localRules = await getLocalClineRules(this.cwd, localToggles, { evaluationContext })
-		const localClineRulesFileInstructions = localRules.instructions
+		const localRules = await getLocalBeadsmithRules(this.cwd, localToggles, { evaluationContext })
+		const localBeadsmithRulesFileInstructions = localRules.instructions
 		const [localCursorRulesFileInstructions, localCursorRulesDirInstructions] = await getLocalCursorRules(
 			this.cwd,
 			cursorLocalToggles,
@@ -1752,10 +1881,10 @@ export class Task {
 
 		const localAgentsRulesFileInstructions = await getLocalAgentsRules(this.cwd, agentsLocalToggles)
 
-		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
-		let clineIgnoreInstructions: string | undefined
-		if (clineIgnoreContent) {
-			clineIgnoreInstructions = formatResponse.clineIgnoreInstructions(clineIgnoreContent)
+		const beadsmithIgnoreContent = this.beadsmithIgnoreController.beadsmithIgnoreContent
+		let beadsmithIgnoreInstructions: string | undefined
+		if (beadsmithIgnoreContent) {
+			beadsmithIgnoreInstructions = formatResponse.beadsmithIgnoreInstructions(beadsmithIgnoreContent)
 		}
 
 		// Prepare multi-root workspace information if enabled
@@ -1799,6 +1928,36 @@ export class Task {
 			visible: visibleTabPaths.slice(0, cap),
 		}
 
+		// Get DAG impact analysis if enabled
+		const dagEnabled = this.stateManager.getGlobalSettingsKey("dagEnabled")
+		let dagImpact: SystemPromptContext["dagImpact"]
+
+		if (dagEnabled) {
+			const dagBridge = this.controller.getDagBridge()
+			if (dagBridge?.isRunning() && visibleTabPaths.length > 0) {
+				try {
+					// Get impact for the first visible file (most likely the one being edited)
+					const primaryFile = visibleTabPaths[0]
+					const impact = await dagBridge.getImpact(primaryFile)
+					dagImpact = {
+						affectedFiles: impact.affectedFiles,
+						affectedFunctions: impact.affectedFunctions,
+						suggestedTests: impact.suggestedTests,
+						confidenceBreakdown: {
+							high: impact.confidenceBreakdown.high || 0,
+							medium: impact.confidenceBreakdown.medium || 0,
+							low: impact.confidenceBreakdown.low || 0,
+							unsafe: impact.confidenceBreakdown.unsafe || 0,
+						},
+					}
+					Logger.debug(`[Task ${this.taskId}] DAG impact for ${primaryFile}: ${impact.affectedFiles.length} affected files`)
+				} catch (error) {
+					Logger.debug(`[Task ${this.taskId}] Failed to get DAG impact:`, error)
+					// Don't fail the request if DAG analysis fails
+				}
+			}
+		}
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
@@ -1808,18 +1967,18 @@ export class Task {
 			mcpHub: this.mcpHub,
 			skills: availableSkills,
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-			globalClineRulesFileInstructions,
-			localClineRulesFileInstructions,
+			globalBeadsmithRulesFileInstructions,
+			localBeadsmithRulesFileInstructions,
 			localCursorRulesFileInstructions,
 			localCursorRulesDirInstructions,
 			localWindsurfRulesFileInstructions,
 			localAgentsRulesFileInstructions,
-			clineIgnoreInstructions,
+			beadsmithIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			clineWebToolsEnabled:
-				this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
+			beadsmithWebToolsEnabled:
+				this.stateManager.getGlobalSettingsKey("beadsmithWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
 			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
@@ -1829,6 +1988,20 @@ export class Task {
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
+			dagEnabled,
+			dagImpact,
+			// Bead (Ralph Loop) context
+			...(this.beadManager && this.beadManager.getState().status !== "idle"
+				? {
+						beadModeActive: true,
+						beadDescription: this.beadManager.getState().currentTask?.description,
+						beadNumber: this.beadManager.getState().currentBeadNumber,
+						beadMaxIterations: this.beadManager.getState().currentTask?.maxIterations,
+						beadCompletionSignal: "DONE",
+						beadTestCommand: this.beadManager.getState().currentTask?.testCommand,
+						beadFeedback: this.beadManager.getCurrentBead()?.rejectionFeedback,
+					}
+				: {}),
 		}
 
 		// Notify user if any conditional rules were applied for this request
@@ -1842,7 +2015,7 @@ export class Task {
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
-			this.messageStateHandler.getClineMessages(),
+			this.messageStateHandler.getBeadsmithMessages(),
 			this.api,
 			this.taskState.conversationHistoryDeletedRange,
 			previousApiReqIndex,
@@ -1852,7 +2025,7 @@ export class Task {
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
 			this.taskState.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
@@ -1870,10 +2043,10 @@ export class Task {
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
-			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
+			const beadsmithError = ErrorService.get().toBeadsmithError(error, model.id, providerId)
 
-			// Capture provider failure telemetry using clineError
-			ErrorService.get().logMessage(clineError.message)
+			// Capture provider failure telemetry using beadsmithError
+			ErrorService.get().logMessage(beadsmithError.message)
 
 			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				await this.handleContextWindowExceededError()
@@ -1890,51 +2063,51 @@ export class Task {
 					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
 					// ToDo: Allow the user to change their input if this is the case.
 					if (truncatedConversationHistory.length > 3) {
-						clineError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
+						beadsmithError.message = "Context window exceeded. Click retry to truncate the conversation and try again."
 						this.taskState.didAutomaticallyRetryFailedApiRequest = false
 					}
 				}
 
-				const streamingFailedMessage = clineError.serialize()
+				const streamingFailedMessage = beadsmithError.serialize()
 
 				// Update the 'api_req_started' message to reflect final failure before asking user to manually retry
 				const lastApiReqStartedIndex = findLastIndex(
-					this.messageStateHandler.getClineMessages(),
+					this.messageStateHandler.getBeadsmithMessages(),
 					(m) => m.say === "api_req_started",
 				)
 				if (lastApiReqStartedIndex !== -1) {
-					const clineMessages = this.messageStateHandler.getClineMessages()
-					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[lastApiReqStartedIndex].text || "{}")
+					const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+					const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[lastApiReqStartedIndex].text || "{}")
 					delete currentApiReqInfo.retryStatus
 
-					await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
+					await this.messageStateHandler.updateBeadsmithMessage(lastApiReqStartedIndex, {
 						text: JSON.stringify({
 							...currentApiReqInfo, // Spread the modified info (with retryStatus removed)
 							// cancelReason: "retries_exhausted", // Indicate that automatic retries failed
 							streamingFailedMessage,
-						} satisfies ClineApiReqInfo),
+						} satisfies BeadsmithApiReqInfo),
 					})
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
 
-				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
+				const isAuthError = beadsmithError.isErrorType(BeadsmithErrorType.Auth)
 
-				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
-				const isClineProviderInsufficientCredits = (() => {
+				// Check if this is a Beadsmith provider insufficient credits error - don't auto-retry these
+				const isBeadsmithProviderInsufficientCredits = (() => {
 					if (providerId !== "cline") {
 						return false
 					}
 					try {
-						const parsedError = ClineError.transform(error, model.id, providerId)
-						return parsedError.isErrorType(ClineErrorType.Balance)
+						const parsedError = BeadsmithError.transform(error, model.id, providerId)
+						return parsedError.isErrorType(BeadsmithErrorType.Balance)
 					} catch {
 						return false
 					}
 				})()
 
-				let response: ClineAskResponse
-				// Skip auto-retry for Cline provider insufficient credits or auth errors
-				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
+				let response: BeadsmithAskResponse
+				// Skip auto-retry for Beadsmith provider insufficient credits or auth errors
+				if (!isBeadsmithProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -1953,7 +2126,7 @@ export class Task {
 						cancelReason: "streaming_failed",
 						streamingFailedMessage,
 					})
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 					await this.postStateToWebview()
 
 					response = "yesButtonClicked"
@@ -1970,14 +2143,14 @@ export class Task {
 					// Clear streamingFailedMessage now that error_retry contains it
 					// This prevents showing the error in both ErrorRow and error_retry
 					const autoRetryApiReqIndex = findLastIndex(
-						this.messageStateHandler.getClineMessages(),
+						this.messageStateHandler.getBeadsmithMessages(),
 						(m) => m.say === "api_req_started",
 					)
 					if (autoRetryApiReqIndex !== -1) {
-						const clineMessages = this.messageStateHandler.getClineMessages()
-						const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[autoRetryApiReqIndex].text || "{}")
+						const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+						const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[autoRetryApiReqIndex].text || "{}")
 						delete currentApiReqInfo.streamingFailedMessage
-						await this.messageStateHandler.updateClineMessage(autoRetryApiReqIndex, {
+						await this.messageStateHandler.updateBeadsmithMessage(autoRetryApiReqIndex, {
 							text: JSON.stringify(currentApiReqInfo),
 						})
 					}
@@ -1985,7 +2158,7 @@ export class Task {
 					await setTimeoutPromise(delay)
 				} else {
 					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
-					if (!isClineProviderInsufficientCredits && !isAuthError) {
+					if (!isBeadsmithProviderInsufficientCredits && !isAuthError) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({
@@ -2011,14 +2184,14 @@ export class Task {
 
 				// Clear streamingFailedMessage when user manually retries
 				const manualRetryApiReqIndex = findLastIndex(
-					this.messageStateHandler.getClineMessages(),
+					this.messageStateHandler.getBeadsmithMessages(),
 					(m) => m.say === "api_req_started",
 				)
 				if (manualRetryApiReqIndex !== -1) {
-					const clineMessages = this.messageStateHandler.getClineMessages()
-					const currentApiReqInfo: ClineApiReqInfo = JSON.parse(clineMessages[manualRetryApiReqIndex].text || "{}")
+					const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+					const currentApiReqInfo: BeadsmithApiReqInfo = JSON.parse(beadsmithMessages[manualRetryApiReqIndex].text || "{}")
 					delete currentApiReqInfo.streamingFailedMessage
-					await this.messageStateHandler.updateClineMessage(manualRetryApiReqIndex, {
+					await this.messageStateHandler.updateBeadsmithMessage(manualRetryApiReqIndex, {
 						text: JSON.stringify(currentApiReqInfo),
 					})
 				}
@@ -2041,7 +2214,7 @@ export class Task {
 
 	async presentAssistantMessage() {
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Beadsmith instance aborted")
 		}
 
 		// If we're locked, mark pending and return
@@ -2178,7 +2351,7 @@ export class Task {
 		}
 	}
 
-	async recursivelyMakeClineRequests(userContent: ClineContent[], includeFileDetails: boolean = false): Promise<boolean> {
+	async recursivelyMakeBeadsmithRequests(userContent: BeadsmithContent[], includeFileDetails: boolean = false): Promise<boolean> {
 		// Check abort flag at the very start to prevent any execution after cancellation
 		if (this.taskState.abort) {
 			throw new Error("Task instance aborted")
@@ -2196,7 +2369,7 @@ export class Task {
 			} catch {}
 		}
 
-		const modelInfo: ClineMessageModelInfo = {
+		const modelInfo: BeadsmithMessageModelInfo = {
 			modelId: model.id,
 			providerId: providerId,
 			mode: mode,
@@ -2217,21 +2390,21 @@ export class Task {
 			if (autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
 					subtitle: "Error",
-					message: "Cline is having trouble. Would you like to continue the task?",
+					message: "Beadsmith is having trouble. Would you like to continue the task?",
 				})
 			}
 			const { response, text, images, files } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
-					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
+					? `This may indicate a failure in Beadsmith's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
+					: "Beadsmith uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
 				await this.say("user_feedback", text, images, files)
 
 				// This userContent is for the *next* API call.
-				const feedbackUserContent: ClineUserContent[] = []
+				const feedbackUserContent: BeadsmithUserContent[] = []
 				feedbackUserContent.push({
 					type: "text",
 					text: formatResponse.tooManyMistakes(text),
@@ -2259,10 +2432,10 @@ export class Task {
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
-		const previousApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
+		const previousApiReqIndex = findLastIndex(this.messageStateHandler.getBeadsmithMessages(), (m) => m.say === "api_req_started")
 
 		// Save checkpoint if this is the first API request
-		const isFirstRequest = this.messageStateHandler.getClineMessages().filter((m) => m.say === "api_req_started").length === 0
+		const isFirstRequest = this.messageStateHandler.getBeadsmithMessages().filter((m) => m.say === "api_req_started").length === 0
 
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (
@@ -2276,7 +2449,7 @@ export class Task {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				Logger.error("Failed to initialize checkpoint manager:", errorMessage)
-				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				this.taskState.checkpointManagerErrorMessage = errorMessage // will be displayed right away since we saveBeadsmithMessages next which posts state to webview
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: `Checkpoint initialization timed out: ${errorMessage}`,
@@ -2294,7 +2467,7 @@ export class Task {
 		) {
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
-				this.messageStateHandler.getClineMessages(),
+				this.messageStateHandler.getBeadsmithMessages(),
 				(m) => m.say === "checkpoint_created",
 			)
 			if (lastCheckpointMessageIndex !== -1) {
@@ -2303,10 +2476,10 @@ export class Task {
 				commitPromise
 					?.then(async (commitHash) => {
 						if (commitHash) {
-							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+							await this.messageStateHandler.updateBeadsmithMessage(lastCheckpointMessageIndex, {
 								lastCheckpointHash: commitHash,
 							})
-							// saveClineMessagesAndUpdateHistory will be called later after API response,
+							// saveBeadsmithMessagesAndUpdateHistory will be called later after API response,
 							// so no need to call it here unless this is the only modification to this message.
 							// For now, assuming it's handled later.
 						}
@@ -2347,7 +2520,7 @@ export class Task {
 					const safeEnd = Math.min(end + 2, apiHistory.length - 1)
 					if (end + 2 <= safeEnd) {
 						this.taskState.conversationHistoryDeletedRange = [start, end + 2]
-						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 					}
 				}
 			} else {
@@ -2355,7 +2528,7 @@ export class Task {
 					| number
 					| undefined
 				shouldCompact = this.contextManager.shouldCompactContextWindow(
-					this.messageStateHandler.getClineMessages(),
+					this.messageStateHandler.getBeadsmithMessages(),
 					this.api,
 					previousApiReqIndex,
 					autoCondenseThreshold,
@@ -2380,7 +2553,7 @@ export class Task {
 					shouldCompact = await this.contextManager.attemptFileReadOptimization(
 						this.messageStateHandler.getApiConversationHistory(),
 						this.taskState.conversationHistoryDeletedRange,
-						this.messageStateHandler.getClineMessages(),
+						this.messageStateHandler.getBeadsmithMessages(),
 						previousApiReqIndex,
 						await ensureTaskDirectoryExists(this.taskId),
 					)
@@ -2390,30 +2563,30 @@ export class Task {
 
 		// NOW load context based on compaction decision
 		// This optimization avoids expensive context loading when using summarize_task
-		let parsedUserContent: ClineContent[]
+		let parsedUserContent: BeadsmithContent[]
 		let environmentDetails: string
-		let clinerulesError: boolean
+		let beadsmithrulesError: boolean
 
 		if (shouldCompact) {
 			// When compacting, skip full context loading (use summarize_task instead)
 			parsedUserContent = userContent
 			environmentDetails = ""
-			clinerulesError = false
+			beadsmithrulesError = false
 			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
 		} else {
 			// When NOT compacting, load full context with mentions parsing and slash commands
-			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+			;[parsedUserContent, environmentDetails, beadsmithrulesError] = await this.loadContext(
 				userContent,
 				includeFileDetails,
 				useCompactPrompt,
 			)
 		}
 
-		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly
-		if (clinerulesError === true) {
+		// error handling if the user uses the /newrule command & their .beadsmithrules is a file, for file read operations didnt work properly
+		if (beadsmithrulesError === true) {
 			await this.say(
 				"error",
-				"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
+				"Issue with processing the /newrule command. Double check that, if '.beadsmithrules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
 			)
 		}
 
@@ -2465,11 +2638,11 @@ export class Task {
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
-		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
-		await this.messageStateHandler.updateClineMessage(lastApiReqIndex, {
+		const lastApiReqIndex = findLastIndex(this.messageStateHandler.getBeadsmithMessages(), (m) => m.say === "api_req_started")
+		await this.messageStateHandler.updateBeadsmithMessage(lastApiReqIndex, {
 			text: JSON.stringify({
 				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
-			} satisfies ClineApiReqInfo),
+			} satisfies BeadsmithApiReqInfo),
 		})
 		await this.postStateToWebview()
 
@@ -2482,19 +2655,19 @@ export class Task {
 				totalCost: number | undefined
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
 
-			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+			const abortStream = async (cancelReason: BeadsmithApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
 				}
 
 				// if last message is a partial we need to update and save it
-				const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
+				const lastMessage = this.messageStateHandler.getBeadsmithMessages().at(-1)
 				if (lastMessage && lastMessage.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					Logger.log("updating partial message", lastMessage)
-					// await this.saveClineMessagesAndUpdateHistory()
+					// await this.saveBeadsmithMessagesAndUpdateHistory()
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				await updateApiReqMsg({
@@ -2509,7 +2682,7 @@ export class Task {
 					cancelReason,
 					streamingFailedMessage,
 				})
-				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 
 				// Let assistant know their response was interrupted for when task is resumed
 				await this.messageStateHandler.addToApiConversationHistory({
@@ -2701,8 +2874,8 @@ export class Task {
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
-					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
-					const errorMessage = clineError.serialize()
+					const beadsmithError = ErrorService.get().toBeadsmithError(error, this.api.getModel().id)
+					const errorMessage = beadsmithError.serialize()
 					// Auto-retry for streaming failures (always enabled)
 					if (this.taskState.autoRetryAttempts < 3) {
 						this.taskState.autoRetryAttempts++
@@ -2781,12 +2954,12 @@ export class Task {
 				api: this.api,
 				totalCost: taskMetrics.totalCost,
 			})
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			await this.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
-				throw new Error("Cline instance aborted")
+				throw new Error("Beadsmith instance aborted")
 			}
 
 			// Stored the assistant API response immediately after the stream finishes in the same turn
@@ -2814,7 +2987,7 @@ export class Task {
 				const requestId = this.streamHandler.requestId
 
 				// Build content array with thinking blocks, text (if any), and tool use blocks
-				const assistantContent: Array<ClineAssistantContent> = [
+				const assistantContent: Array<BeadsmithAssistantContent> = [
 					// This is critical for maintaining the model's reasoning flow and conversation integrity.
 					// "When providing thinking blocks, the entire sequence of consecutive thinking blocks must match the outputs generated by the model during the original request; you cannot rearrange or modify the sequence of these blocks." The signature_delta is used to verify that the thinking was generated by Claude, and the thinking blocks will be ignored if it's incorrect or missing.
 					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
@@ -2917,7 +3090,7 @@ export class Task {
 				// Reset auto-retry counter for each new API request
 				this.taskState.autoRetryAttempts = 0
 
-				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.taskState.userMessageContent)
+				const recDidEndLoop = await this.recursivelyMakeBeadsmithRequests(this.taskState.userMessageContent)
 				didEndLoop = recDidEndLoop
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
@@ -2935,7 +3108,7 @@ export class Task {
 				})
 
 				const baseErrorMessage =
-					"Invalid API Response: The provider returned an empty or unparsable response. This is a provider-side issue where the model failed to generate valid output or returned tool calls that Cline cannot process. Retrying the request may help resolve this issue."
+					"Invalid API Response: The provider returned an empty or unparsable response. This is a provider-side issue where the model failed to generate valid output or returned tool calls that Beadsmith cannot process. Retrying the request may help resolve this issue."
 				const errorText = reqId ? `${baseErrorMessage} (Request ID: ${reqId})` : baseErrorMessage
 
 				await this.say("error", errorText)
@@ -2959,7 +3132,7 @@ export class Task {
 					},
 				})
 
-				let response: ClineAskResponse
+				let response: BeadsmithAskResponse
 
 				const noResponseErrorMessage = "No assistant message was received. Would you like to retry the request?"
 
@@ -3017,11 +3190,11 @@ export class Task {
 	}
 
 	async loadContext(
-		userContent: ClineContent[],
+		userContent: BeadsmithContent[],
 		includeFileDetails: boolean = false,
 		useCompactPrompt = false,
-	): Promise<[ClineContent[], string, boolean]> {
-		let needsClinerulesFileCheck = false
+	): Promise<[BeadsmithContent[], string, boolean]> {
+		let needsBeadsmithrulesFileCheck = false
 
 		// Pre-fetch necessary data to avoid redundant calls within loops
 		const ulid = this.ulid
@@ -3053,7 +3226,7 @@ export class Task {
 				}
 			}
 
-			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
+			const { processedText, needsBeadsmithrulesFileCheck: needsCheck } = await parseSlashCommands(
 				parsedText,
 				localWorkflowToggles,
 				globalWorkflowToggles,
@@ -3065,13 +3238,13 @@ export class Task {
 			)
 
 			if (needsCheck) {
-				needsClinerulesFileCheck = true
+				needsBeadsmithrulesFileCheck = true
 			}
 
 			return processedText
 		}
 
-		const processTextContent = async (block: ClineTextContentBlock): Promise<ClineTextContentBlock> => {
+		const processTextContent = async (block: BeadsmithTextContentBlock): Promise<BeadsmithTextContentBlock> => {
 			if (block.type !== "text" || !hasUserContentTag(block.text)) {
 				return block
 			}
@@ -3080,7 +3253,7 @@ export class Task {
 			return { ...block, text: processedText }
 		}
 
-		const processContentBlock = async (block: ClineContent): Promise<ClineContent> => {
+		const processContentBlock = async (block: BeadsmithContent): Promise<BeadsmithContent> => {
 			if (block.type === "text") {
 				return processTextContent(block)
 			}
@@ -3120,9 +3293,9 @@ export class Task {
 			this.getEnvironmentDetails(includeFileDetails),
 		])
 
-		// Check clinerulesData if needed
-		const clinerulesError = needsClinerulesFileCheck
-			? await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
+		// Check beadsmithrulesData if needed
+		const beadsmithrulesError = needsBeadsmithrulesFileCheck
+			? await ensureLocalBeadsmithDirExists(this.cwd, GlobalFileNames.beadsmithRules)
 			: false
 
 		// Add focus chain instructions if needed
@@ -3139,7 +3312,7 @@ export class Task {
 			}
 		}
 
-		return [processedUserContent, environmentDetails, clinerulesError]
+		return [processedUserContent, environmentDetails, beadsmithrulesError]
 	}
 
 	processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
@@ -3238,8 +3411,8 @@ export class Task {
 		const filteredVisiblePaths = await filterExistingFiles(rawVisiblePaths)
 		const visibleFilePaths = filteredVisiblePaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
-		// Filter paths through clineIgnoreController
-		const allowedVisibleFiles = this.clineIgnoreController
+		// Filter paths through beadsmithIgnoreController
+		const allowedVisibleFiles = this.beadsmithIgnoreController
 			.filterPaths(visibleFilePaths)
 			.map((p) => p.toPosix())
 			.join("\n")
@@ -3255,8 +3428,8 @@ export class Task {
 		const filteredOpenTabPaths = await filterExistingFiles(rawOpenTabPaths)
 		const openTabPaths = filteredOpenTabPaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
-		// Filter paths through clineIgnoreController
-		const allowedOpenTabs = this.clineIgnoreController
+		// Filter paths through beadsmithIgnoreController
+		const allowedOpenTabs = this.beadsmithIgnoreController
 			.filterPaths(openTabPaths)
 			.map((p) => p.toPosix())
 			.join("\n")
@@ -3361,7 +3534,7 @@ export class Task {
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
 				const [files, didHitLimit] = await listFiles(this.cwd, true, 200)
-				const result = formatResponse.formatFilesList(this.cwd, files, didHitLimit, this.clineIgnoreController)
+				const result = formatResponse.formatFilesList(this.cwd, files, didHitLimit, this.beadsmithIgnoreController)
 				details += result
 			}
 
@@ -3384,7 +3557,7 @@ export class Task {
 		const { contextWindow } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
-		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
+		const getTotalTokensFromApiReqMessage = (msg: BeadsmithMessage) => {
 			if (!msg.text) {
 				return 0
 			}
@@ -3396,8 +3569,8 @@ export class Task {
 			}
 		}
 
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const modifiedMessages = combineApiRequests(combineCommandSequences(clineMessages.slice(1)))
+		const beadsmithMessages = this.messageStateHandler.getBeadsmithMessages()
+		const modifiedMessages = combineApiRequests(combineCommandSequences(beadsmithMessages.slice(1)))
 		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
 			if (msg.say !== "api_req_started") {
 				return false

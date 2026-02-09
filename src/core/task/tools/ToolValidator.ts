@@ -1,5 +1,5 @@
 import type { ToolParamName, ToolUse } from "@core/assistant-message"
-import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { BeadsmithIgnoreController } from "@core/ignore/BeadsmithIgnoreController"
 
 export type ValidationResult = { ok: true } | { ok: false; error: string }
 
@@ -8,7 +8,7 @@ export type ValidationResult = { ok: true } | { ok: false; error: string }
  * The legacy ToolExecutor switch remains unchanged and does not depend on this.
  */
 export class ToolValidator {
-	constructor(private readonly clineIgnoreController: ClineIgnoreController) {}
+	constructor(private readonly beadsmithIgnoreController: BeadsmithIgnoreController) {}
 
 	/**
 	 * Verifies required parameters exist on the tool block.
@@ -26,15 +26,15 @@ export class ToolValidator {
 	}
 
 	/**
-	 * Verifies access is allowed to a given path via .clineignore rules.
+	 * Verifies access is allowed to a given path via .beadsmithignore rules.
 	 * Callers should pass a repo-relative (workspace-relative) path.
 	 */
-	checkClineIgnorePath(relPath: string): ValidationResult {
-		const accessAllowed = this.clineIgnoreController.validateAccess(relPath)
+	checkBeadsmithIgnorePath(relPath: string): ValidationResult {
+		const accessAllowed = this.beadsmithIgnoreController.validateAccess(relPath)
 		if (!accessAllowed) {
 			return {
 				ok: false,
-				error: `Access to path '${relPath}' is blocked by .clineignore settings.`,
+				error: `Access to path '${relPath}' is blocked by .beadsmithignore settings.`,
 			}
 		}
 		return { ok: true }

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
@@ -128,14 +128,14 @@ func PromptForBedrockConfig(ctx context.Context, manager *task.Manager) (*Bedroc
 // ApplyBedrockConfig applies Bedrock configuration using partial updates (profile-only)
 func ApplyBedrockConfig(ctx context.Context, manager *task.Manager, config *BedrockConfig, modelID string, modelInfo interface{}) error {
 	// Build the API configuration with all Bedrock fields
-	apiConfig := &cline.ModelsApiConfiguration{}
+	apiConfig := &beadsmith.ModelsApiConfiguration{}
 
 	// Set provider for both Plan and Act modes
 	bedrockProvider := cline.ApiProvider_BEDROCK
 	apiConfig.PlanModeApiProvider = &bedrockProvider
 	apiConfig.ActModeApiProvider = &bedrockProvider
 
-	// Set model ID field - this is the primary model ID used by Cline Core
+	// Set model ID field - this is the primary model ID used by Beadsmith Core
 	apiConfig.PlanModeApiModelId = proto.String(modelID)
 	apiConfig.ActModeApiModelId = proto.String(modelID)
 	apiConfig.PlanModeAwsBedrockCustomModelBaseId = proto.String(modelID)
@@ -187,7 +187,7 @@ func ApplyBedrockConfig(ctx context.Context, manager *task.Manager, config *Bedr
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
 
 	// Apply the partial update
-	request := &cline.UpdateApiConfigurationPartialRequest{
+	request := &beadsmith.UpdateApiConfigurationPartialRequest{
 		ApiConfiguration: apiConfig,
 		UpdateMask:       fieldMask,
 	}

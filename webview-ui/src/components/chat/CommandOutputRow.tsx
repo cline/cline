@@ -1,8 +1,8 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
+import { BeadsmithMessage } from "@shared/ExtensionMessage"
+import { StringRequest } from "@shared/proto/beadsmith/common"
 import { memo, useEffect, useRef } from "react"
-import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
+import { ClineCompactIcon } from "@/assets/BeadsmithCompactIcon"
 import { Button } from "@/components/ui/button"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { cn } from "@/lib/utils"
@@ -121,7 +121,7 @@ export const CommandOutputRow = memo(
 		isOutputFullyExpanded,
 		setIsOutputFullyExpanded,
 	}: {
-		message: ClineMessage
+		message: BeadsmithMessage
 		isCommandExecuting?: boolean
 		isCommandPending?: boolean
 		isCommandCompleted?: boolean
@@ -168,15 +168,15 @@ export const CommandOutputRow = memo(
 		const showCancelButton =
 			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
-		// Check if this is a Cline subagent command (only on VSCode platform, not JetBrains/standalone)
+		// Check if this is a Beadsmith subagent command (only on VSCode platform, not JetBrains/standalone)
 		const isSubagentCommand = PLATFORM_CONFIG.type === PlatformType.VSCODE && command.trim().startsWith("cline ")
 		let subagentPrompt: string | undefined
 
 		if (isSubagentCommand) {
 			// Parse the cline command to extract prompt
 			// Format: cline "prompt"
-			const clineCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?/
-			const match = command.match(clineCommandRegex)
+			const beadsmithCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?/
+			const match = command.match(beadsmithCommandRegex)
 
 			if (match) {
 				subagentPrompt = match[1]
@@ -193,7 +193,7 @@ export const CommandOutputRow = memo(
 		)
 
 		const displayTitle = isSubagentCommand ? (
-			<span className="text-foreground font-bold">Cline wants to use a subagent:</span>
+			<span className="text-foreground font-bold">Beadsmith wants to use a subagent:</span>
 		) : (
 			title
 		)

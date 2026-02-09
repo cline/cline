@@ -1,0 +1,482 @@
+---
+title: "CLI Reference"
+description: "Complete command reference for Beadsmith CLI including configuration, instance management, and task commands"
+---
+
+Complete command reference for Beadsmith CLI. Use this for detailed documentation on all commands, options, and configuration.
+
+For quick help in your terminal:
+
+```bash
+beadsmith --help          # Show all commands
+beadsmith task --help     # Show task-specific commands
+man beadsmith            # View the full manual page
+```
+
+## Manual Page
+
+The complete manual page for the Beadsmith CLI:
+
+```
+CLINE(1)                         User Commands                        CLINE(1)
+
+NAME
+       beadsmith - orchestrate and interact with Beadsmith AI coding agents
+
+SYNOPSIS
+       beadsmith [prompt] [options]
+
+       beadsmith command [subcommand] [options] [arguments]
+
+DESCRIPTION
+       Try: cat README.md | beadsmith "Summarize this for me:"
+
+       beadsmith is a command-line interface for orchestrating multiple Beadsmith AI
+       coding agents.  Beadsmith is an autonomous AI agent who can read, write,
+       and execute code across your projects.  He operates through a
+       client-server architecture where Beadsmith Core runs as a standalone
+       service, and the CLI acts as a scriptable interface for managing tasks,
+       instances, and agent interactions.
+
+       The CLI is designed for both interactive use and automation, making it
+       ideal for CI/CD pipelines, parallel task execution, and terminal-based
+       workflows.  Multiple frontends (CLI, VSCode, JetBrains) can attach to
+       the same Beadsmith Core instance, enabling seamless task handoff between
+       environments.
+
+MODES OF OPERATION
+       Instant Task Mode
+              The simplest invocation: beadsmith "prompt here" immediately spawns
+              an instance, creates a task, and enters chat mode.  This is
+              equivalent to running beadsmith instance new && beadsmith task new &&
+              beadsmith task chat in sequence.
+
+       Subcommand Mode
+              Advanced usage with explicit control: beadsmith <command>
+              [subcommand] [options] provides fine-grained control over
+              instances, tasks, authentication, and configuration.
+
+AGENT BEHAVIOR
+       Beadsmith operates in two primary modes:
+
+       ACT MODE
+              Beadsmith actively uses tools to accomplish tasks.  He can read
+              files, write code, execute commands, use a headless browser, and
+              more.  This is the default mode for task execution.
+
+       PLAN MODE
+              Beadsmith gathers information and creates a detailed plan before
+              implementation.  He explores the codebase, asks clarifying
+              questions, and presents a strategy for user approval before
+              switching to ACT MODE.
+
+INSTANT TASK OPTIONS
+       When using the instant task syntax beadsmith "prompt" the following options
+       are available:
+
+       -o, --oneshot
+              Full autonomous mode.  Beadsmith completes the task and stops
+              following after completion.  Example: beadsmith -o "what's 6 + 8?"
+
+       -s, --setting setting value
+              Override a setting for this task
+
+       -y, --no-interactive, --yolo
+              Enable fully autonomous mode.  Disables all interactivity:
+
+              • ask_followup_question tool is disabled
+
+              • attempt_completion happens automatically
+
+              • execute_command runs in non-blocking mode with timeout
+
+              • PLAN MODE automatically switches to ACT MODE
+
+       -m, --mode mode
+              Starting mode.  Options: act (default), plan
+
+       -w, --workspace path
+              Additional workspace paths.  Can be specified multiple times to
+              include multiple directories.  The current working directory is
+              always included as the first workspace.  Example: beadsmith -w
+              /path/to/other/project "refactor shared code"
+
+GLOBAL OPTIONS
+       These options apply to all subcommands:
+
+       -F, --output-format format
+              Output format.  Options: rich (default), json, plain
+
+       -h, --help
+              Display help information for the command.
+
+       -v, --verbose
+              Enable verbose output for debugging.
+
+COMMANDS
+   Authentication
+       beadsmith auth [provider] [key]
+
+       beadsmith a [provider] [key]
+              Configure authentication for AI model providers.  Launches an
+              interactive wizard if no arguments provided.  If provider is
+              specified without a key, prompts for the key or launches the
+              appropriate OAuth flow.
+
+   Instance Management
+       Beadsmith Core instances are independent agent processes that can run in
+       the background.  Multiple instances can run simultaneously, enabling
+       parallel task execution.
+
+       beadsmith instance
+
+       beadsmith i
+              Display instance management help.
+
+       beadsmith instance new [-d|--default]
+
+       beadsmith i n [-d|--default]
+              Spawn a new Beadsmith Core instance.  Use --default to set it as
+              the default instance for subsequent commands.
+
+       beadsmith instance list
+
+       beadsmith i l
+              List all running Beadsmith Core instances with their addresses and
+              status.
+
+       beadsmith instance default address
+
+       beadsmith i d address
+              Set the default instance to avoid specifying --address in task
+              commands.
+
+       beadsmith instance kill address [-a|--all]
+
+       beadsmith i k address [-a|--all]
+              Terminate a Beadsmith Core instance.  Use --all to kill all running
+              instances.
+
+   Task Management
+       Tasks represent individual work items that Beadsmith executes.  Tasks
+       maintain conversation history, checkpoints, and settings.
+
+       beadsmith task [-a|--address ADDR]
+
+       beadsmith t [-a|--address ADDR]
+              Display task management help.  The --address flag specifies
+              which Beadsmith Core instance to use (e.g., localhost:50052).
+
+       beadsmith task new prompt [options]
+
+       beadsmith t n prompt [options]
+              Create a new task in the default or specified instance.
+              Options:
+
+              -s, --setting setting value
+                     Set task-specific settings
+
+              -y, --no-interactive, --yolo
+                     Enable autonomous mode
+
+              -m, --mode mode
+                     Starting mode (act or plan)
+
+       beadsmith task open task-id [options]
+
+       beadsmith t o task-id [options]
+              Resume a previous task from history.  Accepts the same options
+              as task new.
+
+       beadsmith task list
+
+       beadsmith t l
+              List all tasks in history with their id and snippet
+
+       beadsmith task chat
+
+       beadsmith t c
+              Enter interactive chat mode for the current task.  Allows
+              back-and-forth conversation with Beadsmith.
+
+       beadsmith task send [message] [options]
+
+       beadsmith t s [message] [options]
+              Send a message to Beadsmith.  If no message is provided, reads from
+              stdin.  Options:
+
+              -a, --approve
+                     Approve Beadsmith's proposed action
+
+              -d, --deny
+                     Deny Beadsmith's proposed action
+
+              -f, --file FILE
+                     Attach a file to the message
+
+              -y, --no-interactive, --yolo
+                     Enable autonomous mode
+
+              -m, --mode mode
+                     Switch mode (act or plan)
+
+       beadsmith task view [-f|--follow] [-c|--follow-complete]
+
+       beadsmith t v [-f|--follow] [-c|--follow-complete]
+              Display the current conversation.  Use --follow to stream
+              updates in real-time, or --follow-complete to follow until task
+              completion.
+
+       beadsmith task restore checkpoint
+
+       beadsmith t r checkpoint
+              Restore the task to a previous checkpoint state.
+
+       beadsmith task pause
+
+       beadsmith t p
+              Pause task execution.
+
+   Configuration
+       Configuration can be set globally.  Override these global settings for
+       a task using the --setting flag
+
+       beadsmith config
+
+       beadsmith c
+
+       beadsmith config set key value
+
+       beadsmith c s key value
+              Set a configuration variable.
+
+       beadsmith config get key
+
+       beadsmith c g key
+              Read a configuration variable.
+
+       beadsmith config list
+
+       beadsmith c l
+              List all configuration variables and their values.
+
+   Context Window Configuration
+       For local model providers, you can configure the context window size:
+
+       Ollama
+              beadsmith config s ollama-api-options-ctx-num=32768
+
+       LM Studio
+              beadsmith config s lm-studio-max-tokens=32768
+
+       For other providers (Anthropic, OpenRouter, etc.), the context window
+       is defined per model in the model metadata and is not user-settable.
+       Beadsmith uses each model's built-in context limits automatically.
+
+TASK SETTINGS
+       Task settings are persisted in the ~/.beadsmith/x/tasks directory.  When
+       resuming a task with beadsmith task open, task settings are automatically
+       restored.
+
+       Common settings include:
+
+       yolo   Enable autonomous mode (true/false)
+
+       mode   Starting mode (act/plan)
+
+       hooks_enabled
+              Enable or disable hooks for the task (true/false)
+
+HOOKS INTEGRATION
+       Hooks let you inject custom logic into Beadsmith's workflow at key moments.
+       They can validate operations before they execute, monitor tool usage,
+       and shape AI decisions. This allows you to integrate hooks into
+       automated workflows, CI/CD pipelines, and headless task execution.
+
+       Enable hooks for a task:
+
+              beadsmith "prompt" -s hooks_enabled=true
+
+       Configure hooks globally:
+
+              beadsmith config set hooks-enabled=true
+              beadsmith config get hooks-enabled
+
+       Note: Hooks in the CLI are only supported on macOS and Linux.
+
+       For complete hooks documentation, see:
+       <https://docs.beadsmith.bot/features/hooks/index>
+
+NOTES & EXAMPLES
+       The beadsmith task send and beadsmith task new commands support reading from
+       stdin, enabling powerful pipeline compositions:
+
+              cat requirements.txt | beadsmith task send
+              echo "Refactor this code" | beadsmith -y
+
+   Instance Management
+       Manage multiple Beadsmith instances:
+
+              # Start a new instance and make it default
+              beadsmith instance new --default
+
+              # List all running instances
+              beadsmith instance list
+
+              # Kill a specific instance
+              beadsmith instance kill localhost:50052
+
+              # Kill all CLI instances
+              beadsmith instance kill --all-cli
+
+   Task History
+       Work with task history:
+
+              # List previous tasks
+              beadsmith task list
+
+              # Resume a previous task
+              beadsmith task open 1760501486669
+
+              # View conversation history
+              beadsmith task view
+
+              # Start interactive chat with this task
+              beadsmith task chat
+
+ARCHITECTURE
+       Beadsmith operates on a three-layer architecture:
+
+       Presentation Layer
+              User interfaces (CLI, VSCode, JetBrains) that connect to Beadsmith
+              Core via gRPC
+
+       Beadsmith Core
+              The autonomous agent service handling task management, AI model
+              integration, state management, tool orchestration, and real-time
+              streaming updates
+
+       Host Provider Layer
+              Environment-specific integrations (VSCode APIs, JetBrains APIs,
+              shell APIs) that Beadsmith Core uses to interact with the host
+              system
+
+BUGS
+       Report bugs at: <https://github.com/beadsmith/beadsmith/issues>
+
+       For real-time help, join the Discord community at:
+       <https://discord.gg/beadsmith>
+
+SEE ALSO
+       Full documentation: <https://docs.beadsmith.bot>
+
+AUTHORS
+       Beadsmith is developed by the Beadsmith Bot Inc. and the open source community.
+
+COPYRIGHT
+       Copyright © 2025 Beadsmith Bot Inc. Licensed under the Apache License 2.0.
+```
+
+## JSON output (-F json)
+
+When you run a command with `-F json` (or `--output-format json`), Beadsmith prints each client message as JSON.
+
+### BeadsmithMessage schema
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `type` | `"ask" or "say"` | Yes | Top-level message category. |
+| `text` | `string` | Yes | Human-readable message content. |
+| `ts` | `number` | Yes | Unix epoch timestamp in milliseconds. |
+| `reasoning` | `string` | No | Omitted when empty. |
+| `say` | `string` | No | Omitted when empty. Present when `type` is `"say"`. |
+| `ask` | `string` | No | Omitted when empty. Present when `type` is `"ask"`. |
+| `partial` | `boolean` | No | Omitted when false. `true` for streaming updates. |
+| `images` | `string[]` | No | Omitted when empty. Image URIs when included with a message. |
+| `files` | `string[]` | No | Omitted when empty. File paths when attached to a message. |
+| `lastCheckpointHash` | `string` | No | Omitted when empty. Git checkpoint hash when available. |
+| `isCheckpointCheckedOut` | `boolean` | No | Omitted when false. `true` if Beadsmith checked out a checkpoint. |
+| `isOperationOutsideWorkspace` | `boolean` | No | Omitted when false. `true` if an operation happened outside the workspace. |
+
+<Note>
+Most fields are optional and omitted when empty. If you parse this output, treat missing fields as “not present”, not as empty strings.
+</Note>
+
+### Example
+
+```json
+{
+  "type": "say",
+  "text": "Beadsmith is about to run a command.",
+  "ts": 1760501486669,
+  "say": "command",
+  "partial": false
+}
+```
+
+### Shell Completion
+
+Generate autocompletion scripts for various shells:
+
+#### Bash
+
+```bash
+# Generate bash completion
+beadsmith completion bash > /etc/bash_completion.d/beadsmith
+
+# Or for user-level installation
+beadsmith completion bash > ~/.local/share/bash-completion/completions/beadsmith
+```
+
+#### Zsh
+
+```bash
+# Generate zsh completion
+beadsmith completion zsh > "${fpath[1]}/_beadsmith"
+
+# Or add to your .zshrc
+echo 'source <(beadsmith completion zsh)' >> ~/.zshrc
+```
+
+#### Fish
+
+```bash
+# Generate fish completion
+beadsmith completion fish > ~/.config/fish/completions/beadsmith.fish
+```
+
+#### PowerShell
+
+```powershell
+# Generate PowerShell completion
+beadsmith completion powershell > beadsmith.ps1
+
+# Add to your PowerShell profile
+Add-Content $PROFILE "beadsmith completion powershell | Out-String | Invoke-Expression"
+```
+
+### Version Command
+
+```bash
+# Show version information
+beadsmith version
+```
+
+### Environment Variables
+
+#### CLINE_DIR
+
+Override the default Beadsmith directory location:
+
+```bash
+# Override default Beadsmith directory
+export CLINE_DIR=/custom/path
+
+# Default: ~/.beadsmith
+```
+
+This directory is used for:
+- Instance registry database
+- Configuration files
+- Task history
+- Checkpoints

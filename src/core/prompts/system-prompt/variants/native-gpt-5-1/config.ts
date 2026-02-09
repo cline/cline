@@ -1,7 +1,7 @@
 import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
@@ -52,26 +52,26 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		SystemPromptSection.SKILLS,
 	)
 	.tools(
-		ClineDefaultTool.BASH,
-		ClineDefaultTool.FILE_READ,
+		BeadsmithDefaultTool.BASH,
+		BeadsmithDefaultTool.FILE_READ,
 		// Should disable FILE_NEW and FILE_EDIT when enabled
-		ClineDefaultTool.APPLY_PATCH,
-		ClineDefaultTool.SEARCH,
-		ClineDefaultTool.LIST_FILES,
-		ClineDefaultTool.LIST_CODE_DEF,
-		ClineDefaultTool.BROWSER,
-		ClineDefaultTool.WEB_FETCH,
-		ClineDefaultTool.WEB_SEARCH,
-		ClineDefaultTool.MCP_ACCESS,
-		ClineDefaultTool.ASK,
-		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
-		ClineDefaultTool.PLAN_MODE,
-		ClineDefaultTool.ACT_MODE,
-		ClineDefaultTool.MCP_DOCS,
-		ClineDefaultTool.TODO,
-		ClineDefaultTool.GENERATE_EXPLANATION,
-		ClineDefaultTool.USE_SKILL,
+		BeadsmithDefaultTool.APPLY_PATCH,
+		BeadsmithDefaultTool.SEARCH,
+		BeadsmithDefaultTool.LIST_FILES,
+		BeadsmithDefaultTool.LIST_CODE_DEF,
+		BeadsmithDefaultTool.BROWSER,
+		BeadsmithDefaultTool.WEB_FETCH,
+		BeadsmithDefaultTool.WEB_SEARCH,
+		BeadsmithDefaultTool.MCP_ACCESS,
+		BeadsmithDefaultTool.ASK,
+		BeadsmithDefaultTool.ATTEMPT,
+		BeadsmithDefaultTool.NEW_TASK,
+		BeadsmithDefaultTool.PLAN_MODE,
+		BeadsmithDefaultTool.ACT_MODE,
+		BeadsmithDefaultTool.MCP_DOCS,
+		BeadsmithDefaultTool.TODO,
+		BeadsmithDefaultTool.GENERATE_EXPLANATION,
+		BeadsmithDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5_1,

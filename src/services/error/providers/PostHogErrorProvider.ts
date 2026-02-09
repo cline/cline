@@ -7,7 +7,7 @@ import { Logger } from "@/shared/services/Logger"
 import * as pkg from "../../../../package.json"
 import { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
 import { getErrorLevelFromString } from ".."
-import { ClineError } from "../ClineError"
+import { BeadsmithError } from "../BeadsmithError"
 import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
 
 const isDev = process.env.IS_DEV === "true"
@@ -59,7 +59,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 		return this
 	}
 
-	public logException(error: Error | ClineError, properties: Record<string, unknown> = {}): void {
+	public logException(error: Error | BeadsmithError, properties: Record<string, unknown> = {}): void {
 		if (!this.isEnabled() || this.errorSettings.level === "off") {
 			return
 		}
@@ -73,7 +73,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 			...properties,
 		}
 
-		if (error instanceof ClineError) {
+		if (error instanceof BeadsmithError) {
 			Object.assign(errorDetails, {
 				modelId: error.modelId,
 				providerId: error.providerId,

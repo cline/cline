@@ -1,20 +1,20 @@
 // Core content types
 export type {
-	ClineAssistantContent,
-	ClineAssistantRedactedThinkingBlock,
-	ClineAssistantThinkingBlock,
-	ClineAssistantToolUseBlock,
-	ClineContent,
-	ClineDocumentContentBlock,
-	ClineImageContentBlock,
-	ClineMessageRole,
-	ClinePromptInputContent,
-	ClineReasoningDetailParam,
-	ClineStorageMessage,
-	ClineTextContentBlock,
-	ClineToolResponseContent,
-	ClineUserContent,
-	ClineUserToolResultContentBlock,
+	BeadsmithAssistantContent,
+	BeadsmithAssistantRedactedThinkingBlock,
+	BeadsmithAssistantThinkingBlock,
+	BeadsmithAssistantToolUseBlock,
+	BeadsmithContent,
+	BeadsmithDocumentContentBlock,
+	BeadsmithImageContentBlock,
+	BeadsmithMessageRole,
+	BeadsmithPromptInputContent,
+	BeadsmithReasoningDetailParam,
+	BeadsmithStorageMessage,
+	BeadsmithTextContentBlock,
+	BeadsmithToolResponseContent,
+	BeadsmithUserContent,
+	BeadsmithUserToolResultContentBlock,
 } from "./content"
-export { cleanContentBlock, convertClineStorageToAnthropicMessage, REASONING_DETAILS_PROVIDERS } from "./content"
-export type { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
+export { cleanContentBlock, convertBeadsmithStorageToAnthropicMessage, REASONING_DETAILS_PROVIDERS } from "./content"
+export type { BeadsmithMessageMetricsInfo, BeadsmithMessageModelInfo } from "./metrics"

@@ -1,13 +1,13 @@
 import type { ToolUse } from "@core/assistant-message"
 import { loadMcpDocumentation } from "@core/prompts/loadMcpDocumentation"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class LoadMcpDocumentationHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = ClineDefaultTool.MCP_DOCS
+	readonly name = BeadsmithDefaultTool.MCP_DOCS
 
 	constructor() {}
 

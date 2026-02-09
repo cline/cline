@@ -145,7 +145,7 @@ export class AIhubmixHandler implements ApiHandler {
 		const client = this.ensureAnthropicClient()
 		const modelId = this.options.modelId || "claude-3-5-sonnet-20241022"
 
-		// Sanitize messages to remove Cline-specific fields like call_id that are not allowed by Anthropic API
+		// Sanitize messages to remove Beadsmith-specific fields like call_id that are not allowed by Anthropic API
 		const sanitizedMessages = sanitizeAnthropicMessages(messages, false)
 
 		const stream = await client.messages.create({

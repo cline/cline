@@ -6,6 +6,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 	if (apiConfiguration) {
 		const {
 			apiProvider,
+			apiModelId,
 			openAiModelId,
 			requestyModelId,
 			togetherModelId,
@@ -113,6 +114,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			case "vscode-lm":
 				if (!vsCodeLmModelSelector) {
 					return "You must provide a valid model selector."
+				}
+				break
+			case "copilot-sdk":
+				if (!apiModelId) {
+					return "You must provide a valid model ID."
 				}
 				break
 			case "moonshot":

@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package host;
 
-import "cline/common.proto";
+import "beadsmith/common.proto";
 
-option go_package = "github.com/cline/grpc-go/host";
+option go_package = "github.com/beadsmith/grpc-go/host";
 option java_multiple_files = true;
-option java_package = "bot.cline.host.proto";
+option java_package = "bot.beadsmith.host.proto";
 
 // Provides methods for diff views.
 service DiffService {
@@ -37,7 +37,7 @@ service DiffService {
 }
 
 message OpenDiffRequest {
-  optional cline.Metadata metadata = 1;
+  optional beadsmith.Metadata metadata = 1;
   // The absolute path of the document being edited.
   optional string path = 2;
   // The new content for the file.
@@ -50,7 +50,7 @@ message OpenDiffResponse {
 }
 
 message GetDocumentTextRequest {
-  optional cline.Metadata metadata = 1;
+  optional beadsmith.Metadata metadata = 1;
   optional string diff_id = 2;
 }
 
@@ -59,7 +59,7 @@ message GetDocumentTextResponse {
 }
 
 message ReplaceTextRequest {
-  optional cline.Metadata metadata = 1;
+  optional beadsmith.Metadata metadata = 1;
   optional string diff_id = 2;
   optional string content = 3;
   optional int32 start_line = 4;
@@ -76,7 +76,7 @@ message ScrollDiffRequest {
 message ScrollDiffResponse {}
 
 message TruncateDocumentRequest {
-  optional cline.Metadata metadata = 1;
+  optional beadsmith.Metadata metadata = 1;
   optional string diff_id = 2;
   optional int32 end_line = 3;
 }
@@ -88,7 +88,7 @@ message CloseAllDiffsRequest {}
 message CloseAllDiffsResponse {}
 
 message SaveDocumentRequest {
-  optional cline.Metadata metadata = 1;
+  optional beadsmith.Metadata metadata = 1;
   optional string diff_id = 2;
 }
 

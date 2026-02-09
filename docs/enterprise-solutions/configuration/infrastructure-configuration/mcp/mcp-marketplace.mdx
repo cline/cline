@@ -1,7 +1,7 @@
 ---
 title: "MCP Marketplace"
 sidebarTitle: "MCP Marketplace"
-description: "Deploy pre-built enterprise MCP servers from the Cline marketplace with one-click configuration"
+description: "Deploy pre-built enterprise MCP servers from the Beadsmith marketplace with one-click configuration"
 ---
 
 The MCP Marketplace provides curated, enterprise-ready integrations with popular development tools and services. All marketplace servers are built with enterprise security, compliance, and scalability in mind.
@@ -18,7 +18,7 @@ The MCP Marketplace provides curated, enterprise-ready integrations with popular
   </Card>
   
   <Card title="Maintained & Updated" icon="sync">
-    Regular security updates and feature enhancements managed by Cline Enterprise team.
+    Regular security updates and feature enhancements managed by Beadsmith Enterprise team.
   </Card>
   
   <Card title="Enterprise Support" icon="headset">
@@ -94,7 +94,7 @@ The MCP Marketplace provides curated, enterprise-ready integrations with popular
 
 ## Installing Marketplace Servers
 
-### Via Cline Enterprise Dashboard
+### Via Beadsmith Enterprise Dashboard
 
 1. **Access Marketplace**: Navigate to `Settings > Enterprise > MCP Marketplace`
 2. **Browse Integrations**: Filter by category, popularity, or search by name
@@ -111,7 +111,7 @@ Install marketplace servers through enterprise configuration:
 mcp:
   marketplace_servers:
     - name: "github-enterprise"
-      package: "@cline/mcp-github-enterprise"
+      package: "@beadsmith/mcp-github-enterprise"
       version: "2.1.0"
       environment: "production"
       
@@ -138,7 +138,7 @@ mcp:
           encryption_at_rest: true
           
     - name: "jira-enterprise"
-      package: "@cline/mcp-jira-enterprise"
+      package: "@beadsmith/mcp-jira-enterprise"
       version: "1.8.3"
       environment: "production"
       
@@ -161,27 +161,27 @@ mcp:
 
 ### Via CLI
 
-Deploy using the Cline Enterprise CLI:
+Deploy using the Beadsmith Enterprise CLI:
 
 ```bash
 # Install GitHub Enterprise integration
-cline-enterprise mcp install github-enterprise \
+beadsmith-enterprise mcp install github-enterprise \
   --version 2.1.0 \
   --config-file github-config.yaml \
   --environment production
 
 # Install Slack Enterprise Grid integration  
-cline-enterprise mcp install slack-enterprise-grid \
+beadsmith-enterprise mcp install slack-enterprise-grid \
   --version 1.5.2 \
   --config workspace_id=T1234567890 \
   --config bot_token=${SLACK_BOT_TOKEN} \
   --environment production
 
 # List installed marketplace servers
-cline-enterprise mcp list --environment production
+beadsmith-enterprise mcp list --environment production
 
 # Check server status
-cline-enterprise mcp status github-enterprise --environment production
+beadsmith-enterprise mcp status github-enterprise --environment production
 ```
 
 ## Configuration Examples
@@ -211,7 +211,7 @@ github:
       auto_assign: true
       labels:
         - "ai-generated"
-        - "cline-task"
+        - "beadsmith-task"
         
     pull_requests:
       enabled: true
@@ -310,7 +310,7 @@ slack:
       - name: "#dev-alerts"
         types: ["deployments", "errors", "security"]
       - name: "#ai-activity"
-        types: ["cline-tasks", "completions"]
+        types: ["beadsmith-tasks", "completions"]
         
     private_channels:
       - name: "#security-incidents"
@@ -319,16 +319,16 @@ slack:
         
   # Bot behavior
   bot:
-    display_name: "Cline Enterprise"
+    display_name: "Beadsmith Enterprise"
     default_channel: "#general"
     response_delay_ms: 1000
     
     commands:
-      - command: "/cline-status"
-        description: "Check Cline Enterprise status"
+      - command: "/beadsmith-status"
+        description: "Check Beadsmith Enterprise status"
         permission: "all"
         
-      - command: "/cline-deploy"
+      - command: "/beadsmith-deploy"
         description: "Trigger deployment"
         permission: "admin"
         
@@ -394,16 +394,16 @@ Control marketplace server versions:
 
 ```bash
 # List available versions
-cline-enterprise mcp versions github-enterprise
+beadsmith-enterprise mcp versions github-enterprise
 
 # Upgrade to latest version
-cline-enterprise mcp upgrade github-enterprise --version 2.2.0 --environment staging
+beadsmith-enterprise mcp upgrade github-enterprise --version 2.2.0 --environment staging
 
 # Rollback to previous version
-cline-enterprise mcp rollback github-enterprise --version 2.1.0 --environment staging
+beadsmith-enterprise mcp rollback github-enterprise --version 2.1.0 --environment staging
 
 # Pin to specific version (disable auto-updates)
-cline-enterprise mcp pin github-enterprise --version 2.1.0
+beadsmith-enterprise mcp pin github-enterprise --version 2.1.0
 ```
 
 ### Health Monitoring
@@ -523,34 +523,34 @@ data_governance:
 **Installation Failures**:
 ```bash
 # Check marketplace connectivity
-cline-enterprise mcp marketplace-status
+beadsmith-enterprise mcp marketplace-status
 
 # Verify authentication
-cline-enterprise auth verify --service marketplace
+beadsmith-enterprise auth verify --service marketplace
 
 # Check installation logs
-cline-enterprise logs mcp-installer --lines 100
+beadsmith-enterprise logs mcp-installer --lines 100
 ```
 
 **Configuration Errors**:
 ```bash
 # Validate configuration
-cline-enterprise mcp validate-config --file config.yaml
+beadsmith-enterprise mcp validate-config --file config.yaml
 
 # Test connectivity 
-cline-enterprise mcp test-connection github-enterprise --environment staging
+beadsmith-enterprise mcp test-connection github-enterprise --environment staging
 
 # Check server status
-cline-enterprise mcp status --all
+beadsmith-enterprise mcp status --all
 ```
 
 **Performance Issues**:
 ```bash
 # Check server metrics
-cline-enterprise mcp metrics github-enterprise --duration 1h
+beadsmith-enterprise mcp metrics github-enterprise --duration 1h
 
 # View recent error logs
-cline-enterprise logs github-enterprise --level error --lines 50
+beadsmith-enterprise logs github-enterprise --level error --lines 50
 ```
 
 ## Support
@@ -558,7 +558,7 @@ cline-enterprise logs github-enterprise --level error --lines 50
 For marketplace server issues:
 
 - **Documentation**: Check server-specific documentation in the dashboard
-- **Community**: Join the Cline Enterprise community forum
+- **Community**: Join the Beadsmith Enterprise community forum
 - **Support Tickets**: Create support tickets for critical issues
 - **Professional Services**: Engage professional services for custom configurations
 

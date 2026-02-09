@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-// TestStartAndList verifies self-registration and default.json semantics in a fresh CLINE_DIR.
+// TestStartAndList verifies self-registration and default.json semantics in a fresh BEADSMITH_DIR.
 func TestStartAndList(t *testing.T) {
-	clineDir := setTempClineDir(t)
-	t.Logf("Using temp CLINE_DIR: %s", clineDir)
+	beadsmithDir := setTempBeadsmithDir(t)
+	t.Logf("Using temp BEADSMITH_DIR: %s", beadsmithDir)
 
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
@@ -53,7 +53,7 @@ func TestStartAndList(t *testing.T) {
 
 // TestTaskNewDefault ensures tasks route to default instance.
 func TestTaskNewDefault(t *testing.T) {
-	_ = setTempClineDir(t)
+	_ = setTempBeadsmithDir(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
@@ -73,7 +73,7 @@ func TestTaskNewDefault(t *testing.T) {
 
 // TestExplicitAddressAutoStart verifies that giving an explicit address auto-starts an instance and routes the task.
 func TestExplicitAddressAutoStart(t *testing.T) {
-	_ = setTempClineDir(t)
+	_ = setTempBeadsmithDir(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
@@ -92,7 +92,7 @@ func TestExplicitAddressAutoStart(t *testing.T) {
 // TestCrashCleanup verifies that after SIGKILL of a local core, the cleanup removes the registry entry.
 // Also tests graceful shutdown (SIGTERM) vs crash cleanup and ensures no dangling host processes.
 func TestCrashCleanup(t *testing.T) {
-	_ = setTempClineDir(t)
+	_ = setTempBeadsmithDir(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()

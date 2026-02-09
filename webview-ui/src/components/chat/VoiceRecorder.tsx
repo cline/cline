@@ -1,5 +1,5 @@
-import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
-import { EmptyRequest } from "@shared/proto/index.cline"
+import { TranscribeAudioRequest } from "@shared/proto/beadsmith/dictation"
+import { EmptyRequest } from "@shared/proto/index.beadsmith"
 import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"

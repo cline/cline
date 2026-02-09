@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/output"
-	"github.com/cline/cli/pkg/cli/types"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/types"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 type Renderer struct {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // HookRenderer renders hook status messages in a CLI-native style.

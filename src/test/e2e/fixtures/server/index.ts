@@ -2,23 +2,23 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Socket } from "node:net"
 import { parse } from "node:url"
 import { v4 as uuidv4 } from "uuid"
-import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
+import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/BeadsmithAccount"
 import { E2E_MOCK_API_RESPONSES, E2E_REGISTERED_MOCK_ENDPOINTS } from "./api"
-import { ClineDataMock } from "./data"
+import { BeadsmithDataMock } from "./data"
 
 const E2E_API_SERVER_PORT = 7777
 
 export const MOCK_CLINE_API_SERVER_URL = `http://localhost:${E2E_API_SERVER_PORT}`
 
-const useVerboseLogging = process.env.CLINE_E2E_TESTS_VERBOSE === "true"
+const useVerboseLogging = process.env.BEADSMITH_E2E_TESTS_VERBOSE === "true"
 function log(...args: unknown[]) {
 	if (useVerboseLogging) {
-		console.log("[ClineApiServerMock]", ...args)
+		console.log("[BeadsmithApiServerMock]", ...args)
 	}
 }
 
-export class ClineApiServerMock {
-	static globalSharedServer: ClineApiServerMock | null = null
+export class BeadsmithApiServerMock {
+	static globalSharedServer: BeadsmithApiServerMock | null = null
 	static globalSockets: Set<Socket> = new Set()
 
 	private currentUser: UserResponse | null = null
@@ -27,7 +27,7 @@ export class ClineApiServerMock {
 	private userHasOrganization = false
 	public generationCounter = 0
 
-	public readonly API_USER = new ClineDataMock("personal")
+	public readonly API_USER = new BeadsmithDataMock("personal")
 
 	constructor(public readonly server: Server) {}
 
@@ -112,11 +112,11 @@ export class ClineApiServerMock {
 	}
 
 	// Starts the global shared server
-	public static async startGlobalServer(): Promise<ClineApiServerMock> {
+	public static async startGlobalServer(): Promise<BeadsmithApiServerMock> {
 		log("=== SERVER FIXTURE CALLED ===")
-		if (ClineApiServerMock.globalSharedServer) {
+		if (BeadsmithApiServerMock.globalSharedServer) {
 			log("Using existing global server")
-			return ClineApiServerMock.globalSharedServer
+			return BeadsmithApiServerMock.globalSharedServer
 		}
 
 		log("Starting global server...")
@@ -167,11 +167,11 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				log(`Authenticating token: ${authToken}`)
-				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
+				const user = BeadsmithApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
-				ClineApiServerMock.globalSharedServer!.setCurrentUser(user)
+				BeadsmithApiServerMock.globalSharedServer!.setCurrentUser(user)
 			}
 
 			log("=== MOCK SERVER REQUEST ===")
@@ -184,14 +184,14 @@ export class ClineApiServerMock {
 			// Route handling
 			const handleRequest = async () => {
 				// Try to match the route using registered endpoints
-				const routeMatch = ClineApiServerMock.matchRoute(path, method)
+				const routeMatch = BeadsmithApiServerMock.matchRoute(path, method)
 
 				if (!routeMatch.matched) {
 					return sendJson({ error: "Not found" }, 404)
 				}
 
 				const { baseRoute, endpoint, params = {} } = routeMatch
-				const controller = ClineApiServerMock.globalSharedServer!
+				const controller = BeadsmithApiServerMock.globalSharedServer!
 
 				// Health check endpoints
 				if (baseRoute === "/health") {
@@ -310,7 +310,7 @@ export class ClineApiServerMock {
 							return sendApiError("Invalid or expired authorization code", 400)
 						}
 
-						// Return format matching ClineAuthProvider expectations
+						// Return format matching BeadsmithAuthProvider expectations
 						return sendApiResponse({
 							accessToken: code + "_access",
 							refreshToken: code + "_refresh",
@@ -320,7 +320,7 @@ export class ClineApiServerMock {
 								subject: user.id,
 								email: user.email,
 								name: user.displayName,
-								clineUserId: user.id,
+								beadsmithUserId: user.id,
 								accounts: null,
 								organizations: user.organizations,
 							},
@@ -344,7 +344,7 @@ export class ClineApiServerMock {
 							return sendApiError("Invalid or expired refresh token", 400)
 						}
 
-						// Return format matching ClineAuthProvider expectations
+						// Return format matching BeadsmithAuthProvider expectations
 						return sendApiResponse({
 							accessToken: originalToken + "_access_refreshed",
 							refreshToken: refreshToken, // Keep same refresh token
@@ -354,7 +354,7 @@ export class ClineApiServerMock {
 								subject: user.id,
 								email: user.email,
 								name: user.displayName,
-								clineUserId: user.id,
+								beadsmithUserId: user.id,
 								accounts: null,
 							},
 						})
@@ -465,7 +465,7 @@ export class ClineApiServerMock {
 										index: 0,
 										message: {
 											role: "assistant",
-											content: "Hello! I'm a mock Cline API response.",
+											content: "Hello! I'm a mock Beadsmith API response.",
 										},
 										finish_reason: "stop",
 									},
@@ -544,14 +544,14 @@ export class ClineApiServerMock {
 		})
 
 		// Initialize the controller after the server is created
-		const controller = new ClineApiServerMock(server)
-		ClineApiServerMock.globalSharedServer = controller
+		const controller = new BeadsmithApiServerMock(server)
+		BeadsmithApiServerMock.globalSharedServer = controller
 
 		// Track connections for proper cleanup
 		server.on("connection", (socket) => {
-			ClineApiServerMock.globalSockets.add(socket)
+			BeadsmithApiServerMock.globalSockets.add(socket)
 			socket.on("close", () => {
-				ClineApiServerMock.globalSockets.delete(socket)
+				BeadsmithApiServerMock.globalSockets.delete(socket)
 			})
 		})
 
@@ -561,7 +561,7 @@ export class ClineApiServerMock {
 					console.error(`Failed to start server on port ${E2E_API_SERVER_PORT}:`, error)
 					reject(error)
 				} else {
-					log(`ClineApiServerMock listening on port ${E2E_API_SERVER_PORT}`)
+					log(`BeadsmithApiServerMock listening on port ${E2E_API_SERVER_PORT}`)
 					resolve()
 				}
 			})
@@ -572,15 +572,15 @@ export class ClineApiServerMock {
 
 	// Stops the global shared server
 	public static async stopGlobalServer(): Promise<void> {
-		if (!ClineApiServerMock.globalSharedServer) {
+		if (!BeadsmithApiServerMock.globalSharedServer) {
 			return
 		}
 
-		const server = ClineApiServerMock.globalSharedServer.server
+		const server = BeadsmithApiServerMock.globalSharedServer.server
 
 		// Clean shutdown - destroy all socket connections first
-		ClineApiServerMock.globalSockets.forEach((socket) => socket.destroy())
-		ClineApiServerMock.globalSockets.clear()
+		BeadsmithApiServerMock.globalSockets.forEach((socket) => socket.destroy())
+		BeadsmithApiServerMock.globalSockets.clear()
 
 		await new Promise<void>((resolve, reject) => {
 			server.close((err) => {
@@ -593,6 +593,6 @@ export class ClineApiServerMock {
 			})
 		})
 
-		ClineApiServerMock.globalSharedServer = null
+		BeadsmithApiServerMock.globalSharedServer = null
 	}
 }

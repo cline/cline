@@ -111,7 +111,7 @@ export class AudioRecordingService {
 
 			// Create temporary file for audio output
 			const tempDir = os.tmpdir()
-			this.outputFile = path.join(tempDir, `cline_recording_${Date.now()}.webm`)
+			this.outputFile = path.join(tempDir, `beadsmith_recording_${Date.now()}.webm`)
 
 			Logger.info("Starting audio recording...")
 

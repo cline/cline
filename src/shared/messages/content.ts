@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ClineMessageMetricsInfo, ClineMessageModelInfo } from "./metrics"
+import { BeadsmithMessageMetricsInfo, BeadsmithMessageModelInfo } from "./metrics"
 
-export type ClinePromptInputContent = string
+export type BeadsmithPromptInputContent = string
 
-export type ClineMessageRole = "user" | "assistant"
+export type BeadsmithMessageRole = "user" | "assistant"
 
-export interface ClineReasoningDetailParam {
+export interface BeadsmithReasoningDetailParam {
 	type: "reasoning.text" | string
 	text: string
 	signature: string
@@ -13,7 +13,7 @@ export interface ClineReasoningDetailParam {
 	index: number
 }
 
-interface ClineSharedMessageParam {
+interface BeadsmithSharedMessageParam {
 	// The id of the response that the block belongs to
 	call_id?: string
 }
@@ -21,94 +21,94 @@ interface ClineSharedMessageParam {
 export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
 
 /**
- * An extension of Anthropic.MessageParam that includes Cline-specific fields: reasoning_details.
+ * An extension of Anthropic.MessageParam that includes Beadsmith-specific fields: reasoning_details.
  * This ensures backward compatibility where the messages were stored in Anthropic format with additional
  * fields unknown to Anthropic SDK.
  */
-export interface ClineTextContentBlock extends Anthropic.TextBlockParam, ClineSharedMessageParam {
+export interface BeadsmithTextContentBlock extends Anthropic.TextBlockParam, BeadsmithSharedMessageParam {
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
-	reasoning_details?: ClineReasoningDetailParam[]
+	reasoning_details?: BeadsmithReasoningDetailParam[]
 	// Thought Signature associates with Gemini
 	signature?: string
 }
 
-export interface ClineImageContentBlock extends Anthropic.ImageBlockParam, ClineSharedMessageParam {}
+export interface BeadsmithImageContentBlock extends Anthropic.ImageBlockParam, BeadsmithSharedMessageParam {}
 
-export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam, ClineSharedMessageParam {}
+export interface BeadsmithDocumentContentBlock extends Anthropic.DocumentBlockParam, BeadsmithSharedMessageParam {}
 
-export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {}
+export interface BeadsmithUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, BeadsmithSharedMessageParam {}
 
 /**
  * Assistant only content types
  */
-export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {
+export interface BeadsmithAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, BeadsmithSharedMessageParam {
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
-	reasoning_details?: unknown[] | ClineReasoningDetailParam[]
+	reasoning_details?: unknown[] | BeadsmithReasoningDetailParam[]
 	// Thought Signature associates with Gemini
 	signature?: string
 }
 
-export interface ClineAssistantThinkingBlock extends Anthropic.ThinkingBlock, ClineSharedMessageParam {
+export interface BeadsmithAssistantThinkingBlock extends Anthropic.ThinkingBlock, BeadsmithSharedMessageParam {
 	// The summary items returned by OpenAI response API
 	// The reasoning details that will be moved to the text block when finalized
-	summary?: unknown[] | ClineReasoningDetailParam[]
+	summary?: unknown[] | BeadsmithReasoningDetailParam[]
 }
 
-export interface ClineAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, ClineSharedMessageParam {}
+export interface BeadsmithAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, BeadsmithSharedMessageParam {}
 
-export type ClineToolResponseContent = ClinePromptInputContent | Array<ClineTextContentBlock | ClineImageContentBlock>
+export type BeadsmithToolResponseContent = BeadsmithPromptInputContent | Array<BeadsmithTextContentBlock | BeadsmithImageContentBlock>
 
-export type ClineUserContent =
-	| ClineTextContentBlock
-	| ClineImageContentBlock
-	| ClineDocumentContentBlock
-	| ClineUserToolResultContentBlock
+export type BeadsmithUserContent =
+	| BeadsmithTextContentBlock
+	| BeadsmithImageContentBlock
+	| BeadsmithDocumentContentBlock
+	| BeadsmithUserToolResultContentBlock
 
-export type ClineAssistantContent =
-	| ClineTextContentBlock
-	| ClineImageContentBlock
-	| ClineDocumentContentBlock
-	| ClineAssistantToolUseBlock
-	| ClineAssistantThinkingBlock
-	| ClineAssistantRedactedThinkingBlock
+export type BeadsmithAssistantContent =
+	| BeadsmithTextContentBlock
+	| BeadsmithImageContentBlock
+	| BeadsmithDocumentContentBlock
+	| BeadsmithAssistantToolUseBlock
+	| BeadsmithAssistantThinkingBlock
+	| BeadsmithAssistantRedactedThinkingBlock
 
-export type ClineContent = ClineUserContent | ClineAssistantContent
+export type BeadsmithContent = BeadsmithUserContent | BeadsmithAssistantContent
 
 /**
- * An extension of Anthropic.MessageParam that includes Cline-specific fields.
+ * An extension of Anthropic.MessageParam that includes Beadsmith-specific fields.
  * This ensures backward compatibility where the messages were stored in Anthropic format,
- * while allowing for additional metadata specific to Cline to avoid unknown fields in Anthropic SDK
+ * while allowing for additional metadata specific to Beadsmith to avoid unknown fields in Anthropic SDK
  * added by ignoring the type checking for those fields.
  */
-export interface ClineStorageMessage extends Anthropic.MessageParam {
+export interface BeadsmithStorageMessage extends Anthropic.MessageParam {
 	/**
 	 * Response ID associated with this message
 	 */
 	id?: string
-	role: ClineMessageRole
-	content: ClinePromptInputContent | ClineContent[]
+	role: BeadsmithMessageRole
+	content: BeadsmithPromptInputContent | BeadsmithContent[]
 	/**
 	 * NOTE: model information used when generating this message.
 	 * Internal use for message conversion only.
 	 * MUST be removed before sending message to any LLM provider.
 	 */
-	modelInfo?: ClineMessageModelInfo
+	modelInfo?: BeadsmithMessageModelInfo
 	/**
 	 * LLM operational and performance metrics for this message
 	 * Includes token counts, costs.
 	 */
-	metrics?: ClineMessageMetricsInfo
+	metrics?: BeadsmithMessageMetricsInfo
 }
 
 /**
- * Converts ClineStorageMessage to Anthropic.MessageParam by removing Cline-specific fields
- * Cline-specific fields (like modelInfo, reasoning_details) are properly omitted.
+ * Converts BeadsmithStorageMessage to Anthropic.MessageParam by removing Beadsmith-specific fields
+ * Beadsmith-specific fields (like modelInfo, reasoning_details) are properly omitted.
  */
-export function convertClineStorageToAnthropicMessage(
-	clineMessage: ClineStorageMessage,
+export function convertBeadsmithStorageToAnthropicMessage(
+	beadsmithMessage: BeadsmithStorageMessage,
 	provider = "anthropic",
 ): Anthropic.MessageParam {
-	const { role, content } = clineMessage
+	const { role, content } = beadsmithMessage
 
 	// Handle string content - fast path
 	if (typeof content === "string") {
@@ -118,7 +118,7 @@ export function convertClineStorageToAnthropicMessage(
 	// Removes thinking block that has no signature (invalid thinking block that's incompatible with Anthropic API)
 	const filteredContent = content.filter((b) => b.type !== "thinking" || !!b.signature)
 
-	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
+	// Handle array content - strip Beadsmith-specific fields for non-reasoning_details providers
 	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
 	const cleanedContent = shouldCleanContent
 		? filteredContent.map(cleanContentBlock)
@@ -128,21 +128,21 @@ export function convertClineStorageToAnthropicMessage(
 }
 
 /**
- * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
+ * Clean a content block by removing Beadsmith-specific fields and returning only Anthropic-compatible fields
  */
-export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
-	// Fast path: if no Cline-specific fields exist, return as-is
-	const hasClineFields =
+export function cleanContentBlock(block: BeadsmithContent): Anthropic.ContentBlock {
+	// Fast path: if no Beadsmith-specific fields exist, return as-is
+	const hasBeadsmithFields =
 		"reasoning_details" in block ||
 		"call_id" in block ||
 		"summary" in block ||
 		(block.type !== "thinking" && "signature" in block)
 
-	if (!hasClineFields) {
+	if (!hasBeadsmithFields) {
 		return block as Anthropic.ContentBlock
 	}
 
-	// Removes Cline-specific fields & the signature field that's added for Gemini.
+	// Removes Beadsmith-specific fields & the signature field that's added for Gemini.
 	// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
 	const { reasoning_details, call_id, summary, ...rest } = block as any
 

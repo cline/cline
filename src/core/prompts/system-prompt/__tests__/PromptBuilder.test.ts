@@ -22,7 +22,7 @@ describe("PromptBuilder", () => {
 		} as unknown as McpHub,
 		focusChainSettings: {
 			enabled: true,
-			remindClineInterval: 6,
+			remindBeadsmithInterval: 6,
 		},
 		browserSettings: {
 			viewport: {

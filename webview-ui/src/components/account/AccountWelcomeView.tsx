@@ -1,36 +1,32 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useClineSignIn } from "@/context/ClineAuthContext"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import ClineLogoVariable from "../../assets/ClineLogoVariable"
+import ClineLogoVariable from "../../assets/BeadsmithLogoVariable"
 
-// export const AccountWelcomeView = () => (
-// 	<div className="flex flex-col items-center pr-3 gap-2.5">
-// 		<ClineLogoWhite className="size-16 mb-4" />
 export const AccountWelcomeView = () => {
 	const { environment } = useExtensionState()
-	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
 	return (
 		<div className="flex flex-col items-center pr-3 gap-2.5">
 			<ClineLogoVariable className="size-16 mb-4" environment={environment} />
 
-			<p>
-				Sign up for an account to get access to the latest models, billing dashboard to view usage and credits, and more
-				upcoming features.
+			<p className="text-center">
+				Beadsmith integrates with your existing AI providers. Configure your preferred provider in Settings to get started.
 			</p>
 
-			<VSCodeButton className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
-				Sign up with Cline
-				{isLoginLoading && (
-					<span className="ml-1 animate-spin">
-						<span className="codicon codicon-refresh"></span>
-					</span>
-				)}
-			</VSCodeButton>
+			<div className="text-sm text-center">
+				<p className="mb-2">Supported providers include:</p>
+				<ul className="list-none p-0 m-0 space-y-1">
+					<li>Claude Code (Anthropic)</li>
+					<li>GitHub Copilot</li>
+					<li>OpenAI Codex (ChatGPT Plus/Pro)</li>
+					<li>OpenRouter, Anthropic, Google Gemini</li>
+					<li>And many more...</li>
+				</ul>
+			</div>
 
-			<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0">
-				By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
-				<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
+			<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0 mt-4">
+				Beadsmith is a fork of{" "}
+				<VSCodeLink href="https://github.com/cline/cline">Cline</VSCodeLink>.
 			</p>
 		</div>
 	)

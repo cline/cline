@@ -13,26 +13,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/common"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/common"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 const (
 	defaultTimeout  = 30 * time.Second
 	longTimeout     = 60 * time.Second
 	pollInterval    = 250 * time.Millisecond
-	instancesBinRel = "../bin/cline"
+	instancesBinRel = "../bin/beadsmith"
 )
 
 func repoAwareBinPath(t *testing.T) string {
-	// Tests live in repoRoot/cli/e2e. Binary is at repoRoot/cli/bin/cline
+	// Tests live in repoRoot/cli/e2e. Binary is at repoRoot/c../bin/beadsmith
 	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd error: %v", err)
 	}
-	// cli/e2e -> cli/bin/cline
+	// cli/e2e -> c../bin/beadsmith
 	p := filepath.Clean(filepath.Join(wd, instancesBinRel))
 	if _, err := os.Stat(p); err != nil {
 		t.Fatalf("CLI binary not found at %s; run `npm run compile-cli` first: %v", p, err)
@@ -40,26 +40,26 @@ func repoAwareBinPath(t *testing.T) string {
 	return p
 }
 
-func setTempClineDir(t *testing.T) string {
+func setTempBeadsmithDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	clineDir := filepath.Join(dir, ".cline")
-	if err := os.MkdirAll(clineDir, 0o755); err != nil {
-		t.Fatalf("mkdir clineDir: %v", err)
+	beadsmithDir := filepath.Join(dir, ".beadsmith")
+	if err := os.MkdirAll(beadsmithDir, 0o755); err != nil {
+		t.Fatalf("mkdir beadsmithDir: %v", err)
 	}
-	t.Setenv("CLINE_DIR", clineDir)
-	return clineDir
+	t.Setenv("BEADSMITH_DIR", beadsmithDir)
+	return beadsmithDir
 }
 
 func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 	bin := repoAwareBinPath(t)
 
-	// Ensure CLI uses the same CLINE_DIR as the tests by passing --config=<CLINE_DIR>
+	// Ensure CLI uses the same BEADSMITH_DIR as the tests by passing --config=<BEADSMITH_DIR>
 	// (InitializeGlobalConfig uses ConfigPath as the base directory for registry.)
-	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" && !contains(args, "--config") {
+	if beadsmithDir := os.Getenv("BEADSMITH_DIR"); beadsmithDir != "" && !contains(args, "--config") {
 		// Prepend persistent flag so Cobra sees it regardless of subcommand position
-		args = append([]string{"--config", clineDir}, args...)
+		args = append([]string{"--config", beadsmithDir}, args...)
 	}
 
 	cmd := exec.CommandContext(ctx, bin, args...)
@@ -68,7 +68,7 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 		repoRoot := filepath.Clean(filepath.Join(wd, "..", ".."))
 		cmd.Dir = repoRoot
 	}
-	// propagate env including CLINE_DIR
+	// propagate env including BEADSMITH_DIR
 	cmd.Env = os.Environ()
 	outB, errB := &strings.Builder{}, &strings.Builder{}
 	cmd.Stdout = outB
@@ -90,7 +90,7 @@ func mustRunCLI(ctx context.Context, t *testing.T, args ...string) string {
 	t.Helper()
 	out, errOut, exit := runCLI(ctx, t, args...)
 	if exit != 0 {
-		t.Fatalf("cline %v failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", args, exit, out, errOut)
+		t.Fatalf("beadsmith %v failed (exit=%d)\nstdout:\n%s\nstderr:\n%s", args, exit, out, errOut)
 	}
 	return out
 }
@@ -101,13 +101,13 @@ func listInstancesJSON(ctx context.Context, t *testing.T) common.InstancesOutput
 	_ = mustRunCLI(ctx, t, "instance", "list")
 
 	// Read from SQLite locks database to build structured output
-	clineDir := getClineDir(t)
+	beadsmithDir := getBeadsmithDir(t)
 
 	// Load default instance from settings file
-	defaultInstance := readDefaultInstanceFromSettings(t, clineDir)
+	defaultInstance := readDefaultInstanceFromSettings(t, beadsmithDir)
 
 	// Load instances from SQLite
-	instances := readInstancesFromSQLite(t, clineDir)
+	instances := readInstancesFromSQLite(t, beadsmithDir)
 
 	return common.InstancesOutput{
 		DefaultInstance: defaultInstance,
@@ -191,13 +191,13 @@ func findFreePort(t *testing.T) int {
 	return port
 }
 
-func getClineDir(t *testing.T) string {
+func getBeadsmithDir(t *testing.T) string {
 	t.Helper()
-	clineDir := os.Getenv("CLINE_DIR")
-	if clineDir == "" {
-		t.Fatalf("CLINE_DIR not set")
+	beadsmithDir := os.Getenv("BEADSMITH_DIR")
+	if beadsmithDir == "" {
+		t.Fatalf("BEADSMITH_DIR not set")
 	}
-	return clineDir
+	return beadsmithDir
 }
 
 // isPortInUse checks if a port is currently in use by any process
@@ -289,19 +289,19 @@ func getPIDByPort(t *testing.T, port int) int {
 	return pid
 }
 
-// getCorePIDViaRPC returns the PID of the cline-core process using RPC (preferred method)
+// getCorePIDViaRPC returns the PID of the beadsmith-core process using RPC (preferred method)
 func getCorePIDViaRPC(t *testing.T, address string) int {
 	t.Helper()
 
 	// Initialize global config to access registry
-	clineDir := os.Getenv("CLINE_DIR")
-	if clineDir == "" {
-		t.Logf("Warning: CLINE_DIR not set, falling back to lsof")
+	beadsmithDir := os.Getenv("BEADSMITH_DIR")
+	if beadsmithDir == "" {
+		t.Logf("Warning: BEADSMITH_DIR not set, falling back to lsof")
 		return getCorePIDViaLsof(t, address)
 	}
 
 	cfg := &global.GlobalConfig{
-		ConfigPath: clineDir,
+		ConfigPath: beadsmithDir,
 	}
 
 	if err := global.InitializeGlobalConfig(cfg); err != nil {
@@ -320,7 +320,7 @@ func getCorePIDViaRPC(t *testing.T, address string) int {
 	}
 
 	// Call GetProcessInfo RPC
-	processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{})
+	processInfo, err := client.State.GetProcessInfo(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		t.Logf("Warning: GetProcessInfo RPC failed for %s, falling back to lsof: %v", address, err)
 		return getCorePIDViaLsof(t, address)
@@ -347,7 +347,7 @@ func getCorePIDViaLsof(t *testing.T, address string) int {
 	return getPIDByPort(t, port)
 }
 
-// getCorePID returns the PID of the cline-core process for the given address
+// getCorePID returns the PID of the beadsmith-core process for the given address
 // Uses RPC first, falls back to lsof if RPC fails
 func getCorePID(t *testing.T, address string) int {
 	t.Helper()
@@ -361,7 +361,7 @@ func getCorePID(t *testing.T, address string) int {
 	return getCorePIDViaLsof(t, address)
 }
 
-// getHostPID returns the PID of the cline-host process for the given host port
+// getHostPID returns the PID of the beadsmith-host process for the given host port
 func getHostPID(t *testing.T, hostPort int) int {
 	t.Helper()
 	return getPIDByPort(t, hostPort)

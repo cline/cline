@@ -6,15 +6,15 @@ import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
-import { ClineFeatureSetting } from "./ClineFeatureSetting"
-import { BannerCardData } from "./cline/banner"
-import { ClineRulesToggles } from "./cline-rules"
+import { BeadsmithFeatureSetting } from "./BeadsmithFeatureSetting"
+import { BannerCardData } from "./beadsmith/banner"
+import { BeadsmithRulesToggles } from "./beadsmith-rules"
 import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
-import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
+import { BeadsmithMessageModelInfo } from "./messages"
+import { OnboardingModelGroup } from "./proto/beadsmith/state"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -36,7 +36,7 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 
 export const DEFAULT_PLATFORM = "unknown"
 
-export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+export const COMMAND_CANCEL_TOKEN = "__beadsmith_command_cancel__"
 
 export interface ExtensionState {
 	isNewUser: boolean
@@ -50,7 +50,7 @@ export interface ExtensionState {
 	openaiReasoningEffort?: OpenaiReasoningEffort
 	mode: Mode
 	checkpointManagerErrorMessage?: string
-	clineMessages: ClineMessage[]
+	beadsmithMessages: BeadsmithMessage[]
 	currentTaskItem?: HistoryItem
 	currentFocusChainChecklist?: string | null
 	mcpMarketplaceEnabled?: boolean
@@ -75,21 +75,21 @@ export interface ExtensionState {
 	userInfo?: UserInfo
 	version: string
 	distinctId: string
-	globalClineRulesToggles: ClineRulesToggles
-	localClineRulesToggles: ClineRulesToggles
-	localWorkflowToggles: ClineRulesToggles
-	globalWorkflowToggles: ClineRulesToggles
-	localCursorRulesToggles: ClineRulesToggles
-	localWindsurfRulesToggles: ClineRulesToggles
-	remoteRulesToggles?: ClineRulesToggles
-	remoteWorkflowToggles?: ClineRulesToggles
-	localAgentsRulesToggles: ClineRulesToggles
+	globalBeadsmithRulesToggles: BeadsmithRulesToggles
+	localBeadsmithRulesToggles: BeadsmithRulesToggles
+	localWorkflowToggles: BeadsmithRulesToggles
+	globalWorkflowToggles: BeadsmithRulesToggles
+	localCursorRulesToggles: BeadsmithRulesToggles
+	localWindsurfRulesToggles: BeadsmithRulesToggles
+	remoteRulesToggles?: BeadsmithRulesToggles
+	remoteWorkflowToggles?: BeadsmithRulesToggles
+	localAgentsRulesToggles: BeadsmithRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
-	clineWebToolsEnabled?: ClineFeatureSetting
-	worktreesEnabled?: ClineFeatureSetting
+	beadsmithWebToolsEnabled?: BeadsmithFeatureSetting
+	worktreesEnabled?: BeadsmithFeatureSetting
 	focusChainSettings: FocusChainSettings
 	dictationSettings: DictationSettings
 	customPrompt?: string
@@ -99,7 +99,7 @@ export interface ExtensionState {
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number
 	isMultiRootWorkspace: boolean
-	multiRootSetting: ClineFeatureSetting
+	multiRootSetting: BeadsmithFeatureSetting
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
@@ -116,13 +116,61 @@ export interface ExtensionState {
 	optOutOfRemoteConfig?: boolean
 	banners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
+	// Ralph Loop state
+	ralphLoopState?: RalphLoopStateUI
+	// Bead (checkpoint) state
+	beadsEnabled?: boolean
+	beadAutoApprove?: boolean
+	beadCommitMode?: "shadow" | "workspace"
+	beadTestCommand?: string
+	ralphMaxIterations?: number
+	ralphTokenBudget?: number
+	currentBeadNumber?: number
+	beadTaskStatus?: "idle" | "running" | "paused" | "awaiting_approval" | "completed" | "failed"
+	totalBeadsCompleted?: number
+	// DAG (Dependency Analysis Graph) state
+	dagEnabled?: boolean
+	dagLastUpdated?: string
+	dagIsAnalyzing?: boolean
+	dagError?: string
+	dagSummary?: {
+		files: number
+		functions: number
+		edges: number
+	}
 }
 
-export interface ClineMessage {
+/**
+ * Ralph loop state for the UI
+ */
+export interface RalphLoopStateUI {
+	status: "idle" | "running" | "paused" | "completed" | "failed" | "cancelled"
+	currentIteration: number
+	maxIterations: number
+	totalTokensUsed: number
+	totalFilesChanged: number
+	startTime: number | null
+	taskDescription: string
+	completionPromise: string
+	beadsEnabled: boolean
+	pendingBeadApproval: boolean
+	iterations: RalphIterationSummary[]
+}
+
+export interface RalphIterationSummary {
+	number: number
+	status: "completed" | "failed" | "current"
+	filesChanged: number
+	tokensUsed: number
+	duration: number
+	errors?: string[]
+}
+
+export interface BeadsmithMessage {
 	ts: number
 	type: "ask" | "say"
-	ask?: ClineAsk
-	say?: ClineSay
+	ask?: BeadsmithAsk
+	say?: BeadsmithSay
 	text?: string
 	reasoning?: string
 	images?: string[]
@@ -134,10 +182,10 @@ export interface ClineMessage {
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
-	modelInfo?: ClineMessageModelInfo
+	modelInfo?: BeadsmithMessageModelInfo
 }
 
-export type ClineAsk =
+export type BeadsmithAsk =
 	| "followup"
 	| "plan_mode_respond"
 	| "act_mode_respond"
@@ -155,8 +203,9 @@ export type ClineAsk =
 	| "condense"
 	| "summarize_task"
 	| "report_bug"
+	| "bead_review"
 
-export type ClineSay =
+export type BeadsmithSay =
 	| "task"
 	| "error"
 	| "error_retry"
@@ -182,7 +231,7 @@ export type ClineSay =
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
-	| "clineignore_error"
+	| "beadsmithignore_error"
 	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
@@ -192,8 +241,11 @@ export type ClineSay =
 	| "hook_status"
 	| "hook_output_stream"
 	| "conditional_rules_applied"
+	| "bead_started"
+	| "bead_completed"
+	| "bead_failed"
 
-export interface ClineSayTool {
+export interface BeadsmithSayTool {
 	tool:
 		| "editedExistingFile"
 		| "newFileCreated"
@@ -217,7 +269,7 @@ export interface ClineSayTool {
 	startLineNumbers?: number[]
 }
 
-export interface ClineSayHook {
+export interface BeadsmithSayHook {
 	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
 	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
 	status: "running" | "completed" | "failed" | "cancelled" // Execution status
@@ -256,13 +308,13 @@ export type HookOutputStreamMeta = {
 export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
 
-export interface ClineSayBrowserAction {
+export interface BeadsmithSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
 }
 
-export interface ClineSayGenerateExplanation {
+export interface BeadsmithSayGenerateExplanation {
 	title: string
 	fromRef: string
 	toRef: string
@@ -277,7 +329,7 @@ export type BrowserActionResult = {
 	currentMousePosition?: string
 }
 
-export interface ClineAskUseMcpServer {
+export interface BeadsmithAskUseMcpServer {
 	serverName: string
 	type: "use_mcp_tool" | "access_mcp_resource"
 	toolName?: string
@@ -285,30 +337,30 @@ export interface ClineAskUseMcpServer {
 	uri?: string
 }
 
-export interface ClinePlanModeResponse {
+export interface BeadsmithPlanModeResponse {
 	response: string
 	options?: string[]
 	selected?: string
 }
 
-export interface ClineAskQuestion {
+export interface BeadsmithAskQuestion {
 	question: string
 	options?: string[]
 	selected?: string
 }
 
-export interface ClineAskNewTask {
+export interface BeadsmithAskNewTask {
 	context: string
 }
 
-export interface ClineApiReqInfo {
+export interface BeadsmithApiReqInfo {
 	request?: string
 	tokensIn?: number
 	tokensOut?: number
 	cacheWrites?: number
 	cacheReads?: number
 	cost?: number
-	cancelReason?: ClineApiReqCancelReason
+	cancelReason?: BeadsmithApiReqCancelReason
 	streamingFailedMessage?: string
 	retryStatus?: {
 		attempt: number
@@ -318,6 +370,56 @@ export interface ClineApiReqInfo {
 	}
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
+export type BeadsmithApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"
+
+// Bead (Ralph Loop) types
+export interface BeadsmithAskBeadReview {
+	beadNumber: number
+	taskId: string
+	filesChanged: Array<{
+		filePath: string
+		changeType: "created" | "modified" | "deleted"
+		linesAdded?: number
+		linesRemoved?: number
+	}>
+	diff: string
+	impactSummary?: {
+		affectedFiles: string[]
+		affectedFunctions: string[]
+		suggestedTests: string[]
+		confidenceBreakdown?: {
+			high: number
+			medium: number
+			low: number
+			unsafe: number
+		}
+	}
+	testResults?: Array<{
+		name: string
+		passed: boolean
+		output?: string
+	}>
+	commitHash?: string
+}
+
+export interface BeadsmithSayBeadStarted {
+	beadNumber: number
+	taskId: string
+	taskDescription: string
+}
+
+export interface BeadsmithSayBeadCompleted {
+	beadNumber: number
+	filesChanged: string[]
+	tokensUsed: number
+	success: boolean
+	errors?: string[]
+}
+
+export interface BeadsmithSayBeadFailed {
+	beadNumber: number
+	errors: string[]
+	canRetry: boolean
+}

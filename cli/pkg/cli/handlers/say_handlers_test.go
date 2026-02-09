@@ -19,8 +19,8 @@ func TestFormatHookPath_HomeDirToTilde(t *testing.T) {
 }
 
 func TestFormatHookPath_WorkspaceRepoRelative(t *testing.T) {
-	got := formatHookPath("/Users/alice/dev/repo-name/.clinerules/hooks/TaskStart")
-	want := "repo-name/.clinerules/hooks/TaskStart"
+	got := formatHookPath("/Users/alice/dev/repo-name/.beadsmithrules/hooks/TaskStart")
+	want := "repo-name/.beadsmithrules/hooks/TaskStart"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
 	}

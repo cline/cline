@@ -1,6 +1,6 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import ClineLogoSanta from "@/assets/ClineLogoSanta"
-import ClineLogoVariable from "@/assets/ClineLogoVariable"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import ClineLogoSanta from "@/assets/BeadsmithLogoSanta"
+import ClineLogoVariable from "@/assets/BeadsmithLogoVariable"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
 

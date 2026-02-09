@@ -15,10 +15,10 @@
  * user's visible VSCode terminal.
  */
 
-import { isSubagentCommand, transformClineCommand } from "@integrations/cli-subagents/subagent_command"
+import { isSubagentCommand, transformBeadsmithCommand } from "@integrations/cli-subagents/subagent_command"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
-import { ClineToolResponseContent } from "@shared/messages"
+import { BeadsmithToolResponseContent } from "@shared/messages"
 import { Logger } from "@/shared/services/Logger"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
@@ -101,11 +101,11 @@ export class CommandExecutor {
 	 * @param timeoutSeconds Optional timeout in seconds
 	 * @returns [userRejected, result] tuple
 	 */
-	async execute(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
+	async execute(command: string, timeoutSeconds: number | undefined): Promise<[boolean, BeadsmithToolResponseContent]> {
 		// Transform subagent commands to ensure flags are correct
 		const isSubagent = isSubagentCommand(command)
 		if (isSubagent) {
-			command = transformClineCommand(command)
+			command = transformBeadsmithCommand(command)
 		}
 
 		// Strip leading `cd` to workspace from command
@@ -216,12 +216,12 @@ export class CommandExecutor {
 			await new Promise((resolve) => setTimeout(resolve, 300))
 
 			// Find the last command_output message and update it
-			const messages = this.callbacks.getClineMessages()
+			const messages = this.callbacks.getBeadsmithMessages()
 			const lastCommandOutputIndex = findLastIndex(messages, (m) => m.ask === "command_output")
 			if (lastCommandOutputIndex !== -1) {
 				const existingText = messages[lastCommandOutputIndex].text || ""
 				const cancellationNotice = "\n\nCommand(s) cancelled by user."
-				await this.callbacks.updateClineMessage(lastCommandOutputIndex, {
+				await this.callbacks.updateBeadsmithMessage(lastCommandOutputIndex, {
 					text: existingText + cancellationNotice,
 				})
 			}

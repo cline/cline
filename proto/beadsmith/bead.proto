@@ -1,0 +1,320 @@
+syntax = "proto3";
+
+package beadsmith;
+
+import "beadsmith/common.proto";
+
+option go_package = "github.com/beadsmith/grpc-go/beadsmith";
+option java_multiple_files = true;
+option java_package = "bot.beadsmith.proto";
+
+// Service for bead management (Ralph Wiggum loop pattern)
+service BeadService {
+  // Starts a new bead task with defined success criteria
+  rpc startBeadTask(StartBeadTaskRequest) returns (BeadTaskResponse);
+  // Gets the current bead task state
+  rpc getBeadTaskState(EmptyRequest) returns (BeadTaskStateResponse);
+  // Approves the current bead and commits changes
+  rpc approveBead(ApproveBeadRequest) returns (BeadResponse);
+  // Rejects the current bead with feedback
+  rpc rejectBead(RejectBeadRequest) returns (BeadResponse);
+  // Skips the current bead without committing
+  rpc skipBead(EmptyRequest) returns (BeadResponse);
+  // Pauses the current bead task
+  rpc pauseBeadTask(EmptyRequest) returns (Empty);
+  // Resumes a paused bead task
+  rpc resumeBeadTask(EmptyRequest) returns (Empty);
+  // Cancels the current bead task
+  rpc cancelBeadTask(EmptyRequest) returns (Empty);
+  // Gets the history of beads for a task
+  rpc getBeadHistory(StringRequest) returns (BeadHistoryResponse);
+  // Subscribes to bead state updates
+  rpc subscribeToBeadUpdates(EmptyRequest) returns (stream BeadUpdateEvent);
+}
+
+// Status of a bead in the review workflow
+enum BeadStatus {
+  BEAD_STATUS_UNSPECIFIED = 0;
+  BEAD_STATUS_RUNNING = 1;
+  BEAD_STATUS_AWAITING_APPROVAL = 2;
+  BEAD_STATUS_APPROVED = 3;
+  BEAD_STATUS_REJECTED = 4;
+  BEAD_STATUS_SKIPPED = 5;
+}
+
+// Type of success criterion for completing a bead or task
+enum SuccessCriterionType {
+  SUCCESS_CRITERION_UNSPECIFIED = 0;
+  SUCCESS_CRITERION_TESTS_PASS = 1;
+  SUCCESS_CRITERION_DONE_TAG = 2;
+  SUCCESS_CRITERION_NO_ERRORS = 3;
+  SUCCESS_CRITERION_CUSTOM = 4;
+}
+
+// Overall status of the Ralph loop task
+enum BeadTaskStatus {
+  BEAD_TASK_STATUS_UNSPECIFIED = 0;
+  BEAD_TASK_STATUS_IDLE = 1;
+  BEAD_TASK_STATUS_RUNNING = 2;
+  BEAD_TASK_STATUS_PAUSED = 3;
+  BEAD_TASK_STATUS_AWAITING_APPROVAL = 4;
+  BEAD_TASK_STATUS_COMPLETED = 5;
+  BEAD_TASK_STATUS_FAILED = 6;
+}
+
+// Type of file change within a bead
+enum BeadFileChangeType {
+  BEAD_FILE_CHANGE_UNSPECIFIED = 0;
+  BEAD_FILE_CHANGE_CREATED = 1;
+  BEAD_FILE_CHANGE_MODIFIED = 2;
+  BEAD_FILE_CHANGE_DELETED = 3;
+}
+
+// Success criterion configuration
+message SuccessCriterion {
+  SuccessCriterionType type = 1;
+  // Optional configuration for the criterion (serialized JSON)
+  optional string config_json = 2;
+}
+
+// Result of evaluating success criteria
+message SuccessCriteriaResult {
+  bool all_passed = 1;
+  // Map of criterion type to pass/fail result
+  map<string, bool> results = 2;
+  optional string details = 3;
+}
+
+// A change to a single file within a bead
+message BeadFileChange {
+  string file_path = 1;
+  BeadFileChangeType change_type = 2;
+  optional string diff = 3;
+  optional int32 lines_added = 4;
+  optional int32 lines_removed = 5;
+  // Node IDs of symbols impacted by this change (from DAG analysis)
+  repeated string impacted_nodes = 6;
+}
+
+// Result of a test run within a bead
+message BeadTestResult {
+  string name = 1;
+  bool passed = 2;
+  optional string output = 3;
+  optional int64 duration_ms = 4;
+}
+
+// Summary of the impact analysis for a bead
+message BeadImpactSummary {
+  // Files that may be affected by changes in this bead
+  repeated string affected_files = 1;
+  // Functions that may be affected
+  repeated string affected_functions = 2;
+  // Suggested test files to run
+  repeated string suggested_tests = 3;
+  // Breakdown of edge confidence levels
+  ConfidenceBreakdown confidence_breakdown = 4;
+}
+
+// Breakdown of edge confidence levels
+message ConfidenceBreakdown {
+  int32 high = 1;
+  int32 medium = 2;
+  int32 low = 3;
+  int32 unsafe = 4;
+}
+
+// A single bead representing one discrete chunk of work
+message Bead {
+  // Unique identifier for this bead
+  string id = 1;
+  // ID of the parent task
+  string task_id = 2;
+  // Sequential bead number within the task (1-indexed)
+  int32 bead_number = 3;
+  // Current status in the approval workflow
+  BeadStatus status = 4;
+  // Timestamp when the bead started (ms since epoch)
+  int64 started_at = 5;
+  // Timestamp when the bead completed (ms since epoch)
+  optional int64 completed_at = 6;
+  // The prompt sent to the LLM for this bead
+  optional string prompt = 7;
+  // The LLM's response
+  optional string response = 8;
+  // Files changed in this bead
+  repeated BeadFileChange files_changed = 9;
+  // Test results if tests were run
+  repeated BeadTestResult test_results = 10;
+  // Git commit hash if the bead was committed
+  optional string commit_hash = 11;
+  // Tokens used by the LLM in this bead
+  int32 tokens_used = 12;
+  // Number of retry iterations within this bead
+  int32 iteration_count = 13;
+  // Errors encountered during execution
+  repeated string errors = 14;
+  // User feedback if the bead was rejected
+  optional string rejection_feedback = 15;
+  // Impact summary from DAG analysis
+  optional BeadImpactSummary impact_summary = 16;
+}
+
+// Task definition with success criteria for the Ralph loop
+message BeadTaskDefinition {
+  // Unique task identifier
+  string id = 1;
+  // Human-readable task description
+  string description = 2;
+  // Workspace root path
+  string workspace_root = 3;
+  // Criteria that must be met for task completion
+  repeated SuccessCriterion success_criteria = 4;
+  // Maximum tokens allowed for the entire task
+  int32 token_budget = 5;
+  // Maximum number of bead iterations
+  int32 max_iterations = 6;
+  // Optional: command to run tests
+  optional string test_command = 7;
+}
+
+// Summary of task completion
+message BeadTaskSummary {
+  // Total number of beads executed
+  int32 bead_count = 1;
+  // Total tokens used across all beads
+  int32 total_tokens_used = 2;
+  // Whether the task completed successfully
+  bool success = 3;
+  // Final status
+  BeadTaskStatus status = 4;
+  // Completion timestamp (ms since epoch)
+  int64 completed_at = 5;
+  // Error message if failed
+  optional string error_message = 6;
+}
+
+// State for the bead manager / Ralph loop controller
+message BeadManagerState {
+  // Current task being executed
+  optional BeadTaskDefinition current_task = 1;
+  // Current task status
+  BeadTaskStatus status = 2;
+  // Current bead number (0 if not started)
+  int32 current_bead_number = 3;
+  // Beads completed so far
+  repeated Bead beads = 4;
+  // Total tokens used
+  int32 total_tokens_used = 5;
+  // Total iteration count across all beads
+  int32 total_iteration_count = 6;
+  // Most recent success criteria evaluation
+  optional SuccessCriteriaResult last_criteria_result = 7;
+}
+
+// Request to start a new bead task
+message StartBeadTaskRequest {
+  Metadata metadata = 1;
+  // Task description
+  string description = 2;
+  // Success criteria for the task
+  repeated SuccessCriterion success_criteria = 3;
+  // Maximum token budget
+  int32 token_budget = 4;
+  // Maximum iterations
+  int32 max_iterations = 5;
+  // Optional test command
+  optional string test_command = 6;
+}
+
+// Response after starting a bead task
+message BeadTaskResponse {
+  string task_id = 1;
+  BeadTaskStatus status = 2;
+}
+
+// Response with current bead task state
+message BeadTaskStateResponse {
+  BeadManagerState state = 1;
+}
+
+// Request to approve a bead
+message ApproveBeadRequest {
+  Metadata metadata = 1;
+  // Optional commit message override
+  optional string commit_message = 2;
+}
+
+// Request to reject a bead
+message RejectBeadRequest {
+  Metadata metadata = 1;
+  // Feedback explaining why the bead was rejected
+  string feedback = 2;
+}
+
+// Response for bead operations
+message BeadResponse {
+  Bead bead = 1;
+  BeadTaskStatus task_status = 2;
+}
+
+// Response with bead history
+message BeadHistoryResponse {
+  repeated Bead beads = 1;
+  BeadTaskSummary summary = 2;
+}
+
+// Event for bead state updates (streaming)
+message BeadUpdateEvent {
+  // Type of update
+  BeadUpdateType type = 1;
+  // Current bead state
+  optional Bead bead = 2;
+  // Current task status
+  BeadTaskStatus task_status = 3;
+  // Any message to display
+  optional string message = 4;
+}
+
+// Type of bead update event
+enum BeadUpdateType {
+  BEAD_UPDATE_UNSPECIFIED = 0;
+  BEAD_UPDATE_STARTED = 1;
+  BEAD_UPDATE_PROGRESS = 2;
+  BEAD_UPDATE_AWAITING_APPROVAL = 3;
+  BEAD_UPDATE_APPROVED = 4;
+  BEAD_UPDATE_REJECTED = 5;
+  BEAD_UPDATE_SKIPPED = 6;
+  BEAD_UPDATE_COMPLETED = 7;
+  BEAD_UPDATE_FAILED = 8;
+}
+
+// Message types for UI notifications about beads
+message BeadsmithSayBeadStarted {
+  int32 bead_number = 1;
+  string task_id = 2;
+  string task_description = 3;
+}
+
+message BeadsmithSayBeadCompleted {
+  int32 bead_number = 1;
+  repeated string files_changed = 2;
+  int32 tokens_used = 3;
+  bool success = 4;
+  repeated string errors = 5;
+}
+
+message BeadsmithAskBeadReview {
+  int32 bead_number = 1;
+  repeated BeadFileChange files_changed = 2;
+  string diff = 3;
+  optional BeadImpactSummary impact_summary = 4;
+  repeated BeadTestResult test_results = 5;
+  optional string commit_hash = 6;
+}
+
+message BeadsmithSayBeadFailed {
+  int32 bead_number = 1;
+  repeated string errors = 2;
+  bool can_retry = 3;
+}

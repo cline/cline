@@ -1,4 +1,4 @@
-import { RecordingResult } from "@shared/proto/cline/dictation"
+import { RecordingResult } from "@shared/proto/beadsmith/dictation"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"

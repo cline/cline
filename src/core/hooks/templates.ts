@@ -26,7 +26,7 @@ function getTaskStartTemplate(): string {
 # 
 # Executes when a new task begins.
 # 
-# Input: { taskId, taskStart: { task: string }, clineVersion, timestamp, ... }
+# Input: { taskId, taskStart: { task: string }, beadsmithVersion, timestamp, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -70,7 +70,7 @@ function getTaskResumeTemplate(): string {
 # 
 # Executes when a task is resumed after being interrupted.
 # 
-# Input: { taskId, taskResume: { task: string }, clineVersion, timestamp, ... }
+# Input: { taskId, taskResume: { task: string }, beadsmithVersion, timestamp, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -102,7 +102,7 @@ function getTaskCancelTemplate(): string {
 # 
 # Executes when a task is cancelled by the user.
 # 
-# Input: { taskId, taskCancel: { task: string }, clineVersion, timestamp, ... }
+# Input: { taskId, taskCancel: { task: string }, beadsmithVersion, timestamp, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -134,7 +134,7 @@ function getTaskCompleteTemplate(): string {
 # 
 # Executes when a task completes successfully.
 # 
-# Input: { taskId, taskComplete: { task: string }, clineVersion, timestamp, ... }
+# Input: { taskId, taskComplete: { task: string }, beadsmithVersion, timestamp, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:
@@ -257,9 +257,9 @@ function getUserPromptSubmitTemplate(): string {
 #
 # UserPromptSubmit Hook
 # 
-# Executes when the user submits a prompt to Cline.
+# Executes when the user submits a prompt to Beadsmith.
 # 
-# Input: { taskId, userPromptSubmit: { prompt: string }, clineVersion, timestamp, ... }
+# Input: { taskId, userPromptSubmit: { prompt: string }, beadsmithVersion, timestamp, ... }
 # Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
 # 
 # Use cases:

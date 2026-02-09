@@ -3,7 +3,7 @@
  * Allows switching between different error tracking providers (PostHog, Sentry, etc.)
  */
 
-import type { ClineError } from "../ClineError"
+import type { BeadsmithError } from "../BeadsmithError"
 
 /**
  * Error settings that control when and how errors are logged
@@ -24,10 +24,10 @@ export interface ErrorSettings {
 export interface IErrorProvider {
 	/**
 	 * Log an exception with error details
-	 * @param error The error to log (Error or ClineError)
+	 * @param error The error to log (Error or BeadsmithError)
 	 * @param properties Optional additional properties to attach
 	 */
-	logException(error: Error | ClineError, properties?: Record<string, unknown>): void
+	logException(error: Error | BeadsmithError, properties?: Record<string, unknown>): void
 
 	/**
 	 * Log a message with specified level

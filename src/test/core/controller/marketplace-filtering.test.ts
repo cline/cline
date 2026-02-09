@@ -5,7 +5,7 @@ import type { McpMarketplaceItem } from "@shared/mcp"
 import type { RemoteConfig } from "@shared/remote-config/schema"
 import axios from "axios"
 import * as sinon from "sinon"
-import { ClineEndpoint, ClineEnv } from "@/config"
+import { BeadsmithEndpoint, BeadsmithEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**
@@ -20,10 +20,10 @@ describe("Controller Marketplace Filtering", () => {
 	let axiosGetStub: sinon.SinonStub
 	let hostProviderInitialized: boolean = false
 
-	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
+	// Initialize BeadsmithEndpoint before tests run (required for BeadsmithEnv.config() to work)
 	before(async () => {
-		if (!ClineEndpoint.isInitialized()) {
-			await ClineEndpoint.initialize()
+		if (!BeadsmithEndpoint.isInitialized()) {
+			await BeadsmithEndpoint.initialize()
 		}
 	})
 
@@ -265,7 +265,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			sinon.assert.calledOnce(axiosGetStub)
 			const callArgs = axiosGetStub.firstCall.args
-			callArgs[0].should.equal(`${ClineEnv.config().mcpBaseUrl}/marketplace`)
+			callArgs[0].should.equal(`${BeadsmithEnv.config().mcpBaseUrl}/marketplace`)
 		})
 
 		it("should handle API errors gracefully", async () => {

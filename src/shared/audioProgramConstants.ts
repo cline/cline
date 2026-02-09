@@ -22,7 +22,7 @@ export const AUDIO_PROGRAM_CONFIG = {
 		dependencyName: "FFmpeg",
 		installCommand: "brew install ffmpeg",
 		error: "FFmpeg is required for voice recording but is not installed on your system.",
-		installDescription: "FFmpeg is a multimedia framework that Cline uses to record audio from your microphone.",
+		installDescription: "FFmpeg is a multimedia framework that Beadsmith uses to record audio from your microphone.",
 	},
 	linux: {
 		command: "ffmpeg",
@@ -47,7 +47,7 @@ export const AUDIO_PROGRAM_CONFIG = {
 		dependencyName: "FFmpeg",
 		installCommand: "sudo apt-get update && sudo apt-get install -y ffmpeg",
 		error: "FFmpeg is required for voice recording but is not installed on your system.",
-		installDescription: "FFmpeg is a multimedia framework that Cline uses to record audio from your microphone.",
+		installDescription: "FFmpeg is a multimedia framework that Beadsmith uses to record audio from your microphone.",
 	},
 	win32: {
 		command: "ffmpeg",
@@ -76,6 +76,6 @@ export const AUDIO_PROGRAM_CONFIG = {
 		dependencyName: "FFmpeg",
 		installCommand: "winget install Gyan.FFmpeg",
 		error: "FFmpeg is required for voice recording but is not installed on your system.",
-		installDescription: "FFmpeg is a multimedia framework that Cline uses to record audio from your microphone.",
+		installDescription: "FFmpeg is a multimedia framework that Beadsmith uses to record audio from your microphone.",
 	},
 }

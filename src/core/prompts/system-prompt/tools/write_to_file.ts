@@ -1,6 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
 /**
@@ -22,9 +22,9 @@ Checklist here (optional)
 </write_to_file>
  */
 
-const id = ClineDefaultTool.FILE_NEW
+const id = BeadsmithDefaultTool.FILE_NEW
 
-const GENERIC: ClineToolSpec = {
+const GENERIC: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "write_to_file",
@@ -48,7 +48,7 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id,
 	name: "write_to_file",
@@ -70,7 +70,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	...NATIVE_NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
 }

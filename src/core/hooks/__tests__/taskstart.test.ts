@@ -32,8 +32,8 @@ describe("TaskStart Hook", () => {
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
 
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+		// Create .beadsmithrules/hooks directory
+		const hooksDir = path.join(tempDir, ".beadsmithrules", "hooks")
 		await fs.mkdir(hooksDir, { recursive: true })
 
 		// Mock StateManager to return our temp directory
@@ -60,7 +60,7 @@ describe("TaskStart Hook", () => {
 
 	describe("Hook Input Format", () => {
 		it("should receive task metadata from startTask", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskStart.taskMetadata;
@@ -92,10 +92,10 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasAllFields = input.clineVersion && input.hookName === 'TaskStart' && 
+const hasAllFields = input.beadsmithVersion && input.hookName === 'TaskStart' && 
                      input.timestamp && input.taskId && 
                      input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
@@ -125,7 +125,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle empty initialTask", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const initialTask = input.taskStart.taskMetadata.initialTask;
@@ -158,7 +158,7 @@ console.log(JSON.stringify({
 
 	describe("Hook Behavior", () => {
 		it("should allow task to start when hook returns cancel: false", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -187,7 +187,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should block task when hook returns cancel: true", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,
@@ -216,7 +216,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should provide context modification even when not added to conversation", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -248,7 +248,7 @@ console.log(JSON.stringify({
 
 	describe("Error Handling", () => {
 		it("should handle hook script errors", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.error("Hook execution error");
 process.exit(1);`
@@ -276,7 +276,7 @@ process.exit(1);`
 		})
 
 		it("should handle malformed JSON output from hook", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -333,7 +333,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const workspaceHookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -370,7 +370,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const workspaceHookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -406,7 +406,7 @@ console.log(JSON.stringify({
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
 
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
+			const workspaceHookPath = path.join(tempDir, ".beadsmithrules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,

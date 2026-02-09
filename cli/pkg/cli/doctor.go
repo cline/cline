@@ -3,10 +3,10 @@ package cli
 import (
 	"fmt"
 
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/terminal"
-	"github.com/cline/cli/pkg/cli/updater"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/terminal"
+	"github.com/beadsmith/cli/pkg/cli/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +16,7 @@ func NewDoctorCommand() *cobra.Command {
 		Use:     "doctor",
 		Aliases: []string{"d"},
 		Short:   "Check system health and diagnose problems",
-		Long: `Check the health of your Cline CLI installation and diagnose problems.
+		Long: `Check the health of your Beadsmith CLI installation and diagnose problems.
 
 Currently this command performs the following checks and fixes:
 
@@ -34,7 +34,7 @@ CLI Updates:
   - Skipped in CI environments
 
 Note: Future versions will include additional health checks for Node.js version,
-npm availability, Cline Core connectivity, database integrity, and more.`,
+npm availability, Beadsmith Core connectivity, database integrity, and more.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDoctorChecks()
 		},

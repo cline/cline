@@ -1,0 +1,25 @@
+---
+title: "GitHub Copilot SDK"
+description: "Use the GitHub Copilot SDK (Copilot CLI) as a provider inside Beadsmith."
+---
+
+Beadsmith includes a **GitHub Copilot SDK** provider powered by the Copilot CLI runtime. This is useful when you want to run Copilot outside of the VS Code Language Model API flow.
+
+### Prerequisites
+
+- **Copilot CLI installed** and available on your PATH.
+- **GitHub Copilot subscription** (Copilot CLI will validate your account).
+
+### Configuration Steps
+
+1. Open Beadsmith **Settings** and select **GitHub Copilot SDK** as the provider.
+2. (Optional) Set **Copilot CLI Path** if the binary is not on your PATH.
+3. (Optional) Set **Copilot CLI URL** if you already run a Copilot CLI server and want to connect to it.
+4. (Optional) Add a **GitHub token** if you do not want to rely on your logged-in user.
+5. Set a **Model ID** supported by your Copilot CLI account.
+
+### Notes
+
+- If **Copilot CLI URL** is set, Beadsmith will connect to that server and ignore local CLI path/auth options.
+- This provider currently disables Copilot CLI tool access and only uses model responses. Beadsmith tools are still available.
+

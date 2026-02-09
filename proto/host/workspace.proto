@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package host;
 
-import "cline/common.proto";
+import "beadsmith/common.proto";
 
-option go_package = "github.com/cline/grpc-go/host";
+option go_package = "github.com/beadsmith/grpc-go/host";
 option java_multiple_files = true;
-option java_package = "bot.cline.host.proto";
+option java_package = "bot.beadsmith.host.proto";
 
 // Provides methods for working with workspaces/projects.
 service WorkspaceService {
@@ -27,8 +27,8 @@ service WorkspaceService {
   // Opens the IDE file explorer panel and selects a file or directory.
   rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse);
 
-  // Opens and focuses the Cline sidebar panel in the host IDE.
-  rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
+  // Opens and focuses the Beadsmith sidebar panel in the host IDE.
+  rpc openBeadsmithSidebarPanel(OpenBeadsmithSidebarPanelRequest) returns (OpenBeadsmithSidebarPanelResponse);
 
   // Opens and focuses the terminal panel.
   rpc openTerminalPanel(OpenTerminalRequest) returns (OpenTerminalResponse);
@@ -42,7 +42,7 @@ service WorkspaceService {
 
 message GetWorkspacePathsRequest {
   // The unique ID for the workspace/project.
-  // This is currently optional in vscode. It is required in other environments where cline is running at
+  // This is currently optional in vscode. It is required in other environments where beadsmith is running at
   // the application level, and the user can open multiple projects.
   optional string id = 1;
 }
@@ -62,11 +62,11 @@ message SaveOpenDocumentIfDirtyResponse {
 }
 
 message GetDiagnosticsRequest {
-  optional cline.Metadata metadata = 1;
+  optional beadsmith.Metadata metadata = 1;
 }
 
 message GetDiagnosticsResponse {
-  repeated cline.FileDiagnostics file_diagnostics = 1;
+  repeated beadsmith.FileDiagnostics file_diagnostics = 1;
 }
 
 // Request for host-side workspace search (files/folders) used by mentions autocomplete
@@ -97,8 +97,8 @@ message OpenInFileExplorerPanelRequest {
   string path = 1;
 }
 message OpenInFileExplorerPanelResponse {}
-message OpenClineSidebarPanelRequest {}
-message OpenClineSidebarPanelResponse {}
+message OpenBeadsmithSidebarPanelRequest {}
+message OpenBeadsmithSidebarPanelResponse {}
 message OpenTerminalRequest {}
 message OpenTerminalResponse {}
 

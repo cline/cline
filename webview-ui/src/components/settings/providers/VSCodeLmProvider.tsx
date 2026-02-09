@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
@@ -54,26 +54,33 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							if (!value) {
 								return
 							}
-							const [vendor, family] = value.split("/")
+							const [vendor, family, id] = value.split("/")
 
 							handleModeFieldChange(
 								{ plan: "planModeVsCodeLmModelSelector", act: "actModeVsCodeLmModelSelector" },
-								{ vendor, family },
+								{ vendor, family, id: id || undefined },
 								currentMode,
 							)
 						}}
 						style={{ width: "100%" }}
 						value={
 							vsCodeLmModelSelector
-								? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}`
+								? `${vsCodeLmModelSelector.vendor ?? ""}/${vsCodeLmModelSelector.family ?? ""}/${vsCodeLmModelSelector.id ?? ""}`
 								: ""
 						}>
 						<VSCodeOption value="">Select a model...</VSCodeOption>
-						{vsCodeLmModels.map((model) => (
-							<VSCodeOption key={`${model.vendor}/${model.family}`} value={`${model.vendor}/${model.family}`}>
-								{model.vendor} - {model.family}
-							</VSCodeOption>
-						))}
+						{vsCodeLmModels.map((model) => {
+							// Use model.id for uniqueness, fall back to vendor/family for display
+							const uniqueKey = model.id || `${model.vendor}/${model.family}`
+							const displayName = model.id && model.id !== model.family
+								? `${model.vendor} - ${model.id}`
+								: `${model.vendor} - ${model.family}`
+							return (
+								<VSCodeOption key={uniqueKey} value={`${model.vendor}/${model.family}/${model.id || ""}`}>
+									{displayName}
+								</VSCodeOption>
+							)
+						})}
 					</VSCodeDropdown>
 				) : (
 					<p

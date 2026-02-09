@@ -254,7 +254,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 	}
 
 	// Append stealth models if any
-	const finalModels = appendClineStealthModels(models)
+	const finalModels = appendBeadsmithStealthModels(models)
 
 	// Store in StateManager's in-memory cache
 	StateManager.get().setModelsCache("openRouter", finalModels)
@@ -267,7 +267,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {}
 
-export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
+export function appendBeadsmithStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	// Create a shallow clone of the current models to avoid mutating the original object
 	const cloned = { ...currentModels }
 	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {

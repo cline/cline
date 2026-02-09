@@ -1,4 +1,4 @@
-import { DeleteSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
+import { DeleteSkillRequest, SkillsToggles } from "@shared/proto/beadsmith/file"
 import fs from "fs/promises"
 import path from "path"
 import { Logger } from "@/shared/services/Logger"

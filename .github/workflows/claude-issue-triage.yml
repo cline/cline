@@ -49,7 +49,7 @@ jobs:
           # Allow all tools - security is enforced by GitHub permissions above (contents: read, issues: write)
           claude_args: --model claude-opus-4-5-20251101 --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
           prompt: |
-            You're a GitHub issue first responder for the open source Cline repository.
+            You're a GitHub issue first responder for the open source Beadsmith repository.
 
             **Issue:** #${{ github.event.issue.number || inputs.issue_number }}
             **Title:** ${{ github.event.issue.title || 'See issue details below' }}
@@ -104,11 +104,11 @@ jobs:
 
             ### Find documentation
 
-            Cline docs are at **https://docs.cline.bot/** and built with Mintlify from the `docs/` directory.
+            Beadsmith docs are at **https://docs.beadsmith.bot/** and built with Mintlify from the `docs/` directory.
 
             The URL structure maps directly to the file structure:
-            - `docs/getting-started/selecting-your-model.mdx` → https://docs.cline.bot/getting-started/selecting-your-model
-            - `docs/troubleshooting.mdx` → https://docs.cline.bot/troubleshooting
+            - `docs/getting-started/selecting-your-model.mdx` → https://docs.beadsmith.bot/getting-started/selecting-your-model
+            - `docs/troubleshooting.mdx` → https://docs.beadsmith.bot/troubleshooting
             - Headings become anchors: `## Which Model` → `#which-model`
 
             Search the `docs/` directory to find relevant documentation, then construct URLs to link users to:
@@ -136,7 +136,7 @@ jobs:
             - Nonsensical or malformed responses
             - User is running a small/local model or older model version
 
-            If this looks like a weak model issue, kindly suggest they try reproducing with Claude Sonnet and report back if it persists. Link to https://docs.cline.bot/getting-started/selecting-your-model if helpful. Still label and triage normally.
+            If this looks like a weak model issue, kindly suggest they try reproducing with Claude Sonnet and report back if it persists. Link to https://docs.beadsmith.bot/getting-started/selecting-your-model if helpful. Still label and triage normally.
 
             ## Your comment
 

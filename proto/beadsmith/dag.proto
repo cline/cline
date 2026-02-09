@@ -1,0 +1,323 @@
+syntax = "proto3";
+
+package beadsmith;
+
+import "beadsmith/common.proto";
+
+option go_package = "github.com/beadsmith/grpc-go/beadsmith";
+option java_multiple_files = true;
+option java_package = "bot.beadsmith.proto";
+
+// Service for DAG (Directed Acyclic Graph) analysis engine
+service DagService {
+  // Analyses a project and builds the dependency graph
+  rpc analyseProject(AnalyseProjectRequest) returns (ProjectGraph);
+  // Gets the current cached project graph
+  rpc getProjectGraph(EmptyRequest) returns (ProjectGraph);
+  // Gets impact analysis for a file or function
+  rpc getImpact(GetImpactRequest) returns (ImpactReport);
+  // Gets the status of the DAG service
+  rpc getStatus(EmptyRequest) returns (DagServiceStatus);
+  // Invalidates cache and forces re-analysis
+  rpc invalidateCache(EmptyRequest) returns (Empty);
+  // Performs incremental analysis on changed files
+  rpc analyseIncremental(IncrementalAnalysisRequest) returns (ProjectGraph);
+  // Gets nodes that match a query (file path, symbol name, etc.)
+  rpc queryNodes(QueryNodesRequest) returns (QueryNodesResponse);
+  // Gets edges connected to a specific node
+  rpc getNodeEdges(GetNodeEdgesRequest) returns (GetNodeEdgesResponse);
+  // Subscribes to DAG update events
+  rpc subscribeToDagUpdates(EmptyRequest) returns (stream DagUpdateEvent);
+}
+
+// Confidence level for dependency edges
+enum EdgeConfidence {
+  EDGE_CONFIDENCE_UNSPECIFIED = 0;
+  EDGE_CONFIDENCE_HIGH = 1;
+  EDGE_CONFIDENCE_MEDIUM = 2;
+  EDGE_CONFIDENCE_LOW = 3;
+  EDGE_CONFIDENCE_UNSAFE = 4;
+}
+
+// Type of node in the dependency graph
+enum NodeType {
+  NODE_TYPE_UNSPECIFIED = 0;
+  NODE_TYPE_FILE = 1;
+  NODE_TYPE_CLASS = 2;
+  NODE_TYPE_FUNCTION = 3;
+  NODE_TYPE_METHOD = 4;
+  NODE_TYPE_VARIABLE = 5;
+}
+
+// Type of relationship between nodes
+enum EdgeType {
+  EDGE_TYPE_UNSPECIFIED = 0;
+  EDGE_TYPE_IMPORT = 1;
+  EDGE_TYPE_CALL = 2;
+  EDGE_TYPE_INHERIT = 3;
+  EDGE_TYPE_REFERENCE = 4;
+}
+
+// Severity level for analysis warnings
+enum WarningSeverity {
+  WARNING_SEVERITY_UNSPECIFIED = 0;
+  WARNING_SEVERITY_LOW = 1;
+  WARNING_SEVERITY_MEDIUM = 2;
+  WARNING_SEVERITY_HIGH = 3;
+}
+
+// Type of analysis warning
+enum WarningType {
+  WARNING_TYPE_UNSPECIFIED = 0;
+  WARNING_TYPE_DYNAMIC_IMPORT = 1;
+  WARNING_TYPE_LATE_BINDING = 2;
+  WARNING_TYPE_CIRCULAR_DEPENDENCY = 3;
+  WARNING_TYPE_REFLECTION = 4;
+  WARNING_TYPE_PARSE_ERROR = 5;
+  WARNING_TYPE_UNKNOWN = 6;
+}
+
+// Type of DAG update event
+enum DagUpdateType {
+  DAG_UPDATE_UNSPECIFIED = 0;
+  DAG_UPDATE_FULL_ANALYSIS = 1;
+  DAG_UPDATE_INCREMENTAL = 2;
+  DAG_UPDATE_INVALIDATION = 3;
+}
+
+// A node in the dependency graph representing a code symbol
+message GraphNode {
+  // Unique identifier (format: file_path:symbol_name)
+  string id = 1;
+  // Type of the node
+  NodeType type = 2;
+  // Absolute file path
+  string file_path = 3;
+  // Line number where the symbol is defined
+  int32 line_number = 4;
+  // Name of the symbol
+  string name = 5;
+  // Docstring or JSDoc comment if available
+  optional string docstring = 6;
+  // Parameter names and types for functions/methods
+  repeated string parameters = 7;
+  // Return type annotation if available
+  optional string return_type = 8;
+  // Column number (optional, for precise navigation)
+  optional int32 column_number = 9;
+  // End line number (for multi-line definitions)
+  optional int32 end_line_number = 10;
+}
+
+// An edge in the dependency graph representing a relationship between symbols
+message GraphEdge {
+  // ID of the source node (the one that depends on/uses the target)
+  string from_node = 1;
+  // ID of the target node (the one being depended on/used)
+  string to_node = 2;
+  // Type of the relationship
+  EdgeType edge_type = 3;
+  // Confidence level of this edge
+  EdgeConfidence confidence = 4;
+  // Line number where the reference occurs
+  int32 line_number = 5;
+  // Human-readable description of the relationship
+  string label = 6;
+  // Additional context (e.g., import alias, call arguments)
+  optional string context = 7;
+}
+
+// Warning generated during analysis
+message AnalysisWarning {
+  // Category of warning
+  WarningType type = 1;
+  // File where the warning occurred
+  string file = 2;
+  // Line number
+  int32 line = 3;
+  // Description of the issue
+  string description = 4;
+  // Severity level
+  WarningSeverity severity = 5;
+}
+
+// Summary statistics for the graph
+message GraphSummary {
+  // Total number of files analysed
+  int32 files = 1;
+  // Total number of functions/methods
+  int32 functions = 2;
+  // Total number of classes
+  int32 classes = 3;
+  // Total number of edges
+  int32 edges = 4;
+  // Count of high-confidence edges
+  int32 high_confidence_edges = 5;
+  // Count of medium-confidence edges
+  int32 medium_confidence_edges = 6;
+  // Count of low-confidence edges
+  int32 low_confidence_edges = 7;
+  // Count of unsafe (dynamic) edges
+  int32 unsafe_edges = 8;
+  // Analysis duration in milliseconds
+  optional int64 analysis_time_ms = 9;
+}
+
+// Complete project dependency graph
+message ProjectGraph {
+  // Schema version
+  string version = 1;
+  // Root path of the analysed project
+  string project_root = 2;
+  // ISO timestamp of when analysis was performed
+  string analysis_timestamp = 3;
+  // All nodes in the graph
+  repeated GraphNode nodes = 4;
+  // All edges in the graph
+  repeated GraphEdge edges = 5;
+  // Warnings generated during analysis
+  repeated AnalysisWarning warnings = 6;
+  // Summary statistics
+  GraphSummary summary = 7;
+}
+
+// Report of change impact analysis
+message ImpactReport {
+  // File that was changed
+  string changed_file = 1;
+  // Optional: specific function that was changed
+  optional string changed_function = 2;
+  // Files that may be affected by the change
+  repeated string affected_files = 3;
+  // Functions that may be affected
+  repeated string affected_functions = 4;
+  // Suggested test files to run
+  repeated string suggested_tests = 5;
+  // Breakdown of edge confidence levels in the impact path
+  map<string, int32> confidence_breakdown = 6;
+  // Total depth of impact (how many levels of callers)
+  int32 impact_depth = 7;
+  // Whether any circular dependencies were encountered
+  bool has_circular_dependencies = 8;
+}
+
+// Status of the DAG analysis service
+message DagServiceStatus {
+  // Whether the service is running
+  bool running = 1;
+  // Version of the DAG engine
+  string version = 2;
+  // Whether a graph is currently cached
+  bool has_cache = 3;
+  // Timestamp of the last analysis (ISO format)
+  optional string last_analysis = 4;
+  // Number of files in the current graph
+  optional int32 file_count = 5;
+  // Any error message if the service is unhealthy
+  optional string error = 6;
+  // Process ID of the Python subprocess
+  optional int32 process_id = 7;
+  // Memory usage in bytes
+  optional int64 memory_usage = 8;
+}
+
+// Configuration for the DAG service
+message DagServiceConfig {
+  // Path to Python executable
+  string python_path = 1;
+  // Whether DAG analysis is enabled
+  bool enabled = 2;
+  // Whether to auto-refresh on file changes
+  bool auto_refresh = 3;
+  // Debounce delay for auto-refresh (ms)
+  int32 auto_refresh_delay_ms = 4;
+  // Maximum file count before disabling auto-analysis
+  int32 max_files_for_auto_analysis = 5;
+}
+
+// Request to analyse a project
+message AnalyseProjectRequest {
+  Metadata metadata = 1;
+  // Root path of the project to analyse
+  string root = 2;
+  // Optional: specific files to include (if not provided, analyse all)
+  repeated string include_files = 3;
+  // Optional: patterns to exclude
+  repeated string exclude_patterns = 4;
+  // Whether to use cached results if available
+  bool use_cache = 5;
+}
+
+// Request to get impact analysis
+message GetImpactRequest {
+  Metadata metadata = 1;
+  // File path to analyse impact for
+  string file = 2;
+  // Optional: specific function name
+  optional string function = 3;
+  // Maximum depth to traverse (0 for unlimited)
+  int32 max_depth = 4;
+  // Minimum confidence level to include
+  EdgeConfidence min_confidence = 5;
+}
+
+// Request for incremental analysis on changed files
+message IncrementalAnalysisRequest {
+  Metadata metadata = 1;
+  // Files that have changed
+  repeated string changed_files = 2;
+  // Files that have been deleted
+  repeated string deleted_files = 3;
+}
+
+// Request to query nodes
+message QueryNodesRequest {
+  Metadata metadata = 1;
+  // File path filter (partial match)
+  optional string file_path = 2;
+  // Symbol name filter (partial match)
+  optional string name = 3;
+  // Node type filter
+  optional NodeType type = 4;
+  // Maximum number of results
+  int32 limit = 5;
+}
+
+// Response for node queries
+message QueryNodesResponse {
+  repeated GraphNode nodes = 1;
+  int32 total_count = 2;
+}
+
+// Request to get edges for a node
+message GetNodeEdgesRequest {
+  Metadata metadata = 1;
+  // ID of the node
+  string node_id = 2;
+  // Include incoming edges (callers)
+  bool include_incoming = 3;
+  // Include outgoing edges (callees)
+  bool include_outgoing = 4;
+  // Maximum depth for transitive edges
+  int32 max_depth = 5;
+}
+
+// Response for node edge queries
+message GetNodeEdgesResponse {
+  // Incoming edges (things that depend on this node)
+  repeated GraphEdge incoming = 1;
+  // Outgoing edges (things this node depends on)
+  repeated GraphEdge outgoing = 2;
+}
+
+// Event emitted when the DAG is updated
+message DagUpdateEvent {
+  // Type of update
+  DagUpdateType type = 1;
+  // Files affected by the update
+  repeated string affected_files = 2;
+  // New summary statistics
+  GraphSummary summary = 3;
+  // Timestamp of the update (ISO format)
+  string timestamp = 4;
+}

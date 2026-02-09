@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/sqlite"
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/cli/sqlite"
+	"github.com/beadsmith/cli/pkg/common"
 	"github.com/cline/grpc-go/client"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"github.com/cline/grpc-go/host"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -235,7 +235,7 @@ func (r *InstanceRegistry) tryShutdownHostProcess(hostServiceAddress string) {
 
 		// Create env service client and call shutdown
 		envClient := host.NewEnvServiceClient(conn)
-		_, err = envClient.Shutdown(ctx, &cline.EmptyRequest{})
+		_, err = envClient.Shutdown(ctx, &beadsmith.EmptyRequest{})
 		if err != nil {
 			return fmt.Errorf("RPC failed: %w", err)
 		}

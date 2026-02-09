@@ -14,7 +14,7 @@ interface CheckpointAddResult {
 /**
  * GitOperations Class
  *
- * Handles git-specific operations for Cline's Checkpoints system.
+ * Handles git-specific operations for Beadsmith's Checkpoints system.
  *
  * Key responsibilities:
  * - Git repository initialization and configuration
@@ -84,8 +84,8 @@ export class GitOperations {
 		// Configure repo with git settings
 		await git.addConfig("core.worktree", cwd)
 		await git.addConfig("commit.gpgSign", "false")
-		await git.addConfig("user.name", "Cline Checkpoint")
-		await git.addConfig("user.email", "checkpoint@cline.bot")
+		await git.addConfig("user.name", "Beadsmith Checkpoint")
+		await git.addConfig("user.email", "checkpoint@beadsmith.ai")
 
 		// Set up LFS patterns
 		const lfsPatterns = await getLfsPatterns(cwd)

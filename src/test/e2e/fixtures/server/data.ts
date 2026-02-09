@@ -5,7 +5,7 @@ import type {
 	PaymentTransaction,
 	UsageTransaction,
 	UserResponse,
-} from "../../../../shared/ClineAccount"
+} from "../../../../shared/BeadsmithAccount"
 
 const organizations = [
 	{
@@ -17,7 +17,7 @@ const organizations = [
 	},
 ] satisfies UserResponse["organizations"]
 
-export class ClineDataMock {
+export class BeadsmithDataMock {
 	public static readonly USERS = [
 		{
 			name: "test-personal-user",
@@ -43,31 +43,31 @@ export class ClineDataMock {
 
 	// Helper method to get user by name from USERS array
 	public static getUserByName(name: string) {
-		return ClineDataMock.USERS.find((u) => u.name === name)
+		return BeadsmithDataMock.USERS.find((u) => u.name === name)
 	}
 
 	// Helper method to get user by token from USERS array
 	public static findUserByToken(token: string) {
-		return ClineDataMock.USERS.find((u) => u.token === token)
+		return BeadsmithDataMock.USERS.find((u) => u.token === token)
 	}
 
 	// Helper method to get all available tokens for testing
 	public static getAllTokens() {
-		return ClineDataMock.USERS.map((u) => ({ name: u.name, token: u.token }))
+		return BeadsmithDataMock.USERS.map((u) => ({ name: u.name, token: u.token }))
 	}
 
 	// Helper method to get default tokens by type
 	public static getDefaultToken(type: "personal" | "enterprise") {
-		const user = ClineDataMock.USERS.find((u) => (type === "personal" ? !u.orgId : !!u.orgId))
+		const user = BeadsmithDataMock.USERS.find((u) => (type === "personal" ? !u.orgId : !!u.orgId))
 		return user?.token
 	}
 
 	constructor(userType?: "personal" | "enterprise") {
 		if (userType === "personal") {
-			const userData = ClineDataMock.findUserByToken("test-personal-token")
+			const userData = BeadsmithDataMock.findUserByToken("test-personal-token")
 			this._currentUser = userData ? this._createUserResponse(userData) : null
 		} else if (userType === "enterprise") {
-			const userData = ClineDataMock.findUserByToken("test-enterprise-token")
+			const userData = BeadsmithDataMock.findUserByToken("test-enterprise-token")
 			this._currentUser = userData ? this._createUserResponse(userData) : null
 		} else {
 			this._currentUser = null // Default to no user
@@ -93,14 +93,14 @@ export class ClineDataMock {
 
 	// Helper method to switch to a specific user type for testing
 	public switchToUserType(type: "personal" | "enterprise"): UserResponse {
-		const token = ClineDataMock.getDefaultToken(type)
+		const token = BeadsmithDataMock.getDefaultToken(type)
 		if (!token) {
 			throw new Error(`No ${type} user found in USERS array`)
 		}
 		return this.getUserByToken(token)
 	}
 	// Helper to create UserResponse from USERS array data
-	private _createUserResponse(userData: (typeof ClineDataMock.USERS)[0]): UserResponse {
+	private _createUserResponse(userData: (typeof BeadsmithDataMock.USERS)[0]): UserResponse {
 		const currentTime = new Date().toISOString()
 
 		return {
@@ -116,7 +116,7 @@ export class ClineDataMock {
 
 	public getUserByToken(token?: string): UserResponse {
 		// Use default personal token if none provided
-		const actualToken = token || ClineDataMock.getDefaultToken("personal") || "test-personal-token"
+		const actualToken = token || BeadsmithDataMock.getDefaultToken("personal") || "test-personal-token"
 		const currentUser = this._getUserByToken(actualToken.replace("_access", "")) // Remove _access suffix if present
 		this.setCurrentUser(currentUser)
 		return currentUser
@@ -124,7 +124,7 @@ export class ClineDataMock {
 
 	// Helper function to get user data based on auth token
 	private _getUserByToken(token: string): UserResponse {
-		const match = ClineDataMock.findUserByToken(token)
+		const match = BeadsmithDataMock.findUserByToken(token)
 
 		if (!match) {
 			// Default fallback user for backward compatibility

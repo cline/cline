@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/cline/cli/pkg/generated"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/generated"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // SupportsStaticModelList returns true if the provider has a predefined static model list

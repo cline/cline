@@ -1,10 +1,10 @@
 ---
 title: "OpenTelemetry Integration"
 sidebarTitle: "OpenTelemetry"
-description: "Export Cline telemetry to your observability platform using OpenTelemetry Protocol (OTLP)"
+description: "Export Beadsmith telemetry to your observability platform using OpenTelemetry Protocol (OTLP)"
 ---
 
-Cline includes opt-in OpenTelemetry support for exporting metrics and logs to your own observability infrastructure using the OpenTelemetry Protocol (OTLP).
+Beadsmith includes opt-in OpenTelemetry support for exporting metrics and logs to your own observability infrastructure using the OpenTelemetry Protocol (OTLP).
 
 <Note>
 OpenTelemetry integration is **optional** and intended for advanced users with existing observability infrastructure. Most users won't need this feature.
@@ -14,7 +14,7 @@ OpenTelemetry integration is **optional** and intended for advanced users with e
 
 [OpenTelemetry](https://opentelemetry.io/) is an industry-standard observability framework that provides a unified way to collect and export telemetry data (metrics, logs, and traces).
 
-Cline's OpenTelemetry support allows you to:
+Beadsmith's OpenTelemetry support allows you to:
 - Export telemetry to your own systems
 - Integrate with observability platforms like Datadog, New Relic, Grafana Cloud, etc.
 - Maintain full control over your monitoring data
@@ -22,11 +22,11 @@ Cline's OpenTelemetry support allows you to:
 
 ## Supported Features
 
-Cline supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
+Beadsmith supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
 
 <CardGroup cols={2}>
   <Card title="Metrics Export" icon="chart-bar">
-    Export metrics about Cline usage, performance, and errors
+    Export metrics about Beadsmith usage, performance, and errors
   </Card>
   
   <Card title="Logs Export" icon="file-lines">
@@ -36,7 +36,7 @@ Cline supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
 
 ### Export Formats
 
-Cline supports three OTLP export protocols:
+Beadsmith supports three OTLP export protocols:
 
 - **gRPC** (default, recommended)
 - **HTTP/protobuf**
@@ -44,7 +44,7 @@ Cline supports three OTLP export protocols:
 
 ## Configuration
 
-OpenTelemetry is configured using [Remote Configuration](/enterprise-solutions/configuration/remote-configuration/overview#how-remote-configuration-works) from the [dashboard](https://app.cline.bot/dashboard/organization?tab=settings).
+OpenTelemetry is configured using [Remote Configuration](/enterprise-solutions/configuration/remote-configuration/overview#how-remote-configuration-works) from the [dashboard](https://app.beadsmith.bot/dashboard/organization?tab=settings).
 
 ### Basic Setup
 
@@ -52,7 +52,7 @@ Enable OpenTelemetry, configure an OTLP endpoint and select a protocol:
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/open_telemetry_main_options.png"
+		src="https://assets.int.beadsmith.bot/assets/open_telemetry_main_options.png"
 	/>
 </Frame>
 
@@ -68,7 +68,7 @@ You can add custom protocols and endpoints for both, logs and metrics. You can a
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/open_telemetry_metrics_and_logs.png"
+		src="https://assets.int.beadsmith.bot/assets/open_telemetry_metrics_and_logs.png"
 	/>
 </Frame>
 
@@ -78,7 +78,7 @@ Finally, if your collector needs authentication headers, you can add key value p
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/open_telemetry_headers.png"
+		src="https://assets.int.beadsmith.bot/assets/open_telemetry_headers.png"
 	/>
 </Frame>
 
@@ -90,7 +90,7 @@ Export to Datadog using their OTLP endpoint:
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/open_telemetry_datadog_example.png"
+		src="https://assets.int.beadsmith.bot/assets/open_telemetry_datadog_example.png"
 	/>
 </Frame>
 
@@ -100,7 +100,7 @@ Export to New Relic:
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/open_telemetry_relic_example.png"
+		src="https://assets.int.beadsmith.bot/assets/open_telemetry_relic_example.png"
 	/>
 </Frame>
 
@@ -110,7 +110,7 @@ Export to Grafana Cloud:
 
 <Frame>
 	<img
-		src="https://assets.int.cline.bot/assets/open_telemetry_grafana_example.png"
+		src="https://assets.int.beadsmith.bot/assets/open_telemetry_grafana_example.png"
 	/>
 </Frame>
 
@@ -124,7 +124,7 @@ If you aren’t getting any data in your collector, the easiest way to verify yo
 
 To do this, open the [webview developer tools](https://code.visualstudio.com/api/extension-guides/webview#inspecting-and-debugging-webviews).
 
-Once you’ve done so, if you perform some actions that trigger metrics and/or logs (such as doing a task with Cline), 
+Once you’ve done so, if you perform some actions that trigger metrics and/or logs (such as doing a task with Beadsmith), 
 you will see error logs if any error occurs when sending the data to your collector.
 
 If you don't see any logs, enable [debug mode](#debug-mode).
@@ -157,7 +157,7 @@ This will output detailed information about:
 
 ## What Gets Exported
 
-When OpenTelemetry is enabled, Cline exports:
+When OpenTelemetry is enabled, Beadsmith exports:
 
 ### Metrics
 - Feature usage counts
@@ -176,7 +176,7 @@ Exported data is already anonymous and doesn't include code content, file paths,
 
 ## Limitations
 
-Current OpenTelemetry support in Cline:
+Current OpenTelemetry support in Beadsmith:
 - ✅ OTLP metrics export (gRPC, HTTP)
 - ✅ OTLP logs export (gRPC, HTTP)
 - ✅ Basic configuration via [Remote Configuration](/enterprise-solutions/configuration/remote-configuration/overview#how-remote-configuration-works)
@@ -195,7 +195,7 @@ Current OpenTelemetry support in Cline:
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Cline Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+  <Card title="Beadsmith Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
     Configure simple built-in telemetry
   </Card>
   

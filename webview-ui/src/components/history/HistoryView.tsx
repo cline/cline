@@ -1,5 +1,5 @@
-import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/beadsmith/common"
+import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/beadsmith/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
@@ -11,6 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import { formatSize } from "@/utils/format"
+import { escapeHtml } from "@/utils/html-sanitize"
 import HistoryViewItem from "./HistoryViewItem"
 
 type HistoryViewProps = {
@@ -509,7 +510,7 @@ export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassNam
 
 	const generateHighlightedText = (inputText: string, regions: [number, number][] = []) => {
 		if (regions.length === 0) {
-			return inputText
+			return escapeHtml(inputText)
 		}
 
 		// Sort and merge overlapping regions
@@ -523,17 +524,18 @@ export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassNam
 			const end = region[1]
 			const lastRegionNextIndex = end + 1
 
+			// Escape HTML in each text segment to prevent XSS
 			content += [
-				inputText.substring(nextUnhighlightedRegionStartingIndex, start),
+				escapeHtml(inputText.substring(nextUnhighlightedRegionStartingIndex, start)),
 				`<span class="${highlightClassName}">`,
-				inputText.substring(start, lastRegionNextIndex),
+				escapeHtml(inputText.substring(start, lastRegionNextIndex)),
 				"</span>",
 			].join("")
 
 			nextUnhighlightedRegionStartingIndex = lastRegionNextIndex
 		})
 
-		content += inputText.substring(nextUnhighlightedRegionStartingIndex)
+		content += escapeHtml(inputText.substring(nextUnhighlightedRegionStartingIndex))
 
 		return content
 	}

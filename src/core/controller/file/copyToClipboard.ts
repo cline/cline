@@ -1,4 +1,4 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, StringRequest } from "@shared/proto/beadsmith/common"
 import { Logger } from "@/shared/services/Logger"
 import { writeTextToClipboard } from "@/utils/env"
 import { Controller } from ".."

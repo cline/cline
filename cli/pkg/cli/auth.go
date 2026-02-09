@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/cline/cli/pkg/cli/auth"
+	"github.com/beadsmith/cli/pkg/cli/auth"
 	"github.com/spf13/cobra"
 )
 

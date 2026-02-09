@@ -9,7 +9,7 @@ interface PopupModalContainerProps {
 }
 
 /**
- * Shared styled container for popup modals (ModelPicker, ServersToggle, ClineRulesToggle).
+ * Shared styled container for popup modals (ModelPicker, ServersToggle, BeadsmithRulesToggle).
  * Provides consistent positioning, styling, and arrow pointer.
  */
 const PopupModalContainer = styled.div<PopupModalContainerProps>`

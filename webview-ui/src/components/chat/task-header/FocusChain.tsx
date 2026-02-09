@@ -1,6 +1,6 @@
 import { cn } from "@heroui/react"
 import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/beadsmith/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"

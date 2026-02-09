@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/output"
 )
 
 type cacheData struct {
@@ -249,7 +249,7 @@ func fetchLatestVersion() (string, error) {
 }
 
 func attemptUpdate(channel string) error {
-	packageName := "cline"
+	packageName := "beadsmith"
 	if channel == "nightly" {
 		packageName = "cline@nightly"
 	}
@@ -361,7 +361,7 @@ func showSuccessMessage(version string) {
 }
 
 func showFailureMessage(channel string) {
-	packageName := "cline"
+	packageName := "beadsmith"
 	if channel == "nightly" {
 		packageName = "cline@nightly"
 	}
@@ -374,7 +374,7 @@ func showFailureMessage(channel string) {
 }
 
 func getCacheFilePath() string {
-	configDir := filepath.Join(os.Getenv("HOME"), ".cline", "data")
+	configDir := filepath.Join(os.Getenv("HOME"), ".beadsmith", "data")
 	return filepath.Join(configDir, "cli-update-cache")
 }
 

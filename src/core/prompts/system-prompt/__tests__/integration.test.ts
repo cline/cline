@@ -128,7 +128,7 @@ const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
 	ide: "TestIde",
 	supportsBrowserUse: true,
-	clineWebToolsEnabled: true,
+	beadsmithWebToolsEnabled: true,
 	mcpHub: {
 		getServers: () => [
 			{
@@ -142,10 +142,10 @@ const baseContext: SystemPromptContext = {
 			},
 		],
 	} as unknown as McpHub,
-	focusChainSettings: { enabled: true, remindClineInterval: 6 },
+	focusChainSettings: { enabled: true, remindBeadsmithInterval: 6 },
 	browserSettings: { viewport: { width: 1280, height: 720 } },
-	globalClineRulesFileInstructions: "Follow global rules",
-	localClineRulesFileInstructions: "Follow local rules",
+	globalBeadsmithRulesFileInstructions: "Follow global rules",
+	localBeadsmithRulesFileInstructions: "Follow local rules",
 	preferredLanguageInstructions: "Prefer TypeScript",
 	isTesting: true,
 	providerInfo: mockProviderInfo,
@@ -185,7 +185,7 @@ const contextVariations: Array<{ name: string; override: Partial<SystemPromptCon
 	{ name: "basic", override: {} },
 	{ name: "no-browser", override: { supportsBrowserUse: false } },
 	{ name: "no-mcp", override: { mcpHub: { getServers: () => [] } as unknown as McpHub } },
-	{ name: "no-focus-chain", override: { focusChainSettings: { enabled: false, remindClineInterval: 0 } } },
+	{ name: "no-focus-chain", override: { focusChainSettings: { enabled: false, remindBeadsmithInterval: 0 } } },
 ]
 
 const modelTestCases = [

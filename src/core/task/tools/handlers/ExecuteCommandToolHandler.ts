@@ -3,10 +3,10 @@ import { formatResponse } from "@core/prompts/responses"
 import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { showSystemNotification } from "@integrations/notifications"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
-import { ClineAsk } from "@shared/ExtensionMessage"
+import { BeadsmithAsk } from "@shared/ExtensionMessage"
 import { arePathsEqual } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -20,7 +20,7 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.BASH
+	readonly name = BeadsmithDefaultTool.BASH
 
 	constructor(_validator: ToolValidator) {}
 
@@ -41,7 +41,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			return
 		} else {
 			await uiHelpers
-				.ask("command" as ClineAsk, uiHelpers.removeClosingTag(block, "command", command), block.partial)
+				.ask("command" as BeadsmithAsk, uiHelpers.removeClosingTag(block, "command", command), block.partial)
 				.catch(() => {})
 		}
 	}
@@ -135,11 +135,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			return formatResponse.toolError(formatResponse.permissionDeniedError(errorMessage))
 		}
 
-		// Check clineignore validation for command
-		const ignoredFileAttemptedToAccess = config.services.clineIgnoreController.validateCommand(actualCommand)
+		// Check beadsmithignore validation for command
+		const ignoredFileAttemptedToAccess = config.services.beadsmithIgnoreController.validateCommand(actualCommand)
 		if (ignoredFileAttemptedToAccess) {
-			await config.callbacks.say("clineignore_error", ignoredFileAttemptedToAccess)
-			return formatResponse.toolError(formatResponse.clineIgnoreError(ignoredFileAttemptedToAccess))
+			await config.callbacks.say("beadsmithignore_error", ignoredFileAttemptedToAccess)
+			return formatResponse.toolError(formatResponse.beadsmithIgnoreError(ignoredFileAttemptedToAccess))
 		}
 
 		let didAutoApprove = false
@@ -191,7 +191,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		} else {
 			// Manual approval flow
 			showNotificationForApproval(
-				`Cline wants to execute a command: ${actualCommand}`,
+				`Beadsmith wants to execute a command: ${actualCommand}`,
 				config.autoApprovalSettings.enableNotifications,
 			)
 

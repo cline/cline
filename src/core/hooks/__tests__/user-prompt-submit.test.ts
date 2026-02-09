@@ -30,8 +30,8 @@ describe("UserPromptSubmit Hook", () => {
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
 
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+		// Create .beadsmithrules/hooks directory
+		const hooksDir = path.join(tempDir, ".beadsmithrules", "hooks")
 		await fs.mkdir(hooksDir, { recursive: true })
 
 		// Mock StateManager to return our temp directory
@@ -58,7 +58,7 @@ describe("UserPromptSubmit Hook", () => {
 		it("should receive prompt text from user content", async function () {
 			this.timeout(5000)
 
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasPrompt = input.userPromptSubmit && typeof input.userPromptSubmit.prompt === 'string' && input.userPromptSubmit.prompt.length > 0;
@@ -85,7 +85,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle multiline prompts", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lineCount = (input.userPromptSubmit.prompt.match(/\\n/g) || []).length + 1;
@@ -112,7 +112,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle large prompts", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const size = input.userPromptSubmit.prompt.length;
@@ -139,10 +139,10 @@ console.log(JSON.stringify({
 		})
 
 		it("should receive all common hook input fields", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
+const hasAllFields = input.beadsmithVersion && input.hookName && input.timestamp && 
                      input.taskId && input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
   cancel: false,
@@ -168,7 +168,7 @@ console.log(JSON.stringify({
 
 	describe("Prompt Content Serialization", () => {
 		it("should handle empty prompt", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const promptData = input.userPromptSubmit;
@@ -202,7 +202,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should preserve special characters in prompt", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const prompt = input.userPromptSubmit.prompt;
@@ -231,7 +231,7 @@ console.log(JSON.stringify({
 
 	describe("Error Handling", () => {
 		it("should handle malformed JSON output from hook", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -255,7 +255,7 @@ console.log("not valid json")`
 		})
 
 		it("should handle hook script errors", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const hookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 process.exit(1)`
 
@@ -310,7 +310,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const workspaceHookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: false,
@@ -345,7 +345,7 @@ console.log(JSON.stringify({
 			await writeHookScript(globalHookPath, globalHookScript)
 
 			// Create blocking workspace hook
-			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
+			const workspaceHookPath = path.join(tempDir, ".beadsmithrules", "hooks", "UserPromptSubmit")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   cancel: true,

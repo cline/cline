@@ -8,7 +8,7 @@ import {
 	OpenAiCompatibleModelInfo,
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import { BeadsmithRulesToggles } from "@shared/beadsmith-rules"
 import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -19,14 +19,14 @@ import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
-import { BlobStoreSettings } from "./ClineBlobStorage"
+import { BlobStoreSettings } from "./BeadsmithBlobStorage"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
 //
 // Property definitions with types, default values, and metadata
 // NOTE: When adding a new field, the scripts/generate-state-proto.mjs will be
-// executed automatically to regenerate the proto/cline/state.proto file with the
+// executed automatically to regenerate the proto/beadsmith/state.proto file with the
 // new fields once the file is staged and committed.
 // ============================================================================
 
@@ -83,10 +83,10 @@ const GLOBAL_STATE_FIELDS = {
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
 	nativeToolCallEnabled: { default: true as boolean },
-	remoteRulesToggles: { default: {} as ClineRulesToggles },
-	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
+	remoteRulesToggles: { default: {} as BeadsmithRulesToggles },
+	remoteWorkflowToggles: { default: {} as BeadsmithRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
-	// Path to worktree that should auto-open Cline sidebar when launched
+	// Path to worktree that should auto-open Beadsmith sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
 } satisfies FieldDefinitions
 
@@ -107,6 +107,10 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	awsProfile: { default: undefined as string | undefined },
 	awsBedrockEndpoint: { default: undefined as string | undefined },
 	claudeCodePath: { default: undefined as string | undefined },
+	copilotCliPath: { default: undefined as string | undefined },
+	copilotCliArgs: { default: undefined as string | undefined },
+	copilotCliUrl: { default: undefined as string | undefined },
+	copilotUseLoggedInUser: { default: undefined as boolean | undefined },
 	vertexProjectId: { default: undefined as string | undefined },
 	vertexRegion: { default: undefined as string | undefined },
 	openAiBaseUrl: { default: undefined as string | undefined },
@@ -235,8 +239,8 @@ const USER_SETTINGS_FIELDS = {
 	autoApprovalSettings: {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
 	},
-	globalClineRulesToggles: { default: {} as ClineRulesToggles },
-	globalWorkflowToggles: { default: {} as ClineRulesToggles },
+	globalBeadsmithRulesToggles: { default: {} as BeadsmithRulesToggles },
+	globalWorkflowToggles: { default: {} as BeadsmithRulesToggles },
 	globalSkillsToggles: { default: {} as Record<string, boolean> },
 	browserSettings: {
 		default: DEFAULT_BROWSER_SETTINGS as BrowserSettings,
@@ -253,7 +257,7 @@ const USER_SETTINGS_FIELDS = {
 	strictPlanModeEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
-	clineWebToolsEnabled: { default: true as boolean },
+	beadsmithWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
@@ -270,6 +274,21 @@ const USER_SETTINGS_FIELDS = {
 	backgroundEditEnabled: { default: false as boolean },
 	skillsEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
+
+	// Bead (Ralph Loop) settings
+	beadsEnabled: { default: true as boolean },
+	beadAutoApprove: { default: false as boolean },
+	beadCommitMode: { default: "shadow" as "shadow" | "workspace" },
+	beadTestCommand: { default: undefined as string | undefined },
+	ralphMaxIterations: { default: 10 as number },
+	ralphTokenBudget: { default: 100000 as number },
+
+	// DAG (Dependency Analysis Graph) settings
+	dagEnabled: { default: true as boolean },
+	dagPythonPath: { default: "python3" as string },
+	dagAutoRefresh: { default: true as boolean },
+	dagAutoRefreshDelayMs: { default: 2000 as number },
+	dagMaxFilesForAutoAnalysis: { default: 1000 as number },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },
@@ -298,8 +317,8 @@ const GLOBAL_STATE_AND_SETTINGS_FIELDS = { ...GLOBAL_STATE_FIELDS, ...SETTINGS_F
 // Secret keys used in Api Configuration
 const SECRETS_KEYS = [
 	"apiKey",
-	"clineAccountId", // Cline Account ID for Firebase
-	"cline:clineAccountId",
+	"beadsmithAccountId", // Beadsmith Account ID for Firebase
+	"cline:beadsmithAccountId",
 	"openRouterApiKey",
 	"awsAccessKey",
 	"awsSecretKey",
@@ -317,6 +336,7 @@ const SECRETS_KEYS = [
 	"doubaoApiKey",
 	"mistralApiKey",
 	"liteLlmApiKey",
+	"copilotGithubToken",
 	"authNonce",
 	"asksageApiKey",
 	"xaiApiKey",
@@ -344,7 +364,7 @@ const SECRETS_KEYS = [
 ] as const
 
 export const LocalStateKeys = [
-	"localClineRulesToggles",
+	"localBeadsmithRulesToggles",
 	"localCursorRulesToggles",
 	"localWindsurfRulesToggles",
 	"localAgentsRulesToggles",
@@ -372,7 +392,7 @@ export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtra
 // ============================================================================
 
 export type Secrets = { [K in (typeof SecretKeys)[number]]: string | undefined }
-export type LocalState = { [K in (typeof LocalStateKeys)[number]]: ClineRulesToggles }
+export type LocalState = { [K in (typeof LocalStateKeys)[number]]: BeadsmithRulesToggles }
 export type SecretKey = (typeof SecretKeys)[number]
 export type GlobalStateKey = keyof GlobalState
 export type LocalStateKey = keyof LocalState

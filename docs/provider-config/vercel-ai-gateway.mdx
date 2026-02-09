@@ -1,9 +1,9 @@
 ---
 title: "Vercel AI Gateway"
-description: "Use Vercel AI Gateway in Cline to reach 100+ models from one endpoint with routing, retries, and spend observability."
+description: "Use Vercel AI Gateway in Beadsmith to reach 100+ models from one endpoint with routing, retries, and spend observability."
 ---
 
-Vercel AI Gateway gives you a single API to access models from many providers. You switch by model id without swapping SDKs or juggling multiple keys. Cline integrates directly so you can pick a Gateway model in the dropdown, use it like any other provider, and see token and cache usage in the stream.
+Vercel AI Gateway gives you a single API to access models from many providers. You switch by model id without swapping SDKs or juggling multiple keys. Beadsmith integrates directly so you can pick a Gateway model in the dropdown, use it like any other provider, and see token and cache usage in the stream.
 
 Useful links:
 - Team dashboard: https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai
@@ -25,12 +25,12 @@ Useful links:
 
 For more on authentication and OIDC options, see https://vercel.com/docs/ai-gateway/authentication
 
-## Configuration in Cline
+## Configuration in Beadsmith
 
-1. Open Cline settings
+1. Open Beadsmith settings
 2. Select **Vercel AI Gateway** as the API Provider
 3. Paste your Gateway API Key
-4. Pick a model from the list. Cline fetches the catalog automatically. You can also paste an exact id
+4. Pick a model from the list. Beadsmith fetches the catalog automatically. You can also paste an exact id
 
 Notes:
 - Model ids often follow `provider/model`. Copy the exact id from the catalog  
@@ -62,7 +62,7 @@ Use it to:
 
 ## Supported models
 
-The gateway supports a large and changing set of models. Cline pulls the list from the Gateway API and caches it locally. For the current catalog, see https://vercel.com/ai-gateway/models
+The gateway supports a large and changing set of models. Beadsmith pulls the list from the Gateway API and caches it locally. For the current catalog, see https://vercel.com/ai-gateway/models
 
 ## Tips
 
@@ -87,7 +87,7 @@ Vercel does not add rate limits. Upstream providers may. New accounts receive $5
 
 ## Inspiration
 
-- Multi-model evals - swap only the model id in Cline and compare latency and output tokens
+- Multi-model evals - swap only the model id in Beadsmith and compare latency and output tokens
 - Progressive rollout - route a small percent to a new model in the dashboard and ramp with metrics
 - Budget enforcement - set per-project limits without code changes
 

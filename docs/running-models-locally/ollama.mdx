@@ -1,12 +1,12 @@
 ---
 title: "Ollama"
-description: "A quick guide to setting up Ollama for local AI model execution with Cline."
+description: "A quick guide to setting up Ollama for local AI model execution with Beadsmith."
 ---
 
 ### Prerequisites
 
 -   Windows, macOS, or Linux computer
--   Cline installed in VS Code
+-   Beadsmith installed in VS Code
 
 ### Setup Steps
 
@@ -17,7 +17,7 @@ description: "A quick guide to setting up Ollama for local AI model execution wi
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(2)%20(1)%20(1).png"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/image%20(2)%20(1)%20(1).png"
 		alt="Ollama download page"
 	/>
 </Frame>
@@ -33,7 +33,7 @@ description: "A quick guide to setting up Ollama for local AI model execution wi
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/ollama-model-grab%20(2).gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/ollama-model-grab%20(2).gif"
 		alt="Selecting a model in Ollama"
 	/>
 </Frame>
@@ -48,32 +48,32 @@ description: "A quick guide to setting up Ollama for local AI model execution wi
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/starting-ollama-terminal%20(2).gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/starting-ollama-terminal%20(2).gif"
 		alt="Running Ollama in terminal"
 	/>
 </Frame>
 
-Your model is now ready to use within Cline.
+Your model is now ready to use within Beadsmith.
 
-#### 3. Configure Cline
+#### 3. Configure Beadsmith
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/ollama-setup.gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/ollama-setup.gif"
 		alt="Complete Ollama setup process"
 	/>
 </Frame>
 
-Open VS Code and configure Cline:
+Open VS Code and configure Beadsmith:
 
-1. Click the Cline settings icon
+1. Click the Beadsmith settings icon
 2. Select "Ollama" as your API provider
 3. Base URL: `http://localhost:11434/` (default, usually no need to change)
 4. Select your model from the dropdown
 
 ### Recommended Models
 
-For the best experience with Cline, use **Qwen 2.5 Coder 32B**. This model provides strong coding capabilities and reliable tool use for local development.
+For the best experience with Beadsmith, use **Qwen 2.5 Coder 32B**. This model provides strong coding capabilities and reliable tool use for local development.
 
 To download it:
 ```bash
@@ -86,19 +86,19 @@ Other capable models include:
 
 ### Important Notes
 
--   Start Ollama before using with Cline
+-   Start Ollama before using with Beadsmith
 -   Keep Ollama running in background
 -   First model download may take several minutes
 
 ### Enable Compact Prompts
 
-For better performance with local models, enable compact prompts in Cline settings. This reduces the prompt size by 90% while maintaining core functionality.
+For better performance with local models, enable compact prompts in Beadsmith settings. This reduces the prompt size by 90% while maintaining core functionality.
 
-Navigate to Cline Settings → Features → Use Compact Prompt and toggle it on.
+Navigate to Beadsmith Settings → Features → Use Compact Prompt and toggle it on.
 
 ### Troubleshooting
 
-If Cline can't connect to Ollama:
+If Beadsmith can't connect to Ollama:
 
 1. Verify Ollama is running
 2. Check base URL is correct

@@ -1,5 +1,5 @@
 import { moonshotModels } from "@shared/api"
-import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.beadsmith"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"

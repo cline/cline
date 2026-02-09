@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
 import * as path from "path"
 import { Mode } from "@/shared/storage/types"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
+import { BeadsmithIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/BeadsmithIgnoreController"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -22,8 +22,8 @@ export const formatResponse = {
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 
-	clineIgnoreError: (path: string) =>
-		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
+	beadsmithIgnoreError: (path: string) =>
+		`Access to ${path} is blocked by the .beadsmithignore file settings. You must try to continue in the task without using this file, or ask the user to update the .beadsmithignore file.`,
 
 	permissionDeniedError: (reason: string) =>
 		`Command execution blocked by CLINE_COMMAND_PERMISSIONS: ${reason}. You must try a different approach or ask the user to update the permission settings.`,
@@ -86,7 +86,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 		absolutePath: string,
 		files: string[],
 		didHitLimit: boolean,
-		clineIgnoreController?: ClineIgnoreController,
+		beadsmithIgnoreController?: BeadsmithIgnoreController,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -119,13 +119,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const clineIgnoreParsed = clineIgnoreController
+		const beadsmithIgnoreParsed = beadsmithIgnoreController
 			? sorted.map((filePath) => {
 					// path is relative to absolute path, not cwd
 					// validateAccess expects either path relative to cwd or absolute path
 					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
 					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
+					const isIgnored = !beadsmithIgnoreController.validateAccess(absoluteFilePath)
 					if (isIgnored) {
 						return LOCK_TEXT_SYMBOL + " " + filePath
 					}
@@ -135,13 +135,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 			: sorted
 
 		if (didHitLimit) {
-			return `${clineIgnoreParsed.join(
+			return `${beadsmithIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
+		} else if (beadsmithIgnoreParsed.length === 0 || (beadsmithIgnoreParsed.length === 1 && beadsmithIgnoreParsed[0] === "")) {
 			return "No files found."
 		} else {
-			return clineIgnoreParsed.join("\n")
+			return beadsmithIgnoreParsed.join("\n")
 		}
 	},
 
@@ -231,17 +231,17 @@ Otherwise, if you have not completed the task and do not need additional informa
 	toolAlreadyUsed: (toolName: string) =>
 		`Tool [${toolName}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
 
-	clineIgnoreInstructions: (content: string) =>
-		`# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.clineignore`,
+	beadsmithIgnoreInstructions: (content: string) =>
+		`# .beadsmithignore\n\n(The following is provided by a root-level .beadsmithignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.beadsmithignore`,
 
-	clineRulesGlobalDirectoryInstructions: (globalClineRulesFilePath: string, content: string) =>
-		`# .clinerules/\n\nThe following is provided by a global .clinerules/ directory, located at ${globalClineRulesFilePath.toPosix()}, where the user has specified instructions for all working directories:\n\n${content}`,
+	beadsmithRulesGlobalDirectoryInstructions: (globalBeadsmithRulesFilePath: string, content: string) =>
+		`# .beadsmithrules/\n\nThe following is provided by a global .beadsmithrules/ directory, located at ${globalBeadsmithRulesFilePath.toPosix()}, where the user has specified instructions for all working directories:\n\n${content}`,
 
-	clineRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
-		`# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+	beadsmithRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
+		`# .beadsmithrules/\n\nThe following is provided by a root-level .beadsmithrules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
-	clineRulesLocalFileInstructions: (cwd: string, content: string) =>
-		`# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+	beadsmithRulesLocalFileInstructions: (cwd: string, content: string) =>
+		`# .beadsmithrules\n\nThe following is provided by a root-level .beadsmithrules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
 	windsurfRulesLocalFileInstructions: (cwd: string, content: string) =>
 		`# .windsurfrules\n\nThe following is provided by a root-level .windsurfrules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,

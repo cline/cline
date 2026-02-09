@@ -14,14 +14,14 @@ describe("Cline Extension", () => {
 	it("should verify extension ID matches package.json", async () => {
 		const packageJSON = JSON.parse(await readFile(packagePath, "utf8"))
 		const id = packageJSON.publisher + "." + packageJSON.name
-		const clineExtensionApi = vscode.extensions.getExtension(id)
+		const beadsmithExtensionApi = vscode.extensions.getExtension(id)
 
-		clineExtensionApi?.id.should.equal(id)
+		beadsmithExtensionApi?.id.should.equal(id)
 	})
 
 	it("should successfully execute the plus button command", async () => {
 		await new Promise((resolve) => setTimeout(resolve, 400))
-		await vscode.commands.executeCommand("cline.plusButtonClicked")
+		await vscode.commands.executeCommand("beadsmith.plusButtonClicked")
 	})
 
 	// New test to verify xvfb and webview functionality

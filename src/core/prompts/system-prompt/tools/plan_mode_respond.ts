@@ -1,6 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 
 /**
  * ## plan_mode_respond
@@ -20,9 +20,9 @@ Checklist here (If you have presented the user with concrete steps or requiremen
 </plan_mode_respond>
  */
 
-const id = ClineDefaultTool.PLAN_MODE
+const id = BeadsmithDefaultTool.PLAN_MODE
 
-const generic: ClineToolSpec = {
+const generic: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "plan_mode_respond",
@@ -50,12 +50,12 @@ However, if while writing your response you realize you actually need to do more
 			instruction:
 				" A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
-			dependencies: [ClineDefaultTool.TODO],
+			dependencies: [BeadsmithDefaultTool.TODO],
 		},
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_GPT_5,
 	id,
 	name: "plan_mode_respond",
@@ -75,7 +75,7 @@ However, if while writing your response you realize you actually need to do more
 	],
 }
 
-const GEMINI_3: ClineToolSpec = {
+const GEMINI_3: BeadsmithToolSpec = {
 	variant: ModelFamily.GEMINI_3,
 	id,
 	name: "plan_mode_respond",
@@ -101,12 +101,12 @@ If it becomes apparent that additional exploration is required while the plan_mo
 			instruction:
 				"A checklist showing task progress after this tool use is completed. If you are presenting a final implementation plan to the user with needs_more_exploration set to false, you should include a checklist of items to be completed during Act Mode when implementation is underway. (See 'Updating Task Progress' section for more details)",
 			usage: "Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)",
-			dependencies: [ClineDefaultTool.TODO],
+			dependencies: [BeadsmithDefaultTool.TODO],
 		},
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	...NATIVE_GPT_5,
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 }

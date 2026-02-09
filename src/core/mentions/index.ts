@@ -13,7 +13,7 @@ import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { getLatestTerminalOutput } from "@/hosts/vscode/terminal/get-latest-output"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { DiagnosticSeverity } from "@/shared/proto/index.cline"
+import { DiagnosticSeverity } from "@/shared/proto/index.beadsmith"
 import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
@@ -113,7 +113,7 @@ export async function parseMentions(
 		// Safety guard: skip a bare "/" mention. This can surface from parsed strings or tool output and would resolve to the
 		// workspace root. Expanding it would scan the entire project, inflate context, and can trigger recursive loops.
 		// If root-level expansion is ever desired, gate it behind an explicit syntax (e.g. "@root" or "@folder:/")
-		// and enforce strict size/.clineignore limits instead.
+		// and enforce strict size/.beadsmithignore limits instead.
 		if (mention === "/") {
 			continue
 		}

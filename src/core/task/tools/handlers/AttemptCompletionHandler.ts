@@ -7,17 +7,18 @@ import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
-import { ClineDefaultTool } from "@shared/tools"
+import { BeadsmithDefaultTool } from "@shared/tools"
 import { Logger } from "@/shared/services/Logger"
 import type { ToolResponse } from "../../index"
 import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { isBeadModeActive } from "../utils/BeadIntegrationUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = ClineDefaultTool.ATTEMPT
+	readonly name = BeadsmithDefaultTool.ATTEMPT
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
@@ -78,18 +79,18 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		const addNewChangesFlagToLastCompletionResultMessage = async () => {
 			// Add newchanges flag if there are new changes to the workspace
 			const hasNewChanges = await config.callbacks.doesLatestTaskCompletionHaveNewChanges()
-			const clineMessages = config.messageState.getClineMessages()
+			const beadsmithMessages = config.messageState.getBeadsmithMessages()
 
-			const lastCompletionResultMessageIndex = findLastIndex(clineMessages, (m: any) => m.say === "completion_result")
+			const lastCompletionResultMessageIndex = findLastIndex(beadsmithMessages, (m: any) => m.say === "completion_result")
 			const lastCompletionResultMessage =
-				lastCompletionResultMessageIndex !== -1 ? clineMessages[lastCompletionResultMessageIndex] : undefined
+				lastCompletionResultMessageIndex !== -1 ? beadsmithMessages[lastCompletionResultMessageIndex] : undefined
 			if (
 				lastCompletionResultMessage &&
 				lastCompletionResultMessageIndex !== -1 &&
 				hasNewChanges &&
 				!lastCompletionResultMessage.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG)
 			) {
-				await config.messageState.updateClineMessage(lastCompletionResultMessageIndex, {
+				await config.messageState.updateBeadsmithMessage(lastCompletionResultMessageIndex, {
 					text: lastCompletionResultMessage.text + COMPLETION_RESULT_CHANGES_FLAG,
 				})
 			}
@@ -97,22 +98,22 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		// Remove any partial completion_result message that may exist
 		// Search backwards since other messages may have been inserted after the partial
-		const clineMessages = config.messageState.getClineMessages()
+		const beadsmithMessages = config.messageState.getBeadsmithMessages()
 		const partialCompletionIndex = findLastIndex(
-			clineMessages,
+			beadsmithMessages,
 			(m) => m.partial === true && m.type === "say" && m.say === "completion_result",
 		)
 		if (partialCompletionIndex !== -1) {
 			const updatedMessages = [
-				...clineMessages.slice(0, partialCompletionIndex),
-				...clineMessages.slice(partialCompletionIndex + 1),
+				...beadsmithMessages.slice(0, partialCompletionIndex),
+				...beadsmithMessages.slice(partialCompletionIndex + 1),
 			]
-			config.messageState.setClineMessages(updatedMessages)
-			await config.messageState.saveClineMessagesAndUpdateHistory()
+			config.messageState.setBeadsmithMessages(updatedMessages)
+			await config.messageState.saveBeadsmithMessagesAndUpdateHistory()
 		}
 
 		let commandResult: any
-		const lastMessage = config.messageState.getClineMessages().at(-1)
+		const lastMessage = config.messageState.getBeadsmithMessages().at(-1)
 
 		if (command) {
 			if (lastMessage && lastMessage.ask !== "command") {
@@ -155,7 +156,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
 		// in case last command was interactive and in partial state, the UI is expecting an ask response. This ends the command ask response, freeing up the UI to proceed with the completion ask.
-		if (config.messageState.getClineMessages().at(-1)?.ask === "command_output") {
+		if (config.messageState.getBeadsmithMessages().at(-1)?.ask === "command_output") {
 			await config.callbacks.say("command_output", "")
 		}
 
@@ -166,6 +167,11 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
 		// At this point we know: task is complete, checkpoint saved, result shown to user
 		await this.runTaskCompleteHook(config, block)
+
+		// If bead mode is active, trigger bead completion flow
+		if (isBeadModeActive(config)) {
+			await this.handleBeadCompletion(config, result)
+		}
 
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		const prefix = "[attempt_completion] Result: Done"
@@ -243,6 +249,35 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			},
 			...toolResults,
 		]
+	}
+
+	/**
+	 * Handles bead completion when bead mode is active.
+	 * This evaluates success criteria and triggers the approval flow if needed.
+	 */
+	private async handleBeadCompletion(config: TaskConfig, result: string): Promise<void> {
+		const beadManager = config.services.beadManager
+		if (!beadManager) return
+
+		try {
+			// Get the current diff for success criteria evaluation
+			const diff = "" // TODO: Get actual diff from checkpoint or file tracker
+
+			// Complete the bead and evaluate success criteria
+			const completionResult = await beadManager.completeBead(result, diff)
+
+			if (completionResult.needsApproval) {
+				Logger.info("[AttemptCompletionHandler] Bead requires approval")
+				// The approval flow will be handled by the webview UI
+				// The beadManager will emit 'beadAwaitingApproval' event
+			} else if (!completionResult.canContinue) {
+				Logger.info("[AttemptCompletionHandler] Bead task cannot continue (max iterations or failure)")
+			}
+		} catch (error) {
+			Logger.error("[AttemptCompletionHandler] Failed to complete bead:", error)
+			// Record the error in the bead
+			beadManager.recordError(error instanceof Error ? error.message : String(error))
+		}
 	}
 
 	/**

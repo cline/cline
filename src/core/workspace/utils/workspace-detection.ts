@@ -1,5 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { EmptyRequest } from "@/shared/proto/cline/common"
+import { EmptyRequest } from "@/shared/proto/beadsmith/common"
 import { Logger } from "@/shared/services/Logger"
 
 /**

@@ -1,6 +1,6 @@
 import { StateManager } from "@core/storage/StateManager"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, StringRequest } from "@shared/proto/beadsmith/common"
 import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
 import { writeFile } from "@utils/fs"
 import * as os from "os"

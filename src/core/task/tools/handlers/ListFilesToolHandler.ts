@@ -5,7 +5,7 @@ import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { listFiles } from "@services/glob/list-files"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -15,7 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListFilesToolHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.LIST_FILES
+	readonly name = BeadsmithDefaultTool.LIST_FILES
 
 	constructor(private validator: ToolValidator) {}
 
@@ -84,17 +84,17 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
 		}
 
-		// Check clineignore access
-		const accessValidation = this.validator.checkClineIgnorePath(relDirPath!)
+		// Check beadsmithignore access
+		const accessValidation = this.validator.checkBeadsmithIgnorePath(relDirPath!)
 		if (!accessValidation.ok) {
-			await config.callbacks.say("clineignore_error", relDirPath)
-			return formatResponse.toolError(formatResponse.clineIgnoreError(relDirPath!))
+			await config.callbacks.say("beadsmithignore_error", relDirPath)
+			return formatResponse.toolError(formatResponse.beadsmithIgnoreError(relDirPath!))
 		}
 
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
 
-		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
+		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.beadsmithIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {
@@ -124,7 +124,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
+			const notificationMessage = `Beadsmith wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
 
 			// Show notification
 			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)

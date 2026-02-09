@@ -1,5 +1,5 @@
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/beadsmith/common"
 import { useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"

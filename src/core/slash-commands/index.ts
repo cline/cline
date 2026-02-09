@@ -1,16 +1,18 @@
 import type { ApiProviderInfo } from "@core/api"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import { BeadsmithRulesToggles } from "@shared/beadsmith-rules"
 import { McpPromptResponse } from "@shared/mcp"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { isNativeToolCallingConfig } from "@/utils/model-utils"
 import {
+	cancelRalphToolResponse,
 	condenseToolResponse,
 	deepPlanningToolResponse,
 	explainChangesToolResponse,
 	newRuleToolResponse,
 	newTaskToolResponse,
+	ralphLoopToolResponse,
 	reportBugToolResponse,
 	subagentToolResponse,
 } from "../prompts/commands"
@@ -42,14 +44,14 @@ type Workflow = FileBasedWorkflow | RemoteWorkflow
  */
 export async function parseSlashCommands(
 	text: string,
-	localWorkflowToggles: ClineRulesToggles,
-	globalWorkflowToggles: ClineRulesToggles,
+	localWorkflowToggles: BeadsmithRulesToggles,
+	globalWorkflowToggles: BeadsmithRulesToggles,
 	ulid: string,
 	focusChainSettings?: { enabled: boolean },
 	enableNativeToolCalls?: boolean,
 	providerInfo?: ApiProviderInfo,
 	mcpPromptFetcher?: McpPromptFetcher,
-): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
+): Promise<{ processedText: string; needsBeadsmithrulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = [
 		"newtask",
 		"smol",
@@ -59,6 +61,8 @@ export async function parseSlashCommands(
 		"deep-planning",
 		"subagent",
 		"explain-changes",
+		"ralph-loop",
+		"cancel-ralph",
 	]
 
 	// Determine if the current provider/model/setting actually uses native tool calling
@@ -73,6 +77,8 @@ export async function parseSlashCommands(
 		"deep-planning": deepPlanningToolResponse(focusChainSettings, providerInfo, willUseNativeTools),
 		subagent: subagentToolResponse(),
 		"explain-changes": explainChangesToolResponse(),
+		"ralph-loop": ralphLoopToolResponse(),
+		"cancel-ralph": cancelRalphToolResponse(),
 	}
 
 	// Regex patterns to extract content from different XML tags
@@ -149,7 +155,7 @@ export async function parseSlashCommands(
 				// Track telemetry for builtin slash command usage
 				telemetryService.captureSlashCommandUsed(ulid, commandName, "builtin")
 
-				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" }
+				return { processedText: processedText, needsBeadsmithrulesFileCheck: commandName === "newrule" }
 			}
 
 			// Check for MCP prompt commands (format: mcp:<server>:<prompt>)
@@ -174,7 +180,7 @@ export async function parseSlashCommands(
 							// Track telemetry for MCP prompt usage
 							telemetryService.captureSlashCommandUsed(ulid, commandName, "mcp_prompt")
 
-							return { processedText, needsClinerulesFileCheck: false }
+							return { processedText, needsBeadsmithrulesFileCheck: false }
 						} else {
 							// Prompt not found - log for debugging and fall through to workflow checking
 							Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
@@ -244,7 +250,7 @@ export async function parseSlashCommands(
 					// Track telemetry for workflow command usage
 					telemetryService.captureSlashCommandUsed(ulid, commandName, "workflow")
 
-					return { processedText, needsClinerulesFileCheck: false }
+					return { processedText, needsBeadsmithrulesFileCheck: false }
 				} catch (error) {
 					Logger.error(`Error reading workflow file ${matchingWorkflow.fullPath}: ${error}`)
 				}
@@ -253,7 +259,7 @@ export async function parseSlashCommands(
 	}
 
 	// if no supported commands are found, return the original text
-	return { processedText: text, needsClinerulesFileCheck: false }
+	return { processedText: text, needsBeadsmithrulesFileCheck: false }
 }
 
 /**

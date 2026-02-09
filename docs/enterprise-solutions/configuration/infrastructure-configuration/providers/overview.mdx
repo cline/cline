@@ -1,16 +1,16 @@
 ---
 title: "AI Provider Configuration"
 sidebarTitle: "Overview"
-description: "Configure AI provider settings for your Cline deployment"
+description: "Configure AI provider settings for your Beadsmith deployment"
 ---
 
 <Info>
 **Configuration Path: Self-Hosted**
 
-This section covers provider configuration for self-hosted deployments. For web-based configuration through app.cline.bot, see [SaaS Provider Configuration](/enterprise-solutions/configuration/remote-configuration/overview).
+This section covers provider configuration for self-hosted deployments. For web-based configuration through app.beadsmith.bot, see [SaaS Provider Configuration](/enterprise-solutions/configuration/remote-configuration/overview).
 </Info>
 
-Configure which AI providers your team can use and manage provider credentials centrally. Cline supports major AI providers with enterprise-grade authentication options.
+Configure which AI providers your team can use and manage provider credentials centrally. Beadsmith supports major AI providers with enterprise-grade authentication options.
 
 ## Supported Providers
 
@@ -34,7 +34,7 @@ Configure which AI providers your team can use and manage provider credentials c
 
 ## What is Provider Configuration?
 
-Provider configuration in Cline allows administrators to:
+Provider configuration in Beadsmith allows administrators to:
 
 1. **Manage Credentials Centrally**: Store API keys and authentication details in one place
 2. **Control Model Access**: Specify which models teams can use
@@ -96,7 +96,7 @@ Each provider supports different authentication methods:
   "providerSettings": {
     "provider": "bedrock",
     "bedrockRegion": "us-east-1",
-    "bedrockServiceRole": "arn:aws:iam::123456789012:role/ClineBedrockRole"
+    "bedrockServiceRole": "arn:aws:iam::123456789012:role/BeadsmithBedrockRole"
   }
 }
 ```

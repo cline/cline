@@ -40,9 +40,9 @@ A context window is the maximum amount of text an AI model can process at once. 
 ### What Counts Toward Context
 
 1. **Your current conversation** - All messages in the chat
-2. **File contents** - Any files you've shared or Cline has read
+2. **File contents** - Any files you've shared or Beadsmith has read
 3. **Tool outputs** - Results from executed commands
-4. **System prompts** - Cline's instructions (minimal impact)
+4. **System prompts** - Beadsmith's instructions (minimal impact)
 
 ### Optimization Strategies
 
@@ -62,7 +62,7 @@ Instead of including entire files:
 - Reference specific functions rather than whole files
 
 #### 3. Enable Auto-compact
-Cline can automatically summarize long conversations:
+Beadsmith can automatically summarize long conversations:
 - Settings → Features → Auto-compact
 - Preserves important context
 - Reduces token usage
@@ -140,10 +140,10 @@ Act Mode: Claude Sonnet (1M) - Maximum context for coding
 **A:** Not always. Larger contexts increase cost and can reduce response quality. Match the context to your task size.
 
 ### Q: How can I tell how much context I'm using?
-**A:** Cline shows token usage in the interface. Watch for the context meter approaching limits.
+**A:** Beadsmith shows token usage in the interface. Watch for the context meter approaching limits.
 
 ### Q: What happens when I exceed the context limit?
-**A:** Cline will either:
+**A:** Beadsmith will either:
 - Automatically compact the conversation (if enabled)
 - Show an error and suggest starting a new task
 - Truncate older messages (with warning)

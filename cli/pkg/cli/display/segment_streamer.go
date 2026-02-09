@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cline/cli/pkg/cli/output"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 type StreamingSegment struct {
@@ -20,11 +20,11 @@ type StreamingSegment struct {
 	toolRenderer   *ToolRenderer
 	shouldMarkdown bool
 	outputFormat   string
-	msg            *types.ClineMessage
+	msg            *types.BeadsmithMessage
 	toolParser     *ToolResultParser
 }
 
-func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool, msg *types.ClineMessage, outputFormat string) *StreamingSegment {
+func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool, msg *types.BeadsmithMessage, outputFormat string) *StreamingSegment {
 	ss := &StreamingSegment{
 		sayType:        sayType,
 		prefix:         prefix,

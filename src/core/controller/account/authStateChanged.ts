@@ -1,4 +1,4 @@
-import { AuthState, AuthStateChangedRequest } from "@shared/proto/cline/account"
+import { AuthState, AuthStateChangedRequest } from "@shared/proto/beadsmith/account"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 

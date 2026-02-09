@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
 import {
 	VSCodeButton,
 	VSCodeDropdown,

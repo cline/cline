@@ -1,11 +1,11 @@
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 
 const APPLY_PATCH_PATCH_REGEX = /\*\*\* Begin Patch\s+([\s\S]*?)\s+\*\*\* End Patch/m
 
 /**
  * Convert apply_patch tool calls to write_to_file and replace_in_file format
  */
-export function convertApplyPatchToolCalls(messages: Array<ClineStorageMessage>): Array<ClineStorageMessage> {
+export function convertApplyPatchToolCalls(messages: Array<BeadsmithStorageMessage>): Array<BeadsmithStorageMessage> {
 	// Map to track tool_use_id to converted tool info and original input
 	const toolUseIdMap = new Map<string, { name: string; input: any; originalInput: any }>()
 
@@ -298,7 +298,7 @@ function reconstructApplyPatchResult(
 /**
  * Convert write_to_file and replace_in_file tool calls to apply_patch format
  */
-export function convertWriteToFileToolCalls(messages: Array<ClineStorageMessage>): Array<ClineStorageMessage> {
+export function convertWriteToFileToolCalls(messages: Array<BeadsmithStorageMessage>): Array<BeadsmithStorageMessage> {
 	// Map to track tool_use_id to converted tool info and original input
 	const toolUseIdMap = new Map<string, { originalName: string; originalInput: any; patchInput?: string }>()
 

@@ -1,15 +1,15 @@
 import { describe, it } from "mocha"
 import "should"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import { transformToolCallMessages } from ".."
 
 describe("transformToolCallMessages", () => {
 	describe("apply_patch conversion", () => {
 		const testCases: Array<{
 			name: string
-			input: ClineStorageMessage[]
+			input: BeadsmithStorageMessage[]
 			expected: {
 				toolName: string
 				inputPath?: string
@@ -393,7 +393,7 @@ EOF`,
 		testCases.forEach((testCase) => {
 			it(testCase.name, () => {
 				// When native tools are FILE_EDIT/FILE_NEW and messages use apply_patch, convert FROM apply_patch
-				const result = transformToolCallMessages(testCase.input, [ClineDefaultTool.FILE_EDIT, ClineDefaultTool.FILE_NEW])
+				const result = transformToolCallMessages(testCase.input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
 				// Find all tool_use blocks in the result
 				const toolUseBlocks: Anthropic.ContentBlock[] = []
 				for (const message of result) {
@@ -442,7 +442,7 @@ EOF`,
 		})
 
 		it("should preserve tool_result blocks when tool_use is converted", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -475,7 +475,7 @@ EOF`,
 
 			// Native tools are FILE_EDIT/FILE_NEW, messages use apply_patch → convert FROM apply_patch
 			// Native tools are FILE_EDIT/FILE_NEW, messages use apply_patch → convert FROM apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.FILE_EDIT, ClineDefaultTool.FILE_NEW])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
 
 			// Find the tool_result block
 			let foundToolResult = false
@@ -494,7 +494,7 @@ EOF`,
 		})
 
 		it("should reconstruct tool_result content with final_file_content for write_to_file", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -527,7 +527,7 @@ EOF`,
 			]
 
 			// Native tools are FILE_EDIT/FILE_NEW, messages use apply_patch → convert FROM apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.FILE_EDIT, ClineDefaultTool.FILE_NEW])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
 
 			// Find and verify the reconstructed tool_result
 			let reconstructedContent = ""
@@ -546,7 +546,7 @@ EOF`,
 		})
 
 		it("should reconstruct tool_result content with final_file_content for replace_in_file", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -580,7 +580,7 @@ EOF`,
 			]
 
 			// Native tools are FILE_EDIT/FILE_NEW, messages use apply_patch → convert FROM apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.FILE_EDIT, ClineDefaultTool.FILE_NEW])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
 
 			// Find and verify the reconstructed tool_result
 			let reconstructedContent = ""
@@ -601,7 +601,7 @@ EOF`,
 		})
 
 		it("should handle tool_result without final_file_content gracefully", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -633,7 +633,7 @@ EOF`,
 			]
 
 			// Native tools are FILE_EDIT/FILE_NEW, messages use apply_patch → convert FROM apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.FILE_EDIT, ClineDefaultTool.FILE_NEW])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
 
 			// Find the tool_result and verify it kept original content
 			let foundContent = ""
@@ -651,7 +651,7 @@ EOF`,
 		})
 
 		it("should generate valid SEARCH/REPLACE diff format", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -678,7 +678,7 @@ EOF`,
 			]
 
 			// Native tools are FILE_EDIT/FILE_NEW, messages use apply_patch → convert FROM apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.FILE_EDIT, ClineDefaultTool.FILE_NEW])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.FILE_EDIT, BeadsmithDefaultTool.FILE_NEW])
 
 			// Extract the diff from the converted tool
 			let diffContent = ""
@@ -705,7 +705,7 @@ EOF`,
 	describe("write_to_file/replace_in_file to apply_patch conversion", () => {
 		const testCases: Array<{
 			name: string
-			input: ClineStorageMessage[]
+			input: BeadsmithStorageMessage[]
 			expected: {
 				toolName: string
 				patchInput?: string
@@ -902,7 +902,7 @@ EOF`,
 		testCases.forEach((testCase) => {
 			it(testCase.name, () => {
 				// Native tools are APPLY_PATCH, messages use write_to_file/replace_in_file → convert TO apply_patch
-				const result = transformToolCallMessages(testCase.input, [ClineDefaultTool.APPLY_PATCH])
+				const result = transformToolCallMessages(testCase.input, [BeadsmithDefaultTool.APPLY_PATCH])
 
 				// Find all tool_use blocks in the result
 				const toolUseBlocks: Anthropic.ContentBlock[] = []
@@ -938,7 +938,7 @@ EOF`,
 		})
 
 		it("should use final_file_content to generate apply_patch for write_to_file", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -967,7 +967,7 @@ EOF`,
 			]
 
 			// Native tools are APPLY_PATCH, messages use write_to_file/replace_in_file → convert TO apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.APPLY_PATCH])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.APPLY_PATCH])
 
 			// Find the tool_use block to verify the generated patch
 			let toolUseBlock: any = null
@@ -996,7 +996,7 @@ EOF`)
 		})
 
 		it("should use final_file_content to generate apply_patch with context for replace_in_file", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -1028,7 +1028,7 @@ export function bar(foo: string): Foo {
 			]
 
 			// Native tools are APPLY_PATCH, messages use write_to_file/replace_in_file → convert TO apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.APPLY_PATCH])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.APPLY_PATCH])
 
 			// Find the tool_use block to verify the generated patch
 			let toolUseBlock: any = null
@@ -1053,7 +1053,7 @@ export function bar(foo: string): Foo {
 		})
 
 		it("should handle tool_result without final_file_content gracefully", () => {
-			const input: ClineStorageMessage[] = [
+			const input: BeadsmithStorageMessage[] = [
 				{
 					role: "assistant",
 					content: [
@@ -1081,7 +1081,7 @@ export function bar(foo: string): Foo {
 			]
 
 			// Native tools are APPLY_PATCH, messages use write_to_file/replace_in_file → convert TO apply_patch
-			const result = transformToolCallMessages(input, [ClineDefaultTool.APPLY_PATCH])
+			const result = transformToolCallMessages(input, [BeadsmithDefaultTool.APPLY_PATCH])
 
 			// Find the tool_result
 			let foundContent = ""

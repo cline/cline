@@ -1,6 +1,6 @@
 import { searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
 import { telemetryService } from "@services/telemetry"
-import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
+import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/beadsmith/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
 import { getWorkspacePath } from "@utils/path"
 import { Logger } from "@/shared/services/Logger"

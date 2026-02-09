@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/common"
 )
 
 // BannerInfo contains information to display in the session banner
@@ -46,8 +46,8 @@ func RenderSessionBanner(info BannerInfo) string {
 		versionStr = "v" + versionStr
 	}
 
-	// First line: "cline cli vX.X.X" on left, "plan mode" on right
-	leftSide := titleStyle.Render("cline cli preview") + " " + dimStyle.Render(versionStr)
+	// First line: "beadsmith cli vX.X.X" on left, "plan mode" on right
+	leftSide := titleStyle.Render("beadsmith cli preview") + " " + dimStyle.Render(versionStr)
 
 	if info.Mode != "" {
 		modeColor := lipgloss.Color("3") // Yellow for plan

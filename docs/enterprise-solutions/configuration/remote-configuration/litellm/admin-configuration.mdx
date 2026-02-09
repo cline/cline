@@ -1,18 +1,18 @@
 ---
 title: "Configure LiteLLM Provider (Admin)"
 sidebarTitle: "Configure LiteLLM (Admin)"
-description: "This guide explains how administrators configure LiteLLM as the organization-wide LLM provider for Cline."
+description: "This guide explains how administrators configure LiteLLM as the organization-wide LLM provider for Beadsmith."
 ---
 
 
-As an administrator, you can add LiteLLM as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach provides unified access to multiple AI models through your LiteLLM proxy interface.
+As an administrator, you can add LiteLLM as the organization-wide LLM provider for all Beadsmith users through the hosted admin console. This centralized approach provides unified access to multiple AI models through your LiteLLM proxy interface.
 
 ## Before You Begin
 
 To get started with setting up LiteLLM as your organization's LLM provider, you'll need a few items in place.
 
-**Administrator access to the Cline Admin console**  
-You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Cline Settings** in the admin console at [app.cline.bot](https://app.cline.bot), you have the right access level.
+**Administrator access to the Beadsmith Admin console**  
+You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Beadsmith Settings** in the admin console at [app.beadsmith.bot](https://app.beadsmith.bot), you have the right access level.
 
 <Info>
 **Quick Check**: Try accessing the settings page now. If you can see the provider configuration options, you're good to go.
@@ -35,8 +35,8 @@ Ensure your LiteLLM proxy is accessible from your team's development environment
 ## Configuration Steps
 
 <Steps>
-<Step title="Access Cline Settings">
-Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. Go to **Settings → Cline Settings**.
+<Step title="Access Beadsmith Settings">
+Navigate to [app.beadsmith.bot](https://app.beadsmith.bot) and sign in with your administrator account. Go to **Settings → Beadsmith Settings**.
 
 <Info>
 You should see the provider configuration options if you have the correct admin access level.
@@ -80,10 +80,10 @@ The master key provides full access to your LiteLLM proxy. Only enter this if yo
 <Step title="Save Configuration">
 After configuring your settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
 
-Once saved, all organization members signed into the Cline extension will automatically use LiteLLM with your configured settings. They won't be able to select other providers or switch to their personal Cline accounts.
+Once saved, all organization members signed into the Beadsmith extension will automatically use LiteLLM with your configured settings. They won't be able to select other providers or switch to their personal Beadsmith accounts.
 
 <Warning>
-Members can't switch to personal Cline accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
+Members can't switch to personal Beadsmith accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
 </Warning>
 </Step>
 </Steps>

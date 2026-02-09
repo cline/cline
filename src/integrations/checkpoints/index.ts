@@ -8,10 +8,10 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqInfo, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import { BeadsmithApiReqInfo, BeadsmithMessage, BeadsmithSay } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
-import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import { BeadsmithCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -22,7 +22,7 @@ import { ICheckpointManager } from "./types"
 
 // Type definitions for better code organization
 type SayFunction = (
-	type: ClineSay,
+	type: BeadsmithSay,
 	text?: string,
 	images?: string[],
 	files?: string[],
@@ -126,8 +126,8 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}
 
 			// Set isCheckpointCheckedOut to false for all prior checkpoint_created messages
-			const clineMessages = this.services.messageStateHandler.getClineMessages()
-			clineMessages.forEach((message) => {
+			const beadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages()
+			beadsmithMessages.forEach((message) => {
 				if (message.say === "checkpoint_created") {
 					message.isCheckpointCheckedOut = false
 				}
@@ -157,7 +157,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			// Non attempt-completion messages call for a checkpoint_created message to be added
 			if (!isAttemptCompletionMessage) {
 				// Ensure we aren't creating back-to-back checkpoint_created messages
-				const lastMessage = clineMessages.at(-1)
+				const lastMessage = beadsmithMessages.at(-1)
 				if (lastMessage?.say === "checkpoint_created") {
 					return
 				}
@@ -165,7 +165,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				// Create a new checkpoint_created message and asynchronously add the commitHash to the say message
 				const messageTs = await this.callbacks.say("checkpoint_created")
 				if (messageTs) {
-					const messages = this.services.messageStateHandler.getClineMessages()
+					const messages = this.services.messageStateHandler.getBeadsmithMessages()
 					const targetMessage = messages.find((m) => m.ts === messageTs)
 
 					if (targetMessage) {
@@ -174,7 +174,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							.then(async (commitHash) => {
 								if (commitHash) {
 									targetMessage.lastCheckpointHash = commitHash
-									await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+									await this.services.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 								}
 							})
 							.catch((error) => {
@@ -189,8 +189,8 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				// attempt_completion messages are special
 				// First check last 3 messages to see if we already have a recent completion checkpoint
 				// If we do, skip creating a duplicate checkpoint
-				const lastFiveclineMessages = this.services.messageStateHandler.getClineMessages().slice(-3)
-				const lastCompletionResultMessage = findLast(lastFiveclineMessages, (m) => m.say === "completion_result")
+				const lastFivebeadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages().slice(-3)
+				const lastCompletionResultMessage = findLast(lastFivebeadsmithMessages, (m) => m.say === "completion_result")
 				if (lastCompletionResultMessage?.lastCheckpointHash) {
 					Logger.log("Completion checkpoint already exists, skipping duplicate checkpoint creation")
 					return
@@ -203,17 +203,17 @@ export class TaskCheckpointManager implements ICheckpointManager {
 					// If a completionMessageTs is provided, update that specific message with the checkpoint hash
 					if (completionMessageTs) {
 						const targetMessage = this.services.messageStateHandler
-							.getClineMessages()
+							.getBeadsmithMessages()
 							.find((m) => m.ts === completionMessageTs)
 						if (targetMessage) {
 							targetMessage.lastCheckpointHash = commitHash
-							await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+							await this.services.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 						}
 					} else {
 						// Fallback to findLast if no timestamp provided - update the last completion_result message
 						if (lastCompletionResultMessage) {
 							lastCompletionResultMessage.lastCheckpointHash = commitHash
-							await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+							await this.services.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 						}
 					}
 				} else {
@@ -237,16 +237,16 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	 */
 	async restoreCheckpoint(
 		messageTs: number,
-		restoreType: ClineCheckpointRestore,
+		restoreType: BeadsmithCheckpointRestore,
 		offset?: number,
 	): Promise<CheckpointRestoreStateUpdate> {
 		try {
-			const clineMessages = this.services.messageStateHandler.getClineMessages()
-			const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
+			const beadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages()
+			const messageIndex = beadsmithMessages.findIndex((m) => m.ts === messageTs) - (offset || 0)
 			// Find the last message before messageIndex that has a lastCheckpointHash
-			const lastHashIndex = findLastIndex(clineMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
-			const message = clineMessages[messageIndex]
-			const lastMessageWithHash = clineMessages[lastHashIndex]
+			const lastHashIndex = findLastIndex(beadsmithMessages.slice(0, messageIndex), (m) => m.lastCheckpointHash !== undefined)
+			const message = beadsmithMessages[messageIndex]
+			const lastMessageWithHash = beadsmithMessages[lastHashIndex]
 
 			if (!message) {
 				Logger.error(`[TaskCheckpointManager] Message not found for timestamp ${messageTs} in task ${this.task.taskId}`)
@@ -406,9 +406,9 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}
 
 			Logger.log(`[TaskCheckpointManager] presentMultifileDiff for task ${this.task.taskId}, messageTs: ${messageTs}`)
-			const clineMessages = this.services.messageStateHandler.getClineMessages()
-			const messageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
-			const message = clineMessages[messageIndex]
+			const beadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages()
+			const messageIndex = beadsmithMessages.findIndex((m) => m.ts === messageTs)
+			const message = beadsmithMessages[messageIndex]
 			if (!message) {
 				Logger.error(`[TaskCheckpointManager] Message not found for timestamp ${messageTs} in task ${this.task.taskId}`)
 				relinquishButton()
@@ -471,13 +471,13 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			if (seeNewChangesSinceLastTaskCompletion) {
 				// Get last task completed
 				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.services.messageStateHandler.getClineMessages().slice(0, messageIndex),
+					this.services.messageStateHandler.getBeadsmithMessages().slice(0, messageIndex),
 					(m) => m.say === "completion_result",
 				)?.lastCheckpointHash
 
 				// This value *should* always exist
 				const firstCheckpointMessageCheckpointHash = this.services.messageStateHandler
-					.getClineMessages()
+					.getBeadsmithMessages()
 					.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
 				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash
@@ -538,6 +538,101 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	}
 
 	/**
+	 * Present a diff view for bead review, showing changes since a specific checkpoint hash.
+	 * @param startCheckpointHash The checkpoint hash from when the bead started
+	 * @param beadNumber The bead number for display in the diff title
+	 * @returns Promise that resolves when the diff view is opened
+	 */
+	async presentBeadDiff(startCheckpointHash: string, beadNumber: number): Promise<void> {
+		const relinquishButton = () => {
+			sendRelinquishControlEvent()
+		}
+
+		try {
+			if (!this.config.enableCheckpoints) {
+				const errorMessage = "Checkpoints are disabled in settings. Cannot show bead diff."
+				Logger.error(`[TaskCheckpointManager] ${errorMessage} for task ${this.task.taskId}`)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: errorMessage,
+				})
+				relinquishButton()
+				return
+			}
+
+			Logger.log(
+				`[TaskCheckpointManager] presentBeadDiff for task ${this.task.taskId}, bead ${beadNumber}, hash: ${startCheckpointHash}`,
+			)
+
+			// Initialize checkpoint tracker if needed
+			if (!this.state.checkpointTracker && this.config.enableCheckpoints && !this.state.checkpointManagerErrorMessage) {
+				try {
+					const workspacePath = await this.getWorkspacePath()
+					this.state.checkpointTracker = await CheckpointTracker.create(
+						this.task.taskId,
+						this.config.enableCheckpoints,
+						workspacePath,
+					)
+					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					Logger.error(
+						`[TaskCheckpointManager] Failed to initialize checkpoint tracker for task ${this.task.taskId}:`,
+						errorMessage,
+					)
+					this.state.checkpointManagerErrorMessage = errorMessage
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: errorMessage,
+					})
+					relinquishButton()
+					return
+				}
+			}
+
+			if (!this.state.checkpointTracker) {
+				Logger.error(`[TaskCheckpointManager] Checkpoint tracker not available for task ${this.task.taskId}`)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Checkpoint tracker not available",
+				})
+				relinquishButton()
+				return
+			}
+
+			// Get changed files between the bead start checkpoint and current working directory
+			const changedFiles = await this.state.checkpointTracker.getDiffSet(startCheckpointHash)
+			if (!changedFiles?.length) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No changes found in this bead",
+				})
+				relinquishButton()
+				return
+			}
+
+			// Open multi-diff editor
+			const title = `Bead ${beadNumber} Changes`
+			const diffs = changedFiles.map((file) => ({
+				filePath: file.absolutePath,
+				leftContent: file.before,
+				rightContent: file.after,
+			}))
+			await HostProvider.diff.openMultiFileDiff({ title, diffs })
+
+			relinquishButton()
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			Logger.error(`[TaskCheckpointManager] Failed to present bead diff for task ${this.task.taskId}:`, errorMessage)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to retrieve bead diff: " + errorMessage,
+			})
+			relinquishButton()
+		}
+	}
+
+	/**
 	 * Creates a checkpoint commit in the underlying tracker
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if failed
 	 */
@@ -574,9 +669,9 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				return false
 			}
 
-			const clineMessages = this.services.messageStateHandler.getClineMessages()
-			const messageIndex = findLastIndex(clineMessages, (m) => m.say === "completion_result")
-			const message = clineMessages[messageIndex]
+			const beadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages()
+			const messageIndex = findLastIndex(beadsmithMessages, (m) => m.say === "completion_result")
+			const message = beadsmithMessages[messageIndex]
 			if (!message) {
 				Logger.error(`[TaskCheckpointManager] Completion message not found for task ${this.task.taskId}`)
 				return false
@@ -616,7 +711,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 			// Get last task completed
 			const lastTaskCompletedMessage = findLast(
-				this.services.messageStateHandler.getClineMessages().slice(0, messageIndex),
+				this.services.messageStateHandler.getBeadsmithMessages().slice(0, messageIndex),
 				(m) => m.say === "completion_result",
 			)
 
@@ -625,7 +720,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 			// This value *should* always exist
 			const firstCheckpointMessageCheckpointHash = this.services.messageStateHandler
-				.getClineMessages()
+				.getBeadsmithMessages()
 				.find((m) => m.say === "checkpoint_created")?.lastCheckpointHash
 
 			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash
@@ -650,8 +745,8 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	 */
 	// Largely unchanged from original Task class implementation
 	private async handleSuccessfulRestore(
-		restoreType: ClineCheckpointRestore,
-		message: ClineMessage,
+		restoreType: BeadsmithCheckpointRestore,
+		message: BeadsmithMessage,
 		messageIndex: number,
 		messageTs: number,
 	): Promise<void> {
@@ -671,8 +766,8 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				await contextManager.truncateContextHistory(message.ts, await ensureTaskDirectoryExists(this.task.taskId))
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens
-				const clineMessages = this.services.messageStateHandler.getClineMessages()
-				const deletedMessages = clineMessages.slice(messageIndex + 1)
+				const beadsmithMessages = this.services.messageStateHandler.getBeadsmithMessages()
+				const deletedMessages = beadsmithMessages.slice(messageIndex + 1)
 				const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
 				// Detect files edited after this message timestamp for file context warning
@@ -687,8 +782,8 @@ export class TaskCheckpointManager implements ICheckpointManager {
 					}
 				}
 
-				const newClineMessages = clineMessages.slice(0, messageIndex + 1)
-				await this.services.messageStateHandler.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
+				const newBeadsmithMessages = beadsmithMessages.slice(0, messageIndex + 1)
+				await this.services.messageStateHandler.overwriteBeadsmithMessages(newBeadsmithMessages) // calls saveBeadsmithMessages which saves historyItem
 
 				await this.callbacks.say(
 					"deleted_api_reqs",
@@ -698,7 +793,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 						cacheWrites: deletedApiReqsMetrics.totalCacheWrites,
 						cacheReads: deletedApiReqsMetrics.totalCacheReads,
 						cost: deletedApiReqsMetrics.totalCost,
-					} satisfies ClineApiReqInfo),
+					} satisfies BeadsmithApiReqInfo),
 				)
 				break
 			case "workspace":
@@ -730,7 +825,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			// Set isCheckpointCheckedOut flag on the message
 			// Find all checkpoint messages before this one
 			const checkpointMessages = this.services.messageStateHandler
-				.getClineMessages()
+				.getBeadsmithMessages()
 				.filter((m) => m.say === "checkpoint_created")
 			const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
 
@@ -740,7 +835,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			})
 		}
 
-		await this.services.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.services.messageStateHandler.saveBeadsmithMessagesAndUpdateHistory()
 
 		// Cancel and reinitialize the task to get updated messages
 		await this.callbacks.cancelTask()
@@ -790,7 +885,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				if (!checkpointsWarningShown) {
 					checkpointsWarningShown = true
 					await this.setcheckpointManagerErrorMessage(
-						"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+						"Checkpoints are taking longer than expected to initialize. Working in a large repository? Consider re-opening Beadsmith in a project that uses git, or disabling checkpoints.",
 					)
 				}
 			}, 7_000)
@@ -802,7 +897,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 				{
 					milliseconds: 15_000,
 					message:
-						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+						"Checkpoints taking too long to initialize. Consider re-opening Beadsmith in a project that uses git, or disabling checkpoints.",
 				},
 			)
 
@@ -816,7 +911,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			// If the error was a timeout, we disable all checkpoint operations for the rest of the task
 			if (errorMessage.includes("Checkpoints taking too long to initialize")) {
 				await this.setcheckpointManagerErrorMessage(
-					"Checkpoints initialization timed out. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+					"Checkpoints initialization timed out. Consider re-opening Beadsmith in a project that uses git, or disabling checkpoints.",
 				)
 			} else {
 				await this.setcheckpointManagerErrorMessage(errorMessage)

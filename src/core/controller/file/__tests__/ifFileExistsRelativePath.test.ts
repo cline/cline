@@ -1,5 +1,5 @@
 import { Controller } from "@core/controller"
-import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
+import { BooleanResponse, StringRequest } from "@shared/proto/beadsmith/common"
 import * as pathUtils from "@utils/path"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"

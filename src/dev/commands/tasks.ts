@@ -1,5 +1,5 @@
 import { Controller } from "@core/controller"
-import { ClineMessage } from "@shared/ExtensionMessage"
+import { BeadsmithMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import * as fs from "fs/promises"
 import * as path from "path"
@@ -14,7 +14,7 @@ import { Logger } from "@/shared/services/Logger"
  */
 export function registerTaskCommands(controller: Controller): vscode.Disposable[] {
 	return [
-		vscode.commands.registerCommand("cline.dev.expireMcpOAuthTokens", async () => {
+		vscode.commands.registerCommand("beadsmith.dev.expireMcpOAuthTokens", async () => {
 			try {
 				const stateManager = controller.stateManager
 				const secretsJson = stateManager.getSecretKey("mcpOAuthSecrets")
@@ -52,7 +52,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 				Logger.error("[Dev] Error expiring MCP OAuth tokens:", error)
 			}
 		}),
-		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
+		vscode.commands.registerCommand("beadsmith.dev.createTestTasks", async () => {
 			const count = (
 				await HostProvider.window.showInputBox({
 					title: "Test Tasks",
@@ -153,7 +153,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 /**
  * Creates a realistic sequence of messages that would occur in a typical task
  */
-function createRealisticMessageSequence(baseTimestamp: number, taskPrompt: string, taskIndex: number): ClineMessage[] {
+function createRealisticMessageSequence(baseTimestamp: number, taskPrompt: string, taskIndex: number): BeadsmithMessage[] {
 	// Use an incrementing timestamp to ensure messages appear in sequence
 	let timestamp = baseTimestamp
 	const getNextTimestamp = () => {
@@ -166,8 +166,8 @@ function createRealisticMessageSequence(baseTimestamp: number, taskPrompt: strin
 	const commitHash = `commit${taskIndex}${Math.floor(Math.random() * 1000000).toString(16)}`
 
 	// Create a realistic message sequence
-	const messages: ClineMessage[] = [
-		// Initial task message - uses "say" with "text" which is the format used in Cline.ts
+	const messages: BeadsmithMessage[] = [
+		// Initial task message - uses "say" with "text" which is the format used in Beadsmith.ts
 		{
 			ts: baseTimestamp,
 			type: "say",

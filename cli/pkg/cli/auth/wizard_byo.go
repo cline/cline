@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/huh"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // ProviderWizard handles the interactive provider configuration process
@@ -421,7 +421,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	// Step 2: Get all configured providers with models
 	readyProviders := result.GetAllReadyProviders()
 
-	// Filter out Cline provider (it has its own model changer in the main menu)
+	// Filter out Beadsmith provider (it has its own model changer in the main menu)
 	var configurableProviders []*ProviderDisplay
 	for _, provider := range readyProviders {
 		if provider.Provider != cline.ApiProvider_CLINE {
@@ -432,7 +432,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	// Step 3: Check if there are any configurable providers
 	if len(configurableProviders) == 0 {
 		fmt.Println("\nNo configurable providers found.")
-		fmt.Println("Note: Cline provider has its own model selection in the main menu.")
+		fmt.Println("Note: Beadsmith provider has its own model selection in the main menu.")
 		return nil
 	}
 
@@ -474,7 +474,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	var apiKey string
 	if pw.supportsModelFetching(provider) {
 		// For providers that support fetching, we need to retrieve the API key from state
-		state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &cline.EmptyRequest{})
+		state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &beadsmith.EmptyRequest{})
 		if err != nil {
 			return fmt.Errorf("failed to get state: %w", err)
 		}
@@ -524,7 +524,7 @@ func (pw *ProviderWizard) applyModelChange(provider cline.ApiProvider, modelID s
 // It retrieves the existing model configuration and sets it as the active provider for both Plan and Act modes.
 func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cline.ApiProvider) error {
 	// Get the current state to retrieve the model ID and model info for this provider
-	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := manager.GetClient().State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to get state: %w", err)
 	}
@@ -610,7 +610,7 @@ func getProviderAPIKeyFromState(stateData map[string]interface{}, provider cline
 
 // convertMapToOpenRouterModelInfo converts a map to OpenRouterModelInfo
 func convertMapToOpenRouterModelInfo(data map[string]interface{}) *cline.OpenRouterModelInfo {
-	info := &cline.OpenRouterModelInfo{}
+	info := &beadsmith.OpenRouterModelInfo{}
 
 	if val, ok := data["description"].(string); ok {
 		info.Description = &val
@@ -656,7 +656,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	// Step 2: Get all ready providers
 	readyProviders := result.GetAllReadyProviders()
 
-	// Filter out Cline provider (uses account auth, not API keys)
+	// Filter out Beadsmith provider (uses account auth, not API keys)
 	var removableProviders []*ProviderDisplay
 	for _, provider := range readyProviders {
 		if provider.Provider != cline.ApiProvider_CLINE {
@@ -667,7 +667,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	// Step 3: Check if there are providers to remove
 	if len(removableProviders) == 0 {
 		fmt.Println("\nNo providers available to remove.")
-		fmt.Println("Note: Cline provider cannot be removed via this menu.")
+		fmt.Println("Note: Beadsmith provider cannot be removed via this menu.")
 		return nil
 	}
 
@@ -753,11 +753,11 @@ func signOutOca(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = client.Ocaaccount.OcaAccountLogoutClicked(ctx, &cline.EmptyRequest{})
+	_, err = client.Ocaaccount.OcaAccountLogoutClicked(ctx, &beadsmith.EmptyRequest{})
 	return err
 }
 
 func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
-	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
+	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &beadsmith.BooleanRequest{Value: true})
 	return err
 }

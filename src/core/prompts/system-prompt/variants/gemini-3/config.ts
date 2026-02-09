@@ -1,6 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import { isGemini3ModelFamily, isNextGenModelProvider } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
@@ -46,26 +46,26 @@ export const config = createVariant(ModelFamily.GEMINI_3)
 		SystemPromptSection.SKILLS,
 	)
 	.tools(
-		ClineDefaultTool.BASH,
-		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
-		ClineDefaultTool.SEARCH,
-		ClineDefaultTool.LIST_FILES,
-		ClineDefaultTool.LIST_CODE_DEF,
-		ClineDefaultTool.BROWSER,
-		ClineDefaultTool.WEB_FETCH,
-		ClineDefaultTool.MCP_USE,
-		ClineDefaultTool.MCP_ACCESS,
-		ClineDefaultTool.ASK,
-		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
-		ClineDefaultTool.PLAN_MODE,
-		ClineDefaultTool.ACT_MODE,
-		ClineDefaultTool.MCP_DOCS,
-		ClineDefaultTool.TODO,
-		ClineDefaultTool.GENERATE_EXPLANATION,
-		ClineDefaultTool.USE_SKILL,
+		BeadsmithDefaultTool.BASH,
+		BeadsmithDefaultTool.FILE_READ,
+		BeadsmithDefaultTool.FILE_NEW,
+		BeadsmithDefaultTool.FILE_EDIT,
+		BeadsmithDefaultTool.SEARCH,
+		BeadsmithDefaultTool.LIST_FILES,
+		BeadsmithDefaultTool.LIST_CODE_DEF,
+		BeadsmithDefaultTool.BROWSER,
+		BeadsmithDefaultTool.WEB_FETCH,
+		BeadsmithDefaultTool.MCP_USE,
+		BeadsmithDefaultTool.MCP_ACCESS,
+		BeadsmithDefaultTool.ASK,
+		BeadsmithDefaultTool.ATTEMPT,
+		BeadsmithDefaultTool.NEW_TASK,
+		BeadsmithDefaultTool.PLAN_MODE,
+		BeadsmithDefaultTool.ACT_MODE,
+		BeadsmithDefaultTool.MCP_DOCS,
+		BeadsmithDefaultTool.TODO,
+		BeadsmithDefaultTool.GENERATE_EXPLANATION,
+		BeadsmithDefaultTool.USE_SKILL,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GEMINI_3,

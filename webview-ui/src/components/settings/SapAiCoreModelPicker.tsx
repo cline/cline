@@ -1,5 +1,5 @@
 import { sapAiCoreModels } from "@shared/api"
-import { SapAiCoreModelDeployment } from "@shared/proto/index.cline"
+import { SapAiCoreModelDeployment } from "@shared/proto/index.beadsmith"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { memo, useEffect, useMemo } from "react"
 import { DropdownContainer } from "./common/ModelSelector"
@@ -76,7 +76,7 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			allSupportedModels.includes(deployedModel),
 		)
 
-		// Models that are supported in Cline but NOT deployed
+		// Models that are supported in Beadsmith but NOT deployed
 		const supportedButNotDeployed = allSupportedModels.filter(
 			(supportedModel: string) => !deployedModelNames.includes(supportedModel),
 		)

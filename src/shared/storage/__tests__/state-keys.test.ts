@@ -411,7 +411,7 @@ describe("State Keys Type Safety", () => {
 			const globalKey: GlobalStateKey = "isNewUser"
 			const settingsKey: SettingsKey = "preferredLanguage"
 			const secretKey: SecretKey = "apiKey"
-			const localKey: LocalStateKey = "localClineRulesToggles"
+			const localKey: LocalStateKey = "localBeadsmithRulesToggles"
 
 			expect(globalKey).to.be.a("string")
 			expect(settingsKey).to.be.a("string")
@@ -430,12 +430,12 @@ describe("State Keys Type Safety", () => {
 			expect(combined.preferredLanguage).to.equal("English")
 		})
 
-		it("should have LocalState keys map to ClineRulesToggles", () => {
+		it("should have LocalState keys map to BeadsmithRulesToggles", () => {
 			const localState: Partial<LocalState> = {
-				localClineRulesToggles: {},
+				localBeadsmithRulesToggles: {},
 				localCursorRulesToggles: { "some-rule": true },
 			}
-			expect(localState.localClineRulesToggles).to.deep.equal({})
+			expect(localState.localBeadsmithRulesToggles).to.deep.equal({})
 		})
 	})
 
@@ -452,9 +452,9 @@ describe("State Keys Type Safety", () => {
 		})
 
 		it("should handle keys with special characters", () => {
-			// The cline:clineAccountId key has a colon
-			expect(SecretKeys).to.include("cline:clineAccountId")
-			expect(isSecretKey("cline:clineAccountId")).to.be.true
+			// The cline:beadsmithAccountId key has a colon
+			expect(SecretKeys).to.include("cline:beadsmithAccountId")
+			expect(isSecretKey("cline:beadsmithAccountId")).to.be.true
 		})
 
 		it("should not have keys that could cause prototype pollution", () => {

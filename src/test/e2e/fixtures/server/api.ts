@@ -75,7 +75,7 @@ export const name = "cline"
 </replace_in_file>`
 
 export const E2E_MOCK_API_RESPONSES = {
-	DEFAULT: "Hello! I'm a mock Cline API response.",
+	DEFAULT: "Hello! I'm a mock Beadsmith API response.",
 	REPLACE_REQUEST: replace_in_file,
 	EDIT_REQUEST: edit_request,
 }

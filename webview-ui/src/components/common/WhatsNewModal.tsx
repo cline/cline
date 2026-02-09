@@ -1,11 +1,6 @@
-import { Button } from "@components/ui/button"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import React, { useCallback, useRef } from "react"
-import { useMount } from "react-use"
+import React, { useCallback } from "react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface WhatsNewModalProps {
@@ -15,51 +10,10 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
-	const { clineUser } = useClineAuth()
 	const {
-		openRouterModels,
-		setShowChatModelSelector,
-		refreshOpenRouterModels,
 		navigateToSettings,
-		navigateToSettingsModelPicker,
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const clickedModelsRef = useRef<Set<string>>(new Set())
-
-	// Get latest model list in case user hits shortcut button to set model
-	useMount(refreshOpenRouterModels)
-
-	const setModel = useCallback(
-		(modelId: string) => {
-			handleFieldsChange({
-				planModeOpenRouterModelId: modelId,
-				actModeOpenRouterModelId: modelId,
-				planModeOpenRouterModelInfo: openRouterModels[modelId],
-				actModeOpenRouterModelInfo: openRouterModels[modelId],
-				planModeApiProvider: "cline",
-				actModeApiProvider: "cline",
-			})
-
-			clickedModelsRef.current.add(modelId)
-			setShowChatModelSelector(true)
-			onClose()
-		},
-		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
-	)
-
-	const navigateToModelPicker = useCallback(
-		(initialModelTab: "recommended" | "free") => {
-			// Switch to Cline provider first so the model picker tab works
-			handleFieldsChange({
-				planModeApiProvider: "cline",
-				actModeApiProvider: "cline",
-			})
-			onClose()
-			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
-		},
-		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
-	)
 
 	const setOpenAiCodexProvider = useCallback(() => {
 		handleFieldsChange({
@@ -70,62 +24,23 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		navigateToSettings("api-config")
 	}, [handleFieldsChange, onClose, navigateToSettings])
 
-	const handleShowAccount = useCallback(() => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
-	}, [])
+	const setClaudeCodeProvider = useCallback(() => {
+		handleFieldsChange({
+			planModeApiProvider: "claude-code",
+			actModeApiProvider: "claude-code",
+		})
+		onClose()
+		navigateToSettings("api-config")
+	}, [handleFieldsChange, onClose, navigateToSettings])
 
-	const ModelButton: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
-		const isClicked = clickedModelsRef.current.has(modelId)
-		if (isClicked) {
-			return null
-		}
-
-		return (
-			<Button className="my-1" onClick={() => setModel(modelId)} size="sm">
-				{label}
-			</Button>
-		)
-	}
-
-	const AuthButton: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-		clineUser ? (
-			<div className="flex gap-2 flex-wrap">{children}</div>
-		) : (
-			<Button className="my-1" onClick={handleShowAccount} size="sm">
-				Sign Up with Cline
-			</Button>
-		)
-
-	type InlineModelLinkProps =
-		| { type: "model"; modelId: string; label: string }
-		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
-
-	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
-		if (props.type === "picker") {
-			return (
-				<span
-					onClick={() => navigateToModelPicker(props.pickerTab)}
-					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-					{props.label}
-				</span>
-			)
-		}
-
-		const isClicked = clickedModelsRef.current.has(props.modelId)
-		if (isClicked) {
-			return null
-		}
-
-		return (
-			<span
-				onClick={() => setModel(props.modelId)}
-				style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-				{props.label}
-			</span>
-		)
-	}
+	const setGitHubCopilotProvider = useCallback(() => {
+		handleFieldsChange({
+			planModeApiProvider: "vscode-lm",
+			actModeApiProvider: "vscode-lm",
+		})
+		onClose()
+		navigateToSettings("api-config")
+	}, [handleFieldsChange, onClose, navigateToSettings])
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
@@ -138,34 +53,49 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						className="text-lg font-semibold mb-3 pr-6"
 						id="whats-new-title"
 						style={{ color: "var(--vscode-editor-foreground)" }}>
-						🎉 New in v{version}
+						Welcome to Beadsmith v{version}
 					</h2>
 
-					{/* Description */}
+					<p className="text-sm mb-3" style={{ color: "var(--vscode-descriptionForeground)" }}>
+						Beadsmith is a fork of Cline that integrates with your existing AI providers.
+					</p>
+
+					{/* Provider options */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
-							model.{" "}
-							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
+							<strong>Use Claude Code:</strong> Connect with your Anthropic Claude Code subscription.{" "}
+							<span
+								onClick={setClaudeCodeProvider}
+								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+								Configure
+							</span>
 						</li>
 						<li className="mb-2">
-							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
-							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+							<strong>Use GitHub Copilot:</strong> Leverage your existing Copilot subscription.{" "}
+							<span
+								onClick={setGitHubCopilotProvider}
+								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+								Configure
+							</span>
 						</li>
 						<li className="mb-2">
-							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
-							token costs or API keys to manage.{" "}
+							<strong>Use ChatGPT Plus/Pro:</strong> Connect with OpenAI Codex (ChatGPT Plus/Pro).{" "}
 							<span
 								onClick={setOpenAiCodexProvider}
 								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-								Connect
+								Configure
 							</span>
 						</li>
 						<li>
-							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
-							there are plenty models in our free tier.{" "}
-							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
+							<strong>Many more providers:</strong> OpenRouter, Anthropic API, Google Gemini, and more.{" "}
+							<span
+								onClick={() => {
+									onClose()
+									navigateToSettings("api-config")
+								}}
+								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+								See all
+							</span>
 						</li>
 					</ul>
 				</div>

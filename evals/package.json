@@ -1,7 +1,7 @@
 {
 	"name": "cline-evals",
 	"version": "0.1.0",
-	"description": "Evaluation scripts and tools for Cline",
+	"description": "Evaluation scripts and tools for Beadsmith",
 	"main": "cli/dist/index.js",
 	"scripts": {
 		"build:cli": "cd cli && tsc",
@@ -11,7 +11,7 @@
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"keywords": [
-		"cline",
+		"beadsmith",
 		"evaluation",
 		"benchmark",
 		"diff-edits"

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Important:** All bug reports must be reproducible using Claude Sonnet 4.5. Cline uses complex prompts so less capable models may not work as expected.
+        **Important:** All bug reports must be reproducible using Claude Sonnet 4.5. Beadsmith uses complex prompts so less capable models may not work as expected.
   - type: dropdown
     id: plugin-type
     attributes:
@@ -21,8 +21,8 @@ body:
   - type: input
     id: cline-version
     attributes:
-      label: Cline Version
-      description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
+      label: Beadsmith Version
+      description: What version of Beadsmith are you using? (You can find this at the bottom of the Settings view)
       placeholder: 'e.g., 1.2.3'
     validations:
       required: true

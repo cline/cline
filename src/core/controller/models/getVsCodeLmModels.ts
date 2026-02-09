@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { VsCodeLmModelsArray } from "@shared/proto/cline/models"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { VsCodeLmModelsArray } from "@shared/proto/beadsmith/models"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { convertVsCodeNativeModelsToProtoModels } from "../../../shared/proto-conversions/models/vscode-lm-models-conversion"
@@ -14,12 +14,11 @@ import { Controller } from ".."
 export async function getVsCodeLmModels(_controller: Controller, _request: EmptyRequest): Promise<VsCodeLmModelsArray> {
 	try {
 		const models = await vscode.lm.selectChatModels({})
-
 		const protoModels = convertVsCodeNativeModelsToProtoModels(models || [])
 
 		return VsCodeLmModelsArray.create({ models: protoModels })
 	} catch (error) {
-		Logger.error("Error fetching VS Code LM models:", error)
+		Logger.error("[VS Code LM] Error fetching models:", error)
 		return VsCodeLmModelsArray.create({ models: [] })
 	}
 }

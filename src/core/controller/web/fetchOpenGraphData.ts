@@ -1,5 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import { OpenGraphData } from "@shared/proto/cline/web"
+import { StringRequest } from "@shared/proto/beadsmith/common"
+import { OpenGraphData } from "@shared/proto/beadsmith/web"
 import { Logger } from "@/shared/services/Logger"
 import { fetchOpenGraphData as fetchOGData } from "../../../integrations/misc/link-preview"
 import { convertDomainOpenGraphDataToProto } from "../../../shared/proto-conversions/web/open-graph-conversion"

@@ -17,18 +17,18 @@ interface EndpointsFileSchema {
 }
 
 /**
- * Error thrown when the Cline configuration file exists but is invalid.
- * This error prevents Cline from starting to avoid misconfiguration in enterprise environments.
+ * Error thrown when the Beadsmith configuration file exists but is invalid.
+ * This error prevents Beadsmith from starting to avoid misconfiguration in enterprise environments.
  */
-export class ClineConfigurationError extends Error {
+export class BeadsmithConfigurationError extends Error {
 	constructor(message: string) {
 		super(message)
-		this.name = "ClineConfigurationError"
+		this.name = "BeadsmithConfigurationError"
 	}
 }
 
-class ClineEndpoint {
-	private static _instance: ClineEndpoint | null = null
+class BeadsmithEndpoint {
+	private static _instance: BeadsmithEndpoint | null = null
 	private static _initialized = false
 
 	// On-premise config loaded from file (null if not on-premise)
@@ -37,65 +37,65 @@ class ClineEndpoint {
 
 	private constructor() {
 		// Set environment at module load. Use override if provided.
-		const _env = process?.env?.CLINE_ENVIRONMENT_OVERRIDE || process?.env?.CLINE_ENVIRONMENT
+		const _env = process?.env?.BEADSMITH_ENVIRONMENT_OVERRIDE || process?.env?.BEADSMITH_ENVIRONMENT
 		if (_env && Object.values(Environment).includes(_env as Environment)) {
 			this.environment = _env as Environment
 		}
 	}
 
 	/**
-	 * Initializes the ClineEndpoint singleton.
+	 * Initializes the BeadsmithEndpoint singleton.
 	 * Must be called before any other methods.
 	 * Reads the endpoints.json file if it exists and validates its schema.
 	 *
-	 * @throws ClineConfigurationError if the endpoints.json file exists but is invalid
+	 * @throws BeadsmithConfigurationError if the endpoints.json file exists but is invalid
 	 */
 	public static async initialize(): Promise<void> {
-		if (ClineEndpoint._initialized) {
+		if (BeadsmithEndpoint._initialized) {
 			return
 		}
 
-		ClineEndpoint._instance = new ClineEndpoint()
+		BeadsmithEndpoint._instance = new BeadsmithEndpoint()
 
 		// Try to load on-premise config from file
-		const endpointsConfig = await ClineEndpoint.loadEndpointsFile()
+		const endpointsConfig = await BeadsmithEndpoint.loadEndpointsFile()
 		if (endpointsConfig) {
-			ClineEndpoint._instance.onPremiseConfig = endpointsConfig
-			Logger.log("Cline running in self-hosted mode with custom endpoints")
+			BeadsmithEndpoint._instance.onPremiseConfig = endpointsConfig
+			Logger.log("Beadsmith running in self-hosted mode with custom endpoints")
 		}
 
-		ClineEndpoint._initialized = true
+		BeadsmithEndpoint._initialized = true
 	}
 
 	/**
-	 * Returns true if the ClineEndpoint has been initialized.
+	 * Returns true if the BeadsmithEndpoint has been initialized.
 	 */
 	public static isInitialized(): boolean {
-		return ClineEndpoint._initialized
+		return BeadsmithEndpoint._initialized
 	}
 
 	/**
-	 * Checks if Cline is running in self-hosted/on-premise mode.
+	 * Checks if Beadsmith is running in self-hosted/on-premise mode.
 	 * @returns true if in selfHosted mode, or true if not initialized (safety fallback to prevent accidental external calls)
 	 */
 	public static isSelfHosted(): boolean {
 		// Safety fallback: if not initialized, treat as selfHosted
 		// to prevent accidental external service calls before configuration is loaded
-		if (!ClineEndpoint._initialized) {
+		if (!BeadsmithEndpoint._initialized) {
 			return true
 		}
-		return ClineEndpoint.config.environment === Environment.selfHosted
+		return BeadsmithEndpoint.config.environment === Environment.selfHosted
 	}
 
 	/**
 	 * Returns the singleton instance.
 	 * @throws Error if not initialized
 	 */
-	public static get instance(): ClineEndpoint {
-		if (!ClineEndpoint._initialized || !ClineEndpoint._instance) {
-			throw new Error("ClineEndpoint not initialized. Call ClineEndpoint.initialize() first.")
+	public static get instance(): BeadsmithEndpoint {
+		if (!BeadsmithEndpoint._initialized || !BeadsmithEndpoint._instance) {
+			throw new Error("BeadsmithEndpoint not initialized. Call BeadsmithEndpoint.initialize() first.")
 		}
-		return ClineEndpoint._instance
+		return BeadsmithEndpoint._instance
 	}
 
 	/**
@@ -103,24 +103,24 @@ class ClineEndpoint {
 	 * @throws Error if not initialized
 	 */
 	public static get config(): EnvironmentConfig {
-		return ClineEndpoint.instance.config()
+		return BeadsmithEndpoint.instance.config()
 	}
 
 	/**
 	 * Returns the path to the endpoints.json configuration file.
-	 * Located at ~/.cline/endpoints.json
+	 * Located at ~/.beadsmith/endpoints.json
 	 */
 	private static getEndpointsFilePath(): string {
-		return path.join(os.homedir(), ".cline", "endpoints.json")
+		return path.join(os.homedir(), ".beadsmith", "endpoints.json")
 	}
 
 	/**
 	 * Loads and validates the endpoints.json file.
 	 * @returns The validated endpoints config, or null if the file doesn't exist
-	 * @throws ClineConfigurationError if the file exists but is invalid
+	 * @throws BeadsmithConfigurationError if the file exists but is invalid
 	 */
 	private static async loadEndpointsFile(): Promise<EndpointsFileSchema | null> {
-		const filePath = ClineEndpoint.getEndpointsFilePath()
+		const filePath = BeadsmithEndpoint.getEndpointsFilePath()
 
 		try {
 			await fs.access(filePath)
@@ -137,17 +137,17 @@ class ClineEndpoint {
 			try {
 				data = JSON.parse(fileContent)
 			} catch (parseError) {
-				throw new ClineConfigurationError(
+				throw new BeadsmithConfigurationError(
 					`Invalid JSON in endpoints configuration file (${filePath}): ${parseError instanceof Error ? parseError.message : String(parseError)}`,
 				)
 			}
 
-			return ClineEndpoint.validateEndpointsSchema(data, filePath)
+			return BeadsmithEndpoint.validateEndpointsSchema(data, filePath)
 		} catch (error) {
-			if (error instanceof ClineConfigurationError) {
+			if (error instanceof BeadsmithConfigurationError) {
 				throw error
 			}
-			throw new ClineConfigurationError(
+			throw new BeadsmithConfigurationError(
 				`Failed to read endpoints configuration file (${filePath}): ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
@@ -160,11 +160,11 @@ class ClineEndpoint {
 	 * @param data The parsed JSON data to validate
 	 * @param filePath The path to the file (for error messages)
 	 * @returns The validated EndpointsFileSchema
-	 * @throws ClineConfigurationError if validation fails
+	 * @throws BeadsmithConfigurationError if validation fails
 	 */
 	private static validateEndpointsSchema(data: unknown, filePath: string): EndpointsFileSchema {
 		if (typeof data !== "object" || data === null) {
-			throw new ClineConfigurationError(`Endpoints configuration file (${filePath}) must contain a JSON object`)
+			throw new BeadsmithConfigurationError(`Endpoints configuration file (${filePath}) must contain a JSON object`)
 		}
 
 		const obj = data as Record<string, unknown>
@@ -175,19 +175,19 @@ class ClineEndpoint {
 			const value = obj[field]
 
 			if (value === undefined || value === null) {
-				throw new ClineConfigurationError(
+				throw new BeadsmithConfigurationError(
 					`Missing required field "${field}" in endpoints configuration file (${filePath})`,
 				)
 			}
 
 			if (typeof value !== "string") {
-				throw new ClineConfigurationError(
+				throw new BeadsmithConfigurationError(
 					`Field "${field}" in endpoints configuration file (${filePath}) must be a string`,
 				)
 			}
 
 			if (!value.trim()) {
-				throw new ClineConfigurationError(
+				throw new BeadsmithConfigurationError(
 					`Field "${field}" in endpoints configuration file (${filePath}) cannot be empty`,
 				)
 			}
@@ -196,7 +196,7 @@ class ClineEndpoint {
 			try {
 				new URL(value)
 			} catch {
-				throw new ClineConfigurationError(
+				throw new BeadsmithConfigurationError(
 					`Field "${field}" in endpoints configuration file (${filePath}) must be a valid URL. Got: "${value}"`,
 				)
 			}
@@ -220,7 +220,7 @@ class ClineEndpoint {
 	 */
 	public setEnvironment(env: string) {
 		if (this.onPremiseConfig) {
-			throw new Error("Cannot change environment in on-premise mode. Endpoints are configured via ~/.cline/endpoints.json")
+			throw new Error("Cannot change environment in on-premise mode. Endpoints are configured via ~/.beadsmith/endpoints.json")
 		}
 
 		switch (env.toLowerCase()) {
@@ -281,16 +281,16 @@ class ClineEndpoint {
 /**
  * Singleton instance to access the current environment configuration.
  * Usage:
- * - ClineEnv.config() to get the current config.
- * - ClineEnv.setEnvironment(Environment.local) to change the environment.
+ * - BeadsmithEnv.config() to get the current config.
+ * - BeadsmithEnv.setEnvironment(Environment.local) to change the environment.
  *
- * IMPORTANT: ClineEndpoint.initialize() must be called before using ClineEnv.
+ * IMPORTANT: BeadsmithEndpoint.initialize() must be called before using BeadsmithEnv.
  */
-export const ClineEnv = {
-	config: () => ClineEndpoint.config,
-	setEnvironment: (env: string) => ClineEndpoint.instance.setEnvironment(env),
-	getEnvironment: () => ClineEndpoint.instance.getEnvironment(),
+export const BeadsmithEnv = {
+	config: () => BeadsmithEndpoint.config,
+	setEnvironment: (env: string) => BeadsmithEndpoint.instance.setEnvironment(env),
+	getEnvironment: () => BeadsmithEndpoint.instance.getEnvironment(),
 }
 
 // Export the class for initialization
-export { ClineEndpoint }
+export { BeadsmithEndpoint }

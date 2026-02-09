@@ -9,10 +9,10 @@ export function getConfiguredProviders(apiConfiguration: ApiConfiguration | unde
 	const configured: ApiProvider[] = []
 
 	if (!apiConfiguration) {
-		return ["cline"] // Cline is always available
+		return ["cline"] // Beadsmith is always available
 	}
 
-	// Cline - always available (uses account-based auth)
+	// Beadsmith - always available (uses account-based auth)
 	configured.push("cline")
 
 	// Anthropic - requires API key
@@ -206,6 +206,9 @@ export function getConfiguredProviders(apiConfiguration: ApiConfiguration | unde
 
 	// VSCode LM - always potentially available
 	configured.push("vscode-lm")
+
+	// Copilot SDK - relies on local CLI, no required credentials
+	configured.push("copilot-sdk")
 
 	// Claude Code - requires path
 	if (apiConfiguration.claudeCodePath) {

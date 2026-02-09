@@ -1,11 +1,11 @@
 ---
 title: "MCP Made Easy"
-description: "Learn how to use the MCP Marketplace to discover, install, and configure MCP servers that enhance Cline's capabilities with additional tools and resources."
+description: "Learn how to use the MCP Marketplace to discover, install, and configure MCP servers that enhance Beadsmith's capabilities with additional tools and resources."
 ---
 
 ## What's an MCP Server?
 
-MCP servers are specialized extensions that enhance Cline's capabilities. They enable Cline to perform additional tasks like fetching web pages, processing images, accessing APIs, and much more.
+MCP servers are specialized extensions that enhance Beadsmith's capabilities. They enable Beadsmith to perform additional tasks like fetching web pages, processing images, accessing APIs, and much more.
 
 ## MCP Marketplace Walkthrough
 
@@ -13,7 +13,7 @@ The MCP Marketplace provides a one-click installation experience for hundreds of
 
 ### 1. Access the Marketplace
 
--   In Cline, click the "Extensions" button (square icon) in the top toolbar
+-   In Beadsmith, click the "Extensions" button (square icon) in the top toolbar
 -   The MCP marketplace will open, showing available servers by category
 
 ### 2. Browse and Select a Server
@@ -24,24 +24,24 @@ The MCP Marketplace provides a one-click installation experience for hundreds of
 ### 3. Install and Configure
 
 -   Click the install button for your chosen server
--   If the server requires an API key (most do), Cline will guide you through:
+-   If the server requires an API key (most do), Beadsmith will guide you through:
     -   Where to get the API key
     -   How to enter it securely
 -   The server will be added to your MCP settings automatically
 
 ### 4. Verify Installation
 
--   Cline will show confirmation when installation is complete
--   Check the server status in Cline's MCP settings UI
+-   Beadsmith will show confirmation when installation is complete
+-   Check the server status in Beadsmith's MCP settings UI
 
 ### 5. Using Your New Server
 
--   After successful installation, Cline will automatically integrate the server's capabilities
--   You'll see new tools and resources available in Cline's system prompt
--   Simply ask Cline to use the capabilities of your new server
+-   After successful installation, Beadsmith will automatically integrate the server's capabilities
+-   You'll see new tools and resources available in Beadsmith's system prompt
+-   Simply ask Beadsmith to use the capabilities of your new server
 -   Example: "Search the web for recent React updates using Perplexity"
 
-**Corporate Users:** If you're using Cline in a corporate environment, ensure you have permission to install third-party MCP servers according to your organization's security policies.
+**Corporate Users:** If you're using Beadsmith in a corporate environment, ensure you have permission to install third-party MCP servers according to your organization's security policies.
 
 ## What Happens Behind the Scenes
 
@@ -49,29 +49,29 @@ When you install an MCP server, several things happen automatically:
 
 ### 1. Installation Process
 
--   The server code is cloned/installed to `/Users/<username>/Documents/Cline/MCP/`
+-   The server code is cloned/installed to `/Users/<username>/Documents/Beadsmith/MCP/`
 -   Dependencies are installed
 -   The server is built (TypeScript/JavaScript compilation or Python package installation)
 
 ### 2. Configuration
 
 -   The MCP settings file is updated with your server configuration
--   This file is located at: `/Users/<username>/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+-   This file is located at: `/Users/<username>/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/beadsmith_mcp_settings.json`
 -   Environment variables (like API keys) are securely stored
 -   The server path is registered
 
 ### 3. Server Launch
 
--   Cline detects the configuration change
--   Cline launches your server as a separate process
+-   Beadsmith detects the configuration change
+-   Beadsmith launches your server as a separate process
 -   Communication is established via stdio or HTTP
 
-### 4. Integration with Cline
+### 4. Integration with Beadsmith
 
--   Your server's capabilities are added to Cline's system prompt
+-   Your server's capabilities are added to Beadsmith's system prompt
 -   Tools become available via `use_mcp_tool` commands
 -   Resources become available via `access_mcp_resource` commands
--   Cline can now use these capabilities when prompted by the user
+-   Beadsmith can now use these capabilities when prompted by the user
 
 ## Troubleshooting
 
@@ -109,10 +109,10 @@ If any of these commands fail or show older versions, please install/update befo
 
 To completely remove a faulty MCP server:
 
-1. Open the MCP settings file: `/Users/<username>/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+1. Open the MCP settings file: `/Users/<username>/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/beadsmith_mcp_settings.json`
 2. Delete the entire entry for your server from the `mcpServers` object
 3. Save the file
-4. Restart Cline
+4. Restart Beadsmith
 
 ### I'm Still Getting an Error
 
@@ -123,18 +123,18 @@ If you're getting an error when using an MCP server, you can try the following:
 -   Verify that paths to your server's files are correct
 -   Ensure all required environment variables are set
 -   Check if another process is using the same port (for HTTP-based servers)
--   Try removing and reinstalling the server (remove from both the `cline_mcp_settings.json` file and the `/Users/<username>/Documents/Cline/MCP/` directory)
--   Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Cline is seeing
+-   Try removing and reinstalling the server (remove from both the `beadsmith_mcp_settings.json` file and the `/Users/<username>/Documents/Beadsmith/MCP/` directory)
+-   Use a terminal and run the command with its arguments directly. This will allow you to see the same errors that Beadsmith is seeing
 
 ## MCP Server Rules
 
-Cline is already aware of your active MCP servers and what they are for, but when you have a lot of MCP servers enabled, it can be useful to define when to use each server.
+Beadsmith is already aware of your active MCP servers and what they are for, but when you have a lot of MCP servers enabled, it can be useful to define when to use each server.
 
-Utilize a `.clinerules` file or custom instructions to support intelligent MCP server activation through keyword-based triggers, making Cline's tool selection more intuitive and context-aware.
+Utilize a `.beadsmithrules` file or custom instructions to support intelligent MCP server activation through keyword-based triggers, making Beadsmith's tool selection more intuitive and context-aware.
 
 ### How MCP Rules Work
 
-MCP Rules group your connected MCP servers into functional categories and define trigger keywords that activate them automatically when detected in your conversations with Cline.
+MCP Rules group your connected MCP servers into functional categories and define trigger keywords that activate them automatically when detected in your conversations with Beadsmith.
 
 ```json
 {
@@ -157,14 +157,14 @@ MCP Rules group your connected MCP servers into functional categories and define
 
 ### Benefits of MCP Rules
 
--   **Contextual Tool Selection**: Cline selects appropriate tools based on conversation context
+-   **Contextual Tool Selection**: Beadsmith selects appropriate tools based on conversation context
 -   **Reduced Friction**: No need to manually specify which tool to use
 -   **Organized Capabilities**: Logically group related tools and servers
 -   **Prioritization**: Handle ambiguous cases with explicit priority ordering
 
 ### Example Usage
 
-When you write "Can you scrape this website?", Cline detects "scrape" and "website" as triggers, automatically selecting web-related MCP servers.
+When you write "Can you scrape this website?", Beadsmith detects "scrape" and "website" as triggers, automatically selecting web-related MCP servers.
 
 For finance tasks like "What's Apple's stock price?", keywords like "stock" and "price" trigger finance-related servers.
 
@@ -196,4 +196,4 @@ For finance tasks like "What's Apple's stock price?", keywords like "stock" and 
 }
 ```
 
-Add this to your `.clinerules` file or to your custom instructions to make Cline's MCP server selection more intuitive and context-aware.
+Add this to your `.beadsmithrules` file or to your custom instructions to make Beadsmith's MCP server selection more intuitive and context-aware.

@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // MessageHandler defines the interface for handling different message types
 type MessageHandler interface {
 	// CanHandle returns true if this handler can process the given message
-	CanHandle(msg *types.ClineMessage) bool
+	CanHandle(msg *types.BeadsmithMessage) bool
 
 	// Handle processes the message and renders it using the display context
-	Handle(msg *types.ClineMessage, dc *DisplayContext) error
+	Handle(msg *types.BeadsmithMessage, dc *DisplayContext) error
 
 	// GetPriority returns the priority of this handler (higher = more priority)
 	GetPriority() int
@@ -86,7 +86,7 @@ func (r *HandlerRegistry) Register(handler MessageHandler) {
 }
 
 // Handle finds the appropriate handler and processes the message
-func (r *HandlerRegistry) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
+func (r *HandlerRegistry) Handle(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	for _, handler := range r.handlers {
 		if handler.CanHandle(msg) {
 			return handler.Handle(msg, dc)
@@ -98,7 +98,7 @@ func (r *HandlerRegistry) Handle(msg *types.ClineMessage, dc *DisplayContext) er
 }
 
 // handleDefault provides default handling for unrecognized messages
-func (r *HandlerRegistry) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
+func (r *HandlerRegistry) handleDefault(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}

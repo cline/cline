@@ -1,6 +1,6 @@
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
+import { SapAiCoreModelDeployment, SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/beadsmith/models"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
@@ -62,7 +62,7 @@ async function fetchAiCoreDeploymentsAndOrchestration(
 		Authorization: `Bearer ${accessToken}`,
 		"AI-Resource-Group": resourceGroup || "default",
 		"Content-Type": "application/json",
-		"AI-Client-Type": "Cline",
+		"AI-Client-Type": "Beadsmith",
 	}
 
 	const url = `${baseUrl}/v2/lm/deployments?$top=10000&$skip=0`

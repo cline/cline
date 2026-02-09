@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Content, GenerateContentResponse, Part } from "@google/genai"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 
 // Source: https://ai.google.dev/gemini-api/docs/thought-signatures#faqs
 // While injecting custom function call blocks into the request is strongly discouraged,
@@ -10,7 +10,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 // "context_engineering_is_the_way_to_go" or "skip_thought_signature_validator" in the thought signature field to skip validation.
 const GEMINI_DUMMY_THOUGHT_SIGNATURE = "skip_thought_signature_validator"
 
-export function convertAnthropicContentToGemini(content: string | ClineStorageMessage["content"]): Part[] {
+export function convertAnthropicContentToGemini(content: string | BeadsmithStorageMessage["content"]): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content }]
 	}

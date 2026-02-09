@@ -1,4 +1,4 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { GetHostVersionResponse } from "@/shared/proto/index.host"
@@ -7,7 +7,7 @@ export async function getHostVersion(_: EmptyRequest): Promise<GetHostVersionRes
 	return {
 		platform: vscode.env.appName,
 		version: vscode.version,
-		clineType: "VSCode Extension",
-		clineVersion: ExtensionRegistryInfo.version,
+		beadsmithType: "VSCode Extension",
+		beadsmithVersion: ExtensionRegistryInfo.version,
 	}
 }

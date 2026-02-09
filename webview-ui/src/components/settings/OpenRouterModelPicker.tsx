@@ -1,5 +1,5 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/beadsmith/common"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -46,7 +46,7 @@ export interface OpenRouterModelPickerProps {
 	initialTab?: "recommended" | "free"
 }
 
-// Featured models for Cline provider organized by tabs
+// Featured models for Beadsmith provider organized by tabs
 export const recommendedModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
@@ -140,9 +140,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		const isCline = selected.selectedProvider === "cline"
-		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		if (isCline && FREE_CLINE_MODELS.includes(selected.selectedModelId)) {
+		const isBeadsmith = selected.selectedProvider === "cline"
+		// Makes sure "Free" featured models have $0 pricing for Beadsmith provider
+		if (isBeadsmith && FREE_CLINE_MODELS.includes(selected.selectedModelId)) {
 			return {
 				...selected,
 				selectedModelInfo: {
@@ -513,7 +513,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					<VSCodeLink href="https://openrouter.ai/models" style={{ display: "inline", fontSize: "inherit" }}>
 						OpenRouter.
 					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
+					If you're unsure which model to choose, Beadsmith works best with{" "}
 					<VSCodeLink
 						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
 						style={{ display: "inline", fontSize: "inherit" }}>

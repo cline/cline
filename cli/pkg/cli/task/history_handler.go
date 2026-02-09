@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/types"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/types"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // ListTasksFromDisk reads task history directly from disk
@@ -21,7 +21,7 @@ func ListTasksFromDisk() error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	filePath := filepath.Join(homeDir, ".cline", "data", "state", "taskHistory.json")
+	filePath := filepath.Join(homeDir, ".beadsmith", "data", "state", "taskHistory.json")
 
 	// Read the file
 	data, err := os.ReadFile(filePath)
@@ -52,7 +52,7 @@ func ListTasksFromDisk() error {
 	// Convert to protobuf TaskItem format for rendering
 	tasks := make([]*cline.TaskItem, len(historyItems))
 	for i, item := range historyItems {
-		tasks[i] = &cline.TaskItem{
+		tasks[i] = &beadsmith.TaskItem{
 			Id:          item.Id,
 			Task:        item.Task,
 			Ts:          item.Ts,

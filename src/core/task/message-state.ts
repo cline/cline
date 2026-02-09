@@ -4,13 +4,13 @@ import Mutex from "p-mutex"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
-import { ClineMessage } from "@/shared/ExtensionMessage"
+import { BeadsmithMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import { ensureTaskDirectoryExists, saveApiConversationHistory, saveBeadsmithMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
@@ -23,8 +23,8 @@ interface MessageStateHandlerParams {
 }
 
 export class MessageStateHandler {
-	private apiConversationHistory: ClineStorageMessage[] = []
-	private clineMessages: ClineMessage[] = []
+	private apiConversationHistory: BeadsmithStorageMessage[] = []
+	private beadsmithMessages: BeadsmithMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
@@ -59,38 +59,38 @@ export class MessageStateHandler {
 		return await this.stateMutex.withLock(fn)
 	}
 
-	getApiConversationHistory(): ClineStorageMessage[] {
+	getApiConversationHistory(): BeadsmithStorageMessage[] {
 		return this.apiConversationHistory
 	}
 
-	setApiConversationHistory(newHistory: ClineStorageMessage[]): void {
+	setApiConversationHistory(newHistory: BeadsmithStorageMessage[]): void {
 		this.apiConversationHistory = newHistory
 	}
 
-	getClineMessages(): ClineMessage[] {
-		return this.clineMessages
+	getBeadsmithMessages(): BeadsmithMessage[] {
+		return this.beadsmithMessages
 	}
 
-	setClineMessages(newMessages: ClineMessage[]) {
-		this.clineMessages = newMessages
+	setBeadsmithMessages(newMessages: BeadsmithMessage[]) {
+		this.beadsmithMessages = newMessages
 	}
 
 	/**
 	 * Internal method to save messages and update history (without mutex protection)
 	 * This is used by methods that already hold the stateMutex lock
-	 * Should NOT be called directly - use saveClineMessagesAndUpdateHistory() instead
+	 * Should NOT be called directly - use saveBeadsmithMessagesAndUpdateHistory() instead
 	 */
-	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
+	private async saveBeadsmithMessagesAndUpdateHistoryInternal(): Promise<void> {
 		try {
-			await saveClineMessages(this.taskId, this.clineMessages)
+			await saveBeadsmithMessages(this.taskId, this.beadsmithMessages)
 
 			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-			const taskMessage = this.clineMessages[0] // first message is always the task say
+			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.beadsmithMessages.slice(1))))
+			const taskMessage = this.beadsmithMessages[0] // first message is always the task say
 			const lastRelevantMessage =
-				this.clineMessages[
+				this.beadsmithMessages[
 					findLastIndex(
-						this.clineMessages,
+						this.beadsmithMessages,
 						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
 					)
 				]
@@ -132,13 +132,13 @@ export class MessageStateHandler {
 	 * Save cline messages and update task history (public API with mutex protection)
 	 * This is the main entry point for saving message state from external callers
 	 */
-	async saveClineMessagesAndUpdateHistory(): Promise<void> {
+	async saveBeadsmithMessagesAndUpdateHistory(): Promise<void> {
 		return await this.withStateLock(async () => {
-			await this.saveClineMessagesAndUpdateHistoryInternal()
+			await this.saveBeadsmithMessagesAndUpdateHistoryInternal()
 		})
 	}
 
-	async addToApiConversationHistory(message: ClineStorageMessage) {
+	async addToApiConversationHistory(message: BeadsmithStorageMessage) {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory.push(message)
@@ -146,7 +146,7 @@ export class MessageStateHandler {
 		})
 	}
 
-	async overwriteApiConversationHistory(newHistory: ClineStorageMessage[]): Promise<void> {
+	async overwriteApiConversationHistory(newHistory: BeadsmithStorageMessage[]): Promise<void> {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory = newHistory
@@ -155,66 +155,66 @@ export class MessageStateHandler {
 	}
 
 	/**
-	 * Add a new message to clineMessages array with proper index tracking
+	 * Add a new message to beadsmithMessages array with proper index tracking
 	 * CRITICAL: This entire operation must be atomic to prevent race conditions (RC-4)
 	 * The conversationHistoryIndex must be set correctly based on the current state,
 	 * and the message must be added and saved without any interleaving operations
 	 */
-	async addToClineMessages(message: ClineMessage) {
+	async addToBeadsmithMessages(message: BeadsmithMessage) {
 		return await this.withStateLock(async () => {
 			// these values allow us to reconstruct the conversation history at the time this cline message was created
 			// it's important that apiConversationHistory is initialized before we add cline messages
-			message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
+			message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the beadsmithmessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
 			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
-			this.clineMessages.push(message)
-			await this.saveClineMessagesAndUpdateHistoryInternal()
+			this.beadsmithMessages.push(message)
+			await this.saveBeadsmithMessagesAndUpdateHistoryInternal()
 		})
 	}
 
 	/**
-	 * Replace the entire clineMessages array with new messages
+	 * Replace the entire beadsmithMessages array with new messages
 	 * Protected by mutex to prevent concurrent modifications (RC-4)
 	 */
-	async overwriteClineMessages(newMessages: ClineMessage[]) {
+	async overwriteBeadsmithMessages(newMessages: BeadsmithMessage[]) {
 		return await this.withStateLock(async () => {
-			this.clineMessages = newMessages
-			await this.saveClineMessagesAndUpdateHistoryInternal()
+			this.beadsmithMessages = newMessages
+			await this.saveBeadsmithMessagesAndUpdateHistoryInternal()
 		})
 	}
 
 	/**
-	 * Update a specific message in the clineMessages array
+	 * Update a specific message in the beadsmithMessages array
 	 * The entire operation (validate, update, save) is atomic to prevent races (RC-4)
 	 */
-	async updateClineMessage(index: number, updates: Partial<ClineMessage>): Promise<void> {
+	async updateBeadsmithMessage(index: number, updates: Partial<BeadsmithMessage>): Promise<void> {
 		return await this.withStateLock(async () => {
-			if (index < 0 || index >= this.clineMessages.length) {
+			if (index < 0 || index >= this.beadsmithMessages.length) {
 				throw new Error(`Invalid message index: ${index}`)
 			}
 
 			// Apply updates to the message
-			Object.assign(this.clineMessages[index], updates)
+			Object.assign(this.beadsmithMessages[index], updates)
 
 			// Save changes and update history
-			await this.saveClineMessagesAndUpdateHistoryInternal()
+			await this.saveBeadsmithMessagesAndUpdateHistoryInternal()
 		})
 	}
 
 	/**
-	 * Delete a specific message from the clineMessages array
+	 * Delete a specific message from the beadsmithMessages array
 	 * The entire operation (validate, delete, save) is atomic to prevent races (RC-4)
 	 */
-	async deleteClineMessage(index: number): Promise<void> {
+	async deleteBeadsmithMessage(index: number): Promise<void> {
 		return await this.withStateLock(async () => {
-			if (index < 0 || index >= this.clineMessages.length) {
+			if (index < 0 || index >= this.beadsmithMessages.length) {
 				throw new Error(`Invalid message index: ${index}`)
 			}
 
 			// Remove the message at the specified index
-			this.clineMessages.splice(index, 1)
+			this.beadsmithMessages.splice(index, 1)
 
 			// Save changes and update history
-			await this.saveClineMessagesAndUpdateHistoryInternal()
+			await this.saveBeadsmithMessagesAndUpdateHistoryInternal()
 		})
 	}
 }

@@ -16,7 +16,7 @@ describe("grpc-handler", () => {
 	let mockStreamingHandler: sinon.SinonStub
 	let mockStreamingFailingHandler: sinon.SinonStub
 
-	const serviceName = "cline.TestService"
+	const serviceName = "beadsmith.TestService"
 	const mockResponse = { result: "result-1234" }
 
 	beforeEach(() => {

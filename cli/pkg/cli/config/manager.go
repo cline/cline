@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/global"
 	"github.com/cline/grpc-go/client"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 type Manager struct {
@@ -48,8 +48,8 @@ func (m *Manager) GetCurrentInstance() string {
 }
 
 func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, secrets *cline.Secrets) error {
-	request := &cline.UpdateSettingsRequestCli{
-		Metadata: &cline.Metadata{},
+	request := &beadsmith.UpdateSettingsRequestCli{
+		Metadata: &beadsmith.Metadata{},
 		Settings: settings,
 		Secrets:  secrets,
 	}
@@ -66,7 +66,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, 
 }
 
 func (m *Manager) GetState(ctx context.Context) (map[string]interface{}, error) {
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state: %w", err)
 	}

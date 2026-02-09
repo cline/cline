@@ -1,4 +1,4 @@
-import { McpDisplayMode, OpenaiReasoningEffort, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { McpDisplayMode, OpenaiReasoningEffort, UpdateSettingsRequest } from "@shared/proto/beadsmith/state"
 import { StateServiceClient } from "@/services/grpc-client"
 
 /**

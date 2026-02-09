@@ -17,8 +17,8 @@ jobs:
 
     publish:
         needs: test
-        name: Publish Cline (Nightly) Extension
-        if: github.repository == 'cline/cline'
+        name: Publish Beadsmith (Nightly) Extension
+        if: github.repository == 'CodeHalwell/beadsmith'
         runs-on: ubuntu-latest
         environment: PublishNightly
 

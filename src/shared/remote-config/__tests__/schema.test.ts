@@ -2,7 +2,7 @@ import { expect } from "chai"
 import { describe, it } from "mocha"
 import {
 	AwsBedrockSettingsSchema,
-	ClineSettingsSchema,
+	BeadsmithSettingsSchema,
 	EnterpriseTelemetrySchema,
 	OpenAiCompatibleSchema,
 	PromptUploadingSchema,
@@ -311,17 +311,17 @@ describe("Remote Config Schema", () => {
 		})
 	})
 
-	describe("ClineSettingsSchema", () => {
-		it("should accept valid Cline provider settings", () => {
+	describe("BeadsmithSettingsSchema", () => {
+		it("should accept valid Beadsmith provider settings", () => {
 			const validSettings = {
 				models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
 			}
-			const result = ClineSettingsSchema.parse(validSettings)
+			const result = BeadsmithSettingsSchema.parse(validSettings)
 			expect(result).to.deep.equal(validSettings)
 		})
 
 		it("should accept empty settings object", () => {
-			const result = ClineSettingsSchema.parse({})
+			const result = BeadsmithSettingsSchema.parse({})
 			expect(result.models).to.be.undefined
 		})
 
@@ -329,12 +329,12 @@ describe("Remote Config Schema", () => {
 			const settings = {
 				models: [{ id: "claude-3-5-sonnet-20241022" }],
 			}
-			expect(() => ClineSettingsSchema.parse(settings)).to.not.throw()
+			expect(() => BeadsmithSettingsSchema.parse(settings)).to.not.throw()
 		})
 
 		it("should reject models with missing id field", () => {
 			expect(() =>
-				ClineSettingsSchema.parse({
+				BeadsmithSettingsSchema.parse({
 					models: [{}],
 				}),
 			).to.throw()
@@ -769,7 +769,7 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockUsePromptCache).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockEndpoint).to.equal("https://custom-bedrock.endpoint")
 
-			// Verify Cline settings
+			// Verify Beadsmith settings
 			expect(result.providerSettings?.Cline?.models).to.have.lengthOf(2)
 			expect(result.providerSettings?.Cline?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
 			expect(result.providerSettings?.Cline?.models?.[1].id).to.equal("claude-3-5-haiku-20241022")

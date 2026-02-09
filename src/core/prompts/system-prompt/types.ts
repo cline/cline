@@ -8,8 +8,8 @@ import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
 import { ModelFamily } from "@/shared/prompts"
 import type { SkillMetadata } from "@/shared/skills"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "./spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "./spec"
 import { SystemPromptSection } from "./templates/placeholders"
 
 /**
@@ -41,8 +41,8 @@ export interface PromptVariant {
 	readonly placeholders: Readonly<Record<string, string>> // Default placeholder values
 
 	// Tool configuration
-	readonly tools?: readonly ClineDefaultTool[] // Ordered list of tools to include
-	readonly toolOverrides?: Readonly<Partial<Record<ClineDefaultTool, ConfigOverride>>> // Tool customizations
+	readonly tools?: readonly BeadsmithDefaultTool[] // Ordered list of tools to include
+	readonly toolOverrides?: Readonly<Partial<Record<BeadsmithDefaultTool, ConfigOverride>>> // Tool customizations
 }
 
 /**
@@ -61,8 +61,8 @@ export interface MutablePromptVariant {
 	componentOrder: SystemPromptSection[]
 	componentOverrides: Partial<Record<SystemPromptSection, ConfigOverride>>
 	placeholders: Record<string, string>
-	tools?: ClineDefaultTool[]
-	toolOverrides?: Partial<Record<ClineDefaultTool, ConfigOverride>>
+	tools?: BeadsmithDefaultTool[]
+	toolOverrides?: Partial<Record<BeadsmithDefaultTool, ConfigOverride>>
 }
 
 /**
@@ -72,7 +72,7 @@ export interface PromptConfig {
 	readonly modelName?: string
 	readonly temperature?: number
 	readonly maxTokens?: number
-	readonly tools?: readonly ClineToolSpec[]
+	readonly tools?: readonly BeadsmithToolSpec[]
 	readonly [key: string]: unknown // Additional arbitrary config
 }
 
@@ -103,19 +103,19 @@ export interface SystemPromptContext {
 	readonly mcpHub?: McpHub
 	readonly skills?: SkillMetadata[]
 	readonly focusChainSettings?: FocusChainSettings
-	readonly globalClineRulesFileInstructions?: string
-	readonly localClineRulesFileInstructions?: string
+	readonly globalBeadsmithRulesFileInstructions?: string
+	readonly localBeadsmithRulesFileInstructions?: string
 	readonly localCursorRulesFileInstructions?: string
 	readonly localCursorRulesDirInstructions?: string
 	readonly localWindsurfRulesFileInstructions?: string
 	readonly localAgentsRulesFileInstructions?: string
-	readonly clineIgnoreInstructions?: string
+	readonly beadsmithIgnoreInstructions?: string
 	readonly preferredLanguageInstructions?: string
 	readonly browserSettings?: BrowserSettings
 	readonly isTesting?: boolean
 	readonly runtimePlaceholders?: Readonly<Record<string, unknown>>
 	readonly yoloModeToggled?: boolean
-	readonly clineWebToolsEnabled?: boolean
+	readonly beadsmithWebToolsEnabled?: boolean
 	readonly isMultiRootEnabled?: boolean
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 	readonly isSubagentsEnabledAndCliInstalled?: boolean
@@ -123,6 +123,27 @@ export interface SystemPromptContext {
 	readonly enableNativeToolCalls?: boolean
 	readonly enableParallelToolCalling?: boolean
 	readonly terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
+	// Bead (Ralph Loop) context
+	readonly beadModeActive?: boolean
+	readonly beadDescription?: string
+	readonly beadNumber?: number
+	readonly beadMaxIterations?: number
+	readonly beadCompletionSignal?: string
+	readonly beadTestCommand?: string
+	readonly beadFeedback?: string // rejection feedback from previous bead
+	// DAG analysis context
+	readonly dagEnabled?: boolean
+	readonly dagImpact?: {
+		readonly affectedFiles?: readonly string[]
+		readonly affectedFunctions?: readonly string[]
+		readonly suggestedTests?: readonly string[]
+		readonly confidenceBreakdown?: {
+			readonly high?: number
+			readonly medium?: number
+			readonly low?: number
+			readonly unsafe?: number
+		}
+	}
 }
 
 /**
@@ -151,8 +172,8 @@ export type ComponentKey = keyof typeof SystemPromptSection
 export type ComponentValue = (typeof SystemPromptSection)[ComponentKey]
 
 // Extract tool keys as literal types
-export type ToolKey = keyof typeof ClineDefaultTool
-export type ToolValue = (typeof ClineDefaultTool)[ToolKey]
+export type ToolKey = keyof typeof BeadsmithDefaultTool
+export type ToolValue = (typeof BeadsmithDefaultTool)[ToolKey]
 
 // Type for variant builder methods
 export type VariantBuilderMethod<T> = (this: T, ...args: any[]) => T
@@ -166,8 +187,8 @@ export function isValidSystemPromptSection(section: string): section is SystemPr
 	return Object.values(SystemPromptSection).includes(section as SystemPromptSection)
 }
 
-export function isValidClineDefaultTool(tool: string): tool is ClineDefaultTool {
-	return Object.values(ClineDefaultTool).includes(tool as ClineDefaultTool)
+export function isValidBeadsmithDefaultTool(tool: string): tool is BeadsmithDefaultTool {
+	return Object.values(BeadsmithDefaultTool).includes(tool as BeadsmithDefaultTool)
 }
 
 /**
@@ -199,8 +220,8 @@ export interface VariantBuilder {
 	template(baseTemplate: string): this
 	components(...sections: SystemPromptSection[]): this
 	overrideComponent(section: SystemPromptSection, override: ConfigOverride): this
-	tools(...tools: ClineDefaultTool[]): this
-	overrideTool(tool: ClineDefaultTool, override: ConfigOverride): this
+	tools(...tools: BeadsmithDefaultTool[]): this
+	overrideTool(tool: BeadsmithDefaultTool, override: ConfigOverride): this
 	placeholders(placeholders: Record<string, string>): this
 	config(config: Record<string, any>): this
 	build(): VariantConfig
@@ -268,5 +289,5 @@ export const TASK_PROGRESS_PARAMETER = {
 	required: false,
 	instruction: `A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)`,
 	usage: "Checklist here (optional)",
-	dependencies: [ClineDefaultTool.TODO],
+	dependencies: [BeadsmithDefaultTool.TODO],
 }

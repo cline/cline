@@ -8,10 +8,13 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
+import { NodeHttpHandler } from "@smithy/node-http-handler"
+import { HttpProxyAgent } from "http-proxy-agent"
+import { HttpsProxyAgent } from "https-proxy-agent"
 import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -127,7 +130,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	@withRetry({ maxRetries: 4 })
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
@@ -220,7 +223,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		const providerOptions: ProviderChainOptions = {
 			clientConfig: {
 				// set the inner sts client userAgentAppId
-				userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
+				userAgentAppId: `beadsmith#${ExtensionRegistryInfo.version}`,
 			},
 		}
 		const useProfile =
@@ -282,14 +285,39 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		}
 
-		// TODO: Add proxy support for AWS SDK
-		// AWS SDK uses a different architecture than fetch-based SDKs.
-		// To add proxy support, we need to provide a custom requestHandler.
+		// Configure proxy support for AWS SDK
+		const requestHandler = this.createProxyRequestHandler()
+
 		return new BedrockRuntimeClient({
-			userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
+			userAgentAppId: `beadsmith#${ExtensionRegistryInfo.version}`,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
+			...(requestHandler && { requestHandler }),
+		})
+	}
+
+	/**
+	 * Creates a request handler with proxy support if proxy environment variables are set.
+	 * Reads HTTP_PROXY/http_proxy and HTTPS_PROXY/https_proxy environment variables.
+	 * @returns NodeHttpHandler with proxy configuration, or undefined if no proxy is needed
+	 */
+	private createProxyRequestHandler(): NodeHttpHandler | undefined {
+		const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy
+		const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy
+
+		// Only create custom handler if proxy is configured
+		if (!httpProxy && !httpsProxy) {
+			return undefined
+		}
+
+		Logger.debug(`[AwsBedrockHandler] Using proxy: HTTP=${httpProxy || "none"}, HTTPS=${httpsProxy || "none"}`)
+
+		return new NodeHttpHandler({
+			httpAgent: httpProxy ? new HttpProxyAgent(httpProxy) : undefined,
+			httpsAgent: httpsProxy ? new HttpsProxyAgent(httpsProxy) : undefined,
+			connectionTimeout: 60000,
+			socketTimeout: 300000, // 5 minutes for long-running requests
 		})
 	}
 
@@ -353,7 +381,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createDeepseekMessage(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
@@ -491,7 +519,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * First uses convertToR1Format to merge consecutive messages with the same role,
 	 * then converts to the string format that DeepSeek R1 expects
 	 */
-	private formatDeepseekR1Prompt(systemPrompt: string, messages: ClineStorageMessage[]): string {
+	private formatDeepseekR1Prompt(systemPrompt: string, messages: BeadsmithStorageMessage[]): string {
 		// First use convertToR1Format to merge consecutive messages with the same role
 		const r1Messages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 
@@ -524,7 +552,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Estimates token count based on text length (approximate)
 	 * Note: This is a rough estimation, as the actual token count depends on the tokenizer
 	 */
-	private estimateInputTokens(systemPrompt: string, messages: ClineStorageMessage[]): number {
+	private estimateInputTokens(systemPrompt: string, messages: BeadsmithStorageMessage[]): number {
 		// For Deepseek R1, we estimate the token count of the formatted prompt
 		// The formatted prompt includes special tokens and consistent formatting
 		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
@@ -780,7 +808,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createAnthropicMessage(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 		enable1mContextWindow: boolean,
@@ -833,7 +861,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	private formatMessagesForConverseAPI(messages: ClineStorageMessage[]): Message[] {
+	private formatMessagesForConverseAPI(messages: BeadsmithStorageMessage[]): Message[] {
 		return messages.map((message) => {
 			// Determine role (user or assistant)
 			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
@@ -966,7 +994,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createNovaMessage(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
@@ -1006,7 +1034,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createOpenAIMessage(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {
@@ -1141,7 +1169,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private async *createQwenMessage(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
 	): ApiStream {

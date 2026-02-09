@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/output"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/clerror"
+	"github.com/beadsmith/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // AskHandler handles ASK type messages
@@ -23,11 +23,11 @@ func NewAskHandler() *AskHandler {
 }
 
 // CanHandle returns true if this is an ASK message
-func (h *AskHandler) CanHandle(msg *types.ClineMessage) bool {
+func (h *AskHandler) CanHandle(msg *types.BeadsmithMessage) bool {
 	return msg.IsAsk()
 }
 
-func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) Handle(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Always display approval messages so user can see what they're approving
 	// The input handler will show the approval prompt form after the content is displayed
 
@@ -68,7 +68,7 @@ func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 }
 
 // handleFollowup handles followup questions
-func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleFollowup(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	body := dc.ToolRenderer.GenerateAskFollowupBody(msg.Text)
 
 	if body == "" {
@@ -93,7 +93,7 @@ func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext)
 }
 
 // handlePlanModeRespond handles plan mode responses
-func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handlePlanModeRespond(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if dc.IsStreamingMode {
 		// In streaming mode, header was already shown by partial stream
 		// Just render the body content
@@ -132,7 +132,7 @@ func (h *AskHandler) showApprovalHint(dc *DisplayContext) {
 }
 
 // handleCommand handles command execution requests
-func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleCommand(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -149,7 +149,7 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 }
 
 // handleCommandOutput handles command output requests
-func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleCommandOutput(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -165,12 +165,12 @@ func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 }
 
 // handleCompletionResult handles completion result requests
-func (h *AskHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleCompletionResult(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return nil
 }
 
 // handleTool handles tool execution requests
-func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleTool(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Parse tool message
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
@@ -197,9 +197,9 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 }
 
 // handleAPIReqFailed handles API request failures
-func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Try to parse as ClineError for better error display
-	clineErr, _ := clerror.ParseClineError(msg.Text)
+func (h *AskHandler) handleAPIReqFailed(msg *types.BeadsmithMessage, dc *DisplayContext) error {
+	// Try to parse as BeadsmithError for better error display
+	clineErr, _ := clerror.ParseBeadsmithError(msg.Text)
 	if clineErr != nil {
 		if dc.SystemRenderer != nil {
 			// Render the error with system renderer
@@ -223,19 +223,19 @@ func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayCont
 }
 
 // handleResumeTask handles resume task requests
-func (h *AskHandler) handleResumeTask(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleResumeTask(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Don't render - this is metadata only, user already knows they're resuming
 	return nil
 }
 
 // handleResumeCompletedTask handles resume completed task requests
-func (h *AskHandler) handleResumeCompletedTask(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleResumeCompletedTask(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Don't render - this is metadata only, user already knows they're resuming
 	return nil
 }
 
 // handleMistakeLimitReached handles mistake limit reached
-func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleMistakeLimitReached(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if dc.SystemRenderer != nil {
 		details := make(map[string]string)
 		if msg.Text != "" {
@@ -254,7 +254,7 @@ func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *Disp
 }
 
 // handleBrowserActionLaunch handles browser action launch requests
-func (h *AskHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleBrowserActionLaunch(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	url := strings.TrimSpace(msg.Text)
 	err := dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url), true)
 	h.showApprovalHint(dc)
@@ -262,7 +262,7 @@ func (h *AskHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *Disp
 }
 
 // handleUseMcpServer handles MCP server usage requests
-func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleUseMcpServer(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Parse MCP server usage request
 	type McpServerRequest struct {
 		ServerName string `json:"serverName"`
@@ -295,17 +295,17 @@ func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 }
 
 // handleNewTask handles new task creation requests
-func (h *AskHandler) handleNewTask(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleNewTask(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("NEW TASK", fmt.Sprintf("Cline wants to start a new task: %s. Approval required.", msg.Text), true)
 }
 
 // handleCondense handles conversation condensing requests
-func (h *AskHandler) handleCondense(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleCondense(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("CONDENSE", fmt.Sprintf("Cline wants to condense the conversation: %s. Approval required.", msg.Text), true)
 }
 
 // handleReportBug handles bug report requests
-func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleReportBug(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	var bugData struct {
 		Title             string `json:"title"`
 		WhatHappened      string `json:"what_happened"`
@@ -334,6 +334,6 @@ func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext
 }
 
 // handleDefault handles unknown ASK message types
-func (h *AskHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *AskHandler) handleDefault(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("ASK", msg.Text, true)
 }

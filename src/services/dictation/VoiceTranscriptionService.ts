@@ -1,5 +1,5 @@
 import axios from "axios"
-import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { BeadsmithAccountService } from "@/services/account/BeadsmithAccountService"
 import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
 
@@ -14,7 +14,7 @@ const NETWORK_ERROR_MAP = new Map<string, string>([
 
 // HTTP status code error messages using Map for O(1) lookup
 const STATUS_ERROR_MAP = new Map<number, string>([
-	[401, "Authentication failed. Please reauthenticate your Cline account"],
+	[401, "Authentication failed. Please reauthenticate your Beadsmith account"],
 	[402, "Insufficient credits for transcription service."],
 	[500, "Transcription server error. Please try again later."],
 ])
@@ -32,10 +32,10 @@ const BAD_REQUEST_ERROR_PATTERNS = [
 ]
 
 export class VoiceTranscriptionService {
-	private readonly clineAccountService: ClineAccountService
+	private readonly beadsmithAccountService: BeadsmithAccountService
 
 	constructor() {
-		this.clineAccountService = ClineAccountService.getInstance()
+		this.beadsmithAccountService = BeadsmithAccountService.getInstance()
 	}
 
 	/**
@@ -103,14 +103,14 @@ export class VoiceTranscriptionService {
 
 	async transcribeAudio(audioBase64: string, language?: string): Promise<{ text?: string; error?: string }> {
 		try {
-			Logger.info("Transcribing audio with Cline transcription service...")
+			Logger.info("Transcribing audio with Beadsmith transcription service...")
 
 			// Check if using organization account for telemetry
 			const authService = AuthService.getInstance()
 			const activeOrg = authService.getActiveOrganizationId()
 			const isOrgAccount = !!activeOrg
 
-			const result = await this.clineAccountService.transcribeAudio(audioBase64, language)
+			const result = await this.beadsmithAccountService.transcribeAudio(audioBase64, language)
 
 			Logger.info("Transcription successful")
 

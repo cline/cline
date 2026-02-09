@@ -10,7 +10,7 @@ This command is only available in **VS Code**. The diff view with inline comment
 
 
 	<video
-		src="https://storage.googleapis.com/cline_public_images/slash-code-explain.mp4"
+		src="https://storage.googleapis.com/beadsmith_public_images/slash-code-explain.mp4"
 		autoPlay
 		loop
 		muted
@@ -30,7 +30,7 @@ Unlike the Explain Changes button, this command does **not** require checkpoints
 
 ## Using the Command
 
-Type `/explain-changes` in the chat input. Cline will:
+Type `/explain-changes` in the chat input. Beadsmith will:
 
 1. Analyze your git history to understand what changes exist
 2. Gather context by reading relevant files
@@ -40,7 +40,7 @@ Type `/explain-changes` in the chat input. Cline will:
 
 ## How It Works
 
-When you use `/explain-changes`, Cline:
+When you use `/explain-changes`, Beadsmith:
 
 1. **Gathers context**: Runs git commands to understand your repository state
 2. **Identifies changes**: Determines which files changed between references
@@ -58,7 +58,7 @@ The most common use case - understand what changed in the most recent commit:
 /explain-changes
 ```
 
-Cline will examine HEAD and compare it to HEAD~1, explaining all the changes in that commit.
+Beadsmith will examine HEAD and compare it to HEAD~1, explaining all the changes in that commit.
 
 **When to use:**
 - After pulling changes from a teammate
@@ -73,7 +73,7 @@ Understand your work-in-progress changes before committing:
 /explain-changes for my uncommitted work
 ```
 
-Cline compares HEAD to your working directory, explaining all modified files.
+Beadsmith compares HEAD to your working directory, explaining all modified files.
 
 **When to use:**
 - Before staging changes to ensure they're complete
@@ -88,7 +88,7 @@ Review exactly what you're about to commit:
 /explain-changes for my staged changes
 ```
 
-Cline examines only the changes you've staged with `git add`.
+Beadsmith examines only the changes you've staged with `git add`.
 
 **When to use:**
 - Final review before committing
@@ -109,7 +109,7 @@ Or by commit message:
 /explain-changes for the commit that added authentication
 ```
 
-Cline will find the commit and explain what it changed.
+Beadsmith will find the commit and explain what it changed.
 
 **When to use:**
 - Investigating when a bug was introduced
@@ -130,7 +130,7 @@ Or a specific range:
 /explain-changes from v1.0.0 to v1.1.0
 ```
 
-Cline compares the endpoints and explains all changes between them.
+Beadsmith compares the endpoints and explains all changes between them.
 
 **When to use:**
 - Understanding what changed in a release
@@ -145,7 +145,7 @@ Get AI explanations for any PR:
 /explain-changes for PR #42
 ```
 
-Cline uses the GitHub CLI to fetch PR details and explain the changes.
+Beadsmith uses the GitHub CLI to fetch PR details and explain the changes.
 
 **When to use:**
 - Reviewing someone else's PR
@@ -181,7 +181,7 @@ Focus on particular files or directories:
 /explain-changes for src/auth in the last 5 commits
 ```
 
-Cline filters the diff to show only relevant changes.
+Beadsmith filters the diff to show only relevant changes.
 
 **When to use:**
 - Understanding changes to a specific module
@@ -196,7 +196,7 @@ Understand what's changed since a release:
 /explain-changes since v2.0.0
 ```
 
-Cline compares the tag to HEAD and explains all subsequent changes.
+Beadsmith compares the tag to HEAD and explains all subsequent changes.
 
 **When to use:**
 - Preparing release notes
@@ -211,7 +211,7 @@ Understand what a merge brought in:
 /explain-changes for the merge from feature-x
 ```
 
-Cline explains all the changes that were merged.
+Beadsmith explains all the changes that were merged.
 
 **When to use:**
 - After merging a large feature branch
@@ -226,7 +226,7 @@ Review what's in your stash:
 /explain-changes for my stashed changes
 ```
 
-Cline examines stash@{0} and explains its contents.
+Beadsmith examines stash@{0} and explains its contents.
 
 **When to use:**
 - Before applying a stash
@@ -250,11 +250,11 @@ The AI responds with context-aware explanations, understanding both the code and
 
 ### Move to Main Chat
 
-Click the title area of any comment thread to move that conversation into Cline's main chat. This is useful when:
+Click the title area of any comment thread to move that conversation into Beadsmith's main chat. This is useful when:
 
-- You want Cline to make additional changes
+- You want Beadsmith to make additional changes
 - The discussion reveals something that needs more investigation
-- You want to continue working with full Cline capabilities
+- You want to continue working with full Beadsmith capabilities
 - A review comment sparks an idea for improvements
 
 ### The generate_explanation Tool
@@ -271,11 +271,11 @@ If `to_ref` is omitted, the tool compares against the working directory.
 
 ## Tips for Better Explanations
 
-1. **Be specific**: Instead of just `/explain-changes`, tell Cline what you want explained. "Explain the authentication changes in PR #42" gives better context than just "explain PR #42".
+1. **Be specific**: Instead of just `/explain-changes`, tell Beadsmith what you want explained. "Explain the authentication changes in PR #42" gives better context than just "explain PR #42".
 
 2. **Ask about intent**: The AI can explain not just what changed but why. Ask follow-up questions like "What problem was this solving?"
 
-3. **Chain with other commands**: Use `/explain-changes` after investigating an issue to understand potential fixes, then continue with Cline to implement improvements.
+3. **Chain with other commands**: Use `/explain-changes` after investigating an issue to understand potential fixes, then continue with Beadsmith to implement improvements.
 
 4. **Use for learning**: When onboarding to a new codebase, use `/explain-changes` on significant PRs or commits to understand how features were built.
 

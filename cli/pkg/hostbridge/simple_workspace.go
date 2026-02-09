@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"github.com/cline/grpc-go/host"
 )
 
@@ -86,7 +86,7 @@ func (s *SimpleWorkspaceService) OpenInFileExplorerPanel(ctx context.Context, re
 	return &host.OpenInFileExplorerPanelResponse{}, nil
 }
 
-// OpenClineSidebarPanel opens the Cline sidebar panel - no-op for console implementation
+// OpenClineSidebarPanel opens the Beadsmith sidebar panel - no-op for console implementation
 func (s *SimpleWorkspaceService) OpenClineSidebarPanel(ctx context.Context, req *host.OpenClineSidebarPanelRequest) (*host.OpenClineSidebarPanelResponse, error) {
 	return &host.OpenClineSidebarPanelResponse{}, nil
 }

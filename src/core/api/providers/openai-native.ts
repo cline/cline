@@ -8,9 +8,9 @@ import {
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ApiFormat } from "@/shared/proto/cline/models"
+import { ApiFormat } from "@/shared/proto/beadsmith/models"
 import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -70,7 +70,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: BeadsmithStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		// Responses API requires tool format to be set to OPENAI_RESPONSES with native tools calling enabled
 		if (this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			if (!tools?.length) {
@@ -84,7 +84,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	private async *createCompletionStream(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		tools?: ChatCompletionTool[],
 	): ApiStream {
 		const client = this.ensureClient()
@@ -148,7 +148,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	private async *createResponseStream(
 		systemPrompt: string,
-		messages: ClineStorageMessage[],
+		messages: BeadsmithStorageMessage[],
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const client = this.ensureClient()

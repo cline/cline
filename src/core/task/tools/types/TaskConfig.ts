@@ -1,19 +1,21 @@
 import type { ApiHandler } from "@core/api"
+import type { BeadManager } from "@core/beads"
 import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
-import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import type { BeadsmithIgnoreController } from "@core/ignore/BeadsmithIgnoreController"
 import type { CommandPermissionController } from "@core/permissions"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import type { McpHub } from "@services/mcp/McpHub"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { BeadFileChange } from "@shared/beads"
 import type { BrowserSettings } from "@shared/BrowserSettings"
-import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
+import type { BeadsmithAsk, BeadsmithSay } from "@shared/ExtensionMessage"
 import type { FocusChainSettings } from "@shared/FocusChainSettings"
-import type { ClineContent } from "@shared/messages/content"
+import type { BeadsmithContent } from "@shared/messages/content"
 import type { Mode } from "@shared/storage/types"
-import type { ClineDefaultTool } from "@shared/tools"
-import type { ClineAskResponse } from "@shared/WebviewMessage"
+import type { BeadsmithDefaultTool } from "@shared/tools"
+import type { BeadsmithAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
@@ -74,24 +76,26 @@ export interface TaskServices {
 	urlContentFetcher: UrlContentFetcher
 	diffViewProvider: DiffViewProvider
 	fileContextTracker: FileContextTracker
-	clineIgnoreController: ClineIgnoreController
+	beadsmithIgnoreController: BeadsmithIgnoreController
 	commandPermissionController: CommandPermissionController
 	contextManager: ContextManager
 	stateManager: StateManager
+	/** BeadManager for Ralph Wiggum loop pattern (optional - only present in bead mode) */
+	beadManager?: BeadManager
 }
 
 /**
  * All callback functions available to tool handlers
  */
 export interface TaskCallbacks {
-	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (type: BeadsmithSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
 
 	ask: (
-		type: ClineAsk,
+		type: BeadsmithAsk,
 		text?: string,
 		partial?: boolean,
 	) => Promise<{
-		response: ClineAskResponse
+		response: BeadsmithAskResponse
 		text?: string
 		images?: string[]
 		files?: string[]
@@ -99,9 +103,9 @@ export interface TaskCallbacks {
 
 	saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>
 
-	sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>
+	sayAndCreateMissingParamError: (toolName: BeadsmithDefaultTool, paramName: string, relPath?: string) => Promise<any>
 
-	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
+	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: BeadsmithAsk | BeadsmithSay) => Promise<void>
 
 	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
 
@@ -109,8 +113,8 @@ export interface TaskCallbacks {
 
 	updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>
 
-	shouldAutoApproveTool: (toolName: ClineDefaultTool) => boolean | [boolean, boolean]
-	shouldAutoApproveToolWithPath: (toolName: ClineDefaultTool, path?: string) => Promise<boolean>
+	shouldAutoApproveTool: (toolName: BeadsmithDefaultTool) => boolean | [boolean, boolean]
+	shouldAutoApproveToolWithPath: (toolName: BeadsmithDefaultTool, path?: string) => Promise<boolean>
 
 	// Additional callbacks for task management
 	postStateToWebview: () => Promise<void>
@@ -129,9 +133,17 @@ export interface TaskCallbacks {
 
 	// User prompt hook callback
 	runUserPromptSubmitHook: (
-		userContent: ClineContent[],
+		userContent: BeadsmithContent[],
 		context: "initial_task" | "resume" | "feedback",
 	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
+
+	// Bead callbacks (optional - only used in bead mode)
+	/** Record a file change in the current bead */
+	recordBeadFileChange?: (change: BeadFileChange) => void
+	/** Record token usage in the current bead */
+	recordBeadTokenUsage?: (tokens: number) => void
+	/** Record an error in the current bead */
+	recordBeadError?: (error: string) => void
 }
 
 /**

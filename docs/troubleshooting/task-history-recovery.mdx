@@ -1,10 +1,10 @@
 ---
 title: "Task History Recovery Guide"
 sidebarTitle: "Task History Recovery"
-description: "How to recover and reconstruct your Cline task history"
+description: "How to recover and reconstruct your Beadsmith task history"
 ---
 
-Sometimes when you update Cline or when certain settings change, you might lose access to your previous tasks. This guide will help you recover and reconstruct your Cline task history, so you can regain access to your important conversations and work.
+Sometimes when you update Beadsmith or when certain settings change, you might lose access to your previous tasks. This guide will help you recover and reconstruct your Beadsmith task history, so you can regain access to your important conversations and work.
 
 <Tip>
 	Most cases are solved by running the built-in recovery command.
@@ -17,20 +17,20 @@ Sometimes when you update Cline or when certain settings change, you might lose 
 		Press `Cmd/Ctrl + Shift + P` to open the Command Palette.
 	</Step>
 	<Step title="Run the recovery command">
-		Type **"Cline: Reconstruct Task History"** and select it.
+		Type **"Beadsmith: Reconstruct Task History"** and select it.
 	</Step>
 	<Step title="Confirm the action">
 		A confirmation prompt will appear. Click **Yes** to proceed.
 	</Step>
 	<Step title="Wait for reconstruction">
-		Cline will scan your task folders and rebuild the history index.
+		Beadsmith will scan your task folders and rebuild the history index.
 	</Step>
 	<Step title="Verify recovery">
 		Check your history panel to confirm your tasks have been restored.
 	</Step>
 </Steps>
 
-## Where Cline Stores Data
+## Where Beadsmith Stores Data
 
 ### Storage Paths
 
@@ -106,7 +106,7 @@ graph LR
 
 ### Restoring from Backup
 
-Cline creates backups automatically. Find them in the `state/` folder:
+Beadsmith creates backups automatically. Find them in the `state/` folder:
 
 <Tabs>
 	<Tab title="VS Code">
@@ -133,14 +133,14 @@ Cline creates backups automatically. Find them in the `state/` folder:
 
 ### Migrating to a New Machine
 
-Switching to a new computer? You can bring all your Cline conversations with you. The process is the same whether you're using VS Code or a JetBrains IDE.
+Switching to a new computer? You can bring all your Beadsmith conversations with you. The process is the same whether you're using VS Code or a JetBrains IDE.
 
 <Steps>
-	<Step title="Locate and copy your Cline data">
+	<Step title="Locate and copy your Beadsmith data">
 		On your **old machine**, find the `saoudrizwan.claude-dev` folder using the [storage paths above](#storage-paths) and copy the entire folder.
 	</Step>
 	<Step title="Set up your new machine">
-		On your **new machine**, install your IDE (VS Code or JetBrains) and the Cline extension.
+		On your **new machine**, install your IDE (VS Code or JetBrains) and the Beadsmith extension.
 	</Step>
 	<Step title="Close your IDE">
 		Make sure your IDE is completely closed before proceeding.
@@ -149,7 +149,7 @@ Switching to a new computer? You can bring all your Cline conversations with you
 		Paste the `saoudrizwan.claude-dev` folder to the same storage path on your new machine.
 	</Step>
 	<Step title="Launch and verify">
-		Open your IDE. Your task history should now appear in Cline.
+		Open your IDE. Your task history should now appear in Beadsmith.
 	</Step>
 </Steps>
 
@@ -162,10 +162,10 @@ Switching to a new computer? You can bring all your Cline conversations with you
 Here are some common issues and their solutions:
 
 ### History empty after VS Code update
-Run **"Cline: Reconstruct Task History"** from the command palette. If that doesn't work, check if there's a backup file to restore.
+Run **"Beadsmith: Reconstruct Task History"** from the command palette. If that doesn't work, check if there's a backup file to restore.
 
 ### History lost after reinstalling VS Code
-VS Code usually keeps extension data when uninstalled. Simply reinstall Cline and run the recovery command.
+VS Code usually keeps extension data when uninstalled. Simply reinstall Beadsmith and run the recovery command.
 
 ### "No tasks found" error
 This occurs when the `tasks/` folder is empty or missing. Common causes:
@@ -183,13 +183,13 @@ Corrupted task folders get skipped during recovery. The command will show how ma
 
 If you need assistance, you can:
 
-1. **Open a GitHub issue** at [cline/cline](https://github.com/cline/cline/issues)
+1. **Open a GitHub issue** at [beadsmith/beadsmith](https://github.com/beadsmith/beadsmith/issues)
 2. **Ask for help on our Discord server** - join our community for faster support
 
 When reporting an issue, please include:
 
 - Your OS and IDE (VS Code or JetBrains IDE name/version)
-- Cline version
+- Beadsmith version
 - What happened before the data loss
 - Any error messages
 - **Task export data**: Include the relevant JSON files from the affected task folder (e.g., `api_conversation_history.json`, `ui_messages.json`, `task_metadata.json`) to help us understand what went wrong

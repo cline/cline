@@ -1,7 +1,7 @@
 ---
 title: "LiteLLM Configuration"
 sidebarTitle: "LiteLLM"
-description: "Configure LiteLLM proxy for your Cline deployment"
+description: "Configure LiteLLM proxy for your Beadsmith deployment"
 ---
 
 <Info>
@@ -10,14 +10,14 @@ description: "Configure LiteLLM proxy for your Cline deployment"
 This guide covers LiteLLM configuration for self-hosted deployments. For web-based setup, see [LiteLLM SaaS Configuration](/enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration).
 </Info>
 
-Configure Cline to use an existing LiteLLM proxy for unified access to multiple AI models through a single API endpoint.
+Configure Beadsmith to use an existing LiteLLM proxy for unified access to multiple AI models through a single API endpoint.
 
 ## What is LiteLLM?
 
-[LiteLLM](https://github.com/BerriAI/litellm) is an open-source proxy that provides a unified OpenAI-compatible API for accessing 100+ AI models from different providers. Cline connects to your deployed LiteLLM instance.
+[LiteLLM](https://github.com/BerriAI/litellm) is an open-source proxy that provides a unified OpenAI-compatible API for accessing 100+ AI models from different providers. Beadsmith connects to your deployed LiteLLM instance.
 
 <Note>
-LiteLLM is a separate service you deploy and manage. This guide covers how to configure Cline to connect to an existing LiteLLM deployment.
+LiteLLM is a separate service you deploy and manage. This guide covers how to configure Beadsmith to connect to an existing LiteLLM deployment.
 </Note>
 
 ## Configuration Format
@@ -154,12 +154,12 @@ Model IDs must match the model names configured in your LiteLLM proxy deployment
 
 ## Prerequisites
 
-Before configuring Cline to use LiteLLM, you need:
+Before configuring Beadsmith to use LiteLLM, you need:
 
 1. **LiteLLM Proxy** deployed and accessible
 2. **LiteLLM Configuration** with desired models enabled
 3. **API Key** (if authentication is enabled)
-4. **Network Access** from where Cline is being used
+4. **Network Access** from where Beadsmith is being used
 
 <Tip>
 For LiteLLM deployment and configuration, see the [LiteLLM documentation](https://docs.litellm.ai/docs/proxy/quick_start).
@@ -184,7 +184,7 @@ curl -H "Authorization: Bearer sk-your-key" \
 
 **Model Not Found**
 
-Verify the model is configured in your LiteLLM deployment. Model IDs in Cline's config must match the model names in LiteLLM's configuration.
+Verify the model is configured in your LiteLLM deployment. Model IDs in Beadsmith's config must match the model names in LiteLLM's configuration.
 
 ## Benefits of Using LiteLLM
 

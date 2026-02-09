@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BeadsmithMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { BUTTON_CONFIGS, getButtonConfig } from "./buttonConfig"
 
@@ -12,7 +12,7 @@ describe("getButtonConfig", () => {
 
 	// Test streaming/partial messages
 	it("returns partial config for streaming messages", () => {
-		const streamingMessage: ClineMessage = {
+		const streamingMessage: BeadsmithMessage = {
 			type: "say",
 			say: "api_req_started",
 			partial: true,
@@ -28,7 +28,7 @@ describe("getButtonConfig", () => {
 
 		errorStates.forEach((errorState) => {
 			it(`returns correct config for ${errorState}`, () => {
-				const errorMessage: ClineMessage = {
+				const errorMessage: BeadsmithMessage = {
 					type: "ask",
 					ask: errorState as any,
 					partial: true,
@@ -44,7 +44,7 @@ describe("getButtonConfig", () => {
 	// Test tool approval states
 	describe("Tool Approval States", () => {
 		it("returns tool_approve config for generic tool ask", () => {
-			const toolMessage: ClineMessage = {
+			const toolMessage: BeadsmithMessage = {
 				type: "ask",
 				ask: "tool",
 				text: JSON.stringify({ tool: "generic_tool" }),
@@ -58,7 +58,7 @@ describe("getButtonConfig", () => {
 			const saveMessages = [{ tool: "editedExistingFile" }, { tool: "newFileCreated" }]
 
 			saveMessages.forEach((toolData) => {
-				const toolMessage: ClineMessage = {
+				const toolMessage: BeadsmithMessage = {
 					type: "ask",
 					ask: "tool",
 					text: JSON.stringify(toolData),
@@ -73,7 +73,7 @@ describe("getButtonConfig", () => {
 	// Test command execution states
 	describe("Command Execution States", () => {
 		it("returns command config for command ask", () => {
-			const commandMessage: ClineMessage = {
+			const commandMessage: BeadsmithMessage = {
 				type: "ask",
 				ask: "command",
 				ts: Date.now(),
@@ -83,7 +83,7 @@ describe("getButtonConfig", () => {
 		})
 
 		it("returns command_output config for command_output ask", () => {
-			const commandOutputMessage: ClineMessage = {
+			const commandOutputMessage: BeadsmithMessage = {
 				type: "ask",
 				ask: "command_output",
 				ts: Date.now(),
@@ -110,7 +110,7 @@ describe("getButtonConfig", () => {
 
 		stateConfigs.forEach(({ ask, expectedConfig }) => {
 			it(`returns ${expectedConfig} config for ${ask} ask`, () => {
-				const message: ClineMessage = {
+				const message: BeadsmithMessage = {
 					type: "ask",
 					ask: ask as any,
 					ts: Date.now(),
@@ -123,7 +123,7 @@ describe("getButtonConfig", () => {
 
 	// Test API request states
 	it("returns api_req_active config for api_req_started say message", () => {
-		const apiReqMessage: ClineMessage = {
+		const apiReqMessage: BeadsmithMessage = {
 			type: "say",
 			say: "api_req_started",
 			ts: Date.now(),
@@ -134,7 +134,7 @@ describe("getButtonConfig", () => {
 
 	// Test mode parameter (though not extensively used in the current implementation)
 	it("handles mode parameter without changing core behavior", () => {
-		const message: ClineMessage = {
+		const message: BeadsmithMessage = {
 			type: "ask",
 			ask: "tool",
 			text: JSON.stringify({ tool: "generic_tool" }),

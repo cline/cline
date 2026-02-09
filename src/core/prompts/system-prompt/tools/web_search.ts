@@ -1,11 +1,11 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
-const GENERIC: ClineToolSpec = {
+const GENERIC: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
-	id: ClineDefaultTool.WEB_SEARCH,
+	id: BeadsmithDefaultTool.WEB_SEARCH,
 	name: "web_search",
 	description: `Performs a web search and returns relevant results
 - Takes a search query as input and returns search results with titles and URLs
@@ -16,7 +16,7 @@ const GENERIC: ClineToolSpec = {
 - You may provide either allowed_domains OR blocked_domains, but NOT both
 - Domains should be provided as a JSON array of strings
 - This tool is read-only and does not modify any files`,
-	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true,
+	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.beadsmithWebToolsEnabled === true,
 	parameters: [
 		{
 			name: "query",
@@ -40,13 +40,13 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
-	id: ClineDefaultTool.WEB_SEARCH,
+	id: BeadsmithDefaultTool.WEB_SEARCH,
 	name: "web_search",
 	description:
 		"Performs a web search and returns relevant results with titles and URLs. IMPORTANT: If an MCP-provided web search tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.",
-	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true,
+	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.beadsmithWebToolsEnabled === true,
 	parameters: [
 		{
 			name: "query",
@@ -67,7 +67,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	...NATIVE_NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
 }

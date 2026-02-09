@@ -2,13 +2,13 @@ import { readFile } from "node:fs/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import type { ClineSayTool } from "@shared/ExtensionMessage"
+import type { BeadsmithSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
 import { preserveEscaping } from "@/shared/string"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -33,14 +33,14 @@ interface Commit {
 	changes: Record<string, FileChange>
 }
 
-export const PatchClineSayMap = {
+export const PatchBeadsmithSayMap = {
 	[PatchActionType.ADD]: "newFileCreated",
 	[PatchActionType.DELETE]: "fileDeleted",
 	[PatchActionType.UPDATE]: "editedExistingFile",
 }
 
 export class ApplyPatchHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.APPLY_PATCH
+	readonly name = BeadsmithDefaultTool.APPLY_PATCH
 	private config?: TaskConfig
 	private pathResolver?: PathResolver
 	private providerOps?: FileProviderOperations
@@ -153,7 +153,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			.ask(
 				"tool",
 				JSON.stringify({
-					tool: PatchClineSayMap[actionType],
+					tool: PatchBeadsmithSayMap[actionType],
 					path: getReadablePath(config.cwd, finalPath),
 					content: rawInput,
 					operationIsLocatedInWorkspace: await isLocatedInWorkspace(finalPath),
@@ -331,8 +331,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				const change = commit.changes[changedFilePath]
 				// For move operations, track the new path instead
 				const pathToTrack = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : changedFilePath
-				config.services.fileContextTracker.markFileAsEditedByCline(pathToTrack)
-				await config.services.fileContextTracker.trackFileContext(pathToTrack, "cline_edited")
+				config.services.fileContextTracker.markFileAsEditedByBeadsmith(pathToTrack)
+				await config.services.fileContextTracker.trackFileContext(pathToTrack, "beadsmith_edited")
 			}
 
 			this.config = undefined
@@ -491,9 +491,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
 			const resolvedPath = typeof pathResult === "string" ? filePath : pathResult.resolvedPath
 
-			const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
+			const accessValidation = this.validator.checkBeadsmithIgnorePath(resolvedPath)
 			if (!accessValidation.ok) {
-				await config.callbacks.say("clineignore_error", resolvedPath)
+				await config.callbacks.say("beadsmithignore_error", resolvedPath)
 				throw new DiffError(`Access denied: ${resolvedPath}`)
 			}
 
@@ -653,7 +653,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		}
 	}
 
-	private async generateChangeSummary(changes: Record<string, FileChange>): Promise<ClineSayTool[]> {
+	private async generateChangeSummary(changes: Record<string, FileChange>): Promise<BeadsmithSayTool[]> {
 		const summaries = await Promise.all(
 			Object.entries(changes).map(async ([file, change]) => {
 				const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
@@ -664,7 +664,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							path: file,
 							content: change.newContent,
 							operationIsLocatedInWorkspace,
-						} as ClineSayTool
+						} as BeadsmithSayTool
 					case PatchActionType.UPDATE:
 						return {
 							tool: change.movePath ? "newFileCreated" : "editedExistingFile",
@@ -672,14 +672,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							content: change.movePath ? change.oldContent : change.newContent,
 							operationIsLocatedInWorkspace,
 							startLineNumbers: change.startLineNumbers,
-						} as ClineSayTool
+						} as BeadsmithSayTool
 					case PatchActionType.DELETE:
 						return {
 							tool: "fileDeleted",
 							path: file,
 							content: change.newContent,
 							operationIsLocatedInWorkspace,
-						} as ClineSayTool
+						} as BeadsmithSayTool
 				}
 			}),
 		)
@@ -687,7 +687,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return summaries
 	}
 
-	private async handleApproval(config: TaskConfig, block: ToolUse, message: ClineSayTool, rawInput: string): Promise<boolean> {
+	private async handleApproval(config: TaskConfig, block: ToolUse, message: BeadsmithSayTool, rawInput: string): Promise<boolean> {
 		const patch = { ...message, content: rawInput }
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
@@ -714,7 +714,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return true
 		}
 
-		showNotificationForApproval(`Cline wants to edit '${message.path}'`, config.autoApprovalSettings.enableNotifications)
+		showNotificationForApproval(`Beadsmith wants to edit '${message.path}'`, config.autoApprovalSettings.enableNotifications)
 
 		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 		const { response, text, images, files } = await config.callbacks.ask("tool", completeMessage, false)

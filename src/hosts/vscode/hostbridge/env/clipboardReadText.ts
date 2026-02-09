@@ -1,4 +1,4 @@
-import { EmptyRequest, String } from "@shared/proto/cline/common"
+import { EmptyRequest, String } from "@shared/proto/beadsmith/common"
 import * as vscode from "vscode"
 
 export async function clipboardReadText(_: EmptyRequest): Promise<String> {

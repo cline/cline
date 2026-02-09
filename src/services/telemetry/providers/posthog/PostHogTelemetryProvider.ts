@@ -5,7 +5,7 @@ import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../../shared/services/config/posthog-config"
-import type { ClineAccountUserInfo } from "../../../auth/AuthService"
+import type { BeadsmithAccountUserInfo } from "../../../auth/AuthService"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 /**
  * PostHog implementation of the telemetry provider interface
@@ -93,7 +93,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		})
 	}
 
-	public identifyUser(userInfo: ClineAccountUserInfo, properties: TelemetryProperties = {}): void {
+	public identifyUser(userInfo: BeadsmithAccountUserInfo, properties: TelemetryProperties = {}): void {
 		const distinctId = getDistinctId()
 		// Only identify user if telemetry is enabled and user ID is different than the currently set distinct ID
 		if (this.isEnabled() && userInfo && userInfo?.id !== distinctId) {
@@ -146,7 +146,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		// Convert metric to event format for PostHog
 		// Most counters don't need individual events - they're aggregated in OpenTelemetry
 		// Only log significant counter events that have dashboard equivalents
-		if (name === "cline.tokens.input.total" || name === "cline.tokens.output.total") {
+		if (name === "beadsmith.tokens.input.total" || name === "beadsmith.tokens.output.total") {
 			// These will be batched and emitted as a single "task.tokens" event
 			// Implementation will be added when we update captureTokenUsage
 		}
@@ -182,7 +182,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		if ((!this.isEnabled() && !required) || value === null) return
 
 		// Convert gauge updates to state change events
-		if (name === "cline.workspace.active_roots") {
+		if (name === "beadsmith.workspace.active_roots") {
 			this.log("workspace.roots_changed", {
 				count: value,
 				...attributes,

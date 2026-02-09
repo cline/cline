@@ -1,10 +1,10 @@
 ---
 title: "OpenAI Codex"
 sidebarTitle: "OpenAI Codex"
-description: "Connect your OpenAI account to Cline via OAuth for seamless access to OpenAI models."
+description: "Connect your OpenAI account to Beadsmith via OAuth for seamless access to OpenAI models."
 ---
 
-OpenAI Codex lets you connect your OpenAI account directly to Cline using OAuth, meaning you don't need to manage API keys. Simply sign in with your OpenAI account through a one-click browser authentication, and you'll automatically have access to all the models available on your OpenAI plan. No additional configuration required. 
+OpenAI Codex lets you connect your OpenAI account directly to Beadsmith using OAuth, meaning you don't need to manage API keys. Simply sign in with your OpenAI account through a one-click browser authentication, and you'll automatically have access to all the models available on your OpenAI plan. No additional configuration required. 
 
 <Tip>
 If you prefer to use API keys instead, see the [OpenAI (API Key)](/provider-config/openai) provider configuration.
@@ -22,8 +22,8 @@ The models available to you depend on your OpenAI account's subscription tier. S
 ## Connecting Your OpenAI Account
 
 <Steps>
-  <Step title="Open Cline Settings">
-    Click the settings gear icon in the top-right corner of the Cline extension.
+  <Step title="Open Beadsmith Settings">
+    Click the settings gear icon in the top-right corner of the Beadsmith extension.
   </Step>
   <Step title="Select OpenAI Codex Provider">
     Choose **"OpenAI Codex"** from the "API Provider" dropdown menu.
@@ -31,14 +31,14 @@ The models available to you depend on your OpenAI account's subscription tier. S
   <Step title="Sign In with OpenAI">
     Click the **"Sign in with OpenAI"** button. This will open a browser window for authentication.
   </Step>
-  <Step title="Authorize Cline">
+  <Step title="Authorize Beadsmith">
     In the browser window that opens:
     1. Sign in to your OpenAI account (if not already signed in)
-    2. Review the permissions Cline is requesting
+    2. Review the permissions Beadsmith is requesting
     3. Click **"Authorize"** to grant access
   </Step>
   <Step title="Select Your Model">
-    Once authorized, you'll be returned to Cline. Choose your desired model from the **"Model"** dropdown.
+    Once authorized, you'll be returned to Beadsmith. Choose your desired model from the **"Model"** dropdown.
   </Step>
 </Steps>
 
@@ -52,9 +52,9 @@ For the most current list of available models and their capabilities, see the of
 
 ### Disconnecting Your Account
 
-To disconnect your OpenAI account from Cline:
+To disconnect your OpenAI account from Beadsmith:
 
-1. Open Cline Settings
+1. Open Beadsmith Settings
 2. With OpenAI Codex selected as the provider, click **"Sign out"**
 3. Confirm the disconnection
 
@@ -62,7 +62,7 @@ This removes the OAuth connection. You can reconnect at any time by signing in a
 
 ### Token Refresh
 
-OAuth tokens are automatically refreshed by Cline. If you encounter authentication errors:
+OAuth tokens are automatically refreshed by Beadsmith. If you encounter authentication errors:
 
 1. Try disconnecting and reconnecting your account
 2. Ensure your OpenAI account is in good standing
@@ -95,9 +95,9 @@ OAuth tokens are automatically refreshed by Cline. If you encounter authenticati
 
 ## Good to Know
 
-Cline only requests the permissions necessary to make API calls on your behalf. Your OpenAI credentials are never stored by Cline.
+Beadsmith only requests the permissions necessary to make API calls on your behalf. Your OpenAI credentials are never stored by Beadsmith.
 
-When using OpenAI Codex, Cline accesses models through your OpenAI/ChatGPT subscription. There is no separate per-token API billing or consumption of OpenAI API credits for this provider; usage and limits are governed by your ChatGPT (or OpenAI account) subscription plan, not by Cline.
+When using OpenAI Codex, Beadsmith accesses models through your OpenAI/ChatGPT subscription. There is no separate per-token API billing or consumption of OpenAI API credits for this provider; usage and limits are governed by your ChatGPT (or OpenAI account) subscription plan, not by Beadsmith.
 
 ## Related Documentation
 

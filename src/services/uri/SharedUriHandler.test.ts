@@ -21,7 +21,7 @@ describe("SharedUriHandler", () => {
 		const mockErrorService = {
 			logMessage: sandbox.stub(),
 			logException: sandbox.stub(),
-			toClineError: sandbox.stub(),
+			toBeadsmithError: sandbox.stub(),
 			isEnabled: sandbox.stub().returns(false),
 			getSettings: sandbox.stub().returns({ enabled: false, hostEnabled: false }),
 			getProvider: sandbox.stub(),

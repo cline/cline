@@ -1,4 +1,4 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import { BeadsmithMessage } from "@shared/ExtensionMessage"
 import React, { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
@@ -8,9 +8,9 @@ import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatType
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {
-	task: ClineMessage
-	groupedMessages: (ClineMessage | ClineMessage[])[]
-	modifiedMessages: ClineMessage[]
+	task: BeadsmithMessage
+	groupedMessages: (BeadsmithMessage | BeadsmithMessage[])[]
+	modifiedMessages: BeadsmithMessage[]
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
@@ -28,7 +28,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	chatState,
 	messageHandlers,
 }) => {
-	const { clineMessages } = useExtensionState()
+	const { beadsmithMessages } = useExtensionState()
 
 	const {
 		virtuosoRef,
@@ -48,8 +48,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		if (!scrolledPastUserMessage) {
 			return -1
 		}
-		return clineMessages.findIndex((msg) => msg.ts === scrolledPastUserMessage.ts)
-	}, [clineMessages, scrolledPastUserMessage])
+		return beadsmithMessages.findIndex((msg) => msg.ts === scrolledPastUserMessage.ts)
+	}, [beadsmithMessages, scrolledPastUserMessage])
 
 	// Handler to scroll to the scrolled past user message
 	const handleScrollToUserMessage = useCallback(() => {

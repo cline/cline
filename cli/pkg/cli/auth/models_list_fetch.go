@@ -7,23 +7,23 @@ import (
 	"sort"
 
 	"github.com/charmbracelet/huh"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"golang.org/x/term"
 )
 
-// FetchOpenRouterModels fetches available OpenRouter models from Cline Core
+// FetchOpenRouterModels fetches available OpenRouter models from Beadsmith Core
 func FetchOpenRouterModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OpenRouterModelInfo, error) {
-	resp, err := manager.GetClient().Models.RefreshOpenRouterModelsRpc(ctx, &cline.EmptyRequest{})
+	resp, err := manager.GetClient().Models.RefreshOpenRouterModelsRpc(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch OpenRouter models: %w", err)
 	}
 	return resp.Models, nil
 }
 
-// FetchOcaModels fetches available Oca models from Cline Core
+// FetchOcaModels fetches available Oca models from Beadsmith Core
 func FetchOcaModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OcaModelInfo, error) {
-	resp, err := manager.GetClient().Models.RefreshOcaModels(ctx, &cline.StringRequest{})
+	resp, err := manager.GetClient().Models.RefreshOcaModels(ctx, &beadsmith.StringRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch Oca models: %w", err)
 	}
@@ -31,7 +31,7 @@ func FetchOcaModels(ctx context.Context, manager *task.Manager) (map[string]*cli
 }
 
 // ConvertOpenRouterModelsToInterface converts OpenRouter model map to generic interface map.
-// This allows OpenRouter and Cline models to be used with the generic fetching utilities.
+// This allows OpenRouter and Beadsmith models to be used with the generic fetching utilities.
 func ConvertOpenRouterModelsToInterface(models map[string]*cline.OpenRouterModelInfo) map[string]interface{} {
 	result := make(map[string]interface{}, len(models))
 	for k, v := range models {
@@ -41,10 +41,10 @@ func ConvertOpenRouterModelsToInterface(models map[string]*cline.OpenRouterModel
 }
 
 
-// FetchOpenAiModels fetches available OpenAI models from Cline Core
+// FetchOpenAiModels fetches available OpenAI models from Beadsmith Core
 // Takes the API key and returns a list of model IDs
 func FetchOpenAiModels(ctx context.Context, manager *task.Manager, baseURL, apiKey string) ([]string, error) {
-	req := &cline.OpenAiModelsRequest{
+	req := &beadsmith.OpenAiModelsRequest{
 		BaseUrl: baseURL,
 		ApiKey:  apiKey,
 	}
@@ -56,10 +56,10 @@ func FetchOpenAiModels(ctx context.Context, manager *task.Manager, baseURL, apiK
 	return resp.Values, nil
 }
 
-// FetchOllamaModels fetches available Ollama models from Cline Core
+// FetchOllamaModels fetches available Ollama models from Beadsmith Core
 // Takes the base URL (empty string for default) and returns a list of model IDs
 func FetchOllamaModels(ctx context.Context, manager *task.Manager, baseURL string) ([]string, error) {
-	req := &cline.StringRequest{
+	req := &beadsmith.StringRequest{
 		Value: baseURL,
 	}
 
@@ -121,7 +121,7 @@ func ConvertModelsMapToSlice(models map[string]interface{}) []string {
 }
 
 // ConvertOcaModelsToInterface converts Oca model map to generic interface map.
-// This allows Oca and Cline models to be used with the generic fetching utilities.
+// This allows Oca and Beadsmith models to be used with the generic fetching utilities.
 func ConvertOcaModelsToInterface(models map[string]*cline.OcaModelInfo) map[string]interface{} {
 	result := make(map[string]interface{}, len(models))
 	for k, v := range models {

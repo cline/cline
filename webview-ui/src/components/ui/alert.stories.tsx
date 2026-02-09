@@ -1,5 +1,5 @@
 import type { Meta } from "@storybook/react-vite"
-import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import ClineLogoWhite from "@/assets/BeadsmithLogoWhite"
 import { Alert, AlertDescription } from "./alert"
 
 const meta: Meta<typeof Alert> = {

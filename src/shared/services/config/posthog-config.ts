@@ -27,7 +27,7 @@ export interface PostHogClientValidConfig extends PostHogClientConfig {
  * process.env.CI will always be true in the CI environment, during both testing and publishing step,
  * so it is not a reliable indicator of the environment.
  */
-const useDevEnv = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
+const useDevEnv = process.env.IS_DEV === "true" || process.env.BEADSMITH_ENVIRONMENT === "local"
 
 /**
  * PostHog configuration for Production Environment.

@@ -1,7 +1,7 @@
 import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 import { BrowserSession } from "@services/browser/BrowserSession"
-import { BrowserConnection } from "@shared/proto/cline/browser"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { BrowserConnection } from "@shared/proto/beadsmith/browser"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
 import { Controller } from "../index"
 
 /**

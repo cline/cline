@@ -91,10 +91,10 @@ export function getModelsForProvider(
 			return vertexModels
 		case "gemini":
 			return geminiModels
-		case "openai-native":
-			return openAiNativeModels
-		case "openai-codex":
-			return openAiCodexModels
+	case "openai-native":
+		return openAiNativeModels
+	case "openai-codex":
+		return openAiCodexModels
 		case "deepseek":
 			return deepSeekModels
 		case "qwen":
@@ -144,6 +144,7 @@ export function getModelsForProvider(
 		case "ollama":
 		case "lmstudio":
 		case "vscode-lm":
+		case "copilot-sdk":
 		case "requesty":
 		case "hicap":
 		case "dify":
@@ -265,18 +266,18 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
-			const clineOpenRouterModelId =
+			const beadsmithOpenRouterModelId =
 				(currentMode === "plan"
 					? apiConfiguration?.planModeOpenRouterModelId
 					: apiConfiguration?.actModeOpenRouterModelId) || openRouterDefaultModelId
-			const clineOpenRouterModelInfo =
+			const beadsmithOpenRouterModelInfo =
 				(currentMode === "plan"
 					? apiConfiguration?.planModeOpenRouterModelInfo
 					: apiConfiguration?.actModeOpenRouterModelInfo) || openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: clineOpenRouterModelId,
-				selectedModelInfo: clineOpenRouterModelInfo,
+				selectedModelId: beadsmithOpenRouterModelId,
+				selectedModelInfo: beadsmithOpenRouterModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -287,6 +288,14 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: openAiModelId || "",
 				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
+			}
+		case "copilot-sdk":
+			const copilotModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: copilotModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "hicap":
 			const hicapModelId =
@@ -813,7 +822,7 @@ export async function syncModeConfigurations(
 
 /**
  * Filters OpenRouter model IDs based on provider-specific rules.
- * For Cline provider: excludes :free models (except Minimax models)
+ * For Beadsmith provider: excludes :free models (except Minimax models)
  * For OpenRouter/Vercel: excludes cline/ prefixed models
  * @param modelIds Array of model IDs to filter
  * @param provider The current API provider
@@ -821,7 +830,7 @@ export async function syncModeConfigurations(
  */
 export function filterOpenRouterModelIds(modelIds: string[], provider: ApiProvider): string[] {
 	if (provider === "cline") {
-		// For Cline provider: exclude :free models, but keep Minimax models
+		// For Beadsmith provider: exclude :free models, but keep Minimax models
 		return modelIds.filter((id) => {
 			// Keep all Minimax and devstral models regardless of :free suffix
 			if (id.toLowerCase().includes("minimax-m2") || id.toLowerCase().includes("arcee-ai/trinity-large")) {
@@ -832,7 +841,7 @@ export function filterOpenRouterModelIds(modelIds: string[], provider: ApiProvid
 		})
 	}
 
-	// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
+	// For OpenRouter and Vercel AI Gateway providers: exclude Beadsmith-specific models
 	return modelIds.filter((id) => !id.startsWith("cline/"))
 }
 
@@ -883,6 +892,12 @@ export const getProviderInfo = (
 				modelId: undefined,
 				baseUrl: undefined,
 				helpText: "Select a VS Code language model from settings",
+			}
+		case "copilot-sdk":
+			return {
+				modelId: effectiveMode === "plan" ? apiConfiguration.planModeApiModelId : apiConfiguration.actModeApiModelId,
+				baseUrl: apiConfiguration.copilotCliUrl,
+				helpText: "Install the Copilot CLI and set a model ID in settings",
 			}
 		case "requesty":
 			return {

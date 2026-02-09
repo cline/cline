@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/common"
 )
 
 // 2. Multi-instance start: default_instance remains the first started.
 func TestMultiInstanceDefaultUnchanged(t *testing.T) {
-	_ = setTempClineDir(t)
+	_ = setTempBeadsmithDir(t)
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
@@ -41,7 +41,7 @@ func TestMultiInstanceDefaultUnchanged(t *testing.T) {
 
 // 6. Default.json update after removal of current default
 func TestDefaultJsonUpdateAfterRemoval(t *testing.T) {
-	_ = setTempClineDir(t)
+	_ = setTempBeadsmithDir(t)
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
@@ -72,7 +72,7 @@ func TestDefaultJsonUpdateAfterRemoval(t *testing.T) {
 	if corePID <= 0 {
 		t.Fatalf("could not find PID for core process at %s", target.CoreAddress)
 	}
-	t.Logf("Killing cline-core process PID %d for instance %s", corePID, target.CoreAddress)
+	t.Logf("Killing beadsmith-core process PID %d for instance %s", corePID, target.CoreAddress)
 	if err := syscall.Kill(corePID, syscall.SIGKILL); err != nil {
 		t.Fatalf("kill pid %d: %v", corePID, err)
 	}
@@ -101,16 +101,16 @@ func TestDefaultJsonUpdateAfterRemoval(t *testing.T) {
 		}
 	} else {
 		// No instances remain; cli-default-instance.json should be removed
-		clineDir := getClineDir(t)
-		defPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+		beadsmithDir := getBeadsmithDir(t)
+		defPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 		if _, err := os.Stat(defPath); err == nil {
 			t.Fatalf("expected cli-default-instance.json removed when no instances remain")
 		}
 	}
 
 	// Also verify cli-default-instance.json on disk reflects the in-memory default (if any)
-	clineDir := getClineDir(t)
-	defPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+	beadsmithDir := getBeadsmithDir(t)
+	defPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 	if len(out.CoreInstances) > 0 {
 		raw, err := os.ReadFile(defPath)
 		if err != nil {
@@ -130,10 +130,10 @@ func TestDefaultJsonUpdateAfterRemoval(t *testing.T) {
 
 // 11. SQLite database missing (edge): list succeeds and returns empty set
 func TestRegistryDirMissingEdge(t *testing.T) {
-	clineDir := setTempClineDir(t)
+	beadsmithDir := setTempBeadsmithDir(t)
 
 	// Remove the settings directory entirely (which contains locks.db)
-	settingsDir := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER)
+	settingsDir := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER)
 	if err := os.RemoveAll(settingsDir); err != nil {
 		t.Fatalf("RemoveAll(%s): %v", common.SETTINGS_SUBFOLDER, err)
 	}
@@ -147,7 +147,7 @@ func TestRegistryDirMissingEdge(t *testing.T) {
 	}
 
 	// Ensure cli-default-instance.json not present
-	defPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+	defPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 	if _, err := os.Stat(defPath); err == nil {
 		t.Fatalf("expected no cli-default-instance.json after removing %s dir", common.SETTINGS_SUBFOLDER)
 	}

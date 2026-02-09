@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/beadsmith/models"
 import { toProtobufModels } from "../../../shared/proto-conversions/models/typeConversion"
 import { Controller } from ".."
 import { refreshGroqModels } from "./refreshGroqModels"

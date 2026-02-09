@@ -9,8 +9,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/global"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ func NewLogsCommand() *cobra.Command {
 		Use:     "logs",
 		Aliases: []string{"log", "l"},
 		Short:   "Manage Cline log files",
-		Long:    `List and manage log files created by Cline instances.`,
+		Long:    `List and manage log files created by Beadsmith instances.`,
 	}
 
 	cmd.AddCommand(newLogsListCommand())
@@ -41,7 +41,7 @@ func newLogsListCommand() *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"l", "ls"},
 		Short:   "List all log files",
-		Long:    `List all log files in the Cline logs directory with their sizes and ages.`,
+		Long:    `List all log files in the Beadsmith logs directory with their sizes and ages.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if global.Config == nil {
 				return fmt.Errorf("config not initialized")
@@ -149,7 +149,7 @@ func newLogsPathCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "path",
 		Short: "Print the logs directory path",
-		Long:  `Print the absolute path to the Cline logs directory.`,
+		Long:  `Print the absolute path to the Beadsmith logs directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if global.Config == nil {
 				return fmt.Errorf("config not initialized")
@@ -217,8 +217,8 @@ func listLogFiles(logsDir string) ([]logFileInfo, error) {
 }
 
 func parseTimestampFromFilename(filename string) (time.Time, error) {
-	// Expected format: cline-core-2025-10-12-21-30-45-localhost-51051.log
-	// or: cline-host-2025-10-12-21-30-45-localhost-52051.log
+	// Expected format: beadsmith-core-2025-10-12-21-30-45-localhost-51051.log
+	// or: beadsmith-host-2025-10-12-21-30-45-localhost-52051.log
 
 	parts := strings.Split(filename, "-")
 	if len(parts) < 8 {

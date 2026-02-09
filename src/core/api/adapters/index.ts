@@ -1,22 +1,22 @@
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithStorageMessage } from "@/shared/messages/content"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import { convertApplyPatchToolCalls, convertWriteToFileToolCalls } from "./diff-editors"
 
 /**
  * Transforms tool call messages between different tool formats based on native tool support.
  * Converts between apply_patch and write_to_file/replace_in_file formats as needed.
  *
- * @param clineMessages - Array of messages containing tool calls to transform
+ * @param beadsmithMessages - Array of messages containing tool calls to transform
  * @param nativeTools - Array of tools natively supported by the current provider
  * @returns Transformed messages array, or original if no transformation needed
  */
 export function transformToolCallMessages(
-	clineMessages: ClineStorageMessage[],
-	nativeTools?: ClineDefaultTool[],
-): ClineStorageMessage[] {
+	beadsmithMessages: BeadsmithStorageMessage[],
+	nativeTools?: BeadsmithDefaultTool[],
+): BeadsmithStorageMessage[] {
 	// Early return if no messages or native tools provided
-	if (!clineMessages?.length || !nativeTools?.length) {
-		return clineMessages
+	if (!beadsmithMessages?.length || !nativeTools?.length) {
+		return beadsmithMessages
 	}
 
 	// Create Sets for O(1) lookup performance
@@ -24,7 +24,7 @@ export function transformToolCallMessages(
 	const usedToolSet = new Set<string>()
 
 	// Single pass: collect all tools used in assistant messages
-	for (const msg of clineMessages) {
+	for (const msg of beadsmithMessages) {
 		if (msg.role === "assistant" && Array.isArray(msg.content)) {
 			for (const block of msg.content) {
 				if (block.type === "tool_use" && block.name) {
@@ -36,25 +36,25 @@ export function transformToolCallMessages(
 
 	// Early return if no tools were used
 	if (usedToolSet.size === 0) {
-		return clineMessages
+		return beadsmithMessages
 	}
 
 	// Determine which conversion to apply
-	const hasApplyPatchNative = nativeToolSet.has(ClineDefaultTool.APPLY_PATCH)
-	const hasFileEditNative = nativeToolSet.has(ClineDefaultTool.FILE_EDIT) || nativeToolSet.has(ClineDefaultTool.FILE_NEW)
+	const hasApplyPatchNative = nativeToolSet.has(BeadsmithDefaultTool.APPLY_PATCH)
+	const hasFileEditNative = nativeToolSet.has(BeadsmithDefaultTool.FILE_EDIT) || nativeToolSet.has(BeadsmithDefaultTool.FILE_NEW)
 
-	const hasApplyPatchUsed = usedToolSet.has(ClineDefaultTool.APPLY_PATCH)
-	const hasFileEditUsed = usedToolSet.has(ClineDefaultTool.FILE_EDIT) || usedToolSet.has(ClineDefaultTool.FILE_NEW)
+	const hasApplyPatchUsed = usedToolSet.has(BeadsmithDefaultTool.APPLY_PATCH)
+	const hasFileEditUsed = usedToolSet.has(BeadsmithDefaultTool.FILE_EDIT) || usedToolSet.has(BeadsmithDefaultTool.FILE_NEW)
 
 	// Convert write_to_file/replace_in_file → apply_patch
 	if (hasApplyPatchNative && hasFileEditUsed) {
-		return convertWriteToFileToolCalls(clineMessages)
+		return convertWriteToFileToolCalls(beadsmithMessages)
 	}
 
 	// Convert apply_patch → write_to_file/replace_in_file
 	if (hasFileEditNative && hasApplyPatchUsed) {
-		return convertApplyPatchToolCalls(clineMessages)
+		return convertApplyPatchToolCalls(beadsmithMessages)
 	}
 
-	return clineMessages
+	return beadsmithMessages
 }

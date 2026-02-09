@@ -1,13 +1,13 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
-import { ClineDefaultTool } from "@shared/tools"
+import { BeadsmithDefaultTool } from "@shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = ClineDefaultTool.ACT_MODE
+	readonly name = BeadsmithDefaultTool.ACT_MODE
 
 	constructor() {}
 
@@ -42,7 +42,7 @@ export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler
 		// Block consecutive act_mode_respond calls to prevent narration loops
 		// Note: We intentionally do NOT increment consecutiveMistakeCount here to avoid
 		// breaking the conversation flow - we just guide the model to use proper tools
-		if (config.taskState.lastToolName === ClineDefaultTool.ACT_MODE) {
+		if (config.taskState.lastToolName === BeadsmithDefaultTool.ACT_MODE) {
 			return formatResponse.toolResult(
 				`[BLOCKED] You cannot call act_mode_respond consecutively. ` +
 					`Your next action MUST be a different tool that performs actual work: ` +

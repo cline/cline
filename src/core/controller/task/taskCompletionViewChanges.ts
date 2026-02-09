@@ -1,4 +1,4 @@
-import { Empty, Int64Request } from "@shared/proto/cline/common"
+import { Empty, Int64Request } from "@shared/proto/beadsmith/common"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 

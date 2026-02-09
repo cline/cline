@@ -1,8 +1,8 @@
 import { McpServer } from "@shared/mcp"
-import { StringRequest } from "@shared/proto/cline/common"
-import { McpDownloadResponse } from "@shared/proto/cline/mcp"
+import { StringRequest } from "@shared/proto/beadsmith/common"
+import { McpDownloadResponse } from "@shared/proto/beadsmith/mcp"
 import axios from "axios"
-import { ClineEnv } from "@/config"
+import { BeadsmithEnv } from "@/config"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -33,7 +33,7 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 
 		// Fetch server details from marketplace
 		const response = await axios.post<McpDownloadResponse>(
-			`${ClineEnv.config().mcpBaseUrl}/download`,
+			`${BeadsmithEnv.config().mcpBaseUrl}/download`,
 			{ mcpId },
 			{
 				headers: { "Content-Type": "application/json" },
@@ -61,9 +61,9 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 		// Create task with context from README and added guidelines for MCP server installation
 		const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Start by loading the MCP documentation.
-- Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
+- Use "${mcpDetails.mcpId}" as the server name in beadsmith_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
-- Make sure you read the user's existing cline_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
+- Make sure you read the user's existing beadsmith_mcp_settings.json file before editing it with this new mcp, to not overwrite any existing servers.
 - Use commands aligned with the user's shell and operating system best practices.
 - The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.

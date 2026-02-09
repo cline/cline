@@ -1,6 +1,6 @@
 import { ErrorSettings } from "./providers/IErrorProvider"
 
-export { ClineError, ClineErrorType } from "./ClineError"
+export { BeadsmithError, BeadsmithErrorType } from "./BeadsmithError"
 export { type ErrorProviderConfig, ErrorProviderFactory, type ErrorProviderType } from "./ErrorProviderFactory"
 export { ErrorService } from "./ErrorService"
 export type { ErrorSettings, IErrorProvider } from "./providers/IErrorProvider"

@@ -1,5 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
+import { StringRequest } from "@shared/proto/beadsmith/common"
+import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/beadsmith/state"
 import { SquareArrowOutUpRightIcon } from "lucide-react"
 import type { ComponentProps } from "react"
 import React, { memo, useEffect, useRef, useState } from "react"

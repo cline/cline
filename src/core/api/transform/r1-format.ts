@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
+import { BeadsmithAssistantThinkingBlock, BeadsmithStorageMessage } from "@/shared/messages/content"
 
 /**
  * DeepSeek Reasoner message format with reasoning_content support.
@@ -16,7 +16,7 @@ export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
  */
 export function addReasoningContent(
 	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
-	originalMessages: ClineStorageMessage[],
+	originalMessages: BeadsmithStorageMessage[],
 ): DeepSeekReasonerMessage[] {
 	// Find last user message index (start of current turn)
 	// If no user message exists (lastUserIndex = -1), all messages are in the "current turn",
@@ -36,7 +36,7 @@ export function addReasoningContent(
 		if (msg.role === "assistant") {
 			if (Array.isArray(msg.content)) {
 				const thinking = msg.content
-					.filter((p): p is ClineAssistantThinkingBlock => p.type === "thinking")
+					.filter((p): p is BeadsmithAssistantThinkingBlock => p.type === "thinking")
 					.map((p) => p.thinking)
 					.join("\n")
 				if (thinking) {

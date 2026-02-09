@@ -1,4 +1,4 @@
-import { ClineEndpoint } from "@/config"
+import { BeadsmithEndpoint } from "@/config"
 import {
 	getValidOpenTelemetryConfig,
 	getValidRuntimeOpenTelemetryConfig,
@@ -24,7 +24,7 @@ export type TelemetryProviderConfig =
 	| { type: "posthog"; apiKey?: string; host?: string }
 	/** OpenTelemetry collector
 	 * @param config - Config for this specific collector
-	 * @param bypassUserSettings - When true, telemetry is sent regardless of the user's Cline telemetry opt-in/opt-out settings.
+	 * @param bypassUserSettings - When true, telemetry is sent regardless of the user's Beadsmith telemetry opt-in/opt-out settings.
 	 * This is used for:
 	 * 	- User-controlled collectors configured via environment variables (e.g., CLINE_OTEL_TELEMETRY_ENABLED).
 	 * 	- Organization-controlled collectors configured via remote config.
@@ -107,14 +107,14 @@ export class TelemetryProviderFactory {
 		const configs: TelemetryProviderConfig[] = []
 
 		// Skip PostHog in selfHosted mode - enterprise customers should not send telemetry to PostHog
-		if (!ClineEndpoint.isSelfHosted() && isPostHogConfigValid(posthogConfig)) {
+		if (!BeadsmithEndpoint.isSelfHosted() && isPostHogConfigValid(posthogConfig)) {
 			configs.push({ type: "posthog", ...posthogConfig })
 		}
 
-		// Skip build-time OTEL in selfHosted mode - enterprise customers should not send telemetry to Cline's collector
+		// Skip build-time OTEL in selfHosted mode - enterprise customers should not send telemetry to Beadsmith's collector
 		// Note: Runtime env OTEL and remote config OTEL are still allowed (user/org explicitly configured them)
 		const otelConfig = getValidOpenTelemetryConfig()
-		if (!ClineEndpoint.isSelfHosted() && otelConfig) {
+		if (!BeadsmithEndpoint.isSelfHosted() && otelConfig) {
 			configs.push({
 				type: "opentelemetry",
 				config: otelConfig,
@@ -128,7 +128,7 @@ export class TelemetryProviderFactory {
 				type: "opentelemetry",
 				config: runtimeOtelConfig,
 				// If the user has `CLINE_OTEL_TELEMETRY_ENABLED` in his environment, enable
-				// OTEL regardless of his Cline telemetry settings
+				// OTEL regardless of his Beadsmith telemetry settings
 				bypassUserSettings: true,
 			})
 		}

@@ -6,7 +6,7 @@ import {
 	McpServer as ProtoMcpServer,
 	McpServerStatus,
 	McpTool as ProtoMcpTool,
-} from "@shared/proto/cline/mcp"
+} from "@shared/proto/beadsmith/mcp"
 import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
 
 // Helper to convert TS status to Proto enum

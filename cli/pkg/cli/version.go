@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/cline/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/global"
 	"github.com/spf13/cobra"
 )
 
 // VersionString returns the full version information string
 func VersionString() string {
-	return fmt.Sprintf(`Cline CLI
-Cline CLI Version:  %s
-Cline Core Version: %s
+	return fmt.Sprintf(`Beadsmith CLI
+Beadsmith CLI Version:  %s
+Beadsmith Core Version: %s
 Commit:             %s
 Built:              %s
 Built by:           %s
@@ -29,7 +29,7 @@ func NewVersionCommand() *cobra.Command {
 		Use:     "version",
 		Aliases: []string{"v"},
 		Short:   "Show version information",
-		Long:    `Display version information for the Cline CLI.`,
+		Long:    `Display version information for the Beadsmith CLI.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if short {
 				fmt.Println(global.CliVersion)

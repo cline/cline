@@ -1,14 +1,14 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { BeadsmithMessage } from "@shared/ExtensionMessage"
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import ErrorRow from "./ErrorRow"
 
 // Mock the auth context
-vi.mock("@/context/ClineAuthContext", () => ({
-	useClineAuth: () => ({
-		clineUser: null,
+vi.mock("@/context/BeadsmithAuthContext", () => ({
+	useBeadsmithAuth: () => ({
+		beadsmithUser: null,
 	}),
-	useClineSignIn: () => ({
+	useBeadsmithSignIn: () => ({
 		isLoginLoading: false,
 	}),
 	handleSignOut: vi.fn(),
@@ -19,12 +19,12 @@ vi.mock("@/components/chat/CreditLimitError", () => ({
 	default: ({ message }: { message: string }) => <div data-testid="credit-limit-error">{message}</div>,
 }))
 
-// Mock ClineError
-vi.mock("../../../../src/services/error/ClineError", () => ({
-	ClineError: {
+// Mock BeadsmithError
+vi.mock("../../../../src/services/error/BeadsmithError", () => ({
+	BeadsmithError: {
 		parse: vi.fn(),
 	},
-	ClineErrorType: {
+	BeadsmithErrorType: {
 		Balance: "balance",
 		RateLimit: "rateLimit",
 		Auth: "auth",
@@ -32,7 +32,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 }))
 
 describe("ErrorRow", () => {
-	const mockMessage: ClineMessage = {
+	const mockMessage: BeadsmithMessage = {
 		ts: 123456789,
 		type: "say",
 		say: "error",
@@ -64,9 +64,9 @@ describe("ErrorRow", () => {
 		).toBeInTheDocument()
 	})
 
-	it("renders clineignore error", () => {
-		const clineignoreMessage = { ...mockMessage, text: "/path/to/file.txt" }
-		render(<ErrorRow errorType="clineignore_error" message={clineignoreMessage} />)
+	it("renders beadsmithignore error", () => {
+		const beadsmithignoreMessage = { ...mockMessage, text: "/path/to/file.txt" }
+		render(<ErrorRow errorType="beadsmithignore_error" message={beadsmithignoreMessage} />)
 
 		expect(screen.getByText(/Cline tried to access/)).toBeInTheDocument()
 		expect(screen.getByText("/path/to/file.txt")).toBeInTheDocument()
@@ -74,7 +74,7 @@ describe("ErrorRow", () => {
 
 	describe("API error handling", () => {
 		it("renders credit limit error when balance error is detected", async () => {
-			const mockClineError = {
+			const mockBeadsmithError = {
 				message: "Insufficient credits",
 				isErrorType: vi.fn((type) => type === "balance"),
 				_error: {
@@ -88,8 +88,8 @@ describe("ErrorRow", () => {
 				},
 			}
 
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+			const { BeadsmithError } = await import("../../../../src/services/error/BeadsmithError")
+			vi.mocked(BeadsmithError.parse).mockReturnValue(mockBeadsmithError as any)
 
 			render(<ErrorRow apiRequestFailedMessage="Insufficient credits error" errorType="error" message={mockMessage} />)
 
@@ -98,7 +98,7 @@ describe("ErrorRow", () => {
 		})
 
 		it("renders rate limit error with request ID", async () => {
-			const mockClineError = {
+			const mockBeadsmithError = {
 				message: "Rate limit exceeded",
 				isErrorType: vi.fn((type) => type === "rateLimit"),
 				_error: {
@@ -106,8 +106,8 @@ describe("ErrorRow", () => {
 				},
 			}
 
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+			const { BeadsmithError } = await import("../../../../src/services/error/BeadsmithError")
+			vi.mocked(BeadsmithError.parse).mockReturnValue(mockBeadsmithError as any)
 
 			render(<ErrorRow apiRequestFailedMessage="Rate limit exceeded" errorType="error" message={mockMessage} />)
 
@@ -116,15 +116,15 @@ describe("ErrorRow", () => {
 		})
 
 		it("renders auth error with sign in button when user is not signed in", async () => {
-			const mockClineError = {
+			const mockBeadsmithError = {
 				message: "Authentication failed",
 				isErrorType: vi.fn((type) => type === "auth"),
 				providerId: "cline",
 				_error: {},
 			}
 
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+			const { BeadsmithError } = await import("../../../../src/services/error/BeadsmithError")
+			vi.mocked(BeadsmithError.parse).mockReturnValue(mockBeadsmithError as any)
 
 			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
 
@@ -133,14 +133,14 @@ describe("ErrorRow", () => {
 		})
 
 		it("renders PowerShell troubleshooting link when error mentions PowerShell", async () => {
-			const mockClineError = {
+			const mockBeadsmithError = {
 				message: "PowerShell is not recognized as an internal or external command",
 				isErrorType: vi.fn(() => false),
 				_error: {},
 			}
 
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+			const { BeadsmithError } = await import("../../../../src/services/error/BeadsmithError")
+			vi.mocked(BeadsmithError.parse).mockReturnValue(mockBeadsmithError as any)
 
 			render(
 				<ErrorRow
@@ -159,28 +159,28 @@ describe("ErrorRow", () => {
 		})
 
 		it("handles apiReqStreamingFailedMessage instead of apiRequestFailedMessage", async () => {
-			const mockClineError = {
+			const mockBeadsmithError = {
 				message: "Streaming failed",
 				isErrorType: vi.fn(() => false),
 				_error: {},
 			}
 
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+			const { BeadsmithError } = await import("../../../../src/services/error/BeadsmithError")
+			vi.mocked(BeadsmithError.parse).mockReturnValue(mockBeadsmithError as any)
 
 			render(<ErrorRow apiReqStreamingFailedMessage="Streaming failed" errorType="error" message={mockMessage} />)
 
 			expect(screen.getByText("Streaming failed")).toBeInTheDocument()
 		})
 
-		it("falls back to regular error message when ClineError.parse returns null", async () => {
-			const { ClineError } = await import("../../../../src/services/error/ClineError")
-			vi.mocked(ClineError.parse).mockReturnValue(undefined)
+		it("falls back to regular error message when BeadsmithError.parse returns null", async () => {
+			const { BeadsmithError } = await import("../../../../src/services/error/BeadsmithError")
+			vi.mocked(BeadsmithError.parse).mockReturnValue(undefined)
 
 			render(<ErrorRow apiRequestFailedMessage="Some API error" errorType="error" message={mockMessage} />)
 
-			// When ClineError.parse returns null, we display the raw error message for non-Cline providers
-			// Since clineError is undefined, isClineProvider is false, so we show the raw apiRequestFailedMessage
+			// When BeadsmithError.parse returns null, we display the raw error message for non-Cline providers
+			// Since beadsmithError is undefined, isBeadsmithProvider is false, so we show the raw apiRequestFailedMessage
 			expect(screen.getByText("Some API error")).toBeInTheDocument()
 		})
 

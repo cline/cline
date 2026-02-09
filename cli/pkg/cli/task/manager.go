@@ -11,12 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/display"
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/handlers"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/display"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/handlers"
+	"github.com/beadsmith/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/client"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // Sentinel errors for CheckSendEnabled
@@ -100,7 +100,7 @@ func NewManagerForDefault(ctx context.Context) (*Manager, error) {
 	return manager, nil
 }
 
-// SwitchToInstance switches the manager to use a different Cline instance
+// SwitchToInstance switches the manager to use a different Beadsmith instance
 func (m *Manager) SwitchToInstance(ctx context.Context, address string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -163,7 +163,7 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 	}
 
 	// Create task request
-	req := &cline.NewTaskRequest{
+	req := &beadsmith.NewTaskRequest{
 		Text:         prompt,
 		Images:       images,
 		Files:        files,
@@ -183,7 +183,7 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 // cancelExistingTaskIfNeeded checks if there's an active task and cancels it
 func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 	// Try to get the current state to check if there's an active task
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		// If we can't get state, assume no active task and continue
 		if global.Config.Verbose {
@@ -210,7 +210,7 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 			}
 
 			// Cancel the existing task
-			_, err := m.client.Task.CancelTask(ctx, &cline.EmptyRequest{})
+			_, err := m.client.Task.CancelTask(ctx, &beadsmith.EmptyRequest{})
 			if err != nil {
 				if global.Config.Verbose {
 					m.renderer.RenderDebug("Cancel task returned error: %v", err)
@@ -227,7 +227,7 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 // ValidateCheckpointExists checks if a checkpoint ID is valid
 func (m *Manager) ValidateCheckpointExists(ctx context.Context, checkpointID int64) error {
 	// Get current state
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to get state: %w", err)
 	}
@@ -255,7 +255,7 @@ func (m *Manager) ValidateCheckpointExists(ctx context.Context, checkpointID int
 // Returns nil if sending is allowed, or an error indicating why it's not allowed
 // We duplicate the logic from buttonConfig::getButtonConfig
 func (m *Manager) CheckSendEnabled(ctx context.Context) error {
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to get latest state: %w", err)
 	}
@@ -343,8 +343,8 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 
 // CheckNeedsApproval determines if the current task is waiting for approval
 // Returns (needsApproval, lastMessage, error)
-func (m *Manager) CheckNeedsApproval(ctx context.Context) (bool, *types.ClineMessage, error) {
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+func (m *Manager) CheckNeedsApproval(ctx context.Context) (bool, *types.BeadsmithMessage, error) {
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to get latest state: %w", err)
 	}
@@ -408,7 +408,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, images, files
 	}
 
 	// Send the followup message using AskResponse
-	req := &cline.AskResponseRequest{
+	req := &beadsmith.AskResponseRequest{
 		ResponseType: responseType,
 		Text:         message,
 		Images:       images,
@@ -423,7 +423,7 @@ func (m *Manager) SendMessage(ctx context.Context, message string, images, files
 	return nil
 }
 
-// SetMode sets the Plan/Act mode for the current Cline instance and optionally sends message
+// SetMode sets the Plan/Act mode for the current Beadsmith instance and optionally sends message
 func (m *Manager) SetMode(ctx context.Context, mode string, message *string, images, files []string) error {
 	if mode != "act" && mode != "plan" {
 		return fmt.Errorf("invalid mode '%s': must be 'act' or 'plan'", mode)
@@ -436,13 +436,13 @@ func (m *Manager) SetMode(ctx context.Context, mode string, message *string, ima
 		protoMode = cline.PlanActMode_ACT
 	}
 
-	req := &cline.TogglePlanActModeRequest{
-		Metadata: &cline.Metadata{},
+	req := &beadsmith.TogglePlanActModeRequest{
+		Metadata: &beadsmith.Metadata{},
 		Mode:     protoMode,
 	}
 
 	if message != nil {
-		req.ChatContent = &cline.ChatContent{
+		req.ChatContent = &beadsmith.ChatContent{
 			Message: message,
 			Images:  images,
 			Files:   files,
@@ -477,10 +477,10 @@ func (m *Manager) SetModeAndSendMessage(ctx context.Context, mode, message strin
 		protoMode = cline.PlanActMode_ACT
 	}
 
-	req := &cline.TogglePlanActModeRequest{
-		Metadata: &cline.Metadata{},
+	req := &beadsmith.TogglePlanActModeRequest{
+		Metadata: &beadsmith.Metadata{},
 		Mode:     protoMode,
-		ChatContent: &cline.ChatContent{
+		ChatContent: &beadsmith.ChatContent{
 			Message: &message,
 			Images:  images,
 			Files:   files,
@@ -524,7 +524,7 @@ func (m *Manager) SetModeAndSendMessage(ctx context.Context, mode, message strin
 // getCurrentTaskId extracts the current task ID from the server state
 func (m *Manager) getCurrentTaskId(ctx context.Context) (string, error) {
 	// Get the latest state
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get state: %w", err)
 	}
@@ -545,7 +545,7 @@ func (m *Manager) getCurrentTaskId(ctx context.Context) (string, error) {
 
 // ReinitExistingTaskFromId reinitializes an existing task from the given task ID
 func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) error {
-	req := &cline.StringRequest{Value: taskId}
+	req := &beadsmith.StringRequest{Value: taskId}
 	resp, err := m.client.Task.ShowTaskWithId(ctx, req)
 	if err != nil {
 		return fmt.Errorf("Failed to reinitialize task %s: %w", taskId, err)
@@ -582,8 +582,8 @@ func (m *Manager) RestoreCheckpoint(ctx context.Context, checkpointID int64, res
 	}
 
 	// Create the checkpoint restore request
-	req := &cline.CheckpointRestoreRequest{
-		Metadata:    &cline.Metadata{},
+	req := &beadsmith.CheckpointRestoreRequest{
+		Metadata:    &beadsmith.Metadata{},
 		Number:      checkpointID,
 		RestoreType: restoreType,
 	}
@@ -601,7 +601,7 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	_, err := m.client.Task.CancelTask(ctx, &cline.EmptyRequest{})
+	_, err := m.client.Task.CancelTask(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to cancel task: %w", err)
 	}
@@ -631,7 +631,7 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	defer m.mu.RUnlock()
 
 	// Get the latest state which contains messages
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return fmt.Errorf("failed to get state: %w", err)
 	}
@@ -819,7 +819,7 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context, opts Fo
 
 // handleStateStream handles the SubscribeToState stream
 func (m *Manager) handleStateStream(ctx context.Context, coordinator *StreamCoordinator, errChan chan error, completionChan chan bool) {
-	stateStream, err := m.client.State.SubscribeToState(ctx, &cline.EmptyRequest{})
+	stateStream, err := m.client.State.SubscribeToState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		errChan <- fmt.Errorf("failed to subscribe to state: %w", err)
 		return
@@ -1112,7 +1112,7 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 
 // handlePartialMessageStream handles the SubscribeToPartialMessage stream for streaming assistant text
 func (m *Manager) handlePartialMessageStream(ctx context.Context, coordinator *StreamCoordinator, errChan chan error) {
-	partialStream, err := m.client.Ui.SubscribeToPartialMessage(ctx, &cline.EmptyRequest{})
+	partialStream, err := m.client.Ui.SubscribeToPartialMessage(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		errChan <- fmt.Errorf("failed to subscribe to partial messages: %w", err)
 		return
@@ -1150,7 +1150,7 @@ func (m *Manager) handlePartialMessageStream(ctx context.Context, coordinator *S
 }
 
 // handleStreamingMessage handles a streaming message
-func (m *Manager) handleStreamingMessage(msg *types.ClineMessage, coordinator *StreamCoordinator) error {
+func (m *Manager) handleStreamingMessage(msg *types.BeadsmithMessage, coordinator *StreamCoordinator) error {
 	// Debug: Always log what we're processing
 	m.renderer.RenderDebug("Processing message: timestamp=%d, partial=%v, type=%s, text_preview=%s",
 		msg.Timestamp, msg.Partial, msg.Type, m.truncateText(msg.Text, 50))
@@ -1174,7 +1174,7 @@ func (m *Manager) truncateText(text string, maxLen int) string {
 }
 
 // displayMessage displays a single message using the handler system
-func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool, messageIndex int) error {
+func (m *Manager) displayMessage(msg *types.BeadsmithMessage, isLast, isPartial bool, messageIndex int) error {
 	if global.Config.OutputFormat == "json" {
 		return m.outputMessageAsJSON(msg)
 	} else {
@@ -1202,7 +1202,7 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 }
 
 // outputMessageAsJSON prints a single cline message as json
-func (m *Manager) outputMessageAsJSON(msg *types.ClineMessage) error {
+func (m *Manager) outputMessageAsJSON(msg *types.BeadsmithMessage) error {
 	jsonBytes, err := json.MarshalIndent(msg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal message as JSON: %w", err)
@@ -1215,7 +1215,7 @@ func (m *Manager) outputMessageAsJSON(msg *types.ClineMessage) error {
 // loadAndDisplayRecentHistory loads and displays recent conversation history and returns the total number of existing messages
 func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) {
 	// Get the latest state which contains messages
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	state, err := m.client.State.GetLatestState(ctx, &beadsmith.EmptyRequest{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get state: %w", err)
 	}
@@ -1270,7 +1270,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 }
 
 // extractMessagesFromState parses the state JSON and extracts messages
-func (m *Manager) extractMessagesFromState(stateJson string) ([]*types.ClineMessage, error) {
+func (m *Manager) extractMessagesFromState(stateJson string) ([]*types.BeadsmithMessage, error) {
 	return types.ExtractMessagesFromStateJSON(stateJson)
 }
 
@@ -1324,9 +1324,9 @@ func (m *Manager) updateMode(stateJson string) {
 func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
 	boolPtr := func(b bool) *bool { return &b }
 
-	settings := &cline.Settings{
-		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Actions: &cline.AutoApprovalActions{},
+	settings := &beadsmith.Settings{
+		AutoApprovalSettings: &beadsmith.AutoApprovalSettings{
+			Actions: &beadsmith.AutoApprovalActions{},
 		},
 	}
 
@@ -1348,7 +1348,7 @@ func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey st
 		return fmt.Errorf("unknown auto-approval action: %s", actionKey)
 	}
 
-	_, err := m.client.State.UpdateTaskSettings(ctx, &cline.UpdateTaskSettingsRequest{
+	_, err := m.client.State.UpdateTaskSettings(ctx, &beadsmith.UpdateTaskSettingsRequest{
 		Settings: settings,
 	})
 	if err != nil {

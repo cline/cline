@@ -6,7 +6,7 @@ import {
 	ApiProvider as ProtoApiProvider,
 	OcaModelInfo as ProtoOcaModelInfo,
 	ThinkingConfig,
-} from "@shared/proto/cline/models"
+} from "@shared/proto/beadsmith/models"
 import {
 	ApiConfiguration,
 	ApiProvider,
@@ -275,8 +275,10 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.MISTRAL
 		case "vscode-lm":
 			return ProtoApiProvider.VSCODE_LM
-		case "cline":
-			return ProtoApiProvider.CLINE
+		case "copilot-sdk":
+			return ProtoApiProvider.COPILOT_SDK
+		case "beadsmith":
+			return ProtoApiProvider.BEADSMITH
 		case "litellm":
 			return ProtoApiProvider.LITELLM
 		case "moonshot":
@@ -365,7 +367,9 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "mistral"
 		case ProtoApiProvider.VSCODE_LM:
 			return "vscode-lm"
-		case ProtoApiProvider.CLINE:
+		case ProtoApiProvider.COPILOT_SDK:
+			return "copilot-sdk"
+		case ProtoApiProvider.BEADSMITH:
 			return "cline"
 		case ProtoApiProvider.LITELLM:
 			return "litellm"
@@ -423,7 +427,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 	return {
 		// Global configuration fields
 		apiKey: config.apiKey,
-		clineAccountId: config.clineAccountId,
+		beadsmithAccountId: config.beadsmithAccountId,
 		ulid: config.ulid,
 		liteLlmBaseUrl: config.liteLlmBaseUrl,
 		liteLlmApiKey: config.liteLlmApiKey,
@@ -445,6 +449,11 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		awsBedrockApiKey: config.awsBedrockApiKey,
 		awsBedrockEndpoint: config.awsBedrockEndpoint,
 		claudeCodePath: config.claudeCodePath,
+		copilotCliPath: config.copilotCliPath,
+		copilotCliArgs: config.copilotCliArgs,
+		copilotCliUrl: config.copilotCliUrl,
+		copilotUseLoggedInUser: config.copilotUseLoggedInUser,
+		copilotGithubToken: config.copilotGithubToken,
 		vertexProjectId: config.vertexProjectId,
 		vertexRegion: config.vertexRegion,
 		openAiBaseUrl: config.openAiBaseUrl,
@@ -597,7 +606,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 	return {
 		// Global configuration fields
 		apiKey: protoConfig.apiKey,
-		clineAccountId: protoConfig.clineAccountId,
+		beadsmithAccountId: protoConfig.beadsmithAccountId,
 		ulid: protoConfig.ulid,
 		liteLlmBaseUrl: protoConfig.liteLlmBaseUrl,
 		liteLlmApiKey: protoConfig.liteLlmApiKey,
@@ -619,6 +628,11 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		awsBedrockApiKey: protoConfig.awsBedrockApiKey,
 		awsBedrockEndpoint: protoConfig.awsBedrockEndpoint,
 		claudeCodePath: protoConfig.claudeCodePath,
+		copilotCliPath: protoConfig.copilotCliPath,
+		copilotCliArgs: protoConfig.copilotCliArgs,
+		copilotCliUrl: protoConfig.copilotCliUrl,
+		copilotUseLoggedInUser: protoConfig.copilotUseLoggedInUser,
+		copilotGithubToken: protoConfig.copilotGithubToken,
 		vertexProjectId: protoConfig.vertexProjectId,
 		vertexRegion: protoConfig.vertexRegion,
 		openAiBaseUrl: protoConfig.openAiBaseUrl,

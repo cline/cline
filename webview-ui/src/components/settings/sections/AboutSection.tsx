@@ -11,9 +11,9 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 			{renderSectionHeader("about")}
 			<Section>
 				<div className="flex px-4 flex-col gap-2">
-					<h2 className="text-lg font-semibold">Cline v{version}</h2>
+					<h2 className="text-lg font-semibold">Beadsmith v{version}</h2>
 					<p>
-						An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks
+						An AI assistant that can use your CLI and Editor. Beadsmith can handle complex software development tasks
 						step-by-step with tools that let him create & edit files, explore large projects, use the browser, and
 						execute terminal commands (after you grant permission).
 					</p>

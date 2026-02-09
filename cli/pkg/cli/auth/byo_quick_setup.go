@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 )
 
 // Package-level variables for command-line flags
@@ -77,7 +77,7 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 
 	// Flush pending state changes to disk immediately
 	// This ensures all configuration changes are persisted before the instance terminates
-	if _, err := manager.GetClient().State.FlushPendingState(ctx, &cline.EmptyRequest{}); err != nil {
+	if _, err := manager.GetClient().State.FlushPendingState(ctx, &beadsmith.EmptyRequest{}); err != nil {
 		return fmt.Errorf("failed to flush pending state: %w", err)
 	}
 
@@ -234,7 +234,7 @@ func validateAndFetchModel(ctx context.Context, manager *task.Manager, provider 
 // This prevents the welcome view from showing up after quick setup
 func markWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
 	// Use the State service to update the welcome view flag
-	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
+	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &beadsmith.BooleanRequest{Value: true})
 	if err != nil {
 		return fmt.Errorf("failed to mark welcome view as completed: %w", err)
 	}

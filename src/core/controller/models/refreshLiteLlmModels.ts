@@ -1,5 +1,5 @@
 import type { ModelInfo } from "@shared/api"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/beadsmith/models"
 import { fetchLiteLlmModelsInfo } from "@/core/api/providers/litellm"
 import { StateManager } from "@/core/storage/StateManager"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"

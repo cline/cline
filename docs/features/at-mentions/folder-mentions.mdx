@@ -3,9 +3,9 @@ title: "Folder Mentions"
 sidebarTitle: "Folder Mentions"
 ---
 
-Folder mentions let you bring entire directories into your conversation with Cline. Just type `@/` followed by a folder path ending with a slash, and Cline gets access to the folder structure and its contents.
+Folder mentions let you bring entire directories into your conversation with Beadsmith. Just type `@/` followed by a folder path ending with a slash, and Beadsmith gets access to the folder structure and its contents.
 
-When you type `@/` in chat, Cline shows your workspace files and folders. Navigate to the folder you want, make sure to include the trailing slash, and Cline will see the folder's structure and contents.
+When you type `@/` in chat, Beadsmith shows your workspace files and folders. Navigate to the folder you want, make sure to include the trailing slash, and Beadsmith will see the folder's structure and contents.
 
 I use folder mentions when I need help understanding or refactoring a whole section of my codebase. Instead of referencing individual files one by one, I can just point to the entire directory:
 
@@ -14,22 +14,22 @@ I'm trying to understand how the authentication flow works in my app.
 Can you explain the structure and relationships between the files in @/src/auth/?
 ```
 
-Cline can then see all the files in the auth directory, their contents, and how they relate to each other. This gives it the full context to explain complex interactions between multiple files.
+Beadsmith can then see all the files in the auth directory, their contents, and how they relate to each other. This gives it the full context to explain complex interactions between multiple files.
 
-Folder mentions are also perfect for getting help with project organization. When I'm unsure if my project structure makes sense, I'll ask Cline to review it:
+Folder mentions are also perfect for getting help with project organization. When I'm unsure if my project structure makes sense, I'll ask Beadsmith to review it:
 
 ```
 I'm setting up a new React project. Does this folder structure make sense? @/src/
 What would you change to make it more maintainable as the project grows?
 ```
 
-Next time you're working with multiple related files, try using folder mentions instead of referencing each file individually. You'll get more comprehensive help because Cline can see the bigger picture of how everything fits together.
+Next time you're working with multiple related files, try using folder mentions instead of referencing each file individually. You'll get more comprehensive help because Beadsmith can see the bigger picture of how everything fits together.
 
 ## How It Works Under the Hood
 
 When you use a folder mention in your message, here's what happens behind the scenes:
 
-1. When you send your message, Cline detects the `@/path/to/folder/` pattern (with trailing slash) in your text
+1. When you send your message, Beadsmith detects the `@/path/to/folder/` pattern (with trailing slash) in your text
 2. The extension resolves the folder path relative to your workspace root
 3. It calls `fs.readdir()` to get a list of all files and subdirectories in that folder
 4. For each file in the directory, it checks if it's binary or text-based

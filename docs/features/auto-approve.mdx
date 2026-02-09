@@ -1,17 +1,17 @@
 ---
 title: "Auto Approve"
 sidebarTitle: "Auto Approve"
-description: "Let Cline take specific actions without asking for approval every time."
+description: "Let Beadsmith take specific actions without asking for approval every time."
 ---
 
-Auto Approve lets you decide which actions Cline can take without prompting you each time. It keeps you out of approval popups during routine work, while still letting you keep tight control over high-risk actions.
+Auto Approve lets you decide which actions Beadsmith can take without prompting you each time. It keeps you out of approval popups during routine work, while still letting you keep tight control over high-risk actions.
 
 If you find yourself repeatedly clicking approve for the same safe operations, Auto Approve is the setting that fixes that. The goal is fewer interruptions without losing the ability to review changes when it matters.
 
 <Frame>
 	<video
 		style={{ width: "100%" }}
-		src="https://storage.googleapis.com/cline_public_images/autoapprove.mp4"
+		src="https://storage.googleapis.com/beadsmith_public_images/autoapprove.mp4"
 		autoPlay
 		controls
 		playsInline
@@ -20,15 +20,15 @@ If you find yourself repeatedly clicking approve for the same safe operations, A
 
 ## How it works
 
-Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a file, run a command, or use the browser, Cline checks your Auto Approve settings for that category.
+Auto Approve is evaluated per tool call. When Beadsmith is about to read a file, edit a file, run a command, or use the browser, Beadsmith checks your Auto Approve settings for that category.
 
 A few details matter in practice:
 
 - **Workspace vs outside your workspace**: “Read all files” and “Edit all files” only extend the base toggle. If the base toggle is off, the “all files” option does nothing.
 
-- **Terminal commands**: Cline treats terminal commands as either safe or requiring approval. “Execute safe commands” covers the first category. “Execute all commands” extends this to commands flagged as requiring approval.
+- **Terminal commands**: Beadsmith treats terminal commands as either safe or requiring approval. “Execute safe commands” covers the first category. “Execute all commands” extends this to commands flagged as requiring approval.
 
-- **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds and may need attention.
+- **Notifications**: If enabled, Beadsmith sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds and may need attention.
 
 <Note>
 	[YOLO mode](/features/yolo-mode) bypasses these granular approvals.
@@ -60,7 +60,7 @@ These labels match what you see in the Auto Approve menu.
 
 ## Safe vs approval-required command examples
 
-Cline does not use a fixed allowlist of safe or unsafe commands. The model marks each command with a `requires_approval` flag based on the command and its arguments, and Auto Approve uses that flag.
+Beadsmith does not use a fixed allowlist of safe or unsafe commands. The model marks each command with a `requires_approval` flag based on the command and its arguments, and Auto Approve uses that flag.
 
 These are examples, not guarantees.
 
@@ -90,7 +90,7 @@ These are examples, not guarantees.
 
 ## Enable notifications
 
-Auto-approved actions can run for a while, especially long terminal commands. If you enable notifications, Cline can notify you when an auto-approved command has been running for a while and may need attention.
+Auto-approved actions can run for a while, especially long terminal commands. If you enable notifications, Beadsmith can notify you when an auto-approved command has been running for a while and may need attention.
 
 The **Enable notifications** toggle is located at the bottom of the Auto Approve menu, below a separator line. This puts the notification setting right where you manage your auto-approval permissions, making it easy to discover and adjust.
 

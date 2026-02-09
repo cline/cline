@@ -1,5 +1,5 @@
 import { EventMessage, PostHog } from "posthog-node"
-import { ClineEndpoint } from "@/config"
+import { BeadsmithEndpoint } from "@/config"
 import { posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"
 
@@ -21,7 +21,7 @@ export class PostHogClientProvider {
 
 	private constructor() {
 		// Skip PostHog client initialization in self-hosted mode
-		if (ClineEndpoint.isSelfHosted()) {
+		if (BeadsmithEndpoint.isSelfHosted()) {
 			this.client = null
 			return
 		}
@@ -42,7 +42,7 @@ export class PostHogClientProvider {
 
 	/**
 	 * Filters PostHog events before they are sent.
-	 * For exceptions, we only capture those from the Cline extension.
+	 * For exceptions, we only capture those from the Beadsmith extension.
 	 * this is specifically to avoid capturing errors from anything other than Cline
 	 */
 	static eventFilter(event: EventMessage | null) {
@@ -60,7 +60,7 @@ export class PostHogClientProvider {
 			if (stacktrace?.value?.toLowerCase().includes("cline")) {
 				return event
 			}
-			// Check stack frames for Cline extension path
+			// Check stack frames for Beadsmith extension path
 			const frames = stacktrace?.frames
 			if (frames?.length) {
 				for (let j = 0; j < frames.length; j++) {

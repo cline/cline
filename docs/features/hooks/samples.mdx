@@ -30,7 +30,7 @@ Perfect for getting started with hooks. These examples demonstrate core concepts
 # Project Type Detection Hook
 # 
 # Overview: Automatically detects project type at task start and injects relevant
-# coding standards and best practices into the AI context. This helps Cline understand
+# coding standards and best practices into the AI context. This helps Beadsmith understand
 # your project structure and apply appropriate conventions from the beginning.
 #
 # Demonstrates: Basic hook input/output, file system checks, conditional logic,
@@ -58,7 +58,7 @@ elif [[ -f "go.mod" ]]; then
   context="PROJECT_TYPE: Go project detected. Follow Go conventions and use proper package structure."
 fi
 
-# Return the context to guide Cline's behavior
+# Return the context to guide Beadsmith's behavior
 if [[ -n "$context" ]]; then
   jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 else
@@ -144,7 +144,7 @@ echo '{"cancel": false}'
 #
 # Overview: Monitors tool execution times and logs operations that exceed a 3-second
 # threshold. This helps identify performance bottlenecks and provides feedback to
-# users about system resource issues that may be slowing down Cline's operations.
+# users about system resource issues that may be slowing down Beadsmith's operations.
 #
 # Demonstrates: PostToolUse hook usage, arithmetic operations in bash, simple file
 # logging, and conditional context injection based on performance metrics.
@@ -159,10 +159,10 @@ success=$(echo "$input" | jq -r '.postToolUse.success')
 # Log slow operations (threshold: 3 seconds)
 if (( execution_time > 3000 )); then
   # Create simple log directory
-  mkdir -p "$HOME/.cline_logs"
+  mkdir -p "$HOME/.beadsmith_logs"
   
   # Log the slow operation
-  echo "$(date -Iseconds): SLOW OPERATION - $tool_name took ${execution_time}ms" >> "$HOME/.cline_logs/performance.log"
+  echo "$(date -Iseconds): SLOW OPERATION - $tool_name took ${execution_time}ms" >> "$HOME/.beadsmith_logs/performance.log"
   
   # Provide feedback to user
   context="PERFORMANCE: Operation $tool_name took ${execution_time}ms. Consider checking system resources if this happens frequently."
@@ -432,7 +432,7 @@ ulid=$(echo "$input" | jq -r '.taskComplete.taskMetadata.ulid // "unknown"')
 completion_time=$(echo "$input" | jq -r '.timestamp')
 
 # Create completion report directory with error handling
-reports_dir="$HOME/.cline_reports"
+reports_dir="$HOME/.beadsmith_reports"
 if [[ ! -d "$(dirname "$reports_dir")" ]]; then
   echo '{"cancel": false, "errorMessage": "Cannot access home directory"}' 
   exit 0
@@ -450,7 +450,7 @@ project_name=$(basename "$PWD")
 
 # Generate detailed completion report
 cat > "$report_file" << EOF
-# Cline Task Completion Report
+# Beadsmith Task Completion Report
 
 **Task ID:** $task_id  
 **ULID:** $ulid  
@@ -528,7 +528,7 @@ task_id=$(echo "$input" | jq -r '.taskId')
 user_id=$(echo "$input" | jq -r '.userId')
 
 # Log user activity for analytics
-activity_log="$HOME/.cline_user_activity/$(date +%Y-%m-%d).log"
+activity_log="$HOME/.beadsmith_user_activity/$(date +%Y-%m-%d).log"
 mkdir -p "$(dirname "$activity_log")"
 
 activity_entry=$(jq -n \
@@ -612,7 +612,7 @@ fi
 #
 # Overview: Detects file modifications by type (dependencies, CI/CD, frontend, backend, tests)
 # and sends asynchronous webhook notifications to multiple external services like Slack and
-# CI/CD systems. Enables seamless integration of Cline operations into enterprise workflows.
+# CI/CD systems. Enables seamless integration of Beadsmith operations into enterprise workflows.
 #
 # Demonstrates: Advanced pattern matching with associative arrays, multi-service webhook
 # orchestration, asynchronous background processing, and enterprise notification patterns.
@@ -658,7 +658,7 @@ if [[ -n "$triggered_workflows" ]]; then
       --arg workflows "$triggered_workflows" \
       --arg workspace "$(basename "$PWD")" \
       '{
-        text: ("🔧 Cline modified `" + $file + "` in " + $workspace),
+        text: ("🔧 Beadsmith modified `" + $file + "` in " + $workspace),
         color: "good",
         fields: [{
           title: "Triggered Workflows",
@@ -705,15 +705,15 @@ You can use multiple hooks together by creating separate files for each hook typ
 
 ```bash
 # Create hooks directory
-mkdir -p .clinerules/hooks
+mkdir -p .beadsmithrules/hooks
 
 # Create multiple hooks
-touch .clinerules/hooks/PreToolUse
-touch .clinerules/hooks/PostToolUse
-touch .clinerules/hooks/TaskStart
+touch .beadsmithrules/hooks/PreToolUse
+touch .beadsmithrules/hooks/PostToolUse
+touch .beadsmithrules/hooks/TaskStart
 
 # Make them executable
-chmod +x .clinerules/hooks/*
+chmod +x .beadsmithrules/hooks/*
 ```
 
 ### Environment Configuration
@@ -726,7 +726,7 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
 export JIRA_URL="https://yourcompany.atlassian.net"
 export JIRA_USER="your-email@company.com"
 export JIRA_TOKEN="your-api-token"
-export CI_WEBHOOK_URL="https://your-ci-system.com/hooks/cline"
+export CI_WEBHOOK_URL="https://your-ci-system.com/hooks/beadsmith"
 ```
 
 ### Testing Your Hooks
@@ -736,7 +736,7 @@ Test hooks manually by simulating their input:
 ```bash
 # Test a PreToolUse hook
 echo '{
-  "clineVersion": "1.0.0",
+  "beadsmithVersion": "1.0.0",
   "hookName": "PreToolUse",
   "timestamp": "2024-01-01T12:00:00Z",
   "taskId": "test",
@@ -749,7 +749,7 @@ echo '{
       "content": "console.log(\"test\");"
     }
   }
-}' | .clinerules/hooks/PreToolUse
+}' | .beadsmithrules/hooks/PreToolUse
 ```
 
 These examples provide a solid foundation for implementing hooks in your development workflow. Customize them based on your specific needs, tools, and integrations.

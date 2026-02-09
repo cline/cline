@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite"
-import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import ClineLogoWhite from "@/assets/BeadsmithLogoWhite"
 import {
 	Select,
 	SelectContent,

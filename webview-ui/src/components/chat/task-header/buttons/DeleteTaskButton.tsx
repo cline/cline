@@ -1,4 +1,4 @@
-import { StringArrayRequest } from "@shared/proto/cline/common"
+import { StringArrayRequest } from "@shared/proto/beadsmith/common"
 import { TrashIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"

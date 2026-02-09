@@ -9,13 +9,13 @@ import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
 log("Running standalone cline", ExtensionRegistryInfo.version)
-log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
+log(`BEADSMITH_ENVIRONMENT: ${process.env.BEADSMITH_ENVIRONMENT}`)
 
 // WE WILL HAVE TO MIGRATE THIS FROM DATA TO v1 LATER
 const SETTINGS_SUBFOLDER = "data"
 
-export function initializeContext(clineDir?: string) {
-	const CLINE_DIR = clineDir || process.env.CLINE_DIR || `${os.homedir()}/.cline`
+export function initializeContext(beadsmithDir?: string) {
+	const CLINE_DIR = beadsmithDir || process.env.BEADSMITH_DIR || `${os.homedir()}/.cline`
 	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
 	const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
 	const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")

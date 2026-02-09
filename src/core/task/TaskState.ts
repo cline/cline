@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
-import { ClineAskResponse } from "@shared/WebviewMessage"
+import { BeadsmithAskResponse } from "@shared/WebviewMessage"
 import type { HookExecution } from "./types/HookExecution"
 
 export class TaskState {
@@ -22,7 +22,7 @@ export class TaskState {
 	presentAssistantMessageHasPendingUpdates = false
 
 	// Ask/Response handling
-	askResponse?: ClineAskResponse
+	askResponse?: BeadsmithAskResponse
 	askResponseText?: string
 	askResponseImages?: string[]
 	askResponseFiles?: string[]

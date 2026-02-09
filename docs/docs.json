@@ -1,7 +1,7 @@
 {
 	"$schema": "https://mintlify.com/docs.json",
 	"theme": "linden",
-	"name": "Cline",
+	"name": "Beadsmith",
 	"description": "AI-powered coding agent for complex work",
 	"colors": {
 		"primary": "#9D4EDD",
@@ -9,8 +9,8 @@
 		"dark": "#000000"
 	},
 	"logo": {
-		"light": "/assets/Cline_Logo-complete_black.png",
-		"dark": "/assets/Cline_Logo-complete_white.png"
+		"light": "/assets/Beadsmith_Logo-complete_black.png",
+		"dark": "/assets/Beadsmith_Logo-complete_white.png"
 	},
 	"favicon": {
 		"light": "/assets/robot_panel_light.png",
@@ -49,8 +49,8 @@
 		],
 		"primary": {
 			"type": "button",
-			"label": "Install Cline",
-			"href": "https://cline.bot/install?utm_source=website&utm_medium=header"
+			"label": "Install Beadsmith",
+			"href": "https://beadsmith.bot/install?utm_source=website&utm_medium=header"
 		}
 	},
 	"navigation": {
@@ -118,7 +118,7 @@
 							"features/background-edit",
 							"features/checkpoints",
 							{
-								"group": "Cline Rules",
+								"group": "Beadsmith Rules",
 								"pages": [
 									"features/cline-rules/overview",
 									"features/cline-rules/conditional-rules"
@@ -241,6 +241,7 @@
 									"provider-config/openai-compatible",
 									"provider-config/litellm-and-cline-using-codestral",
 									"provider-config/vscode-language-model-api",
+									"provider-config/github-copilot-sdk",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
 									"provider-config/requesty"
@@ -261,7 +262,7 @@
 						]
 					},
 					{
-						"group": "Cline Tools Reference",
+						"group": "Beadsmith Tools Reference",
 						"pages": [
 							"exploring-clines-tools/cline-tools-guide",
 							"exploring-clines-tools/new-task-tool",
@@ -319,7 +320,7 @@
 								]
 							},
 							{
-								"group": "Control Other Cline Features",
+								"group": "Control Other Beadsmith Features",
 								"pages": [
 									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
 								]
@@ -340,7 +341,7 @@
 			{
 				"tab": "Learn",
 				"icon": "graduation-cap",
-				"href": "https://cline.bot/learn"
+				"href": "https://beadsmith.bot/learn"
 			}
 		]
 	},
@@ -441,6 +442,6 @@
 		}
 	],
 	"search": {
-		"prompt": "Search Cline documentation..."
+		"prompt": "Search Beadsmith documentation..."
 	}
 }

@@ -34,6 +34,9 @@ coverage-unit
 
 .worktrees
 
+# CLI (Go) - not used in this fork
+cli/
+
 ## Generated files ##
 src/generated/
 src/shared/proto/
@@ -46,3 +49,6 @@ test-results
 /pkg
 .secrets
 
+
+.fake
+nul

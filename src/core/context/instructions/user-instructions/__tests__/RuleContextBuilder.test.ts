@@ -27,7 +27,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -49,7 +49,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -79,7 +79,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -116,7 +116,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -138,7 +138,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "say",
 							say: "task",
@@ -174,7 +174,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -208,7 +208,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => messages,
+					getBeadsmithMessages: () => messages,
 				},
 			}
 
@@ -222,7 +222,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -243,7 +243,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",
@@ -264,7 +264,7 @@ describe("RuleContextBuilder", () => {
 			const deps: RuleContextBuilderDeps = {
 				cwd: "/workspace",
 				messageStateHandler: {
-					getClineMessages: () => [
+					getBeadsmithMessages: () => [
 						{
 							type: "ask",
 							ask: "tool",

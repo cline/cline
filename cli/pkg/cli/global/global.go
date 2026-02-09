@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/common"
 	"github.com/cline/grpc-go/client"
 	"github.com/muesli/termenv"
 )
@@ -23,10 +23,10 @@ type GlobalConfig struct {
 
 var (
 	Config    *GlobalConfig
-	Instances *ClineInstances
+	Instances *BeadsmithInstances
 
 	// Version info - set at build time via ldflags
-	// Version is the Cline Core version (from root package.json)
+	// Version is the Beadsmith Core version (from root package.json)
 	Version = "dev"
 	// CliVersion is the CLI package version (from cli/package.json)
 	CliVersion = "dev"
@@ -37,19 +37,19 @@ var (
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	if cfg.ConfigPath == "" {
-		// Check CLINE_DIR environment variable first
-		if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
-			cfg.ConfigPath = clineDir
+		// Check BEADSMITH_DIR environment variable first
+		if beadsmithDir := os.Getenv("BEADSMITH_DIR"); beadsmithDir != "" {
+			cfg.ConfigPath = beadsmithDir
 		} else {
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get home directory: %w", err)
 			}
-			cfg.ConfigPath = filepath.Join(homeDir, ".cline")
+			cfg.ConfigPath = filepath.Join(homeDir, ".beadsmith")
 		}
 	}
 
-	// Ensure .cline directory exists
+	// Ensure .beadsmith directory exists
 	if err := os.MkdirAll(cfg.ConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -61,7 +61,7 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	// Otherwise lipgloss auto-detects terminal capabilities (default behavior)
 
 	Config = cfg
-	Instances = NewClineInstances(cfg.ConfigPath)
+	Instances = NewBeadsmithInstances(cfg.ConfigPath)
 
 	// Initialize the clients registry
 	ctx := context.Background()
@@ -74,7 +74,7 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 
 // GetDefaultClient returns a client for the default instance or the address override
 func GetDefaultClient(ctx context.Context) (*client.ClineClient, error) {
-	if Config.CoreAddress != "" && Config.CoreAddress != fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT) {
+	if Config.CoreAddress != "" && Config.CoreAddress != fmt.Sprintf("localhost:%d", common.DEFAULT_BEADSMITH_CORE_PORT) {
 		// User specified a specific address, use that
 		return Instances.GetRegistry().GetClient(ctx, Config.CoreAddress)
 	}

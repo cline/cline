@@ -13,7 +13,7 @@ import {
 } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
-import { ClineRulesToggles } from "@/shared/cline-rules"
+import { BeadsmithRulesToggles } from "@/shared/beadsmith-rules"
 import { Logger } from "@/shared/services/Logger"
 import { readTaskHistoryFromState } from "../disk"
 
@@ -27,7 +27,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 }
 
 export async function readWorkspaceStateFromDisk(context: ExtensionContext): Promise<LocalState> {
-	const states = LocalStateKeys.map((key) => context.workspaceState.get<ClineRulesToggles | undefined>(key))
+	const states = LocalStateKeys.map((key) => context.workspaceState.get<BeadsmithRulesToggles | undefined>(key))
 
 	return LocalStateKeys.reduce((acc, key, index) => {
 		acc[key] = states[index] || {}

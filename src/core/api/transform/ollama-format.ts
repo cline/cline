@@ -1,13 +1,13 @@
 import { Message } from "ollama"
 import {
-	ClineAssistantToolUseBlock,
-	ClineImageContentBlock,
-	ClineStorageMessage,
-	ClineTextContentBlock,
-	ClineUserToolResultContentBlock,
+	BeadsmithAssistantToolUseBlock,
+	BeadsmithImageContentBlock,
+	BeadsmithStorageMessage,
+	BeadsmithTextContentBlock,
+	BeadsmithUserToolResultContentBlock,
 } from "@/shared/messages/content"
 
-export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[]): Message[] {
+export function convertToOllamaMessages(anthropicMessages: Omit<BeadsmithStorageMessage, "modelInfo">[]): Message[] {
 	const ollamaMessages: Message[] = []
 
 	for (const anthropicMessage of anthropicMessages) {
@@ -19,8 +19,8 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 		} else {
 			if (anthropicMessage.role === "user") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
-					toolMessages: ClineUserToolResultContentBlock[]
+					nonToolMessages: (BeadsmithTextContentBlock | BeadsmithImageContentBlock)[]
+					toolMessages: BeadsmithUserToolResultContentBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_result") {
@@ -76,8 +76,8 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 				}
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
-					toolMessages: ClineAssistantToolUseBlock[]
+					nonToolMessages: (BeadsmithTextContentBlock | BeadsmithImageContentBlock)[]
+					toolMessages: BeadsmithAssistantToolUseBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_use") {

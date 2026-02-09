@@ -1,7 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
-import type { ClineToolSpec } from "../spec"
+import type { BeadsmithToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
 // {
@@ -76,9 +76,9 @@ apply_patch <<"EOF"
 *** End Patch
 EOF`
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_GPT_5,
-	id: ClineDefaultTool.APPLY_PATCH,
+	id: BeadsmithDefaultTool.APPLY_PATCH,
 	name: "apply_patch",
 	description: APPLY_PATCH_TOOL_DESC,
 	contextRequirements: (context) => isGPT5ModelFamily(context.providerInfo.model.id),
@@ -92,7 +92,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	],
 }
 
-const GPT_5: ClineToolSpec = {
+const GPT_5: BeadsmithToolSpec = {
 	...NATIVE_GPT_5,
 	variant: ModelFamily.GPT_5,
 }

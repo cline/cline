@@ -42,16 +42,16 @@ const XS_OBJECTIVES = `EXECUTION FLOW
 const XS_CLI_SUBAGENTS = (context: SystemPromptContext) =>
 	context.enableNativeToolCalls
 		? ""
-		: `USING THE CLINE CLI TOOL
+		: `USING THE BEADSMITH CLI TOOL
 
-The Cline CLI tool is installed and available for you to use to handle focused tasks without polluting your main context window. This can be done using 
+The Beadsmith CLI tool is installed and available for you to use to handle focused tasks without polluting your main context window. This can be done using
 \`\`\`bash
-cline t o "your prompt here"
+beadsmith t o "your prompt here"
 
 This must only be used for searching and exploring code. It cannot be used to edit files or execute commands.
 Example:
   # Find specific patterns
-  cline t o "find all React components that use the useState hook and list their names" 
+  beadsmith t o "find all React components that use the useState hook and list their names"
 \`\`\``
 
 const XS_TOOLS_OVERRIDE = (context: SystemPromptContext) =>
@@ -116,7 +116,7 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 
 export const xsComponentOverrides = {
 	AGENT_ROLE:
-		"You are Cline, a senior software engineer + precise task runner. Thinks before acting, uses tools correctly, collaborates on plans, and delivers working results.",
+		"You are Beadsmith, a senior software engineer + precise task runner. Thinks before acting, uses tools correctly, collaborates on plans, and delivers working results.",
 	RULES: XS_RULES,
 	CLI_SUBAGENTS: XS_CLI_SUBAGENTS,
 	ACT_VS_PLAN: XS_ACT_PLAN_MODE,

@@ -16,7 +16,7 @@ import * as fs from "node:fs/promises"
 import { Project, SyntaxKind } from "ts-morph"
 
 const STATE_KEYS_PATH = "src/shared/storage/state-keys.ts"
-const STATE_PROTO_PATH = "proto/cline/state.proto"
+const STATE_PROTO_PATH = "proto/beadsmith/state.proto"
 
 /**
  * Convert camelCase to snake_case for proto field names

@@ -36,7 +36,7 @@ Workflows are just markdown files, no complex configuration needed!
 
 Here's a simple deployment workflow:
 
-**File:** `.clinerules/workflows/deploy.md`
+**File:** `.beadsmithrules/workflows/deploy.md`
 
 ```markdown
 # Deployment Workflow
@@ -70,22 +70,22 @@ Before deploying to production, ensure:
 I'm ready to deploy the new authentication feature
 ```
 
-When invoked, Cline adds the workflow instructions to its context for that specific task.
+When invoked, Beadsmith adds the workflow instructions to its context for that specific task.
 
 ## Creating Workflows
 
 <Tabs>
   <Tab title="Manual Creation">
-    Create workflow files in the `.clinerules/workflows/` directory:
+    Create workflow files in the `.beadsmithrules/workflows/` directory:
     
-    1. Create `.clinerules/workflows/` in your repository root
+    1. Create `.beadsmithrules/workflows/` in your repository root
     2. Add markdown files with your workflow instructions
     3. Use descriptive names matching your slash command
     
     **File structure:**
     ```
     your-repo/
-    ├── .clinerules/
+    ├── .beadsmithrules/
     │   └── workflows/
     │       ├── deploy.md
     │       ├── code-review.md
@@ -99,7 +99,7 @@ When invoked, Cline adds the workflow instructions to its context for that speci
     
     1. Have a conversation about a process you want to codify
     2. Type `/newrule` and specify it should be a workflow
-    3. Cline creates the workflow file in `.clinerules/workflows/`
+    3. Beadsmith creates the workflow file in `.beadsmithrules/workflows/`
     
     <Note>
     The `/newrule` command can create both rules and workflows - just specify your intent clearly.
@@ -119,7 +119,7 @@ Simply type `/` followed by the workflow filename (without `.md`):
 /bug-triage
 ```
 
-The workflow instructions are added to Cline's context for the current task only.
+The workflow instructions are added to Beadsmith's context for the current task only.
 
 ### Workflow Naming
 
@@ -135,7 +135,7 @@ Workflow filenames become slash commands, so choose names that are easy to type 
 
 <CardGroup cols={2}>
   <Card title="Workspace Workflows" icon="folder">
-    **Location:** `.clinerules/workflows/` in your repository
+    **Location:** `.beadsmithrules/workflows/` in your repository
     
     **Scope:** Specific to that project
     
@@ -143,7 +143,7 @@ Workflow filenames become slash commands, so choose names that are easy to type 
   </Card>
   
   <Card title="Global Workflows" icon="globe">
-    **Location:** `Documents/Cline/Workflows/` directory
+    **Location:** `Documents/Beadsmith/Workflows/` directory
     
     **Scope:** All your projects
     
@@ -161,7 +161,7 @@ Workflow filenames become slash commands, so choose names that are easy to type 
 
 You can enable or disable workflows:
 
-1. Click the rules icon in Cline's interface
+1. Click the rules icon in Beadsmith's interface
 2. Switch to the "Workflows" tab
 3. Toggle workflows on/off as needed
 

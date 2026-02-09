@@ -1,6 +1,6 @@
 ---
 title: "GCP Vertex AI"
-description: "Configure GCP Vertex AI with Cline to access leading generative AI models like Claude 3.5 Sonnet v2. This guide covers GCP environment setup, authentication, and secure integration for enterprise teams."
+description: "Configure GCP Vertex AI with Beadsmith to access leading generative AI models like Claude 3.5 Sonnet v2. This guide covers GCP environment setup, authentication, and secure integration for enterprise teams."
 ---
 
 ### Overview
@@ -64,28 +64,28 @@ The Global endpoint may offer higher availability and reduce resource exhausted 
 
 ---
 
-### Step 3: Configure the Cline VS Code Extension
+### Step 3: Configure the Beadsmith VS Code Extension
 
-#### 3.1 Install and Open Cline
+#### 3.1 Install and Open Beadsmith
 
 -   **Download VS Code:**\
     [Download Visual Studio Code](https://code.visualstudio.com/)
--   **Install the Cline Extension:**
+-   **Install the Beadsmith Extension:**
     -   Open VS Code
     -   Navigate to the Extensions Marketplace (Ctrl+Shift+X or Cmd+Shift+X)
-    -   Search for **Cline** and install the extension
+    -   Search for **Beadsmith** and install the extension
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-extension-arrow.png"
-		alt="Cline extension in VS Code"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/beadsmith-extension-arrow.png"
+		alt="Beadsmith extension in VS Code"
 	/>
 </Frame>
 
-#### 3.2 Configure Cline Settings
+#### 3.2 Configure Beadsmith Settings
 
--   **Open Cline Settings:**\
-    Click the settings ⚙️ icon within the Cline extension
+-   **Open Beadsmith Settings:**\
+    Click the settings ⚙️ icon within the Beadsmith extension
 -   **Set API Provider:**\
     Choose **GCP Vertex AI** from the API Provider dropdown
 -   **Enter Your Google Cloud Project ID:**\
@@ -115,7 +115,7 @@ The Global endpoint may offer higher availability and reduce resource exhausted 
     - This sets up Application Default Credentials (ADC) using your Google account
 
 3. **Restart VS Code:**\
-   Ensure VS Code is restarted so that the Cline extension picks up the new credentials
+   Ensure VS Code is restarted so that the Beadsmith extension picks up the new credentials
 
 #### Option B: Using a Service Account (JSON Key)
 
@@ -140,7 +140,7 @@ The Global endpoint may offer higher availability and reduce resource exhausted 
     export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
     ```
 
-    - This instructs Google Cloud client libraries (and Cline) to use this key
+    - This instructs Google Cloud client libraries (and Beadsmith) to use this key
 
 5. **Restart VS Code:**\
    Launch VS Code from a terminal where the `GOOGLE_APPLICATION_CREDENTIALS` variable is set
@@ -190,14 +190,14 @@ The Global endpoint may offer higher availability and reduce resource exhausted 
 
 ### Conclusion
 
-By following these steps, your enterprise team can securely integrate GCP Vertex AI with the Cline VS Code extension to harness the power of **Claude 3.5 Sonnet v2**:
+By following these steps, your enterprise team can securely integrate GCP Vertex AI with the Beadsmith VS Code extension to harness the power of **Claude 3.5 Sonnet v2**:
 
 -   **Prepare Your GCP Environment:**\
     Create or use a project, configure IAM with least privilege, and ensure necessary roles (including the Vertex AI Service Agent role) are attached
 -   **Verify Regional and Model Access:**\
     Confirm that your chosen region supports Claude 3.5 Sonnet v2 and that the model is enabled
--   **Configure Cline in VS Code:**\
-    Install Cline, enter your project ID, select the appropriate region, and choose the model
+-   **Configure Beadsmith in VS Code:**\
+    Install Beadsmith, enter your project ID, select the appropriate region, and choose the model
 -   **Set Up Authentication:**\
     Use either user credentials (via `gcloud auth application-default login`) or a service account with a JSON key
 -   **Implement Security and Monitoring:**\
@@ -206,4 +206,4 @@ By following these steps, your enterprise team can securely integrate GCP Vertex
 For further details, please consult the [GCP Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs) and your internal security policies.\
 Happy coding!
 
-_This guide will be updated as GCP Vertex AI and Cline evolve. Always refer to the latest documentation for current practices._
+_This guide will be updated as GCP Vertex AI and Beadsmith evolve. Always refer to the latest documentation for current practices._

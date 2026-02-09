@@ -3,11 +3,11 @@ title: "Worktrees"
 sidebarTitle: "Worktrees"
 ---
 
-Worktrees let you work on multiple branches simultaneously, each in its own folder. This enables Cline to work on tasks in parallel across separate VS Code windows, or lets Cline work independently while you continue coding in your main workspace.
+Worktrees let you work on multiple branches simultaneously, each in its own folder. This enables Beadsmith to work on tasks in parallel across separate VS Code windows, or lets Beadsmith work independently while you continue coding in your main workspace.
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/worktrees-overview.png"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/worktrees-overview.png"
 		alt="Worktrees view showing multiple linked worktrees"
 	/>
 </Frame>
@@ -25,12 +25,12 @@ Key concepts:
   Unlike regular branch switching, worktrees let you have multiple branches checked out at the same time in different folders. This means you can have VS Code windows open for different features simultaneously.
 </Tip>
 
-## Why Use Worktrees with Cline?
+## Why Use Worktrees with Beadsmith?
 
-Worktrees solve a common problem: **Cline takes over your VS Code window while working on a task**. With worktrees, you can:
+Worktrees solve a common problem: **Beadsmith takes over your VS Code window while working on a task**. With worktrees, you can:
 
-1. **Run Cline in parallel** - Have Cline work on multiple tasks simultaneously, each in its own worktree and VS Code window
-2. **Keep working while Cline works** - Let Cline handle a task in a separate worktree while you continue coding in your main workspace
+1. **Run Beadsmith in parallel** - Have Beadsmith work on multiple tasks simultaneously, each in its own worktree and VS Code window
+2. **Keep working while Beadsmith works** - Let Beadsmith handle a task in a separate worktree while you continue coding in your main workspace
 3. **Isolate experimental changes** - Test risky changes in a worktree without affecting your main branch
 4. **Quick context switching** - Jump between features without stashing or committing incomplete work
 
@@ -38,13 +38,13 @@ Worktrees solve a common problem: **Cline takes over your VS Code window while w
 
 ### Quick Launch (Recommended)
 
-The fastest way to start using worktrees is the **New Worktree Window** button on Cline's home screen:
+The fastest way to start using worktrees is the **New Worktree Window** button on Beadsmith's home screen:
 
 1. Click **New Worktree Window** on the home screen
 2. Enter a branch name and folder path (defaults are auto-filled)
 3. Click **Create & Open**
 
-A new VS Code window opens with your worktree, and Cline automatically opens ready to work.
+A new VS Code window opens with your worktree, and Beadsmith automatically opens ready to work.
 
 <Tip>
   The home screen also shows your current branch and worktree path. Click it to open the full Worktrees view.
@@ -52,14 +52,14 @@ A new VS Code window opens with your worktree, and Cline automatically opens rea
 
 ### Full Worktrees View
 
-For more control, open the full Worktrees view by clicking the **Worktrees** button in the Cline sidebar header, or by clicking your current branch info on the home screen:
+For more control, open the full Worktrees view by clicking the **Worktrees** button in the Beadsmith sidebar header, or by clicking your current branch info on the home screen:
 
 <Steps>
   <Step title="Create a New Worktree">
     Click **New Worktree** at the bottom of the view. Enter a branch name and path (defaults are auto-filled).
   </Step>
   <Step title="Open in New Window">
-    Once created, click the **Open in new window** button to open the worktree in a separate VS Code window. Cline will automatically open in the new window.
+    Once created, click the **Open in new window** button to open the worktree in a separate VS Code window. Beadsmith will automatically open in the new window.
   </Step>
 </Steps>
 
@@ -69,10 +69,10 @@ Here's how a typical worktree session looks:
 
 <Steps>
   <Step title="Create a new worktree">
-    Click **New Worktree Window** on the home screen or use the Worktrees view. A new VS Code window opens with Cline ready to go.
+    Click **New Worktree Window** on the home screen or use the Worktrees view. A new VS Code window opens with Beadsmith ready to go.
   </Step>
   <Step title="Do your work">
-    Work on your feature or let Cline handle a task. Make commits as you go.
+    Work on your feature or let Beadsmith handle a task. Make commits as you go.
   </Step>
   <Step title="Close the worktree window">
     When you're done, close the worktree's VS Code window.
@@ -96,9 +96,9 @@ The Worktrees view shows all worktrees for your repository:
 
 Each worktree has two open options:
 - **Open in current window**: Replace your current workspace with the worktree
-- **Open in new window**: Open the worktree in a separate VS Code window (recommended for parallel Cline sessions)
+- **Open in new window**: Open the worktree in a separate VS Code window (recommended for parallel Beadsmith sessions)
 
-Either way, Cline automatically opens in the new workspace, ready to start a task.
+Either way, Beadsmith automatically opens in the new workspace, ready to start a task.
 
 ### Deleting Worktrees
 
@@ -125,20 +125,20 @@ When you're done working in a worktree and ready to merge your changes back to t
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/worktrees-merge.png"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/worktrees-merge.png"
 		alt="Merge worktree modal"
 	/>
 </Frame>
 
 #### Handling Merge Conflicts
 
-If your branch has conflicts with the main branch, Cline will detect them and show you the conflicting files. You have two options:
+If your branch has conflicts with the main branch, Beadsmith will detect them and show you the conflicting files. You have two options:
 
-1. **Ask Cline to Resolve & Merge** - Creates a new Cline task with a prompt asking Cline to resolve the conflicts, complete the merge, and clean up the worktree
+1. **Ask Beadsmith to Resolve & Merge** - Creates a new Beadsmith task with a prompt asking Beadsmith to resolve the conflicts, complete the merge, and clean up the worktree
 2. **Resolve Manually** - Close the modal and resolve conflicts yourself using your preferred Git tools
 
 <Tip>
-  The "Ask Cline to Resolve" option is particularly useful for complex conflicts. Cline will analyze the conflicting files and attempt to merge them intelligently based on the intent of both branches.
+  The "Ask Beadsmith to Resolve" option is particularly useful for complex conflicts. Beadsmith will analyze the conflicting files and attempt to merge them intelligently based on the intent of both branches.
 </Tip>
 
 ## .worktreeinclude: Automatic File Copying
@@ -151,7 +151,7 @@ The `.worktreeinclude` file solves this by automatically copying specified files
 
 1. Create a `.worktreeinclude` file in your repository root
 2. Add glob patterns for files you want copied (using `.gitignore` syntax)
-3. When Cline creates a new worktree, files matching **both** `.worktreeinclude` **and** `.gitignore` are copied automatically
+3. When Beadsmith creates a new worktree, files matching **both** `.worktreeinclude` **and** `.gitignore` are copied automatically
 
 <Note>
   Only files that are both matched by `.worktreeinclude` AND listed in `.gitignore` are copied. This prevents accidentally duplicating tracked files.
@@ -200,8 +200,8 @@ Now whenever you update your `.gitignore`, your `.worktreeinclude` will have the
 ## Best Practices
 
 <AccordionGroup>
-  <Accordion title="For Parallel Cline Sessions">
-    1. **Create purpose-specific worktrees** - Name branches clearly (e.g., `cline/refactor-auth`, `cline/add-tests`)
+  <Accordion title="For Parallel Beadsmith Sessions">
+    1. **Create purpose-specific worktrees** - Name branches clearly (e.g., `beadsmith/refactor-auth`, `beadsmith/add-tests`)
     2. **Open in new windows** - Always use "Open in new window" for true parallelism
     3. **Use .worktreeinclude** - Set up automatic file copying to reduce setup time
   </Accordion>
@@ -263,8 +263,8 @@ The Worktrees view will display a message explaining the limitation if either of
     - Consider your disk space when creating many worktrees
   </Accordion>
   <Accordion title="Relationship with Checkpoints">
-    Worktrees are separate from Cline's [checkpoint system](/features/checkpoints). Each worktree has its own checkpoint history. Checkpoints track changes within a single worktree, while worktrees let you work across multiple branches simultaneously.
+    Worktrees are separate from Beadsmith's [checkpoint system](/features/checkpoints). Each worktree has its own checkpoint history. Checkpoints track changes within a single worktree, while worktrees let you work across multiple branches simultaneously.
   </Accordion>
 </AccordionGroup>
 
-Worktrees unlock true parallel development with Cline. Create a worktree, open it in a new window, and let Cline work independently while you continue coding!
+Worktrees unlock true parallel development with Beadsmith. Create a worktree, open it in a new window, and let Beadsmith work independently while you continue coding!

@@ -1,10 +1,10 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 
-const id = ClineDefaultTool.GENERATE_EXPLANATION
+const id = BeadsmithDefaultTool.GENERATE_EXPLANATION
 
-const GENERIC: ClineToolSpec = {
+const GENERIC: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "generate_explanation",

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
-import { ClineMessage } from "@/shared/ExtensionMessage"
+import { BeadsmithMessage } from "@/shared/ExtensionMessage"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
@@ -44,7 +44,7 @@ describe("multifile-diff", () => {
 	describe("showChangedFilesDiff", () => {
 		const mockMessageTs = 1234567890
 		const mockHash = "abc123def456"
-		const mockMessages: ClineMessage[] = [
+		const mockMessages: BeadsmithMessage[] = [
 			{
 				ts: mockMessageTs,
 				type: "say",
@@ -55,7 +55,7 @@ describe("multifile-diff", () => {
 		]
 
 		beforeEach(() => {
-			messageStateHandlerStub.getClineMessages.returns(mockMessages)
+			messageStateHandlerStub.getBeadsmithMessages.returns(mockMessages)
 		})
 
 		it("should successfully show diff for changes since last task completion", async () => {
@@ -76,7 +76,7 @@ describe("multifile-diff", () => {
 			]
 
 			// Mock finding last completion message
-			const messagesWithCompletion: ClineMessage[] = [
+			const messagesWithCompletion: BeadsmithMessage[] = [
 				{
 					ts: 1234567000,
 					type: "say",
@@ -85,7 +85,7 @@ describe("multifile-diff", () => {
 				},
 				...mockMessages,
 			]
-			messageStateHandlerStub.getClineMessages.returns(messagesWithCompletion)
+			messageStateHandlerStub.getBeadsmithMessages.returns(messagesWithCompletion)
 
 			checkpointTrackerStub.getDiffSet.resolves(mockChangedFiles)
 
@@ -157,7 +157,7 @@ describe("multifile-diff", () => {
 
 		it("should handle message not found error", async () => {
 			// Arrange
-			messageStateHandlerStub.getClineMessages.returns([])
+			messageStateHandlerStub.getBeadsmithMessages.returns([])
 
 			// Act
 			await showChangedFilesDiff(messageStateHandlerStub as any, checkpointTrackerStub as any, mockMessageTs, false)
@@ -169,7 +169,7 @@ describe("multifile-diff", () => {
 
 		it("should handle missing checkpoint hash", async () => {
 			// Arrange
-			const messagesWithoutHash: ClineMessage[] = [
+			const messagesWithoutHash: BeadsmithMessage[] = [
 				{
 					ts: mockMessageTs,
 					type: "say",
@@ -178,7 +178,7 @@ describe("multifile-diff", () => {
 					// lastCheckpointHash is missing
 				},
 			]
-			messageStateHandlerStub.getClineMessages.returns(messagesWithoutHash)
+			messageStateHandlerStub.getBeadsmithMessages.returns(messagesWithoutHash)
 
 			// Act
 			await showChangedFilesDiff(messageStateHandlerStub as any, checkpointTrackerStub as any, mockMessageTs, false)
@@ -225,7 +225,7 @@ describe("multifile-diff", () => {
 
 		it("should use first checkpoint when no last completion found", async () => {
 			// Arrange
-			const messagesWithFirstCheckpoint: ClineMessage[] = [
+			const messagesWithFirstCheckpoint: BeadsmithMessage[] = [
 				{
 					ts: 1234567000,
 					type: "say",
@@ -234,7 +234,7 @@ describe("multifile-diff", () => {
 				},
 				...mockMessages,
 			]
-			messageStateHandlerStub.getClineMessages.returns(messagesWithFirstCheckpoint)
+			messageStateHandlerStub.getBeadsmithMessages.returns(messagesWithFirstCheckpoint)
 
 			checkpointTrackerStub.getDiffSet.resolves([
 				{
@@ -260,7 +260,7 @@ describe("multifile-diff", () => {
 		it("should show error when no previous checkpoint hash found for new changes", async () => {
 			// Arrange
 			// No completion_result or checkpoint_created messages
-			messageStateHandlerStub.getClineMessages.returns(mockMessages)
+			messageStateHandlerStub.getBeadsmithMessages.returns(mockMessages)
 
 			// Act
 			await showChangedFilesDiff(

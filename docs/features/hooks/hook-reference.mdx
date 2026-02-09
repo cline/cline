@@ -1,20 +1,20 @@
 ---
 title: "Hook Reference"
 sidebarTitle: "Hook Reference"
-description: "Complete API reference for all Cline hook types, JSON schemas, and field documentation"
+description: "Complete API reference for all Beadsmith hook types, JSON schemas, and field documentation"
 ---
 
 This reference provides complete technical documentation for all hook types, their JSON schemas, input/output formats, and communication protocols.
 
 ## Hook Types
 
-Cline provides multiple hook types that let you tap into different stages of the AI workflow. They're organized into categories based on their trigger points and use cases.
+Beadsmith provides multiple hook types that let you tap into different stages of the AI workflow. They're organized into categories based on their trigger points and use cases.
 
 <Note>
 The hook names below are the exact file names you need to create. For example, to use the TaskStart hook, create a file named `TaskStart` (no file extension) in your hooks directory.
 </Note>
 
-Each hook receives base fields in addition to its specific data: `clineVersion`, `hookName`, `timestamp`, `taskId`, `workspaceRoots`, `userId`.
+Each hook receives base fields in addition to its specific data: `beadsmithVersion`, `hookName`, `timestamp`, `taskId`, `workspaceRoots`, `userId`.
 
 ### Tool Execution Hooks
 
@@ -22,12 +22,12 @@ These hooks intercept and validate tool operations before and after they execute
 
 #### `PreToolUse`
 
-Triggered immediately before Cline uses any tool (see the [Cline Tools Reference Guide](/cline-tools) for all available tools). Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
+Triggered immediately before Beadsmith uses any tool (see the [Beadsmith Tools Reference Guide](/beadsmith-tools) for all available tools). Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
 
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "PreToolUse",
   "timestamp": "string",
   "taskId": "string",
@@ -60,12 +60,12 @@ echo '{"cancel": false}'
 
 #### `PostToolUse`
 
-Triggered immediately after Cline uses any tool (see the [Cline Tools Reference Guide](/cline-tools) for all available tools). Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
+Triggered immediately after Beadsmith uses any tool (see the [Beadsmith Tools Reference Guide](/beadsmith-tools) for all available tools). Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
 
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "PostToolUse",
   "timestamp": "string",
   "taskId": "string",
@@ -100,7 +100,7 @@ fi
 
 ### User Interaction Hooks
 
-These hooks monitor and enhance user communication with Cline. Use them to validate input, inject context, and track interaction patterns.
+These hooks monitor and enhance user communication with Beadsmith. Use them to validate input, inject context, and track interaction patterns.
 
 #### `UserPromptSubmit`
 
@@ -109,7 +109,7 @@ Triggered when the user enters text into the prompt box and presses enter to sta
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "UserPromptSubmit",
   "timestamp": "string",
   "taskId": "string",
@@ -150,12 +150,12 @@ These hooks monitor and respond to task state changes from start to finish. Use 
 
 #### `TaskStart`
 
-Triggered once at the beginning of a new task. Use it to detect project type, initialize tracking, and inject initial context that shapes how Cline approaches the work.
+Triggered once at the beginning of a new task. Use it to detect project type, initialize tracking, and inject initial context that shapes how Beadsmith approaches the work.
 
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "TaskStart",
   "timestamp": "string",
   "taskId": "string",
@@ -207,7 +207,7 @@ Triggered when the user resumes a task that has been cancelled or aborted. Use i
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "TaskResume",
   "timestamp": "string",
   "taskId": "string",
@@ -234,7 +234,7 @@ Triggered when the user cancels a task or aborts a hook execution. Use it to cle
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "TaskCancel",
   "timestamp": "string",
   "taskId": "string",
@@ -251,12 +251,12 @@ Triggered when the user cancels a task or aborts a hook execution. Use it to cle
 
 #### `TaskComplete`
 
-Triggered when Cline finishes its work and successfully executes the `attempt_completion` tool to finalize the task output. Use it to track completion metrics, generate reports, log task outcomes, and trigger completion workflows.
+Triggered when Beadsmith finishes its work and successfully executes the `attempt_completion` tool to finalize the task output. Use it to track completion metrics, generate reports, log task outcomes, and trigger completion workflows.
 
 **Input Fields:**
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "TaskComplete",
   "timestamp": "string",
   "taskId": "string",
@@ -281,7 +281,7 @@ task_id=$(echo "$input" | jq -r '.taskComplete.taskMetadata.taskId // "unknown"'
 ulid=$(echo "$input" | jq -r '.taskComplete.taskMetadata.ulid // "unknown"')
 
 # Log completion
-completion_log="$HOME/.cline_completions/$(date +%Y-%m-%d).log"
+completion_log="$HOME/.beadsmith_completions/$(date +%Y-%m-%d).log"
 mkdir -p "$(dirname "$completion_log")"
 
 echo "$(date -Iseconds): Task $task_id completed (ULID: $ulid)" >> "$completion_log"
@@ -293,7 +293,7 @@ jq -n --arg ctx "$context" '{"cancel": false, "contextModification": $ctx}'
 
 ### System Events Hooks
 
-These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
+These hooks monitor internal Beadsmith operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
 
 ## JSON Communication Protocol
 
@@ -305,7 +305,7 @@ All hooks receive a JSON object through stdin with this base structure:
 
 ```json
 {
-  "clineVersion": "string",
+  "beadsmithVersion": "string",
   "hookName": "string", 
   "timestamp": "string",
   "taskId": "string",
@@ -357,7 +357,7 @@ echo "Tool: $tool_name"    # This is also fine
 echo '{"cancel": false}'
 ```
 
-Cline will parse only the final JSON object from stdout.
+Beadsmith will parse only the final JSON object from stdout.
 
 ### Error Handling
 
@@ -369,7 +369,7 @@ Hook execution errors don't prevent task execution - only returning `"cancel": t
 - **Failed** (red): Hook exited with non-zero status, output invalid JSON, or timed out. The UI displays the error details (e.g., exit code number)
 - **Aborted** (red): Hook returned `"cancel": true`, halting the task. User must manually resume the task to continue
 
-**Important:** Even when a hook fails (non-zero exit, invalid JSON, timeout), Cline continues with the task. Only `"cancel": true` stops execution.
+**Important:** Even when a hook fails (non-zero exit, invalid JSON, timeout), Beadsmith continues with the task. Only `"cancel": true` stops execution.
 
 ### Context Modification Timing
 
@@ -430,8 +430,8 @@ Hooks have a 30 second timeout. As long as your hook completes within this time,
 
 ### Hook Discovery
 
-Cline searches for hooks in this order:
-1. Project-specific: `.clinerules/hooks/` in workspace root
-2. User-global: `~/Documents/Cline/Hooks/`
+Beadsmith searches for hooks in this order:
+1. Project-specific: `.beadsmithrules/hooks/` in workspace root
+2. User-global: `~/Documents/Beadsmith/Hooks/`
 
 Project-specific hooks override global hooks with the same name.

@@ -2,7 +2,7 @@ import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
-import { ClineAsk } from "@/shared/ExtensionMessage"
+import { BeadsmithAsk } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
@@ -122,7 +122,7 @@ export class ToolResultUtils {
 	/**
 	 * Handles tool approval flow and processes any user feedback
 	 */
-	static async askApprovalAndPushFeedback(type: ClineAsk, completeMessage: string, config: TaskConfig) {
+	static async askApprovalAndPushFeedback(type: BeadsmithAsk, completeMessage: string, config: TaskConfig) {
 		const { response, text, images, files } = await config.callbacks.ask(type, completeMessage, false)
 
 		if (text || (images && images.length > 0) || (files && files.length > 0)) {

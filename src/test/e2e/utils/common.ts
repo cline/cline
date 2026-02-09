@@ -7,7 +7,7 @@ export const openTab = async (_page: Page, tabName: string) => {
 		.click()
 }
 
-export const addSelectedCodeToClineWebview = async (_page: Page) => {
+export const addSelectedCodeToBeadsmithWebview = async (_page: Page) => {
 	await _page.locator("div:nth-child(4) > span > span").first().click()
 	await _page.getByRole("textbox", { name: "The editor is not accessible" }).press("ControlOrMeta+a")
 

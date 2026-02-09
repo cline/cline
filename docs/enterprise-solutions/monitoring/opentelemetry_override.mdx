@@ -1,10 +1,10 @@
 ---
 title: "OpenTelemetry Integration Override"
 sidebarTitle: "OpenTelemetry Override"
-description: "Export Cline telemetry to your observability platform using OpenTelemetry Protocol (OTLP)"
+description: "Export Beadsmith telemetry to your observability platform using OpenTelemetry Protocol (OTLP)"
 ---
 
-Cline includes opt-in OpenTelemetry support for exporting metrics and logs to your own observability infrastructure using the OpenTelemetry Protocol (OTLP).
+Beadsmith includes opt-in OpenTelemetry support for exporting metrics and logs to your own observability infrastructure using the OpenTelemetry Protocol (OTLP).
 
 <Note>
 OpenTelemetry integration is **optional** and intended for advanced users with existing observability infrastructure. Most users won't need this feature.
@@ -14,7 +14,7 @@ OpenTelemetry integration is **optional** and intended for advanced users with e
 
 [OpenTelemetry](https://opentelemetry.io/) is an industry-standard observability framework that provides a unified way to collect and export telemetry data (metrics, logs, and traces).
 
-Cline's OpenTelemetry support allows you to:
+Beadsmith's OpenTelemetry support allows you to:
 - Export telemetry to your own systems
 - Integrate with observability platforms like Datadog, New Relic, Grafana Cloud, etc.
 - Maintain full control over your monitoring data
@@ -22,11 +22,11 @@ Cline's OpenTelemetry support allows you to:
 
 ## Supported Features
 
-Cline supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
+Beadsmith supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
 
 <CardGroup cols={2}>
   <Card title="Metrics Export" icon="chart-bar">
-    Export metrics about Cline usage, performance, and errors
+    Export metrics about Beadsmith usage, performance, and errors
   </Card>
   
   <Card title="Logs Export" icon="file-lines">
@@ -36,7 +36,7 @@ Cline supports OpenTelemetry's **OTLP (OpenTelemetry Protocol)** export with:
 
 ### Export Formats
 
-Cline supports three OTLP export protocols:
+Beadsmith supports three OTLP export protocols:
 
 - **gRPC** (default, recommended)
 - **HTTP/protobuf**
@@ -50,7 +50,7 @@ You can export to:
 
 ## Configuration
 
-OpenTelemetry is configured using environment variables before launching Cline.
+OpenTelemetry is configured using environment variables before launching Beadsmith.
 
 ### Basic Setup
 
@@ -163,7 +163,7 @@ export CLINE_OTEL_METRICS_EXPORTER=console
 export CLINE_OTEL_LOGS_EXPORTER=console
 ```
 
-Then launch Cline and check the console output for metrics and logs.
+Then launch Beadsmith and check the console output for metrics and logs.
 
 ## Troubleshooting
 
@@ -218,7 +218,7 @@ This will output detailed information about:
 
 ## What Gets Exported
 
-When OpenTelemetry is enabled, Cline exports:
+When OpenTelemetry is enabled, Beadsmith exports:
 
 ### Metrics
 - Feature usage counts
@@ -237,7 +237,7 @@ Exported data is already anonymous and doesn't include code content, file paths,
 
 ## Limitations
 
-Current OpenTelemetry support in Cline:
+Current OpenTelemetry support in Beadsmith:
 - ✅ OTLP metrics export (console, gRPC, HTTP)
 - ✅ OTLP logs export (console, gRPC, HTTP)
 - ✅ Basic configuration via environment variables
@@ -256,7 +256,7 @@ Current OpenTelemetry support in Cline:
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Cline Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+  <Card title="Beadsmith Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
     Configure simple built-in telemetry
   </Card>
   

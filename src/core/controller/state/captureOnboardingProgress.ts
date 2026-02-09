@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import { OnboardingProgressRequest } from "@shared/proto/cline/state"
+import { Empty } from "@shared/proto/beadsmith/common"
+import { OnboardingProgressRequest } from "@shared/proto/beadsmith/state"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import type { Controller } from "../index"

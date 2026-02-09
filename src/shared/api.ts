@@ -1,4 +1,4 @@
-import { ApiFormat } from "./proto/cline/models"
+import { ApiFormat } from "./proto/beadsmith/models"
 import { ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
@@ -21,6 +21,7 @@ export type ApiProvider =
 	| "doubao"
 	| "mistral"
 	| "vscode-lm"
+	| "copilot-sdk"
 	| "cline"
 	| "litellm"
 	| "moonshot"
@@ -637,8 +638,8 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
-// Cline custom model - Devstral
-export const clineDevstralModelInfo: ModelInfo = {
+// Beadsmith custom model - Devstral
+export const beadsmithDevstralModelInfo: ModelInfo = {
 	contextWindow: 256000,
 	supportsImages: false,
 	supportsPromptCache: false,

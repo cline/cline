@@ -1,16 +1,18 @@
 import { ApiHandler } from "@core/api"
+import type { BeadManager } from "@core/beads"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import { BeadsmithIgnoreController } from "@core/ignore/BeadsmithIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
-import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
-import { ClineContent } from "@shared/messages/content"
-import { ClineDefaultTool } from "@shared/tools"
-import { ClineAskResponse } from "@shared/WebviewMessage"
+import type { BeadFileChange } from "@shared/beads"
+import { BeadsmithAsk, BeadsmithSay } from "@shared/ExtensionMessage"
+import { BeadsmithContent } from "@shared/messages/content"
+import { BeadsmithDefaultTool } from "@shared/tools"
+import { BeadsmithAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { isGPT5ModelFamily, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
@@ -56,13 +58,31 @@ export class ToolExecutor {
 	private autoApprover: AutoApprove
 	private coordinator: ToolExecutorCoordinator
 
+	/** Optional BeadManager for Ralph Wiggum loop pattern */
+	private beadManager?: BeadManager
+
+	/**
+	 * Set the BeadManager for bead mode task execution.
+	 * When set, tool handlers will record file changes and errors to the current bead.
+	 */
+	public setBeadManager(manager: BeadManager): void {
+		this.beadManager = manager
+	}
+
+	/**
+	 * Get the current BeadManager (if set).
+	 */
+	public getBeadManager(): BeadManager | undefined {
+		return this.beadManager
+	}
+
 	// Auto-approval methods using the AutoApprove class
-	private shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
+	private shouldAutoApproveTool(toolName: BeadsmithDefaultTool): boolean | [boolean, boolean] {
 		return this.autoApprover.shouldAutoApproveTool(toolName)
 	}
 
 	private async shouldAutoApproveToolWithPath(
-		blockname: ClineDefaultTool,
+		blockname: BeadsmithDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
@@ -79,7 +99,7 @@ export class ToolExecutor {
 		private diffViewProvider: DiffViewProvider,
 		private mcpHub: McpHub,
 		private fileContextTracker: FileContextTracker,
-		private clineIgnoreController: ClineIgnoreController,
+		private beadsmithIgnoreController: BeadsmithIgnoreController,
 		private commandPermissionController: CommandPermissionController,
 		private contextManager: ContextManager,
 		private stateManager: StateManager,
@@ -97,25 +117,25 @@ export class ToolExecutor {
 
 		// Callbacks to the Task (Entity)
 		private say: (
-			type: ClineSay,
+			type: BeadsmithSay,
 			text?: string,
 			images?: string[],
 			files?: string[],
 			partial?: boolean,
 		) => Promise<number | undefined>,
 		private ask: (
-			type: ClineAsk,
+			type: BeadsmithAsk,
 			text?: string,
 			partial?: boolean,
 		) => Promise<{
-			response: ClineAskResponse
+			response: BeadsmithAskResponse
 			text?: string
 			images?: string[]
 			files?: string[]
 		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
-		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
-		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
+		private sayAndCreateMissingParamError: (toolName: BeadsmithDefaultTool, paramName: string, relPath?: string) => Promise<any>,
+		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: BeadsmithAsk | BeadsmithSay) => Promise<void>,
 		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
@@ -127,7 +147,7 @@ export class ToolExecutor {
 		private clearActiveHookExecution: () => Promise<void>,
 		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
 		private runUserPromptSubmitHook: (
-			userContent: ClineContent[],
+			userContent: BeadsmithContent[],
 			context: "initial_task" | "resume" | "feedback",
 		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
 	) {
@@ -166,10 +186,11 @@ export class ToolExecutor {
 				urlContentFetcher: this.urlContentFetcher,
 				diffViewProvider: this.diffViewProvider,
 				fileContextTracker: this.fileContextTracker,
-				clineIgnoreController: this.clineIgnoreController,
+				beadsmithIgnoreController: this.beadsmithIgnoreController,
 				commandPermissionController: this.commandPermissionController,
 				contextManager: this.contextManager,
 				stateManager: this.stateManager,
+				beadManager: this.beadManager,
 			},
 			callbacks: {
 				say: this.say,
@@ -192,6 +213,14 @@ export class ToolExecutor {
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
 				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
+				// Bead callbacks (only active when beadManager is set)
+				recordBeadFileChange: this.beadManager
+					? (change: BeadFileChange) => this.beadManager?.recordFileChange(change)
+					: undefined,
+				recordBeadTokenUsage: this.beadManager
+					? (tokens: number) => this.beadManager?.recordTokenUsage(tokens)
+					: undefined,
+				recordBeadError: this.beadManager ? (error: string) => this.beadManager?.recordError(error) : undefined,
 			},
 			coordinator: this.coordinator,
 		}
@@ -205,7 +234,7 @@ export class ToolExecutor {
 	 * Register all tool handlers with the coordinator
 	 */
 	private registerToolHandlers(): void {
-		const validator = new ToolValidator(this.clineIgnoreController)
+		const validator = new ToolValidator(this.beadsmithIgnoreController)
 
 		// Register all tool handlers
 		this.coordinator.register(new ListFilesToolHandler(validator))
@@ -217,9 +246,9 @@ export class ToolExecutor {
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
-		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
-		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
+		this.coordinator.register(writeHandler) // registers as "write_to_file" (BeadsmithDefaultTool.FILE_NEW)
+		this.coordinator.register(new SharedToolHandler(BeadsmithDefaultTool.FILE_EDIT, writeHandler))
+		this.coordinator.register(new SharedToolHandler(BeadsmithDefaultTool.NEW_RULE, writeHandler))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
@@ -317,11 +346,11 @@ export class ToolExecutor {
 	/**
 	 * Tools that are restricted in plan mode and can only be used in act mode
 	 */
-	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ClineDefaultTool[] = [
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
-		ClineDefaultTool.NEW_RULE,
-		ClineDefaultTool.APPLY_PATCH,
+	private static readonly PLAN_MODE_RESTRICTED_TOOLS: BeadsmithDefaultTool[] = [
+		BeadsmithDefaultTool.FILE_NEW,
+		BeadsmithDefaultTool.FILE_EDIT,
+		BeadsmithDefaultTool.NEW_RULE,
+		BeadsmithDefaultTool.APPLY_PATCH,
 	]
 
 	/**
@@ -413,7 +442,7 @@ export class ToolExecutor {
 	 * @param toolName The name of the tool to check
 	 * @returns true if the tool is restricted in plan mode, false otherwise
 	 */
-	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
+	private isPlanModeToolRestricted(toolName: BeadsmithDefaultTool): boolean {
 		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
 	}
 

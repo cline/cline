@@ -3,12 +3,12 @@ import { JSONParser } from "@streamparser/json"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import {
-	ClineAssistantRedactedThinkingBlock,
-	ClineAssistantThinkingBlock,
-	ClineAssistantToolUseBlock,
-	ClineReasoningDetailParam,
+	BeadsmithAssistantRedactedThinkingBlock,
+	BeadsmithAssistantThinkingBlock,
+	BeadsmithAssistantToolUseBlock,
+	BeadsmithReasoningDetailParam,
 } from "@/shared/messages/content"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
 	id: string
@@ -40,8 +40,8 @@ export interface PendingReasoning {
 	id?: string
 	content: string
 	signature: string
-	redactedThinking: ClineAssistantRedactedThinkingBlock[]
-	summary: unknown[] | ClineReasoningDetailParam[]
+	redactedThinking: BeadsmithAssistantRedactedThinkingBlock[]
+	summary: unknown[] | BeadsmithReasoningDetailParam[]
 }
 
 const ESCAPE_MAP: Record<string, string> = {
@@ -85,7 +85,7 @@ export class StreamResponseHandler {
 }
 
 /**
- * Handles streaming native tool use blocks and converts them to ClineAssistantToolUseBlock format
+ * Handles streaming native tool use blocks and converts them to BeadsmithAssistantToolUseBlock format
  */
 class ToolUseHandler {
 	private pendingToolUses = new Map<string, PendingToolUse>()
@@ -118,7 +118,7 @@ class ToolUseHandler {
 		}
 	}
 
-	getFinalizedToolUse(id: string): ClineAssistantToolUseBlock | undefined {
+	getFinalizedToolUse(id: string): BeadsmithAssistantToolUseBlock | undefined {
 		const pending = this.pendingToolUses.get(id)
 		if (!pending?.name) {
 			return undefined
@@ -145,8 +145,8 @@ class ToolUseHandler {
 		}
 	}
 
-	getAllFinalizedToolUses(summary?: ClineAssistantToolUseBlock["reasoning_details"]): ClineAssistantToolUseBlock[] {
-		const results: ClineAssistantToolUseBlock[] = []
+	getAllFinalizedToolUses(summary?: BeadsmithAssistantToolUseBlock["reasoning_details"]): BeadsmithAssistantToolUseBlock[] {
+		const results: BeadsmithAssistantToolUseBlock[] = []
 		for (const id of this.pendingToolUses.keys()) {
 			const toolUse = this.getFinalizedToolUse(id)
 			if (toolUse) {
@@ -188,7 +188,7 @@ class ToolUseHandler {
 				const [key, toolName] = pending.name.split(CLINE_MCP_TOOL_IDENTIFIER)
 				results.push({
 					type: "tool_use",
-					name: ClineDefaultTool.MCP_USE,
+					name: BeadsmithDefaultTool.MCP_USE,
 					params: {
 						server_name: McpHub.getMcpServerByKey(key),
 						tool_name: toolName,
@@ -208,7 +208,7 @@ class ToolUseHandler {
 				}
 				results.push({
 					type: "tool_use",
-					name: pending.name as ClineDefaultTool,
+					name: pending.name as BeadsmithDefaultTool,
 					params: params as any,
 					partial: true,
 					signature: pending.signature,
@@ -306,7 +306,7 @@ class ReasoningHandler {
 		}
 	}
 
-	getCurrentReasoning(): ClineAssistantThinkingBlock | null {
+	getCurrentReasoning(): BeadsmithAssistantThinkingBlock | null {
 		if (!this.pendingReasoning) {
 			return null
 		}
@@ -335,7 +335,7 @@ class ReasoningHandler {
 		}
 	}
 
-	getRedactedThinking(): ClineAssistantRedactedThinkingBlock[] {
+	getRedactedThinking(): BeadsmithAssistantRedactedThinkingBlock[] {
 		return this.pendingReasoning?.redactedThinking || []
 	}
 

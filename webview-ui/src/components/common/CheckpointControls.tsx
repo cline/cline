@@ -1,5 +1,5 @@
-import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
-import { Int64Request } from "@shared/proto/cline/common"
+import { CheckpointRestoreRequest } from "@shared/proto/beadsmith/checkpoints"
+import { Int64Request } from "@shared/proto/beadsmith/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"

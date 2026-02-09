@@ -7,7 +7,7 @@ import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
 /**
  * CheckpointExclusions Module
  *
- * A specialized module within Cline's Checkpoints system that manages file exclusion rules
+ * A specialized module within Beadsmith's Checkpoints system that manages file exclusion rules
  * for the checkpoint tracking process. It provides:
  *
  * File Filtering:
@@ -84,7 +84,7 @@ function getBuildArtifactPatterns(): string[] {
 		".sass-cache/",
 		".vs/",
 		".vscode/",
-		".clinerules/",
+		".beadsmithrules/",
 		"Pods/",
 		"__pycache__/",
 		"bin/",

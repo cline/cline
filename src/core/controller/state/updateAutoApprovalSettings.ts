@@ -1,5 +1,5 @@
-import { Empty } from "@shared/proto/cline/common"
-import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
+import { Empty } from "@shared/proto/beadsmith/common"
+import { AutoApprovalSettingsRequest } from "@shared/proto/beadsmith/state"
 import { Controller } from ".."
 
 /**

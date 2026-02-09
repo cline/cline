@@ -23,10 +23,10 @@ export class TerminalRegistry {
 	static createTerminal(cwd?: string | vscode.Uri | undefined, shellPath?: string): TerminalInfo {
 		const terminalOptions: vscode.TerminalOptions = {
 			cwd,
-			name: "Cline",
-			iconPath: new vscode.ThemeIcon("cline-icon"),
+			name: "Beadsmith",
+			iconPath: new vscode.ThemeIcon("beadsmith-icon"),
 			env: {
-				CLINE_ACTIVE: "true",
+				BEADSMITH_ACTIVE: "true",
 			},
 		}
 

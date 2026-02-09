@@ -91,7 +91,7 @@ async function loadSkillMetadata(
 }
 
 /**
- * Discover all skills from global (~/.cline/skills) and project directories.
+ * Discover all skills from global (~/.beadsmith/skills) and project directories.
  * Returns skills in order: project skills first, then global skills.
  * Global skills take precedence over project skills with the same name.
  */
@@ -100,8 +100,8 @@ export async function discoverSkills(cwd: string): Promise<SkillMetadata[]> {
 
 	const globalSkillsDir = await ensureSkillsDirectoryExists()
 	const projectDirs = [
-		path.join(cwd, GlobalFileNames.clineruleSkillsDir),
-		path.join(cwd, GlobalFileNames.clineSkillsDir),
+		path.join(cwd, GlobalFileNames.beadsmithruleSkillsDir),
+		path.join(cwd, GlobalFileNames.beadsmithSkillsDir),
 		path.join(cwd, GlobalFileNames.claudeSkillsDir),
 	]
 
@@ -111,7 +111,7 @@ export async function discoverSkills(cwd: string): Promise<SkillMetadata[]> {
 		skills.push(...projectSkills)
 	}
 
-	// Load global skills last (~/.cline/skills) - higher priority
+	// Load global skills last (~/.beadsmith/skills) - higher priority
 	const globalSkills = await scanSkillsDirectory(globalSkillsDir, "global")
 	skills.push(...globalSkills)
 

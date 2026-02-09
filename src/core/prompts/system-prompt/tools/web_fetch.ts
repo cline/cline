@@ -1,11 +1,11 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ClineToolSpec } from "../spec"
+import { BeadsmithDefaultTool } from "@/shared/tools"
+import type { BeadsmithToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
-const GENERIC: ClineToolSpec = {
+const GENERIC: BeadsmithToolSpec = {
 	variant: ModelFamily.GENERIC,
-	id: ClineDefaultTool.WEB_FETCH,
+	id: BeadsmithDefaultTool.WEB_FETCH,
 	name: "web_fetch",
 	description: `Fetches content from a specified URL and analyzes it using your prompt
 - Takes a URL and analysis prompt as input
@@ -16,7 +16,7 @@ const GENERIC: ClineToolSpec = {
 - The prompt must be at least 2 characters
 - HTTP URLs will be automatically upgraded to HTTPS
 - This tool is read-only and does not modify any files`,
-	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true,
+	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.beadsmithWebToolsEnabled === true,
 	parameters: [
 		{
 			name: "url",
@@ -34,13 +34,13 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: BeadsmithToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
-	id: ClineDefaultTool.WEB_FETCH,
+	id: BeadsmithDefaultTool.WEB_FETCH,
 	name: "web_fetch",
 	description:
 		"Fetches and analyzes content from a specified URL. IMPORTANT: If an MCP-provided web fetch tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.",
-	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true,
+	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.beadsmithWebToolsEnabled === true,
 	parameters: [
 		{
 			name: "url",
@@ -56,7 +56,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
+const NATIVE_GPT_5: BeadsmithToolSpec = {
 	...NATIVE_NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
 }

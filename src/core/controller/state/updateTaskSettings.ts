@@ -1,9 +1,9 @@
-import { Empty } from "@shared/proto/cline/common"
+import { Empty } from "@shared/proto/beadsmith/common"
 import {
 	PlanActMode,
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
 	UpdateTaskSettingsRequest,
-} from "@shared/proto/cline/state"
+} from "@shared/proto/beadsmith/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { Controller } from ".."

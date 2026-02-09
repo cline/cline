@@ -1,5 +1,5 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { CreateWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/cline/worktree"
+import { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { CreateWorktreeRequest, SwitchWorktreeRequest } from "@shared/proto/beadsmith/worktree"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircle, AlertTriangle, Loader2, X } from "lucide-react"
 import { memo, useCallback, useEffect, useState } from "react"

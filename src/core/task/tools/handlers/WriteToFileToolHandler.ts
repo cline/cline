@@ -5,23 +5,24 @@ import { constructNewFileContent, getLineNumberFromCharIndex } from "@core/assis
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { ClineSayTool } from "@shared/ExtensionMessage"
+import { BeadsmithSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
-import { ClineDefaultTool } from "@/shared/tools"
+import { BeadsmithDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { recordFileCreated, recordFileModified } from "../utils/BeadIntegrationUtils"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WriteToFileToolHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.FILE_NEW // This handler supports write_to_file, replace_in_file, and new_rule
+	readonly name = BeadsmithDefaultTool.FILE_NEW // This handler supports write_to_file, replace_in_file, and new_rule
 
 	constructor(private validator: ToolValidator) {}
 
@@ -52,7 +53,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const { relPath, absolutePath, fileExists, diff, content, newContent, matchIndices } = result
 
 			// Create and show partial UI message
-			const sharedMessageProps: ClineSayTool = {
+			const sharedMessageProps: BeadsmithSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
 				path: getReadablePath(
 					config.cwd,
@@ -138,7 +139,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices } = result
 
 			// Handle approval flow
-			const sharedMessageProps: ClineSayTool = {
+			const sharedMessageProps: BeadsmithSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
 				path: getReadablePath(config.cwd, relPath),
 				content: diff || content,
@@ -171,7 +172,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// 		newContent,
 				// 	)
 				// : undefined,
-			} satisfies ClineSayTool)
+			} satisfies BeadsmithSayTool)
 
 			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
 				// Auto-approval flow
@@ -194,7 +195,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await setTimeoutPromise(3_500)
 			} else {
 				// Manual approval flow with detailed feedback handling
-				const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${getWorkspaceBasename(relPath, "WriteToFile.notification")}`
+				const notificationMessage = `Beadsmith wants to ${fileExists ? "edit" : "create"} ${getWorkspaceBasename(relPath, "WriteToFile.notification")}`
 
 				// Show notification
 				showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
@@ -291,8 +292,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				throw error
 			}
 
-			// Mark the file as edited by Cline
-			config.services.fileContextTracker.markFileAsEditedByCline(relPath)
+			// Mark the file as edited by Beadsmith
+			config.services.fileContextTracker.markFileAsEditedByBeadsmith(relPath)
 
 			// Save the changes and get the result
 			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
@@ -304,7 +305,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
 			// Track file edit operation
-			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
+			await config.services.fileContextTracker.trackFileContext(relPath, "beadsmith_edited")
+
+			// Record file change for bead tracking (if bead mode is active)
+			if (fileExists) {
+				recordFileModified(config, relPath, { diff })
+			} else {
+				recordFileCreated(config, relPath)
+			}
 
 			// Reset the diff view
 			await config.services.diffViewProvider.reset()
@@ -370,14 +378,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
 		}
 
-		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
+		// Check beadsmithignore access first
+		const accessValidation = this.validator.checkBeadsmithIgnorePath(resolvedPath)
 		if (!accessValidation.ok) {
 			// Show error and return early (full original behavior)
-			await config.callbacks.say("clineignore_error", resolvedPath)
+			await config.callbacks.say("beadsmithignore_error", resolvedPath)
 
 			// Push tool result and save checkpoint using existing utilities
-			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
+			const errorResponse = formatResponse.toolError(formatResponse.beadsmithIgnoreError(resolvedPath))
 			ToolResultUtils.pushToolResult(
 				errorResponse,
 				block,
@@ -412,7 +420,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// Apply model-specific fixes (deepseek models tend to use unescaped html entities in diffs)
 			diff = applyModelContentFixes(diff, config.api.getModel().id, resolvedPath)
 
-			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
+			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Beadsmith throws error
 			// because file is not open.
 			if (!config.services.diffViewProvider.isEditing) {
 				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })

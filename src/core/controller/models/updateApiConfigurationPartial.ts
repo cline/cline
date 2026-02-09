@@ -1,6 +1,6 @@
 import { buildApiHandler } from "@core/api"
-import { Empty } from "@shared/proto/cline/common"
-import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
+import { Empty } from "@shared/proto/beadsmith/common"
+import { UpdateApiConfigurationPartialRequest } from "@shared/proto/beadsmith/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"

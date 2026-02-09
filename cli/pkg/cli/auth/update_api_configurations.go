@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/task"
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/cli/pkg/cli/global"
+	"github.com/beadsmith/cli/pkg/cli/task"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
@@ -330,7 +330,7 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	}
 
 	// Build a ModelsApiConfiguration with only the relevant provider fields set
-	apiConfig := &cline.ModelsApiConfiguration{}
+	apiConfig := &beadsmith.ModelsApiConfiguration{}
 
 	// Set API key field
 	if apiKey != "" || fields.APIKeyField != "ollamaBaseUrl" {
@@ -372,7 +372,7 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
 
 	// Apply the partial update
-	request := &cline.UpdateApiConfigurationPartialRequest{
+	request := &beadsmith.UpdateApiConfigurationPartialRequest{
 		ApiConfiguration: apiConfig,
 		UpdateMask:       fieldMask,
 	}
@@ -394,7 +394,7 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	}
 
 	// Build a ModelsApiConfiguration with only the fields being updated
-	apiConfig := &cline.ModelsApiConfiguration{}
+	apiConfig := &beadsmith.ModelsApiConfiguration{}
 
 	// Set provider enum for BOTH Plan and Act modes if setAsActive is true
 	if setAsActive {
@@ -442,7 +442,7 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
 
 	// Apply the partial update
-	request := &cline.UpdateApiConfigurationPartialRequest{
+	request := &beadsmith.UpdateApiConfigurationPartialRequest{
 		ApiConfiguration: apiConfig,
 		UpdateMask:       fieldMask,
 	}
@@ -464,7 +464,7 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 
 	// Build an EMPTY ModelsApiConfiguration (or one with empty API key field)
 	// Fields in the mask without values will be cleared
-	apiConfig := &cline.ModelsApiConfiguration{}
+	apiConfig := &beadsmith.ModelsApiConfiguration{}
 
 	// Build field mask with only the API key field(s)
 	// For Bedrock, include both access key and secret key
@@ -477,7 +477,7 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
 
 	// Apply the partial update (clearing API key by including in mask without value)
-	request := &cline.UpdateApiConfigurationPartialRequest{
+	request := &beadsmith.UpdateApiConfigurationPartialRequest{
 		ApiConfiguration: apiConfig,
 		UpdateMask:       fieldMask,
 	}

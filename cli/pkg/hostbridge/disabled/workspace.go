@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/cline/grpc-go/cline"
+	"github.com/beadsmith/grpc-go/beadsmith"
 	"github.com/cline/grpc-go/host"
 )
 

@@ -1,4 +1,4 @@
-import { RecordingResult } from "@shared/proto/cline/dictation"
+import { RecordingResult } from "@shared/proto/beadsmith/dictation"
 import * as os from "os"
 import { HostProvider } from "@/hosts/host-provider"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
@@ -9,23 +9,23 @@ import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
- * Handles the installation of missing dependencies with Cline
+ * Handles the installation of missing dependencies with Beadsmith
  */
-async function handleInstallWithCline(
+async function handleInstallWithBeadsmith(
 	controller: Controller,
 	dependencyName: string,
 	installCommand: string,
 	platform: string,
 ): Promise<void> {
 	const platformName = platform === "darwin" ? "macOS" : platform === "win32" ? "Windows" : "Linux"
-	const installTask = `Please install ${dependencyName} for voice recording on ${platformName}.\n\nRun this command:\n\`\`\`bash\n${installCommand}\n\`\`\`\n\nThis will enable voice recording functionality in Cline.`
+	const installTask = `Please install ${dependencyName} for voice recording on ${platformName}.\n\nRun this command:\n\`\`\`bash\n${installCommand}\n\`\`\`\n\nThis will enable voice recording functionality in Beadsmith.`
 
 	// Clear any existing task and start the installation task
 	await controller.clearTask()
 	await controller.postStateToWebview()
 	await controller.initTask(installTask)
 
-	Logger.log(`[handleInstallWithCline] Started task to install ${dependencyName}`)
+	Logger.log(`[handleInstallWithBeadsmith] Started task to install ${dependencyName}`)
 }
 
 /**
@@ -48,18 +48,18 @@ async function handleMissingDependency(
 	platform: string,
 	config: (typeof AUDIO_PROGRAM_CONFIG)[keyof typeof AUDIO_PROGRAM_CONFIG],
 ): Promise<void> {
-	const installWithCline = "Install with Cline"
+	const installWithBeadsmith = "Install with Beadsmith"
 	const installManually = "Copy Command"
 	const dismiss = "Dismiss"
 
 	const action = await HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message: `${config.dependencyName} is required for voice recording. ${config.installDescription}`,
-		options: { items: [installWithCline, installManually, dismiss] },
+		options: { items: [installWithBeadsmith, installManually, dismiss] },
 	})
 
-	if (action.selectedOption === installWithCline) {
-		await handleInstallWithCline(controller, config.dependencyName, config.installCommand, platform)
+	if (action.selectedOption === installWithBeadsmith) {
+		await handleInstallWithBeadsmith(controller, config.dependencyName, config.installCommand, platform)
 	} else if (action.selectedOption === installManually) {
 		await handleCopyCommand(config.installCommand)
 	}
@@ -70,7 +70,7 @@ async function handleMissingDependency(
  * Handles sign-in errors for dictation
  */
 async function handleSignInError(controller: Controller, errorMessage: string): Promise<void> {
-	const signInAction = "Sign in to Cline"
+	const signInAction = "Sign in to Beadsmith"
 	const action = await HostProvider.window.showMessage({
 		type: ShowMessageType.ERROR,
 		message: `Voice recording error: ${errorMessage}`,
@@ -115,7 +115,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 		// Verify user authentication
 		const userInfo = controller.authService.getInfo()
 		if (!userInfo?.user?.uid) {
-			throw new Error("Please sign in to your Cline Account to use Dictation.")
+			throw new Error("Please sign in to your Beadsmith Account to use Dictation.")
 		}
 
 		// Attempt to start recording

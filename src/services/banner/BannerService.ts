@@ -1,13 +1,13 @@
-import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
-import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
+import type { Banner, BannerRules, BannersResponse } from "@shared/BeadsmithBanner"
+import { BannerActionType, type BannerCardData } from "@shared/beadsmith/banner"
 import axios from "axios"
-import { ClineEnv } from "@/config"
+import { BeadsmithEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
-import { buildBasicClineHeaders } from "../EnvUtils"
+import { buildBasicBeadsmithHeaders } from "../EnvUtils"
 import { getDistinctId } from "../logging/distinctId"
 
 /**
@@ -24,7 +24,7 @@ export class BannerService {
 	private _fetchPromise: Promise<Banner[]> | null = null
 
 	private get _baseUrl(): string {
-		return ClineEnv.config().apiBaseUrl
+		return BeadsmithEnv.config().apiBaseUrl
 	}
 
 	private constructor(controller: Controller) {
@@ -130,7 +130,7 @@ export class BannerService {
 
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
-				...(await buildBasicClineHeaders()),
+				...(await buildBasicBeadsmithHeaders()),
 			}
 			if (token) {
 				headers["Authorization"] = `Bearer ${token}`
@@ -178,7 +178,7 @@ export class BannerService {
 	private async getExtensionVersion(): Promise<string> {
 		try {
 			const hostVersion = await HostProvider.env.getHostVersion({})
-			return hostVersion.clineVersion || ""
+			return hostVersion.beadsmithVersion || ""
 		} catch (error) {
 			Logger.error("BannerService: Error getting extension version", error)
 			return ""
@@ -272,16 +272,16 @@ export class BannerService {
 		try {
 			const hostVersion = await HostProvider.env.getHostVersion({})
 
-			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", "CLI", etc.
-			const clineType = hostVersion.clineType?.toLowerCase() || ""
+			// Use beadsmithType field which contains values like "VSCode Extension", "Beadsmith for JetBrains", "CLI", etc.
+			const beadsmithType = hostVersion.beadsmithType?.toLowerCase() || ""
 
-			if (clineType.includes("vscode")) {
+			if (beadsmithType.includes("vscode")) {
 				return "vscode"
 			}
-			if (clineType.includes("jetbrains")) {
+			if (beadsmithType.includes("jetbrains")) {
 				return "jetbrains"
 			}
-			if (clineType.includes("cli")) {
+			if (beadsmithType.includes("cli")) {
 				return "cli"
 			}
 
@@ -352,7 +352,7 @@ export class BannerService {
 				timeout: 10000,
 				headers: {
 					"Content-Type": "application/json",
-					...(await buildBasicClineHeaders()),
+					...(await buildBasicBeadsmithHeaders()),
 				},
 				...getAxiosSettings(),
 			})

@@ -3,14 +3,14 @@ package display
 import (
 	"testing"
 
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 func TestStreamingSegment_generateRichHeader_HookIsEmpty(t *testing.T) {
 	ss := &StreamingSegment{
 		sayType: string(types.SayTypeHookStatus),
 		prefix:  "HOOK",
-		msg:     &types.ClineMessage{},
+		msg:     &types.BeadsmithMessage{},
 	}
 
 	header := ss.generateRichHeader()

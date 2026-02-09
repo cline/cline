@@ -30,7 +30,7 @@ func (s *SimpleService) Start(ctx context.Context) error {
 	}
 
 	// For now, just log that we're running
-	fmt.Printf("[Cline Host Bridge] Service started on core address: %s\n", s.coreAddress)
+	fmt.Printf("[Beadsmith Host Bridge] Service started on core address: %s\n", s.coreAddress)
 
 	// Keep running until context is cancelled
 	<-ctx.Done()

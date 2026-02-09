@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cline/cli/pkg/common"
+	"github.com/beadsmith/cli/pkg/common"
 	_ "github.com/glebarez/go-sqlite"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 // readInstancesFromSQLite reads instances directly from the SQLite database for testing
-func readInstancesFromSQLite(t *testing.T, clineDir string) []common.CoreInstanceInfo {
+func readInstancesFromSQLite(t *testing.T, beadsmithDir string) []common.CoreInstanceInfo {
 	t.Helper()
 
-	dbPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "locks.db")
+	dbPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "locks.db")
 
 	// Check if database exists
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
@@ -68,10 +68,10 @@ func readInstancesFromSQLite(t *testing.T, clineDir string) []common.CoreInstanc
 }
 
 // readDefaultInstanceFromSettings reads the default instance from the settings file
-func readDefaultInstanceFromSettings(t *testing.T, clineDir string) string {
+func readDefaultInstanceFromSettings(t *testing.T, beadsmithDir string) string {
 	t.Helper()
 
-	settingsPath := filepath.Join(clineDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+	settingsPath := filepath.Join(beadsmithDir, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {

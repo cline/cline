@@ -1,6 +1,6 @@
 import type { OcaModelInfo } from "@shared/api"
-import type { OcaAuthState, OcaUserInfo } from "@shared/proto/index.cline"
-import { EmptyRequest, StringRequest } from "@shared/proto/index.cline"
+import type { OcaAuthState, OcaUserInfo } from "@shared/proto/index.beadsmith"
+import { EmptyRequest, StringRequest } from "@shared/proto/index.beadsmith"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useRef, useState } from "react"

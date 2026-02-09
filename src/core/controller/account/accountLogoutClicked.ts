@@ -1,5 +1,5 @@
-import type { EmptyRequest } from "@shared/proto/cline/common"
-import { Empty } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/beadsmith/common"
+import { Empty } from "@shared/proto/beadsmith/common"
 import { AuthService } from "@/services/auth/AuthService"
 import { LogoutReason } from "@/services/auth/types"
 import type { Controller } from "../index"

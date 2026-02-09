@@ -1,5 +1,5 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
-import { EmptyRequest } from "@shared/proto/index.cline"
+import { EmptyRequest } from "@shared/proto/index.beadsmith"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
@@ -26,7 +26,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		yoloModeToggled,
 		dictationSettings,
 		useAutoCondense,
-		clineWebToolsEnabled,
+		beadsmithWebToolsEnabled,
 		worktreesEnabled,
 		focusChainSettings,
 		multiRootSetting,
@@ -36,9 +36,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		beadsEnabled,
+		beadAutoApprove,
+		beadCommitMode,
+		beadTestCommand,
+		ralphMaxIterations,
+		ralphTokenBudget,
+		dagEnabled,
+		navigateToDag,
 	} = useExtensionState()
 
-	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
+	const [isBeadsmithCliInstalled, setIsBeadsmithCliInstalled] = useState(false)
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
 		updateSetting("openaiReasoningEffort", newValue)
@@ -49,7 +57,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		const checkInstallation = async () => {
 			try {
 				const result = await StateServiceClient.checkCliInstallation(EmptyRequest.create())
-				setIsClineCliInstalled(result.value)
+				setIsBeadsmithCliInstalled(result.value)
 			} catch (error) {
 				console.error("Failed to check CLI installation:", error)
 			}
@@ -100,7 +108,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										className="codicon codicon-warning mr-1"
 										style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
 									<span>
-										Cline for CLI is required for subagents. Install it with:
+										Beadsmith for CLI is required for subagents. Install it with:
 										<code
 											className="ml-1 px-1 rounded"
 											style={{
@@ -108,7 +116,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 												color: "var(--vscode-foreground)",
 												opacity: 0.9,
 											}}>
-											npm install -g cline
+											npm install -g beadsmith
 										</code>
 										, then run
 										<code
@@ -120,15 +128,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											}}>
 											cline auth
 										</code>
-										To authenticate with Cline or configure an API provider.
+										To authenticate with Beadsmith or configure an API provider.
 									</span>
 								</p>
-								{!isClineCliInstalled && (
+								{!isBeadsmithCliInstalled && (
 									<VSCodeButton
 										appearance="secondary"
 										onClick={async () => {
 											try {
-												await StateServiceClient.installClineCli(EmptyRequest.create())
+												await StateServiceClient.installBeadsmithCli(EmptyRequest.create())
 											} catch (error) {
 												console.error("Failed to initiate CLI installation:", error)
 											}
@@ -144,7 +152,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</div>
 							<VSCodeCheckbox
 								checked={subagentsEnabled}
-								disabled={!isClineCliInstalled}
+								disabled={!isBeadsmithCliInstalled}
 								onChange={(e: any) => {
 									const checked = e.target.checked === true
 									updateSetting("subagentsEnabled", checked)
@@ -156,7 +164,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<p className="text-xs mt-1 mb-0">
 								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
 								<span className="text-description">
-									Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
+									Allows Beadsmith to spawn subprocesses to handle focused tasks like exploring large codebases,
 									keeping your main context clean.
 								</span>
 							</p>
@@ -266,14 +274,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									if (!Number.isNaN(value) && value >= 1 && value <= 100) {
 										updateSetting("focusChainSettings", {
 											...focusChainSettings,
-											remindClineInterval: value,
+											remindBeadsmithInterval: value,
 										})
 									}
 								}}
-								value={String(focusChainSettings?.remindClineInterval || 6)}
+								value={String(focusChainSettings?.remindBeadsmithInterval || 6)}
 							/>
 							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
+								Interval (in messages) to remind Beadsmith about its focus chain checklist (1-100). Lower values
 								provide more frequent reminders.
 							</p>
 						</div>
@@ -293,7 +301,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Dictation
 							</VSCodeCheckbox>
 							<p className="text-xs text-description mt-1">
-								Enables speech-to-text transcription using your Cline account. Uses the Aqua Voice's Avalon model,
+								Enables speech-to-text transcription using your Beadsmith account. Uses the Aqua Voice's Avalon model,
 								at $0.0065 credits per minute of audio processed. 5 minutes max per message.
 							</p>
 						</div>
@@ -318,18 +326,18 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
-					{clineWebToolsEnabled?.featureFlag && (
+					{beadsmithWebToolsEnabled?.featureFlag && (
 						<div style={{ marginTop: 10 }}>
 							<VSCodeCheckbox
-								checked={clineWebToolsEnabled?.user}
+								checked={beadsmithWebToolsEnabled?.user}
 								onChange={(e: any) => {
 									const checked = e.target.checked === true
-									updateSetting("clineWebToolsEnabled", checked)
+									updateSetting("beadsmithWebToolsEnabled", checked)
 								}}>
-								Enable Cline Web Tools
+								Enable Beadsmith Web Tools
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables websearch and webfetch tools while using the Cline provider.
+								Enables websearch and webfetch tools while using the Beadsmith provider.
 							</p>
 						</div>
 					)}
@@ -344,7 +352,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Worktrees
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables git worktree management for running parallel Cline tasks.
+								Enables git worktree management for running parallel Beadsmith tasks.
 							</p>
 						</div>
 					)}
@@ -426,6 +434,147 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</span>
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={beadsEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("beadsEnabled", checked)
+							}}>
+							Enable Beads (Ralph Loop)
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+							<span className="text-description">
+								Enables iterative task execution with approval checkpoints. Each "bead" is a discrete unit of
+								work that can be reviewed, approved, or rejected before continuing.
+							</span>
+						</p>
+					</div>
+					{beadsEnabled && (
+						<div className="ml-5 mt-2 p-3 rounded" style={{ backgroundColor: "var(--vscode-list-hoverBackground)" }}>
+							<div className="mb-3">
+								<VSCodeCheckbox
+									checked={beadAutoApprove}
+									onChange={(e: any) => {
+										const checked = e.target.checked === true
+										updateSetting("beadAutoApprove", checked)
+									}}>
+									Auto-approve beads
+								</VSCodeCheckbox>
+								<p className="text-xs text-description">
+									Automatically approve beads when success criteria are met, without waiting for manual review.
+								</p>
+							</div>
+							<div className="mb-3">
+								<label
+									className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+									htmlFor="bead-commit-mode">
+									Commit Mode
+								</label>
+								<VSCodeDropdown
+									className="w-full"
+									currentValue={beadCommitMode || "shadow"}
+									id="bead-commit-mode"
+									onChange={(e: any) => {
+										const value = e.target.currentValue as "shadow" | "workspace"
+										updateSetting("beadCommitMode", value)
+									}}>
+									<VSCodeOption value="shadow">Shadow (hidden branch)</VSCodeOption>
+									<VSCodeOption value="workspace">Workspace (current branch)</VSCodeOption>
+								</VSCodeDropdown>
+								<p className="text-xs text-description mt-1">
+									Shadow commits to a hidden branch for easy rollback. Workspace commits to your current working branch.
+								</p>
+							</div>
+							<div className="mb-3">
+								<label
+									className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+									htmlFor="bead-test-command">
+									Test Command (optional)
+								</label>
+								<VSCodeTextField
+									className="w-full"
+									id="bead-test-command"
+									placeholder="npm test"
+									onChange={(e: any) => {
+										const value = e.target.value || undefined
+										updateSetting("beadTestCommand", value)
+									}}
+									value={beadTestCommand || ""}
+								/>
+								<p className="text-xs text-description mt-1">
+									Command to run tests for success criteria validation. If empty, test criteria are skipped.
+								</p>
+							</div>
+							<div className="flex gap-4">
+								<div className="flex-1">
+									<label
+										className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+										htmlFor="ralph-max-iterations">
+										Max Iterations
+									</label>
+									<VSCodeTextField
+										className="w-20"
+										id="ralph-max-iterations"
+										onChange={(e: any) => {
+											const value = parseInt(e.target.value, 10)
+											if (!Number.isNaN(value) && value >= 1 && value <= 100) {
+												updateSetting("ralphMaxIterations", value)
+											}
+										}}
+										value={String(ralphMaxIterations || 10)}
+									/>
+									<p className="text-xs text-description mt-1">Max bead iterations (1-100)</p>
+								</div>
+								<div className="flex-1">
+									<label
+										className="block text-sm font-medium text-(--vscode-foreground) mb-1"
+										htmlFor="ralph-token-budget">
+										Token Budget
+									</label>
+									<VSCodeTextField
+										className="w-32"
+										id="ralph-token-budget"
+										onChange={(e: any) => {
+											const value = parseInt(e.target.value, 10)
+											if (!Number.isNaN(value) && value >= 1000) {
+												updateSetting("ralphTokenBudget", value)
+											}
+										}}
+										value={String(ralphTokenBudget || 100000)}
+									/>
+									<p className="text-xs text-description mt-1">Total token budget for task</p>
+								</div>
+							</div>
+						</div>
+					)}
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={dagEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("dagEnabled", checked)
+							}}>
+							Enable DAG Analysis
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+							<span className="text-description">
+								Enables dependency graph analysis to understand cross-file impact before making changes.
+								Requires Python 3.12+ to be installed.
+							</span>
+						</p>
+						{dagEnabled && (
+							<VSCodeButton
+								appearance="secondary"
+								className="mt-2"
+								onClick={() => navigateToDag()}
+								style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
+								View Dependency Graph
+							</VSCodeButton>
+						)}
+					</div>
 					<div style={{ marginTop: 10 }}>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -453,7 +602,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</Tooltip>
 
 						<p className="text-xs text-(--vscode-errorForeground)">
-							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
+							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Beadsmith will
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>
 					</div>

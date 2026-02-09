@@ -16,6 +16,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"openai-native",
 		"openai-compatible",
 		"openai-codex",
+		"copilot-sdk",
 		"baseten",
 		"vercel-ai-gateway",
 		"deepseek",

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // MessageDeduplicator handles message deduplication to prevent duplicate displays
@@ -32,7 +32,7 @@ func NewMessageDeduplicator() *MessageDeduplicator {
 }
 
 // IsDuplicate checks if a message is a duplicate
-func (d *MessageDeduplicator) IsDuplicate(msg *types.ClineMessage) bool {
+func (d *MessageDeduplicator) IsDuplicate(msg *types.BeadsmithMessage) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -53,7 +53,7 @@ func (d *MessageDeduplicator) IsDuplicate(msg *types.ClineMessage) bool {
 }
 
 // hashMessage creates a hash of the message for deduplication
-func (d *MessageDeduplicator) hashMessage(msg *types.ClineMessage) string {
+func (d *MessageDeduplicator) hashMessage(msg *types.BeadsmithMessage) string {
 	// Create a hash based on message content, type, and timestamp
 	content := fmt.Sprintf("%s|%s|%s|%d",
 		string(msg.Type),

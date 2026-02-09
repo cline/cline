@@ -9,7 +9,7 @@ import pTimeout from "p-timeout"
 export async function ensureCheckpointInitialized({
 	checkpointManager,
 	timeoutMs = 15_000,
-	timeoutMessage = "Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+	timeoutMessage = "Checkpoints taking too long to initialize. Consider re-opening Beadsmith in a project that uses git, or disabling checkpoints.",
 }: {
 	checkpointManager: ICheckpointManager | undefined
 	timeoutMs?: number

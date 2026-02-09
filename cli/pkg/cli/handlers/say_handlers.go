@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/output"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/clerror"
+	"github.com/beadsmith/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // SayHandler handles SAY type messages
@@ -23,12 +23,12 @@ func NewSayHandler() *SayHandler {
 }
 
 // CanHandle returns true if this is a SAY message
-func (h *SayHandler) CanHandle(msg *types.ClineMessage) bool {
+func (h *SayHandler) CanHandle(msg *types.BeadsmithMessage) bool {
 	return msg.IsSay()
 }
 
 // Handle processes SAY messages
-func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) Handle(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	timestamp := msg.GetTimestamp()
 
 	switch msg.Say {
@@ -102,17 +102,17 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 }
 
 // handleTask handles task messages
-func (h *SayHandler) handleTask(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleTask(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return nil
 }
 
 // handleError handles error messages
-func (h *SayHandler) handleError(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleError(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("ERROR", msg.Text, true)
 }
 
 // handleAPIReqStarted handles API request started messages
-func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleAPIReqStarted(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Parse API request info
 	apiInfo := types.APIRequestInfo{Cost: -1}
 	if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err != nil {
@@ -121,9 +121,9 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 
 	// Check for streaming failed message with error details
 	if apiInfo.StreamingFailedMessage != "" {
-		clineErr, _ := clerror.ParseClineError(apiInfo.StreamingFailedMessage)
+		clineErr, _ := clerror.ParseBeadsmithError(apiInfo.StreamingFailedMessage)
 		if clineErr != nil {
-			return h.renderClineError(clineErr, dc)
+			return h.renderBeadsmithError(clineErr, dc)
 		}
 	}
 
@@ -152,8 +152,8 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	return dc.Renderer.RenderAPI("processing request", &apiInfo)
 }
 
-// renderClineError renders a ClineError with appropriate formatting based on type
-func (h *SayHandler) renderClineError(err *clerror.ClineError, dc *DisplayContext) error {
+// renderBeadsmithError renders a BeadsmithError with appropriate formatting based on type
+func (h *SayHandler) renderBeadsmithError(err *clerror.BeadsmithError, dc *DisplayContext) error {
 	if dc.SystemRenderer == nil {
 		return dc.Renderer.RenderMessage("ERROR", err.Message, true)
 	}
@@ -171,13 +171,13 @@ func (h *SayHandler) renderClineError(err *clerror.ClineError, dc *DisplayContex
 }
 
 // handleAPIReqFinished handles API request finished messages
-func (h *SayHandler) handleAPIReqFinished(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleAPIReqFinished(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// This message type is typically not displayed as it's handled by the started message
 	return nil
 }
 
 // handleText handles regular text messages
-func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleText(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -207,7 +207,7 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 }
 
 // handleReasoning handles reasoning messages
-func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleReasoning(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -226,7 +226,7 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 	return nil
 }
 
-func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleCompletionResult(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	text := msg.Text
 
 	if strings.HasSuffix(text, "HAS_CHANGES") {
@@ -261,7 +261,7 @@ func formatUserMessage(text string) string {
 }
 
 // handleUserFeedback handles user feedback messages
-func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleUserFeedback(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text != "" {
 		markdown := formatUserMessage(msg.Text)
 		rendered := dc.Renderer.RenderMarkdown(markdown)
@@ -273,7 +273,7 @@ func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayCont
 }
 
 // handleUserFeedbackDiff handles user feedback diff messages
-func (h *SayHandler) handleUserFeedbackDiff(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleUserFeedbackDiff(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	var toolMsg types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &toolMsg); err != nil {
 		return dc.Renderer.RenderMessage("USER DIFF", msg.Text, true)
@@ -287,12 +287,12 @@ func (h *SayHandler) handleUserFeedbackDiff(msg *types.ClineMessage, dc *Display
 }
 
 // handleAPIReqRetried handles API request retry messages
-func (h *SayHandler) handleAPIReqRetried(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleAPIReqRetried(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("API INFO", "Retrying request", true)
 }
 
 // handleErrorRetry handles error retry status messages
-func (h *SayHandler) handleErrorRetry(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleErrorRetry(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Parse retry info from message text
 	type ErrorRetryInfo struct {
 		Attempt      int  `json:"attempt"`
@@ -323,7 +323,7 @@ func (h *SayHandler) handleErrorRetry(msg *types.ClineMessage, dc *DisplayContex
 }
 
 // handleCommand handles command execution announcements
-func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleCommand(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -336,7 +336,7 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 }
 
 // handleCommandOutput handles command output messages
-func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleCommandOutput(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -348,7 +348,7 @@ func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 	return nil
 }
 
-func (h *SayHandler) handleCommandPermissionDenied(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleCommandPermissionDenied(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -360,7 +360,7 @@ func (h *SayHandler) handleCommandPermissionDenied(msg *types.ClineMessage, dc *
 	return nil
 }
 
-func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleTool(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
 		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
@@ -374,12 +374,12 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 }
 
 // handleShellIntegrationWarning handles shell integration warning messages
-func (h *SayHandler) handleShellIntegrationWarning(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleShellIntegrationWarning(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("WARNING", "Shell Integration Unavailable - Cline won't be able to view the command's output.", true)
 }
 
 // handleBrowserActionLaunch handles browser action launch messages
-func (h *SayHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleBrowserActionLaunch(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	url := msg.Text
 	if url == "" {
 		return nil
@@ -389,7 +389,7 @@ func (h *SayHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *Disp
 }
 
 // handleBrowserAction handles browser action messages
-func (h *SayHandler) handleBrowserAction(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleBrowserAction(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -422,7 +422,7 @@ func (h *SayHandler) handleBrowserAction(msg *types.ClineMessage, dc *DisplayCon
 }
 
 // handleBrowserActionResult handles browser action result messages
-func (h *SayHandler) handleBrowserActionResult(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleBrowserActionResult(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -449,27 +449,27 @@ func (h *SayHandler) handleBrowserActionResult(msg *types.ClineMessage, dc *Disp
 }
 
 // handleMcpServerRequestStarted handles MCP server request started messages
-func (h *SayHandler) handleMcpServerRequestStarted(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleMcpServerRequestStarted(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("MCP", "Sending request to server", true)
 }
 
 // handleMcpServerResponse handles MCP server response messages
-func (h *SayHandler) handleMcpServerResponse(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleMcpServerResponse(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server response: %s", msg.Text), true)
 }
 
 // handleMcpNotification handles MCP notification messages
-func (h *SayHandler) handleMcpNotification(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleMcpNotification(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server notification: %s", msg.Text), true)
 }
 
 // handleUseMcpServer handles MCP server usage messages
-func (h *SayHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleUseMcpServer(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("MCP", "Server operation approved", true)
 }
 
 // handleDiffError handles diff error messages
-func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleDiffError(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if dc.SystemRenderer != nil {
 		return dc.SystemRenderer.RenderWarning(
 			"Diff Edit Failure",
@@ -480,23 +480,23 @@ func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext
 }
 
 // handleDeletedAPIReqs handles deleted API requests messages
-func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleDeletedAPIReqs(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Don't render - this is internal metadata (aggregated API metrics from deleted checkpoint messages)
 	return nil
 }
 
-// handleClineignoreError handles .clineignore error messages
-func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *DisplayContext) error {
+// handleClineignoreError handles .beadsmithignore error messages
+func (h *SayHandler) handleClineignoreError(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if dc.SystemRenderer != nil {
 		return dc.SystemRenderer.RenderInfo(
 			"Access Denied",
-			fmt.Sprintf("Cline tried to access `%s` which is blocked by the .clineignore file.", msg.Text),
+			fmt.Sprintf("Cline tried to access `%s` which is blocked by the .beadsmithignore file.", msg.Text),
 		)
 	}
-	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text), true)
+	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .beadsmithignore file", msg.Text), true)
 }
 
-func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
+func (h *SayHandler) handleCheckpointCreated(msg *types.BeadsmithMessage, dc *DisplayContext, timestamp string) error {
 	if dc.SystemRenderer != nil {
 		return dc.SystemRenderer.RenderCheckpoint(timestamp, msg.Timestamp)
 	}
@@ -508,7 +508,7 @@ func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *Displa
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages
-func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleLoadMcpDocumentation(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if dc.SystemRenderer != nil {
 		return dc.SystemRenderer.RenderInfo("MCP", "Loading MCP documentation")
 	}
@@ -516,12 +516,12 @@ func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *Dis
 }
 
 // handleInfo handles info messages
-func (h *SayHandler) handleInfo(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleInfo(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	return nil
 }
 
 // handleTaskProgress handles task progress messages
-func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleTaskProgress(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
@@ -533,7 +533,7 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 }
 
 // handleDefault handles unknown SAY message types
-func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleDefault(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	// Debug: log unhandled say types to help identify missing cases using output.Printf for CLI consistency
 	if dc.Verbose {
 		output.Printf("[DEBUG] Unhandled SAY type: '%s' (text preview: %s)\n", msg.Say, truncateForDisplay(msg.Text, 50))

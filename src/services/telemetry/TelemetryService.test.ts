@@ -9,7 +9,7 @@
 
 import * as assert from "assert"
 import * as sinon from "sinon"
-import { ClineEndpoint } from "@/config"
+import { BeadsmithEndpoint } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import * as otelConfigModule from "@/shared/services/config/otel-config"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
@@ -36,7 +36,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	}
 	const MOCK_METADATA: TelemetryMetadata = {
 		extension_version: "1.2.3",
-		cline_type: "cline-unit-test",
+		beadsmith_type: "cline-unit-test",
 		platform: "Test-IDE",
 		platform_version: "9.8.7-abc",
 		os_type: "win32",
@@ -262,7 +262,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		it("should return default configurations", () => {
 			// Mock PostHog config validation to return true for this test
 			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
-			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
+			const isSelfHostedStub = sinon.stub(BeadsmithEndpoint, "isSelfHosted").returns(false)
 
 			const defaultConfigs = TelemetryProviderFactory.getDefaultConfigs()
 
@@ -279,8 +279,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		})
 
 		it("should NOT include PostHog config when in selfHosted mode", () => {
-			// Stub ClineEndpoint.isSelfHosted() to return true (selfHosted mode)
-			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(true)
+			// Stub BeadsmithEndpoint.isSelfHosted() to return true (selfHosted mode)
+			const isSelfHostedStub = sinon.stub(BeadsmithEndpoint, "isSelfHosted").returns(true)
 			// Even if PostHog config is valid, it should be skipped
 			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
 
@@ -296,8 +296,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		})
 
 		it("should include PostHog config when NOT in selfHosted mode and config is valid", () => {
-			// Stub ClineEndpoint.isSelfHosted() to return false (normal mode)
-			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
+			// Stub BeadsmithEndpoint.isSelfHosted() to return false (normal mode)
+			const isSelfHostedStub = sinon.stub(BeadsmithEndpoint, "isSelfHosted").returns(false)
 			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
 
 			const configs = TelemetryProviderFactory.getDefaultConfigs()
@@ -312,8 +312,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		})
 
 		it("should NOT include build-time OTEL config when in selfHosted mode", () => {
-			// Stub ClineEndpoint.isSelfHosted() to return true (selfHosted mode)
-			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(true)
+			// Stub BeadsmithEndpoint.isSelfHosted() to return true (selfHosted mode)
+			const isSelfHostedStub = sinon.stub(BeadsmithEndpoint, "isSelfHosted").returns(true)
 			// Even if build-time OTEL config is valid, it should be skipped
 			const getValidOtelConfigStub = sinon.stub(otelConfigModule, "getValidOpenTelemetryConfig").returns({
 				enabled: true,
@@ -338,8 +338,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		})
 
 		it("should include build-time OTEL config when NOT in selfHosted mode", () => {
-			// Stub ClineEndpoint.isSelfHosted() to return false (normal mode)
-			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
+			// Stub BeadsmithEndpoint.isSelfHosted() to return false (normal mode)
+			const isSelfHostedStub = sinon.stub(BeadsmithEndpoint, "isSelfHosted").returns(false)
 			const getValidOtelConfigStub = sinon.stub(otelConfigModule, "getValidOpenTelemetryConfig").returns({
 				enabled: true,
 				metricsExporter: "otlp",
@@ -363,8 +363,8 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		})
 
 		it("should STILL include runtime env OTEL config even in selfHosted mode", () => {
-			// Stub ClineEndpoint.isSelfHosted() to return true (selfHosted mode)
-			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(true)
+			// Stub BeadsmithEndpoint.isSelfHosted() to return true (selfHosted mode)
+			const isSelfHostedStub = sinon.stub(BeadsmithEndpoint, "isSelfHosted").returns(true)
 			// Disable build-time OTEL
 			const getValidOtelConfigStub = sinon.stub(otelConfigModule, "getValidOpenTelemetryConfig").returns(null)
 			// Enable runtime OTEL (user explicitly configured it)

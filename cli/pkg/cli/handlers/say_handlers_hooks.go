@@ -7,15 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/output"
-	"github.com/cline/cli/pkg/cli/types"
+	"github.com/beadsmith/cli/pkg/cli/output"
+	"github.com/beadsmith/cli/pkg/cli/types"
 )
 
 // Hook-specific SAY handlers and helpers.
 // Kept in a separate file to keep say_handlers.go focused on routing.
 
 // handleHookStatus handles hook execution status messages.
-func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleHookStatus(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	hook, err := parseHookMessage(msg.Text)
 	if err != nil {
 		// Fallback to basic output if JSON parsing fails
@@ -37,7 +37,7 @@ func (h *SayHandler) handleHookStatus(msg *types.ClineMessage, dc *DisplayContex
 // In --verbose mode, we print each non-empty line prefixed with "HOOK>" for easy grepping.
 // Future work could associate these lines with a specific hook execution and render them
 // as a grouped section under the hook status header.
-func (h *SayHandler) handleHookOutputStream(msg *types.ClineMessage, dc *DisplayContext) error {
+func (h *SayHandler) handleHookOutputStream(msg *types.BeadsmithMessage, dc *DisplayContext) error {
 	if !dc.Verbose {
 		return nil
 	}
@@ -98,11 +98,11 @@ func formatHookPath(fullPath string) string {
 	// Normalize for display and prefix checks. This is display-only; do not use for IO.
 	normalized := normalizeSlashes(fullPath)
 
-	// If this is a repo-scoped hook script (i.e. lives under <repo>/.clinerules/hooks/),
+	// If this is a repo-scoped hook script (i.e. lives under <repo>/.beadsmithrules/hooks/),
 	// always include the repo name for disambiguation even in single-repo workspaces.
 	//
 	// This intentionally runs before workspace-relative formatting, which would otherwise
-	// collapse to ".clinerules/hooks/..." and lose the repo context.
+	// collapse to ".beadsmithrules/hooks/..." and lose the repo context.
 	if p, ok := tryRepoScopedHooksPath(normalized); ok {
 		return p
 	}
@@ -118,7 +118,7 @@ func formatHookPath(fullPath string) string {
 		return p
 	}
 
-	// Secondary heuristic: if hook lives under <repo>/.clinerules, collapse to repo-relative.
+	// Secondary heuristic: if hook lives under <repo>/.beadsmithrules, collapse to repo-relative.
 	if p, ok := tryRepoRelativeHookPath(normalized); ok {
 		return p
 	}
@@ -167,7 +167,7 @@ func tryHomeTildePath(normalizedPath string) (string, bool) {
 func tryRepoRelativeHookPath(normalizedPath string) (string, bool) {
 	parts := strings.Split(normalizedPath, "/")
 	for i, part := range parts {
-		if part == ".clinerules" && i > 0 {
+		if part == ".beadsmithrules" && i > 0 {
 			repoName := parts[i-1]
 			return repoName + "/" + strings.Join(parts[i:], "/"), true
 		}
@@ -176,14 +176,14 @@ func tryRepoRelativeHookPath(normalizedPath string) (string, bool) {
 }
 
 // tryRepoScopedHooksPath returns a repo-prefixed path like
-// "myrepo/.clinerules/hooks/PreToolUse" when the given path points to a hook script
-// under a repo's .clinerules/hooks directory.
+// "myrepo/.beadsmithrules/hooks/PreToolUse" when the given path points to a hook script
+// under a repo's .beadsmithrules/hooks directory.
 //
 // This is more specific than tryRepoRelativeHookPath and is used to ensure hook script
 // paths always include repo context.
 func tryRepoScopedHooksPath(normalizedPath string) (string, bool) {
 	// Fast path check to avoid split work.
-	if !strings.Contains(normalizedPath, "/.clinerules/hooks/") {
+	if !strings.Contains(normalizedPath, "/.beadsmithrules/hooks/") {
 		return "", false
 	}
 	return tryRepoRelativeHookPath(normalizedPath)

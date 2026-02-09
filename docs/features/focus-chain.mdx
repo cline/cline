@@ -3,26 +3,26 @@ title: "Focus Chain"
 sidebarTitle: "Focus Chain"
 ---
 
-Focus Chain is a task management enhancement feature in Cline that provides automatic todo list management with real-time progress tracking throughout your tasks. 
+Focus Chain is a task management enhancement feature in Beadsmith that provides automatic todo list management with real-time progress tracking throughout your tasks. 
 
 <Frame>
 	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/2dos.gif"
+		src="https://storage.googleapis.com/beadsmith_public_images/docs/assets/2dos.gif"
 		alt="Focus Chain todo list management with real-time progress tracking"
 	/>
 </Frame>
 
-This enables Cline to work on long-horizon tasks, seamlessly managing the context sent to LLMs, and keeping Cline on track across many context window resets.
+This enables Beadsmith to work on long-horizon tasks, seamlessly managing the context sent to LLMs, and keeping Beadsmith on track across many context window resets.
 
 <Tip>
-  Focus Chain works particularly well with Cline's [Deep Planning slash command](/features/slash-commands/deep-planning), providing seamless progress tracking for implementation tasks created through the [planning process](/features/plan-and-act).
+  Focus Chain works particularly well with Beadsmith's [Deep Planning slash command](/features/slash-commands/deep-planning), providing seamless progress tracking for implementation tasks created through the [planning process](/features/plan-and-act).
 </Tip>
 
 ## Key Features
 
 ### Automatic Todo List Generation
 
-Cline analyzes your task and automatically creates a comprehensive todo list with:
+Beadsmith analyzes your task and automatically creates a comprehensive todo list with:
 - Clear, actionable items in markdown checklist format
 - Logical breakdown of complex tasks into manageable steps
 - Real-time updates as work progresses
@@ -32,7 +32,7 @@ Cline analyzes your task and automatically creates a comprehensive todo list wit
 Todo lists are stored as editable markdown files:
 - Direct editing through your preferred markdown editor
 - Automatic detection of changes you make
-- Seamless integration back into Cline's workflow
+- Seamless integration back into Beadsmith's workflow
 - Quick access through the edit button in the task header
 
 ### Visual Progress Tracking
@@ -54,24 +54,24 @@ Configurable reminders ensure todo lists stay current:
 ## Getting Started
 
 <Steps>
-  <Step title="Open Cline Settings">
-      - Click the gear icon in the Cline sidebar
+  <Step title="Open Beadsmith Settings">
+      - Click the gear icon in the Beadsmith sidebar
       - Navigate to the "Features" section
   </Step>
   <Step title="Enable Focus Chain">
       - Check "Enable Focus Chain"
-      - Optionally adjust "Remind Cline Interval" (default: 6 messages)
+      - Optionally adjust "Remind Beadsmith Interval" (default: 6 messages)
   </Step>
   <Step title="Start a New Task">
       - Begin a new task
-      - Cline will automatically start creating and managing todo lists
+      - Beadsmith will automatically start creating and managing todo lists
   </Step>
 </Steps>
 
 | Setting | Default | Range | Description |
 |---------|---------|-------|-------------|
 | Enable Focus Chain | Disabled | On/Off | Enables enhanced task progress tracking |
-| Remind Cline Interval | 6 | 1-100 messages | How often Cline updates the todo list |
+| Remind Beadsmith Interval | 6 | 1-100 messages | How often Beadsmith updates the todo list |
 
 ## Usage Examples
 
@@ -82,12 +82,12 @@ When you start a new task with Focus Chain enabled:
 ``` markdown User Request
 User: "Create a user authentication system for my React app"
 
-Cline: [Analyzes request and creates todo list]
+Beadsmith: [Analyzes request and creates todo list]
 ```
 
 #### 2. Todo List Created
 
-Cline creates a comprehensive plan for the task, stored in a markdown file:
+Beadsmith creates a comprehensive plan for the task, stored in a markdown file:
 
 ```markdown Todo List Created
 - [ ] Set up project structure
@@ -102,7 +102,7 @@ Cline creates a comprehensive plan for the task, stored in a markdown file:
 
 #### 3. Progress Tracking
 
-As Cline works, the task header shows real-time progress:
+As Beadsmith works, the task header shows real-time progress:
 
 ```markdown Todo List Header
 [3/8] Implement login functionality     ⌄
@@ -156,7 +156,7 @@ Need to tweak the todo list? No problem.
     Add, remove, or reorder items as needed
   </Step>
   <Step title="Save the file">
-    Cline automatically detects and uses your updates
+    Beadsmith automatically detects and uses your updates
   </Step>
 </Steps>
 
@@ -199,7 +199,7 @@ Todo files use standard markdown checklist syntax:
 
 ## Integration with Plan/Act Mode
 
-Focus Chain works seamlessly with Cline's [Plan/Act mode](/features/plan-and-act):
+Focus Chain works seamlessly with Beadsmith's [Plan/Act mode](/features/plan-and-act):
 
 - **Plan Mode**: Optional todo lists for presenting concrete steps
 - **Act Mode**: Automatic todo creation when switching from Plan Mode
@@ -218,7 +218,7 @@ Focus Chain works seamlessly with Cline's [Plan/Act mode](/features/plan-and-act
       - Mention any preferred technologies or approaches
 
     2. **Review Generated Lists**
-      - Check that Cline's breakdown aligns with your expectations
+      - Check that Beadsmith's breakdown aligns with your expectations
       - Verify that all important steps are included
       - Ensure the order makes sense for your project
 
@@ -242,7 +242,7 @@ Focus Chain works seamlessly with Cline's [Plan/Act mode](/features/plan-and-act
     3. **Regular Reviews**
       - Check progress periodically during long tasks
       - Update todo lists as requirements evolve
-      - Communicate changes to Cline through edits
+      - Communicate changes to Beadsmith through edits
   </Accordion>
   <Accordion title="For Collaboration">
     1. **Share Todo Files**
@@ -278,7 +278,7 @@ Having issues? Try these quick fixes:
   </Accordion>
 </AccordionGroup>
 
-Still stuck? Use the [/reportbug](/features/slash-commands/report-bug) command in Cline to get help.
+Still stuck? Use the [/reportbug](/features/slash-commands/report-bug) command in Beadsmith to get help.
 
 ## Technical Details (for the curious)
 
@@ -300,4 +300,4 @@ Still stuck? Use the [/reportbug](/features/slash-commands/report-bug) command i
   </Accordion>
 </AccordionGroup>
 
-Focus Chain turns Cline into your personal project manager, keeping you on track and your tasks organized. Give it a try on your next project!
+Focus Chain turns Beadsmith into your personal project manager, keeping you on track and your tasks organized. Give it a try on your next project!
