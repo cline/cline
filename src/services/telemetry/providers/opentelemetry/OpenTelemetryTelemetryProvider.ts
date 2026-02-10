@@ -26,6 +26,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
 	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
+	private meterProvider: MeterProvider | null = null
+	private loggerProvider: LoggerProvider | null = null
+
 	readonly name: string
 	private bypassUserSettings: boolean
 
@@ -45,10 +48,12 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
+			this.meterProvider = meterProvider
 		}
 
 		if (loggerProvider) {
 			this.logger = loggerProvider.getLogger("cline")
+			this.loggerProvider = loggerProvider
 		}
 
 		// Log initialization status
@@ -83,6 +88,10 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
+	}
+
+	async forceFlush() {
+		await Promise.all([this.meterProvider?.forceFlush(), this.loggerProvider?.forceFlush()])
 	}
 
 	public log(event: string, properties?: TelemetryProperties): void {
