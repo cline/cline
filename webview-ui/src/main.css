@@ -7,7 +7,7 @@ vscode-button::part(control):focus {
 }
 
 vscode-button::part(control):focus-visible {
-	outline: 2px solid var(--vscode-focusBorder, Highlight);
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-button-foreground, Highlight));
 	outline-offset: 2px;
 }
 
