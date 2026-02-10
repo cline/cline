@@ -880,6 +880,7 @@ export const vertexModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
