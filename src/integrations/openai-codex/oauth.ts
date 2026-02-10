@@ -1,7 +1,6 @@
 import * as crypto from "crypto"
 import * as http from "http"
 import { URL } from "url"
-import type { ExtensionContext } from "vscode"
 import { z } from "zod"
 import { StateManager } from "@/core/storage/StateManager"
 import { fetch } from "@/shared/net"
@@ -336,7 +335,6 @@ export function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
  * OpenAiCodexOAuthManager - Handles OAuth flow and token management
  */
 export class OpenAiCodexOAuthManager {
-	private context: ExtensionContext | null = null
 	private credentials: OpenAiCodexCredentials | null = null
 	private refreshPromise: Promise<OpenAiCodexCredentials> | null = null
 	private pendingAuth: {
@@ -344,13 +342,6 @@ export class OpenAiCodexOAuthManager {
 		state: string
 		server?: http.Server
 	} | null = null
-
-	/**
-	 * Initialize the OAuth manager with VS Code extension context
-	 */
-	initialize(context: ExtensionContext): void {
-		this.context = context
-	}
 
 	/**
 	 * Force a refresh using the stored refresh token even if the access token is not expired.
@@ -390,10 +381,6 @@ export class OpenAiCodexOAuthManager {
 	 * Load credentials from storage via StateManager.
 	 */
 	async loadCredentials(): Promise<OpenAiCodexCredentials | null> {
-		if (!this.context) {
-			return null
-		}
-
 		try {
 			const stateManager = StateManager.get()
 			const credentialsJson = stateManager.getSecretKey("openai-codex-oauth-credentials")
@@ -415,10 +402,6 @@ export class OpenAiCodexOAuthManager {
 	 * Save credentials to storage via StateManager
 	 */
 	async saveCredentials(credentials: OpenAiCodexCredentials): Promise<void> {
-		if (!this.context) {
-			throw new Error("OAuth manager not initialized")
-		}
-
 		const stateManager = StateManager.get()
 		stateManager.setSecret("openai-codex-oauth-credentials", JSON.stringify(credentials))
 		await stateManager.flushPendingState()
@@ -429,10 +412,6 @@ export class OpenAiCodexOAuthManager {
 	 * Clear credentials from storage
 	 */
 	async clearCredentials(): Promise<void> {
-		if (!this.context) {
-			return
-		}
-
 		const stateManager = StateManager.get()
 		stateManager.setSecret("openai-codex-oauth-credentials", undefined)
 		await stateManager.flushPendingState()

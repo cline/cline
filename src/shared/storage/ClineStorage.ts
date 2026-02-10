@@ -61,13 +61,6 @@ export abstract class ClineStorage {
 	}
 
 	/**
-	 * Fire storage change event to all subscribers.
-	 */
-	protected async fire(key: string): Promise<void> {
-		await Promise.all(this.subscribers.map((subscriber) => subscriber({ key })))
-	}
-
-	/**
 	 * Get a value from storage. This method is final and cannot be overridden.
 	 * Subclasses should implement _get() to define their storage retrieval logic.
 	 */
@@ -81,7 +74,6 @@ export abstract class ClineStorage {
 
 	async _dangerousStore(key: string, value: string): Promise<void> {
 		await this._store(key, value)
-		await this.fire(key)
 	}
 
 	/**
@@ -105,7 +97,6 @@ export abstract class ClineStorage {
 	public async delete(key: string): Promise<void> {
 		try {
 			await this._delete(key)
-			await this.fire(key)
 		} catch {
 			// Silently fail on delete errors
 		}
@@ -140,34 +131,6 @@ export abstract class ClineStorage {
 export abstract class ClineSyncStorage<T = any> {
 	protected abstract name: string
 
-	private readonly subscribers: Array<StorageEventListener> = []
-
-	/**
-	 * Subscribe to storage change events.
-	 */
-	public onDidChange(callback: StorageEventListener): () => void {
-		this.subscribers.push(callback)
-		return () => {
-			const callbackIndex = this.subscribers.indexOf(callback)
-			if (callbackIndex >= 0) {
-				this.subscribers.splice(callbackIndex, 1)
-			}
-		}
-	}
-
-	/**
-	 * Fire storage change event to all subscribers.
-	 */
-	protected fire(key: string): void {
-		for (const subscriber of this.subscribers) {
-			try {
-				subscriber({ key })
-			} catch (error) {
-				Logger.error(`[${this.name}] subscriber error for '${key}':`, error)
-			}
-		}
-	}
-
 	public get<V = T>(key: string): V | undefined
 	public get<V = T>(key: string, defaultValue: V): V
 	public get<V = T>(key: string, defaultValue?: V): V | undefined {
@@ -191,7 +154,6 @@ export abstract class ClineSyncStorage<T = any> {
 	public set(key: string, value: T | undefined): void {
 		try {
 			this._set(key, value)
-			this.fire(key)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to set '${key}':`, error)
 		}
@@ -200,7 +162,6 @@ export abstract class ClineSyncStorage<T = any> {
 	public delete(key: string): void {
 		try {
 			this._delete(key)
-			this.fire(key)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to delete '${key}':`, error)
 		}

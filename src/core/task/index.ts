@@ -530,7 +530,6 @@ export class Task {
 		this.commandExecutor = new CommandExecutor(commandExecutorConfig, commandExecutorCallbacks)
 
 		this.toolExecutor = new ToolExecutor(
-			this.controller.context,
 			this.taskState,
 			this.messageStateHandler,
 			this.api,
