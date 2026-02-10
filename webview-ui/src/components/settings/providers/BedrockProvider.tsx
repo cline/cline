@@ -10,7 +10,7 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -62,18 +62,14 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
+	const isSelectingRef = useRef(false)
 
-	// Sync search term with current region when not searching
 	useEffect(() => {
-		if (!isDropdownVisible) {
-			setSearchTerm(currentRegion)
-		}
-	}, [currentRegion, isDropdownVisible])
-
-	const searchableItems = useMemo(() => AWS_REGIONS, [])
+		setSearchTerm(currentRegion)
+	}, [currentRegion])
 
 	const fuse = useMemo(() => {
-		return new Fuse(searchableItems, {
+		return new Fuse(AWS_REGIONS, {
 			threshold: 0.3,
 			shouldSort: true,
 			isCaseSensitive: false,
@@ -81,19 +77,18 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})
-	}, [searchableItems])
+	}, [])
 
 	const regionSearchResults = useMemo(() => {
 		if (!searchTerm) {
-			return searchableItems
+			return AWS_REGIONS
 		}
 		return fuse.search(searchTerm).map((r) => r.item)
-	}, [searchableItems, searchTerm, fuse])
+	}, [searchTerm, fuse])
 
 	const handleRegionChange = (newRegion: string) => {
+		setSearchTerm(newRegion)
 		handleFieldChange("awsRegion", newRegion)
-		setIsDropdownVisible(false)
-		setSelectedIndex(-1)
 	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -114,15 +109,16 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				event.preventDefault()
 				if (selectedIndex >= 0 && selectedIndex < regionSearchResults.length) {
 					handleRegionChange(regionSearchResults[selectedIndex])
-				} else if (searchTerm.trim()) {
-					handleRegionChange(searchTerm.trim())
+					setIsDropdownVisible(false)
+				} else {
+					// User typed a custom region
+					handleRegionChange(searchTerm)
+					setIsDropdownVisible(false)
 				}
-				;(event.target as HTMLInputElement)?.blur()
 				break
 			case "Escape":
 				setIsDropdownVisible(false)
 				setSelectedIndex(-1)
-				setSearchTerm(currentRegion)
 				break
 		}
 	}
@@ -131,7 +127,6 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		const handleClickOutside = (event: MouseEvent) => {
 			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
 				setIsDropdownVisible(false)
-				setSearchTerm(currentRegion)
 			}
 		}
 
@@ -139,7 +134,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		return () => {
 			document.removeEventListener("mousedown", handleClickOutside)
 		}
-	}, [currentRegion])
+	}, [])
 
 	// Reset selection when search term changes
 	useEffect(() => {
@@ -238,8 +233,16 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						</div>
 						<RegionDropdownWrapper ref={dropdownRef}>
 							<VSCodeTextField
+								aria-autocomplete="list"
+								aria-expanded={isDropdownVisible}
 								disabled={remoteConfigSettings?.awsRegion !== undefined}
 								id="aws-region"
+								onBlur={() => {
+									if (!isSelectingRef.current && searchTerm !== currentRegion) {
+										handleRegionChange(searchTerm || currentRegion)
+									}
+									isSelectingRef.current = false
+								}}
 								onFocus={() => {
 									setIsDropdownVisible(true)
 									setSearchTerm("")
@@ -250,6 +253,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								}}
 								onKeyDown={handleKeyDown}
 								placeholder="Search or enter custom region..."
+								role="combobox"
 								style={{
 									width: "100%",
 									zIndex: DROPDOWN_Z_INDEX - 1,
@@ -276,16 +280,25 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								)}
 							</VSCodeTextField>
 							{isDropdownVisible && regionSearchResults.length > 0 && (
-								<RegionDropdownList ref={dropdownListRef}>
+								<RegionDropdownList ref={dropdownListRef} role="listbox">
 									{regionSearchResults.map((region, index) => (
 										<RegionDropdownItem
+											aria-selected={index === selectedIndex}
 											isSelected={index === selectedIndex}
 											key={region}
-											onClick={() => handleRegionChange(region)}
+											onClick={() => {
+												handleRegionChange(region)
+												setIsDropdownVisible(false)
+												isSelectingRef.current = false
+											}}
+											onMouseDown={() => {
+												isSelectingRef.current = true
+											}}
 											onMouseEnter={() => setSelectedIndex(index)}
 											ref={(el) => {
 												itemRefs.current[index] = el
-											}}>
+											}}
+											role="option">
 											<span>{region}</span>
 										</RegionDropdownItem>
 									))}
