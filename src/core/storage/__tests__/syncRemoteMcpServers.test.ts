@@ -18,7 +18,14 @@ describe("syncRemoteMcpServersToSettings", () => {
 		await fs.mkdir(tempDir, { recursive: true })
 		settingsPath = path.join(tempDir, "cline_mcp_settings.json")
 
-		sandbox.stub(diskModule, "getMcpSettingsFilePath").resolves(settingsPath)
+		sandbox.stub(diskModule, "getMcpSettingsFilePath").callsFake(async () => {
+			try {
+				await fs.access(settingsPath)
+			} catch {
+				await fs.writeFile(settingsPath, JSON.stringify({ mcpServers: {} }, null, 2))
+			}
+			return settingsPath
+		})
 	})
 
 	afterEach(async () => {
@@ -41,8 +48,6 @@ describe("syncRemoteMcpServersToSettings", () => {
 
 	describe("adding remote servers", () => {
 		it("should add a new remote server with remoteConfigured marker", async () => {
-			await writeSettings({})
-
 			await syncRemoteMcpServersToSettings([{ name: "test-server", url: "https://example.com/mcp" }], tempDir)
 
 			const result = await readSettings()
@@ -52,7 +57,7 @@ describe("syncRemoteMcpServersToSettings", () => {
 			result.mcpServers["test-server"].should.have.property("disabled", false)
 		})
 
-		it("should not overwrite an existing server with same name and URL", async () => {
+		it("should preserve user settings and tag existing server with remoteConfigured marker", async () => {
 			await writeSettings({
 				"test-server": {
 					url: "https://example.com/mcp",
