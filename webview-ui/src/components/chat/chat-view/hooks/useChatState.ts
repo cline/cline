@@ -24,9 +24,17 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	// Refs
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 
+	// Filter out task_progress messages for message state handling. This fixes a bug where task_progress updates would interrupt cline asks like plan_mode_respond.
+	/*
+	Whenever we use a cline ask, the extension and webview are put into a state that await user input before proceeding. Before progress list updates, we would never create cline says during or after a cline ask before the user has the chance to give input to the ask. But with progress list updates, which are sent as a cline say during or after a potential cline ask -- we need to make sure the webview is aware we're still waiting for the ask's input.
+	*/
+	const nonTaskProgressMessages = useMemo(() => {
+		return messages.filter((message) => message.say !== "task_progress")
+	}, [messages])
+
 	// Derived state
-	const lastMessage = useMemo(() => messages.at(-1), [messages])
-	const secondLastMessage = useMemo(() => messages.at(-2), [messages])
+	const lastMessage = useMemo(() => nonTaskProgressMessages.at(-1), [nonTaskProgressMessages])
+	const secondLastMessage = useMemo(() => nonTaskProgressMessages.at(-2), [nonTaskProgressMessages])
 	const clineAsk = useMemo(() => (lastMessage?.type === "ask" ? lastMessage.ask : undefined), [lastMessage])
 
 	// Clear expanded rows when task changes
