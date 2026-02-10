@@ -25,7 +25,9 @@ on:
 
 permissions:
   id-token: write # Required for npm trusted publishing (OIDC)
-  contents: read
+  contents: write # Required because npm-main creates/pushes git tags
+  checks: write # Required by nested reusable test workflow
+  pull-requests: write # Required by nested reusable test workflow
 
 jobs:
   publish-main:
