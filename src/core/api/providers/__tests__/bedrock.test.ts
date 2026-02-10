@@ -1,6 +1,7 @@
-import "should"
 import { ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import should from "should"
 import { Readable } from "stream"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import type { AwsBedrockHandlerOptions } from "../bedrock"
 import { AwsBedrockHandler } from "../bedrock"
 
@@ -236,11 +237,6 @@ describe("AwsBedrockHandler", () => {
 
 		beforeEach(() => {
 			handler = new AwsBedrockHandler(mockOptions)
-		})
-
-		describe("reasoning content handling (deprecated)", () => {
-			// These tests are for the old reasoningContent API that may be deprecated
-			// Keep them for backward compatibility but they may fail with new API
 		})
 
 		describe("thinking response handling (new API structure)", () => {
@@ -611,6 +607,269 @@ describe("AwsBedrockHandler", () => {
 				results[1].cacheWriteTokens.should.equal(30)
 			})
 		})
+
+		describe("tool use handling", () => {
+			it("should handle tool use content blocks", async () => {
+				const mockChunks = [
+					{ messageStart: { role: "assistant" } },
+					{
+						contentBlockStart: {
+							contentBlockIndex: 1,
+							start: { toolUse: { toolUseId: "tool-1", name: "read_file" } },
+						},
+					},
+					{
+						contentBlockDelta: {
+							contentBlockIndex: 1,
+							delta: { toolUse: { input: '{"path":' } },
+						},
+					},
+					{
+						contentBlockDelta: {
+							contentBlockIndex: 1,
+							delta: { toolUse: { input: '"test.ts"}' } },
+						},
+					},
+					{ contentBlockStop: { contentBlockIndex: 1 } },
+					{ messageStop: { stopReason: "tool_use" } },
+				]
+
+				const mockClient = new MockBedrockClient(mockChunks)
+				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
+
+				const originalGetBedrockClient = handler["getBedrockClient"]
+				handler["getBedrockClient"] = async () => mockClient as any
+
+				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const results = await collectGeneratorResults(generator)
+
+				handler["getBedrockClient"] = originalGetBedrockClient
+
+				results.should.have.length(2)
+				results[0].type.should.equal("tool_calls")
+				results[0].tool_call.function.id.should.equal("tool-1")
+				results[0].tool_call.function.name.should.equal("read_file")
+				results[0].tool_call.function.arguments.should.equal('{"path":')
+				results[1].type.should.equal("tool_calls")
+				results[1].tool_call.function.arguments.should.equal('"test.ts"}')
+			})
+
+			it("should handle multiple tool calls", async () => {
+				const mockChunks = [
+					{ messageStart: { role: "assistant" } },
+					{
+						contentBlockStart: {
+							contentBlockIndex: 1,
+							start: { toolUse: { toolUseId: "tool-1", name: "read_file" } },
+						},
+					},
+					{
+						contentBlockDelta: {
+							contentBlockIndex: 1,
+							delta: { toolUse: { input: '{"path":"a.ts"}' } },
+						},
+					},
+					{ contentBlockStop: { contentBlockIndex: 1 } },
+					{
+						contentBlockStart: {
+							contentBlockIndex: 2,
+							start: { toolUse: { toolUseId: "tool-2", name: "read_file" } },
+						},
+					},
+					{
+						contentBlockDelta: {
+							contentBlockIndex: 2,
+							delta: { toolUse: { input: '{"path":"b.ts"}' } },
+						},
+					},
+					{ contentBlockStop: { contentBlockIndex: 2 } },
+					{ messageStop: { stopReason: "tool_use" } },
+				]
+
+				const mockClient = new MockBedrockClient(mockChunks)
+				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
+
+				const originalGetBedrockClient = handler["getBedrockClient"]
+				handler["getBedrockClient"] = async () => mockClient as any
+
+				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const results = await collectGeneratorResults(generator)
+
+				handler["getBedrockClient"] = originalGetBedrockClient
+
+				results.should.have.length(2)
+				results[0].tool_call.function.id.should.equal("tool-1")
+				results[1].tool_call.function.id.should.equal("tool-2")
+			})
+
+			it("should handle text and tool use interleaving", async () => {
+				const mockChunks = [
+					{ messageStart: { role: "assistant" } },
+					{ contentBlockDelta: { delta: { text: "Checking" }, contentBlockIndex: 0 } },
+					{ contentBlockStop: { contentBlockIndex: 0 } },
+					{
+						contentBlockStart: {
+							contentBlockIndex: 1,
+							start: { toolUse: { toolUseId: "tool-1", name: "read_file" } },
+						},
+					},
+					{
+						contentBlockDelta: {
+							contentBlockIndex: 1,
+							delta: { toolUse: { input: '{"path":"test.ts"}' } },
+						},
+					},
+					{ contentBlockStop: { contentBlockIndex: 1 } },
+					{ messageStop: { stopReason: "tool_use" } },
+				]
+
+				const mockClient = new MockBedrockClient(mockChunks)
+				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
+
+				const originalGetBedrockClient = handler["getBedrockClient"]
+				handler["getBedrockClient"] = async () => mockClient as any
+
+				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const results = await collectGeneratorResults(generator)
+
+				handler["getBedrockClient"] = originalGetBedrockClient
+
+				results.should.have.length(2)
+				results[0].type.should.equal("text")
+				results[0].text.should.equal("Checking")
+				results[1].type.should.equal("tool_calls")
+			})
+		})
+	})
+
+	describe("tool config mapping", () => {
+		it("should map Anthropic tools to Bedrock toolConfig", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const toolConfig = handler["mapClineToolsToBedrockToolConfig"]([
+				{
+					name: "read_file",
+					description: "Read a file",
+					input_schema: {
+						type: "object",
+						properties: { path: { type: "string" } },
+						required: ["path"],
+					},
+				},
+			])
+
+			toolConfig?.tools?.should.have.length(1)
+			const spec = toolConfig?.tools?.[0]?.toolSpec
+			spec?.should.not.be.undefined()
+			spec?.name?.should.equal("read_file")
+			spec?.description?.should.equal("Read a file")
+			;(spec as any).inputSchema.json.should.deepEqual({
+				type: "object",
+				properties: { path: { type: "string" } },
+				required: ["path"],
+			})
+		})
+
+		it("should return undefined when tools is undefined or empty", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			should.not.exist(handler["mapClineToolsToBedrockToolConfig"](undefined))
+			should.not.exist(handler["mapClineToolsToBedrockToolConfig"]([]))
+		})
+
+		it("should silently drop tools without input_schema", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			// A tool missing input_schema doesn't match the AnthropicTool type guard
+			const toolConfig = handler["mapClineToolsToBedrockToolConfig"]([
+				{ name: "bad_tool", description: "No schema" } as any,
+			])
+			// All tools filtered out → undefined
+			should.not.exist(toolConfig)
+		})
+	})
+
+	describe("formatMessagesForConverseAPI", () => {
+		it("should format tool_use and tool_result blocks", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool-1",
+							name: "read_file",
+							input: { path: "test.ts" },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-1",
+							content: "ok",
+						},
+					],
+				},
+			]
+
+			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const toolUseBlock = formatted[0].content?.[0]?.toolUse
+			const toolResultBlock = formatted[1].content?.[0]?.toolResult
+			toolUseBlock?.should.not.be.undefined()
+			toolResultBlock?.should.not.be.undefined()
+			toolUseBlock?.toolUseId?.should.equal("tool-1")
+			toolResultBlock?.toolUseId?.should.equal("tool-1")
+			toolResultBlock?.content?.[0]?.text?.should.equal("ok")
+		})
+
+		it("should format tool_result with array content", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-2",
+							content: [
+								{ type: "text", text: "line 1" },
+								{ type: "text", text: "line 2" },
+							],
+						},
+					],
+				},
+			]
+
+			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const toolResult = formatted[0].content?.[0]?.toolResult
+			toolResult?.toolUseId?.should.equal("tool-2")
+			toolResult?.content?.should.have.length(2)
+			toolResult?.content?.[0]?.text?.should.equal("line 1")
+			toolResult?.content?.[1]?.text?.should.equal("line 2")
+		})
+
+		it("should map is_error to error status on tool_result", () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-3",
+							content: "something went wrong",
+							is_error: true,
+						},
+					],
+				},
+			]
+
+			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const toolResult = formatted[0].content?.[0]?.toolResult
+			toolResult?.status?.should.equal("error")
+			toolResult?.content?.[0]?.text?.should.equal("something went wrong")
+		})
 	})
 
 	describe("getModelId", () => {
@@ -748,6 +1007,148 @@ describe("AwsBedrockHandler", () => {
 			)
 			modelId.should.not.match(/%2F/)
 			modelId.should.not.match(/%3A/)
+		})
+	})
+
+	describe("native tool calling integration", () => {
+		it("should be recognized as a next-gen provider eligible for native tool calling", () => {
+			// This is the integration gap: if Bedrock is removed from isNextGenModelProvider(),
+			// native tool calling silently stops working and falls back to XML tools.
+			// Note: requires a Claude 4+ model — Claude 3.x is NOT in the next-gen model family.
+			const { isNativeToolCallingConfig } = require("@utils/model-utils")
+
+			const claude4Options: AwsBedrockHandlerOptions = {
+				...mockOptions,
+				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			}
+			const handler = new AwsBedrockHandler(claude4Options)
+			const model = handler.getModel()
+			const providerInfo = {
+				providerId: "bedrock",
+				model: { id: model.id, info: model.info },
+			}
+
+			const result = isNativeToolCallingConfig(providerInfo, true)
+			result.should.be.true("Bedrock + Claude 4 should qualify for native tool calling")
+		})
+
+		it("should not use native tool calling for pre-4.0 Claude models", () => {
+			// Claude 3.x models are NOT in the next-gen family and should use XML tools
+			const { isNativeToolCallingConfig } = require("@utils/model-utils")
+
+			const handler = new AwsBedrockHandler(mockOptions) // uses Claude 3.7
+			const model = handler.getModel()
+			const providerInfo = {
+				providerId: "bedrock",
+				model: { id: model.id, info: model.info },
+			}
+
+			const result = isNativeToolCallingConfig(providerInfo, true)
+			result.should.be.false("Bedrock + Claude 3.x should NOT use native tool calling")
+		})
+
+		it("should not use native tool calling when the setting is disabled", () => {
+			const { isNativeToolCallingConfig } = require("@utils/model-utils")
+
+			const claude4Options: AwsBedrockHandlerOptions = {
+				...mockOptions,
+				apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			}
+			const handler = new AwsBedrockHandler(claude4Options)
+			const model = handler.getModel()
+			const providerInfo = {
+				providerId: "bedrock",
+				model: { id: model.id, info: model.info },
+			}
+
+			const result = isNativeToolCallingConfig(providerInfo, false)
+			result.should.be.false("Native tool calling should be disabled when setting is off")
+		})
+
+		it("should pass toolConfig to ConverseStreamCommand when tools are provided", async () => {
+			const handler = new AwsBedrockHandler(mockOptions)
+
+			// Capture the command passed to executeConverseStream
+			let capturedCommand: any = null
+			const originalExecuteConverseStream = handler["executeConverseStream"].bind(handler)
+			handler["executeConverseStream"] = async function* (command: any, modelInfo: any) {
+				capturedCommand = command
+				// Yield nothing — we just want to capture the command
+			}
+
+			const tools = [
+				{
+					name: "read_file",
+					description: "Read a file",
+					input_schema: {
+						type: "object" as const,
+						properties: { path: { type: "string" } },
+						required: ["path"],
+					},
+				},
+			]
+
+			// Consume the generator to trigger createAnthropicMessage
+			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), false, tools)
+			for await (const _ of gen) {
+				// drain
+			}
+
+			// Verify the command includes toolConfig
+			should.exist(capturedCommand, "ConverseStreamCommand should have been created")
+			const input = capturedCommand.input
+			should.exist(input.toolConfig, "toolConfig should be present in the command")
+			input.toolConfig.tools.should.have.length(1)
+			input.toolConfig.tools[0].toolSpec.name.should.equal("read_file")
+		})
+
+		it("should format a complete tool call round-trip correctly", () => {
+			// Simulates the full cycle: model returns tool_use → Cline executes → sends tool_result back
+			const handler = new AwsBedrockHandler(mockOptions)
+
+			// Turn 1: assistant calls a tool
+			// Turn 2: user sends tool result
+			// Turn 3: assistant calls another tool (proves multi-turn works)
+			// Turn 4: user sends second tool result
+			const conversation: ClineStorageMessage[] = [
+				{
+					role: "assistant",
+					content: [
+						{ type: "text", text: "I'll read the file." },
+						{ type: "tool_use", id: "call-1", name: "read_file", input: { path: "a.ts" } },
+					],
+				},
+				{
+					role: "user",
+					content: [{ type: "tool_result", tool_use_id: "call-1", content: "export const a = 1" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "call-2", name: "read_file", input: { path: "b.ts" } }],
+				},
+				{
+					role: "user",
+					content: [{ type: "tool_result", tool_use_id: "call-2", content: "export const b = 2", is_error: false }],
+				},
+			]
+
+			const formatted = handler["formatMessagesForConverseAPI"](conversation)
+
+			// Turn 1: text + toolUse
+			formatted[0].content?.should.have.length(2)
+			formatted[0].content?.[0]?.text?.should.equal("I'll read the file.")
+			formatted[0].content?.[1]?.toolUse?.toolUseId?.should.equal("call-1")
+			formatted[0].content?.[1]?.toolUse?.name?.should.equal("read_file")
+
+			// Turn 2: toolResult
+			formatted[1].content?.[0]?.toolResult?.toolUseId?.should.equal("call-1")
+			formatted[1].content?.[0]?.toolResult?.status?.should.equal("success")
+
+			// Turn 3: toolUse
+			formatted[2].content?.[0]?.toolUse?.toolUseId?.should.equal("call-2")
+
+			// Turn 4: toolResult
+			formatted[3].content?.[0]?.toolResult?.toolUseId?.should.equal("call-2")
 		})
 	})
 })

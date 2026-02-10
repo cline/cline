@@ -111,6 +111,8 @@ message Secrets {
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 146; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
+
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -255,7 +257,6 @@ message Settings {
   optional bool use_auto_condense = 143;
   optional bool cline_web_tools_enabled = 144;
   optional string preferred_language = 145;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 146;
   optional PlanActMode mode = 147;
   optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;
@@ -282,6 +283,7 @@ message Settings {
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
   map<string, string> open_ai_headers = 175;
+  optional bool double_check_completion_enabled = 176;
 }
 
 message DictationSettings {
@@ -325,7 +327,7 @@ enum OpenaiReasoningEffort {
   LOW = 0;
   MEDIUM = 1;
   HIGH = 2;
-  MINIMAL = 3;
+  reserved 3; // was MINIMAL
 }
 
 enum McpDisplayMode {
@@ -388,6 +390,7 @@ message UpdateTaskSettingsRequest {
 
 // Message for updating settings
 message UpdateSettingsRequest {
+  reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
   reserved 38; // was skills_enabled (removed - now always enabled)
 
@@ -404,7 +407,6 @@ message UpdateSettingsRequest {
   optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
@@ -428,6 +430,7 @@ message UpdateSettingsRequest {
   optional string oca_reasoning_effort = 37;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
+  optional bool double_check_completion_enabled = 41;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

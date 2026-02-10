@@ -42,15 +42,6 @@ jobs:
           node-version: "20.x"
           registry-url: "https://registry.npmjs.org"
 
-      # Cache root dependencies - only reuse if package-lock.json exactly matches
-      - name: Cache root dependencies
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/cache@v4
-        id: root-cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
       - name: Install root dependencies and CLI dependencies
         if: steps.check_commits.outputs.skip != 'true'
         run: npm ci --include=optional # this will also install cli deps because "cli" in included in root package.json workspaces field

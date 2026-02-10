@@ -21,7 +21,7 @@ import {
 	PROCESS_HOT_TIMEOUT_NORMAL,
 	TRUNCATE_KEEP_LINES,
 } from "../constants"
-import type { ITerminal, ITerminalProcess, TerminalProcessEvents } from "../types"
+import type { ITerminal, ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "../types"
 
 /**
  * Manages the execution of a command in a standalone terminal environment.
@@ -38,22 +38,22 @@ import type { ITerminal, ITerminalProcess, TerminalProcessEvents } from "../type
  */
 export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
 	/** We don't need to wait since we control the process directly */
-	waitForShellIntegration: boolean = false
+	waitForShellIntegration = false
 
 	/** Whether we're actively listening for output */
-	isListening: boolean = true
+	isListening = true
 
 	/** Buffer for incomplete lines */
-	private buffer: string = ""
+	private buffer = ""
 
 	/** Full output captured from the process */
-	private fullOutput: string = ""
+	private fullOutput = ""
 
 	/** Index of last retrieved output position */
-	private lastRetrievedIndex: number = 0
+	private lastRetrievedIndex = 0
 
 	/** Whether the process is actively outputting */
-	isHot: boolean = false
+	isHot = false
 
 	/** Timer for tracking hot state */
 	private hotTimer: NodeJS.Timeout | null = null
@@ -64,8 +64,11 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	/** Exit code from the process */
 	private exitCode: number | null = null
 
+	/** Exit signal from the process */
+	private signal: NodeJS.Signals | null = null
+
 	/** Whether the process has completed */
-	private isCompleted: boolean = false
+	private isCompleted = false
 
 	constructor() {
 		super()
@@ -144,8 +147,9 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			})
 
 			// Handle process completion
-			this.childProcess.on("close", (code: number | null, _signal: NodeJS.Signals | null) => {
+			this.childProcess.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
 				this.exitCode = code
+				this.signal = signal
 				this.isCompleted = true
 				this.emitRemainingBuffer()
 
@@ -159,7 +163,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				const success = code === 0 || code === null
 				telemetryService.captureTerminalExecution(success, "standalone", "child_process", code)
 
-				this.emit("completed")
+				this.emit("completed", { exitCode: this.exitCode, signal: this.signal })
 				this.emit("continue")
 			})
 
@@ -278,6 +282,13 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		return this.removeLastLineArtifacts(unretrieved)
 	}
 
+	getCompletionDetails(): TerminalCompletionDetails {
+		return {
+			exitCode: this.exitCode,
+			signal: this.signal,
+		}
+	}
+
 	/**
 	 * Remove shell prompt artifacts from the end of output.
 	 * @param output The output to clean
@@ -299,9 +310,8 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	private getDefaultShell(): string {
 		if (process.platform === "win32") {
 			return process.env.COMSPEC || "cmd.exe"
-		} else {
-			return process.env.SHELL || "/bin/bash"
 		}
+		return process.env.SHELL || "/bin/bash"
 	}
 
 	/**
@@ -314,13 +324,11 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		if (process.platform === "win32") {
 			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
 				return ["-Command", command]
-			} else {
-				return ["/c", command]
 			}
-		} else {
-			// Use -l for login shell, -c for command
-			return ["-l", "-c", command]
+			return ["/c", command]
 		}
+		// Use -l for login shell, -c for command
+		return ["-l", "-c", command]
 	}
 
 	/**

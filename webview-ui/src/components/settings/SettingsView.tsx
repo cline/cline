@@ -1,7 +1,6 @@
 import type { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { UserOrganization } from "@shared/proto/index.cline"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import {
 	CheckCheck,
 	FlaskConical,
@@ -20,9 +19,9 @@ import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
-import { getEnvironmentColor } from "@/utils/environmentColors"
 import { isAdminOrOwner } from "../account/helpers"
-import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
+import { Tab, TabContent, TabList, TabTrigger } from "../common/Tab"
+import ViewHeader from "../common/ViewHeader"
 import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
@@ -257,20 +256,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		return <Component {...props} />
 	}, [activeTab, handleResetState, settingsInitialModelTab, version])
 
-	const titleColor = getEnvironmentColor(environment)
-
 	return (
 		<Tab>
-			<TabHeader className="flex justify-between items-center gap-2">
-				<div className="flex items-center gap-1">
-					<h3 className="text-md m-0" style={{ color: titleColor }}>
-						Settings
-					</h3>
-				</div>
-				<div className="flex gap-2">
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-				</div>
-			</TabHeader>
+			<ViewHeader environment={environment} onDone={onDone} title="Settings" />
 
 			<div className="flex flex-1 overflow-hidden">
 				<TabList
