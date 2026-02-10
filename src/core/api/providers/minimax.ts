@@ -152,7 +152,7 @@ export class MinimaxHandler implements ApiHandler {
 							}
 							break
 						case "text": {
-							const needsNewline = chunk.index > 0
+							const needsNewline: boolean = chunk.index > 0
 							const text = chunk.content_block.text
 							if (text || needsNewline) {
 								pendingTextBlock = {
