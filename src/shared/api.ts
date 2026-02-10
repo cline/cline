@@ -342,7 +342,12 @@ export const claudeCodeModels = {
 		supportsPromptCache: false,
 	},
 	opus: {
-		...anthropicModels["claude-opus-4-1-20250805"],
+		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"opus[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},

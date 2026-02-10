@@ -9,7 +9,12 @@ import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
 
-const SUPPORTED_CLAUDE_CODE_THINKING_MODELS = [...SUPPORTED_ANTHROPIC_THINKING_MODELS, "claude-opus-4-6[1m]"]
+const SUPPORTED_CLAUDE_CODE_THINKING_MODELS = [
+	...SUPPORTED_ANTHROPIC_THINKING_MODELS,
+	"claude-opus-4-6[1m]",
+	"opus",
+	"opus[1m]",
+]
 
 /**
  * Props for the ClaudeCodeProvider component

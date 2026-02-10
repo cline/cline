@@ -246,6 +246,16 @@ describe("ClaudeCodeHandler", () => {
 			model.info.contextWindow.should.equal(1_000_000)
 		})
 
+		it("should support Opus 1m alias model id", () => {
+			const handler = new ClaudeCodeHandler({
+				apiModelId: "opus[1m]",
+			})
+
+			const model = handler.getModel()
+			model.id.should.equal("opus[1m]")
+			model.info.contextWindow.should.equal(1_000_000)
+		})
+
 		it("should return default model when not specified", () => {
 			const handler = new ClaudeCodeHandler({})
 
