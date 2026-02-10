@@ -90,7 +90,7 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			?.find((conn: any) => conn.server.name === server_name)
 			?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
 
-		if (config.callbacks.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
+		if (config.callbacks.shouldAutoApproveTool(block.name) || isToolAutoApproved) {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 			await config.callbacks.say("use_mcp_server", completeMessage, undefined, undefined, false)
@@ -128,18 +128,17 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					true,
-					undefined,
-					block.isNativeToolCall,
-				)
 			}
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				undefined,
+				block.isNativeToolCall,
+			)
 		}
 
 		// Run PreToolUse hook after approval but before execution

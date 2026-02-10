@@ -46,6 +46,16 @@ export interface SkillInfo {
 	enabled: boolean
 }
 
+export interface ObjectEditorState {
+	source: "global" | "workspace"
+	key: string
+	path: string[]
+	value: Record<string, unknown>
+	selectedIndex: number
+	isEditingValue: boolean
+	editValue: string
+}
+
 export const EXCLUDED_KEYS = new Set([
 	"taskHistory",
 	"primaryRootIndex",
@@ -55,7 +65,7 @@ export const EXCLUDED_KEYS = new Set([
 	"isNewUser",
 ])
 
-export const EDITABLE_TYPES: Set<ValueType> = new Set(["string", "number", "boolean"])
+export const EDITABLE_TYPES: Set<ValueType> = new Set(["string", "number", "boolean", "object"])
 export const MAX_VISIBLE = 12
 export const SEPARATOR = "─".repeat(80)
 
@@ -135,7 +145,7 @@ export function parseValue(input: string, type: ValueType): unknown {
 		return input.toLowerCase() === "true" || input === "1"
 	}
 	if (type === "number") {
-		const num = parseFloat(input)
+		const num = Number.parseFloat(input)
 		return Number.isNaN(num) ? 0 : num
 	}
 	if (type === "object") {
@@ -217,7 +227,7 @@ export const TextInput: React.FC<TextInputProps> = ({ label, onChange, onCancel,
 			</Text>
 			<Box>
 				<Text color="white">{value}</Text>
-				<Text inverse> </Text>
+				<Text color="cyan">|</Text>
 			</Box>
 			<Text color="gray">Type: {type} • Enter to save • Esc to cancel</Text>
 		</Box>
@@ -379,3 +389,169 @@ export const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
 		</Text>
 	</Box>
 )
+
+interface ObjectEditorPanelProps {
+	state: ObjectEditorState
+	setState: React.Dispatch<React.SetStateAction<ObjectEditorState | null>>
+	onClose: () => void
+	onPersist: (nextObject: Record<string, unknown>) => void
+	getObjectAtPath: (root: Record<string, unknown>, path: string[]) => Record<string, unknown>
+	setObjectValueAtPath: (root: Record<string, unknown>, path: string[], key: string, value: unknown) => Record<string, unknown>
+}
+
+export const ObjectEditorPanel: React.FC<ObjectEditorPanelProps> = ({
+	state,
+	setState,
+	onClose,
+	onPersist,
+	getObjectAtPath,
+	setObjectValueAtPath,
+}) => {
+	const { isRawModeSupported } = useStdinContext()
+	const currentNode = getObjectAtPath(state.value, state.path)
+	const objectEntries = Object.entries(currentNode).sort(([a], [b]) => a.localeCompare(b))
+	const selectedEntry = objectEntries[state.selectedIndex]
+	const breadcrumb = [state.key, ...state.path].join(" › ")
+
+	useInput(
+		(input, key) => {
+			if (state.isEditingValue) {
+				if (key.escape) {
+					setState((prev) => (prev ? { ...prev, isEditingValue: false, editValue: "" } : prev))
+					return
+				}
+				if (key.return) {
+					if (!selectedEntry) {
+						setState((prev) => (prev ? { ...prev, isEditingValue: false, editValue: "" } : prev))
+						return
+					}
+					const [entryKey, entryValue] = selectedEntry
+					let parsed: unknown = state.editValue
+					if (typeof entryValue === "boolean") {
+						parsed = state.editValue.toLowerCase() === "true" || state.editValue === "1"
+					} else if (typeof entryValue === "number") {
+						const maybeNum = Number(state.editValue)
+						parsed = Number.isNaN(maybeNum) ? 0 : maybeNum
+					}
+					const nextObject = setObjectValueAtPath(state.value, state.path, entryKey, parsed)
+					onPersist(nextObject)
+					setState((prev) => (prev ? { ...prev, value: nextObject, isEditingValue: false, editValue: "" } : prev))
+					return
+				}
+				if (key.backspace || key.delete) {
+					setState((prev) => (prev ? { ...prev, editValue: prev.editValue.slice(0, -1) } : prev))
+					return
+				}
+				if (input && !key.ctrl && !key.meta) {
+					setState((prev) => (prev ? { ...prev, editValue: prev.editValue + input } : prev))
+				}
+				return
+			}
+
+			if (key.escape) {
+				if (state.path.length > 0) {
+					setState((prev) => (prev ? { ...prev, path: prev.path.slice(0, -1), selectedIndex: 0 } : prev))
+				} else {
+					onClose()
+				}
+				return
+			}
+
+			if (key.upArrow || input === "k") {
+				setState((prev) =>
+					prev
+						? {
+								...prev,
+								selectedIndex:
+									objectEntries.length > 0
+										? prev.selectedIndex > 0
+											? prev.selectedIndex - 1
+											: objectEntries.length - 1
+										: 0,
+							}
+						: prev,
+				)
+				return
+			}
+			if (key.downArrow || input === "j") {
+				setState((prev) =>
+					prev
+						? {
+								...prev,
+								selectedIndex:
+									objectEntries.length > 0
+										? prev.selectedIndex < objectEntries.length - 1
+											? prev.selectedIndex + 1
+											: 0
+										: 0,
+							}
+						: prev,
+				)
+				return
+			}
+
+			if (key.return || key.tab) {
+				if (!selectedEntry) {
+					return
+				}
+				const [entryKey, entryValue] = selectedEntry
+				if (typeof entryValue === "boolean") {
+					const nextObject = setObjectValueAtPath(state.value, state.path, entryKey, !entryValue)
+					onPersist(nextObject)
+					setState((prev) => (prev ? { ...prev, value: nextObject } : prev))
+					return
+				}
+				if (entryValue && typeof entryValue === "object" && !Array.isArray(entryValue)) {
+					setState((prev) => (prev ? { ...prev, path: [...prev.path, entryKey], selectedIndex: 0 } : prev))
+					return
+				}
+				setState((prev) =>
+					prev
+						? { ...prev, isEditingValue: true, editValue: entryValue !== undefined ? String(entryValue) : "" }
+						: prev,
+				)
+			}
+		},
+		{ isActive: isRawModeSupported },
+	)
+
+	return (
+		<Box flexDirection="column">
+			<Text bold color="white">
+				⚙️ Edit Nested Object
+			</Text>
+			<Text color="gray">{SEPARATOR}</Text>
+			<Text color="cyan">{breadcrumb}</Text>
+			{state.isEditingValue ? (
+				<Box flexDirection="column" marginTop={1}>
+					<Box>
+						<Text color="white">{state.editValue}</Text>
+						<Text color="cyan">|</Text>
+					</Box>
+					<Text color="gray">Enter to save • Esc to cancel</Text>
+				</Box>
+			) : (
+				<Box flexDirection="column" marginTop={1}>
+					{objectEntries.length === 0 ? (
+						<Text color="gray">No nested keys at this level.</Text>
+					) : (
+						objectEntries.map(([key, value], idx) => {
+							const isSelected = idx === state.selectedIndex
+							const valueText =
+								value && typeof value === "object" && !Array.isArray(value) ? "{...}" : String(value)
+							return (
+								<Text color={isSelected ? "cyan" : undefined} key={key}>
+									{isSelected ? "❯ " : "  "}
+									<Text color="cyan">{key}</Text>
+									<Text color="gray">: </Text>
+									<Text color="white">{valueText}</Text>
+								</Text>
+							)
+						})
+					)}
+					<Text color="gray">↑/↓ Navigate • Enter/Tab Edit or drill in • Esc Back/Close</Text>
+				</Box>
+			)}
+		</Box>
+	)
+}
