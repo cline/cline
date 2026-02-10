@@ -21,7 +21,6 @@ describe("Skills Utility Functions", () => {
 	let readdirStub: sinon.SinonStub
 	let statStub: sinon.SinonStub
 	let readFileStub: sinon.SinonStub
-	let ensureSkillsDirStub: sinon.SinonStub
 
 	// Use path.join for OS-independent paths
 	const TEST_CWD = path.join("/test", "project")
@@ -39,10 +38,14 @@ describe("Skills Utility Functions", () => {
 		readdirStub = sandbox.stub(fs.promises, "readdir")
 		statStub = sandbox.stub(fs.promises, "stat")
 		readFileStub = sandbox.stub(fs.promises, "readFile")
-		ensureSkillsDirStub = sandbox.stub(disk, "ensureSkillsDirectoryExists")
-
-		// Default: global skills dir
-		ensureSkillsDirStub.resolves(GLOBAL_SKILLS_DIR)
+		sandbox.stub(disk, "getSkillsDirectoriesForScan").returns([
+			{ path: path.join(TEST_CWD, ".clinerules", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".cline", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
+			{ path: path.join(TEST_CWD, ".agents", "skills"), source: "project" },
+			{ path: GLOBAL_SKILLS_DIR, source: "global" },
+			{ path: path.join("/home", "user", ".agents", "skills"), source: "global" },
+		])
 
 		// Default: no directories exist
 		fileExistsStub.resolves(false)

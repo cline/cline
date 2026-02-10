@@ -1,8 +1,7 @@
-import { ensureSkillsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { getSkillsDirectoriesForScan } from "@core/storage/disk"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
-import os from "os"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
@@ -99,29 +98,12 @@ async function loadSkillMetadata(
 export async function discoverSkills(cwd: string): Promise<SkillMetadata[]> {
 	const skills: SkillMetadata[] = []
 
-	const globalSkillsDir = await ensureSkillsDirectoryExists()
-	const projectDirs = [
-		path.join(cwd, GlobalFileNames.clineruleSkillsDir),
-		path.join(cwd, GlobalFileNames.clineSkillsDir),
-		path.join(cwd, GlobalFileNames.claudeSkillsDir),
-		path.join(cwd, GlobalFileNames.agentsSkillsDir),
-	]
+	const scanDirs = getSkillsDirectoriesForScan(cwd)
 
-	// Load project skills first (lower priority)
-	for (const dir of projectDirs) {
-		const projectSkills = await scanSkillsDirectory(dir, "project")
-		skills.push(...projectSkills)
+	for (const dir of scanDirs) {
+		const dirSkills = await scanSkillsDirectory(dir.path, dir.source)
+		skills.push(...dirSkills)
 	}
-
-	// Load global skills last - higher priority
-	// Scan ~/.cline/skills
-	const globalSkills = await scanSkillsDirectory(globalSkillsDir, "global")
-	skills.push(...globalSkills)
-
-	// Scan ~/.agents/skills
-	const agentsGlobalDir = path.join(os.homedir(), ".agents", "skills")
-	const agentsGlobalSkills = await scanSkillsDirectory(agentsGlobalDir, "global")
-	skills.push(...agentsGlobalSkills)
 
 	return skills
 }
