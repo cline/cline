@@ -37,6 +37,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const { platform } = useExtensionState()
 	const [os, metaKeyChar] = useMetaKeyDetection(platform)
 	const metaKeySymbol = metaKeyChar === "CMD" ? "⌘" : metaKeyChar
+	const ariaModifier = os === "mac" ? "Meta" : os === "linux" ? "Alt" : "Control"
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const [isProcessing, setIsProcessing] = useState(false)
 
@@ -203,20 +204,27 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
+					aria-keyshortcuts={`${ariaModifier}+Enter`}
 					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
-					<span className="w-fit">{primaryText}</span>&nbsp;<span className="w-fit opacity-70">({metaKeySymbol}↵)</span>
+					<span className="w-fit">{primaryText}</span>
+					<span aria-hidden="true" className="shortcut-hint w-fit">
+						({metaKeySymbol}↵)
+					</span>
 				</VSCodeButton>
 			)}
 			{secondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
+					aria-keyshortcuts={`${ariaModifier}+Backspace`}
 					className={primaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
-					<span className="w-fit">{secondaryText}</span>&nbsp;
-					<span className="w-fit opacity-70">({metaKeySymbol}⌫)</span>
+					<span className="w-fit">{secondaryText}</span>
+					<span aria-hidden="true" className="shortcut-hint w-fit">
+						({metaKeySymbol}⌫)
+					</span>
 				</VSCodeButton>
 			)}
 		</div>

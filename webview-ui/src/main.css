@@ -12,6 +12,30 @@ vscode-button::part(control):focus-visible {
 }
 
 /*
+ * Zero-width overflow keeps button text centered
+ */
+vscode-button .shortcut-hint {
+	opacity: 0;
+	display: inline-block;
+	width: 0;
+	overflow: visible;
+	white-space: nowrap;
+	margin-left: 4px;
+}
+
+vscode-button:hover .shortcut-hint,
+vscode-button:focus-within .shortcut-hint {
+	opacity: 0.7;
+}
+
+/* Hide shortcut hints when the webview is too narrow */
+@media (max-width: 350px) {
+	vscode-button .shortcut-hint {
+		display: none;
+	}
+}
+
+/*
 Use vscode native scrollbar styles
 https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e91f46fd88/src/webviews/apps/home/home.scss
 */
