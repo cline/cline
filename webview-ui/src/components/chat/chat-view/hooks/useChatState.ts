@@ -38,7 +38,7 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const clineAsk = useMemo(() => (lastMessage?.type === "ask" ? lastMessage.ask : undefined), [lastMessage])
 
 	// Clear expanded rows when task changes
-	const task = useMemo(() => messages.at(0), [messages])
+	const task = useMemo(() => nonTaskProgressMessages.at(0), [nonTaskProgressMessages])
 	const clearExpandedRows = useCallback(() => {
 		setExpandedRows({})
 	}, [])
