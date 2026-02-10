@@ -62,7 +62,13 @@ import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import {
+	isClaude4PlusModelFamily,
+	isGPT5ModelFamily,
+	isLocalModel,
+	isNextGenModelFamily,
+	isParallelToolCallingEnabled,
+} from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -834,11 +840,12 @@ export class Task {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 * 2. The current model/provider supports native tool calling and handles parallel tools well
 	 */
 	private isParallelToolCallingEnabled(): boolean {
-		const modelId = this.api.getModel().id
-		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
+		const providerInfo = this.getCurrentProviderInfo()
+		return isParallelToolCallingEnabled(enableParallelSetting, providerInfo)
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
@@ -1866,7 +1873,7 @@ export class Task {
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
+			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
