@@ -22,9 +22,6 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-
-====
-
 {{${SystemPromptSection.CAPABILITIES}}}
 
 ====

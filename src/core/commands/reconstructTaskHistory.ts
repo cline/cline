@@ -249,12 +249,27 @@ function extractTaskInformation(clineMessages: ClineMessage[], metadata: any): T
 	for (const msg of apiReqMessages) {
 		try {
 			if (msg.text) {
-				const apiInfo = JSON.parse(msg.text)
-				if (apiInfo.tokensIn) tokensIn += apiInfo.tokensIn
-				if (apiInfo.tokensOut) tokensOut += apiInfo.tokensOut
-				if (apiInfo.cacheWrites) cacheWrites += apiInfo.cacheWrites
-				if (apiInfo.cacheReads) cacheReads += apiInfo.cacheReads
-				if (apiInfo.cost) totalCost += apiInfo.cost
+				const apiInfo = JSON.parse(msg.text) as unknown
+				if (!apiInfo || typeof apiInfo !== "object") {
+					continue
+				}
+
+				const usage = apiInfo as Record<string, unknown>
+				if (typeof usage.tokensIn === "number" && Number.isFinite(usage.tokensIn)) {
+					tokensIn += usage.tokensIn
+				}
+				if (typeof usage.tokensOut === "number" && Number.isFinite(usage.tokensOut)) {
+					tokensOut += usage.tokensOut
+				}
+				if (typeof usage.cacheWrites === "number" && Number.isFinite(usage.cacheWrites)) {
+					cacheWrites += usage.cacheWrites
+				}
+				if (typeof usage.cacheReads === "number" && Number.isFinite(usage.cacheReads)) {
+					cacheReads += usage.cacheReads
+				}
+				if (typeof usage.cost === "number" && Number.isFinite(usage.cost)) {
+					totalCost += usage.cost
+				}
 			}
 		} catch {
 			// Ignore parsing errors

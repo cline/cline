@@ -27,9 +27,6 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-
-====
-
 {{${SystemPromptSection.CAPABILITIES}}}
 
 ====
