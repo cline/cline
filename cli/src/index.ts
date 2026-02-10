@@ -626,6 +626,9 @@ async function checkAnyProviderConfigured(): Promise<boolean> {
 	// Check OpenAI Codex OAuth (stored in SECRETS_KEYS, loaded into config)
 	if (config["openai-codex-oauth-credentials"]) return true
 
+	// CHeck OpenAI OAuth
+	if (config["openAiOAuthClientId"]) return true
+
 	// Check all BYO provider API keys (loaded into config from secrets)
 	for (const [provider, keyField] of Object.entries(ProviderToApiKeyMap)) {
 		// Skip cline - already checked above with the correct key

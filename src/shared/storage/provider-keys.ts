@@ -43,6 +43,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	hicap: "HicapModelId",
 	nousResearch: "NousResearchModelId",
 	"vercel-ai-gateway": "VercelAiGatewayModelId",
+	"openai-oauth": "OpenAiOAuthModelId",
 } as const
 
 export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>> = {
@@ -111,6 +112,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	minimax: minimaxDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
+	"openai-oauth": openAiNativeDefaultModelId,
 } as const
 
 /**

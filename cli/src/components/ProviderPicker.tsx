@@ -54,6 +54,16 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 		case "openai-codex":
 			// OpenAI Codex uses OAuth with credentials stored as JSON blob
 			return !!(config as Record<string, unknown>)["openai-codex-oauth-credentials"]
+		case "openai-oauth":
+			return !!(
+				(config.openAiOAuthAuthUrl &&
+					config.openAiOAuthBaseUrl &&
+					config.openAiOAuthClientId &&
+					config.openAiOAuthScopes &&
+					config.openAiOAuthTokenUrl) ||
+				config.planModeOpenAiOAuthModelId ||
+				config.actModeOpenAiOAuthModelId
+			)
 		case "deepseek":
 			return !!config.deepSeekApiKey
 		case "xai":

@@ -16,13 +16,30 @@ export interface ApplyProviderConfigOptions {
 	modelId?: string // Override default model
 	baseUrl?: string // For OpenAI-compatible providers
 	controller?: Controller
+	// OpenAI OAuth fields
+	openAiOAuthBaseUrl?: string
+	openAiOAuthAuthUrl?: string
+	openAiOAuthClientId?: string
+	openAiOAuthScopes?: string
+	openAiOAuthTokenUrl?: string
 }
 
 /**
  * Apply provider configuration to state and rebuild API handler if needed
  */
 export async function applyProviderConfig(options: ApplyProviderConfigOptions): Promise<void> {
-	const { providerId, apiKey, modelId, baseUrl, controller } = options
+	const {
+		providerId,
+		apiKey,
+		modelId,
+		baseUrl,
+		controller,
+		openAiOAuthBaseUrl,
+		openAiOAuthClientId,
+		openAiOAuthAuthUrl,
+		openAiOAuthTokenUrl,
+		openAiOAuthScopes,
+	} = options
 	const stateManager = StateManager.get()
 
 	const config: Record<string, string> = {
@@ -62,6 +79,23 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	// Add base URL if provided (for OpenAI-compatible providers)
 	if (baseUrl) {
 		config.openAiBaseUrl = baseUrl
+	}
+
+	// Add OpenAI OAuth fields if provided
+	if (openAiOAuthAuthUrl) {
+		config.openAiopenAiOAuthAuthUrl = openAiOAuthAuthUrl
+	}
+	if (openAiOAuthBaseUrl) {
+		config.openAiOAuthBaseUrl = openAiOAuthBaseUrl
+	}
+	if (openAiOAuthClientId) {
+		config.openAiopenAiOAuthClientId = openAiOAuthClientId
+	}
+	if (openAiOAuthScopes) {
+		config.openAiopenAiOAuthScopes = openAiOAuthScopes
+	}
+	if (openAiOAuthTokenUrl) {
+		config.openAiopenAiOAuthTokenUrl = openAiOAuthTokenUrl
 	}
 
 	// Save via StateManager

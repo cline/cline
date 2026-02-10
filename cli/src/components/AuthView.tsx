@@ -46,6 +46,11 @@ type AuthStep =
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
+	| "open_ai_oauth_auth_url"
+	| "open_ai_oauth_base_url"
+	| "open_ai_oauth_client_id"
+	| "open_ai_oauth_scopes"
+	| "open_ai_oauth_token_url"
 
 // Featured models loaded from shared constants
 const featuredModels = getAllFeaturedModels()
@@ -173,6 +178,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
 
+	// OpenAI OAuth configuration state
+	const [openAiOAuthAuthUrl, setOpenAiOAuthAuthUrl] = useState("")
+	const [openAiOAuthBaseUrl, setOpenAiOAuthBaseUrl] = useState("")
+	const [openAiOAuthClientId, setOpenAiOAuthClientId] = useState("")
+	const [openAiOAuthScopes, setOpenAiOAuthScopes] = useState("")
+	const [openAiOAuthTokenUrl, setOpenAiOAuthTokenUrl] = useState("")
+
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const sortedProviders = useMemo(() => {
 		return getProviderOrder().filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
@@ -193,6 +205,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			items.push({ label: "Import from OpenCode", value: "import_opencode" })
 		}
 
+		items.push({ label: "Sign in with OpenAI with OAuth 2.0", value: "configure_openai_oauth" })
 		items.push({ label: "Use your own API key", value: "configure_byo" })
 		items.push({ label: "Exit", value: "exit" })
 
@@ -333,6 +346,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return
 			}
 
+			if (normalizedProvider === "openai-oauth") {
+				setErrorMessage(
+					"OpenAI OAuth provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
+				)
+				setStep("error")
+				return
+			}
+
 			// Save configuration
 			const stateManager = StateManager.get()
 			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
@@ -438,6 +459,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				startOpenAiCodexAuth()
 			} else if (value === "configure_byo") {
 				setStep("provider")
+			} else if (value === "configure_openai_oauth") {
+				setSelectedProvider("openai-oauth")
+				setOpenAiOAuthAuthUrl("")
+				setOpenAiOAuthBaseUrl("")
+				setOpenAiOAuthClientId("")
+				setOpenAiOAuthScopes("")
+				setOpenAiOAuthTokenUrl("")
+				setStep("open_ai_oauth_auth_url")
 			} else if (value === "import_codex") {
 				setImportSource("codex")
 				setStep("import")
@@ -459,6 +488,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				startOpenAiCodexAuth()
 			} else if (value === "bedrock") {
 				setStep("bedrock")
+			} else if (value === "openai-oauth") {
+				// Start OAuth configuration flow
+				setOpenAiOAuthAuthUrl("")
+				setOpenAiOAuthBaseUrl("")
+				setOpenAiOAuthClientId("")
+				setOpenAiOAuthScopes("")
+				setOpenAiOAuthTokenUrl("")
+				setStep("open_ai_oauth_auth_url")
 			} else {
 				setStep("apikey")
 			}
@@ -517,6 +554,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					if (bedrockConfig.awsSecretKey) bedrockFields.awsSecretKey = bedrockConfig.awsSecretKey
 					if (bedrockConfig.awsSessionToken) bedrockFields.awsSessionToken = bedrockConfig.awsSessionToken
 					Object.assign(config, bedrockFields)
+				} else if (selectedProvider === "openai-oauth") {
+					// Add OAuth configuration
+					if (openAiOAuthAuthUrl) config.openAiOAuthAuthUrl = openAiOAuthAuthUrl
+					if (openAiOAuthBaseUrl) config.openAiOAuthBaseUrl = openAiOAuthBaseUrl
+					if (openAiOAuthClientId) config.openAiOAuthClientId = openAiOAuthClientId
+					if (openAiOAuthScopes) config.openAiOAuthScopes = openAiOAuthScopes
+					if (openAiOAuthTokenUrl) config.openAiOAuthTokenUrl = openAiOAuthTokenUrl
 				} else if (apiKey) {
 					const keyField = ProviderToApiKeyMap[selectedProvider as keyof typeof ProviderToApiKeyMap]
 					if (keyField) {
@@ -538,7 +582,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("error")
 			}
 		},
-		[selectedProvider, apiKey, bedrockConfig, controller],
+		[
+			selectedProvider,
+			apiKey,
+			bedrockConfig,
+			controller,
+			openAiOAuthAuthUrl,
+			openAiOAuthClientId,
+			openAiOAuthScopes,
+			openAiOAuthTokenUrl,
+		],
 	)
 
 	const handleModelIdSubmit = useCallback(
@@ -643,6 +696,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				// Go back to cline_model if we came from there (Cline provider)
 				if (selectedProvider === "cline") {
 					setStep("cline_model")
+				} else if (selectedProvider === "openai-oauth") {
+					setStep("open_ai_oauth_token_url")
 				} else {
 					setStep("apikey")
 				}
@@ -669,6 +724,26 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "import":
 				setImportSource(null)
 				setStep("menu")
+				break
+			case "open_ai_oauth_auth_url":
+				setOpenAiOAuthAuthUrl("")
+				setStep("provider")
+				break
+			case "open_ai_oauth_base_url":
+				setOpenAiOAuthBaseUrl("")
+				setStep("open_ai_oauth_auth_url")
+				break
+			case "open_ai_oauth_client_id":
+				setOpenAiOAuthClientId("")
+				setStep("open_ai_oauth_base_url")
+				break
+			case "open_ai_oauth_scopes":
+				setOpenAiOAuthScopes("")
+				setStep("open_ai_oauth_client_id")
+				break
+			case "open_ai_oauth_token_url":
+				setOpenAiOAuthTokenUrl("")
+				setStep("open_ai_oauth_scopes")
 				break
 			case "error":
 				setErrorMessage("")
@@ -850,6 +925,115 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				}
 				return <ImportView onCancel={handleImportCancel} onComplete={handleImportComplete} source={importSource} />
 
+			// OAuth configuration steps
+			case "open_ai_oauth_auth_url":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">Authorization URL</Text>
+						<Text> </Text>
+						<Text color="gray">The authorization endpoint URL of your OAuth provider</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setOpenAiOAuthAuthUrl}
+							onSubmit={() => {
+								if (openAiOAuthAuthUrl.trim()) {
+									setStep("open_ai_oauth_base_url")
+								}
+							}}
+							placeholder="https://..."
+							value={openAiOAuthAuthUrl}
+						/>
+						<Text> </Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
+					</Box>
+				)
+
+			case "open_ai_oauth_base_url":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">Base URL (optional)</Text>
+						<Text> </Text>
+						<Text color="gray">For self-hosted or proxy endpoints (leave blank for default)</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setOpenAiOAuthBaseUrl}
+							onSubmit={() => {
+								setStep("open_ai_oauth_client_id")
+							}}
+							placeholder="https://api.example.com/v1"
+							value={openAiOAuthBaseUrl}
+						/>
+						<Text> </Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
+					</Box>
+				)
+
+			case "open_ai_oauth_client_id":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">OAuth Client ID</Text>
+						<Text> </Text>
+						<Text color="gray">Enter your OAuth 2.0 Client ID from your authorization server</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setOpenAiOAuthClientId}
+							onSubmit={() => {
+								if (openAiOAuthClientId.trim()) {
+									setStep("open_ai_oauth_scopes")
+								}
+							}}
+							placeholder="your-client-id"
+							value={openAiOAuthClientId}
+						/>
+						<Text> </Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
+					</Box>
+				)
+
+			case "open_ai_oauth_scopes":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">OAuth Scopes (space-separated)</Text>
+						<Text> </Text>
+						<Text color="gray">Enter the OAuth scopes you need, separated by spaces</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setOpenAiOAuthScopes}
+							onSubmit={() => {
+								if (openAiOAuthScopes.trim()) {
+									setStep("open_ai_oauth_token_url")
+								}
+							}}
+							placeholder="e.g., openid profile email"
+							value={openAiOAuthScopes}
+						/>
+						<Text> </Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
+					</Box>
+				)
+
+			case "open_ai_oauth_token_url":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">Token URL</Text>
+						<Text> </Text>
+						<Text color="gray">The token endpoint URL of your OAuth provider</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setOpenAiOAuthTokenUrl}
+							onSubmit={() => {
+								if (openAiOAuthTokenUrl.trim()) {
+									setStep("modelid")
+								}
+							}}
+							placeholder="https://..."
+							value={openAiOAuthTokenUrl}
+						/>
+						<Text> </Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
+					</Box>
+				)
+
 			case "error":
 				return (
 					<Box flexDirection="column">
@@ -882,6 +1066,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"openai_codex_auth",
 		"bedrock",
 		"error",
+		"open_ai_oauth_auth_url",
+		"open_ai_oauth_base_url",
+		"open_ai_oauth_client_id",
+		"open_ai_oauth_scopes",
+		"open_ai_oauth_token_url",
 	].includes(step)
 
 	useInput(

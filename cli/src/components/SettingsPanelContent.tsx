@@ -1051,11 +1051,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (separateModels) {
 					// Only update the selected mode's model
 					const stateKey = item.key === "actModelId" ? actKey : planKey
-					if (stateKey) stateManager.setGlobalState(stateKey, editValue || undefined)
+					if (stateKey) {
+						stateManager.setGlobalState(stateKey, editValue || undefined)
+						refreshModelIds()
+					}
 				} else {
 					// Update both modes to keep them in sync
 					if (actKey) stateManager.setGlobalState(actKey, editValue || undefined)
 					if (planKey) stateManager.setGlobalState(planKey, editValue || undefined)
+					if (actKey || planKey) {
+						refreshModelIds()
+					}
 				}
 				break
 			}
