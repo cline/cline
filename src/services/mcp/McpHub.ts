@@ -799,9 +799,17 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
-				const config = JSON.parse(connection.server.config)
-				if (config.url) {
-					await this.mcpOAuthManager.clearServerAuth(name, config.url)
+				// Check if transient server first
+				let serverUrl: string | undefined
+				if (this.transientServers.has(name)) {
+					const transientConfig = this.transientServerConfigs.get(name)
+					serverUrl = (transientConfig as any)?.url
+				} else {
+					const config = JSON.parse(connection.server.config)
+					serverUrl = config.url
+				}
+				if (serverUrl) {
+					await this.mcpOAuthManager.clearServerAuth(name, serverUrl)
 				}
 			} catch (error) {
 				Logger.error(`Failed to clear OAuth data for ${name}:`, error)
@@ -1118,6 +1126,33 @@ export class McpHub {
 
 	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
 		try {
+			// Check if this is a transient server
+			if (this.transientServers.has(serverName)) {
+				// For transient servers, only update in-memory config
+				const transientConfig = this.transientServerConfigs.get(serverName)
+				if (transientConfig) {
+					transientConfig.disabled = disabled
+				}
+
+				const connection = this.connections.find((conn) => conn.server.name === serverName)
+				if (connection) {
+					connection.server.disabled = disabled
+					if (!disabled) {
+						connection.server.status = "connecting"
+						connection.server.error = ""
+					}
+				}
+
+				// Return all servers including transient ones
+				const settings = await this.readAndValidateMcpSettingsFile()
+				if (!settings) {
+					throw new Error("Failed to read MCP settings")
+				}
+				const allServerNames = [...Object.keys(settings.mcpServers), ...Array.from(this.transientServers)]
+				return this.getSortedMcpServers(allServerNames)
+			}
+
+			// For persistent servers, update settings file
 			const config = await this.readAndValidateMcpSettingsFile()
 			if (!config) {
 				throw new Error("Failed to read or validate MCP settings")
@@ -1235,12 +1270,19 @@ export class McpHub {
 
 		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
 
-		try {
-			const config = JSON.parse(connection.server.config)
-			const parsedConfig = ServerConfigSchema.parse(config)
-			timeout = secondsToMs(parsedConfig.timeout)
-		} catch (error) {
-			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+		// Check if this is a transient server first (same pattern as fetchToolsList)
+		if (this.transientServers.has(serverName)) {
+			const transientConfig = this.transientServerConfigs.get(serverName)
+			timeout = secondsToMs(transientConfig?.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS)
+		} else {
+			// For persistent servers, read from stored config
+			try {
+				const config = JSON.parse(connection.server.config)
+				const parsedConfig = ServerConfigSchema.parse(config)
+				timeout = secondsToMs(parsedConfig.timeout)
+			} catch (error) {
+				Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+			}
 		}
 
 		this.telemetryService.captureMcpToolCall(
@@ -1592,6 +1634,24 @@ export class McpHub {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
 			}
 
+			// Check if this is a transient server
+			if (this.transientServers.has(serverName)) {
+				// For transient servers, only update in-memory config
+				const transientConfig = this.transientServerConfigs.get(serverName)
+				if (transientConfig) {
+					transientConfig.timeout = timeout
+				}
+
+				// Return all servers including transient ones
+				const settings = await this.readAndValidateMcpSettingsFile()
+				if (!settings) {
+					throw new Error("Failed to read MCP settings")
+				}
+				const allServerNames = [...Object.keys(settings.mcpServers), ...Array.from(this.transientServers)]
+				return this.getSortedMcpServers(allServerNames)
+			}
+
+			// For persistent servers, update settings file
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
@@ -1610,6 +1670,7 @@ export class McpHub {
 			// Update in-memory config to reflect the new timeout
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 			if (connection) {
+				// Update stored config for persistent servers
 				const currentConfig = JSON.parse(connection.server.config)
 				currentConfig.timeout = timeout
 				connection.server.config = JSON.stringify(currentConfig)
@@ -1677,9 +1738,15 @@ export class McpHub {
 			throw new Error(`No connection found for server: ${serverName}`)
 		}
 
-		// Extract serverUrl from config
-		const config = JSON.parse(connection.server.config)
-		const serverUrl = config.url
+		// Extract serverUrl from config (check transient first)
+		let serverUrl: string | undefined
+		if (this.transientServers.has(serverName)) {
+			const transientConfig = this.transientServerConfigs.get(serverName)
+			serverUrl = (transientConfig as any)?.url
+		} else {
+			const config = JSON.parse(connection.server.config)
+			serverUrl = config.url
+		}
 		if (!serverUrl) {
 			throw new Error(`No URL found in config for server: ${serverName}`)
 		}
@@ -1695,9 +1762,17 @@ export class McpHub {
 	async completeOAuth(serverHash: string, code: string, state: string | null): Promise<void> {
 		// Find the connection by matching the server hash
 		const connection = this.connections.find((conn) => {
-			const config = JSON.parse(conn.server.config)
-			if (config.url) {
-				const hash = getServerAuthHash(conn.server.name, config.url)
+			// Check transient config first
+			let serverUrl: string | undefined
+			if (this.transientServers.has(conn.server.name)) {
+				const transientConfig = this.transientServerConfigs.get(conn.server.name)
+				serverUrl = (transientConfig as any)?.url
+			} else {
+				const config = JSON.parse(conn.server.config)
+				serverUrl = config.url
+			}
+			if (serverUrl) {
+				const hash = getServerAuthHash(conn.server.name, serverUrl)
 				return hash === serverHash
 			}
 			return false
@@ -1779,7 +1854,7 @@ export class McpHub {
 			let normalizedConfig: any = {
 				disabled: serverConfig.disabled ?? false,
 				autoApprove: serverConfig.autoApprove ?? [],
-				timeout: serverConfig.timeout,
+				timeout: serverConfig.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS,
 			}
 
 			// Handle stdio transport
