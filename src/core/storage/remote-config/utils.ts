@@ -237,7 +237,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	return transformed
 }
 
-const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
+export const REMOTE_CONFIG_OTEL_PROVIDER_ID = "OpenTelemetryRemoteConfiguredProvider"
 async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, telemetryService: TelemetryService) {
 	try {
 		const otelConfig = remoteConfigToOtelConfig(transformed)

@@ -67,6 +67,10 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		return this
 	}
 
+	async forceFlush() {
+		return this.client.flush()
+	}
+
 	public log(event: string, properties?: TelemetryProperties): void {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return

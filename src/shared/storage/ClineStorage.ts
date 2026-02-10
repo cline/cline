@@ -79,6 +79,11 @@ export abstract class ClineStorage {
 		}
 	}
 
+	async _dangerousStore(key: string, value: string): Promise<void> {
+		await this._store(key, value)
+		await this.fire(key)
+	}
+
 	/**
 	 * Store a value in storage. This method is final and cannot be overridden.
 	 * Subclasses should implement _store() to define their storage logic.
@@ -86,8 +91,7 @@ export abstract class ClineStorage {
 	 */
 	public async store(key: string, value: string): Promise<void> {
 		try {
-			await this._store(key, value)
-			await this.fire(key)
+			await this._dangerousStore(key, value)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to store '${key}':`, error)
 		}

@@ -190,6 +190,8 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 	): void {
 		// no-op
 	}
+
+	async forceFlush() {}
 	async dispose(): Promise<void> {
 		Logger.info(`[NoOpTelemetryProvider] Disposing (optIn=${this.isOptIn})`)
 	}
