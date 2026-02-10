@@ -8,12 +8,11 @@ import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
 import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
@@ -442,8 +441,8 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	await StateManager.initialize(extensionContext as any)
 	await ErrorService.initialize()
 
-	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
-	openAiCodexOAuthManager.initialize(extensionContext)
+	// Configure the shared Logging class to use HostProvider's output channel
+	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg))
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller

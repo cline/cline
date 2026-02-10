@@ -1,4 +1,4 @@
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -9,7 +9,6 @@ import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnb
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
-import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { ExtensionRegistryInfo } from "./registry"
 import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
@@ -59,8 +58,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// =============== External services ===============
 	await ErrorService.initialize()
-	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
-	openAiCodexOAuthManager.initialize(context)
 	// Initialize PostHog client provider (skip in self-hosted mode)
 	if (!ClineEndpoint.isSelfHosted()) {
 		PostHogClientProvider.getInstance()

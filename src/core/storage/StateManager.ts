@@ -1,21 +1,21 @@
-import { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
-	GlobalState,
-	GlobalStateAndSettings,
-	GlobalStateAndSettingsKey,
+	type GlobalState,
+	type GlobalStateAndSettings,
+	type GlobalStateAndSettingsKey,
 	isSecretKey,
 	isSettingsKey,
-	LocalState,
-	LocalStateKey,
-	RemoteConfigFields,
-	SecretKey,
+	type LocalState,
+	type LocalStateKey,
+	type RemoteConfigFields,
+	type SecretKey,
 	SecretKeys,
-	Secrets,
-	Settings,
-	SettingsKey,
+	type Secrets,
+	type Settings,
+	type SettingsKey,
 } from "@shared/storage/state-keys"
-import chokidar, { FSWatcher } from "chokidar"
+import chokidar, { type FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
@@ -820,9 +820,8 @@ export class StateManager {
 					const value = this.secretsCache[key]
 					if (value) {
 						return this.context.secrets.store(key, value)
-					} else {
-						return this.context.secrets.delete(key)
 					}
+					return this.context.secrets.delete(key)
 				}),
 			)
 		} catch (error) {
