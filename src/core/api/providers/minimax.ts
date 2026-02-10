@@ -71,6 +71,26 @@ export class MinimaxHandler implements ApiHandler {
 		})
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
+		let pendingTextBlock: { index: number; text: string; needsNewline: boolean } | null = null
+
+		const emitPendingTextBlock = function* () {
+			if (!pendingTextBlock) {
+				return
+			}
+			if (pendingTextBlock.needsNewline) {
+				yield {
+					type: "text" as const,
+					text: "\n",
+				}
+			}
+			if (pendingTextBlock.text) {
+				yield {
+					type: "text" as const,
+					text: pendingTextBlock.text,
+				}
+			}
+			pendingTextBlock = null
+		}
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
@@ -98,6 +118,9 @@ export class MinimaxHandler implements ApiHandler {
 					// no usage data, just an indicator that the message is done
 					break
 				case "content_block_start":
+					if (pendingTextBlock && pendingTextBlock.index !== chunk.index) {
+						yield* emitPendingTextBlock()
+					}
 					switch (chunk.content_block.type) {
 						case "thinking":
 							yield {
@@ -128,19 +151,18 @@ export class MinimaxHandler implements ApiHandler {
 								lastStartedToolCall.arguments = ""
 							}
 							break
-						case "text":
-							// we may receive multiple text blocks, in which case just insert a line break between them
-							if (chunk.index > 0) {
-								yield {
-									type: "text",
-									text: "\n",
+						case "text": {
+							const needsNewline = chunk.index > 0
+							const text = chunk.content_block.text
+							if (text || needsNewline) {
+								pendingTextBlock = {
+									index: chunk.index,
+									text: text ?? "",
+									needsNewline,
 								}
 							}
-							yield {
-								type: "text",
-								text: chunk.content_block.text,
-							}
 							break
+						}
 					}
 					break
 				case "content_block_delta":
@@ -163,12 +185,41 @@ export class MinimaxHandler implements ApiHandler {
 								}
 							}
 							break
-						case "text_delta":
+						case "text_delta": {
+							if (pendingTextBlock) {
+								if (pendingTextBlock.needsNewline) {
+									yield {
+										type: "text",
+										text: "\n",
+									}
+								}
+								const pendingText = pendingTextBlock.text
+								if (pendingText && chunk.delta.text.startsWith(pendingText)) {
+									yield {
+										type: "text",
+										text: chunk.delta.text,
+									}
+								} else {
+									if (pendingText) {
+										yield {
+											type: "text",
+											text: pendingText,
+										}
+									}
+									yield {
+										type: "text",
+										text: chunk.delta.text,
+									}
+								}
+								pendingTextBlock = null
+								break
+							}
 							yield {
 								type: "text",
 								text: chunk.delta.text,
 							}
 							break
+						}
 						case "input_json_delta":
 							if (lastStartedToolCall.id && lastStartedToolCall.name && chunk.delta.partial_json) {
 								// Convert Anthropic tool_use to OpenAI-compatible format for internal processing
@@ -190,6 +241,9 @@ export class MinimaxHandler implements ApiHandler {
 					break
 
 				case "content_block_stop":
+					if (pendingTextBlock && pendingTextBlock.index === chunk.index) {
+						yield* emitPendingTextBlock()
+					}
 					lastStartedToolCall.id = ""
 					lastStartedToolCall.name = ""
 					lastStartedToolCall.arguments = ""
