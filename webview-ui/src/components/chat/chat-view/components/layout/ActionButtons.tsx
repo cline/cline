@@ -4,6 +4,8 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { VirtuosoHandle } from "react-virtuoso"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useMetaKeyDetection } from "@/utils/hooks"
 import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
@@ -32,6 +34,9 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	messageHandlers,
 	scrollBehavior,
 }) => {
+	const { platform } = useExtensionState()
+	const [os, metaKeyChar] = useMetaKeyDetection(platform)
+	const metaKeySymbol = metaKeyChar === "CMD" ? "⌘" : metaKeyChar
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const [isProcessing, setIsProcessing] = useState(false)
 
@@ -62,6 +67,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		}
 	}, [lastMessage?.type, lastMessage?.say, secondLastMessage?.ask, chatState])
 
+	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
+	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
+	const hasButtons = primaryText || secondaryText
+	const isStreaming = task?.partial === true
+	const canInteract = enableButtons && !isProcessing
+
 	const handleActionClick = useCallback(
 		(action: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
 			if (isProcessing) {
@@ -86,9 +97,44 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				event.preventDefault()
 				event.stopPropagation()
 				messageHandlers.executeButtonAction("cancel")
+				return
+			}
+
+			// Modifier key shortcuts only work when action buttons are visible and enabled
+			if (!hasButtons || !canInteract || isProcessing) {
+				return
+			}
+
+			// Check for the platform-specific modifier key
+			const modifierKey = os === "mac" ? event.metaKey : os === "linux" ? event.altKey : event.ctrlKey
+
+			// Modifier+Enter triggers primary action
+			if (event.key === "Enter" && modifierKey && primaryAction) {
+				event.preventDefault()
+				event.stopPropagation()
+				handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)
+			}
+
+			// Modifier+Backspace triggers secondary action
+			if (event.key === "Backspace" && modifierKey && secondaryAction) {
+				event.preventDefault()
+				event.stopPropagation()
+				handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)
 			}
 		},
-		[messageHandlers],
+		[
+			os,
+			messageHandlers,
+			hasButtons,
+			canInteract,
+			isProcessing,
+			primaryAction,
+			secondaryAction,
+			handleActionClick,
+			inputValue,
+			selectedImages,
+			selectedFiles,
+		],
 	)
 
 	useEffect(() => {
@@ -99,13 +145,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	if (!task) {
 		return null
 	}
-
-	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
-
-	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
-	const hasButtons = primaryText || secondaryText
-	const isStreaming = task.partial === true
-	const canInteract = enableButtons && !isProcessing
 
 	// Early return for scroll button to avoid unnecessary computation
 	if (showScrollToBottom || !hasButtons) {
@@ -167,7 +206,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
-					{primaryText}
+					<span className="w-fit">{primaryText}</span>&nbsp;<span className="w-fit opacity-70">({metaKeySymbol}↵)</span>
 				</VSCodeButton>
 			)}
 			{secondaryText && secondaryAction && (
@@ -176,7 +215,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 					className={primaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
-					{secondaryText}
+					<span className="w-fit">{secondaryText}</span>&nbsp;
+					<span className="w-fit opacity-70">({metaKeySymbol}⌫)</span>
 				</VSCodeButton>
 			)}
 		</div>
