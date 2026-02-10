@@ -66,8 +66,8 @@ import {
 	isClaude4PlusModelFamily,
 	isGPT5ModelFamily,
 	isLocalModel,
-	isNativeToolCallingConfig,
 	isNextGenModelFamily,
+	isParallelToolCallingEnabled,
 } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
@@ -844,11 +844,8 @@ export class Task {
 	 */
 	private isParallelToolCallingEnabled(): boolean {
 		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		if (enableParallelSetting) {
-			return true
-		}
 		const providerInfo = this.getCurrentProviderInfo()
-		return isNativeToolCallingConfig(providerInfo, true) || isGPT5ModelFamily(providerInfo.model.id)
+		return isParallelToolCallingEnabled(enableParallelSetting, providerInfo)
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {

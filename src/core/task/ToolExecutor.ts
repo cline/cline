@@ -12,7 +12,7 @@ import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import { isGPT5ModelFamily, isNativeToolCallingConfig, modelDoesntSupportWebp } from "@/utils/model-utils"
+import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
@@ -312,17 +312,11 @@ export class ToolExecutor {
 	 */
 	private isParallelToolCallingEnabled(): boolean {
 		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		if (enableParallelSetting) {
-			return true
-		}
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const providerId = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		if (!providerId) {
-			return false
-		}
-		return isNativeToolCallingConfig({ providerId, model, mode }, true) || isGPT5ModelFamily(model.id)
+		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
 	}
 
 	/**
