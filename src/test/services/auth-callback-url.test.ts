@@ -53,24 +53,37 @@ describe("Auth Callback URL", () => {
 		})
 	})
 
-	describe("VS Code Web callback URL regression", () => {
-		it("should NOT use 127.0.0.1 for web callback URLs", () => {
-			// This test documents the critical invariant:
-			// In VS Code Web (Codespaces, code serve-web), the callback URL must NOT
-			// be http://127.0.0.1:PORT because the extension host runs remotely.
-			//
-			// The fix in extension.ts gates on vscode.env.uiKind === UIKind.Web:
-			// - Desktop: returns vscode://extension-id/path directly (proven working)
-			// - Web: returns vscode.env.asExternalUri() → HTTPS web-reachable URL
-			//
-			// The AuthHandler (localhost HTTP server) is now ONLY used by:
-			// - standalone/cline-core.ts (CLI mode)
-			// - OcaAuthService (enterprise auth that explicitly enables AuthHandler)
-			//
-			// This cannot be tested in unit tests because it requires the VS Code
-			// extension host with UIKind.Web. The invariant is enforced by code review
-			// and the UIKind.Web gate in extension.ts setupHostProvider().
-			true.should.be.true()
+	describe("callback URL encoding", () => {
+		it("should preserve callback_url with query params when URL-encoded via searchParams", () => {
+			// Simulates a VS Code Web callback URL that contains its own query params
+			// (e.g. from vscode.env.asExternalUri adding tokens).
+			// If callers string-interpolate instead of using searchParams.set(),
+			// everything after the first & gets parsed as a top-level param and
+			// callback_url is truncated.
+			const webCallback = "https://codespace-abc.github.dev/callback?tkn=secret123&extra=val"
+
+			const authUrl = new URL("https://openrouter.ai/auth")
+			authUrl.searchParams.set("callback_url", webCallback)
+
+			// The callback_url value must round-trip intact
+			const parsed = new URL(authUrl.toString())
+			parsed.searchParams.get("callback_url")!.should.equal(webCallback)
+
+			// The raw URL must NOT contain an unencoded & from the callback
+			const raw = authUrl.toString()
+			raw.should.not.containEql("&extra=")
+			raw.should.not.containEql("&tkn=")
+			raw.should.containEql(encodeURIComponent("&extra=val"))
+		})
+
+		it("should encode vscode:// callback URLs correctly", () => {
+			const desktopCallback = "vscode://saoudrizwan.claude-dev/openrouter"
+
+			const authUrl = new URL("https://openrouter.ai/auth")
+			authUrl.searchParams.set("callback_url", desktopCallback)
+
+			const parsed = new URL(authUrl.toString())
+			parsed.searchParams.get("callback_url")!.should.equal(desktopCallback)
 		})
 	})
 })
