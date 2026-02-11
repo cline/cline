@@ -73,10 +73,7 @@ async function disposeTelemetryServices(): Promise<void> {
 	}
 
 	telemetryDisposed = true
-	await Promise.allSettled([
-		telemetryService.dispose(),
-		PostHogClientProvider.getInstance().dispose(),
-	])
+	await Promise.allSettled([telemetryService.dispose(), PostHogClientProvider.getInstance().dispose()])
 }
 
 async function disposeCliContext(ctx: CliContext): Promise<void> {
@@ -433,7 +430,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		() => new StandaloneTerminalManager(),
 		createCliHostBridgeProvider(workspacePath),
 		logToChannel,
-		async () => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl() : ""),
+		async (path: string) => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl(path) : ""),
 		getCliBinaryPath,
 		EXTENSION_DIR,
 		DATA_DIR,

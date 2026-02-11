@@ -63,11 +63,17 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "resume_task":
 			case "resume_completed_task":
 				return false
+			case "use_subagents":
+				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
+					return false
+				}
+				break
 		}
 		switch (message.say) {
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 			case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
+			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
@@ -93,6 +99,11 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				break
 			case "mcp_server_request_started":
 				return false
+			case "use_subagents":
+				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
+					return false
+				}
+				break
 		}
 		return true
 	})

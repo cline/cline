@@ -9,20 +9,17 @@
  * - VscodeTerminalManager → VscodeTerminalProcess (shell integration)
  * - StandaloneTerminalManager → StandaloneTerminalProcess (child_process)
  *
- * IMPORTANT: Subagent commands (cline CLI) are ALWAYS routed to use
- * StandaloneTerminalManager regardless of the configured mode. This ensures
- * subagents run in hidden/background terminals rather than cluttering the
- * user's visible VSCode terminal.
+ * IMPORTANT: Background execution mode uses StandaloneTerminalManager to run
+ * commands in hidden terminals without cluttering the visible terminal.
  */
 
-import { isSubagentCommand, transformClineCommand } from "@integrations/cli-subagents/subagent_command"
-import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { ClineToolResponseContent } from "@shared/messages"
 import { Logger } from "@/shared/services/Logger"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import { StandaloneTerminalManager } from "./standalone/StandaloneTerminalManager"
 import type {
+	CommandExecutionOptions,
 	CommandExecutorCallbacks,
 	CommandExecutorConfig,
 	ITerminalManager,
@@ -73,10 +70,9 @@ export class CommandExecutor {
 			this.standaloneManager = config.terminalManager
 			Logger.info(`[CommandExecutor] Reusing Task's StandaloneTerminalManager for backgroundExec mode`)
 		} else {
-			// Create new StandaloneTerminalManager for subagents (even in VSCode mode)
-			// This ensures subagents run in hidden terminals, not cluttering the user's VSCode terminal
+			// Create a standalone manager for background execution support.
 			this.standaloneManager = new StandaloneTerminalManager()
-			Logger.info(`[CommandExecutor] Created new StandaloneTerminalManager for subagents`)
+			Logger.info(`[CommandExecutor] Created new StandaloneTerminalManager`)
 
 			// Copy settings from the provided terminalManager to ensure consistency
 			if ("shellIntegrationTimeout" in config.terminalManager) {
@@ -84,7 +80,6 @@ export class CommandExecutor {
 				this.standaloneManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout || 4000)
 				this.standaloneManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
 				this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
-				this.standaloneManager.setSubagentTerminalOutputLineLimit(tm.subagentTerminalOutputLineLimit || 2000)
 			}
 		}
 	}
@@ -93,32 +88,26 @@ export class CommandExecutor {
 	 * Execute a command in the terminal.
 	 *
 	 * Routing logic:
-	 * 1. Subagent commands (cline CLI) → Always use StandaloneTerminalManager
-	 *    This ensures subagents run in hidden terminals, not cluttering the user's VSCode terminal
-	 * 2. Regular commands → Use the configured terminal manager based on terminalExecutionMode
+	 * 1. Background mode commands use StandaloneTerminalManager
+	 * 2. Regular commands use the configured terminal manager
 	 *
 	 * @param command The command to execute
 	 * @param timeoutSeconds Optional timeout in seconds
 	 * @returns [userRejected, result] tuple
 	 */
-	async execute(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
-		// Transform subagent commands to ensure flags are correct
-		const isSubagent = isSubagentCommand(command)
-		if (isSubagent) {
-			command = transformClineCommand(command)
-		}
-
+	async execute(
+		command: string,
+		timeoutSeconds: number | undefined,
+		options?: CommandExecutionOptions,
+	): Promise<[boolean, ClineToolResponseContent]> {
 		// Strip leading `cd` to workspace from command
 		const workspaceCdPrefix = `cd ${this.cwd} && `
 		if (command.startsWith(workspaceCdPrefix)) {
 			command = command.substring(workspaceCdPrefix.length)
 		}
 
-		const subAgentStartTime = isSubagent ? performance.now() : 0
-
 		// Select the appropriate terminal manager
-		// Subagents always use standalone manager (hidden terminal)
-		const useStandalone = isSubagent || this.terminalExecutionMode === "backgroundExec"
+		const useStandalone = options?.useBackgroundExecution || this.terminalExecutionMode === "backgroundExec"
 		const manager = useStandalone ? this.standaloneManager : this.terminalManager
 		Logger.info(`Executing command in ${useStandalone ? "standalone" : "VSCode"} terminal: ${command}`)
 
@@ -141,6 +130,7 @@ export class CommandExecutor {
 		const result = await orchestrateCommandExecution(process, manager, this.callbacks, {
 			command,
 			timeoutSeconds,
+			suppressUserInteraction: options?.suppressUserInteraction,
 			// When "Proceed While Running" is triggered, track the command in the manager
 			// Returns the log file path so the orchestrator can send it to the UI
 			// existingOutput contains all output lines captured so far
@@ -153,12 +143,6 @@ export class CommandExecutor {
 			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
 			terminalType: useStandalone ? "standalone" : "vscode",
 		})
-
-		// Capture subagent telemetry
-		if (isSubagent && subAgentStartTime > 0) {
-			const durationMs = Math.round(performance.now() - subAgentStartTime)
-			telemetryService.captureSubagentExecution(this.ulid, durationMs, result.outputLines.length, result.completed)
-		}
 
 		// If the command was cancelled externally (via cancel button), return a clear cancellation message
 		// This ensures the AI agent knows the command was cancelled by the user
