@@ -286,7 +286,7 @@ export class SubagentRunner {
 				customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
 			}
 			stats.contextWindow = providerInfo.model.info.contextWindow || 0
-			const useNativeToolCalls =
+			const nativeToolCallsRequested =
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				!!this.baseConfig.services.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 
@@ -302,13 +302,14 @@ export class SubagentRunner {
 				focusChainSettings: this.baseConfig.focusChainSettings,
 				browserSettings: this.baseConfig.browserSettings,
 				yoloModeToggled: false,
-				enableNativeToolCalls: useNativeToolCalls,
+				enableNativeToolCalls: nativeToolCallsRequested,
 				enableParallelToolCalling: false,
 				isSubagentRun: true,
 			}
 
 			const promptRegistry = PromptRegistry.getInstance()
 			const systemPrompt = (await promptRegistry.get(context)) + SUBAGENT_SYSTEM_SUFFIX
+			const useNativeToolCalls = !!promptRegistry.nativeTools?.length
 			const nativeTools = useNativeToolCalls ? this.buildNativeTools(context) : undefined
 			const workspaceMetadataEnvironmentBlock = await this.getWorkspaceMetadataEnvironmentBlock()
 
