@@ -4,6 +4,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
+		"jsx": "react",
 		"lib": [
 			"es2022",
 			"DOM"
@@ -57,14 +58,14 @@
 		}
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"cli/src/**/*"
 	],
 	"exclude": [
 		"node_modules",
 		".vscode-test",
 		"webview-ui",
 		"src/test/e2e/**/*",
-		"cli",
 		"src/test/scenarios/**/*"
 	]
 }

@@ -173,7 +173,7 @@ export class ClineAgent implements acp.Agent {
 	async initialize(params: acp.InitializeRequest, connection?: acp.AgentSideConnection): Promise<acp.InitializeResponse> {
 		this.clientCapabilities = params.clientCapabilities
 		this.initializeHostProvider(this.clientCapabilities, connection)
-		await ClineEndpoint.initialize()
+		await ClineEndpoint.initialize(this.ctx.EXTENSION_DIR)
 		await StateManager.initialize(this.ctx.extensionContext)
 
 		return {
@@ -246,8 +246,8 @@ export class ClineAgent implements acp.Agent {
 			},
 			hostBridgeClientProvider,
 			(message: string) => Logger.info(message),
-			async () => {
-				return AuthHandler.getInstance().getCallbackUrl()
+			async (path: string) => {
+				return AuthHandler.getInstance().getCallbackUrl(path)
 			},
 			async () => "", // get binary location not needed in ACP mode
 			this.ctx.EXTENSION_DIR,
@@ -337,9 +337,7 @@ export class ClineAgent implements acp.Agent {
 
 		// Use provider-specific model ID key (e.g., cline uses actModeOpenRouterModelId)
 		const modelKey = currentProvider ? getProviderModelIdKey(currentProvider, mode) : null
-		const currentModelId = modelKey
-			? (stateManager.getGlobalSettingsKey(modelKey as string) as string | undefined)
-			: undefined
+		const currentModelId = modelKey ? stateManager.getGlobalSettingsKey(modelKey) : undefined
 
 		// Build the current model ID in provider/model format
 		const currentFullModelId =
@@ -975,7 +973,7 @@ export class ClineAgent implements acp.Agent {
 		// Get the callback URL first to ensure the server is ready
 		let callbackUrl: string
 		try {
-			callbackUrl = await authHandler.getCallbackUrl()
+			callbackUrl = await authHandler.getCallbackUrl("/auth")
 			Logger.debug("[ClineAgent] Callback URL ready:", callbackUrl)
 		} catch (error) {
 			Logger.error("[ClineAgent] Failed to get callback URL:", error)
@@ -1160,8 +1158,8 @@ export class ClineAgent implements acp.Agent {
 
 		if (currentProvider === "cline") {
 			// For Cline provider, check if we have stored auth data
-			const authData = await secretStorage.get("cline:clineAccountId")
-			return !!authData
+			const values = await Promise.all(["clineApiKey", "clineAccountId"].map((key) => secretStorage.get(key)))
+			return values.some(Boolean)
 		}
 
 		// For OpenAI Codex provider, check OAuth credentials

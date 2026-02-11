@@ -107,8 +107,8 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	}
 	const createCommentReview = () => new ExternalCommentReviewController()
 	const createTerminalManager = () => new StandaloneTerminalManager()
-	const getCallbackUrl = (): Promise<string> => {
-		return AuthHandler.getInstance().getCallbackUrl()
+	const getCallbackUrl = (path: string): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUrl(path)
 	}
 	// cline-core expects the binaries to be unpacked in the directory where it is running.
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
@@ -252,10 +252,10 @@ function parseArgs(): CliArgs {
 		switch (arg) {
 			case "--port":
 			case "-p":
-				args.port = parseInt(argv[++i], 10)
+				args.port = Number.parseInt(argv[++i], 10)
 				break
 			case "--host-bridge-port":
-				args.hostBridgePort = parseInt(argv[++i], 10)
+				args.hostBridgePort = Number.parseInt(argv[++i], 10)
 				break
 			case "--config":
 			case "-c":

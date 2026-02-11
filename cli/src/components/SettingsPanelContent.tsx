@@ -5,8 +5,9 @@
 
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
+import type { ApiProvider, ModelInfo } from "@shared/api"
+import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
+import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
@@ -18,11 +19,13 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
 import { openExternal } from "@/utils/env"
+import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
@@ -33,7 +36,7 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -50,11 +53,23 @@ type SettingsTab = "api" | "auto-approve" | "features" | "other" | "account"
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action"
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action" | "cycle"
 	value: string | boolean
 	description?: string
 	isSubItem?: boolean
 	parentKey?: string
+}
+
+function normalizeReasoningEffort(value: unknown): OpenaiReasoningEffort {
+	if (isOpenaiReasoningEffort(value)) {
+		return value
+	}
+	return "low"
+}
+
+function nextReasoningEffort(current: OpenaiReasoningEffort): OpenaiReasoningEffort {
+	const idx = OPENAI_REASONING_EFFORT_OPTIONS.indexOf(current)
+	return OPENAI_REASONING_EFFORT_OPTIONS[(idx + 1) % OPENAI_REASONING_EFFORT_OPTIONS.length]
 }
 
 const TABS: PanelTab[] = [
@@ -68,40 +83,40 @@ const TABS: PanelTab[] = [
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
 	autoCondense: {
-		stateKey: "useAutoCondense" as const,
+		stateKey: "useAutoCondense",
 		default: false,
 		label: "Auto-condense",
 		description: "Automatically summarize long conversations",
 	},
 	webTools: {
-		stateKey: "clineWebToolsEnabled" as const,
+		stateKey: "clineWebToolsEnabled",
 		default: true,
 		label: "Web tools",
 		description: "Enable web search and fetch tools",
 	},
 	strictPlanMode: {
-		stateKey: "strictPlanModeEnabled" as const,
+		stateKey: "strictPlanModeEnabled",
 		default: true,
 		label: "Strict plan mode",
 		description: "Require explicit mode switching",
 	},
 	nativeToolCall: {
-		stateKey: "nativeToolCallEnabled" as const,
+		stateKey: "nativeToolCallEnabled",
 		default: true,
 		label: "Native tool call",
 		description: "Use model's native tool calling API",
 	},
 	parallelToolCalling: {
-		stateKey: "enableParallelToolCalling" as const,
+		stateKey: "enableParallelToolCalling",
 		default: false,
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
 	},
-	skillsEnabled: {
-		stateKey: "skillsEnabled" as const,
+	doubleCheckCompletion: {
+		stateKey: "doubleCheckCompletionEnabled",
 		default: false,
-		label: "Skills",
-		description: "Enable reusable agent instructions",
+		label: "Double-check completion",
+		description: "Reject first completion attempt and require re-verification",
 	},
 } as const
 
@@ -150,7 +165,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
 		const initial: Record<string, boolean> = {}
 		for (const [key, config] of Object.entries(FEATURE_SETTINGS)) {
-			initial[key] = stateManager.getGlobalSettingsKey(config.stateKey) ?? config.default
+			if (isSettingsKey(config.stateKey)) {
+				initial[key] = stateManager.getGlobalSettingsKey(config.stateKey)
+			} else {
+				initial[key] = stateManager.getGlobalStateKey(config.stateKey)
+			}
 		}
 		return initial as Record<FeatureKey, boolean>
 	})
@@ -165,6 +184,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [planThinkingEnabled, setPlanThinkingEnabled] = useState<boolean>(
 		() => (stateManager.getGlobalSettingsKey("planModeThinkingBudgetTokens") ?? 0) > 0,
+	)
+	const [actReasoningEffort, setActReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort")),
+	)
+	const [planReasoningEffort, setPlanReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("planModeReasoningEffort")),
 	)
 
 	// Auto-approve settings (complex nested object)
@@ -201,6 +226,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
 
+	// OCA auth hook
+	const handleOcaAuthSuccess = useCallback(async () => {
+		await applyProviderConfig({ providerId: "oca", controller })
+		setProvider("oca")
+		refreshModelIds()
+	}, [controller, refreshModelIds])
+
+	const {
+		isWaiting: isWaitingForOcaAuth,
+		startAuth: startOcaAuth,
+		cancelAuth: cancelOcaAuth,
+		isAuthenticated: isOcaAuthenticated,
+	} = useOcaAuth({
+		controller,
+		onSuccess: handleOcaAuthSuccess,
+	})
+
 	// Read model IDs from state (re-reads when refreshKey changes)
 	const { actModelId, planModelId } = useMemo(() => {
 		const apiConfig = stateManager.getApiConfiguration()
@@ -209,11 +251,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (!actProvider && !planProvider) {
 			return { actModelId: "", planModelId: "" }
 		}
-		const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
-		const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
+		const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
+		const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 		return {
-			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey as string) as string) || "" : "",
-			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey as string) as string) || "" : "",
+			actModelId: actKey ? (stateManager.getGlobalSettingsKey(actKey) as string) || "" : "",
+			planModelId: planKey ? (stateManager.getGlobalSettingsKey(planKey) as string) || "" : "",
 		}
 	}, [modelRefreshKey, stateManager])
 
@@ -257,19 +299,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
-			// Get organization info
-			const organizations = authService.getUserOrganizations()
+			const accountService = ClineAccountService.getInstance()
+
+			// Fetch fresh organization info from server (like webview's getUserOrganizations RPC)
+			// Don't use authService.getUserOrganizations() as it returns cached data
+			const organizations = await accountService.fetchUserOrganizationsRPC()
+			let activeOrgId: string | undefined
 			if (organizations) {
 				setAccountOrganizations(organizations)
 				const activeOrg = organizations.find((org) => org.active)
 				setAccountOrganization(activeOrg || null)
+				activeOrgId = activeOrg?.organizationId
 			}
 
 			// Fetch credit balance
 			try {
-				const accountService = ClineAccountService.getInstance()
-				const activeOrgId = authService.getActiveOrganizationId()
-
 				if (activeOrgId) {
 					const orgBalance = await accountService.fetchOrganizationCreditsRPC(activeOrgId)
 					if (orgBalance?.balance !== undefined) {
@@ -329,9 +373,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			setIsPickingOrganization(false)
 			try {
 				await ClineAccountService.getInstance().switchAccount(orgId || undefined)
-				// Refetch to get updated auth info with new active org
-				await AuthService.getInstance(controller).restoreRefreshTokenAndRetrieveAuthInfo()
-				fetchAccountInfo()
+				// Refetch fresh org data from server
+				await fetchAccountInfo()
 			} catch {
 				// Error switching organization
 			}
@@ -378,9 +421,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
-		// OpenAI Native, Codex, and GPT models don't support thinking budget (they use reasoning effort)
-		const isGptModel = actModelId?.toLowerCase().includes("gpt") || planModelId?.toLowerCase().includes("gpt")
-		const showThinkingOption = provider !== "openai-native" && provider !== "openai-codex" && !isGptModel
+		// Some providers/models expose reasoning effort instead of thinking budget controls.
+		const providerUsesReasoningEffort = provider === "openai-native" || provider === "openai-codex"
+		const showActReasoningEffort = supportsReasoningEffortForModel(actModelId || "")
+		const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
+		const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
+		const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
 
 		switch (currentTab) {
 			case "api":
@@ -404,13 +450,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showActThinkingOption
 									? [
 											{
 												key: "actThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: actThinkingEnabled,
+											},
+										]
+									: []),
+								...(showActReasoningEffort
+									? [
+											{
+												key: "actReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: actReasoningEffort,
 											},
 										]
 									: []),
@@ -421,13 +477,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: planModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showPlanThinkingOption
 									? [
 											{
 												key: "planThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: planThinkingEnabled,
+											},
+										]
+									: []),
+								...(showPlanReasoningEffort
+									? [
+											{
+												key: "planReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: planReasoningEffort,
 											},
 										]
 									: []),
@@ -440,13 +506,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showActThinkingOption
 									? [
 											{
 												key: "actThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: actThinkingEnabled,
+											},
+										]
+									: []),
+								...(showActReasoningEffort
+									? [
+											{
+												key: "actReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: actReasoningEffort,
 											},
 										]
 									: []),
@@ -476,7 +552,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						key: parentKey,
 						label: parentLabel,
 						type: "checkbox",
-						value: actions[parentKey as keyof typeof actions],
+						value: actions[parentKey as keyof typeof actions] ?? false,
 						description: parentDesc,
 					})
 					if (actions[parentKey as keyof typeof actions]) {
@@ -612,6 +688,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		separateModels,
 		actThinkingEnabled,
 		planThinkingEnabled,
+		actReasoningEffort,
+		planReasoningEffort,
 		autoApproveSettings,
 		features,
 		preferredLanguage,
@@ -645,6 +723,33 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 	}, [items.length, selectedIndex])
 
+	const rebuildTaskApi = useCallback(() => {
+		if (!controller?.task) {
+			return
+		}
+		const currentMode = stateManager.getGlobalSettingsKey("mode")
+		const apiConfig = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+	}, [controller, stateManager])
+
+	const setReasoningEffortForMode = useCallback(
+		(mode: "act" | "plan", effort: OpenaiReasoningEffort) => {
+			if (mode === "act") {
+				setActReasoningEffort(effort)
+				stateManager.setGlobalState("actModeReasoningEffort", effort)
+				if (!separateModels) {
+					setPlanReasoningEffort(effort)
+					stateManager.setGlobalState("planModeReasoningEffort", effort)
+				}
+			} else {
+				setPlanReasoningEffort(effort)
+				stateManager.setGlobalState("planModeReasoningEffort", effort)
+			}
+			rebuildTaskApi()
+		},
+		[separateModels, rebuildTaskApi, stateManager],
+	)
+
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
 		const item = items[selectedIndex]
@@ -664,6 +769,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (item.key === "viewAccount") {
 				handleTabChange("account")
 				return
+			}
+			return
+		}
+
+		if (item.type === "cycle") {
+			const targetMode = item.key === "actReasoningEffort" ? "act" : item.key === "planReasoningEffort" ? "plan" : undefined
+			if (targetMode) {
+				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
+				setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
 			}
 			return
 		}
@@ -720,12 +834,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				const actProvider = apiConfig.actModeApiProvider
 				const planProvider = apiConfig.planModeApiProvider || actProvider
 				if (actProvider) {
-					const actKey = getProviderModelIdKey(actProvider as ApiProvider, "act")
-					const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
-					const actModel = stateManager.getGlobalSettingsKey(actKey as string)
+					const actKey = getProviderModelIdKey(actProvider, "act")
+					const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
+					const actModel = stateManager.getGlobalSettingsKey(actKey)
 					if (planKey) stateManager.setGlobalState(planKey, actModel)
 				}
+				const actThinkingBudget = stateManager.getGlobalSettingsKey("actModeThinkingBudgetTokens") ?? 0
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", actThinkingBudget)
+				setPlanThinkingEnabled(actThinkingBudget > 0)
+
+				const actEffort = normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort"))
+				stateManager.setGlobalState("planModeReasoningEffort", actEffort)
+				setPlanReasoningEffort(actEffort)
 			}
+
+			rebuildTaskApi()
 			return
 		}
 
@@ -733,23 +856,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (item.key === "actThinkingEnabled") {
 			setActThinkingEnabled(newValue)
 			stateManager.setGlobalState("actModeThinkingBudgetTokens", newValue ? 1024 : 0)
-			// Rebuild API handler to apply thinking budget change
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			if (!separateModels) {
+				setPlanThinkingEnabled(newValue)
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			}
+			// Rebuild API handler to apply thinking budget change
+			rebuildTaskApi()
 			return
 		}
 		if (item.key === "planThinkingEnabled") {
 			setPlanThinkingEnabled(newValue)
 			stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			// Rebuild API handler to apply thinking budget change
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
+			rebuildTaskApi()
 			return
 		}
 
@@ -806,6 +925,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		handleClineLogin,
 		handleClineLogout,
 		accountOrganizations,
+		separateModels,
+		actReasoningEffort,
+		planReasoningEffort,
+		rebuildTaskApi,
+		setReasoningEffortForMode,
 	])
 
 	// Handle model selection from picker
@@ -822,11 +946,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				: actProvider || planProvider
 			if (!providerForSelection) return
 			// Use provider-specific model ID keys (e.g., cline uses actModeOpenRouterModelId)
-			const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
-			const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
+			const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
+			const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 			// For cline/openrouter providers, also set model info (like webview does)
-			let modelInfo
+			let modelInfo: ModelInfo | undefined
 			if (providerForSelection === "cline" || providerForSelection === "openrouter") {
 				const openRouterModels = await controller?.readOpenRouterModels()
 				modelInfo = openRouterModels?.[modelId]
@@ -913,7 +1037,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	}, [controller])
 
 	const handleProviderSelect = useCallback(
-		(providerId: string) => {
+		async (providerId: string) => {
 			// Special handling for Cline - uses OAuth (but skip if already logged in)
 			if (providerId === "cline") {
 				setIsPickingProvider(false)
@@ -921,7 +1045,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				const authInfo = AuthService.getInstance(controller).getInfo()
 				if (authInfo?.user?.email) {
 					// Already logged in - just set the provider
-					applyProviderConfig({ providerId: "cline", controller })
+					await applyProviderConfig({ providerId: "cline", controller })
 					setProvider("cline")
 					refreshModelIds()
 				} else {
@@ -938,6 +1062,22 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for OCA - uses OAuth (but skip if already logged in)
+			if (providerId === "oca") {
+				setIsPickingProvider(false)
+				// Check if already logged in
+				if (isOcaAuthenticated) {
+					// Already logged in - just set the provider
+					await applyProviderConfig({ providerId: "oca", controller })
+					setProvider("oca")
+					refreshModelIds()
+				} else {
+					// Not logged in - trigger OAuth
+					startOcaAuth()
+				}
+				return
+			}
+
 			// Special handling for Bedrock - needs multi-field configuration
 			if (providerId === "bedrock") {
 				setPendingProvider(providerId)
@@ -947,7 +1087,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			}
 
 			// Check if this provider needs an API key
-			const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
+			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {
 				// Provider needs an API key - go to API key entry mode
 				// Pre-fill with existing key if configured
@@ -960,13 +1100,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsEnteringApiKey(true)
 			} else {
 				// Provider doesn't need an API key (rare) - just set it
-				applyProviderConfig({ providerId, controller })
+				await applyProviderConfig({ providerId, controller })
 				setProvider(providerId)
 				refreshModelIds()
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, controller, refreshModelIds],
+		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds],
 	)
 
 	// Handle API key submission after provider selection
@@ -989,47 +1129,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Handle Bedrock configuration complete
 	const handleBedrockComplete = useCallback(
 		(bedrockConfig: BedrockConfig) => {
-			const config: Record<string, unknown> = {
-				actModeApiProvider: "bedrock",
-				planModeApiProvider: "bedrock",
-				apiProvider: "bedrock",
-				awsAuthentication: bedrockConfig.awsAuthentication,
-				awsRegion: bedrockConfig.awsRegion,
-				awsUseCrossRegionInference: bedrockConfig.awsUseCrossRegionInference,
-			}
-
-			const defaultModelId = getDefaultModelId("bedrock")
-			if (defaultModelId) {
-				// Use provider-specific model ID keys
-				const actModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "act")
-				const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
-				if (actModelKey) config[actModelKey] = defaultModelId
-				if (planModelKey) config[planModelKey] = defaultModelId
-			}
-
-			if (bedrockConfig.awsProfile !== undefined) config.awsProfile = bedrockConfig.awsProfile
-			if (bedrockConfig.awsAccessKey) config.awsAccessKey = bedrockConfig.awsAccessKey
-			if (bedrockConfig.awsSecretKey) config.awsSecretKey = bedrockConfig.awsSecretKey
-			if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
-
-			stateManager.setApiConfiguration(config as Record<string, string>)
-
-			// Close Bedrock config first, then flush state async
+			// Update UI state first for responsiveness
 			setProvider("bedrock")
 			refreshModelIds()
 			setIsConfiguringBedrock(false)
 			setPendingProvider(null)
 
-			// Flush state and rebuild API handler in background
-			stateManager.flushPendingState().then(() => {
-				if (controller?.task) {
-					const currentMode = stateManager.getGlobalSettingsKey("mode")
-					const apiConfig = stateManager.getApiConfiguration()
-					controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-				}
-			})
+			// Apply config and rebuild API handler in background
+			applyBedrockConfig({ bedrockConfig, controller })
 		},
-		[stateManager, controller],
+		[controller, refreshModelIds],
 	)
 
 	// Handle saving edited value
@@ -1045,8 +1154,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				const actProvider = apiConfig.actModeApiProvider
 				const planProvider = apiConfig.planModeApiProvider || actProvider
 				if (!actProvider && !planProvider) break
-				const actKey = actProvider ? getProviderModelIdKey(actProvider as ApiProvider, "act") : null
-				const planKey = planProvider ? getProviderModelIdKey(planProvider as ApiProvider, "plan") : null
+				const actKey = actProvider ? getProviderModelIdKey(actProvider, "act") : null
+				const planKey = planProvider ? getProviderModelIdKey(planProvider, "plan") : null
 
 				if (separateModels) {
 					// Only update the selected mode's model
@@ -1199,6 +1308,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (isWaitingForClineAuth) {
 				if (key.escape) {
 					setIsWaitingForClineAuth(false)
+				}
+				return
+			}
+
+			// OCA OAuth waiting mode - escape to cancel
+			if (isWaitingForOcaAuth) {
+				if (key.escape) {
+					cancelOcaAuth()
 				}
 				return
 			}
@@ -1423,6 +1540,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (isWaitingForOcaAuth) {
+			return (
+				<Box flexDirection="column">
+					<Box>
+						<Text color={COLORS.primaryBlue}>
+							<Spinner type="dots" />
+						</Text>
+						<Text color="white"> Waiting for OCA sign-in...</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Complete sign-in in your browser.</Text>
+					</Box>
+					<Box marginTop={1}>
+						<Text color="gray">Esc to cancel</Text>
+					</Box>
+				</Box>
+			)
+		}
+
 		// Account tab - loading state
 		if (currentTab === "account" && isAccountLoading) {
 			return (
@@ -1540,6 +1676,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						)
 					}
 
+					if (item.type === "cycle") {
+						return (
+							<Text key={item.key}>
+								<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+									{isSelected ? "❯" : " "}{" "}
+								</Text>
+								<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
+								<Text color={COLORS.primaryBlue}>
+									{typeof item.value === "string" ? item.value : String(item.value)}
+								</Text>
+								{isSelected && <Text color="gray"> (Tab to cycle)</Text>}
+							</Text>
+						)
+					}
+
 					// Readonly or editable field
 					return (
 						<Text key={item.key}>
@@ -1558,8 +1709,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		)
 	}
 
+	// Determine if we're in a subpage (picker, editor, or waiting state)
+	const isSubpage =
+		isPickingProvider ||
+		isPickingModel ||
+		isPickingFeaturedModel ||
+		isPickingLanguage ||
+		isEnteringApiKey ||
+		isConfiguringBedrock ||
+		isWaitingForCodexAuth ||
+		!!codexAuthError ||
+		isPickingOrganization ||
+		isWaitingForClineAuth ||
+		isWaitingForOcaAuth ||
+		isEditing
+
 	return (
-		<Panel currentTab={currentTab} label="Settings" tabs={TABS}>
+		<Panel currentTab={currentTab} isSubpage={isSubpage} label="Settings" tabs={TABS}>
 			{renderContent()}
 		</Panel>
 	)

@@ -6,6 +6,7 @@
  * - Ctrl+A/E: start/end of line
  * - Ctrl+W: delete word backwards
  * - Ctrl+U: delete to start of line
+ * - Ctrl+K: delete to end of line
  *
  * Note: Home/End keys are handled by useHomeEndKeys hook because Ink doesn't
  * expose them in useInput (it sets input='' for these keys).
@@ -76,7 +77,7 @@ export interface UseTextInputReturn {
 	cursorPos: number
 
 	// Text manipulation
-	setText: (text: string) => void
+	setText: (text: string | ((prev: string) => string)) => void
 	insertText: (text: string) => void
 	setCursorPos: (pos: number | ((prev: number) => number)) => void
 
@@ -102,9 +103,15 @@ export function useTextInput(): UseTextInputReturn {
 	cursorRef.current = cursorPos
 
 	// Text manipulation
-	const setText = useCallback((newText: string) => {
-		setTextState(newText)
-		setCursorPosState(newText.length)
+	const setText = useCallback((newText: string | ((prev: string) => string)) => {
+		setTextState((prev) => {
+			const resolved = typeof newText === "function" ? newText(prev) : newText
+			// Only update cursor to end if setting a direct value (not functional update)
+			if (typeof newText !== "function") {
+				setCursorPosState(resolved.length)
+			}
+			return resolved
+		})
 	}, [])
 
 	const insertText = useCallback((insertedText: string) => {
@@ -146,6 +153,14 @@ export function useTextInput(): UseTextInputReturn {
 		}
 	}, [])
 
+	const deleteToEnd = useCallback(() => {
+		const pos = cursorRef.current
+		if (pos < textRef.current.length) {
+			setTextState((prev) => prev.slice(0, pos))
+			// Cursor stays at same position (now at end of text)
+		}
+	}, [])
+
 	// Cursor movement (internal, used by handlers)
 	const moveToStart = useCallback(() => setCursorPosState(0), [])
 	const moveToEnd = useCallback(() => setCursorPosState(textRef.current.length), [])
@@ -184,6 +199,9 @@ export function useTextInput(): UseTextInputReturn {
 				case "u": // Ctrl+U - delete to start
 					deleteToStart()
 					return true
+				case "k": // Ctrl+K - delete to end
+					deleteToEnd()
+					return true
 				case "w": // Ctrl+W - delete word backwards
 					deleteWordBefore()
 					return true
@@ -191,7 +209,7 @@ export function useTextInput(): UseTextInputReturn {
 					return false
 			}
 		},
-		[moveToStart, moveToEnd, deleteToStart, deleteWordBefore],
+		[moveToStart, moveToEnd, deleteToStart, deleteToEnd, deleteWordBefore],
 	)
 
 	return {

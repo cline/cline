@@ -23,9 +23,9 @@ import fs from "fs/promises"
 import open from "open"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import type * as vscode from "vscode"
 import { ClineEnv } from "@/config"
+import type { FolderLockWithRetryResult } from "@/core/locks/types"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -345,9 +345,24 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
-		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		// Get previous setting to detect state changes
+		const previousSetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+		const wasOptedIn = previousSetting !== "disabled"
 		const isOptedIn = telemetrySetting !== "disabled"
+
+		// Capture opt-out event BEFORE updating (so it gets sent while telemetry is still enabled)
+		if (wasOptedIn && !isOptedIn) {
+			telemetryService.captureUserOptOut()
+		}
+
+		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		telemetryService.updateTelemetryState(isOptedIn)
+
+		// Capture opt-in event AFTER updating (so telemetry is enabled to receive it)
+		if (!wasOptedIn && isOptedIn) {
+			telemetryService.captureUserOptIn()
+		}
+
 		await this.postStateToWebview()
 	}
 
@@ -401,10 +416,9 @@ export class Controller {
 				)
 
 				return true
-			} else {
-				this.cancelTask()
-				return false
 			}
+			this.cancelTask()
+			return false
 		}
 
 		return false
@@ -744,6 +758,30 @@ export class Controller {
 		return undefined
 	}
 
+	// Hicap
+	async handleHicapCallback(code: string) {
+		const apiKey: string = code
+
+		const hicap: ApiProvider = "hicap"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+
+		// Update API configuration through cache service
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: hicap,
+			actModeApiProvider: hicap,
+			hicapApiKey: apiKey,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+
+		await this.postStateToWebview()
+		this.accountService
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -817,7 +855,6 @@ export class Controller {
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
 		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
@@ -853,6 +890,7 @@ export class Controller {
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -902,7 +940,6 @@ export class Controller {
 			focusChainSettings,
 			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
-			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
 			yoloModeToggled,
@@ -972,6 +1009,7 @@ export class Controller {
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+			doubleCheckCompletionEnabled,
 			banners,
 			openAiCodexIsAuthenticated,
 		}

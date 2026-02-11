@@ -1,482 +1,426 @@
 ---
 title: "CLI Reference"
-description: "Complete command reference for Cline CLI including configuration, instance management, and task commands"
+description: "Complete command reference for Cline CLI including all commands, flags, and configuration options"
 ---
 
-Complete command reference for Cline CLI. Use this for detailed documentation on all commands, options, and configuration.
+# CLI Reference
 
-For quick help in your terminal:
+This page documents all available commands, flags, and configuration options for Cline CLI. For quick help in your terminal, use:
 
 ```bash
 cline --help          # Show all commands
-cline task --help     # Show task-specific commands
-man cline            # View the full manual page
+cline task --help     # Show task command options
+cline auth --help     # Show auth command options
+man cline             # View the full manual page (if installed)
 ```
 
-## Manual Page
-
-The complete manual page for the Cline CLI:
-
-```
-CLINE(1)                         User Commands                        CLINE(1)
-
-NAME
-       cline - orchestrate and interact with Cline AI coding agents
-
-SYNOPSIS
-       cline [prompt] [options]
-
-       cline command [subcommand] [options] [arguments]
-
-DESCRIPTION
-       Try: cat README.md | cline "Summarize this for me:"
-
-       cline is a command-line interface for orchestrating multiple Cline AI
-       coding agents.  Cline is an autonomous AI agent who can read, write,
-       and execute code across your projects.  He operates through a
-       client-server architecture where Cline Core runs as a standalone
-       service, and the CLI acts as a scriptable interface for managing tasks,
-       instances, and agent interactions.
-
-       The CLI is designed for both interactive use and automation, making it
-       ideal for CI/CD pipelines, parallel task execution, and terminal-based
-       workflows.  Multiple frontends (CLI, VSCode, JetBrains) can attach to
-       the same Cline Core instance, enabling seamless task handoff between
-       environments.
-
-MODES OF OPERATION
-       Instant Task Mode
-              The simplest invocation: cline "prompt here" immediately spawns
-              an instance, creates a task, and enters chat mode.  This is
-              equivalent to running cline instance new && cline task new &&
-              cline task chat in sequence.
-
-       Subcommand Mode
-              Advanced usage with explicit control: cline <command>
-              [subcommand] [options] provides fine-grained control over
-              instances, tasks, authentication, and configuration.
-
-AGENT BEHAVIOR
-       Cline operates in two primary modes:
-
-       ACT MODE
-              Cline actively uses tools to accomplish tasks.  He can read
-              files, write code, execute commands, use a headless browser, and
-              more.  This is the default mode for task execution.
-
-       PLAN MODE
-              Cline gathers information and creates a detailed plan before
-              implementation.  He explores the codebase, asks clarifying
-              questions, and presents a strategy for user approval before
-              switching to ACT MODE.
-
-INSTANT TASK OPTIONS
-       When using the instant task syntax cline "prompt" the following options
-       are available:
-
-       -o, --oneshot
-              Full autonomous mode.  Cline completes the task and stops
-              following after completion.  Example: cline -o "what's 6 + 8?"
-
-       -s, --setting setting value
-              Override a setting for this task
-
-       -y, --no-interactive, --yolo
-              Enable fully autonomous mode.  Disables all interactivity:
-
-              • ask_followup_question tool is disabled
-
-              • attempt_completion happens automatically
-
-              • execute_command runs in non-blocking mode with timeout
-
-              • PLAN MODE automatically switches to ACT MODE
-
-       -m, --mode mode
-              Starting mode.  Options: act (default), plan
-
-       -w, --workspace path
-              Additional workspace paths.  Can be specified multiple times to
-              include multiple directories.  The current working directory is
-              always included as the first workspace.  Example: cline -w
-              /path/to/other/project "refactor shared code"
-
-GLOBAL OPTIONS
-       These options apply to all subcommands:
-
-       -F, --output-format format
-              Output format.  Options: rich (default), json, plain
-
-       -h, --help
-              Display help information for the command.
-
-       -v, --verbose
-              Enable verbose output for debugging.
-
-COMMANDS
-   Authentication
-       cline auth [provider] [key]
-
-       cline a [provider] [key]
-              Configure authentication for AI model providers.  Launches an
-              interactive wizard if no arguments provided.  If provider is
-              specified without a key, prompts for the key or launches the
-              appropriate OAuth flow.
-
-   Instance Management
-       Cline Core instances are independent agent processes that can run in
-       the background.  Multiple instances can run simultaneously, enabling
-       parallel task execution.
-
-       cline instance
-
-       cline i
-              Display instance management help.
-
-       cline instance new [-d|--default]
-
-       cline i n [-d|--default]
-              Spawn a new Cline Core instance.  Use --default to set it as
-              the default instance for subsequent commands.
-
-       cline instance list
-
-       cline i l
-              List all running Cline Core instances with their addresses and
-              status.
-
-       cline instance default address
-
-       cline i d address
-              Set the default instance to avoid specifying --address in task
-              commands.
-
-       cline instance kill address [-a|--all]
-
-       cline i k address [-a|--all]
-              Terminate a Cline Core instance.  Use --all to kill all running
-              instances.
-
-   Task Management
-       Tasks represent individual work items that Cline executes.  Tasks
-       maintain conversation history, checkpoints, and settings.
-
-       cline task [-a|--address ADDR]
-
-       cline t [-a|--address ADDR]
-              Display task management help.  The --address flag specifies
-              which Cline Core instance to use (e.g., localhost:50052).
-
-       cline task new prompt [options]
-
-       cline t n prompt [options]
-              Create a new task in the default or specified instance.
-              Options:
-
-              -s, --setting setting value
-                     Set task-specific settings
-
-              -y, --no-interactive, --yolo
-                     Enable autonomous mode
-
-              -m, --mode mode
-                     Starting mode (act or plan)
-
-       cline task open task-id [options]
-
-       cline t o task-id [options]
-              Resume a previous task from history.  Accepts the same options
-              as task new.
-
-       cline task list
-
-       cline t l
-              List all tasks in history with their id and snippet
-
-       cline task chat
-
-       cline t c
-              Enter interactive chat mode for the current task.  Allows
-              back-and-forth conversation with Cline.
-
-       cline task send [message] [options]
-
-       cline t s [message] [options]
-              Send a message to Cline.  If no message is provided, reads from
-              stdin.  Options:
-
-              -a, --approve
-                     Approve Cline's proposed action
-
-              -d, --deny
-                     Deny Cline's proposed action
-
-              -f, --file FILE
-                     Attach a file to the message
-
-              -y, --no-interactive, --yolo
-                     Enable autonomous mode
-
-              -m, --mode mode
-                     Switch mode (act or plan)
-
-       cline task view [-f|--follow] [-c|--follow-complete]
-
-       cline t v [-f|--follow] [-c|--follow-complete]
-              Display the current conversation.  Use --follow to stream
-              updates in real-time, or --follow-complete to follow until task
-              completion.
-
-       cline task restore checkpoint
-
-       cline t r checkpoint
-              Restore the task to a previous checkpoint state.
-
-       cline task pause
-
-       cline t p
-              Pause task execution.
-
-   Configuration
-       Configuration can be set globally.  Override these global settings for
-       a task using the --setting flag
-
-       cline config
-
-       cline c
-
-       cline config set key value
-
-       cline c s key value
-              Set a configuration variable.
-
-       cline config get key
-
-       cline c g key
-              Read a configuration variable.
-
-       cline config list
-
-       cline c l
-              List all configuration variables and their values.
-
-   Context Window Configuration
-       For local model providers, you can configure the context window size:
-
-       Ollama
-              cline config s ollama-api-options-ctx-num=32768
-
-       LM Studio
-              cline config s lm-studio-max-tokens=32768
-
-       For other providers (Anthropic, OpenRouter, etc.), the context window
-       is defined per model in the model metadata and is not user-settable.
-       Cline uses each model's built-in context limits automatically.
-
-TASK SETTINGS
-       Task settings are persisted in the ~/.cline/x/tasks directory.  When
-       resuming a task with cline task open, task settings are automatically
-       restored.
-
-       Common settings include:
-
-       yolo   Enable autonomous mode (true/false)
-
-       mode   Starting mode (act/plan)
-
-       hooks_enabled
-              Enable or disable hooks for the task (true/false)
-
-HOOKS INTEGRATION
-       Hooks let you inject custom logic into Cline's workflow at key moments.
-       They can validate operations before they execute, monitor tool usage,
-       and shape AI decisions. This allows you to integrate hooks into
-       automated workflows, CI/CD pipelines, and headless task execution.
-
-       Enable hooks for a task:
-
-              cline "prompt" -s hooks_enabled=true
-
-       Configure hooks globally:
-
-              cline config set hooks-enabled=true
-              cline config get hooks-enabled
-
-       Note: Hooks in the CLI are only supported on macOS and Linux.
-
-       For complete hooks documentation, see:
-       <https://docs.cline.bot/features/hooks/index>
-
-NOTES & EXAMPLES
-       The cline task send and cline task new commands support reading from
-       stdin, enabling powerful pipeline compositions:
-
-              cat requirements.txt | cline task send
-              echo "Refactor this code" | cline -y
-
-   Instance Management
-       Manage multiple Cline instances:
-
-              # Start a new instance and make it default
-              cline instance new --default
-
-              # List all running instances
-              cline instance list
-
-              # Kill a specific instance
-              cline instance kill localhost:50052
-
-              # Kill all CLI instances
-              cline instance kill --all-cli
-
-   Task History
-       Work with task history:
-
-              # List previous tasks
-              cline task list
-
-              # Resume a previous task
-              cline task open 1760501486669
-
-              # View conversation history
-              cline task view
-
-              # Start interactive chat with this task
-              cline task chat
-
-ARCHITECTURE
-       Cline operates on a three-layer architecture:
-
-       Presentation Layer
-              User interfaces (CLI, VSCode, JetBrains) that connect to Cline
-              Core via gRPC
-
-       Cline Core
-              The autonomous agent service handling task management, AI model
-              integration, state management, tool orchestration, and real-time
-              streaming updates
-
-       Host Provider Layer
-              Environment-specific integrations (VSCode APIs, JetBrains APIs,
-              shell APIs) that Cline Core uses to interact with the host
-              system
-
-BUGS
-       Report bugs at: <https://github.com/cline/cline/issues>
-
-       For real-time help, join the Discord community at:
-       <https://discord.gg/cline>
-
-SEE ALSO
-       Full documentation: <https://docs.cline.bot>
-
-AUTHORS
-       Cline is developed by the Cline Bot Inc. and the open source community.
-
-COPYRIGHT
-       Copyright © 2025 Cline Bot Inc. Licensed under the Apache License 2.0.
+## Synopsis
+
+```bash
+cline [prompt] [options]
+cline <command> [options] [arguments]
 ```
 
-## JSON output (-F json)
+## Global Options
 
-When you run a command with `-F json` (or `--output-format json`), Cline prints each client message as JSON.
+These options work with any command:
 
-### ClineMessage schema
+| Option | Description |
+|--------|-------------|
+| `--config <path>` | Use a custom configuration directory instead of `~/.cline/data/` |
+| `-c, --cwd <path>` | Set the working directory for the task |
+| `-v, --verbose` | Show detailed output including model reasoning |
+| `--help` | Show help for the command |
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `type` | `"ask" or "say"` | Yes | Top-level message category. |
-| `text` | `string` | Yes | Human-readable message content. |
-| `ts` | `number` | Yes | Unix epoch timestamp in milliseconds. |
-| `reasoning` | `string` | No | Omitted when empty. |
-| `say` | `string` | No | Omitted when empty. Present when `type` is `"say"`. |
-| `ask` | `string` | No | Omitted when empty. Present when `type` is `"ask"`. |
-| `partial` | `boolean` | No | Omitted when false. `true` for streaming updates. |
-| `images` | `string[]` | No | Omitted when empty. Image URIs when included with a message. |
-| `files` | `string[]` | No | Omitted when empty. File paths when attached to a message. |
-| `lastCheckpointHash` | `string` | No | Omitted when empty. Git checkpoint hash when available. |
-| `isCheckpointCheckedOut` | `boolean` | No | Omitted when false. `true` if Cline checked out a checkpoint. |
-| `isOperationOutsideWorkspace` | `boolean` | No | Omitted when false. `true` if an operation happened outside the workspace. |
+## Modes of Operation
 
-<Note>
-Most fields are optional and omitted when empty. If you parse this output, treat missing fields as “not present”, not as empty strings.
-</Note>
+Cline CLI automatically detects the best output mode based on how you invoke it:
 
-### Example
+| Mode | When Activated | Description |
+|------|----------------|-------------|
+| **Interactive** | `cline` with no args, TTY connected | Rich terminal UI with real-time streaming, keyboard shortcuts, and visual feedback. |
+| **Task** | `cline "prompt"` with TTY connected | Interactive UI starts immediately with your task. |
+| **Plain Text** | stdin piped, stdout redirected, or `--yolo`/`--json` flags | Clean text output without UI, suitable for scripting and CI/CD. |
+
+## Agent Behavior
+
+Cline operates in two primary modes that control how it approaches tasks:
+
+| Mode | Description |
+|------|-------------|
+| **Act Mode** (default) | Cline actively uses tools to accomplish tasks. It can read files, write code, execute commands, use a headless browser, and more. |
+| **Plan Mode** | Cline gathers information and creates a detailed plan before implementation. It explores the codebase, asks clarifying questions, and presents a strategy for your approval before switching to Act Mode. |
+
+Use `-a, --act` or `-p, --plan` flags to explicitly set the mode.
+
+## Commands
+
+### cline (default)
+
+Run Cline without a subcommand to start a task or enter interactive mode.
+
+```bash
+# Interactive mode (no arguments)
+cline
+
+# Start a task directly
+cline "your prompt here"
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-a, --act` | Start in Act mode (default). Cline executes actions directly. |
+| `-p, --plan` | Start in Plan mode. Cline analyzes and creates a strategy before acting. |
+| `-y, --yolo` | YOLO mode: auto-approve all actions, use plain text output, exit when complete. Ideal for CI/CD. |
+| `-m, --model <id>` | Use a specific model (e.g., `claude-sonnet-4-5-20250929`, `gpt-4o`). |
+| `-i, --images <paths...>` | Include image files with the prompt. |
+| `--thinking` | Enable extended thinking with a 1024 token budget. |
+| `--json` | Output messages as JSON (one object per line). Forces plain text mode. |
+| `--timeout <seconds>` | Maximum execution time before the task is stopped. |
+
+**Mode Behavior:**
+
+| Invocation | Output Mode | Why |
+|------------|-------------|-----|
+| `cline` | Interactive UI | No arguments, TTY connected |
+| `cline "prompt"` | Interactive UI | TTY connected |
+| `cline -y "prompt"` | Plain text | YOLO flag forces plain text |
+| `cline --json "prompt"` | JSON | JSON flag forces plain text |
+| `cat file \| cline "prompt"` | Plain text | stdin is piped |
+| `cline "prompt" > out.txt` | Plain text | stdout is redirected |
+
+---
+
+### cline task (alias: t)
+
+Run a task with a prompt. This is equivalent to `cline "prompt"`.
+
+```bash
+cline task "Create a REST API endpoint"
+cline t "Fix the bug in utils.js"
+```
+
+**Options:** Same as the default command above.
+
+---
+
+### cline auth
+
+Configure authentication with an AI provider.
+
+```bash
+# Interactive wizard
+cline auth
+
+# Quick setup with flags
+cline auth -p anthropic -k sk-ant-api-xxxxx -m claude-sonnet-4-5-20250929
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-p, --provider <id>` | Provider ID. See [Supported Providers](#supported-providers) below. |
+| `-k, --apikey <key>` | API key for the provider. |
+| `-m, --modelid <id>` | Model ID to use (e.g., `claude-sonnet-4-5-20250929`, `gpt-4o`). |
+| `-b, --baseurl <url>` | Base URL for OpenAI-compatible providers. |
+
+**Supported Providers:**
+
+| Provider ID | Description |
+|-------------|-------------|
+| `anthropic` | Anthropic Claude (direct API) |
+| `openai-native` | OpenAI GPT models |
+| `openai-codex` | ChatGPT subscription via OAuth |
+| `openrouter` | OpenRouter (access multiple providers) |
+| `bedrock` | AWS Bedrock |
+| `gemini` | Google Gemini |
+| `xai` | X AI (Grok) |
+| `cerebras` | Cerebras (fast inference) |
+| `deepseek` | DeepSeek |
+| `ollama` | Ollama (local models) |
+| `lmstudio` | LM Studio (local models) |
+| `openai` | OpenAI-compatible API (custom base URL) |
+
+---
+
+### cline history (alias: h)
+
+Browse task history with pagination.
+
+```bash
+# Show recent tasks (default: 10)
+cline history
+
+# Show more tasks
+cline history -n 20
+
+# Paginate through history
+cline history -n 10 -p 2
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-n, --limit <number>` | Number of tasks to show (default: 10) |
+| `-p, --page <number>` | Page number, 1-based (default: 1) |
+
+---
+
+### cline config
+
+View and manage configuration settings.
+
+```bash
+cline config
+```
+
+Opens an interactive configuration view with tabs for:
+- **Settings** - Global and workspace-specific settings
+- **Rules** - `.clinerules` files and imported rules
+- **Workflows** - Available workflows (appear as slash commands)
+- **Hooks** - Configured hook scripts
+- **Skills** - Enabled skills
+
+---
+
+### cline update
+
+Check for updates and install the latest version.
+
+```bash
+cline update
+```
+
+---
+
+### cline version
+
+Show the installed CLI version.
+
+```bash
+cline version
+```
+
+---
+
+### cline dev
+
+Developer tools for debugging.
+
+```bash
+# Open the log file
+cline dev log
+```
+
+## Environment Variables
+
+### CLINE_DIR
+
+Override the default configuration directory:
+
+```bash
+export CLINE_DIR=/path/to/custom/config
+cline "your task"
+```
+
+When set, all Cline data (settings, secrets, task history) is stored in this directory instead of `~/.cline/data/`.
+
+**Use cases:**
+- Running isolated Cline instances with different settings
+- CI/CD environments with custom state directories
+- Testing configuration changes without affecting your main setup
+
+### CLINE_COMMAND_PERMISSIONS
+
+Restrict which shell commands Cline can execute:
+
+```bash
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *"]}'
+```
+
+**Format:**
+
+```json
+{
+  "allow": ["pattern1", "pattern2"],
+  "deny": ["pattern3"],
+  "allowRedirects": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allow` | `string[]` | Glob patterns for allowed commands. If set, **only** matching commands are permitted. |
+| `deny` | `string[]` | Glob patterns for denied commands. Deny rules **always take precedence** over allow rules. |
+| `allowRedirects` | `boolean` | Whether to allow shell redirects (`>`, `>>`, `<`). Default: `false`. |
+
+**Examples:**
+
+```bash
+# Allow only npm and git commands (deny everything else)
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"]}'
+
+# Allow dev commands but explicitly deny dangerous ones
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *", "node *"], "deny": ["rm -rf *", "sudo *"]}'
+
+# Allow file reading with redirects
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["cat *", "echo *"], "allowRedirects": true}'
+```
+
+**How commands are evaluated:**
+
+1. Check for dangerous characters (backticks outside single quotes, unquoted newlines)
+2. Parse command into segments split by operators (`&&`, `||`, `|`, `;`)
+3. If redirects are detected and `allowRedirects` is not true, command is denied
+4. Each segment is validated against deny rules first, then allow rules
+5. Subshell contents (`$(...)` and `(...)`) are recursively validated
+6. All segments must pass for the command to be allowed
+
+## JSON Output Format
+
+When using `--json`, each message is output as a JSON object (one per line):
 
 ```json
 {
   "type": "say",
-  "text": "Cline is about to run a command.",
+  "text": "I'll create the file now.",
   "ts": 1760501486669,
-  "say": "command",
-  "partial": false
+  "say": "text"
 }
 ```
 
-### Shell Completion
+**Required fields:**
 
-Generate autocompletion scripts for various shells:
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `"ask"` \| `"say"` | Message category |
+| `text` | `string` | Human-readable message content |
+| `ts` | `number` | Unix timestamp in milliseconds |
 
-#### Bash
+**Optional fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `say` | `string` | Subtype when `type` is `"say"` (e.g., `"text"`, `"tool"`) |
+| `ask` | `string` | Subtype when `type` is `"ask"` (e.g., `"tool"`, `"followup"`) |
+| `reasoning` | `string` | Model reasoning (omitted when empty) |
+| `partial` | `boolean` | `true` while streaming (omitted when complete) |
+| `images` | `string[]` | Image URIs (omitted when empty) |
+| `files` | `string[]` | File paths (omitted when empty) |
+
+## Configuration Files
+
+Cline stores all data in `~/.cline/` by default:
+
+```
+~/.cline/
+├── data/                    # Configuration directory
+│   ├── globalState.json     # Global settings
+│   ├── secrets.json         # API keys (stored securely)
+│   ├── workspace/           # Workspace-specific state
+│   └── tasks/               # Task history and conversations
+└── log/                     # Debug logs (view with cline dev log)
+```
+
+## Examples
+
+### Interactive Development
 
 ```bash
-# Generate bash completion
-cline completion bash > /etc/bash_completion.d/cline
+# Start interactive mode
+cline
 
-# Or for user-level installation
-cline completion bash > ~/.local/share/bash-completion/completions/cline
+# Start with a task and use interactive UI
+cline "Help me refactor this codebase"
 ```
 
-#### Zsh
+### Direct Task Execution
 
 ```bash
-# Generate zsh completion
-cline completion zsh > "${fpath[1]}/_cline"
+# Run a task directly
+cline "Add error handling to utils.js"
 
-# Or add to your .zshrc
-echo 'source <(cline completion zsh)' >> ~/.zshrc
+# Start in Plan mode to review strategy first
+cline -p "Design a caching layer for the API"
+
+# Use a specific model
+cline -m gpt-4o "Explain this code"
 ```
 
-#### Fish
+### Piped Input
 
 ```bash
-# Generate fish completion
-cline completion fish > ~/.config/fish/completions/cline.fish
+# Pipe file contents
+cat README.md | cline "Summarize this document"
+
+# Review git changes
+git diff | cline "Review these changes"
+
+# Analyze test output
+npm test 2>&1 | cline "Fix any failing tests"
 ```
 
-#### PowerShell
-
-```powershell
-# Generate PowerShell completion
-cline completion powershell > cline.ps1
-
-# Add to your PowerShell profile
-Add-Content $PROFILE "cline completion powershell | Out-String | Invoke-Expression"
-```
-
-### Version Command
+### Automation and CI/CD
 
 ```bash
-# Show version information
-cline version
+# YOLO mode for automated workflows
+cline -y "Run tests and fix failures"
+
+# JSON output for scripting
+cline --json "List all TODO comments" | jq '.text'
+
+# With timeout
+cline -y --timeout 600 "Run the full test suite"
+
+# Chain commands
+git diff | cline -y "explain" | cline -y "write a commit message"
 ```
 
-### Environment Variables
-
-#### CLINE_DIR
-
-Override the default Cline directory location:
+### Authentication
 
 ```bash
-# Override default Cline directory
-export CLINE_DIR=/custom/path
+# Interactive wizard
+cline auth
 
-# Default: ~/.cline
+# Quick setup: Anthropic
+cline auth -p anthropic -k sk-ant-api-xxxxx -m claude-sonnet-4-5-20250929
+
+# Quick setup: OpenAI
+cline auth -p openai-native -k sk-xxxxx -m gpt-4o
+
+# Quick setup: OpenRouter
+cline auth -p openrouter -k sk-or-xxxxx
+
+# OpenAI-compatible with custom URL
+cline auth -p openai -k your-key -b https://api.example.com/v1
 ```
 
-This directory is used for:
-- Instance registry database
-- Configuration files
-- Task history
-- Checkpoints
+## Support
+
+- **Report bugs:** https://github.com/cline/cline/issues
+- **Discord community:** https://discord.gg/cline
+- **Documentation:** https://docs.cline.bot
+
+## See Also
+
+<Columns cols={2}>
+  <Card title="Installation & Setup" icon="download" href="/cline-cli/installation">
+    Install Cline CLI and configure authentication.
+  </Card>
+  
+  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+    Keyboard shortcuts, slash commands, and file mentions.
+  </Card>
+  
+  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
+    Interactive mode, direct execution, and automation patterns.
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
+    Environment variables and advanced settings.
+  </Card>
+</Columns>

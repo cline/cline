@@ -23,19 +23,15 @@ function createAdapter(client: AwsClient, endpoint: string, bucket: string): Sto
 		},
 
 		async write(path: string, value: string): Promise<void> {
-			try {
-				const response = await client.fetch(`${base}/${path}`, {
-					method: "PUT",
-					body: value,
-					headers: {
-						"Content-Type": "text/plain",
-					},
-				})
-				if (!response.ok) {
-					throw new Error(`Failed to write ${path}: ${response.status}`)
-				}
-			} catch (error) {
-				Logger.error("Error in write:", error)
+			const response = await client.fetch(`${base}/${path}`, {
+				method: "PUT",
+				body: value,
+				headers: {
+					"Content-Type": "text/plain",
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`Failed to write ${path}: ${response.status}`)
 			}
 		},
 
@@ -75,9 +71,9 @@ function createS3Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 }
 
 function createR2Adapter(settings: BlobStoreSettings): StorageAdapter | undefined {
-	const { accountId, bucket, accessKeyId, secretAccessKey } = settings
+	const { accountId, endpoint, bucket, accessKeyId, secretAccessKey } = settings
 
-	if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
+	if ((!endpoint && !accountId) || !bucket || !accessKeyId || !secretAccessKey) {
 		Logger.error("[StorageAdapter] Missing required R2 settings")
 		return undefined
 	}

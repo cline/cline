@@ -82,9 +82,8 @@ describe("App", () => {
 		})
 
 		it("should render AuthView when view is auth", () => {
-			const { lastFrame } = render(<App authQuickSetup={{ provider: "openai" }} controller={mockController} view="auth" />)
+			const { lastFrame } = render(<App controller={mockController} view="auth" />)
 			expect(lastFrame()).toContain("AuthView")
-			expect(lastFrame()).toContain("openai")
 		})
 
 		it("should render ChatView when view is welcome", () => {

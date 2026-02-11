@@ -1,4 +1,5 @@
 import { ModelInfo, OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
@@ -139,7 +140,8 @@ export class OpenAiCodexHandler implements ApiHandler {
 		tools?: ChatCompletionTool[],
 	): any {
 		// Determine reasoning effort
-		const reasoningEffort = this.options.reasoningEffort || "medium"
+		const reasoningEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const includeReasoning = reasoningEffort !== "none"
 
 		const body: any = {
 			model: model.id,
@@ -147,11 +149,15 @@ export class OpenAiCodexHandler implements ApiHandler {
 			stream: true,
 			store: false,
 			instructions: systemPrompt,
-			include: ["reasoning.encrypted_content"],
-			reasoning: {
-				effort: reasoningEffort,
-				summary: "auto",
-			},
+			...(includeReasoning ? { include: ["reasoning.encrypted_content"] } : {}),
+			...(includeReasoning
+				? {
+						reasoning: {
+							effort: reasoningEffort,
+							summary: "auto",
+						},
+					}
+				: {}),
 		}
 
 		// Add tools if provided

@@ -6,8 +6,6 @@
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useState } from "react"
 import { StateManager } from "@/core/storage/StateManager"
-import type { ApiProvider } from "@/shared/api"
-import { getProviderModelIdKey } from "@/shared/storage"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import {
@@ -18,6 +16,7 @@ import {
 	importFromCodex,
 	importFromOpenCode,
 } from "../utils/import-configs"
+import { applyProviderConfig } from "../utils/provider-config"
 
 type ImportStep = "select" | "confirm" | "saving" | "error"
 
@@ -61,25 +60,12 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 				return
 			}
 
+			await applyProviderConfig({
+				providerId: selectedKey.provider,
+				apiKey: selectedKey.key,
+				modelId: selectedKey.modelId,
+			})
 			const stateManager = StateManager.get()
-			const config: Record<string, string> = {
-				actModeApiProvider: selectedKey.provider,
-				planModeApiProvider: selectedKey.provider,
-				apiProvider: selectedKey.provider,
-			}
-
-			// Set API key
-			config[selectedKey.keyField] = selectedKey.key
-
-			// Set model ID if available (use provider-specific keys)
-			if (selectedKey.modelId) {
-				const actModelKey = getProviderModelIdKey(selectedKey.provider as ApiProvider, "act")
-				const planModelKey = getProviderModelIdKey(selectedKey.provider as ApiProvider, "plan")
-				if (actModelKey) config[actModelKey] = selectedKey.modelId
-				if (planModelKey) config[planModelKey] = selectedKey.modelId
-			}
-
-			stateManager.setApiConfiguration(config)
 			stateManager.setGlobalState("welcomeViewCompleted", true)
 			await stateManager.flushPendingState()
 

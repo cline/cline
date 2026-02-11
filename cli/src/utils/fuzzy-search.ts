@@ -13,6 +13,6 @@ import { Fzf } from "fzf"
  */
 export function fuzzyFilter<T>(items: readonly T[], query: string, selector: (item: T) => string): T[] {
 	if (!query) return [...items]
-	const fzf = new Fzf(items, { selector })
-	return fzf.find(query).map((result) => result.item)
+	const fzf = new Fzf(items as any, { selector } as any)
+	return fzf.find(query).map((result) => result.item) as T[]
 }

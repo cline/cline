@@ -44,6 +44,30 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 				</Box>
 
 				<Box flexDirection="column">
+					<Text bold>Keyboard Shortcuts</Text>
+					<Text>
+						{"  "}
+						<Text color="white">Ctrl+U</Text> - Clear entire input (delete to start)
+					</Text>
+					<Text>
+						{"  "}
+						<Text color="white">Ctrl+K</Text> - Delete from cursor to end
+					</Text>
+					<Text>
+						{"  "}
+						<Text color="white">Ctrl+W</Text> - Delete word backwards
+					</Text>
+					<Text>
+						{"  "}
+						<Text color="white">Ctrl+A / Ctrl+E</Text> - Jump to start / end of input
+					</Text>
+					<Text>
+						{"  "}
+						<Text color="white">Alt/Option+←/→</Text> - Move by word
+					</Text>
+				</Box>
+
+				<Box flexDirection="column">
 					<Text bold>Slash Commands</Text>
 					<Text>
 						Type <Text color="white">/</Text> to see available commands. Key ones include:
