@@ -1,5 +1,4 @@
 import { setTimeout as delay } from "node:timers/promises"
-import { buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
@@ -7,7 +6,7 @@ import { PromptRegistry } from "@core/prompts/system-prompt"
 import { ClineToolSet } from "@core/prompts/system-prompt/registry/ClineToolSet"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
-import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
+import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock, ClineUserContent } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
 import * as path from "path"
@@ -15,6 +14,8 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
+import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
+import { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 
 const SUBAGENT_ALLOWED_TOOLS: ClineDefaultTool[] = [
@@ -287,11 +288,7 @@ export class SubagentRunner {
 		try {
 			const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
 			const apiConfiguration = this.baseConfig.services.stateManager.getApiConfiguration()
-			const effectiveApiConfiguration = {
-				...apiConfiguration,
-				ulid: this.baseConfig.ulid,
-			}
-			const api = buildApiHandler(effectiveApiConfiguration, mode)
+			const api = this.baseConfig.api
 			this.activeApiAbort = api.abort?.bind(api)
 
 			const providerId = (
@@ -526,7 +523,7 @@ export class SubagentRunner {
 				}
 				emptyAssistantResponseRetries = 0
 
-				const toolResultBlocks = [] as any[]
+				const toolResultBlocks = [] as ClineUserContent[]
 				for (const call of finalizedToolCalls) {
 					const toolName = call.name as ClineDefaultTool
 					const toolCallParams = toToolUseParams(call.input)
@@ -615,9 +612,16 @@ export class SubagentRunner {
 
 	private createSubagentTaskConfig(state: TaskState): TaskConfig {
 		const baseCallbacks = this.baseConfig.callbacks
+		const coordinator = new ToolExecutorCoordinator()
+		const validator = new ToolValidator(this.baseConfig.services.clineIgnoreController)
+
+		for (const tool of SUBAGENT_ALLOWED_TOOLS) {
+			coordinator.registerByName(tool, validator)
+		}
 
 		return {
 			...this.baseConfig,
+			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
 			vscodeTerminalExecutionMode: "backgroundExec",
@@ -646,7 +650,11 @@ export class SubagentRunner {
 		const toolSets = ClineToolSet.getToolsForVariantWithFallback(family, SUBAGENT_ALLOWED_TOOLS)
 		const filteredToolSpecs = toolSets
 			.map((toolSet) => toolSet.config)
-			.filter((toolSpec) => !toolSpec.contextRequirements || toolSpec.contextRequirements(context))
+			.filter(
+				(toolSpec) =>
+					SUBAGENT_ALLOWED_TOOLS.includes(toolSpec.id) &&
+					(!toolSpec.contextRequirements || toolSpec.contextRequirements(context)),
+			)
 
 		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
 
