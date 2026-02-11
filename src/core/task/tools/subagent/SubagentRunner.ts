@@ -77,7 +77,7 @@ When you have a comprehensive answer, call the attempt_completion tool.
 The attempt_completion result field is sent directly to the main agent, so put your full final findings there.
 Include file paths and line numbers in that result field.
 Also include a section titled "Recommended files for main agent" with a list of the highest-value files the main agent should read next, and a one-line reason for each file.
-Do not use markdown formatting in your final response to the main agent.`
+`
 
 function serializeToolResult(result: unknown): string {
 	if (typeof result === "string") {
@@ -125,7 +125,7 @@ function formatToolArgPreview(value: string, maxLength = 48): string {
 	return `${normalized.slice(0, maxLength - 3)}...`
 }
 
-function formatToolCallPreview(toolName: string, params: Partial<Record<string, string>>, maxLength = 30): string {
+function formatToolCallPreview(toolName: string, params: Partial<Record<string, string>>): string {
 	const entries = Object.entries(params).filter(([, value]) => value !== undefined)
 	const visibleEntries = entries.slice(0, 3)
 	const omittedCount = Math.max(0, entries.length - visibleEntries.length)
@@ -135,11 +135,7 @@ function formatToolCallPreview(toolName: string, params: Partial<Record<string, 
 		.concat(omittedCount > 0 ? [`...+${omittedCount}`] : [])
 		.join(", ")
 
-	const preview = `${toolName}(${args})`
-	if (preview.length <= maxLength) {
-		return preview
-	}
-	return `${preview.slice(0, maxLength - 3)}...`
+	return `${toolName}(${args})`
 }
 
 function normalizeToolCallArguments(argumentsPayload: unknown): string {

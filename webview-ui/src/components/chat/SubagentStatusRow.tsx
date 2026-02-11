@@ -16,6 +16,7 @@ import {
 	NetworkIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import MarkdownBlock from "../common/MarkdownBlock"
 
 interface SubagentStatusRowProps {
 	message: ClineMessage
@@ -153,16 +154,22 @@ function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTe
 	return (
 		<div className="relative">
 			<div
-				className={`text-xs font-medium text-foreground whitespace-pre-wrap break-words ${!isExpanded ? "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] pr-16" : ""}`}
+				className={`text-xs font-medium text-foreground whitespace-pre-wrap break-words ${!isExpanded ? "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]" : ""}`}
 				ref={promptRef}>
 				"{prompt}"
 			</div>
 			{!isExpanded && showMoreVisible && (
 				<button
 					aria-label="Show full subagent prompt"
-					className="absolute right-0 bottom-0 text-[11px] bg-vscode-editor-background text-link border-0 p-0 pl-1 cursor-pointer"
+					className="absolute right-0 bottom-0 z-10 text-[11px] text-link border-0 px-1 py-[1px] cursor-pointer leading-none rounded-[2px]"
 					onClick={onShowMore}
+					style={{ backgroundColor: "var(--vscode-editor-background)" }}
 					type="button">
+					<span
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-y-0 -left-[6px] w-[6px]"
+						style={{ background: "linear-gradient(to left, var(--vscode-editor-background), transparent)" }}
+					/>
 					Show more
 				</button>
 			)}
@@ -226,8 +233,9 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 					const latestToolCallText = entry.latestToolCall?.trim() || ""
 					return (
 						<div
-							className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
-							key={entry.index}>
+							className="rounded-xs border border-editor-group-border px-2 py-1.5"
+							key={entry.index}
+							style={{ backgroundColor: "var(--vscode-editor-background)" }}>
 							<div className="flex items-start gap-2">
 								{statusIcon(displayStatus)}
 								<div className="min-w-0 flex-1">
@@ -238,39 +246,32 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 									/>
 								</div>
 							</div>
-							{shouldShowStats &&
-								(hasDetails ? (
-									<button
-										aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
-										className="mt-1 text-[11px] opacity-80 flex items-start gap-1 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground w-full"
-										onClick={() => toggleItem(entry.index)}
-										type="button">
-										{isExpanded ? (
-											<ChevronDownIcon className="size-2 shrink-0" />
-										) : (
-											<ChevronRightIcon className="size-2 shrink-0" />
-										)}
-										{latestToolCallText ? (
-											<span className="min-w-0 whitespace-pre-wrap break-words">
-												{latestToolCallText} · {statsText}
-											</span>
-										) : (
-											<span className="min-w-0 whitespace-pre-wrap break-words">{statsText}</span>
-										)}
-									</button>
-								) : (
-									<div className="mt-1 text-[11px] opacity-70 min-w-0 whitespace-pre-wrap break-words">
-										{latestToolCallText ? (
-											<span>
-												{latestToolCallText} · {statsText}
-											</span>
-										) : (
-											<span>{statsText}</span>
-										)}
-									</div>
-								))}
+							{shouldShowStats && (
+								<div className="mt-1 text-[11px] opacity-70 min-w-0 whitespace-pre-wrap break-words">
+									<span>{statsText}</span>
+								</div>
+							)}
+							{shouldShowStats && hasDetails && (
+								<button
+									aria-label={isExpanded ? "Hide subagent output" : "Show subagent output"}
+									className="mt-1 text-[11px] opacity-80 flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground w-full"
+									onClick={() => toggleItem(entry.index)}
+									type="button">
+									{isExpanded ? (
+										<ChevronDownIcon className="size-2 shrink-0" />
+									) : (
+										<ChevronRightIcon className="size-2 shrink-0" />
+									)}
+									<span className="shrink-0">{isExpanded ? "Hide output" : "Show output"}</span>
+								</button>
+							)}
+							{shouldShowStats && !hasDetails && latestToolCallText && (
+								<div className="mt-1 text-[10px] opacity-70 min-w-0 truncate font-mono">{latestToolCallText}</div>
+							)}
 							{isExpanded && entry.result && entry.status === "completed" && (
-								<div className="mt-2 text-xs opacity-80 whitespace-pre-wrap break-words">{entry.result}</div>
+								<div className="mt-2 text-xs opacity-80 wrap-anywhere overflow-hidden">
+									<MarkdownBlock markdown={entry.result} />
+								</div>
 							)}
 							{isExpanded && entry.error && entry.status === "failed" && (
 								<div className="mt-2 text-xs text-error whitespace-pre-wrap break-words">{entry.error}</div>
