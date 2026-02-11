@@ -71,7 +71,8 @@ You can read files, list directories, search for patterns, list code definitions
 Only use execute_command for readonly operations like ls, grep, git log, git diff, gh, etc.
 Do not run commands that modify files or system state.
 When you have a comprehensive answer, respond with your findings including file paths and line numbers.
-Also include a section titled "Recommended files for main agent" with a concise list of the highest-value files the main agent should read next, and a one-line reason for each file.`
+Also include a section titled "Recommended files for main agent" with a list of the highest-value files the main agent should read next, and a one-line reason for each file.
+Do not use markdown formatting in your final response to the main agent.`
 
 function serializeToolResult(result: unknown): string {
 	if (typeof result === "string") {
