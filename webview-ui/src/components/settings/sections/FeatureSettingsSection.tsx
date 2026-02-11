@@ -1,17 +1,10 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { EmptyRequest } from "@shared/proto/index.cline"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { AlertCircleIcon } from "lucide-react"
-import { memo, type ReactNode, useCallback, useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { memo, type ReactNode, useCallback } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
 import SettingsSlider from "../SettingsSlider"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -42,6 +35,13 @@ interface FeatureToggle {
 }
 
 const agentFeatures: FeatureToggle[] = [
+	{
+		id: "subagents",
+		label: "Subagents",
+		description: "Let Cline run focused subagents in parallel to explore the codebase for you.",
+		stateKey: "subagentsEnabled",
+		settingKey: "subagentsEnabled",
+	},
 	{
 		id: "native-tool-call",
 		label: "Native Tool Call",
@@ -122,6 +122,15 @@ const experimentalFeatures: FeatureToggle[] = [
 		settingKey: "focusChainSettings",
 		nestedKey: "enabled",
 	},
+	{
+		id: "double-check-completion",
+		label: "Double-Check Completion",
+		description:
+			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
+		stateKey: "doubleCheckCompletionEnabled",
+		settingKey: "doubleCheckCompletionEnabled",
+		isExperimental: true,
+	},
 ]
 
 const FeatureRow = memo(
@@ -188,50 +197,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const {
 		enableCheckpointsSetting,
 		mcpDisplayMode,
-		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
+		subagentsEnabled,
 		clineWebToolsEnabled,
 		worktreesEnabled,
 		focusChainSettings,
 		remoteConfigSettings,
-		subagentsEnabled,
-		subagentTerminalOutputLineLimit,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		doubleCheckCompletionEnabled,
 	} = useExtensionState()
-
-	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
-
-	const handleReasoningEffortChange = useCallback((newValue: OpenaiReasoningEffort) => {
-		updateSetting("openaiReasoningEffort", newValue)
-	}, [])
-
-	// Poll for CLI installation status while the component is mounted
-	useEffect(() => {
-		const checkInstallation = async () => {
-			try {
-				const result = await StateServiceClient.checkCliInstallation(EmptyRequest.create())
-				setIsClineCliInstalled(result.value)
-			} catch (error) {
-				console.error("Failed to check CLI installation:", error)
-			}
-		}
-
-		checkInstallation()
-		const pollInterval = setInterval(checkInstallation, 1500)
-		return () => clearInterval(pollInterval)
-	}, [])
-
-	const handleInstallCli = useCallback(async () => {
-		try {
-			await StateServiceClient.installClineCli(EmptyRequest.create())
-		} catch (error) {
-			console.error("Failed to initiate CLI installation:", error)
-		}
-	}, [])
 
 	const handleFocusChainIntervalChange = useCallback(
 		(value: number) => {
@@ -240,7 +218,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		[focusChainSettings],
 	)
 
-	const showSubagents = isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
 	// State lookup for mapped features
@@ -250,10 +227,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
+		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
+		doubleCheckCompletionEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
@@ -331,45 +310,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<div
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="experimental-features">
-							{/* Subagents - Only show on macOS and Linux */}
-							{showSubagents && (
-								<>
-									<FeatureRow
-										checked={subagentsEnabled}
-										description="Delegate tasks to specialized sub-agents (experimental)"
-										disabled={!isClineCliInstalled}
-										label="Subagents"
-										onChange={(checked) => updateSetting("subagentsEnabled", checked)}
-									/>
-									<div className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded">
-										<p className="text-xs mb-2 flex items-start text-input-warning-foreground">
-											<span>
-												<AlertCircleIcon className="inline-flex !size-1 mr-1" />
-												Cline CLI is required for subagents. Install it with
-												<code className="px-1">npm install -g cline</code>, then run
-												<code className="px-1">cline auth</code>
-												to authenticate with Cline or configure an API provider.
-											</span>
-										</p>
-										{!isClineCliInstalled && (
-											<Button className="w-full" onClick={handleInstallCli} variant="secondary">
-												Install Now
-											</Button>
-										)}
-									</div>
-									{subagentsEnabled && (
-										<SettingsSlider
-											description="Maximum number of lines to include in output from CLI subagents. Truncates middle to save tokens."
-											label="Output Limit (100-5000)"
-											max={5000}
-											min={100}
-											onChange={(value) => updateSetting("subagentTerminalOutputLineLimit", value)}
-											step={100}
-											value={subagentTerminalOutputLineLimit ?? 2000}
-										/>
-									)}
-								</>
-							)}
 							{experimentalFeatures.map((feature) => (
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
@@ -404,27 +344,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Advanced</div>
 					<div className="relative p-3 my-3 rounded-md border border-editor-widget-border/50" id="advanced-features">
 						<div className="space-y-3">
-							{/* OAI Reasoning Effort */}
-							<div className="space-y-2">
-								<Label className="text-sm font-medium text-foreground">OpenAI Reasoning Effort</Label>
-								<p className="text-xs text-muted-foreground">
-									Control the depth of reasoning for OpenAI o-series models
-								</p>
-								<Select
-									onValueChange={(v) => handleReasoningEffortChange(v as OpenaiReasoningEffort)}
-									value={openaiReasoningEffort || "medium"}>
-									<SelectTrigger className="w-full">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="minimal">Minimal</SelectItem>
-										<SelectItem value="low">Low</SelectItem>
-										<SelectItem value="medium">Medium</SelectItem>
-										<SelectItem value="high">High</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-
 							{/* MCP Display Mode */}
 							<div className="space-y-2">
 								<Label className="text-sm font-medium text-foreground">MCP Display Mode</Label>

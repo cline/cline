@@ -352,7 +352,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus: boolean = false) => {
+		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
 			// Show the webview
@@ -494,7 +494,7 @@ ${ctx.cellJson || "{}"}
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMsg(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
@@ -581,7 +581,21 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
+	const getCallbackUrl = async (path: string) => {
+		const scheme = vscode.env.uriScheme || "vscode"
+		const callbackUri = vscode.Uri.parse(`${scheme}://${context.extension.id}${path}`)
+
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			// In VS Code Web (Codespaces, code serve-web), vscode:// URIs redirect to the
+			// desktop app instead of staying in the browser. Use asExternalUri to convert
+			// to a web-reachable HTTPS URL that routes back to the extension's URI handler.
+			const externalUri = await vscode.env.asExternalUri(callbackUri)
+			return externalUri.toString(true)
+		}
+
+		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
+		return callbackUri.toString(true)
+	}
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,

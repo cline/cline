@@ -1,0 +1,53 @@
+name: Publish CLI (Trusted)
+
+on:
+  schedule:
+    - cron: "0 12 * * *" # 4 AM PST (UTC-8) = 12 UTC
+  workflow_dispatch:
+    inputs:
+      publish_target:
+        description: "Which publish flow to run"
+        required: true
+        default: "main"
+        type: choice
+        options:
+          - main
+          - nightly
+      confirm_publish:
+        description: 'Required when publish_target=main. Type "publish" to confirm release publish.'
+        required: false
+        type: string
+      force_nightly_publish:
+        description: "Force nightly publish even with no commits in last 24h"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write # Required for npm trusted publishing (OIDC)
+  contents: write # Required because npm-main creates/pushes git tags
+  checks: write # Required by nested reusable test workflow
+  pull-requests: write # Required by nested reusable test workflow
+
+jobs:
+  publish-main:
+    if: |
+      github.repository == 'cline/cline' && (
+        github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.publish_target == 'main' &&
+        github.event.inputs.confirm_publish == 'publish' &&
+        !endsWith(github.actor, '[bot]')
+      )
+    uses: ./.github/workflows/npm-main.yaml
+    with:
+      confirm_publish: ${{ github.event.inputs.confirm_publish }}
+
+  publish-nightly:
+    if: |
+      github.repository == 'cline/cline' && (
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_target == 'nightly')
+      )
+    uses: ./.github/workflows/npm-nightly.yaml
+    with:
+      force_publish: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}

@@ -68,9 +68,6 @@ export const TRUNCATE_KEEP_LINES = 100
 /** Default max lines for command output */
 export const DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT = 500
 
-/** Max lines for subagent commands (more context needed) */
-export const DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT = 2000
-
 // =============================================================================
 // Background Command Tracking
 // =============================================================================
