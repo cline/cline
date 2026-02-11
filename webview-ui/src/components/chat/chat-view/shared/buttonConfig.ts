@@ -10,7 +10,7 @@ export type ButtonActionType =
 	| "proceed" // Send messageResponse or yesButtonClicked
 	| "new_task" // Start a new task
 	| "cancel" // Cancel streaming
-	| "utility" // Execute utility function (condense, report_bug)
+	| "utility" // Execute utility function (condense)
 	| "retry" // Retry the last action
 
 /**
@@ -161,14 +161,6 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		primaryAction: "utility",
 		secondaryAction: undefined,
 	},
-	report_bug: {
-		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Report GitHub issue",
-		secondaryText: undefined,
-		primaryAction: "utility",
-		secondaryAction: undefined,
-	},
 
 	// Streaming/partial states - disable interaction during streaming
 	partial: {
@@ -277,8 +269,6 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 			// Utility
 			case "condense":
 				return BUTTON_CONFIGS.condense
-			case "report_bug":
-				return BUTTON_CONFIGS.report_bug
 
 			default:
 				return BUTTON_CONFIGS.tool_approve

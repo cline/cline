@@ -627,7 +627,6 @@ function translateAskMessage(
 		case "new_task":
 		case "condense":
 		case "summarize_task":
-		case "report_bug":
 		case "api_req_failed":
 		case "mistake_limit_reached":
 		case "command_output":

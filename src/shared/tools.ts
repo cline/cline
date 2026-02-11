@@ -27,7 +27,6 @@ export enum ClineDefaultTool {
 	WEB_SEARCH = "web_search",
 	CONDENSE = "condense",
 	SUMMARIZE_TASK = "summarize_task",
-	REPORT_BUG = "report_bug",
 	NEW_RULE = "new_rule",
 	APPLY_PATCH = "apply_patch",
 	GENERATE_EXPLANATION = "generate_explanation",

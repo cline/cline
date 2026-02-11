@@ -142,7 +142,7 @@ const GEMINI_3_RULES_TEMPLATE = (context: SystemPromptContext) => `RULES
 
 const GEMINI_3_FEEDBACK_TEMPLATE = (_context: SystemPromptContext) => `FEEDBACK
 
-When user is providing you with feedback on how you could improve, you can let the user know to report new issue using the '/reportbug' slash command.`
+When user is providing you with feedback on how you could improve, you can let the user know to report new issues at https://github.com/cline/cline/issues.`
 
 const GEMINI_3_ACT_VS_PLAN_TEMPLATE = (context: SystemPromptContext) => `ACT MODE V.S. PLAN MODE
 
