@@ -47,7 +47,7 @@ describe("Auth Callback URL", () => {
 			authHandler = AuthHandler.getInstance()
 			authHandler.setEnabled(true)
 
-			const url = await authHandler.getCallbackUrl()
+			const url = await authHandler.getCallbackUrl("/")
 			url.should.startWith("http://127.0.0.1:")
 			url.should.match(/^http:\/\/127\.0\.0\.1:\d+$/)
 		})

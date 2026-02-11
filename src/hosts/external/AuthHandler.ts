@@ -40,7 +40,7 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUrl(path = ""): Promise<string> {
+	public async getCallbackUrl(path: string): Promise<string> {
 		if (!this.enabled) {
 			throw Error("AuthHandler was not enabled")
 		}
@@ -171,7 +171,10 @@ export class AuthHandler {
 				Logger.log("AuthHandler: Got redirect URI:", redirectUri)
 			} catch (error) {
 				// CLI or JetBrains mode - redirect not available
-				Logger.log("AuthHandler: No redirect URI available (CLI/JetBrains mode)")
+				Logger.error(
+					"AuthHandler: No redirect URI available (CLI/JetBrains mode)" +
+						(error instanceof Error ? error.message : String(error)),
+				)
 				redirectUri = undefined
 			}
 
