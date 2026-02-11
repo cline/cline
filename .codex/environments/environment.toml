@@ -5,7 +5,9 @@ name = "cline"
 [setup]
 script = '''
 if [ ! -d "node_modules" ]; then
-  npm run install:all
+  MAIN_WORKTREE="$(git worktree list | head -n1 | awk '{print $1}')"
+  ln -s "$MAIN_WORKTREE/node_modules" node_modules
+  ln -s "$MAIN_WORKTREE/webview-ui/node_modules" webview-ui/node_modules
 fi
 '''
 
@@ -27,4 +29,14 @@ icon = "run"
 command = '''
 npm run cli:build
 npm run cli:run
+'''
+
+[[actions]]
+name = "npm install"
+icon = "tool"
+command = '''
+rm node_modules
+rm webview-ui/node_modules
+npm run install:all
+git checkout package-lock.json webview-ui/package-lock.json
 '''
