@@ -246,8 +246,8 @@ export class ClineAgent implements acp.Agent {
 			},
 			hostBridgeClientProvider,
 			(message: string) => Logger.info(message),
-			async () => {
-				return AuthHandler.getInstance().getCallbackUrl("/auth")
+			async (path: string) => {
+				return AuthHandler.getInstance().getCallbackUrl(path)
 			},
 			async () => "", // get binary location not needed in ACP mode
 			this.ctx.EXTENSION_DIR,
