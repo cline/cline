@@ -85,7 +85,6 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			client_name: "Cline",
 			client_uri: "https://cline.bot",
 			software_id: "cline",
-			scope: "openid",
 		}
 	}
 
