@@ -146,6 +146,7 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			contextTokens: 0,
 			contextWindow: 0,
 			contextUsagePercentage: 0,
+			latestToolCall: undefined,
 		}))
 
 		const emitStatus = async (status: ClineSaySubagentStatus["status"], partial: boolean) => {
@@ -212,6 +213,9 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 				}
 				if (update.error !== undefined) {
 					current.error = update.error
+				}
+				if (update.latestToolCall !== undefined) {
+					current.latestToolCall = update.latestToolCall
 				}
 				if (update.stats) {
 					current.toolCalls = update.stats.toolCalls || 0

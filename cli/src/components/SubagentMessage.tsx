@@ -59,12 +59,15 @@ function formatSubagentStatsValues(
 	toolCalls: number | undefined,
 	contextTokens: number | undefined,
 	totalCost: number | undefined,
+	latestToolCall?: string,
 ) {
 	const safeToolCalls = Number.isFinite(toolCalls) ? Math.max(0, toolCalls || 0) : 0
 	const toolUses = safeToolCalls === 1 ? "tool use" : "tool uses"
 	const tokensUsed = formatCompactTokens(contextTokens || 0)
 	const formattedCost = formatCompactCost(totalCost || 0)
-	return `${safeToolCalls} ${toolUses} · ${tokensUsed} tokens · ${formattedCost}`
+	const stats = `${safeToolCalls} ${toolUses} · ${tokensUsed} tokens · ${formattedCost}`
+	const latestTool = latestToolCall?.trim()
+	return latestTool ? `${latestTool} · ${stats}` : stats
 }
 
 function wrapPrompt(text: string, width: number): string[] {
@@ -276,7 +279,12 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 									/>
 									<TreeStatsRow
 										prefix={continuationPrefix}
-										stats={formatSubagentStatsValues(entry.toolCalls, entry.contextTokens, entry.totalCost)}
+										stats={formatSubagentStatsValues(
+											entry.toolCalls,
+											entry.contextTokens,
+											entry.totalCost,
+											entry.latestToolCall,
+										)}
 									/>
 								</Box>
 							)
@@ -299,7 +307,12 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 									/>
 									<TreeStatsRow
 										prefix={continuationPrefix}
-										stats={formatSubagentStatsValues(entry.toolCalls, entry.contextTokens, entry.totalCost)}
+										stats={formatSubagentStatsValues(
+											entry.toolCalls,
+											entry.contextTokens,
+											entry.totalCost,
+											entry.latestToolCall,
+										)}
 									/>
 								</Box>
 							)
@@ -328,7 +341,12 @@ export const SubagentMessage: React.FC<SubagentMessageProps> = ({ message, mode,
 								{shouldShowStats && (
 									<TreeStatsRow
 										prefix={continuationPrefix}
-										stats={formatSubagentStatsValues(entry.toolCalls, entry.contextTokens, entry.totalCost)}
+										stats={formatSubagentStatsValues(
+											entry.toolCalls,
+											entry.contextTokens,
+											entry.totalCost,
+											entry.latestToolCall,
+										)}
 									/>
 								)}
 							</Box>

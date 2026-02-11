@@ -37,6 +37,7 @@ export interface SubagentRunResult {
 
 interface SubagentProgressUpdate {
 	stats?: SubagentRunStats
+	latestToolCall?: string
 	status?: "running" | "completed" | "failed"
 	result?: string
 	error?: string
@@ -110,6 +111,31 @@ function toToolUseParams(input: unknown): Partial<Record<string, string>> {
 	}
 
 	return params
+}
+
+function formatToolArgPreview(value: string, maxLength = 48): string {
+	const normalized = value.replace(/\s+/g, " ").trim()
+	if (normalized.length <= maxLength) {
+		return normalized
+	}
+	return `${normalized.slice(0, maxLength - 3)}...`
+}
+
+function formatToolCallPreview(toolName: string, params: Partial<Record<string, string>>, maxLength = 30): string {
+	const entries = Object.entries(params).filter(([, value]) => value !== undefined)
+	const visibleEntries = entries.slice(0, 3)
+	const omittedCount = Math.max(0, entries.length - visibleEntries.length)
+
+	const args = visibleEntries
+		.map(([key, value]) => `${key}=${formatToolArgPreview(value ?? "")}`)
+		.concat(omittedCount > 0 ? [`...+${omittedCount}`] : [])
+		.join(", ")
+
+	const preview = `${toolName}(${args})`
+	if (preview.length <= maxLength) {
+		return preview
+	}
+	return `${preview.slice(0, maxLength - 3)}...`
 }
 
 function normalizeToolCallArguments(argumentsPayload: unknown): string {
@@ -493,6 +519,9 @@ export class SubagentRunner {
 					if (call.call_id) {
 						state.toolUseIdMap.set(call.call_id, call.toolUseId)
 					}
+
+					const latestToolCall = formatToolCallPreview(toolName, toolCallParams)
+					onProgress({ latestToolCall })
 
 					const subagentConfig = this.createSubagentTaskConfig(state)
 					const handler = this.baseConfig.coordinator.getHandler(toolName)

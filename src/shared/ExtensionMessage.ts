@@ -284,6 +284,7 @@ export interface SubagentStatusItem {
 	contextTokens: number
 	contextWindow: number
 	contextUsagePercentage: number
+	latestToolCall?: string
 	result?: string
 	error?: string
 }

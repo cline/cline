@@ -223,6 +223,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 						isPromptConstructionRow && message.partial === true && index === data.items.length - 1
 					const shouldShowStats = !isStreamingPromptUnderConstruction
 					const statsText = `${formatCount(entry.toolCalls)} tools called · ${formatCount(entry.contextTokens)} tokens · ${formatCost(entry.totalCost)}`
+					const latestToolCallText = entry.latestToolCall?.trim() || ""
 					return (
 						<div
 							className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
@@ -241,7 +242,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 								(hasDetails ? (
 									<button
 										aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
-										className="mt-1 text-[11px] opacity-80 flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground"
+										className="mt-1 text-[11px] opacity-80 flex items-start gap-1 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground w-full"
 										onClick={() => toggleItem(entry.index)}
 										type="button">
 										{isExpanded ? (
@@ -249,10 +250,24 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 										) : (
 											<ChevronRightIcon className="size-2 shrink-0" />
 										)}
-										<span>{statsText}</span>
+										{latestToolCallText ? (
+											<span className="min-w-0 whitespace-pre-wrap break-words">
+												{latestToolCallText} · {statsText}
+											</span>
+										) : (
+											<span className="min-w-0 whitespace-pre-wrap break-words">{statsText}</span>
+										)}
 									</button>
 								) : (
-									<div className="mt-1 text-[11px] opacity-70">{statsText}</div>
+									<div className="mt-1 text-[11px] opacity-70 min-w-0 whitespace-pre-wrap break-words">
+										{latestToolCallText ? (
+											<span>
+												{latestToolCallText} · {statsText}
+											</span>
+										) : (
+											<span>{statsText}</span>
+										)}
+									</div>
 								))}
 							{isExpanded && entry.result && entry.status === "completed" && (
 								<div className="mt-2 text-xs opacity-80 whitespace-pre-wrap break-words">{entry.result}</div>
