@@ -807,6 +807,10 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 		order: ["deepseek", "novita", "fireworks", "nebius"],
 		allow_fallbacks: false,
 	},
+	"z-ai/glm-5": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
 	"z-ai/glm-4.6": {
 		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
 		allow_fallbacks: false,
@@ -3454,8 +3458,19 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.7"
+export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-5"
 export const cerebrasModels = {
+	"zai-glm-5": {
+		maxTokens: 40000,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		temperature: 0.9,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Highly capable general-purpose model on Cerebras (up to 1,000 tokens/s), competitive with leading proprietary models on coding tasks.",
+	},
 	"zai-glm-4.7": {
 		maxTokens: 40000,
 		contextWindow: 131072,
@@ -4122,8 +4137,17 @@ export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 // https://docs.z.ai/guides/llm/glm-4.5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.7"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5"
 export const internationalZAiModels = {
+	"glm-5": {
+		maxTokens: 131_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
@@ -4169,8 +4193,17 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.7"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5"
 export const mainlandZAiModels = {
+	"glm-5": {
+		maxTokens: 131_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.11,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
