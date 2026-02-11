@@ -6,6 +6,7 @@ import { HostInfo, HostRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
+import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { featureFlagsService } from "../feature-flags"
 
@@ -44,7 +45,8 @@ export class BannerService {
 	private lastFetchTime = 0
 	private backoffUntil = 0
 	private consecutiveFailures = 0
-	private authToken: string | null = "init" // "init" to force initial fetch
+
+	private userId: string | null = null
 
 	private fetchPromise: Promise<Banner[]> | null = null
 	private abortController: AbortController | null = null
@@ -85,10 +87,11 @@ export class BannerService {
 		BannerService.instance = null
 	}
 
-	public static async onAuthUpdate(newToken: string | null): Promise<void> {
+	public static async onAuthUpdate(userId: string | null): Promise<void> {
 		const instance = BannerService.instance
 
-		if (!instance || instance.authToken === newToken) return
+		Logger.info("[BannerService] Verifying user id", userId === instance?.userId)
+		if (!instance || instance.userId === userId) return
 
 		// Clear existing debounce timer and resolve any pending promise
 		if (instance.debounceTimer) {
@@ -108,6 +111,8 @@ export class BannerService {
 		// Set pending flag immediately to prevent getActiveBanners() from starting a fetch
 		// while we're waiting for the debounce to settle
 		instance.authFetchPending = true
+		instance.userId = userId
+		Logger.info("[BannerService] Updated user id, proceeding to fetch", userId)
 
 		return new Promise<void>((resolve) => {
 			instance.pendingDebounceResolve = resolve
@@ -116,18 +121,18 @@ export class BannerService {
 				instance.pendingDebounceResolve = null
 
 				// Skip if token reverted during debounce
-				if (instance.authToken === newToken) {
+				if (instance.userId === userId) {
 					instance.authFetchPending = false
 					resolve()
 					return
 				}
 
-				instance.authToken = newToken
 				instance.consecutiveFailures = 0
 				instance.backoffUntil = 0
 
 				try {
 					await instance.doFetch()
+					Logger.info("[BannerService] Fetched")
 				} finally {
 					instance.authFetchPending = false
 					resolve()
@@ -241,8 +246,9 @@ export class BannerService {
 				"Content-Type": "application/json",
 				...(await buildBasicClineHeaders()),
 			}
-			if (this.authToken && this.authToken !== "init") {
-				headers["Authorization"] = `Bearer ${this.authToken}`
+			const authToken = await AuthService.getInstance().getAuthToken()
+			if (authToken) {
+				headers["Authorization"] = `Bearer ${authToken}`
 			}
 
 			const response = await fetch(url, { method: "GET", headers, signal })
@@ -293,7 +299,7 @@ export class BannerService {
 		if (status === 429) {
 			const retryAfter = typedError.headers?.get("retry-after")
 			if (retryAfter) {
-				const seconds = parseInt(retryAfter, 10)
+				const seconds = Number.parseInt(retryAfter, 10)
 				if (!Number.isNaN(seconds)) {
 					backoffMs = seconds * 1000
 				} else {
