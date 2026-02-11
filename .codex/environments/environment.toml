@@ -4,14 +4,8 @@ name = "cline"
 
 [setup]
 script = '''
-# Symlink node_modules from main worktree if not already present
 if [ ! -d "node_modules" ]; then
-  ln -s /Users/saoud/Repositories/cline/node_modules node_modules
-fi
-
-# Also need webview-ui/node_modules
-if [ ! -d "webview-ui/node_modules" ]; then
-  ln -s /Users/saoud/Repositories/cline/webview-ui/node_modules webview-ui/node_modules
+  npm run install:all
 fi
 '''
 
