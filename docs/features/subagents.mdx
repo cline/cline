@@ -4,7 +4,7 @@ sidebarTitle: "Subagents"
 description: "Run parallel research agents to explore your codebase without filling the main agent's context window."
 ---
 
-Subagents let Cline spawn up to five focused research agents that run in parallel. Each subagent gets its own prompt and context window, explores the codebase independently, and returns a detailed report to the main agent. This keeps the main agent's context clean while gathering broad information fast.
+Subagents let Cline spawn focused research agents that run in parallel. Each subagent gets its own prompt and context window, explores the codebase independently, and returns a detailed report to the main agent. This keeps the main agent's context clean while gathering broad information fast.
 
 <Tip>
   Subagents is an experimental feature. Behavior may change in future releases.
@@ -12,7 +12,7 @@ Subagents let Cline spawn up to five focused research agents that run in paralle
 
 ## How It Works
 
-When Cline uses the `use_subagents` tool, it launches up to five independent agents simultaneously. Each one:
+When Cline uses the `use_subagents` tool, it launches independent agents simultaneously. Each one:
 
 - Gets its own prompt describing what to investigate
 - Runs with a separate context window and token budget
