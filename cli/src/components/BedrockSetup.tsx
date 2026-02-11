@@ -216,9 +216,13 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 				if (key.escape) {
 					goBack()
 				} else if (key.upArrow) {
-					setRegionIndex((prev) => (prev > 0 ? prev - 1 : filteredRegions.length - 1))
+					if (filteredRegions.length > 0) {
+						setRegionIndex((prev) => (prev > 0 ? prev - 1 : filteredRegions.length - 1))
+					}
 				} else if (key.downArrow) {
-					setRegionIndex((prev) => (prev < filteredRegions.length - 1 ? prev + 1 : 0))
+					if (filteredRegions.length > 0) {
+						setRegionIndex((prev) => (prev < filteredRegions.length - 1 ? prev + 1 : 0))
+					}
 				} else if (key.return) {
 					if (filteredRegions.length > 0 || regionSearch.trim()) {
 						setStep("options")
