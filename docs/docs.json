@@ -121,6 +121,7 @@
 							"features/auto-approve",
 							"features/auto-compact",
 							"features/multiroot-workspace",
+							"features/subagents",
 							"features/background-edit",
 							"features/jupyter-notebooks",
 							"features/web-tools",
