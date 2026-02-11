@@ -733,6 +733,17 @@ export class Task {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+			const isDuplicateCompletedTextSay =
+				partial &&
+				type === "text" &&
+				lastMessage &&
+				lastMessage.type === "say" &&
+				lastMessage.say === "text" &&
+				!lastMessage.partial &&
+				(lastMessage.text ?? "") === (text ?? "")
+			if (isDuplicateCompletedTextSay) {
+				return undefined
+			}
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
