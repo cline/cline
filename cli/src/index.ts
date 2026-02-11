@@ -433,7 +433,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		() => new StandaloneTerminalManager(),
 		createCliHostBridgeProvider(workspacePath),
 		logToChannel,
-		async () => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl() : ""),
+		async (path: string) => (options.enableAuth ? AuthHandler.getInstance().getCallbackUrl(path) : ""),
 		getCliBinaryPath,
 		EXTENSION_DIR,
 		DATA_DIR,
