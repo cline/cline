@@ -115,6 +115,9 @@ export class TelemetryService {
 	])
 
 	private userId?: string
+	private organizationId?: string
+	private organizationName?: string
+	private memberId?: string
 	private taskTurnCounts = new Map<string, number>()
 	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
@@ -463,6 +466,9 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
+			...(this.organizationId ? { organization_id: this.organizationId } : {}),
+			...(this.organizationName ? { organization_name: this.organizationName } : {}),
+			...(this.memberId ? { member_id: this.memberId } : {}),
 			...(extra ?? {}),
 		}
 	}
@@ -618,6 +624,10 @@ export class TelemetryService {
 		}
 
 		this.userId = userInfo.id
+		const activeOrg = userInfo.organizations?.find((org) => org.active)
+		this.organizationId = activeOrg?.organizationId
+		this.organizationName = activeOrg?.name
+		this.memberId = activeOrg?.memberId
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
