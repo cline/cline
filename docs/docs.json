@@ -164,6 +164,7 @@
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							"features/skills",
+							"features/subagents",
 							{
 								"group": "Slash Commands",
 								"pages": [
