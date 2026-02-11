@@ -19,6 +19,7 @@ export const TASK_CONFIG_KEYS = [
 	"doubleCheckCompletionEnabled",
 	"vscodeTerminalExecutionMode",
 	"enableParallelToolCalling",
+	"isSubagentExecution",
 	"context",
 	"taskState",
 	"messageState",

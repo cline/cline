@@ -101,6 +101,14 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
+	use_subagents: {
+		sendingDisabled: false,
+		enableButtons: true,
+		primaryText: "Approve",
+		secondaryText: "Reject",
+		primaryAction: "approve",
+		secondaryAction: "reject",
+	},
 	followup: {
 		sendingDisabled: false,
 		enableButtons: false,
@@ -261,6 +269,8 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 				return BUTTON_CONFIGS.browser_action_launch
 			case "use_mcp_server":
 				return BUTTON_CONFIGS.use_mcp_server
+			case "use_subagents":
+				return BUTTON_CONFIGS.use_subagents
 			case "plan_mode_respond":
 				return BUTTON_CONFIGS.plan_mode_respond
 

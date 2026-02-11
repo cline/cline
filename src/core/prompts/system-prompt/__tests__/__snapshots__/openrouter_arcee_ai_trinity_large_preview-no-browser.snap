@@ -241,6 +241,23 @@ Usage:
 <to_ref>HEAD</to_ref>
 </generate_explanation>
 
+## use_subagents
+Description: Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window.
+Parameters:
+- prompt_1: (required) First subagent prompt.
+- prompt_2: (optional) Optional second subagent prompt.
+- prompt_3: (optional) Optional third subagent prompt.
+- prompt_4: (optional) Optional fourth subagent prompt.
+- prompt_5: (optional) Optional fifth subagent prompt.
+Usage:
+<use_subagents>
+<prompt_1></prompt_1>
+<prompt_2></prompt_2>
+<prompt_3></prompt_3>
+<prompt_4></prompt_4>
+<prompt_5></prompt_5>
+</use_subagents>
+
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

@@ -73,10 +73,7 @@ async function disposeTelemetryServices(): Promise<void> {
 	}
 
 	telemetryDisposed = true
-	await Promise.allSettled([
-		telemetryService.dispose(),
-		PostHogClientProvider.getInstance().dispose(),
-	])
+	await Promise.allSettled([telemetryService.dispose(), PostHogClientProvider.getInstance().dispose()])
 }
 
 async function disposeCliContext(ctx: CliContext): Promise<void> {
