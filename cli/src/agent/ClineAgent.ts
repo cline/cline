@@ -246,8 +246,8 @@ export class ClineAgent implements acp.Agent {
 			},
 			hostBridgeClientProvider,
 			(message: string) => Logger.info(message),
-			async () => {
-				return AuthHandler.getInstance().getCallbackUrl()
+			async (path: string) => {
+				return AuthHandler.getInstance().getCallbackUrl(path)
 			},
 			async () => "", // get binary location not needed in ACP mode
 			this.ctx.EXTENSION_DIR,
@@ -973,7 +973,7 @@ export class ClineAgent implements acp.Agent {
 		// Get the callback URL first to ensure the server is ready
 		let callbackUrl: string
 		try {
-			callbackUrl = await authHandler.getCallbackUrl()
+			callbackUrl = await authHandler.getCallbackUrl("/auth")
 			Logger.debug("[ClineAgent] Callback URL ready:", callbackUrl)
 		} catch (error) {
 			Logger.error("[ClineAgent] Failed to get callback URL:", error)

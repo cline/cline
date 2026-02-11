@@ -349,18 +349,20 @@ export async function applyRemoteConfig(
 
 	applyRemoteSyncQueueConfig(transformed)
 
-	// Sync remote MCP servers to settings file (AFTER cache is populated, so sync can read previous state)
-	if (remoteConfig.remoteMCPServers !== undefined) {
-		try {
-			// Get settings directory path - use provided path or get it from disk helper
-			const settingsPath = await ensureSettingsDirectoryExists()
-			await syncRemoteMcpServersToSettings(remoteConfig.remoteMCPServers, settingsPath, mcpHub)
-			// Store current remote servers list for next sync to detect removals
-			stateManager.setRemoteConfigField("previousRemoteMCPServers", remoteConfig.remoteMCPServers)
-		} catch (error) {
-			Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
-			// Continue with other config application even if MCP sync fails
-		}
+	// Always sync remote MCP servers when remote config is active.
+	// The sync function uses the persistent `remoteConfigured` marker in the settings file
+	// to identify which servers were added by remote config. This means:
+	// - Servers no longer in remoteMCPServers but marked `remoteConfigured: true` get removed
+	// - New servers get added with the `remoteConfigured: true` marker
+	// - No dependency on in-memory state that would be lost across restarts
+	try {
+		const serversToSync = remoteConfig.remoteMCPServers ?? []
+		const settingsPath = await ensureSettingsDirectoryExists()
+		await syncRemoteMcpServersToSettings(serversToSync, settingsPath, mcpHub)
+		stateManager.setRemoteConfigField("previousRemoteMCPServers", serversToSync)
+	} catch (error) {
+		Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)
+		// Continue with other config application even if MCP sync fails
 	}
 	await applyRemoteOTELConfig(transformed, telemetryService)
 }

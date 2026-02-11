@@ -1,12 +1,17 @@
 name: Publish NPM Nightly
 
 on:
-  schedule:
-    - cron: "0 12 * * *" # 4 AM PST (UTC-8) = 12 UTC
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      force_publish:
+        description: "Force publish even if there are no commits in the last 24 hours"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  id-token: write # Required for npm trusted publishing (OIDC)
   checks: write # Required by test workflow
   pull-requests: write # Required by test workflow
 
@@ -27,6 +32,12 @@ jobs:
       - name: Check for recent commits
         id: check_commits
         run: |
+          if [ "${{ inputs.force_publish }}" = "true" ]; then
+            echo "force_publish enabled, proceeding with publish"
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           if [ $(git rev-list --count HEAD --since="24 hours ago") -eq 0 ]; then
             echo "No commits in last 24 hours, skipping publish"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -39,7 +50,7 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: "20.x"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install root dependencies and CLI dependencies
@@ -109,8 +120,6 @@ jobs:
 
       - name: Publish to NPM with nightly tag
         if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_RELEASE_TOKEN }}
         run: |
           echo "Publishing version ${{ steps.version.outputs.version }} to NPM with tag 'nightly'..."
           cd dist-standalone
