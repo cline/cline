@@ -1,5 +1,5 @@
 ---
-"claude-dev": patch
+"cline": patch
 ---
 
 Updating script documentation and removing unnecessary continue on error
