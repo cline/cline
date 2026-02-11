@@ -1,5 +1,5 @@
 ---
-"claude-dev": patch
+"cline": patch
 ---
 
 Unify ViewHeader Styles Across All Views
