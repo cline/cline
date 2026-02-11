@@ -52,6 +52,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		mode,
 		userInfo,
 		currentFocusChainChecklist,
+		focusChainSettings,
 		hooksEnabled,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
@@ -297,6 +298,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [modifiedMessages])
 
 	const lastProgressMessageText = useMemo(() => {
+		if (!focusChainSettings.enabled) {
+			return undefined
+		}
+
 		// First check if we have a current focus chain list from the extension state
 		if (currentFocusChainChecklist) {
 			return currentFocusChainChecklist
@@ -305,7 +310,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		// Fall back to the last task_progress message if no state focus chain list
 		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
 		return lastProgressMessage?.text
-	}, [modifiedMessages, currentFocusChainChecklist])
+	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
+
+	const showFocusChainPlaceholder = useMemo(() => {
+		if (!focusChainSettings.enabled || lastProgressMessageText) {
+			return false
+		}
+
+		const lastMessage = modifiedMessages[modifiedMessages.length - 1]
+		if (lastMessage?.ask === "resume_task" || lastMessage?.ask === "resume_completed_task") {
+			return false
+		}
+
+		const hasCompletionResult = modifiedMessages.some((message) => message.say === "completion_result")
+		if (hasCompletionResult) {
+			return false
+		}
+
+		// Show immediately for active tasks before the first checklist arrives.
+		return true
+	}, [focusChainSettings.enabled, lastProgressMessageText, modifiedMessages])
 
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
@@ -333,6 +357,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,
 						}}
+						showFocusChainPlaceholder={showFocusChainPlaceholder}
 						task={task}
 					/>
 				) : (
