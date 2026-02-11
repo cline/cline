@@ -25,6 +25,7 @@ const SUBAGENT_ALLOWED_TOOLS: ClineDefaultTool[] = [
 	ClineDefaultTool.BASH,
 	ClineDefaultTool.USE_SKILL,
 ]
+const MAX_EMPTY_ASSISTANT_RETRIES = 3
 
 export type SubagentRunStatus = "completed" | "failed"
 
@@ -252,6 +253,7 @@ export class SubagentRunner {
 	async run(prompt: string, onProgress: (update: SubagentProgressUpdate) => void): Promise<SubagentRunResult> {
 		this.abortRequested = false
 		const state = new TaskState()
+		let emptyAssistantResponseRetries = 0
 		const stats: SubagentRunStats = {
 			toolCalls: 0,
 			inputTokens: 0,
@@ -478,10 +480,40 @@ export class SubagentRunner {
 						return { status: "completed", result: assistantText.trim(), stats }
 					}
 
-					const error = "Subagent ended without a final text response."
-					onProgress({ status: "failed", error, stats: { ...stats } })
-					return { status: "failed", error, stats }
+					emptyAssistantResponseRetries += 1
+					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
+						const error = "Subagent ended without a final text response."
+						onProgress({ status: "failed", error, stats: { ...stats } })
+						return { status: "failed", error, stats }
+					}
+
+					// Mirror the main loop's no-tools-used nudge so empty/blank model turns
+					// can recover without surfacing an immediate hard failure in subagent UI.
+					if (assistantContent.length === 0) {
+						conversation.push({
+							role: "assistant",
+							content: [
+								{
+									type: "text",
+									text: "Failure: I did not provide a response.",
+								},
+							],
+							id: requestId,
+						})
+					}
+					conversation.push({
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: formatResponse.noToolsUsed(useNativeToolCalls),
+							},
+						],
+					})
+					await delay(0)
+					continue
 				}
+				emptyAssistantResponseRetries = 0
 
 				const toolResultBlocks = [] as any[]
 				for (const call of finalizedToolCalls) {

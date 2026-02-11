@@ -268,6 +268,65 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 2)
 	})
 
+	it("retries empty assistant turns with a no-tools-used nudge before failing", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			// Empty response turn
+		})
+		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
+			const lastAssistant = conversation[1] as {
+				role: string
+				content: Array<{ type?: string; text?: string }>
+			}
+			assert.equal(lastAssistant.role, "assistant")
+			assert.equal(lastAssistant.content[0]?.type, "text")
+			assert.equal(lastAssistant.content[0]?.text, "Failure: I did not provide a response.")
+
+			const lastUser = conversation[2] as {
+				role: string
+				content: Array<{ type?: string; text?: string }>
+			}
+			assert.equal(lastUser.role, "user")
+			assert.equal(lastUser.content[0]?.type, "text")
+			assert.match(lastUser.content[0]?.text || "", /You did not use a tool in your previous response/i)
+
+			yield {
+				type: "text",
+				text: "done",
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(coreApi, "buildApiHandler").returns({
+			abort: sinon.stub(),
+			getModel: () => ({
+				id: "anthropic/claude-sonnet-4.5",
+				info: {
+					contextWindow: 200_000,
+					apiFormat: ApiFormat.ANTHROPIC_CHAT,
+					supportsPromptCache: true,
+				},
+			}),
+			createMessage,
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		initializeHostProvider()
+
+		const config = createTaskConfig(false)
+		const runner = new SubagentRunner(config)
+
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.equal(createMessage.callCount, 2)
+	})
+
 	it("falls back to non-native mode when native settings are enabled but variant has no native tools", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
