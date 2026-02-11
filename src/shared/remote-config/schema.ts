@@ -132,6 +132,8 @@ export const RemoteMCPServerSchema = z.object({
 	url: z.string(),
 	// When this is true, the user cannot disable this MCP server
 	alwaysEnabled: z.boolean().optional(),
+	// Headers to allow for custom auth
+	headers: z.record(z.string(), z.string()).optional(),
 })
 
 // Settings for a global cline rules or workflow file.

@@ -22,7 +22,7 @@ export function setVscodeHostProviderMock(options?: {
 	terminalManagerCreator?: TerminalManagerCreator
 	hostBridgeClient?: HostBridgeClientProvider
 	logToChannel?: (message: string) => void
-	getCallbackUri?: () => Promise<string>
+	getCallbackUri?: (path: string) => Promise<string>
 	getBinaryLocation?: (name: string) => Promise<string>
 	extensionFsPath?: string
 	globalStorageFsPath?: string
@@ -35,7 +35,7 @@ export function setVscodeHostProviderMock(options?: {
 		options?.terminalManagerCreator ?? ((() => ({}) as ITerminalManager) as TerminalManagerCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,
 		options?.logToChannel ?? ((_: string) => {}),
-		options?.getCallbackUri ?? (async () => "http://example.com:1234/"),
+		options?.getCallbackUri ?? (async (path: string) => `http://example.com:1234${path}`),
 		options?.getBinaryLocation ?? (async (n: string) => `/mock/path/to/binary/${n}`),
 		options?.extensionFsPath ?? "/mock/path/to/extension",
 		options?.globalStorageFsPath ?? "/mock/path/to/globalstorage",

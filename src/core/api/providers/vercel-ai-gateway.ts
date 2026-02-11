@@ -17,7 +17,6 @@ interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelInfo?: ModelInfo
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
-	geminiThinkingLevel?: string
 }
 
 export class VercelAIGatewayHandler implements ApiHandler {
@@ -64,9 +63,8 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				tools,
-				this.options.geminiThinkingLevel,
 			)
-			let didOutputUsage: boolean = false
+			let didOutputUsage = false
 
 			const toolCallProcessor = new ToolCallProcessor()
 
@@ -139,6 +137,11 @@ export class VercelAIGatewayHandler implements ApiHandler {
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
+		}
+		// If we have a model ID but no model info, preserve the selected model ID
+		// and fall back only the metadata to defaults.
+		if (modelId) {
+			return { id: modelId, info: openRouterDefaultModelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}

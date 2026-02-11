@@ -527,6 +527,17 @@ describe("Remote Config Schema", () => {
 
 			expect(() => RemoteConfigSchema.parse(config)).to.throw()
 		})
+
+		it("should accept headers", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "test-server", url: "https://example.com/mcp", headers: { Authorization: "test" } }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.remoteMCPServers).to.have.lengthOf(1)
+			expect(result.remoteMCPServers?.[0].headers).to.deep.equal({ Authorization: "test" })
+		})
 	})
 
 	describe("RemoteConfigSchema", () => {

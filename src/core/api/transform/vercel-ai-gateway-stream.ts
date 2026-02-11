@@ -2,11 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
+	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
-	openRouterClaudeOpus461mModelId,
 } from "@shared/api"
-import { shouldSkipReasoningForModel } from "@utils/model-utils"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
+import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages, sanitizeGeminiMessages } from "../transform/openai-format"
@@ -21,7 +22,6 @@ export async function createVercelAIGatewayStream(
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	tools?: OpenAITool[],
-	geminiThinkingLevel?: string,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -103,6 +103,8 @@ export async function createVercelAIGatewayStream(
 		temperature = 1.0
 	}
 
+	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
+
 	// Reasoning/thinking budget configuration
 	let reasoning: { max_tokens: number } | undefined
 
@@ -116,22 +118,20 @@ export async function createVercelAIGatewayStream(
 			temperature = undefined // extended thinking does not support non-1 temperature
 			reasoning = { max_tokens: budgetTokens }
 		}
-	} else if (
-		thinkingBudgetTokens &&
-		thinkingBudgetTokens > 0 &&
-		model.info?.thinkingConfig &&
-		!(model.id.includes("gemini-3") && geminiThinkingLevel)
-	) {
+	} else if (thinkingBudgetTokens && thinkingBudgetTokens > 0 && model.info?.thinkingConfig && !supportsReasoningEffort) {
 		// For other models with thinkingConfig, use the standard check
 		temperature = undefined // extended thinking does not support non-1 temperature
 		reasoning = { max_tokens: thinkingBudgetTokens }
 	}
 
-	// Skip reasoning for models that don't support it (e.g., devstral, grok-4)
-	const includeReasoning = !shouldSkipReasoningForModel(model.id)
+	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
+	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
+	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
+	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+	const reasoningPayload =
+		reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined)
 
-	// @ts-expect-error-next-line
-	const stream = await client.chat.completions.create({
+	const requestPayload: Record<string, unknown> = {
 		model: model.id,
 		max_tokens: maxTokens,
 		temperature: temperature,
@@ -140,13 +140,12 @@ export async function createVercelAIGatewayStream(
 		stream: true,
 		stream_options: { include_usage: true },
 		include_reasoning: includeReasoning,
-		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
-		...(reasoning ? { reasoning } : {}),
+		...(reasoningPayload ? { reasoning: reasoningPayload } : {}),
 		...getOpenAIToolParams(tools),
-		...(model.id.includes("gemini-3") && geminiThinkingLevel
-			? { thinking_config: { thinking_level: geminiThinkingLevel, include_thoughts: true } }
-			: {}),
-	})
+	}
+
+	// @ts-expect-error-next-line
+	const stream = await client.chat.completions.create(requestPayload)
 
 	return stream
 }

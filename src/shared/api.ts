@@ -341,8 +341,18 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"sonnet[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	opus: {
-		...anthropicModels["claude-opus-4-1-20250805"],
+		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"opus[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -356,6 +366,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-sonnet-4-5-20250929[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
 		supportsImages: false,
@@ -363,6 +378,11 @@ export const claudeCodeModels = {
 	},
 	"claude-opus-4-6": {
 		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-6[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -460,7 +480,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
-	"anthropic.claude-opus-4-6-v1:0": {
+	"anthropic.claude-opus-4-6-v1": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -472,7 +492,7 @@ export const bedrockModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 	},
-	"anthropic.claude-opus-4-6-v1:0:1m": {
+	"anthropic.claude-opus-4-6-v1:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -880,11 +900,25 @@ export const vertexModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
+	},
+	"claude-opus-4-6:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-5@20251101": {
 		maxTokens: 8192,

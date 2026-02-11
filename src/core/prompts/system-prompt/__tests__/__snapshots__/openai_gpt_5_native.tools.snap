@@ -371,6 +371,43 @@
   {
     "type": "function",
     "function": {
+      "name": "use_subagents",
+      "description": "Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt_1": {
+            "type": "string",
+            "description": "First subagent prompt."
+          },
+          "prompt_2": {
+            "type": "string",
+            "description": "Optional second subagent prompt."
+          },
+          "prompt_3": {
+            "type": "string",
+            "description": "Optional third subagent prompt."
+          },
+          "prompt_4": {
+            "type": "string",
+            "description": "Optional fourth subagent prompt."
+          },
+          "prompt_5": {
+            "type": "string",
+            "description": "Optional fifth subagent prompt."
+          }
+        },
+        "required": [
+          "prompt_1"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "12345670mcp0test_tool",
       "description": "test-server: A test tool",
       "strict": false,

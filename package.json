@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.57.0",
+	"version": "3.57.1",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
 		"cli"
@@ -385,6 +385,7 @@
 		"compile-standalone-npm": "npm run protos && npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"cli:link": "cd cli && npm run link",
 		"cli:build": "npm run protos && cd cli && npm run build",
+		"cli:run": "node cli/dist/cli.mjs",
 		"cli:build:production": "cd cli && npm run build:production",
 		"cli:watch": "cd cli && npm run watch",
 		"cli:test": "cd cli && npm run test",

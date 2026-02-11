@@ -7,10 +7,12 @@ import { Controller } from ".."
  * Initiates Hicap auth
  */
 export async function hicapAuthClicked(_: Controller, __: EmptyRequest): Promise<Empty> {
-	const callbackUri = await HostProvider.get().getCallbackUrl()
-	const authUri = `https://dashboard.hicap.ai/setup?application=cline&callback_url=${callbackUri}/hicap`
+	const callbackUrl = await HostProvider.get().getCallbackUrl("/hicap")
+	const authUrl = new URL("https://dashboard.hicap.ai/setup")
+	authUrl.searchParams.set("application", "cline")
+	authUrl.searchParams.set("callback_url", callbackUrl)
 
-	await openExternal(authUri)
+	await openExternal(authUrl.toString())
 
 	return {}
 }

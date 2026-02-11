@@ -51,6 +51,7 @@ export class AutoApprove {
 				case ClineDefaultTool.FILE_EDIT:
 				case ClineDefaultTool.APPLY_PATCH:
 				case ClineDefaultTool.BASH:
+				case ClineDefaultTool.USE_SUBAGENTS:
 					return [true, true]
 
 				case ClineDefaultTool.BROWSER:
@@ -73,6 +74,7 @@ export class AutoApprove {
 				case ClineDefaultTool.FILE_EDIT:
 				case ClineDefaultTool.APPLY_PATCH:
 				case ClineDefaultTool.BASH:
+				case ClineDefaultTool.USE_SUBAGENTS:
 					return [true, true]
 				case ClineDefaultTool.BROWSER:
 				case ClineDefaultTool.WEB_FETCH:
@@ -90,6 +92,7 @@ export class AutoApprove {
 			case ClineDefaultTool.LIST_FILES:
 			case ClineDefaultTool.LIST_CODE_DEF:
 			case ClineDefaultTool.SEARCH:
+			case ClineDefaultTool.USE_SUBAGENTS:
 				return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
 			case ClineDefaultTool.NEW_RULE:
 			case ClineDefaultTool.FILE_NEW:
@@ -127,7 +130,7 @@ export class AutoApprove {
 			return true
 		}
 
-		let isLocalRead: boolean = false
+		let isLocalRead = false
 		if (autoApproveActionpath) {
 			// Use cached workspace info instead of fetching every time
 			const { isMultiRootScenario } = await this.getWorkspaceInfo()
@@ -159,8 +162,7 @@ export class AutoApprove {
 
 		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
 			return true
-		} else {
-			return false
 		}
+		return false
 	}
 }

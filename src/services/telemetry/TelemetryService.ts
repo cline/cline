@@ -535,7 +535,9 @@ export class TelemetryService {
 	}
 
 	public captureExtensionActivated() {
-		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+		})
 	}
 
 	public captureExtensionStorageError(errorMessage: string, eventName: string) {

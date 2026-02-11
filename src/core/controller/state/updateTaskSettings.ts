@@ -1,12 +1,9 @@
 import { Empty } from "@shared/proto/cline/common"
-import {
-	PlanActMode,
-	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
-	UpdateTaskSettingsRequest,
-} from "@shared/proto/cline/state"
+import { PlanActMode, UpdateTaskSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
+import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."
+import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"
 
 /**
  * Updates task-specific settings for the current task
@@ -15,21 +12,6 @@ import { Controller } from ".."
  * @returns An empty response
  */
 export async function updateTaskSettings(controller: Controller, request: UpdateTaskSettingsRequest): Promise<Empty> {
-	const convertOpenaiReasoningEffort = (effort: ProtoOpenaiReasoningEffort): OpenaiReasoningEffort => {
-		switch (effort) {
-			case ProtoOpenaiReasoningEffort.LOW:
-				return "low"
-			case ProtoOpenaiReasoningEffort.MEDIUM:
-				return "medium"
-			case ProtoOpenaiReasoningEffort.HIGH:
-				return "high"
-			case ProtoOpenaiReasoningEffort.MINIMAL:
-				return "minimal"
-			default:
-				return "medium"
-		}
-	}
-
 	const convertPlanActMode = (mode: PlanActMode): Mode => {
 		return mode === PlanActMode.PLAN ? "plan" : "act"
 	}
@@ -52,7 +34,8 @@ export async function updateTaskSettings(controller: Controller, request: Update
 			const {
 				// Fields requiring conversion
 				autoApprovalSettings,
-				openaiReasoningEffort,
+				planModeReasoningEffort,
+				actModeReasoningEffort,
 				mode,
 				customPrompt,
 				planModeApiProvider,
@@ -64,7 +47,7 @@ export async function updateTaskSettings(controller: Controller, request: Update
 
 			// Batch update for simple pass-through fields
 			const filteredSettings: any = Object.fromEntries(
-				Object.entries(simpleSettings).filter(([_, value]) => value !== undefined),
+				Object.entries(simpleSettings).filter(([key, value]) => key !== "openaiReasoningEffort" && value !== undefined),
 			)
 
 			controller.stateManager.setTaskSettingsBatch(taskId, filteredSettings)
@@ -89,9 +72,14 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				controller.stateManager.setTaskSettings(taskId, "autoApprovalSettings", mergedSettings)
 			}
 
-			if (openaiReasoningEffort !== undefined) {
-				const converted = convertOpenaiReasoningEffort(openaiReasoningEffort)
-				controller.stateManager.setTaskSettings(taskId, "openaiReasoningEffort", converted)
+			if (planModeReasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)
+				controller.stateManager.setTaskSettings(taskId, "planModeReasoningEffort", converted)
+			}
+
+			if (actModeReasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(actModeReasoningEffort)
+				controller.stateManager.setTaskSettings(taskId, "actModeReasoningEffort", converted)
 			}
 
 			if (mode !== undefined) {
