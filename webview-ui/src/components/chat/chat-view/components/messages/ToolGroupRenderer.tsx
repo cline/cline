@@ -90,16 +90,12 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		const completed: ToolWithReasoning[] = []
 		const pending: ToolWithReasoning[] = []
 
-		// Find pending approval tools from raw messages (not filtered)
-		// These are ask tools that have finished streaming (not partial)
+		// First collect all completed (say) tool paths so we can exclude approved asks
+		const completedPaths = new Set<string>()
 		for (const msg of messages) {
-			if (msg.say === "reasoning") continue
-			if (isLowStakesTool(msg) && msg.type === "ask" && !msg.partial) {
-				pending.push({
-					tool: msg,
-					parsedTool: parseToolSafe(msg.text),
-					isPendingApproval: true,
-				})
+			if (isLowStakesTool(msg) && msg.type === "say") {
+				const parsed = parseToolSafe(msg.text)
+				if (parsed.path) completedPaths.add(parsed.path)
 			}
 		}
 
@@ -111,6 +107,22 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 					tool: msg,
 					parsedTool: parseToolSafe(msg.text),
 				})
+			}
+		}
+
+		// Collect ALL ask tools (approved or not) - they always stay in the list.
+		// The blue highlight is handled at render time (only the current pending ask is blue).
+		for (const msg of messages) {
+			if (msg.say === "reasoning") continue
+			if (isLowStakesTool(msg) && msg.type === "ask" && !msg.partial) {
+				const parsed = parseToolSafe(msg.text)
+				if (!completedPaths.has(parsed.path || "")) {
+					pending.push({
+						tool: msg,
+						parsedTool: parsed,
+						isPendingApproval: true,
+					})
+				}
 			}
 		}
 
@@ -133,7 +145,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 			.filter((item) => item.activityText)
 	}, [currentActivities])
 
-	// Deduplicate - exclude completed items that match active items by path
+	// Deduplicate - exclude completed items that match active or pending items by path
 	const dedupedCompleted = useMemo(() => {
 		const activePaths = new Set(activeTools.map((item) => item.parsedTool.path).filter(Boolean))
 		const pendingPaths = new Set(pendingApprovalTools.map((item) => item.parsedTool.path).filter(Boolean))
@@ -156,33 +168,81 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		return null
 	}
 
+	// Determine which pending tool is the current ask (blue highlighted)
+	// Only the last ask tool in the group AND only if it's still the last message
+	// in the conversation (nothing has happened after it — truly awaiting approval)
+	const currentPendingTs = useMemo(() => {
+		if (!isLastGroup || !hasPendingApproval || allMessages.length === 0) return null
+		// Find the last ask tool in the group
+		let lastAskTs: number | null = null
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i]
+			if (isLowStakesTool(msg) && msg.type === "ask" && !msg.partial) {
+				lastAskTs = msg.ts
+				break
+			}
+		}
+		if (lastAskTs === null) return null
+		// Verify this ask is still the last message in the conversation
+		// If the conversation has moved on (new messages after it), it's been answered
+		const lastConversationTs = allMessages[allMessages.length - 1].ts
+		if (lastConversationTs !== lastAskTs) return null
+		return lastAskTs
+	}, [isLastGroup, hasPendingApproval, messages, allMessages])
+
+	// Count non-blue pending tools as "optimistically read" — they were already approved
+	// but manual approval doesn't create say messages, so we count them here
+	const optimisticReadCount = useMemo(() => {
+		if (!hasPendingApproval) return 0
+		return pendingApprovalTools.filter(({ tool }) => tool.ts !== currentPendingTs).length
+	}, [pendingApprovalTools, currentPendingTs, hasPendingApproval])
+
+	const totalReadCount = completedCount + optimisticReadCount
+	const hasAnyRead = totalReadCount > 0
+	const hasCurrentPending = currentPendingTs !== null && pendingApprovalTools.some(({ tool }) => tool.ts === currentPendingTs)
+
+	// Build combined header
+	const combinedHeader = useMemo(() => {
+		if (hasAnyRead && hasCurrentPending) {
+			return `Cline read ${totalReadCount} file${totalReadCount > 1 ? "s" : ""} and wants to read:`
+		}
+		if (hasAnyRead) {
+			// All files done — use totalReadCount which includes optimistic reads from ask tools
+			return `Cline read ${totalReadCount} file${totalReadCount > 1 ? "s" : ""}:`
+		}
+		if (hasPendingApproval) {
+			return "Cline wants to read:"
+		}
+		return null
+	}, [hasAnyRead, hasCurrentPending, totalReadCount, hasPendingApproval])
+
 	return (
 		<div className={cn("px-4 py-2 ml-1 text-description")}>
-			{/* Completed tools section */}
+			{/* Combined header */}
+			{combinedHeader && <div className="text-[13px] text-foreground mb-1">{combinedHeader}</div>}
+
+			{/* Completed tools */}
 			{hasCompleted && (
-				<>
-					<div className="text-[13px] text-foreground mb-1">{summary}:</div>
-					<div className="min-w-0">
-						{dedupedCompleted.map(({ tool, parsedTool }) => {
-							const info = getToolDisplayInfo(parsedTool, getIconByToolName)
-							if (!info) return null
-							const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
-							const isItemExpanded = expandedItems[tool.ts] ?? false
-							return (
-								<FileToolRow
-									displayText={info.displayText}
-									expandedContent={parsedTool.content || null}
-									filePath={info.path}
-									icon={info.icon}
-									isExpandable={isExpandable}
-									isExpanded={isItemExpanded}
-									key={tool.ts}
-									onToggle={() => handleItemToggle(tool.ts)}
-								/>
-							)
-						})}
-					</div>
-				</>
+				<div className="min-w-0">
+					{dedupedCompleted.map(({ tool, parsedTool }) => {
+						const info = getToolDisplayInfo(parsedTool, getIconByToolName)
+						if (!info) return null
+						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
+						const isItemExpanded = expandedItems[tool.ts] ?? false
+						return (
+							<FileToolRow
+								displayText={info.displayText}
+								expandedContent={parsedTool.content || null}
+								filePath={info.path}
+								icon={info.icon}
+								isExpandable={isExpandable}
+								isExpanded={isItemExpanded}
+								key={tool.ts}
+								onToggle={() => handleItemToggle(tool.ts)}
+							/>
+						)
+					})}
+				</div>
 			)}
 
 			{/* Active tools (still streaming - typewriter animation) */}
@@ -204,33 +264,33 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 				</div>
 			)}
 
-			{/* Pending approval section */}
+			{/* Pending approval files - only highlight the one currently awaiting approval */}
 			{hasPendingApproval && (
-				<>
-					<div className="text-[13px] text-foreground mb-1 mt-2">Cline wants to read:</div>
-					<div className="min-w-0">
-						{pendingApprovalTools.map(({ tool, parsedTool }) => {
-							const info = getToolDisplayInfo(parsedTool, getIconByToolName)
-							if (!info) return null
-							const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
-							const isItemExpanded = expandedItems[tool.ts] ?? false
-							return (
-								<FileToolRow
-									displayText={info.displayText}
-									expandedContent={parsedTool.content || null}
-									filePath={info.path}
-									icon={info.icon}
-									isExpandable={isExpandable}
-									isExpanded={isItemExpanded}
-									isHighlighted={true}
-									key={tool.ts}
-									onToggle={() => handleItemToggle(tool.ts)}
-									outsideWorkspace={parsedTool.operationIsLocatedInWorkspace === false}
-								/>
-							)
-						})}
-					</div>
-				</>
+				<div className="min-w-0">
+					{pendingApprovalTools.map(({ tool, parsedTool }) => {
+						const info = getToolDisplayInfo(parsedTool, getIconByToolName)
+						if (!info) return null
+						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
+						const isItemExpanded = expandedItems[tool.ts] ?? false
+						// Only highlight blue if this is the current pending ask
+						// (the last ask tool in this group — the one currently awaiting approval)
+						const isCurrentPendingAsk = tool.ts === currentPendingTs
+						return (
+							<FileToolRow
+								displayText={info.displayText}
+								expandedContent={parsedTool.content || null}
+								filePath={info.path}
+								icon={info.icon}
+								isExpandable={isExpandable}
+								isExpanded={isItemExpanded}
+								isHighlighted={isCurrentPendingAsk}
+								key={tool.ts}
+								onToggle={() => handleItemToggle(tool.ts)}
+								outsideWorkspace={parsedTool.operationIsLocatedInWorkspace === false}
+							/>
+						)
+					})}
+				</div>
 			)}
 		</div>
 	)
