@@ -15,7 +15,7 @@ import {
 	LoaderCircleIcon,
 	NetworkIcon,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 interface SubagentStatusRowProps {
 	message: ClineMessage
@@ -29,6 +29,12 @@ type SubagentRowStatus = "pending" | "running" | "completed" | "failed"
 interface SubagentRowData {
 	status: SubagentRowStatus
 	items: SubagentStatusItem[]
+}
+
+interface SubagentPromptTextProps {
+	prompt: string
+	isExpanded: boolean
+	onShowMore: () => void
 }
 
 const statusIcon = (status: DisplayStatus) => {
@@ -112,8 +118,61 @@ function parseSubagentRowData(message: ClineMessage): SubagentRowData | null {
 	}
 }
 
+function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTextProps) {
+	const promptRef = useRef<HTMLDivElement | null>(null)
+	const [showMoreVisible, setShowMoreVisible] = useState(false)
+
+	useEffect(() => {
+		if (isExpanded) {
+			setShowMoreVisible(false)
+			return
+		}
+
+		const element = promptRef.current
+		if (!element) {
+			setShowMoreVisible(false)
+			return
+		}
+
+		const checkOverflow = () => {
+			setShowMoreVisible(element.scrollHeight - element.clientHeight > 1)
+		}
+
+		checkOverflow()
+
+		if (typeof ResizeObserver === "undefined") {
+			return
+		}
+
+		const observer = new ResizeObserver(() => checkOverflow())
+		observer.observe(element)
+
+		return () => observer.disconnect()
+	}, [prompt, isExpanded])
+
+	return (
+		<div className="relative">
+			<div
+				className={`text-xs font-medium text-foreground whitespace-pre-wrap break-words ${!isExpanded ? "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] pr-16" : ""}`}
+				ref={promptRef}>
+				"{prompt}"
+			</div>
+			{!isExpanded && showMoreVisible && (
+				<button
+					aria-label="Show full subagent prompt"
+					className="absolute right-0 bottom-0 text-[11px] bg-vscode-editor-background text-link border-0 p-0 pl-1 cursor-pointer"
+					onClick={onShowMore}
+					type="button">
+					Show more
+				</button>
+			)}
+		</div>
+	)
+}
+
 export default function SubagentStatusRow({ message, isLast, lastModifiedMessage }: SubagentStatusRowProps) {
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
+	const [expandedPrompts, setExpandedPrompts] = useState<Record<number, boolean>>({})
 	const data = useMemo(() => parseSubagentRowData(message), [message])
 
 	if (!data) {
@@ -139,6 +198,12 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 			[index]: !prev[index],
 		}))
 	}
+	const expandPrompt = (index: number) => {
+		setExpandedPrompts((prev) => ({
+			...prev,
+			[index]: true,
+		}))
+	}
 
 	return (
 		<div className="mb-2">
@@ -157,6 +222,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 					const isStreamingPromptUnderConstruction =
 						isPromptConstructionRow && message.partial === true && index === data.items.length - 1
 					const shouldShowStats = !isStreamingPromptUnderConstruction
+					const statsText = `${formatCount(entry.toolCalls)} tools called · ${formatCount(entry.contextTokens)} tokens · ${formatCost(entry.totalCost)}`
 					return (
 						<div
 							className="rounded-xs border border-editor-group-border bg-vscode-editor-background px-2 py-1.5"
@@ -164,31 +230,30 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 							<div className="flex items-start gap-2">
 								{statusIcon(displayStatus)}
 								<div className="min-w-0 flex-1">
-									<div className="text-xs font-medium text-foreground whitespace-pre-wrap break-words">
-										"{entry.prompt}"
-									</div>
+									<SubagentPromptText
+										isExpanded={expandedPrompts[entry.index] === true}
+										onShowMore={() => expandPrompt(entry.index)}
+										prompt={entry.prompt}
+									/>
 								</div>
 							</div>
-							{shouldShowStats && (
-								<div className="mt-1 text-[11px] opacity-70">
-									{formatCount(entry.toolCalls)} tools called · {formatCount(entry.contextTokens)} tokens ·{" "}
-									{formatCost(entry.totalCost)}
-								</div>
-							)}
-							{hasDetails && (
-								<button
-									aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
-									className={`${shouldShowStats ? "mt-1" : "mt-2"} text-[11px] opacity-80 flex items-center gap-1.5 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground`}
-									onClick={() => toggleItem(entry.index)}
-									type="button">
-									{isExpanded ? (
-										<ChevronDownIcon className="size-2" />
-									) : (
-										<ChevronRightIcon className="size-2" />
-									)}
-									<span>{isExpanded ? "Hide output" : "Show output"}</span>
-								</button>
-							)}
+							{shouldShowStats &&
+								(hasDetails ? (
+									<button
+										aria-label={isExpanded ? "Collapse subagent output" : "Expand subagent output"}
+										className="mt-1 text-[11px] opacity-80 flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground"
+										onClick={() => toggleItem(entry.index)}
+										type="button">
+										{isExpanded ? (
+											<ChevronDownIcon className="size-2 shrink-0" />
+										) : (
+											<ChevronRightIcon className="size-2 shrink-0" />
+										)}
+										<span>{statsText}</span>
+									</button>
+								) : (
+									<div className="mt-1 text-[11px] opacity-70">{statsText}</div>
+								))}
 							{isExpanded && entry.result && entry.status === "completed" && (
 								<div className="mt-2 text-xs opacity-80 whitespace-pre-wrap break-words">{entry.result}</div>
 							)}
