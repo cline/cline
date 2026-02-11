@@ -58,7 +58,8 @@ export class AuthHandler {
 			this.updateTimeout()
 		}
 
-		return `http://127.0.0.1:${this.port}${path}`
+		// Use URL to ensure proper encoding of the path and removal of any trailing slash
+		return new URL(path, `http://127.0.0.1:${this.port}`).href.replace(/\/$/, "") // Remove trailing slash for consistency
 	}
 
 	private async createServer(): Promise<void> {
@@ -171,10 +172,7 @@ export class AuthHandler {
 				Logger.log("AuthHandler: Got redirect URI:", redirectUri)
 			} catch (error) {
 				// CLI or JetBrains mode - redirect not available
-				Logger.error(
-					"AuthHandler: No redirect URI available (CLI/JetBrains mode)" +
-						(error instanceof Error ? error.message : String(error)),
-				)
+				Logger.error("AuthHandler: No redirect URI available (CLI/JetBrains mode)", error)
 				redirectUri = undefined
 			}
 
