@@ -395,6 +395,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						role="combobox"
 						style={{
 							width: "100%",
 							zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX,

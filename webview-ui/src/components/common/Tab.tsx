@@ -19,7 +19,7 @@ export const TabContent = ({ className, children, ...props }: TabProps) => {
 		const target = e.target as HTMLElement
 
 		// Prevent scrolling if the target or any of its ancestors is a listbox or option
-		if (target.closest('[role="listbox"], [role="option"]')) {
+		if (target.closest('[role="listbox"], [role="combobox"], [role="option"]')) {
 			return
 		}
 

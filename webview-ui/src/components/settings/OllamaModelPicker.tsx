@@ -139,6 +139,7 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 					}}
 					onKeyDown={handleKeyDown}
 					placeholder={placeholder}
+					role="combobox"
 					style={{
 						width: "100%",
 						zIndex: OLLAMA_MODEL_PICKER_Z_INDEX,

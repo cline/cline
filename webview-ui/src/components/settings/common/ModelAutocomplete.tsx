@@ -180,6 +180,7 @@ export const ModelAutocomplete = ({
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder={placeholder}
+						role="combobox"
 						style={{
 							width: "100%",
 							zIndex: zIndex,
