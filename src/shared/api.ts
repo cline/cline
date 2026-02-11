@@ -341,6 +341,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"sonnet[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	opus: {
 		...anthropicModels["claude-opus-4-6"],
 		supportsImages: false,
@@ -358,6 +363,11 @@ export const claudeCodeModels = {
 	},
 	"claude-sonnet-4-5-20250929": {
 		...anthropicModels["claude-sonnet-4-5-20250929"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-sonnet-4-5-20250929[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
