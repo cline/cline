@@ -163,8 +163,14 @@ describe("SubagentRunner", () => {
 			assert.equal(toolResult.tool_use_id, "toolu_subagent_1")
 
 			yield {
-				type: "text",
-				text: "done",
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_complete_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
 			}
 		})
 
@@ -233,7 +239,7 @@ describe("SubagentRunner", () => {
 
 			yield {
 				type: "text",
-				text: "done",
+				text: "<attempt_completion><result>done</result></attempt_completion>",
 			}
 		})
 
@@ -292,7 +298,7 @@ describe("SubagentRunner", () => {
 
 			yield {
 				type: "text",
-				text: "done",
+				text: "<attempt_completion><result>done</result></attempt_completion>",
 			}
 		})
 
@@ -357,7 +363,7 @@ describe("SubagentRunner", () => {
 
 			yield {
 				type: "text",
-				text: "done",
+				text: "<attempt_completion><result>done</result></attempt_completion>",
 			}
 		})
 
@@ -395,8 +401,14 @@ describe("SubagentRunner", () => {
 	it("builds subagent api handler with the parent task ulid", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
 			yield {
-				type: "text",
-				text: "done",
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_complete_2",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
 			}
 		})
 
@@ -472,8 +484,14 @@ describe("SubagentRunner", () => {
 			assert.equal(followUpTexts.includes("# Workspace Configuration"), false)
 
 			yield {
-				type: "text",
-				text: "done",
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_workspace_complete_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
 			}
 		})
 

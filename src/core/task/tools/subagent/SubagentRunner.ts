@@ -24,6 +24,7 @@ const SUBAGENT_ALLOWED_TOOLS: ClineDefaultTool[] = [
 	ClineDefaultTool.LIST_CODE_DEF,
 	ClineDefaultTool.BASH,
 	ClineDefaultTool.USE_SKILL,
+	ClineDefaultTool.ATTEMPT,
 ]
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
 
@@ -72,7 +73,9 @@ Explore broadly, read related files, trace through call chains, and build a comp
 You can read files, list directories, search for patterns, list code definitions, and run commands.
 Only use execute_command for readonly operations like ls, grep, git log, git diff, gh, etc.
 Do not run commands that modify files or system state.
-When you have a comprehensive answer, respond with your findings including file paths and line numbers.
+When you have a comprehensive answer, call the attempt_completion tool.
+The attempt_completion result field is sent directly to the main agent, so put your full final findings there.
+Include file paths and line numbers in that result field.
 Also include a section titled "Recommended files for main agent" with a list of the highest-value files the main agent should read next, and a one-line reason for each file.
 Do not use markdown formatting in your final response to the main agent.`
 
@@ -192,6 +195,23 @@ function parseNonNativeToolCalls(assistantText: string): SubagentToolCall[] {
 			signature: block.signature,
 			isNativeToolCall: false,
 		}))
+}
+
+function pushSubagentToolResultBlock(toolResultBlocks: any[], call: SubagentToolCall, label: string, content: string): void {
+	if (call.isNativeToolCall) {
+		toolResultBlocks.push({
+			type: "tool_result",
+			tool_use_id: call.toolUseId,
+			call_id: call.call_id,
+			content,
+		})
+		return
+	}
+
+	toolResultBlocks.push({
+		type: "text",
+		text: `${label} Result:\n${content}`,
+	})
 }
 
 export class SubagentRunner {
@@ -475,14 +495,9 @@ export class SubagentRunner {
 				}
 
 				if (finalizedToolCalls.length === 0) {
-					if (assistantText.trim().length > 0) {
-						onProgress({ status: "completed", result: assistantText.trim(), stats: { ...stats } })
-						return { status: "completed", result: assistantText.trim(), stats }
-					}
-
 					emptyAssistantResponseRetries += 1
 					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
-						const error = "Subagent ended without a final text response."
+						const error = "Subagent did not call attempt_completion."
 						onProgress({ status: "failed", error, stats: { ...stats } })
 						return { status: "failed", error, stats }
 					}
@@ -518,26 +533,27 @@ export class SubagentRunner {
 				const toolResultBlocks = [] as any[]
 				for (const call of finalizedToolCalls) {
 					const toolName = call.name as ClineDefaultTool
+					const toolCallParams = toToolUseParams(call.input)
+
+					if (toolName === ClineDefaultTool.ATTEMPT) {
+						const completionResult = toolCallParams.result?.trim()
+						if (!completionResult) {
+							const missingResultError = formatResponse.missingToolParameterError("result")
+							pushSubagentToolResultBlock(toolResultBlocks, call, toolName, missingResultError)
+							continue
+						}
+
+						stats.toolCalls += 1
+						onProgress({ stats: { ...stats } })
+						onProgress({ status: "completed", result: completionResult, stats: { ...stats } })
+						return { status: "completed", result: completionResult, stats }
+					}
 
 					if (!SUBAGENT_ALLOWED_TOOLS.includes(toolName)) {
 						const deniedResult = formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`)
-						if (call.isNativeToolCall) {
-							toolResultBlocks.push({
-								type: "tool_result",
-								tool_use_id: call.toolUseId,
-								call_id: call.call_id,
-								content: deniedResult,
-							})
-						} else {
-							toolResultBlocks.push({
-								type: "text",
-								text: `${toolName} Result:\n${deniedResult}`,
-							})
-						}
+						pushSubagentToolResultBlock(toolResultBlocks, call, toolName, deniedResult)
 						continue
 					}
-
-					const toolCallParams = toToolUseParams(call.input)
 
 					const toolCallBlock: ToolUse = {
 						type: "tool_use",
@@ -574,20 +590,8 @@ export class SubagentRunner {
 					onProgress({ stats: { ...stats } })
 
 					const serializedToolResult = serializeToolResult(toolResult)
-					if (call.isNativeToolCall) {
-						toolResultBlocks.push({
-							type: "tool_result",
-							tool_use_id: call.toolUseId,
-							call_id: call.call_id,
-							content: serializedToolResult,
-						})
-					} else {
-						const toolDescription = handler?.getDescription(toolCallBlock) || `[${toolName}]`
-						toolResultBlocks.push({
-							type: "text",
-							text: `${toolDescription} Result:\n${serializedToolResult}`,
-						})
-					}
+					const toolDescription = handler?.getDescription(toolCallBlock) || `[${toolName}]`
+					pushSubagentToolResultBlock(toolResultBlocks, call, toolDescription, serializedToolResult)
 				}
 
 				conversation.push({
