@@ -24,6 +24,15 @@ export function createConsoleLogExporter(): ConsoleLogRecordExporter {
 	return new ConsoleLogRecordExporter()
 }
 
+export function ensurePathSuffix(url: URL, suffix: string): void {
+	const pathname = url.pathname
+	const normalizedPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname
+	url.pathname = normalizedPathname
+	if (!normalizedPathname.endsWith(suffix)) {
+		url.pathname = `${normalizedPathname}${suffix}`
+	}
+}
+
 /**
  * Create an OTLP log exporter based on protocol
  */
@@ -35,6 +44,8 @@ export function createOTLPLogExporter(
 ): LogRecordExporter | null {
 	try {
 		let exporter: any = null
+		const logsUrl = new URL(endpoint)
+		ensurePathSuffix(logsUrl, "/v1/logs")
 
 		switch (protocol) {
 			case "grpc": {
@@ -49,13 +60,11 @@ export function createOTLPLogExporter(
 				break
 			}
 			case "http/json": {
-				const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
-				exporter = new OTLPLogExporterHTTP({ url: logsUrl, headers })
+				exporter = new OTLPLogExporterHTTP({ url: logsUrl.toString(), headers })
 				break
 			}
 			case "http/protobuf": {
-				const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
-				exporter = new OTLPLogExporterProto({ url: logsUrl, headers })
+				exporter = new OTLPLogExporterProto({ url: logsUrl.toString(), headers })
 				break
 			}
 			default:
@@ -65,7 +74,7 @@ export function createOTLPLogExporter(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapLogsExporterWithDiagnostics(exporter, protocol, endpoint)
+			wrapLogsExporterWithDiagnostics(exporter, protocol, logsUrl.toString())
 		}
 
 		return exporter
@@ -101,6 +110,9 @@ export function createOTLPMetricReader(
 	try {
 		let exporter: any = null
 
+		const metricsUrl = new URL(endpoint)
+		ensurePathSuffix(metricsUrl, "/v1/metrics")
+
 		switch (protocol) {
 			case "grpc": {
 				const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
@@ -114,13 +126,11 @@ export function createOTLPMetricReader(
 				break
 			}
 			case "http/json": {
-				const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
-				exporter = new OTLPMetricExporterHTTP({ url: metricsUrl, headers })
+				exporter = new OTLPMetricExporterHTTP({ url: metricsUrl.toString(), headers })
 				break
 			}
 			case "http/protobuf": {
-				const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
-				exporter = new OTLPMetricExporterProto({ url: metricsUrl, headers })
+				exporter = new OTLPMetricExporterProto({ url: metricsUrl.toString(), headers })
 				break
 			}
 			default:
@@ -130,7 +140,7 @@ export function createOTLPMetricReader(
 
 		// Wrap with diagnostics if debug is enabled
 		if (isDebugEnabled()) {
-			wrapMetricsExporterWithDiagnostics(exporter, protocol, endpoint)
+			wrapMetricsExporterWithDiagnostics(exporter, protocol, metricsUrl.toString())
 		}
 
 		return new PeriodicExportingMetricReader({

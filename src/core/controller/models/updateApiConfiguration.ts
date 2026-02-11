@@ -41,7 +41,8 @@ function parseFieldMask(updateMask: string[]): {
 function getAlternateModeField(fieldName: string): string | null {
 	if (fieldName.startsWith("planMode")) {
 		return fieldName.replace("planMode", "actMode")
-	} else if (fieldName.startsWith("actMode")) {
+	}
+	if (fieldName.startsWith("actMode")) {
 		return fieldName.replace("actMode", "planMode")
 	}
 	return null
@@ -141,9 +142,14 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			// Combine secrets and options for the API handler
-			const apiConfigForHandler = { ...secrets, ...options, ulid: controller.task.ulid }
-			controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
+			// Build updated config
+			controller.task.api = buildApiHandler(
+				{
+					...controller.stateManager.getApiConfiguration(),
+					ulid: controller.task.ulid,
+				},
+				currentMode,
+			)
 		}
 
 		// Post updated state to webview

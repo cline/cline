@@ -1,4 +1,10 @@
-import { isGLMModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import {
+	isGLMModelFamily,
+	isLocalModel,
+	isNextGenModelFamily,
+	isNextGenModelProvider,
+	isTrinityModelFamily,
+} from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -29,7 +35,9 @@ export const config = createVariant(ModelFamily.GENERIC)
 			// Not a next-gen model
 			!(isNextGenModelProvider(providerInfo) && isNextGenModelFamily(modelId)) &&
 			// Not a GLM model
-			!isGLMModelFamily(modelId)
+			!isGLMModelFamily(modelId) &&
+			// Not a Trinity model
+			!isTrinityModelFamily(modelId)
 		)
 	})
 	.template(baseTemplate)

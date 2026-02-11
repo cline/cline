@@ -5,8 +5,9 @@ import { isBinaryFile } from "isbinaryfile"
 import * as chardet from "jschardet"
 import mammoth from "mammoth"
 import * as path from "path"
-// @ts-ignore-next-line
+// @ts-expect-error-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
+import { truncateContent } from "@/shared/content-limits"
 import { Logger } from "@/shared/services/Logger"
 import { sanitizeNotebookForLLM } from "./notebook-utils"
 
@@ -14,17 +15,17 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	const detected = chardet.detect(fileBuffer)
 	if (typeof detected === "string") {
 		return detected
-	} else if (detected && (detected as any).encoding) {
-		return (detected as any).encoding
-	} else {
-		if (fileExtension) {
-			const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
-			if (isBinary) {
-				throw new Error(`Cannot read text for file type: ${fileExtension}`)
-			}
-		}
-		return "utf8"
 	}
+	if (detected && (detected as any).encoding) {
+		return (detected as any).encoding
+	}
+	if (fileExtension) {
+		const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
+		if (isBinary) {
+			throw new Error(`Cannot read text for file type: ${fileExtension}`)
+		}
+	}
+	return "utf8"
 }
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
@@ -38,29 +39,41 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 }
 
 /**
- * Expects the fs.access call to have already been performed prior to calling
+ * Expects the fs.access call to have already been performed prior to calling.
+ * Content is automatically truncated if it exceeds 400KB to prevent context overflow.
  */
 export async function callTextExtractionFunctions(filePath: string): Promise<string> {
 	const fileExtension = path.extname(filePath).toLowerCase()
 
+	let content: string
+
 	switch (fileExtension) {
 		case ".pdf":
-			return extractTextFromPDF(filePath)
+			content = await extractTextFromPDF(filePath)
+			break
 		case ".docx":
-			return extractTextFromDOCX(filePath)
+			content = await extractTextFromDOCX(filePath)
+			break
 		case ".ipynb":
-			return extractTextFromIPYNB(filePath)
+			content = await extractTextFromIPYNB(filePath)
+			break
 		case ".xlsx":
-			return extractTextFromExcel(filePath)
+			content = await extractTextFromExcel(filePath)
+			break
 		default:
-			const fileBuffer = await fs.readFile(filePath)
-			if (fileBuffer.byteLength > 20 * 1000 * 1024) {
+			// Check file size with stat() first - faster than reading entire file for size check
+			const fileStat = await fs.stat(filePath)
+			if (fileStat.size > 20 * 1000 * 1024) {
 				// 20MB limit (20 * 1000 * 1024 bytes, decimal MB)
 				throw new Error(`File is too large to read into context.`)
 			}
+			const fileBuffer = await fs.readFile(filePath)
 			const encoding = await detectEncoding(fileBuffer, fileExtension)
-			return iconv.decode(fileBuffer, encoding)
+			content = iconv.decode(fileBuffer, encoding)
 	}
+
+	// Truncate content if it exceeds 400KB to prevent context overflow
+	return truncateContent(content)
 }
 
 async function extractTextFromPDF(filePath: string): Promise<string> {
@@ -118,9 +131,8 @@ function formatCellValue(cell: ExcelJS.Cell): string {
 	if (typeof value === "object" && "formula" in value) {
 		if ("result" in value && value.result !== undefined && value.result !== null) {
 			return value.result.toString()
-		} else {
-			return `[Formula: ${value.formula}]`
 		}
+		return `[Formula: ${value.formula}]`
 	}
 
 	return value.toString()

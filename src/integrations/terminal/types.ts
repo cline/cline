@@ -14,10 +14,17 @@ import type { EventEmitter } from "events"
 /**
  * Event types for terminal process
  */
+export interface TerminalCompletionDetails {
+	/** Process exit code when available */
+	exitCode?: number | null
+	/** Termination signal when available */
+	signal?: NodeJS.Signals | null
+}
+
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
-	completed: []
+	completed: [details?: TerminalCompletionDetails]
 	error: [error: Error]
 	no_shell_integration: []
 }
@@ -57,6 +64,11 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	 * @returns The unretrieved output
 	 */
 	getUnretrievedOutput(): string
+
+	/**
+	 * Get completion metadata for the most recent command execution.
+	 */
+	getCompletionDetails?(): TerminalCompletionDetails
 
 	/**
 	 * Terminate the process if it's still running.
@@ -136,7 +148,7 @@ export type TerminalProcessResultPromise = Promise<void> &
 		/** Listen for line output events */
 		on(event: "line", listener: (line: string) => void): TerminalProcessResultPromise
 		/** Listen for completion event */
-		on(event: "completed", listener: () => void): TerminalProcessResultPromise
+		on(event: "completed", listener: (details?: TerminalCompletionDetails) => void): TerminalProcessResultPromise
 		/** Listen for continue event */
 		on(event: "continue", listener: () => void): TerminalProcessResultPromise
 		/** Listen for error events */
@@ -399,4 +411,8 @@ export interface OrchestrationResult {
 	outputLines: string[]
 	/** Path to log file if output was too large and written to file */
 	logFilePath?: string
+	/** Process exit code when available */
+	exitCode?: number | null
+	/** Process termination signal when available */
+	signal?: NodeJS.Signals | null
 }

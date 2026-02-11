@@ -13,7 +13,7 @@ export class PromptRegistry {
 	private static instance: PromptRegistry
 	private variants: Map<string, PromptVariant> = new Map()
 	private components: ComponentRegistry = {}
-	private loaded: boolean = false
+	private loaded = false
 	public nativeTools: ClineTool[] | undefined = undefined
 
 	private constructor() {
@@ -71,10 +71,12 @@ export class PromptRegistry {
 	getModelFamily(context: SystemPromptContext) {
 		// Ensure providerInfo and model ID are available
 		if (context.providerInfo?.model?.id) {
+			const modelId = context.providerInfo.model.id
 			// Loop through all registered variants to find the first one that matches
 			for (const [_, v] of this.variants.entries()) {
 				try {
 					if (v.matcher(context)) {
+						Logger.log(`[Prompt variant] Selected: ${v.family} (model: ${modelId})`)
 						return v.family
 					}
 				} catch {
@@ -83,7 +85,8 @@ export class PromptRegistry {
 			}
 		}
 		// Fallback to generic variant if no match found
-		Logger.log("No matching variant found, falling back to generic")
+		const modelId = context.providerInfo?.model?.id ?? "unknown"
+		Logger.log(`[Prompt variant] No matching variant found for model: ${modelId}, falling back to generic`)
 		return ModelFamily.GENERIC
 	}
 	/**

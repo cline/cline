@@ -23,19 +23,15 @@ function createAdapter(client: AwsClient, endpoint: string, bucket: string): Sto
 		},
 
 		async write(path: string, value: string): Promise<void> {
-			try {
-				const response = await client.fetch(`${base}/${path}`, {
-					method: "PUT",
-					body: value,
-					headers: {
-						"Content-Type": "text/plain",
-					},
-				})
-				if (!response.ok) {
-					throw new Error(`Failed to write ${path}: ${response.status}`)
-				}
-			} catch (error) {
-				Logger.error("Error in write:", error)
+			const response = await client.fetch(`${base}/${path}`, {
+				method: "PUT",
+				body: value,
+				headers: {
+					"Content-Type": "text/plain",
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`Failed to write ${path}: ${response.status}`)
 			}
 		},
 
@@ -75,9 +71,9 @@ function createS3Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 }
 
 function createR2Adapter(settings: BlobStoreSettings): StorageAdapter | undefined {
-	const { accountId, bucket, accessKeyId, secretAccessKey } = settings
+	const { accountId, endpoint, bucket, accessKeyId, secretAccessKey } = settings
 
-	if (!accountId || !bucket || !accessKeyId || !secretAccessKey) {
+	if ((!endpoint && !accountId) || !bucket || !accessKeyId || !secretAccessKey) {
 		Logger.error("[StorageAdapter] Missing required R2 settings")
 		return undefined
 	}
@@ -100,12 +96,12 @@ export function getStorageAdapter(settings: BlobStoreSettings): StorageAdapter |
 		const adapterType = settings.adapterType
 		if (adapterType === "r2") {
 			return createR2Adapter(settings)
-		} else if (adapterType === "s3") {
-			return createS3Adapter(settings)
-		} else {
-			Logger.error(`[StorageAdapter] Invalid adapterType: ${adapterType}. Must be "s3" or "r2".`)
-			return undefined
 		}
+		if (adapterType === "s3") {
+			return createS3Adapter(settings)
+		}
+		Logger.error(`[StorageAdapter] Invalid adapterType: ${adapterType}. Must be "s3" or "r2".`)
+		return undefined
 	} catch (error) {
 		Logger.error("[StorageAdapter] Unexpected error creating adapter:", error)
 		return undefined

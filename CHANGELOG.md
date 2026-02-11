@@ -1,5 +1,54 @@
 # Changelog
 
+## [3.57.1]
+
+### Fixed
+
+- Fixed Opus 4.6 for bedrock provider
+
+## [3.57.0]
+
+### Added
+
+- Cline CLI 2.0 now available. Install with `npm install -g cline`
+- Anthopic Opus 4.6 
+- Minimax-2.1 and Kimi-k2.5 now available for free for a limited time promo
+- Codex-5.3 through ChatGPT subscription
+
+### Fixed
+
+- Fix read file tool to support reading large files
+- Fix decimal input crash in OpenAI Compatible price fields (#8129)
+- Fix build complete handlers when updating the api config
+- Fixed missing provider from list
+- Fixed Favorite Icon / Star from getting clipped in the task history view
+
+### Changed
+
+- Make skills always enabled and remove feature toggle setting
+
+## [3.56.0]
+
+### Added
+
+- __CLI authentication:__ Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- __New model:__ Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- __Prompt variant:__ Added Trinity Large prompt variant for improved tool-calling support
+- __OpenTelemetry:__ Added support for custom headers on metrics and logs endpoints
+- __Social links:__ Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+
+### Fixed
+
+- __LiteLLM:__ Fixed thinking configuration not appearing for reasoning-capable models
+- __OpenTelemetry:__ Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
+- __CLI auth:__ Fixed `cline auth` displaying incorrect provider information after configuration
+
+### Changed
+
+- __Hooks:__ Hook scripts now run from the workspace repository root instead of filesystem root
+- __Default settings:__ Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- __Settings UI:__ Refreshed feature settings section with collapsible design
+
 ## [3.55.0]
 
 - Add new model: Arcee Trinity Large Preview

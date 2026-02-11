@@ -112,6 +112,7 @@ export function fromProtobufLiteLLMModelInfo(protoInfo: ProtoLiteLLMModelInfo): 
 		contextWindow: protoInfo.contextWindow,
 		supportsImages: protoInfo.supportsImages,
 		supportsPromptCache: protoInfo.supportsPromptCache,
+		supportsReasoning: protoInfo.supportsReasoning,
 		inputPrice: protoInfo.inputPrice,
 		outputPrice: protoInfo.outputPrice,
 		cacheWritesPrice: protoInfo.cacheWritesPrice,

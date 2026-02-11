@@ -387,8 +387,7 @@ export class ClineAuthProvider {
 	async signIn(controller: Controller, authorizationCode: string, provider: string): Promise<ClineAuthInfo | null> {
 		try {
 			// Get the callback URL that was used during the initial auth request
-			const callbackHost = await HostProvider.get().getCallbackUrl()
-			const callbackUrl = `${callbackHost}/auth`
+			const callbackUrl = await HostProvider.get().getCallbackUrl("/auth")
 
 			// Exchange the authorization code for tokens
 			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, this.config.apiBaseUrl)

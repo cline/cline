@@ -62,6 +62,27 @@ export class AutoApprove {
 			}
 		}
 
+		if (this.stateManager.getGlobalSettingsKey("autoApproveAllToggled")) {
+			switch (toolName) {
+				case ClineDefaultTool.FILE_READ:
+				case ClineDefaultTool.LIST_FILES:
+				case ClineDefaultTool.LIST_CODE_DEF:
+				case ClineDefaultTool.SEARCH:
+				case ClineDefaultTool.NEW_RULE:
+				case ClineDefaultTool.FILE_NEW:
+				case ClineDefaultTool.FILE_EDIT:
+				case ClineDefaultTool.APPLY_PATCH:
+				case ClineDefaultTool.BASH:
+					return [true, true]
+				case ClineDefaultTool.BROWSER:
+				case ClineDefaultTool.WEB_FETCH:
+				case ClineDefaultTool.WEB_SEARCH:
+				case ClineDefaultTool.MCP_ACCESS:
+				case ClineDefaultTool.MCP_USE:
+					return true
+			}
+		}
+
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		switch (toolName) {
@@ -102,8 +123,11 @@ export class AutoApprove {
 		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 			return true
 		}
+		if (this.stateManager.getGlobalSettingsKey("autoApproveAllToggled")) {
+			return true
+		}
 
-		let isLocalRead: boolean = false
+		let isLocalRead = false
 		if (autoApproveActionpath) {
 			// Use cached workspace info instead of fetching every time
 			const { isMultiRootScenario } = await this.getWorkspaceInfo()
@@ -135,8 +159,7 @@ export class AutoApprove {
 
 		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
 			return true
-		} else {
-			return false
 		}
+		return false
 	}
 }

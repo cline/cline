@@ -99,13 +99,12 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 							isGlobal,
 						}),
 					)
+					setFilename("")
+					setError(null)
+					setIsExpanded(false)
 				} catch (err) {
-					console.error("Error creating skill:", err)
+					setError(err instanceof Error ? err.message : "Failed to create skill")
 				}
-
-				setFilename("")
-				setError(null)
-				setIsExpanded(false)
 				return
 			}
 

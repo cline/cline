@@ -1,9 +1,10 @@
 import type { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { UserOrganization } from "@shared/proto/index.cline"
 import {
 	CheckCheck,
 	FlaskConical,
+	HardDriveDownload,
 	Info,
 	type LucideIcon,
 	SlidersHorizontal,
@@ -14,11 +15,13 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
-import { getEnvironmentColor } from "@/utils/environmentColors"
-import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
+import { isAdminOrOwner } from "../account/helpers"
+import { Tab, TabContent, TabList, TabTrigger } from "../common/Tab"
+import ViewHeader from "../common/ViewHeader"
 import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
@@ -26,18 +29,20 @@ import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import { RemoteConfigSection } from "./sections/RemoteConfigSection"
 import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
+type SettingsTabID = "api-config" | "features" | "browser" | "terminal" | "general" | "about" | "debug" | "remote-config"
 interface SettingsTab {
-	id: string
+	id: SettingsTabID
 	name: string
 	tooltipText: string
 	headerText: string
 	icon: LucideIcon
-	hidden?: boolean
+	hidden?: (params?: { activeOrganization: UserOrganization | null }) => boolean
 }
 
 export const SETTINGS_TABS: SettingsTab[] = [
@@ -77,6 +82,15 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		icon: Wrench,
 	},
 	{
+		id: "remote-config",
+		name: "Remote Config",
+		tooltipText: "Remotely configured fields",
+		headerText: "Remote Config",
+		icon: HardDriveDownload,
+		hidden: ({ activeOrganization } = { activeOrganization: null }) =>
+			!activeOrganization || !isAdminOrOwner(activeOrganization),
+	},
+	{
 		id: "about",
 		name: "About",
 		tooltipText: "About Cline",
@@ -90,7 +104,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "Debug Tools",
 		headerText: "Debug",
 		icon: FlaskConical,
-		hidden: !IS_DEV,
+		hidden: () => !IS_DEV,
 	},
 ]
 
@@ -118,13 +132,14 @@ const renderSectionHeader = (tabId: string) => {
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Memoize to avoid recreation
-	const TAB_CONTENT_MAP = useMemo(
+	const TAB_CONTENT_MAP: Record<SettingsTabID, React.FC<any>> = useMemo(
 		() => ({
 			"api-config": ApiConfigurationSection,
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
 			browser: BrowserSettingsSection,
 			terminal: TerminalSettingsSection,
+			"remote-config": RemoteConfigSection,
 			about: AboutSection,
 			debug: DebugSection,
 		}),
@@ -132,6 +147,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	) // Empty deps - these imports never change
 
 	const { version, environment, settingsInitialModelTab } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
@@ -240,27 +256,16 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		return <Component {...props} />
 	}, [activeTab, handleResetState, settingsInitialModelTab, version])
 
-	const titleColor = getEnvironmentColor(environment)
-
 	return (
 		<Tab>
-			<TabHeader className="flex justify-between items-center gap-2">
-				<div className="flex items-center gap-1">
-					<h3 className="text-md m-0" style={{ color: titleColor }}>
-						Settings
-					</h3>
-				</div>
-				<div className="flex gap-2">
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-				</div>
-			</TabHeader>
+			<ViewHeader environment={environment} onDone={onDone} title="Settings" />
 
 			<div className="flex flex-1 overflow-hidden">
 				<TabList
 					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
 					onValueChange={setActiveTab}
 					value={activeTab}>
-					{SETTINGS_TABS.filter((tab) => !tab.hidden).map(renderTabItem)}
+					{SETTINGS_TABS.filter((tab) => !tab.hidden?.({ activeOrganization })).map(renderTabItem)}
 				</TabList>
 
 				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>

@@ -1,6 +1,4 @@
-import { Button } from "@components/ui/button"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import React, { useCallback, useRef } from "react"
+import React, { useCallback } from "react"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"
@@ -8,9 +6,7 @@ import LinkedInIcon from "@/assets/LinkedInIcon"
 import RedditIcon from "@/assets/RedditIcon"
 import XIcon from "@/assets/XIcon"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface WhatsNewModalProps {
@@ -20,116 +16,51 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
-	const { clineUser } = useClineAuth()
-	const {
-		openRouterModels,
-		setShowChatModelSelector,
-		refreshOpenRouterModels,
-		navigateToSettings,
-		navigateToSettingsModelPicker,
-	} = useExtensionState()
+	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const clickedModelsRef = useRef<Set<string>>(new Set())
 
 	// Get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
-	const setModel = useCallback(
-		(modelId: string) => {
-			handleFieldsChange({
-				planModeOpenRouterModelId: modelId,
-				actModeOpenRouterModelId: modelId,
-				planModeOpenRouterModelInfo: openRouterModels[modelId],
-				actModeOpenRouterModelInfo: openRouterModels[modelId],
-				planModeApiProvider: "cline",
-				actModeApiProvider: "cline",
-			})
-
-			clickedModelsRef.current.add(modelId)
-			setShowChatModelSelector(true)
-			onClose()
-		},
-		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
-	)
-
 	const navigateToModelPicker = useCallback(
-		(initialModelTab: "recommended" | "free") => {
+		(initialModelTab: "recommended" | "free", modelId?: string) => {
 			// Switch to Cline provider first so the model picker tab works
-			handleFieldsChange({
+			// Optionally also set the model if provided
+			const updates: Record<string, any> = {
 				planModeApiProvider: "cline",
 				actModeApiProvider: "cline",
-			})
+			}
+			if (modelId) {
+				updates.planModeOpenRouterModelId = modelId
+				updates.actModeOpenRouterModelId = modelId
+				updates.planModeOpenRouterModelInfo = openRouterModels[modelId]
+				updates.actModeOpenRouterModelInfo = openRouterModels[modelId]
+			}
+			handleFieldsChange(updates)
 			onClose()
 			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 		},
-		[handleFieldsChange, navigateToSettingsModelPicker, onClose],
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
-	const setOpenAiCodexProvider = useCallback(() => {
-		handleFieldsChange({
-			planModeApiProvider: "openai-codex",
-			actModeApiProvider: "openai-codex",
-		})
-		onClose()
-		navigateToSettings("api-config")
-	}, [handleFieldsChange, onClose, navigateToSettings])
-
-	const handleShowAccount = useCallback(() => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
-	}, [])
-
-	const ModelButton: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
-		const isClicked = clickedModelsRef.current.has(modelId)
-		if (isClicked) {
-			return null
-		}
-
-		return (
-			<Button className="my-1" onClick={() => setModel(modelId)} size="sm">
-				{label}
-			</Button>
-		)
-	}
-
-	const AuthButton: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-		clineUser ? (
-			<div className="flex gap-2 flex-wrap">{children}</div>
-		) : (
-			<Button className="my-1" onClick={handleShowAccount} size="sm">
-				Sign Up with Cline
-			</Button>
-		)
-
-	type InlineModelLinkProps =
-		| { type: "model"; modelId: string; label: string }
-		| { type: "picker"; pickerTab: "recommended" | "free"; label: string }
+	type InlineModelLinkProps = { pickerTab: "recommended" | "free"; modelId: string; label: string }
 
 	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
-		if (props.type === "picker") {
-			return (
-				<span
-					onClick={() => navigateToModelPicker(props.pickerTab)}
-					style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-					{props.label}
-				</span>
-			)
-		}
-
-		const isClicked = clickedModelsRef.current.has(props.modelId)
-		if (isClicked) {
-			return null
-		}
-
 		return (
 			<span
-				onClick={() => setModel(props.modelId)}
+				onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
 				style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
 				{props.label}
 			</span>
 		)
+	}
+
+	const inlineCodeStyle: React.CSSProperties = {
+		backgroundColor: "var(--vscode-textCodeBlock-background)",
+		padding: "2px 6px",
+		borderRadius: "3px",
+		fontFamily: "var(--vscode-editor-font-family)",
+		fontSize: "0.9em",
 	}
 
 	return (
@@ -149,28 +80,18 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>New free model: Arcee Trinity Large:</strong> strong coding performance with an open-weight
-							model.{" "}
-							<InlineModelLink label="Try free" modelId="cline:arcee-ai/trinity-large-preview:free" type="model" />
+							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
+							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
 						</li>
 						<li className="mb-2">
-							<strong>Try Kimi K2.5:</strong> Moonshot's latest with advanced reasoning for complex, multi-step
-							coding tasks. Great for front-end tasks.{" "}
-							<InlineModelLink label="Try now" modelId="cline:moonshotai/kimi-k2.5" type="model" />
+							<strong> Anthropic Opus 4.6 is now available!</strong> Experience Anthropic's latest and most capable
+							model. <InlineModelLink label="Try now" modelId="anthropic/claude-opus-4.6" pickerTab="recommended" />
 						</li>
 						<li className="mb-2">
-							<strong>Bring your ChatGPT subscription to Cline!</strong> Use your existing plan directly with no per
-							token costs or API keys to manage.{" "}
-							<span
-								onClick={setOpenAiCodexProvider}
-								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-								Connect
-							</span>
-						</li>
-						<li>
-							<strong>Grok Code Fast 1 & Devstral are saying goodbye (to free):</strong> free promotion is done but
-							there are plenty models in our free tier.{" "}
-							<InlineModelLink label="See alternatives" pickerTab="free" type="picker" />
+							<strong>🎉 Free promo: Minimax-2.1 and Kimi-k2.5!</strong> Available free for a limited time.{" "}
+							<InlineModelLink label="Minimax-2.1" modelId="minimax/minimax-m2.1" pickerTab="free" />
+							{" | "}
+							<InlineModelLink label="Kimi-k2.5" modelId="moonshotai/kimi-k2.5" pickerTab="free" />
 						</li>
 					</ul>
 

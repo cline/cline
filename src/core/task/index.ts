@@ -62,10 +62,17 @@ import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import {
+	isClaude4PlusModelFamily,
+	isGPT5ModelFamily,
+	isLocalModel,
+	isNextGenModelFamily,
+	isParallelToolCallingEnabled,
+} from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
+import fs from "fs/promises"
 import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
@@ -82,6 +89,7 @@ import {
 } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
+import { ClineClient } from "@/shared/cline"
 import {
 	ClineAssistantContent,
 	ClineContent,
@@ -95,6 +103,7 @@ import {
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
+import { Session } from "@/shared/services/Session"
 import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -213,7 +222,7 @@ export class Task {
 	 * Example: We don't add noToolsUsed response when native tool call is used
 	 * because of the expected format from the tool calls is different.
 	 */
-	private useNativeToolCalls: boolean = false
+	private useNativeToolCalls = false
 	private streamHandler: StreamResponseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
@@ -456,15 +465,6 @@ export class Task {
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const currentProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
-		if (currentProvider === "openai" || currentProvider === "openai-native" || currentProvider === "sapaicore") {
-			if (mode === "plan") {
-				effectiveApiConfiguration.planModeReasoningEffort = openaiReasoningEffort
-			} else {
-				effectiveApiConfiguration.actModeReasoningEffort = openaiReasoningEffort
-			}
-		}
-
 		// Now that ulid is initialized, we can build the API handler
 		this.api = buildApiHandler(effectiveApiConfiguration, mode)
 
@@ -609,64 +609,62 @@ export class Task {
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
-				} else {
-					// this is a new partial message, so add it with partial state
-					// this.askResponse = undefined
-					// this.askResponseText = undefined
-					// this.askResponseImages = undefined
-					askTs = Date.now()
-					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: askTs,
-						type: "ask",
-						ask: type,
-						text,
-						partial,
-					})
-					await this.postStateToWebview()
-					throw new Error("Current ask promise was ignored 2")
 				}
-			} else {
-				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
+				// this is a new partial message, so add it with partial state
+				// this.askResponse = undefined
+				// this.askResponseText = undefined
+				// this.askResponseImages = undefined
+				askTs = Date.now()
+				this.taskState.lastMessageTs = askTs
+				await this.messageStateHandler.addToClineMessages({
+					ts: askTs,
+					type: "ask",
+					ask: type,
+					text,
+					partial,
+				})
+				await this.postStateToWebview()
+				throw new Error("Current ask promise was ignored 2")
+			}
+			// partial=false means its a complete version of a previously partial message
+			if (isUpdatingPreviousPartial) {
+				// this is the complete version of a previously partial message, so replace the partial with the complete version
+				this.taskState.askResponse = undefined
+				this.taskState.askResponseText = undefined
+				this.taskState.askResponseImages = undefined
+				this.taskState.askResponseFiles = undefined
 
-					/*
+				/*
 					Bug for the history books:
 					In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
 					The lesson here is if you see flickering when rendering lists, it's likely because the key prop is not stable.
 					So in this case we must make sure that the message ts is never altered after first setting it.
 					*/
-					askTs = lastMessage.ts
-					this.taskState.lastMessageTs = askTs
-					// lastMessage.ts = askTs
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
-						text,
-						partial: false,
-					})
-					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
-				} else {
-					// this is a new partial=false message, so add it like normal
-					this.taskState.askResponse = undefined
-					this.taskState.askResponseText = undefined
-					this.taskState.askResponseImages = undefined
-					this.taskState.askResponseFiles = undefined
-					askTs = Date.now()
-					this.taskState.lastMessageTs = askTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: askTs,
-						type: "ask",
-						ask: type,
-						text,
-					})
-					await this.postStateToWebview()
-				}
+				askTs = lastMessage.ts
+				this.taskState.lastMessageTs = askTs
+				// lastMessage.ts = askTs
+				await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+					text,
+					partial: false,
+				})
+				// await this.postStateToWebview()
+				const protoMessage = convertClineMessageToProto(lastMessage)
+				await sendPartialMessageEvent(protoMessage)
+			} else {
+				// this is a new partial=false message, so add it like normal
+				this.taskState.askResponse = undefined
+				this.taskState.askResponseText = undefined
+				this.taskState.askResponseImages = undefined
+				this.taskState.askResponseFiles = undefined
+				askTs = Date.now()
+				this.taskState.lastMessageTs = askTs
+				await this.messageStateHandler.addToClineMessages({
+					ts: askTs,
+					type: "ask",
+					ask: type,
+					text,
+				})
+				await this.postStateToWebview()
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
@@ -738,66 +736,53 @@ export class Task {
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files
-					lastMessage.partial = partial
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
-					return undefined
-				} else {
-					// this is a new partial message, so add it with partial state
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
+					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+					await this.messageStateHandler.updateClineMessage(lastIndex, {
 						text,
 						images,
 						files,
 						partial,
-						modelInfo,
 					})
-					await this.postStateToWebview()
-					return sayTs
-				}
-			} else {
-				// partial=false means its a complete version of a previously partial message
-				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
-					this.taskState.lastMessageTs = lastMessage.ts
-					// lastMessage.ts = sayTs
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files // Ensure files is updated
-					lastMessage.partial = false
 
-					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+					await sendPartialMessageEvent(protoMessage)
 					return undefined
-				} else {
-					// this is a new partial=false message, so add it like normal
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await this.messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-						modelInfo,
-					})
-					await this.postStateToWebview()
-					return sayTs
 				}
+				// this is a new partial message, so add it with partial state
+				const sayTs = Date.now()
+				this.taskState.lastMessageTs = sayTs
+				await this.messageStateHandler.addToClineMessages({
+					ts: sayTs,
+					type: "say",
+					say: type,
+					text,
+					images,
+					files,
+					partial,
+					modelInfo,
+				})
+				await this.postStateToWebview()
+				return sayTs
 			}
-		} else {
-			// this is a new non-partial message, so add it like normal
+			// partial=false means its a complete version of a previously partial message
+			if (isUpdatingPreviousPartial) {
+				// this is the complete version of a previously partial message, so replace the partial with the complete version
+				this.taskState.lastMessageTs = lastMessage.ts
+				const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+				// updateClineMessage emits the change event and saves to disk
+				await this.messageStateHandler.updateClineMessage(lastIndex, {
+					text,
+					images,
+					files,
+					partial: false,
+				})
+
+				// await this.postStateToWebview()
+				const protoMessage = convertClineMessageToProto(lastMessage)
+				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+				return undefined
+			}
+			// this is a new partial=false message, so add it like normal
 			const sayTs = Date.now()
 			this.taskState.lastMessageTs = sayTs
 			await this.messageStateHandler.addToClineMessages({
@@ -812,6 +797,20 @@ export class Task {
 			await this.postStateToWebview()
 			return sayTs
 		}
+		// this is a new non-partial message, so add it like normal
+		const sayTs = Date.now()
+		this.taskState.lastMessageTs = sayTs
+		await this.messageStateHandler.addToClineMessages({
+			ts: sayTs,
+			type: "say",
+			say: type,
+			text,
+			images,
+			files,
+			modelInfo,
+		})
+		await this.postStateToWebview()
+		return sayTs
 	}
 
 	async sayAndCreateMissingParamError(toolName: ClineDefaultTool, paramName: string, relPath?: string) {
@@ -841,11 +840,12 @@ export class Task {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 * 2. The current model/provider supports native tool calling and handles parallel tools well
 	 */
 	private isParallelToolCallingEnabled(): boolean {
-		const modelId = this.api.getModel().id
-		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
+		const providerInfo = this.getCurrentProviderInfo()
+		return isParallelToolCallingEnabled(enableParallelSetting, providerInfo)
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
@@ -955,7 +955,7 @@ export class Task {
 
 		await this.postStateToWebview()
 
-		await this.say("text", task, images, files)
+		await this.say("task", task, images, files)
 
 		this.taskState.isInitialized = true
 
@@ -1348,19 +1348,18 @@ export class Task {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
-			} else {
-				// this.say(
-				// 	"tool",
-				// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
-				// )
-				nextUserContent = [
-					{
-						type: "text",
-						text: formatResponse.noToolsUsed(this.useNativeToolCalls),
-					},
-				]
-				this.taskState.consecutiveMistakeCount++
 			}
+			// this.say(
+			// 	"tool",
+			// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
+			// )
+			nextUserContent = [
+				{
+					type: "text",
+					text: formatResponse.noToolsUsed(this.useNativeToolCalls),
+				},
+			]
+			this.taskState.consecutiveMistakeCount++
 		}
 	}
 
@@ -1624,6 +1623,51 @@ export class Task {
 		return { model, providerId, customPrompt, mode }
 	}
 
+	private async writePromptMetadataArtifacts(params: { systemPrompt: string; providerInfo: ApiProviderInfo }): Promise<void> {
+		const enabledFlag = process.env.CLINE_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
+		const enabled = enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes"
+		if (!enabled) {
+			return
+		}
+
+		try {
+			const configuredDir = process.env.CLINE_PROMPT_ARTIFACT_DIR?.trim()
+			const artifactDir = configuredDir
+				? path.isAbsolute(configuredDir)
+					? configuredDir
+					: path.resolve(this.cwd, configuredDir)
+				: path.resolve(this.cwd, ".cline-prompt-artifacts")
+
+			await fs.mkdir(artifactDir, { recursive: true })
+
+			const ts = new Date().toISOString()
+			const safeTs = ts.replace(/[:.]/g, "-")
+			const baseName = `task-${this.taskId}-req-${this.taskState.apiRequestCount}-${safeTs}`
+			const manifestPath = path.join(artifactDir, `${baseName}.manifest.json`)
+			const promptPath = path.join(artifactDir, `${baseName}.system_prompt.md`)
+
+			const manifest = {
+				taskId: this.taskId,
+				ulid: this.ulid,
+				apiRequestCount: this.taskState.apiRequestCount,
+				ts,
+				cwd: this.cwd,
+				mode: params.providerInfo.mode,
+				provider: params.providerInfo.providerId,
+				model: params.providerInfo.model.id,
+				apiRequestId: this.getApiRequestIdSafe(),
+				systemPromptPath: promptPath,
+			}
+
+			await Promise.all([
+				fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8"),
+				fs.writeFile(promptPath, params.systemPrompt, "utf8"),
+			])
+		} catch (error) {
+			Logger.error("Failed to write prompt metadata artifacts:", error)
+		}
+	}
+
 	private getApiRequestIdSafe(): string | undefined {
 		const apiLike = this.api as Partial<{
 			getLastRequestId: () => string | undefined
@@ -1704,7 +1748,9 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
-		const ide = (await HostProvider.env.getHostVersion({})).platform || "Unknown"
+		const host = await HostProvider.env.getHostVersion({})
+		const ide = host?.platform || "Unknown"
+		const isCliEnvironment = host.clineType === ClineClient.Cli
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const disableBrowserTool = browserSettings.disableToolUse ?? false
 		// cline browser tool uses image recognition for navigation (requires model image support).
@@ -1775,9 +1821,8 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
-		// Discover and filter available skills (gated by skillsEnabled setting)
-		const skillsEnabled = this.stateManager.getGlobalSettingsKey("skillsEnabled") ?? false
-		const allSkills = skillsEnabled ? await discoverSkills(this.cwd) : []
+		// Discover and filter available skills
+		const allSkills = await discoverSkills(this.cwd)
 		const resolvedSkills = getAvailableSkills(allSkills)
 
 		// Filter skills by toggle state (enabled by default)
@@ -1824,10 +1869,11 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
+			isCliEnvironment,
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
+			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
@@ -1839,6 +1885,7 @@ export class Task {
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length
+		await this.writePromptMetadataArtifacts({ systemPrompt, providerInfo })
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
@@ -2141,6 +2188,9 @@ export class Task {
 					}
 				}
 				await this.toolExecutor.executeTool(block)
+				if (block.call_id) {
+					Session.get().updateToolCall(block.call_id, block.name)
+				}
 				break
 		}
 
@@ -2178,7 +2228,7 @@ export class Task {
 		}
 	}
 
-	async recursivelyMakeClineRequests(userContent: ClineContent[], includeFileDetails: boolean = false): Promise<boolean> {
+	async recursivelyMakeClineRequests(userContent: ClineContent[], includeFileDetails = false): Promise<boolean> {
 		// Check abort flag at the very start to prevent any execution after cancellation
 		if (this.taskState.abort) {
 			throw new Error("Task instance aborted")
@@ -2483,6 +2533,8 @@ export class Task {
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				Session.get().finalizeRequest()
+
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
 				}
@@ -2583,6 +2635,9 @@ export class Task {
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 
+			// Track API call time for session statistics
+			Session.get().startApiCall()
+
 			try {
 				for await (const chunk of stream) {
 					switch (chunk.type) {
@@ -2635,7 +2690,7 @@ export class Task {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.call_id, chunk.tool_call.function.id)
 							}
 
-							this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
 							await this.presentAssistantMessage()
 							break
 						}
@@ -2752,6 +2807,8 @@ export class Task {
 				}
 			} finally {
 				this.taskState.isStreaming = false
+				// End API call tracking for session statistics
+				Session.get().endApiCall()
 			}
 
 			// Finalize any remaining tool calls at the end of the stream
@@ -2879,7 +2936,7 @@ export class Task {
 			})
 			// in case there are native tool calls pending
 			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
-			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
 
 			if (partialBlocks.length > 0) {
 				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
@@ -3018,7 +3075,7 @@ export class Task {
 
 	async loadContext(
 		userContent: ClineContent[],
-		includeFileDetails: boolean = false,
+		includeFileDetails = false,
 		useCompactPrompt = false,
 	): Promise<[ClineContent[], string, boolean]> {
 		let needsClinerulesFileCheck = false
@@ -3142,7 +3199,7 @@ export class Task {
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
-	processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
+	async processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
 		if (!toolBlocks?.length) {
 			return
 		}
@@ -3152,6 +3209,28 @@ export class Task {
 		// Get finalized tool uses and mark them as complete
 		const textContent = assistantTextOnly.trim()
 		const textBlocks: AssistantMessageContent[] = textContent ? [{ type: "text", content: textContent, partial: false }] : []
+
+		// IMPORTANT: Finalize any partial text ClineMessage before we skip over it.
+		//
+		// When native tool calls are processed, we set currentStreamingContentIndex to skip
+		// the text block (line below sets it to textBlocks.length). This means presentAssistantMessage
+		// will never call say("text", content, false) for this text block.
+		//
+		// Without this fix, the partial text ClineMessage remains with partial=true. In the UI
+		// (ChatView), partial messages that are not the last message don't get displayed anywhere:
+		// - Not in completedMessages (because partial=true)
+		// - Not in currentMessage (because it's not the last message - tool message came after)
+		//
+		// The text appears to "disappear" when tool calls start, even though it's still in the array.
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastMessage = clineMessages.at(-1)
+		if (lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
+			lastMessage.text = textContent
+			lastMessage.partial = false
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			const protoMessage = convertClineMessageToProto(lastMessage)
+			await sendPartialMessageEvent(protoMessage)
+		}
 
 		this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
@@ -3220,12 +3299,11 @@ export class Task {
 			const primary = this.workspaceManager?.getPrimaryRoot()
 			const primaryName = this.getPrimaryWorkspaceName(primary)
 			return `\n\n# Current Working Directory (Primary: ${primaryName}) Files\n`
-		} else {
-			return `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
 		}
+		return `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
 	}
 
-	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+	async getEnvironmentDetails(includeFileDetails = false) {
 		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
 

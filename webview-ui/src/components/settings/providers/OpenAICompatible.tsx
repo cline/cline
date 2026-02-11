@@ -12,7 +12,9 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { parsePrice } from "../utils/pricingUtils"
+import { getModeSpecificFields, normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -35,6 +37,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
 
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
@@ -242,7 +245,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					className={`codicon ${modelConfigurationSelected ? "codicon-chevron-down" : "codicon-chevron-right"}`}
 					style={{
 						marginRight: "4px",
-					}}></span>
+					}}
+				/>
 				<span
 					style={{
 						fontWeight: 700,
@@ -334,7 +338,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.inputPrice = Number(value)
+								modelInfo.inputPrice = parsePrice(value, openAiModelInfoSaneDefaults.inputPrice ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -353,7 +357,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-								modelInfo.outputPrice = Number(value)
+								modelInfo.outputPrice = parsePrice(value, openAiModelInfoSaneDefaults.outputPrice ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -374,16 +378,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-
-								const shouldPreserveFormat = value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
-
-								modelInfo.temperature =
-									value === ""
-										? openAiModelInfoSaneDefaults.temperature
-										: shouldPreserveFormat
-											? (value as any)
-											: parseFloat(value)
-
+								modelInfo.temperature = parsePrice(value, openAiModelInfoSaneDefaults.temperature ?? 0)
 								handleModeFieldChange(
 									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
 									modelInfo,
@@ -409,7 +404,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			</p>
 
 			{showModelOptions && (
-				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+				<>
+					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+				</>
 			)}
 		</div>
 	)

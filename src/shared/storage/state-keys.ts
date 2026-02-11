@@ -15,7 +15,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
-import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
@@ -58,6 +58,8 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
+	otlpMetricsHeaders: { default: undefined as Record<string, string> | undefined },
+	otlpLogsHeaders: { default: undefined as Record<string, string> | undefined },
 	blobStoreConfig: { default: undefined as BlobStoreSettings | undefined },
 	configuredApiKeys: { default: {} as ConfiguredAPIKeys | undefined },
 } satisfies FieldDefinitions
@@ -78,7 +80,7 @@ const GLOBAL_STATE_FIELDS = {
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
 	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },
 	primaryRootIndex: { default: 0 as number },
-	multiRootEnabled: { default: false as boolean },
+	multiRootEnabled: { default: true as boolean },
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
@@ -250,13 +252,13 @@ const USER_SETTINGS_FIELDS = {
 	terminalOutputLineLimit: { default: 500 as number },
 	maxConsecutiveMistakes: { default: 3 as number },
 	subagentTerminalOutputLineLimit: { default: 2000 as number },
-	strictPlanModeEnabled: { default: true as boolean },
+	strictPlanModeEnabled: { default: false as boolean },
 	yoloModeToggled: { default: false as boolean },
+	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
-	openaiReasoningEffort: { default: "medium" as OpenaiReasoningEffort },
 	mode: { default: "act" as Mode },
 	dictationSettings: {
 		default: DEFAULT_DICTATION_SETTINGS as DictationSettings,
@@ -266,10 +268,10 @@ const USER_SETTINGS_FIELDS = {
 	customPrompt: { default: undefined as "compact" | undefined },
 	autoCondenseThreshold: { default: 0.75 as number }, // number from 0 to 1
 	subagentsEnabled: { default: false as boolean },
-	enableParallelToolCalling: { default: false as boolean },
+	enableParallelToolCalling: { default: true as boolean },
 	backgroundEditEnabled: { default: false as boolean },
-	skillsEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
+	doubleCheckCompletionEnabled: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },
@@ -298,6 +300,7 @@ const GLOBAL_STATE_AND_SETTINGS_FIELDS = { ...GLOBAL_STATE_FIELDS, ...SETTINGS_F
 // Secret keys used in Api Configuration
 const SECRETS_KEYS = [
 	"apiKey",
+	"clineApiKey",
 	"clineAccountId", // Cline Account ID for Firebase
 	"cline:clineAccountId",
 	"openRouterApiKey",
@@ -341,6 +344,7 @@ const SECRETS_KEYS = [
 	"ocaApiKey",
 	"ocaRefreshToken",
 	"mcpOAuthSecrets",
+	"openai-codex-oauth-credentials", // JSON blob containing OAuth tokens for OpenAI Codex (ChatGPT subscription)
 ] as const
 
 export const LocalStateKeys = [
