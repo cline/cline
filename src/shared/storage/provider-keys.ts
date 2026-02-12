@@ -1,8 +1,8 @@
 // Map providers to their specific model ID keys
 
-import { SettingsKey } from "@shared/storage/state-keys"
+import type { SettingsKey } from "@shared/storage/state-keys"
 import {
-	ApiProvider,
+	type ApiProvider,
 	anthropicDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,
@@ -24,6 +24,8 @@ import {
 } from "../api"
 
 // Note: "cline" provider uses the same model ID key as "openrouter"
+// Note: Providers not in this map use the generic actModeApiModelId/planModeApiModelId keys
+// SAP AI Core intentionally uses generic keys to match webview behavior (see SapAiCoreProvider.tsx)
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
 	cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
@@ -34,7 +36,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	requesty: "RequestyModelId",
 	together: "TogetherModelId",
 	fireworks: "FireworksModelId",
-	sapaicore: "SapAiCoreModelId",
+	// sapaicore: removed - uses generic keys (planModeApiModelId/actModeApiModelId)
 	groq: "GroqModelId",
 	baseten: "BasetenModelId",
 	huggingface: "HuggingFaceModelId",

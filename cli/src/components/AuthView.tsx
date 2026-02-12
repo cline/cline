@@ -18,7 +18,7 @@ import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig, applySapAiCoreConfig } from "../utils/provider-config"
 import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
@@ -31,6 +31,7 @@ import {
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { type SapAiCoreConfig, SapAiCoreSetup } from "./SapAiCoreSetup"
 import { getProviderLabel } from "./ProviderPicker"
 
 type AuthStep =
@@ -47,6 +48,7 @@ type AuthStep =
 	| "cline_model"
 	| "openai_codex_auth"
 	| "bedrock"
+	| "sapaicore"
 	| "import"
 
 interface AuthViewProps {
@@ -167,6 +169,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
+	const [sapAiCoreConfig, setSapAiCoreConfig] = useState<SapAiCoreConfig | null>(null)
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -364,6 +367,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				startOpenAiCodexAuth()
 			} else if (value === "bedrock") {
 				setStep("bedrock")
+			} else if (value === "sapaicore") {
+				setStep("sapaicore")
 			} else {
 				setStep("apikey")
 			}
@@ -386,12 +391,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	)
 
 	const saveConfiguration = useCallback(
-		async (model: string, base: string) => {
+		async (model: string, base: string, deploymentId?: string) => {
 			try {
 				if (selectedProvider === "bedrock" && bedrockConfig) {
 					await applyBedrockConfig({
 						bedrockConfig,
 						modelId: model,
+						controller,
+					})
+				} else if (selectedProvider === "sapaicore" && sapAiCoreConfig) {
+					await applySapAiCoreConfig({
+						sapAiCoreConfig,
+						modelId: model,
+						deploymentId, // Pass deployment ID for direct deployment mode (commit 973660a57)
 						controller,
 					})
 				} else {
@@ -414,11 +426,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("error")
 			}
 		},
-		[selectedProvider, apiKey, bedrockConfig, controller],
+		[selectedProvider, apiKey, bedrockConfig, sapAiCoreConfig, controller],
 	)
 
 	const handleModelIdSubmit = useCallback(
-		(value: string) => {
+		(value: string, deploymentId?: string) => {
 			if (value.trim()) {
 				setModelId(value)
 			}
@@ -427,7 +439,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("baseurl")
 			} else {
 				setStep("saving")
-				saveConfiguration(value, "")
+				saveConfiguration(value, "", deploymentId)
 			}
 		},
 		[selectedProvider, saveConfiguration],
@@ -453,6 +465,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const handleBedrockComplete = useCallback((config: BedrockConfig) => {
 		setBedrockConfig(config)
+		setStep("modelid")
+	}, [])
+
+	const handleSapAiCoreComplete = useCallback((config: SapAiCoreConfig) => {
+		setSapAiCoreConfig(config)
 		setStep("modelid")
 	}, [])
 
@@ -523,9 +540,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				break
 			case "modelid":
 				setModelId("")
-				// Go back to cline_model if we came from there (Cline provider)
+				// Go back to the appropriate step based on provider
 				if (selectedProvider === "cline") {
 					setStep("cline_model")
+				} else if (selectedProvider === "sapaicore") {
+					setStep("sapaicore")
 				} else {
 					setStep("apikey")
 				}
@@ -550,6 +569,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				break
 			case "bedrock":
 				setBedrockConfig(null)
+				setStep("provider")
+				break
+			case "sapaicore":
+				setSapAiCoreConfig(null)
 				setStep("provider")
 				break
 			case "import":
@@ -618,6 +641,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "modelid":
 				// Show model picker for providers with static model lists
 				if (hasModelPicker(selectedProvider)) {
+					// For SAP AI Core, pass credentials and orchestration mode for dynamic model fetching
+					// Reference commits: d7b3a5253, c1e3ac860, ea8a7fd7d, f7fe2b854
+					const sapAiCoreCredentials =
+						selectedProvider === "sapaicore" && sapAiCoreConfig
+							? {
+									clientId: sapAiCoreConfig.clientId,
+									clientSecret: sapAiCoreConfig.clientSecret,
+									baseUrl: sapAiCoreConfig.baseUrl,
+									tokenUrl: sapAiCoreConfig.tokenUrl,
+									resourceGroup: sapAiCoreConfig.resourceGroup,
+								}
+							: undefined
+
 					return (
 						<Box flexDirection="column">
 							<Text color="white">Select a model</Text>
@@ -628,6 +664,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 								onChange={setModelId}
 								onSubmit={handleModelIdSubmit}
 								provider={selectedProvider}
+								sapAiCoreCredentials={sapAiCoreCredentials}
+								sapAiCoreUseOrchestrationMode={sapAiCoreConfig?.useOrchestrationMode}
 							/>
 							<Text> </Text>
 							<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
@@ -731,6 +769,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					/>
 				)
 
+			case "sapaicore": {
+				// Get existing SAP AI Core configuration for pre-filling the form
+				const apiConfig = StateManager.get().getApiConfiguration()
+				const initialSapAiCoreConfig = {
+					clientId: apiConfig.sapAiCoreClientId || "",
+					clientSecret: apiConfig.sapAiCoreClientSecret || "",
+					baseUrl: apiConfig.sapAiCoreBaseUrl || "",
+					tokenUrl: apiConfig.sapAiCoreTokenUrl || "",
+					resourceGroup: apiConfig.sapAiResourceGroup || "",
+					useOrchestrationMode: apiConfig.sapAiCoreUseOrchestrationMode ?? true,
+				}
+				return (
+					<SapAiCoreSetup
+						initialConfig={initialSapAiCoreConfig}
+						isActive={step === "sapaicore"}
+						onCancel={() => {
+							setSapAiCoreConfig(null)
+							setStep("provider")
+						}}
+						onComplete={handleSapAiCoreComplete}
+					/>
+				)
+			}
+
 			case "import":
 				if (!importSource) {
 					return null
@@ -769,6 +831,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"cline_model",
 		"openai_codex_auth",
 		"bedrock",
+		"sapaicore",
 		"error",
 	].includes(step)
 

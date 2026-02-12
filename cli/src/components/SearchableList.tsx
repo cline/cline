@@ -16,6 +16,8 @@ export interface SearchableListItem {
 	id: string
 	label: string
 	suffix?: string // Optional suffix like "(configured)" or "(current)"
+	isDisabled?: boolean // If true, item cannot be selected (e.g., section headers)
+	data?: Record<string, unknown> // Optional arbitrary data attached to the item
 }
 
 interface SearchableListProps<T extends SearchableListItem> {
@@ -65,6 +67,34 @@ export function SearchableList<T extends SearchableListItem>({
 		setIndex(0)
 	}, [search])
 
+	// Find next selectable index (skipping disabled items)
+	const findNextSelectableIndex = (currentIndex: number, direction: "up" | "down"): number => {
+		const step = direction === "up" ? -1 : 1
+		let nextIndex = currentIndex + step
+
+		// Keep moving in the direction until we find a selectable item or hit bounds
+		while (nextIndex >= 0 && nextIndex < filteredItems.length) {
+			if (!filteredItems[nextIndex].isDisabled) {
+				return nextIndex
+			}
+			nextIndex += step
+		}
+
+		// If we couldn't find a selectable item in that direction, stay at current
+		return currentIndex
+	}
+
+	// Ensure initial index points to a selectable item
+	useEffect(() => {
+		if (filteredItems.length > 0 && filteredItems[index]?.isDisabled) {
+			// Find the first selectable item
+			const firstSelectable = filteredItems.findIndex((item) => !item.isDisabled)
+			if (firstSelectable !== -1) {
+				setIndex(firstSelectable)
+			}
+		}
+	}, [filteredItems, index])
+
 	useInput(
 		(input, key) => {
 			// Filter out mouse escape sequences
@@ -73,12 +103,13 @@ export function SearchableList<T extends SearchableListItem>({
 			}
 
 			if (key.upArrow) {
-				setIndex((prev) => Math.max(0, prev - 1))
+				setIndex((prev) => findNextSelectableIndex(prev, "up"))
 			} else if (key.downArrow) {
-				setIndex((prev) => Math.min(filteredItems.length - 1, prev + 1))
+				setIndex((prev) => findNextSelectableIndex(prev, "down"))
 			} else if (key.return || key.tab) {
-				if (filteredItems[index]) {
-					onSelect(filteredItems[index])
+				const selectedItem = filteredItems[index]
+				if (selectedItem && !selectedItem.isDisabled) {
+					onSelect(selectedItem)
 				}
 			} else if (key.backspace || key.delete) {
 				setSearch((prev) => prev.slice(0, -1))
@@ -101,6 +132,19 @@ export function SearchableList<T extends SearchableListItem>({
 			{visibleItems.map((item, i) => {
 				const actualIndex = visibleStart + i
 				const isSelected = actualIndex === index
+
+				// Disabled items (section headers) render differently
+				if (item.isDisabled) {
+					return (
+						<Box key={item.id}>
+							<Text color="gray">
+								{"  "}
+								{item.label}
+							</Text>
+						</Box>
+					)
+				}
+
 				return (
 					<Box key={item.id}>
 						<Text color={isSelected ? COLORS.primaryBlue : undefined}>
