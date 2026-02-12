@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert"
 import * as coreApi from "@core/api"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import * as skills from "@core/context/instructions/user-instructions/skills"
 import { PromptRegistry } from "@core/prompts/system-prompt"
 import type { TaskConfig } from "@core/task/tools/types/TaskConfig"
@@ -607,6 +608,30 @@ describe("SubagentRunner", () => {
 		assert.equal(result.result, "done")
 		assert.equal(createMessage.callCount, 3)
 		assert.equal(postCompactionConversationLength, 3)
+	})
+
+	it("skips truncation when file-read optimization is sufficient", () => {
+		const config = createTaskConfig(false)
+		const runner = new SubagentRunner(config)
+		const conversation = [{ role: "user", content: [{ type: "text", text: "hello" }] }] as any[]
+
+		const optimizeStub = sinon
+			.stub(
+				runner as unknown as {
+					optimizeConversationForContextWindow: () => { didOptimize: boolean; needToTruncate: boolean }
+				},
+				"optimizeConversationForContextWindow",
+			)
+			.returns({ didOptimize: true, needToTruncate: false })
+		const getNextTruncationRangeSpy = sinon.spy(ContextManager.prototype, "getNextTruncationRange")
+
+		const didCompact = (
+			runner as unknown as { compactConversationForContextWindow: (value: unknown[]) => boolean }
+		).compactConversationForContextWindow(conversation)
+
+		assert.equal(didCompact, true)
+		assert.equal(optimizeStub.calledOnce, true)
+		assert.equal(getNextTruncationRangeSpy.called, false)
 	})
 
 	it("falls back to non-native mode when native settings are enabled but variant has no native tools", async () => {

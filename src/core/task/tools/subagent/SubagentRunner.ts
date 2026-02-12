@@ -686,20 +686,45 @@ export class SubagentRunner {
 
 	private compactConversationForContextWindow(conversation: ClineStorageMessage[]): boolean {
 		const contextManager = new ContextManager()
+		const optimizationResult = this.optimizeConversationForContextWindow(contextManager, conversation)
+		if (optimizationResult.didOptimize && !optimizationResult.needToTruncate) {
+			return true
+		}
+
 		const deletedRange = contextManager.getNextTruncationRange(conversation, undefined, "quarter")
 		if (deletedRange[1] < deletedRange[0]) {
-			return false
+			return optimizationResult.didOptimize
 		}
 
 		const truncated = contextManager
 			.getTruncatedMessages(conversation, deletedRange)
 			.map((message) => message as ClineStorageMessage)
 		if (truncated.length >= conversation.length) {
-			return false
+			return optimizationResult.didOptimize
 		}
 
 		conversation.splice(0, conversation.length, ...truncated)
 		return true
+	}
+
+	private optimizeConversationForContextWindow(
+		contextManager: ContextManager,
+		conversation: ClineStorageMessage[],
+	): {
+		didOptimize: boolean
+		needToTruncate: boolean
+	} {
+		const timestamp = Date.now()
+		const optimizationResult = contextManager.attemptFileReadOptimizationInMemory(conversation, undefined, timestamp)
+		if (!optimizationResult.anyContextUpdates) {
+			return { didOptimize: false, needToTruncate: true }
+		}
+
+		const optimizedConversation = optimizationResult.optimizedConversationHistory.map(
+			(message) => message as ClineStorageMessage,
+		)
+		conversation.splice(0, conversation.length, ...optimizedConversation)
+		return { didOptimize: true, needToTruncate: optimizationResult.needToTruncate }
 	}
 
 	private shouldCompactBeforeNextRequest(
