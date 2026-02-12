@@ -154,8 +154,21 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
+		// Chain from the latest stored Responses API assistant message when available.
+		// When chaining, only send new items after that assistant turn.
+		let previousResponseId: string | undefined
+		let inputMessages = messages
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i]
+			if (msg.role === "assistant" && msg.id) {
+				previousResponseId = msg.id
+				inputMessages = messages.slice(i + 1)
+				break
+			}
+		}
+
 		// Convert messages to Responses API input format
-		const input = convertToOpenAIResponsesInput(messages)
+		const input = convertToOpenAIResponsesInput(inputMessages)
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
@@ -168,10 +181,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
 			}))
 
-		Logger.debug("OpenAI Responses Input: " + JSON.stringify(input))
-
-		// const lastAssistantMessage = [...messages].reverse().find((msg) => msg.role === "assistant" && msg.id)
-		// const previous_response_id = lastAssistantMessage?.id
+		Logger.debug(`OpenAI Responses Input: ${JSON.stringify(input)}`)
 
 		// Create the response using Responses API
 		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
@@ -189,20 +199,23 @@ export class OpenAiNativeHandler implements ApiHandler {
 			input,
 			stream: true,
 			tools: responseTools,
-			// previous_response_id,
+			...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
 			// store: true,
 			...(reasoning ? { reasoning } : {}),
 			// include: ["reasoning.encrypted_content"],
 		})
 
+		const functionCallByItemId = new Map<string, { call_id?: string; name?: string; id?: string }>()
+
 		// Process the response stream
 		for await (const chunk of stream) {
-			Logger.debug("OpenAI Responses Chunk: " + JSON.stringify(chunk))
+			Logger.debug(`OpenAI Responses Chunk: ${JSON.stringify(chunk)}`)
 
 			// Handle different event types from Responses API
 			if (chunk.type === "response.output_item.added") {
 				const item = chunk.item
 				if (item.type === "function_call" && item.id) {
+					functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
 					yield {
 						type: "tool_calls",
 						id: item.id,
@@ -228,6 +241,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (chunk.type === "response.output_item.done") {
 				const item = chunk.item
 				if (item.type === "function_call") {
+					if (item.id) {
+						functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
+					}
 					yield {
 						type: "tool_calls",
 						id: item.id || item.call_id,
@@ -293,12 +309,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 			}
 			if (chunk.type === "response.function_call_arguments.delta") {
+				const pendingCall = functionCallByItemId.get(chunk.item_id)
+				const callId = pendingCall?.call_id
+				const functionName = pendingCall?.name
+				const functionId = pendingCall?.id || chunk.item_id
+
 				yield {
 					type: "tool_calls",
 					tool_call: {
+						call_id: callId,
 						function: {
-							id: chunk.item_id,
-							name: chunk.item_id,
+							id: functionId,
+							name: functionName,
 							arguments: chunk.delta,
 						},
 					},
@@ -307,11 +329,16 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (chunk.type === "response.function_call_arguments.done") {
 				// Handle completed function call
 				if (chunk.item_id && chunk.name && chunk.arguments) {
+					const pendingCall = functionCallByItemId.get(chunk.item_id)
+					const callId = pendingCall?.call_id
+					const functionId = pendingCall?.id || chunk.item_id
+
 					yield {
 						type: "tool_calls",
 						tool_call: {
+							call_id: callId,
 							function: {
-								id: chunk.item_id,
+								id: functionId,
 								name: chunk.name,
 								arguments: chunk.arguments,
 							},
@@ -325,7 +352,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				chunk.response?.status === "incomplete" &&
 				chunk.response?.incomplete_details?.reason === "max_output_tokens"
 			) {
-				Logger.log("Ran out of tokens")
 				if (chunk.response?.output_text?.length > 0) {
 					Logger.log("Partial output:", chunk.response.output_text)
 				} else {
