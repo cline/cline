@@ -1,8 +1,15 @@
 import type { McpPromptResponse } from "@shared/mcp"
 import { expect } from "chai"
+import fs from "fs/promises"
+import * as sinon from "sinon"
+import * as skillsUtils from "../../context/instructions/user-instructions/skills"
 import { formatMcpPromptResponse, McpPromptFetcher, parseSlashCommands } from "../index"
 
 describe("slash-commands", () => {
+	afterEach(() => {
+		sinon.restore()
+	})
+
 	describe("formatMcpPromptResponse", () => {
 		it("should format text message", () => {
 			const response: McpPromptResponse = {
@@ -140,5 +147,86 @@ describe("slash-commands", () => {
 		// Note: Tests for "unknown MCP server", "no fetcher", and "fetcher errors"
 		// are skipped because they require StateManager initialization when falling
 		// through to workflow checking. The core MCP functionality is covered above.
+	})
+
+	describe("parseSlashCommands skill handling", () => {
+		it("should process skill command in task tag", async () => {
+			sinon.stub(skillsUtils, "getSkillContent").resolves({
+				name: "debug-build",
+				description: "Debug build issues",
+				path: "/tmp/skills/debug-build/SKILL.md",
+				source: "project",
+				instructions: "Step 1: inspect logs.\nStep 2: propose fix.",
+			})
+
+			const text = "<task>/debug-build investigate this failure</task>"
+			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false, undefined, undefined, [
+				{
+					name: "debug-build",
+					description: "Debug build issues",
+					path: "/tmp/skills/debug-build/SKILL.md",
+					source: "project",
+				},
+			])
+
+			expect(result.processedText).to.include('<explicit_instructions type="skill:debug-build">')
+			expect(result.processedText).to.include("Step 1: inspect logs.")
+			expect(result.processedText).to.include("investigate this failure")
+		})
+
+		it("should prefer skill over workflow on name collision", async () => {
+			const readFileStub = sinon.stub(fs, "readFile").resolves("workflow instructions")
+			sinon.stub(skillsUtils, "getSkillContent").resolves({
+				name: "release-checklist",
+				description: "Release checklist",
+				path: "/tmp/skills/release-checklist/SKILL.md",
+				source: "global",
+				instructions: "skill instructions",
+			})
+
+			const text = "<task>/release-checklist run this now</task>"
+			const result = await parseSlashCommands(
+				text,
+				{
+					"/tmp/.clinerules/workflows/release-checklist.md": true,
+				},
+				{},
+				"test-ulid",
+				undefined,
+				false,
+				undefined,
+				undefined,
+				[
+					{
+						name: "release-checklist",
+						description: "Release checklist",
+						path: "/tmp/skills/release-checklist/SKILL.md",
+						source: "global",
+					},
+				],
+			)
+
+			expect(result.processedText).to.include('<explicit_instructions type="skill:release-checklist">')
+			expect(result.processedText).to.include("skill instructions")
+			expect(result.processedText).to.not.include("workflow instructions")
+			expect(readFileStub.called).to.equal(false)
+		})
+
+		it("should support workflow command without file extension", async () => {
+			sinon.stub(fs, "readFile").resolves("workflow instructions")
+
+			const text = "<task>/git-branch-analysis please run</task>"
+			const result = await parseSlashCommands(
+				text,
+				{
+					"/tmp/.clinerules/workflows/git-branch-analysis.md": true,
+				},
+				{},
+				"test-ulid",
+			)
+
+			expect(result.processedText).to.include('<explicit_instructions type="git-branch-analysis.md">')
+			expect(result.processedText).to.include("workflow instructions")
+		})
 	})
 })

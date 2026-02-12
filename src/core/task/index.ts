@@ -3086,6 +3086,25 @@ export class Task {
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
+		let cachedAvailableSkills: Awaited<ReturnType<typeof discoverSkills>> | undefined
+
+		const getEnabledSkills = async () => {
+			if (cachedAvailableSkills) {
+				return cachedAvailableSkills
+			}
+
+			const discoveredSkills = await discoverSkills(cwd)
+			const resolvedSkills = getAvailableSkills(discoveredSkills)
+			const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
+			const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+
+			cachedAvailableSkills = resolvedSkills.filter((skill) => {
+				const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+				return toggles[skill.path] !== false
+			})
+
+			return cachedAvailableSkills
+		}
 
 		const hasUserContentTag = (text: string): boolean => {
 			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))
@@ -3118,6 +3137,7 @@ export class Task {
 				useNativeToolCalls,
 				providerInfo,
 				mcpPromptFetcher,
+				await getEnabledSkills(),
 			)
 
 			if (needsCheck) {

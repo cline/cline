@@ -1,8 +1,9 @@
 import type { McpServer } from "@shared/mcp"
-import type { SlashCommand } from "@/utils/slash-commands"
+import { SkillInfo } from "@shared/proto/cline/file"
 import React, { useCallback, useEffect, useRef } from "react"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
+import type { SlashCommand } from "@/utils/slash-commands"
 import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -16,6 +17,8 @@ interface SlashCommandMenuProps {
 	remoteWorkflowToggles?: Record<string, boolean>
 	remoteWorkflows?: any[]
 	mcpServers?: McpServer[]
+	globalSkills?: SkillInfo[]
+	localSkills?: SkillInfo[]
 }
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
@@ -29,6 +32,8 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	remoteWorkflowToggles,
 	remoteWorkflows,
 	mcpServers = [],
+	globalSkills = [],
+	localSkills = [],
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -40,9 +45,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		remoteWorkflowToggles,
 		remoteWorkflows,
 		mcpServers,
+		globalSkills,
+		localSkills,
 	)
 	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
 	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")
+	const skillCommands = filteredCommands.filter((cmd) => cmd.section === "skill")
 	const mcpCommands = filteredCommands.filter((cmd) => cmd.section === "mcp")
 
 	// Screen reader announcements
@@ -95,6 +103,14 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 				</div>
 				{commands.map((command, index) => {
 					const itemIndex = index + indexOffset
+					const typeLabel =
+						command.section === "skill"
+							? "Skill"
+							: command.section === "custom"
+								? "Workflow"
+								: command.section === "mcp"
+									? "MCP"
+									: ""
 					return (
 						<div
 							aria-selected={itemIndex === selectedIndex}
@@ -108,8 +124,13 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 							onClick={() => handleClick(command)}
 							onMouseEnter={() => setSelectedIndex(itemIndex)}
 							role="option">
-							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">
+							<div className="font-bold whitespace-nowrap overflow-hidden text-ellipsis flex items-center gap-2">
 								<span className="ph-no-capture">/{command.name}</span>
+								{typeLabel && (
+									<span className="text-[0.75em] font-medium text-(--vscode-descriptionForeground)">
+										[{typeLabel}]
+									</span>
+								)}
 							</div>
 							{showDescriptions && command.description && (
 								<div className="text-[0.85em] text-(--vscode-descriptionForeground) whitespace-normal overflow-hidden text-ellipsis">
@@ -139,11 +160,17 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 				{filteredCommands.length > 0 ? (
 					<>
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
-						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
+						{renderCommandSection(skillCommands, "Skill Commands", defaultCommands.length, true)}
+						{renderCommandSection(
+							workflowCommands,
+							"Workflow Commands",
+							defaultCommands.length + skillCommands.length,
+							true,
+						)}
 						{renderCommandSection(
 							mcpCommands,
 							"MCP Prompts",
-							defaultCommands.length + workflowCommands.length,
+							defaultCommands.length + skillCommands.length + workflowCommands.length,
 							true,
 						)}
 					</>

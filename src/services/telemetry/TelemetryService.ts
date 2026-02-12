@@ -1565,9 +1565,13 @@ export class TelemetryService {
 	 * Records when slash commands or workflows are activated
 	 * @param ulid Unique identifier for the task
 	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
-	 * @param commandType Whether it's a built-in command, custom workflow, or MCP prompt
+	 * @param commandType Whether it's a built-in command, custom workflow, MCP prompt, or skill
 	 */
-	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow" | "mcp_prompt") {
+	public captureSlashCommandUsed(
+		ulid: string,
+		commandName: string,
+		commandType: "builtin" | "workflow" | "mcp_prompt" | "skill",
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
 			properties: {

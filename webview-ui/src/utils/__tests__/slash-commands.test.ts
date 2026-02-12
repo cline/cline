@@ -1,6 +1,14 @@
 import type { McpServer } from "@shared/mcp"
+import { SkillInfo } from "@shared/proto/cline/file"
 import { describe, expect, it } from "vitest"
-import { getMatchingSlashCommands, getMcpPromptCommands, slashCommandRegex, validateSlashCommand } from "../slash-commands"
+import {
+	getMatchingSlashCommands,
+	getMcpPromptCommands,
+	getSkillCommands,
+	getWorkflowCommands,
+	slashCommandRegex,
+	validateSlashCommand,
+} from "../slash-commands"
 
 // Helper to create a mock MCP server
 function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -17,6 +25,53 @@ function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
 }
 
 describe("slash-commands", () => {
+	describe("workflow and skill command helpers", () => {
+		it("should strip markdown extension from workflow command names", () => {
+			const commands = getWorkflowCommands(
+				{
+					"/tmp/.clinerules/workflows/pr-review.md": true,
+				},
+				{},
+			)
+
+			expect(commands).toHaveLength(1)
+			expect(commands[0].name).toBe("pr-review")
+		})
+
+		it("should strip txt extension from workflow command names", () => {
+			const commands = getWorkflowCommands(
+				{
+					"/tmp/.clinerules/workflows/release-checklist.txt": true,
+				},
+				{},
+			)
+
+			expect(commands).toHaveLength(1)
+			expect(commands[0].name).toBe("release-checklist")
+		})
+
+		it("should build skill commands and keep global override by name", () => {
+			const localSkill = SkillInfo.create({
+				name: "deploy",
+				description: "Local deploy skill",
+				path: "/workspace/.clinerules/skills/deploy/SKILL.md",
+				enabled: true,
+			})
+			const globalSkill = SkillInfo.create({
+				name: "deploy",
+				description: "Global deploy skill",
+				path: "/home/user/.cline/skills/deploy/SKILL.md",
+				enabled: true,
+			})
+
+			const commands = getSkillCommands([globalSkill], [localSkill])
+			expect(commands).toHaveLength(1)
+			expect(commands[0].name).toBe("deploy")
+			expect(commands[0].description).toBe("Global deploy skill")
+			expect(commands[0].section).toBe("skill")
+		})
+	})
+
 	describe("getMcpPromptCommands", () => {
 		it("should return empty array when no servers provided", () => {
 			const result = getMcpPromptCommands([])
@@ -174,6 +229,90 @@ describe("slash-commands", () => {
 		})
 	})
 
+	describe("skill precedence in command matching", () => {
+		it("should prefer skill command over workflow when names collide", () => {
+			const globalSkills = [
+				SkillInfo.create({
+					name: "pr-review",
+					description: "Skill PR review",
+					path: "/home/user/.cline/skills/pr-review/SKILL.md",
+					enabled: true,
+				}),
+			]
+
+			const commands = getMatchingSlashCommands(
+				"",
+				{
+					"/workspace/.clinerules/workflows/pr-review.md": true,
+				},
+				{},
+				undefined,
+				undefined,
+				[],
+				globalSkills,
+				[],
+			)
+
+			const skillMatches = commands.filter((c) => c.name === "pr-review" && c.section === "skill")
+			const workflowMatches = commands.filter((c) => c.name === "pr-review" && c.section === "custom")
+
+			expect(skillMatches).toHaveLength(1)
+			expect(workflowMatches).toHaveLength(0)
+		})
+
+		it("should keep skill description unchanged when it overrides a workflow", () => {
+			const globalSkills = [
+				SkillInfo.create({
+					name: "pr-review",
+					description: "Skill PR review",
+					path: "/home/user/.cline/skills/pr-review/SKILL.md",
+					enabled: true,
+				}),
+			]
+
+			const commands = getMatchingSlashCommands(
+				"",
+				{
+					"/workspace/.clinerules/workflows/pr-review.md": true,
+				},
+				{},
+				undefined,
+				undefined,
+				[],
+				globalSkills,
+				[],
+			)
+			const skill = commands.find((c) => c.name === "pr-review" && c.section === "skill")
+
+			expect(skill?.description).toBe("Skill PR review")
+		})
+
+		it("should keep skill description unchanged when it overrides a remote workflow", () => {
+			const globalSkills = [
+				SkillInfo.create({
+					name: "pr-review",
+					description: "Skill PR review",
+					path: "/home/user/.cline/skills/pr-review/SKILL.md",
+					enabled: true,
+				}),
+			]
+
+			const commands = getMatchingSlashCommands(
+				"",
+				{},
+				{},
+				{},
+				[{ name: "pr-review", alwaysEnabled: true }],
+				[],
+				globalSkills,
+				[],
+			)
+			const skill = commands.find((c) => c.name === "pr-review" && c.section === "skill")
+
+			expect(skill?.description).toBe("Skill PR review")
+		})
+	})
+
 	describe("validateSlashCommand with MCP servers", () => {
 		const mcpServers = [
 			createMockMcpServer({
@@ -200,6 +339,22 @@ describe("slash-commands", () => {
 		it("should return null for non-matching MCP command", () => {
 			const result = validateSlashCommand("mcp:unknown:cmd", {}, {}, undefined, undefined, mcpServers)
 			expect(result).toBe(null)
+		})
+	})
+
+	describe("validateSlashCommand with skills", () => {
+		it("should validate skill command as full match", () => {
+			const globalSkills = [
+				SkillInfo.create({
+					name: "summarize-pr",
+					description: "Summarize PR",
+					path: "/home/user/.cline/skills/summarize-pr/SKILL.md",
+					enabled: true,
+				}),
+			]
+
+			const result = validateSlashCommand("summarize-pr", {}, {}, undefined, undefined, [], globalSkills, [])
+			expect(result).toBe("full")
 		})
 	})
 

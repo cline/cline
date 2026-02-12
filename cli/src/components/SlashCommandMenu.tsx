@@ -38,13 +38,27 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 	const { items: visibleCommands, startIndex } = getVisibleWindow(commands, selectedIndex)
 	const hasMoreBelow = startIndex + visibleCommands.length < commands.length
 
+	const getTypeLabel = (section?: string) => {
+		switch (section) {
+			case "custom":
+				return "[Workflow]"
+			case "skill":
+				return "[Skill]"
+			case "mcp":
+				return "[MCP]"
+			default:
+				return ""
+		}
+	}
+
 	return (
 		<Box flexDirection="column" marginBottom={1} paddingLeft={1} paddingRight={1}>
 			{visibleCommands.map((cmd, idx) => {
 				const isSelected = startIndex + idx === selectedIndex
-				// Only show description for default commands (not workflows)
-				const showDescription = cmd.section === "default" || !cmd.section
-				const commandPrefix = `${isSelected ? "❯" : " "} /${cmd.name}`
+				const showDescription =
+					cmd.section === "default" || cmd.section === "mcp" || cmd.section === "skill" || !cmd.section
+				const typeLabel = getTypeLabel(cmd.section)
+				const commandPrefix = `${isSelected ? "❯" : " "} /${cmd.name}${typeLabel ? ` ${typeLabel}` : ""}`
 				const truncatedCommand = truncateText(commandPrefix, contentWidth)
 				const descriptionText = showDescription && cmd.description ? ` - ${cmd.description}` : ""
 				const fullLine = truncateText(truncatedCommand + descriptionText, contentWidth)

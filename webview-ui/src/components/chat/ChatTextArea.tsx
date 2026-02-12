@@ -1,7 +1,7 @@
 import { PulsingBorder } from "@paper-design/shaders-react"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { FileSearchRequest, FileSearchType, RefreshedSkills, RelativePathsRequest, SkillInfo } from "@shared/proto/cline/file"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
@@ -220,6 +220,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			apiConfiguration,
 			openRouterModels,
 			platform,
+			globalSkillsToggles,
+			localSkillsToggles,
 			localWorkflowToggles,
 			globalWorkflowToggles,
 			remoteWorkflowToggles,
@@ -237,6 +239,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
 		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
+		const [globalSkills, setGlobalSkills] = useState<SkillInfo[]>([])
+		const [localSkills, setLocalSkills] = useState<SkillInfo[]>([])
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -330,6 +334,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				document.removeEventListener("mousedown", handleClickOutsideSlashMenu)
 			}
 		}, [showSlashCommandsMenu])
+
+		useEffect(() => {
+			let cancelled = false
+			FileServiceClient.refreshSkills(EmptyRequest.create())
+				.then((response: RefreshedSkills) => {
+					if (cancelled) {
+						return
+					}
+					setGlobalSkills(response.globalSkills || [])
+					setLocalSkills(response.localSkills || [])
+				})
+				.catch(() => {
+					if (!cancelled) {
+						setGlobalSkills([])
+						setLocalSkills([])
+					}
+				})
+
+			return () => {
+				cancelled = true
+			}
+		}, [globalSkillsToggles, localSkillsToggles])
 
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
@@ -474,6 +500,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
+								globalSkills,
+								localSkills,
 							)
 
 							if (allCommands.length === 0) {
@@ -499,6 +527,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
+							globalSkills,
+							localSkills,
 						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
@@ -658,6 +688,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
+				globalSkills,
+				localSkills,
 			],
 		)
 
@@ -957,6 +989,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					globalWorkflowToggles,
 					remoteWorkflowToggles,
 					remoteConfigSettings?.remoteGlobalWorkflows,
+					mcpServers,
+					globalSkills,
+					localSkills,
 				)
 
 				if (isValidCommand) {
@@ -970,7 +1005,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
+		}, [
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			remoteWorkflowToggles,
+			remoteConfigSettings,
+			mcpServers,
+			globalSkills,
+			localSkills,
+		])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1388,7 +1431,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
+								globalSkills={globalSkills}
 								globalWorkflowToggles={globalWorkflowToggles}
+								localSkills={localSkills}
 								localWorkflowToggles={localWorkflowToggles}
 								mcpServers={mcpServers}
 								onMouseDown={handleMenuMouseDown}

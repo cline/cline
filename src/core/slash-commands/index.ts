@@ -1,6 +1,9 @@
 import type { ApiProviderInfo } from "@core/api"
+import { getSkillContent } from "@core/context/instructions/user-instructions/skills"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { McpPromptResponse } from "@shared/mcp"
+import type { SkillMetadata } from "@shared/skills"
+import { getWorkflowCommandAliases } from "@shared/slash-command-names"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
@@ -48,6 +51,7 @@ export async function parseSlashCommands(
 	enableNativeToolCalls?: boolean,
 	providerInfo?: ApiProviderInfo,
 	mcpPromptFetcher?: McpPromptFetcher,
+	availableSkills: SkillMetadata[] = [],
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug", "deep-planning", "explain-changes"]
 
@@ -173,6 +177,26 @@ export async function parseSlashCommands(
 				}
 			}
 
+			// Check if the command matches an enabled skill (skills win collisions with workflows)
+			const matchingSkill = availableSkills.find((skill) => skill.name === commandName)
+			if (matchingSkill) {
+				try {
+					const skillContent = await getSkillContent(matchingSkill.name, availableSkills)
+					if (skillContent) {
+						const textWithoutSlashCommand = removeSlashCommand(text, tagContent, contentStartIndex, slashMatch)
+						const processedText =
+							`<explicit_instructions type="skill:${matchingSkill.name}">\n${skillContent.instructions}\n</explicit_instructions>\n` +
+							textWithoutSlashCommand
+
+						telemetryService.captureSlashCommandUsed(ulid, commandName, "skill")
+
+						return { processedText, needsClinerulesFileCheck: false }
+					}
+				} catch (error) {
+					Logger.error(`Error loading skill ${matchingSkill.name}: ${error}`)
+				}
+			}
+
 			const globalWorkflows: Workflow[] = Object.entries(globalWorkflowToggles)
 				.filter(([_, enabled]) => enabled)
 				.map(([filePath, _]) => ({
@@ -189,11 +213,17 @@ export async function parseSlashCommands(
 					isRemote: false,
 				}))
 
-			// Get remote workflows from remote config
-			const stateManager = StateManager.get()
-			const remoteConfigSettings = stateManager.getRemoteConfigSettings()
-			const remoteWorkflows = remoteConfigSettings.remoteGlobalWorkflows || []
-			const remoteWorkflowToggles = stateManager.getGlobalStateKey("remoteWorkflowToggles") || {}
+			// Get remote workflows from remote config (if state manager is initialized)
+			let remoteWorkflows: Array<{ name: string; contents: string; alwaysEnabled?: boolean }> = []
+			let remoteWorkflowToggles: Record<string, boolean> = {}
+			try {
+				const stateManager = StateManager.get()
+				const remoteConfigSettings = stateManager.getRemoteConfigSettings()
+				remoteWorkflows = remoteConfigSettings?.remoteGlobalWorkflows || []
+				remoteWorkflowToggles = stateManager.getGlobalStateKey("remoteWorkflowToggles") || {}
+			} catch {
+				// StateManager may be uninitialized in isolated tests.
+			}
 
 			const enabledRemoteWorkflows: Workflow[] = remoteWorkflows
 				.filter((workflow) => {
@@ -210,8 +240,10 @@ export async function parseSlashCommands(
 			// local workflows have precedence over global workflows, which have precedence over remote workflows
 			const enabledWorkflows: Workflow[] = [...localWorkflows, ...globalWorkflows, ...enabledRemoteWorkflows]
 
-			// Then check if the command matches any enabled workflow filename
-			const matchingWorkflow = enabledWorkflows.find((workflow) => workflow.fileName === commandName)
+			// Then check if the command matches any enabled workflow alias
+			const matchingWorkflow = enabledWorkflows.find((workflow) =>
+				getWorkflowCommandAliases(workflow.fileName).includes(commandName),
+			)
 
 			if (matchingWorkflow) {
 				try {
