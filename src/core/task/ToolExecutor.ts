@@ -55,11 +55,7 @@ import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
 
 export function canonicalizeAttemptCompletionParams(block: ToolUse): boolean {
-	if (
-		block.name === ClineDefaultTool.ATTEMPT &&
-		typeof block.params?.result !== "string" &&
-		typeof block.params?.response === "string"
-	) {
+	if (block.name === ClineDefaultTool.ATTEMPT && !block.params?.result && typeof block.params?.response === "string") {
 		block.params.result = block.params.response
 		return true
 	}
