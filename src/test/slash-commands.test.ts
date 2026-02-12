@@ -365,7 +365,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 			const skill = response.commands.find((cmd) => cmd.name === "summarize-pr" && cmd.section === "skill")
 
-			skill?.description.should.equal("Summarize pull request")
+			skill?.description.should.equal("Summarize a pull request")
 		})
 
 		it("should keep skill description unchanged when it overrides a remote workflow", async () => {
@@ -379,7 +379,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 			const skill = response.commands.find((cmd) => cmd.name === "summarize-pr" && cmd.section === "skill")
 
-			skill?.description.should.equal("Summarize pull request")
+			skill?.description.should.equal("Summarize a pull request")
 		})
 	})
 })
