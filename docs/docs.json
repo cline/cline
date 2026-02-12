@@ -384,10 +384,6 @@
 			"destination": "/cline-cli/getting-started"
 		},
 		{
-			"source": "/cline-cli/installation",
-			"destination": "/cline-cli/installation"
-		},
-		{
 			"source": "/features/hooks/real-world-examples",
 			"destination": "/customization/hooks"
 		},
