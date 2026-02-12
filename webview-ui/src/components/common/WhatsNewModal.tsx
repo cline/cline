@@ -85,7 +85,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						</li>
 						<li className="mb-2">
 							<strong>Z AI's GLM 5 is now available!</strong> Built for complex systems engineering and long-horizon
-							agentic tasks. <InlineModelLink label="Try now" modelId="zai:glm-5" pickerTab="recommended" />
+							agentic tasks. <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="recommended" />
 						</li>
 						<li className="mb-2">
 							<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
