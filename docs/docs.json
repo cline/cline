@@ -136,7 +136,6 @@
 								"group": "Choosing & Configuring Models",
 								"pages": [
 									"core-features/model-selection-guide",
-									"model-config/model-comparison",
 									"model-config/context-windows"
 								]
 							},
@@ -558,6 +557,10 @@
 		{
 			"source": "/getting-started/selecting-your-model",
 			"destination": "/getting-started/authorizing-with-cline"
+		},
+		{
+			"source": "/model-config/model-comparison",
+			"destination": "/core-features/model-selection-guide"
 		}
 	],
 	"search": {
