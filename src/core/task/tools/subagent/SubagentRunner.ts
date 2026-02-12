@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises"
 import { buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
+import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
@@ -13,6 +14,7 @@ import type { ClineTool } from "@shared/tools"
 import { ClineDefaultTool } from "@shared/tools"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { ClineError, ClineErrorType } from "@/services/error/ClineError"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
@@ -382,7 +384,14 @@ export class SubagentRunner {
 				let assistantTextSignature: string | undefined
 				let requestId: string | undefined
 
-				const stream = this.createMessageWithInitialChunkRetry(api, systemPrompt, conversation, nativeTools)
+				const stream = this.createMessageWithInitialChunkRetry(
+					api,
+					systemPrompt,
+					conversation,
+					nativeTools,
+					providerInfo.providerId,
+					providerInfo.model.id,
+				)
 
 				for await (const chunk of stream) {
 					switch (chunk.type) {
@@ -644,31 +653,22 @@ export class SubagentRunner {
 		}
 	}
 
-	private shouldRetryInitialStreamError(error: unknown): boolean {
-		const rawError = error as {
-			code?: string
-			status?: number
-			statusCode?: number
-			error?: { code?: string; param?: { statusCode?: number } }
-			message?: string
-		}
-		const status = rawError?.status ?? rawError?.statusCode ?? rawError?.error?.param?.statusCode
-		const errorCode = rawError?.code ?? rawError?.error?.code
-		const message = String(rawError?.message || "")
+	private shouldRetryInitialStreamError(error: unknown, providerId: string, modelId: string): boolean {
+		// Mirror main loop behavior: do not auto-retry auth/balance failures.
+		const parsedError = ClineError.transform(error, modelId, providerId)
+		const isAuthError = parsedError.isErrorType(ClineErrorType.Auth)
+		const isBalanceError = parsedError.isErrorType(ClineErrorType.Balance)
 
-		if (status === 429 || errorCode === "stream_initialization_failed") {
-			return true
+		if (isAuthError || isBalanceError) {
+			return false
 		}
 
-		return [
-			/stream_initialization_failed/i,
-			/failed to create stream/i,
-			/failed to generate stream/i,
-			/failed to send request/i,
-			/\btimeout\b/i,
-			/\btemporarily unavailable\b/i,
-			/\bnetwork\b/i,
-		].some((pattern) => pattern.test(message))
+		// Subagent loop does not perform main-loop context compaction, so skip retry here.
+		if (checkContextWindowExceededError(error)) {
+			return false
+		}
+
+		return true
 	}
 
 	private async *createMessageWithInitialChunkRetry(
@@ -676,6 +676,8 @@ export class SubagentRunner {
 		systemPrompt: string,
 		conversation: ClineStorageMessage[],
 		nativeTools: ClineTool[] | undefined,
+		providerId: string,
+		modelId: string,
 	) {
 		for (let attempt = 1; attempt <= MAX_INITIAL_STREAM_ATTEMPTS; attempt += 1) {
 			const stream = api.createMessage(systemPrompt, conversation, nativeTools)
@@ -691,7 +693,9 @@ export class SubagentRunner {
 				return
 			} catch (error) {
 				const shouldRetry =
-					!this.shouldAbort() && attempt < MAX_INITIAL_STREAM_ATTEMPTS && this.shouldRetryInitialStreamError(error)
+					!this.shouldAbort() &&
+					attempt < MAX_INITIAL_STREAM_ATTEMPTS &&
+					this.shouldRetryInitialStreamError(error, providerId, modelId)
 				if (!shouldRetry) {
 					throw error
 				}
