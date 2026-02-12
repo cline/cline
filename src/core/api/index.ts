@@ -44,7 +44,7 @@ import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
-import { ThrottledApiHandler } from "./throttle-wrapper"
+import { SanitizedApiHandler } from "./throttle-wrapper"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
@@ -460,8 +460,8 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
 
-	// Helper to wrap handler with throttling for consistent streaming experience
-	const wrapHandler = (handler: ApiHandler): ApiHandler => new ThrottledApiHandler(handler)
+	// Helper to wrap handler with sanitization for consistent streaming experience
+	const wrapHandler = (handler: ApiHandler): ApiHandler => new SanitizedApiHandler(handler)
 
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors
 	// If validation passes and no clipping needed, return the wrapped handler immediately to avoid rebuilding.

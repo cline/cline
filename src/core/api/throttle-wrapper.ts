@@ -9,8 +9,11 @@ import { ApiStream } from "./transform/stream"
  * Drops empty text/reasoning chunks at the source before they reach
  * downstream consumers. The canonical throttle lives in
  * subscribeToPartialMessage.ts — no timing is applied here.
+ *
+ * NOTE: This class was renamed from ThrottledApiHandler to SanitizedApiHandler
+ * to accurately reflect its purpose (sanitization only, no throttling).
  */
-export class ThrottledApiHandler implements ApiHandler {
+export class SanitizedApiHandler implements ApiHandler {
 	constructor(private readonly handler: ApiHandler) {}
 
 	async *createMessage(

@@ -20,6 +20,20 @@ const THROTTLE_DELAY_MS = 50 // Max 20 updates/second (prevents excessive React 
 const THROTTLE_DELAY_MS_REASONING = 80 // Reasoning can be throttled a bit more
 
 /**
+ * Reset the partial message throttle state.
+ * CRITICAL: Must be called when a task is aborted/cancelled to prevent
+ * throttle state from the previous task delaying messages in a new task.
+ */
+export function resetPartialMessageThrottle(): void {
+	if (throttleTimer) {
+		clearTimeout(throttleTimer)
+		throttleTimer = null
+	}
+	pendingPartialMessage = null
+	lastPartialSendTime = 0
+}
+
+/**
  * Subscribe to partial message events
  * @param controller The controller instance
  * @param request The empty request
