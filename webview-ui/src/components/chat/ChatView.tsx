@@ -313,23 +313,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
 
 	const showFocusChainPlaceholder = useMemo(() => {
-		if (!focusChainSettings.enabled || lastProgressMessageText) {
-			return false
-		}
-
-		const lastMessage = modifiedMessages[modifiedMessages.length - 1]
-		if (lastMessage?.ask === "resume_task" || lastMessage?.ask === "resume_completed_task") {
-			return false
-		}
-
-		const hasCompletionResult = modifiedMessages.some((message) => message.say === "completion_result")
-		if (hasCompletionResult) {
-			return false
-		}
-
-		// Show immediately for active tasks before the first checklist arrives.
-		return true
-	}, [focusChainSettings.enabled, lastProgressMessageText, modifiedMessages])
+		// Show placeholder whenever focus chain is enabled and no checklist exists yet.
+		return focusChainSettings.enabled && !lastProgressMessageText
+	}, [focusChainSettings.enabled, lastProgressMessageText])
 
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
