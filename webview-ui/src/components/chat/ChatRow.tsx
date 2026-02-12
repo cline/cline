@@ -31,7 +31,6 @@ import {
 	RefreshCwIcon,
 	SearchIcon,
 	SettingsIcon,
-	SquareArrowOutUpRightIcon,
 	SquareMinusIcon,
 	TerminalIcon,
 	TriangleAlertIcon,
@@ -46,13 +45,14 @@ import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
-import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import CodeAccordian from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
+import { FileToolRow } from "./FileToolRow"
 import HookMessage from "./HookMessage"
 import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
@@ -502,34 +502,16 @@ export const ChatRowContent = memo(
 				case "readFile":
 					const isImage = isImageFile(tool.path || "")
 					return (
-						<div>
-							<div className={HEADER_CLASSNAMES}>
-								{isImage ? <ImageUpIcon className="size-2" /> : <FileCode2Icon className="size-2" />}
-								{tool.operationIsLocatedInWorkspace === false &&
-									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span className="font-bold">Cline wants to read this file:</span>
+						<div className="ml-1 py-0.5">
+							<div className="text-[13px] text-foreground mb-1">
+								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
 							</div>
-							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
-								<div
-									className={cn("text-description flex items-center cursor-pointer select-none py-2 px-2.5", {
-										"cursor-default select-text": isImage,
-									})}
-									onClick={() => {
-										if (!isImage) {
-											FileServiceClient.openFile(StringRequest.create({ value: tool.content })).catch(
-												(err) => console.error("Failed to open file:", err),
-											)
-										}
-									}}>
-									{tool.path?.startsWith(".") && <span>.</span>}
-									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
-									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
-										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
-									</span>
-									<div className="grow" />
-									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
-								</div>
-							</div>
+							<FileToolRow
+								absolutePath={isImage ? undefined : tool.content}
+								filePath={tool.path || ""}
+								icon={isImage ? ImageUpIcon : FileCode2Icon}
+								outsideWorkspace={tool.operationIsLocatedInWorkspace === false}
+							/>
 						</div>
 					)
 				case "listFilesTopLevel":

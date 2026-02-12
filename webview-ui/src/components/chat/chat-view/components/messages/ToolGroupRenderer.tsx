@@ -1,11 +1,7 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useCallback, useMemo, useState } from "react"
-import { TypewriterText } from "@/components/chat/TypewriterText"
-import { cleanPathPrefix } from "@/components/common/CodeAccordian"
-import { Button } from "@/components/ui/button"
+import { FileToolRow, getActivityText, getToolDisplayInfo } from "@/components/chat/FileToolRow"
 import { cn } from "@/lib/utils"
-import { FileServiceClient } from "@/services/grpc-client"
 import { getIconByToolName, getToolsNotInCurrentActivities, isLowStakesTool } from "../../utils/messageUtils"
 
 interface ToolGroupRendererProps {
@@ -20,39 +16,10 @@ interface ToolWithReasoning {
 	reasoning?: string
 	isActive?: boolean
 	activityText?: string
+	isPendingApproval?: boolean
 }
 
 const EXPANDABLE_TOOLS = new Set(["listFilesTopLevel", "listFilesRecursive", "listCodeDefinitionNames", "searchFiles"])
-
-// Helper to format activity text for active items (from RequestStartRow logic)
-const getActivityText = (tool: ClineSayTool): string | null => {
-	const cleanedPath = cleanPathPrefix(tool.path || "")
-	const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
-		const cleanedPath = cleanPathPrefix(path)
-		const terms = regex
-			.split("|")
-			.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
-			.filter(Boolean)
-			.join(" | ")
-		return filePattern && filePattern !== "*"
-			? `"${terms}" in ${cleanedPath}/ (${filePattern})`
-			: `"${terms}" in ${cleanedPath}/`
-	}
-
-	switch (tool.tool) {
-		case "readFile":
-			return tool.path ? `Reading ${cleanedPath}...` : null
-		case "listFilesTopLevel":
-		case "listFilesRecursive":
-			return tool.path ? `Exploring ${cleanedPath}/...` : null
-		case "searchFiles":
-			return tool.regex && tool.path ? `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...` : null
-		case "listCodeDefinitionNames":
-			return tool.path ? `Analyzing ${cleanedPath}/...` : null
-		default:
-			return null
-	}
-}
 
 // Calculate current activities (from RequestStartRow logic)
 const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
@@ -84,10 +51,12 @@ const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
 		const msg = allMessages[i]
 		// Only collect tools that are currently executing (ask === "tool")
 		// Skip completed tools (say === "tool") - they should be in the completed list
+		// Also skip pending approval tools that are not partial (they show in pending section)
 		if (msg.say === "tool" || msg.ask !== "tool") {
 			continue
 		}
-		if (isLowStakesTool(msg)) {
+		// Only show as "active" activity if still streaming (partial)
+		if (isLowStakesTool(msg) && msg.partial) {
 			activities.push(msg)
 		}
 	}
@@ -97,12 +66,13 @@ const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
 
 /**
  * Renders a collapsible group of low-stakes tool calls.
- * Shows both completed tools AND currently active tools in a unified list (only for last group).
+ * Shows completed tools, active tools, AND pending approval tools in a unified accumulative list.
  */
 export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: ToolGroupRendererProps) => {
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 
 	// Filter out tools in the "current activities" range (being shown in loading state)
+	// This only filters ask tools that are still streaming - pending approval tools are kept
 	const filteredMessages = useMemo(() => getToolsNotInCurrentActivities(messages, allMessages), [messages, allMessages])
 
 	// Get current activities (active reading/exploring) - only for last group
@@ -113,10 +83,53 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		return getCurrentActivities(allMessages)
 	}, [allMessages, isLastGroup])
 
-	// Build completed tool items
-	const completedTools = useMemo(() => buildToolsWithReasoning(filteredMessages), [filteredMessages])
+	// Split messages into completed tools and pending approval tools
+	// Use raw `messages` (not filtered) to find pending approval tools,
+	// since getToolsNotInCurrentActivities filters out ask tools
+	const { completedTools, pendingApprovalTools } = useMemo(() => {
+		const completed: ToolWithReasoning[] = []
+		const pending: ToolWithReasoning[] = []
 
-	// Build active tool items
+		// First collect all completed (say) tool paths so we can exclude approved asks
+		const completedPaths = new Set<string>()
+		for (const msg of messages) {
+			if (isLowStakesTool(msg) && msg.type === "say") {
+				const parsed = parseToolSafe(msg.text)
+				if (parsed.path) completedPaths.add(parsed.path)
+			}
+		}
+
+		// Find completed tools from filtered messages
+		for (const msg of filteredMessages) {
+			if (msg.say === "reasoning") continue
+			if (isLowStakesTool(msg) && msg.type === "say") {
+				completed.push({
+					tool: msg,
+					parsedTool: parseToolSafe(msg.text),
+				})
+			}
+		}
+
+		// Collect ALL ask tools (approved or not) - they always stay in the list.
+		// The blue highlight is handled at render time (only the current pending ask is blue).
+		for (const msg of messages) {
+			if (msg.say === "reasoning") continue
+			if (isLowStakesTool(msg) && msg.type === "ask" && !msg.partial) {
+				const parsed = parseToolSafe(msg.text)
+				if (!completedPaths.has(parsed.path || "")) {
+					pending.push({
+						tool: msg,
+						parsedTool: parsed,
+						isPendingApproval: true,
+					})
+				}
+			}
+		}
+
+		return { completedTools: completed, pendingApprovalTools: pending }
+	}, [messages, filteredMessages])
+
+	// Build active tool items (still streaming)
 	const activeTools = useMemo(() => {
 		return currentActivities
 			.map((msg) => {
@@ -132,129 +145,156 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 			.filter((item) => item.activityText)
 	}, [currentActivities])
 
-	// Merge: completed items first, then active items (active only added to last group)
-	// Deduplicate - exclude completed items that match active items by path
-	const allTools = useMemo(() => {
-		// Get paths of active items
+	// Deduplicate - exclude completed items that match active or pending items by path
+	const dedupedCompleted = useMemo(() => {
 		const activePaths = new Set(activeTools.map((item) => item.parsedTool.path).filter(Boolean))
+		const pendingPaths = new Set(pendingApprovalTools.map((item) => item.parsedTool.path).filter(Boolean))
+		return completedTools.filter((item) => !activePaths.has(item.parsedTool.path) && !pendingPaths.has(item.parsedTool.path))
+	}, [completedTools, activeTools, pendingApprovalTools])
 
-		// Filter out completed items that are also being actively read
-		const dedupedCompleted = completedTools.filter((item) => !activePaths.has(item.parsedTool.path))
+	const completedCount = dedupedCompleted.length
+	const hasPendingApproval = pendingApprovalTools.length > 0
+	const hasCompleted = completedCount > 0
+	const hasActive = activeTools.length > 0
 
-		return [...dedupedCompleted, ...activeTools]
-	}, [completedTools, activeTools])
-
-	const summary = getToolGroupSummary(filteredMessages)
-
-	const handleOpenFile = useCallback((filePath: string) => {
-		FileServiceClient.openFileRelativePath(StringRequest.create({ value: filePath })).catch((err) =>
-			console.error("Failed to open file:", err),
-		)
-	}, [])
+	const summary = getToolGroupSummary(dedupedCompleted)
 
 	const handleItemToggle = useCallback((ts: number) => {
 		setExpandedItems((prev) => ({ ...prev, [ts]: !prev[ts] }))
 	}, [])
 
-	// Don't render if no tools to show
-	if (allTools.length === 0) {
+	// Don't render if no tools to show at all
+	if (!hasCompleted && !hasPendingApproval && !hasActive) {
 		return null
 	}
 
+	// Determine which pending tool is the current ask (blue highlighted)
+	// Only the last ask tool in the group AND only if it's still the last message
+	// in the conversation (nothing has happened after it — truly awaiting approval)
+	const currentPendingTs = useMemo(() => {
+		if (!isLastGroup || !hasPendingApproval || allMessages.length === 0) return null
+		// Find the last ask tool in the group
+		let lastAskTs: number | null = null
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i]
+			if (isLowStakesTool(msg) && msg.type === "ask" && !msg.partial) {
+				lastAskTs = msg.ts
+				break
+			}
+		}
+		if (lastAskTs === null) return null
+		// Verify this ask is still the last message in the conversation
+		// If the conversation has moved on (new messages after it), it's been answered
+		const lastConversationTs = allMessages[allMessages.length - 1].ts
+		if (lastConversationTs !== lastAskTs) return null
+		return lastAskTs
+	}, [isLastGroup, hasPendingApproval, messages, allMessages])
+
+	// Count non-blue pending tools as "optimistically read" — they were already approved
+	// but manual approval doesn't create say messages, so we count them here
+	const optimisticReadCount = useMemo(() => {
+		if (!hasPendingApproval) return 0
+		return pendingApprovalTools.filter(({ tool }) => tool.ts !== currentPendingTs).length
+	}, [pendingApprovalTools, currentPendingTs, hasPendingApproval])
+
+	const totalReadCount = completedCount + optimisticReadCount
+	const hasAnyRead = totalReadCount > 0
+	const hasCurrentPending = currentPendingTs !== null && pendingApprovalTools.some(({ tool }) => tool.ts === currentPendingTs)
+
+	// Build combined header
+	const combinedHeader = useMemo(() => {
+		if (hasAnyRead && hasCurrentPending) {
+			return `Cline read ${totalReadCount} file${totalReadCount > 1 ? "s" : ""} and wants to read:`
+		}
+		if (hasAnyRead) {
+			// All files done — use totalReadCount which includes optimistic reads from ask tools
+			return `Cline read ${totalReadCount} file${totalReadCount > 1 ? "s" : ""}:`
+		}
+		if (hasPendingApproval) {
+			return "Cline wants to read:"
+		}
+		return null
+	}, [hasAnyRead, hasCurrentPending, totalReadCount, hasPendingApproval])
+
 	return (
 		<div className={cn("px-4 py-2 ml-1 text-description")}>
-			{/* Header */}
-			<div className="text-[13px] text-foreground mb-1">{summary}:</div>
+			{/* Combined header */}
+			{combinedHeader && <div className="text-[13px] text-foreground mb-1">{combinedHeader}</div>}
 
-			{/* Content - unified list of completed + active tools */}
-			<div className="min-w-0">
-				{allTools.map(({ tool, parsedTool, isActive, activityText }) => {
-					const info = getToolDisplayInfo(parsedTool)
-					if (!info) {
-						return null
-					}
-
-					const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
-					const isItemExpanded = expandedItems[tool.ts] ?? false
-					const content = parsedTool.content || null
-
-					// Active items render with "Reading..." TypewriterText (match completed item structure exactly)
-					if (isActive && activityText) {
+			{/* Completed tools */}
+			{hasCompleted && (
+				<div className="min-w-0">
+					{dedupedCompleted.map(({ tool, parsedTool }) => {
+						const info = getToolDisplayInfo(parsedTool, getIconByToolName)
+						if (!info) return null
+						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
+						const isItemExpanded = expandedItems[tool.ts] ?? false
 						return (
-							<div className="min-w-0" key={tool.ts}>
-								{/* ACTIVE "READING..." ITEM STYLING - Modify vertical spacing here via py-0 and -my-0.5 */}
-								<Button
-									className="flex items-center gap-[3px] text-[13px] text-description py-[1px] min-w-0 max-w-full px-0 leading-tight -my-0.5"
-									disabled
-									size="icon"
-									variant="text">
-									<info.icon className="opacity-70 shrink-0 size-[12px]" />
-									<span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left text-[13px]">
-										<TypewriterText speed={15} text={activityText} />
-									</span>{" "}
-								</Button>
-							</div>
+							<FileToolRow
+								displayText={info.displayText}
+								expandedContent={parsedTool.content || null}
+								filePath={info.path}
+								icon={info.icon}
+								isExpandable={isExpandable}
+								isExpanded={isItemExpanded}
+								key={tool.ts}
+								onToggle={() => handleItemToggle(tool.ts)}
+							/>
 						)
-					}
+					})}
+				</div>
+			)}
 
-					// Completed items render normally (clickable)
-					return (
-						<div className="min-w-0" key={tool.ts}>
-							<Button
-								className="flex items-center gap-[3px] cursor-pointer text-[13px] text-description py-[1px] hover:text-link min-w-0 max-w-full px-0 leading-tight -my-0.5"
-								onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
-								size="icon"
-								variant="text">
-								<info.icon className="opacity-70 shrink-0 size-[12px]" />
-								<span
-									className={cn(
-										"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-[13px]",
-										{
-											"[direction:ltr]": !!info.displayText,
-										},
-									)}>
-									{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
-								</span>
-							</Button>
-							{/* Expanded content for folders/search/definitions - file lists only */}
-							{isExpandable && isItemExpanded && content && (
-								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">
-									{content}
-								</pre>
-							)}
-						</div>
-					)
-				})}
-			</div>
+			{/* Active tools (still streaming - typewriter animation) */}
+			{hasActive && (
+				<div className="min-w-0">
+					{activeTools.map(({ tool, parsedTool, activityText }) => {
+						const info = getToolDisplayInfo(parsedTool, getIconByToolName)
+						if (!info) return null
+						return (
+							<FileToolRow
+								activityText={activityText ?? undefined}
+								filePath={info.path}
+								icon={info.icon}
+								isActive={true}
+								key={tool.ts}
+							/>
+						)
+					})}
+				</div>
+			)}
+
+			{/* Pending approval files - only highlight the one currently awaiting approval */}
+			{hasPendingApproval && (
+				<div className="min-w-0">
+					{pendingApprovalTools.map(({ tool, parsedTool }) => {
+						const info = getToolDisplayInfo(parsedTool, getIconByToolName)
+						if (!info) return null
+						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
+						const isItemExpanded = expandedItems[tool.ts] ?? false
+						// Only highlight blue if this is the current pending ask
+						// (the last ask tool in this group — the one currently awaiting approval)
+						const isCurrentPendingAsk = tool.ts === currentPendingTs
+						return (
+							<FileToolRow
+								displayText={info.displayText}
+								expandedContent={parsedTool.content || null}
+								filePath={info.path}
+								icon={info.icon}
+								isExpandable={isExpandable}
+								isExpanded={isItemExpanded}
+								isHighlighted={isCurrentPendingAsk}
+								key={tool.ts}
+								onToggle={() => handleItemToggle(tool.ts)}
+								outsideWorkspace={parsedTool.operationIsLocatedInWorkspace === false}
+							/>
+						)
+					})}
+				</div>
+			)}
 		</div>
 	)
 })
-
-/**
- * Build tool items WITHOUT reasoning.
- * Reasoning should not be displayed in file lists - only file/folder content.
- */
-function buildToolsWithReasoning(messages: ClineMessage[]): ToolWithReasoning[] {
-	const result: ToolWithReasoning[] = []
-
-	for (const msg of messages) {
-		// Skip reasoning messages - they should not be in file lists
-		if (msg.say === "reasoning") {
-			continue
-		}
-
-		if (isLowStakesTool(msg)) {
-			const parsedTool = parseToolSafe(msg.text)
-			result.push({
-				tool: msg,
-				parsedTool,
-				reasoning: undefined, // Never show reasoning in file lists
-			})
-		}
-	}
-
-	return result
-}
 
 /**
  * Safely parse tool JSON, returning empty tool on failure.
@@ -268,66 +308,12 @@ function parseToolSafe(text: string | undefined): ClineSayTool {
 }
 
 /**
- * Get display info for a tool.
+ * Get summary label for completed tools - shows what's been added to context.
  */
-function getToolDisplayInfo(tool: ClineSayTool) {
-	const icon = getIconByToolName(tool.tool)
-	const filePath = tool.path || ""
-	const folderPath = filePath + "/"
-
-	switch (tool.tool) {
-		case "readFile":
-			return { icon, path: filePath, label: "read" }
-		case "listFilesTopLevel":
-			return { icon, path: folderPath, label: "listed" }
-		case "listFilesRecursive":
-			return { icon, path: folderPath, label: "listed recursively" }
-		case "listCodeDefinitionNames":
-			return { icon, path: folderPath, label: "definitions" }
-		case "searchFiles":
-			return {
-				icon,
-				path: folderPath,
-				label: `search: ${tool.regex}`,
-				displayText: formatSearchDisplay(tool.regex || "", filePath, tool.filePattern),
-			}
-		default:
-			return null
-	}
-}
-
-/**
- * Format search regex for display - simplify complex patterns
- */
-function formatSearchDisplay(regex: string, path: string, filePattern?: string): string {
-	// Split by | and clean up regex syntax
-	const terms = regex
-		.split("|")
-		.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
-		.filter(Boolean)
-
-	const termDisplay = terms.length > 3 ? `${terms.length} patterns` : `"${terms.join(" | ")}"`
-	let result = `${termDisplay} in ${cleanPathPrefix(path)}/`
-
-	if (filePattern && filePattern !== "*") {
-		result += ` (${filePattern})`
-	}
-
-	return result
-}
-
-/**
- * Get summary label for a tool group - shows what's been added to context.
- */
-function getToolGroupSummary(messages: ClineMessage[]): string {
+function getToolGroupSummary(completedTools: ToolWithReasoning[]): string {
 	const counts = { read: 0, list: 0, search: 0, def: 0 }
 
-	for (const msg of messages) {
-		if (!isLowStakesTool(msg)) {
-			continue
-		}
-
-		const tool = parseToolSafe(msg.text)
+	for (const { parsedTool: tool } of completedTools) {
 		switch (tool.tool) {
 			case "readFile":
 				counts.read++
