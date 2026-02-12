@@ -6,7 +6,15 @@ description: "Learn what Cline workflows are, why they are useful, and how to st
 
 Workflows in Cline are Markdown files that define a series of steps to guide Cline through repetitive or complex tasks. They are a powerful way to automate your development processes directly within your editor.
 
-To invoke a workflow, you simply type `/` followed by the workflow's filename in the chat (e.g., `/deploy.md`).
+To invoke a workflow, type `/` followed by the workflow name in chat (for example, `/deploy`).
+
+<Note>
+  Legacy filename-style commands like `/deploy.md` are still supported for compatibility.
+</Note>
+
+<Warning>
+  Workflows remain supported today, but new automation should prefer [skills](/features/skills). Workflow support is planned for future deprecation.
+</Warning>
 
 ## Why Use Cline Workflows?
 
@@ -51,10 +59,18 @@ This is tedious and easy to mess up. You might forget to run the tests or format
 **With a Cline workflow**, you define these steps once in a `release.md` file. Then, you just type:
 
 ```bash
-/release.md
+/release
 ```
 
 Cline will then meticulously follow your instructions: updating files, running tests, and executing git commands—pausing only if it encounters an error or needs your input.
+
+## Skills and Name Collisions
+
+Skills and workflows both appear as slash commands.
+
+- If a skill and workflow share the same command name, the skill wins for `/name`.
+- For file-backed workflows, `/name.md` remains a compatibility alias you can invoke explicitly.
+- To avoid ambiguity, prefer unique names between skills and workflows.
 
 ## Where are Workflows Stored?
 
