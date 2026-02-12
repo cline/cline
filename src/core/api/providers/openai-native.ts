@@ -158,8 +158,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const model = this.getModel()
+		const disablePreviousResponseId = !this.shouldUseResponsesWebsocketMode()
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages)
-		const { input: fullInput } = convertToOpenAIResponsesInput(messages, { disablePreviousResponseId: false })
+		const { input: fullInput } = convertToOpenAIResponsesInput(messages, { disablePreviousResponseId })
 		const responseTools = this.mapResponseTools(tools)
 
 		const params = this.buildResponseCreateParams({
@@ -177,7 +178,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			tools: responseTools,
 		})
 
-		if (this.shouldUseResponsesWebsocketMode()) {
+		if (!disablePreviousResponseId) {
 			try {
 				yield* this.createResponseStreamWebsocket(model.info, params, fallbackParams)
 				return
