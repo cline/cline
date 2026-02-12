@@ -1,6 +1,36 @@
 # cline
 
-## 2.1.0
+## [2.2.0]
+
+### Added
+- Subagent: replace legacy subagents with the native `use_subagents` tool
+- Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
+- Amazon Bedrock: support parallel tool calling
+- New "double-check completion" experimental feature to verify work before marking tasks complete
+- CLI: new task controls/flags including custom `--thinking` token budget and `--max-consecutive-mistakes` for yolo runs
+- Remote config: new UI/options (including connection/test buttons) and support for syncing deletion of remotely configured MCP servers
+- Vertex / Claude Code: add 1M context model options for Claude Opus 4.6
+- ZAI/GLM: add GLM-5
+
+### Fixed
+- CLI: handle stdin redirection correctly in CI/headless environments
+- CLI: preserve OAuth callback paths during auth redirects
+- VS Code Web: generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
+- Terminal: surface command exit codes in results and improve long-running `execute_command` timeout behavior
+- UI: add loading indicator and fix `api_req_started` rendering
+- Task streaming: prevent duplicate streamed text rows after completion
+- API: preserve selected Vercel model when model metadata is missing
+- Telemetry: route PostHog networking through proxy-aware shared fetch and ensure telemetry flushes on shutdown
+- CI: increase Windows E2E test timeout to reduce flakiness
+
+### Changed
+- Settings/model UX: move "reasoning effort" into model configuration and expose it in settings
+- CLI provider selection: limit provider list to those remotely configured
+- UI: consolidate ViewHeader component/styling across views
+- Tools: add auto-approval support for `attempt_completion` commands
+- Remotely configured MCP server schema now supports custom headers
+
+## [2.1.0]
 
 ### Minor Changes
 
