@@ -54,7 +54,7 @@ When you use `/explain-changes`, Cline:
 
 The most common use case - understand what changed in the most recent commit:
 
-```
+```text
 /explain-changes
 ```
 
@@ -69,7 +69,7 @@ Cline will examine HEAD and compare it to HEAD~1, explaining all the changes in 
 
 Understand your work-in-progress changes before committing:
 
-```
+```text
 /explain-changes for my uncommitted work
 ```
 
@@ -84,7 +84,7 @@ Cline compares HEAD to your working directory, explaining all modified files.
 
 Review exactly what you're about to commit:
 
-```
+```text
 /explain-changes for my staged changes
 ```
 
@@ -99,13 +99,13 @@ Cline examines only the changes you've staged with `git add`.
 
 Understand any commit in your history:
 
-```
+```text
 /explain-changes for commit abc123
 ```
 
 Or by commit message:
 
-```
+```text
 /explain-changes for the commit that added authentication
 ```
 
@@ -120,13 +120,13 @@ Cline will find the commit and explain what it changed.
 
 Understand multiple commits at once:
 
-```
+```text
 /explain-changes for the last 3 commits
 ```
 
 Or a specific range:
 
-```
+```text
 /explain-changes from v1.0.0 to v1.1.0
 ```
 
@@ -141,7 +141,7 @@ Cline compares the endpoints and explains all changes between them.
 
 Get AI explanations for any PR:
 
-```
+```text
 /explain-changes for PR #42
 ```
 
@@ -157,13 +157,13 @@ Cline uses the GitHub CLI to fetch PR details and explain the changes.
 
 Compare any two branches:
 
-```
+```text
 /explain-changes between main and feature-branch
 ```
 
 Or see what's changed on a feature branch:
 
-```
+```text
 /explain-changes for everything on my-feature that's not in main
 ```
 
@@ -177,7 +177,7 @@ Or see what's changed on a feature branch:
 
 Focus on particular files or directories:
 
-```
+```text
 /explain-changes for src/auth in the last 5 commits
 ```
 
@@ -192,7 +192,7 @@ Cline filters the diff to show only relevant changes.
 
 Understand what's changed since a release:
 
-```
+```text
 /explain-changes since v2.0.0
 ```
 
@@ -207,7 +207,7 @@ Cline compares the tag to HEAD and explains all subsequent changes.
 
 Understand what a merge brought in:
 
-```
+```text
 /explain-changes for the merge from feature-x
 ```
 
@@ -222,7 +222,7 @@ Cline explains all the changes that were merged.
 
 Review what's in your stash:
 
-```
+```text
 /explain-changes for my stashed changes
 ```
 

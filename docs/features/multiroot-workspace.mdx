@@ -38,7 +38,7 @@ Cline can complete tasks that span multiple projects or repositories:
 - **Documentation**: Generate docs that reference code from multiple repositories
 
 **Example prompt:**
-```
+```text
 Update the User type in the contracts repo, then update both the frontend 
 and backend to use the new fields. Make sure the API validates the new 
 required field.
@@ -49,19 +49,27 @@ required field.
 
 **Monorepo**: One Git repository containing multiple projects or packages. All code shares the same version history.
 
-```
-my-company/                    # Single Git repo
-├── .git/
-├── packages/
-│   ├── web/                   # React frontend
-│   ├── api/                   # Node.js backend
-│   └── shared/                # Common utilities
-└── package.json
-```
+<Files>
+  <Folder name="my-company" defaultOpen>
+    <Folder name=".git" />
+    <Folder name="packages" defaultOpen>
+      <Folder name="web" icon="react">
+        <File name="..." />
+      </Folder>
+      <Folder name="api" icon="node-js">
+        <File name="..." />
+      </Folder>
+      <Folder name="shared">
+        <File name="..." />
+      </Folder>
+    </Folder>
+    <File name="package.json" />
+  </Folder>
+</Files>
 
 **Multiple Repositories**: Separate Git repositories, each with their own history, opened together in one VSCode workspace.
 
-```
+```text
 ~/projects/
 ├── fullstack.code-workspace   # Workspace config file
 ├── frontend/                  # git@github.com:acme/frontend.git
@@ -112,15 +120,15 @@ While Cline detects VCS information for all workspace folders, certain features 
 
 Cline understands natural references to your workspaces:
 
-```
+```text
 "Read the package.json in the frontend folder"
 ```
 
-```
+```text
 "Compare the user model in backend with the TypeScript types in contracts"
 ```
 
-```
+```text
 "Search for TODO comments across all workspaces"
 ```
 
@@ -151,7 +159,7 @@ If two folders have the same name, append numbers or use the workspace file to g
 
 ### Monorepo Development
 
-```
+```text
 ~/projects/my-app/
 ├── my-app.code-workspace      # Workspace config file
 ├── web/          (React frontend)
@@ -166,7 +174,7 @@ All folders share one Git history. Changes across packages are atomic.
 
 ### Microservices with Separate Repos
 
-```
+```text
 ~/projects/services/
 ├── services.code-workspace    # Workspace config file
 ├── user-service/       (git: github.com/acme/user-service)
@@ -181,7 +189,7 @@ Each service has its own repository. Cline can update the proto definitions and 
 
 ### Full-Stack with Shared Contracts
 
-```
+```text
 ~/projects/fullstack/
 ├── fullstack.code-workspace   # Workspace config file
 ├── client/         (git: github.com/acme/web-client)
@@ -193,7 +201,7 @@ The types repository defines interfaces used by both client and server. When you
 
 ### Hybrid Setup
 
-```
+```text
 ~/projects/project/
 ├── project.code-workspace     # Workspace config file
 ├── main-app/       (git: github.com/acme/main-app)

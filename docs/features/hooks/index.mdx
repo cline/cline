@@ -85,6 +85,122 @@ Always review a hook's code before enabling it. Hooks execute automatically duri
 </Warning>
 </Step>
 
+<Step title="Getting Started">
+
+Once you've created a hook through the interface, here's how to understand and modify its code:
+
+<Tip>
+New to hooks? Start with the **TaskStart** hook  it runs once when a task begins and is the simplest way to experiment with hook development.
+</Tip>
+
+### Anatomy of a Hook
+
+Hooks are executable scripts that follow a simple pattern:
+
+1. **Read JSON input** from stdin containing event details
+2. **Process the data** and decide whether to allow, block, or modify
+3. **Output JSON** to stdout with your decision
+
+### Basic Hook Structure
+
+Every hook follows this pattern:
+
+```bash
+#!/usr/bin/env bash
+# Read the JSON input
+input=$(cat)
+
+# Extract information you need
+echo "$input" | jq '.'  # See what data is available
+
+# Make your decision
+echo '{"cancel": false}'
+```
+
+### Your First Hook: Hello World
+
+Here's the simplest possible hook  it just logs that it ran and allows the operation:
+
+```bash
+#!/usr/bin/env bash
+# Save this as .clinerules/hooks/TaskStart
+
+input=$(cat)
+echo "Hook triggered!" >&2  # Log to stderr
+
+echo '{"cancel": false}'
+```
+
+### A Practical Example
+
+Let's create a hook that prevents creating JavaScript files in TypeScript projects:
+
+```bash
+#!/usr/bin/env bash
+# Save this as .clinerules/hooks/PreToolUse
+
+input=$(cat)
+
+# Get the tool name and file path
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+file_path=$(echo "$input" | jq -r '.preToolUse.parameters.path // empty')
+
+# Only check write operations
+if [[ "$tool_name" == "write_to_file" ]]; then
+  if [[ "$file_path" == *.js ]] && [[ -f "tsconfig.json" ]]; then
+    echo '{"cancel": true, "errorMessage": "Use .ts extension in TypeScript projects"}'
+    exit 0
+  fi
+fi
+
+# Allow everything else
+echo '{"cancel": false}'
+```
+
+### Hook Output Format
+
+Your hook must output valid JSON with these fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cancel` | boolean | `true` to block the operation, `false` to allow |
+| `contextModification` | string | (Optional) Text to inject into the conversation |
+| `errorMessage` | string | (Optional) Message shown when blocking |
+
+### File Locations and Naming
+
+- **Project hooks**: `.clinerules/hooks/` (committed to your repo)
+- **Global hooks**: `~/Documents/Cline/Hooks/` (applies to all projects)
+- **File names**: Must exactly match hook type (e.g., `PreToolUse`, `TaskStart`)
+
+<Note>
+Make your hook executable: `chmod +x .clinerules/hooks/PreToolUse`
+</Note>
+
+### Testing Your Hook
+
+Test hooks manually by piping JSON input:
+
+```bash
+echo '{
+  "clineVersion": "1.0.0",
+  "hookName": "PreToolUse",
+  "timestamp": "2024-01-01T12:00:00Z",
+  "taskId": "test",
+  "workspaceRoots": ["/path/to/workspace"],
+  "userId": "test-user",
+  "preToolUse": {
+    "toolName": "write_to_file",
+    "parameters": {
+      "path": "test.js",
+      "content": "console.log(\"test\");"
+    }
+  }
+}' | .clinerules/hooks/PreToolUse
+```
+
+</Step>
+
 <Step title="Test Your Hook">
 To develop and refine your hook, you'll need to trigger it multiple times during testing. Each hook type is triggered by different events in Cline's workflow. For example:
 
@@ -105,37 +221,17 @@ Start with a simple hook that just logs information before building complex vali
 
 Once you understand the basics, hooks open up creative possibilities:
 
-<CardGroup cols={2}>
-  <Card title="Intelligent Code Review" icon="code-branch">
-    Run linters or custom validators before files get saved. Block commits that don't pass checks. Track code quality metrics over time.
-  </Card>
-  
-  <Card title="Security Enforcement" icon="shield-halved">
-    Prevent operations that violate security policies. Detect when sensitive data might be exposed. Audit all file access for compliance.
-  </Card>
-  
-  <Card title="Development Analytics" icon="chart-line">
-    Measure how long different operations take. Identify patterns in how the AI works. Generate productivity reports from hook data.
-  </Card>
-  
-  <Card title="Integration Hub" icon="plug">
-    Connect to issue trackers when certain keywords appear. Update project management tools. Sync with external APIs at the right moments.
-  </Card>
-</CardGroup>
+- **Intelligent Code Review**: Run linters or custom validators before files get saved. Block commits that don't pass checks. Track code quality metrics over time.
+- **Security Enforcement**: Prevent operations that violate security policies. Detect when sensitive data might be exposed. Audit all file access for compliance.
+- **Development Analytics**: Measure how long different operations take. Identify patterns in how the AI works. Generate productivity reports from hook data.
+- **Integration Hub**: Connect to issue trackers when certain keywords appear. Update project management tools. Sync with external APIs at the right moments.
 
 The key is combining hooks with external tools. A hook can be the glue between Cline's workflow and the rest of your development ecosystem.
 
 ## Explore the Documentation
 
-<CardGroup cols={2}>
-  <Card title="Hook Reference" icon="book" href="/features/hooks/hook-reference">
-    Complete API reference for all hook types, JSON schemas, and field documentation.
-  </Card>
-  
-  <Card title="Samples" icon="code" href="/features/hooks/samples">
-    Practical examples and complete working scripts for common use cases.
-  </Card>
-</CardGroup>
+- **[Hook Reference](/features/hooks/hook-reference)**: Complete API reference for all hook types, JSON schemas, and field documentation.
+- **[Samples](/features/hooks/samples)**: Practical examples and complete working scripts for common use cases.
 
 ## CLI support
 

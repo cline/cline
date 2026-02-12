@@ -1,0 +1,145 @@
+---
+title: "Adding Context"
+sidebarTitle: "Adding Context"
+description: "Use @ mentions and drag & drop to bring files, terminal output, errors, git changes, and web content into your conversations."
+---
+
+Cline works best when it has the right context, not just more context. @ mentions let you pull in exactly the files, errors, terminal output, or documentation that matter for your task. No copying, no pasting, no context switching.
+
+You can add context two ways:
+- Type `@` in the chat input and select what you want
+- Click the **+** button in the bottom left to browse files, images, or mentions
+
+<Tip>
+**Want to learn more about managing context?** Watch [Adding Context with @ Mentions](https://youtu.be/7j6R75Dvj1Y) to see it in action.
+</Tip>
+
+## Quick Reference
+
+| What you want | Syntax | Example |
+|---------------|--------|---------|
+| File content | `@/path/to/file` | `@/src/index.ts` |
+| Folder contents | `@/path/to/folder/` | `@/src/components/` |
+| Workspace errors | `@problems` | `@problems` |
+| Terminal output | `@terminal` | `@terminal` |
+| Uncommitted changes | `@git-changes` | `@git-changes` |
+| Specific commit | `@<commit-hash>` | `@a1b2c3d` |
+| Web page | `@<url>` | `@https://react.dev/learn` |
+
+## File Mentions
+
+Reference any file with `@/path/to/file`. Cline sees the complete file content, including imports, related functions, and surrounding context.
+
+```text
+Can you refactor the error handling in @/src/api/users.ts?
+```
+
+## Folder Mentions
+
+Reference entire directories with `@/path/to/folder/` (note the trailing slash). Cline sees the folder structure and all file contents.
+
+```text
+Explain how the components in @/src/components/auth/ work together.
+```
+
+<Note>
+In multi-root workspaces, prefix paths with the workspace name: `@workspace-name:/path/to/file`
+</Note>
+
+## Problem Mentions
+
+Use `@problems` to share all errors and warnings from your workspace's Problems panel.
+
+```text
+@problems Can you fix these TypeScript errors?
+```
+
+## Terminal Mentions
+
+Use `@terminal` to share recent terminal output. Perfect for debugging build errors or test failures.
+
+```text
+@terminal The build is failing. What's wrong?
+```
+
+## Git Mentions
+
+Reference uncommitted changes with `@git-changes`:
+
+```text
+@git-changes Review my changes before I commit.
+```
+
+Reference specific commits with `@<commit-hash>` (7-40 character hex):
+
+```text
+What did @a1b2c3d change?
+```
+
+## URL Mentions
+
+Reference web content with `@https://example.com`. Cline fetches the page content.
+
+```text
+Implement the pattern described in @https://react.dev/learn/scaling-up-with-reducer-and-context
+```
+
+## Combining Mentions
+
+Combine multiple @ mentions for comprehensive context:
+
+```text
+I'm getting these errors: @problems
+
+Here's my component: @/src/components/Form.jsx
+And the API endpoint: @/src/api/users.js
+
+The error happens when I submit: @terminal
+
+I think this commit might have caused it: @a1b2c3d
+```
+
+## Drag & Drop
+
+Drag files directly into the chat input to add them to your conversation.
+
+<Note>
+In VS Code, hold **Shift** while dragging files into the chat input.
+</Note>
+
+Dragging workspace files automatically creates file mentions. You can also drag files from Finder or File Explorer directly into Cline.
+
+### Supported File Types
+
+Cline supports text files from your workspace, plus images, PDFs, CSVs, and Excel files from your file system.
+
+<Note>
+Images require a multimodal model. Check the model selector to see which models support image inputs.
+</Note>
+
+## Context Menu Commands
+
+Right-click on selected code to access Cline without typing. This is the fastest way to get help with specific code since it automatically includes the selected text and its file location as context.
+
+### Code Editor Commands
+
+| Command | When to Use |
+|---------|-------------|
+| **Add to Cline** | Ask questions about code, get suggestions, or start a conversation with specific code as context |
+| **Fix with Cline** | Quick fixes for errors, bugs, or issues in the selected code |
+| **Explain with Cline** | Understand unfamiliar code, complex logic, or code you're reviewing |
+| **Improve with Cline** | Get refactoring suggestions, performance improvements, or cleaner implementations |
+
+**Fix with Cline** also appears in the lightbulb menu (Quick Fix) when your cursor is on an error or warning, making it easy to fix issues inline.
+
+### Terminal Commands
+
+Right-click in the terminal to "Add to Cline" and get help with:
+- Build errors and failed commands
+- Test failures and stack traces
+- Configuration issues
+- Any terminal output you need help interpreting
+
+### Source Control Commands
+
+In the Source Control panel, use "Generate Commit Message" to create AI-powered commit messages from your staged changes. Cline analyzes the diff and writes a descriptive commit message following conventional commit patterns.
