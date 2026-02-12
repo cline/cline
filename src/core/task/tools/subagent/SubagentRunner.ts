@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises"
 import { buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
+import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
@@ -663,11 +664,24 @@ export class SubagentRunner {
 			return false
 		}
 
-		// Subagent loop does not perform main-loop context compaction, so skip retry here.
-		if (checkContextWindowExceededError(error)) {
+		return true
+	}
+
+	private compactConversationForContextWindow(conversation: ClineStorageMessage[]): boolean {
+		const contextManager = new ContextManager()
+		const deletedRange = contextManager.getNextTruncationRange(conversation, undefined, "quarter")
+		if (deletedRange[1] < deletedRange[0]) {
 			return false
 		}
 
+		const truncated = contextManager
+			.getTruncatedMessages(conversation, deletedRange)
+			.map((message) => message as ClineStorageMessage)
+		if (truncated.length >= conversation.length) {
+			return false
+		}
+
+		conversation.splice(0, conversation.length, ...truncated)
 		return true
 	}
 
@@ -692,6 +706,17 @@ export class SubagentRunner {
 				yield* iterator
 				return
 			} catch (error) {
+				if (checkContextWindowExceededError(error)) {
+					const didCompact = this.compactConversationForContextWindow(conversation)
+					if (!didCompact || this.shouldAbort() || attempt >= MAX_INITIAL_STREAM_ATTEMPTS) {
+						throw error
+					}
+					Logger.warn(
+						`[SubagentRunner] Context window exceeded on initial stream attempt ${attempt}; compacted conversation and retrying.`,
+					)
+					continue
+				}
+
 				const shouldRetry =
 					!this.shouldAbort() &&
 					attempt < MAX_INITIAL_STREAM_ATTEMPTS &&
