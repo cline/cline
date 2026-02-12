@@ -45,8 +45,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 				this.client = createOpenAIClient({
 					apiKey: this.options.openAiNativeApiKey,
 				})
-			} catch (error: any) {
-				throw new Error(`Error creating OpenAI client: ${error.message}`)
+			} catch (error) {
+				throw new Error(`Error creating OpenAI client: ${error instanceof Error ? error.message : String(error)}`)
 			}
 		}
 		return this.client
@@ -154,21 +154,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		// Chain from the latest stored Responses API assistant message when available.
-		// When chaining, only send new items after that assistant turn.
-		let previousResponseId: string | undefined
-		let inputMessages = messages
-		for (let i = messages.length - 1; i >= 0; i--) {
-			const msg = messages[i]
-			if (msg.role === "assistant" && msg.id) {
-				previousResponseId = msg.id
-				inputMessages = messages.slice(i + 1)
-				break
-			}
-		}
-
 		// Convert messages to Responses API input format
-		const input = convertToOpenAIResponsesInput(inputMessages)
+		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages)
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
