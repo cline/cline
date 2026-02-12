@@ -14,14 +14,7 @@ fi
 [[actions]]
 name = "VS Code"
 icon = "run"
-command = '''
-npm run compile && IS_DEV=true DEV_WORKSPACE_FOLDER="$(pwd)" CLINE_ENVIRONMENT=production code \
-  --extensionDevelopmentPath="$(pwd)" \
-  --disable-workspace-trust \
-  --disable-extension saoudrizwan.claude-dev \
-  --disable-extension saoudrizwan.cline-nightly \
-  "$(pwd)"
-'''
+command = "chmod +x ./scripts/run-extension-host.sh && ./scripts/run-extension-host.sh production"
 
 [[actions]]
 name = "CLI"
@@ -38,5 +31,4 @@ command = '''
 rm node_modules
 rm webview-ui/node_modules
 npm run install:all
-git checkout package-lock.json webview-ui/package-lock.json
 '''

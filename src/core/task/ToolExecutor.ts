@@ -54,6 +54,15 @@ import { createUIHelpers } from "./tools/types/UIHelpers"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
 
+export function canonicalizeAttemptCompletionParams(block: ToolUse): boolean {
+	if (block.name === ClineDefaultTool.ATTEMPT && !block.params?.result && typeof block.params?.response === "string") {
+		block.params.result = block.params.response
+		return true
+	}
+
+	return false
+}
+
 export class ToolExecutor {
 	private autoApprover: AutoApprove
 	private coordinator: ToolExecutorCoordinator
@@ -360,6 +369,7 @@ export class ToolExecutor {
 		if (!this.coordinator.has(block.name)) {
 			return false // Tool not handled by coordinator
 		}
+		canonicalizeAttemptCompletionParams(block)
 
 		const config = this.asToolConfig()
 

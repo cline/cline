@@ -164,7 +164,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 	return (
 		<div className={cn("px-4 py-2 ml-1 text-description")}>
 			{/* Header */}
-			<div className="text-[13px] text-foreground mb-1">{summary}:</div>
+			<div className="text-[13px] text-description font-semibold mb-1">{summary}:</div>
 
 			{/* Content - unified list of completed + active tools */}
 			<div className="min-w-0">
