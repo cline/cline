@@ -3,6 +3,7 @@ import { buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
+import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
@@ -13,6 +14,7 @@ import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock 
 import { Logger } from "@shared/services/Logger"
 import type { ClineTool } from "@shared/tools"
 import { ClineDefaultTool } from "@shared/tools"
+import { isNextGenModelFamily } from "@utils/model-utils"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineError, ClineErrorType } from "@/services/error/ClineError"
@@ -276,6 +278,7 @@ export class SubagentRunner {
 		this.abortRequested = false
 		const state = new TaskState()
 		let emptyAssistantResponseRetries = 0
+		let previousRequestTotalTokens: number | undefined
 		const stats: SubagentRunStats = {
 			toolCalls: 0,
 			inputTokens: 0,
@@ -373,6 +376,18 @@ export class SubagentRunner {
 			]
 
 			while (true) {
+				if (
+					previousRequestTotalTokens !== undefined &&
+					this.shouldCompactBeforeNextRequest(previousRequestTotalTokens, api, providerInfo.model.id)
+				) {
+					const didCompact = this.compactConversationForContextWindow(conversation)
+					if (didCompact) {
+						Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
+					}
+					// Prevent repeated compaction attempts off the same token sample.
+					previousRequestTotalTokens = undefined
+				}
+
 				const streamHandler = new StreamResponseHandler()
 				const { toolUseHandler } = streamHandler.getHandlers()
 				let requestInputTokens = 0
@@ -454,6 +469,8 @@ export class SubagentRunner {
 						requestCacheReadTokens,
 					)
 				stats.totalCost += calculatedRequestCost || 0
+				previousRequestTotalTokens =
+					requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
 
 				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
 					toolUseId: resolveToolUseId(toolCall, index),
@@ -683,6 +700,25 @@ export class SubagentRunner {
 
 		conversation.splice(0, conversation.length, ...truncated)
 		return true
+	}
+
+	private shouldCompactBeforeNextRequest(
+		previousRequestTotalTokens: number,
+		api: ReturnType<typeof buildApiHandler>,
+		modelId: string,
+	): boolean {
+		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
+		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
+		if (useAutoCondense && isNextGenModelFamily(modelId)) {
+			const autoCondenseThreshold = this.baseConfig.services.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
+				| number
+				| undefined
+			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
+			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+			return previousRequestTotalTokens >= thresholdTokens
+		}
+
+		return previousRequestTotalTokens >= maxAllowedSize
 	}
 
 	private async *createMessageWithInitialChunkRetry(

@@ -34,7 +34,16 @@ function initializeHostProvider() {
 	)
 }
 
-function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
+function createTaskConfig(
+	nativeToolCallEnabled: boolean,
+	options?: {
+		useAutoCondense?: boolean
+		autoCondenseThreshold?: number
+	},
+): TaskConfig {
+	const useAutoCondense = options?.useAutoCondense ?? false
+	const autoCondenseThreshold = options?.autoCondenseThreshold ?? 0.75
+
 	return {
 		taskId: "task-1",
 		ulid: "ulid-1",
@@ -66,6 +75,12 @@ function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
 					}
 					if (key === "customPrompt") {
 						return undefined
+					}
+					if (key === "useAutoCondense") {
+						return useAutoCondense
+					}
+					if (key === "autoCondenseThreshold") {
+						return autoCondenseThreshold
 					}
 					return undefined
 				},
@@ -502,6 +517,96 @@ describe("SubagentRunner", () => {
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("proactively compacts before next request when prior usage exceeds threshold", async () => {
+		const createMessage = sinon.stub()
+		let postCompactionConversationLength = 0
+
+		createMessage.onCall(0).callsFake(async function* () {
+			yield {
+				type: "usage",
+				inputTokens: 160_000,
+				outputTokens: 0,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+			}
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_threshold_1",
+						name: ClineDefaultTool.LIST_FILES,
+						arguments: JSON.stringify({ path: ".", recursive: false }),
+					},
+				},
+			}
+		})
+
+		createMessage.onCall(1).callsFake(async function* () {
+			yield {
+				type: "usage",
+				inputTokens: 160_000,
+				outputTokens: 0,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+			}
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_threshold_2",
+						name: ClineDefaultTool.LIST_FILES,
+						arguments: JSON.stringify({ path: ".", recursive: false }),
+					},
+				},
+			}
+		})
+
+		createMessage.onCall(2).callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
+			postCompactionConversationLength = conversation.length
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_threshold_complete",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(coreApi, "buildApiHandler").returns({
+			abort: sinon.stub(),
+			getModel: () => ({
+				id: "anthropic/claude-sonnet-4.5",
+				info: {
+					contextWindow: 200_000,
+					apiFormat: ApiFormat.ANTHROPIC_CHAT,
+					supportsPromptCache: true,
+				},
+			}),
+			createMessage,
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		initializeHostProvider()
+
+		const config = createTaskConfig(false, { useAutoCondense: true, autoCondenseThreshold: 0.75 })
+		const runner = new SubagentRunner(config)
+
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.equal(createMessage.callCount, 3)
+		assert.equal(postCompactionConversationLength, 3)
 	})
 
 	it("falls back to non-native mode when native settings are enabled but variant has no native tools", async () => {
