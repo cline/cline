@@ -210,7 +210,6 @@
 						"group": "Troubleshooting",
 						"pages": [
 							"troubleshooting/terminal-quick-fixes",
-							"troubleshooting/terminal-integration-guide",
 							"troubleshooting/networking-and-proxies",
 							"troubleshooting/task-history-recovery"
 						]
@@ -561,6 +560,10 @@
 		{
 			"source": "/model-config/model-comparison",
 			"destination": "/core-features/model-selection-guide"
+		},
+		{
+			"source": "/troubleshooting/terminal-integration-guide",
+			"destination": "/troubleshooting/terminal-quick-fixes"
 		}
 	],
 	"search": {
