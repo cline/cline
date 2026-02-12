@@ -31,9 +31,10 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
+import { CUSTOM_MODEL_ID, getDefaultModelId, getModelList, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { getProviderLabel } from "./ProviderPicker"
+import { SearchableList } from "./SearchableList"
 
 type AuthStep =
 	| "menu"
@@ -51,6 +52,8 @@ type AuthStep =
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
+	| "bedrock_custom_arn"
+	| "bedrock_base_model"
 
 interface AuthViewProps {
 	controller: any
@@ -76,7 +79,7 @@ const Select: React.FC<{
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	useInput(
-		(input, key) => {
+		(_, key) => {
 			if (key.upArrow) {
 				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
 			} else if (key.downArrow) {
@@ -142,7 +145,11 @@ const TextInput: React.FC<{
 
 	return (
 		<Box>
-			<Text color="white">{displayValue || placeholder || ""}</Text>
+			{!displayValue && placeholder ? (
+				<Text color="gray">e.g. {placeholder}</Text>
+			) : (
+				<Text color="white">{displayValue || ""}</Text>
+			)}
 			<Text inverse> </Text>
 		</Box>
 	)
@@ -169,6 +176,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
+	const [customArn, setCustomArn] = useState("")
+	const [bedrockBaseModelId, setBedrockBaseModelId] = useState("")
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -248,6 +257,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	}, [])
 
 	// Reset provider index when search changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: we want to reset here
 	useEffect(() => {
 		setProviderIndex(0)
 	}, [providerSearch])
@@ -273,7 +283,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return
 			}
 
-			if (authState.user && authState.user.email) {
+			if (authState.user?.email) {
 				// Auth succeeded - save configuration and transition to model selection
 				await applyProviderConfig({ providerId: "cline", controller })
 				setSelectedProvider("cline")
@@ -389,6 +399,33 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		[selectedProvider],
 	)
 
+	// Save custom Bedrock ARN configuration with base model for capability detection
+	const saveCustomBedrockConfiguration = useCallback(
+		async (arn: string, baseModelId: string) => {
+			try {
+				if (!bedrockConfig) {
+					throw new Error("Bedrock configuration is missing")
+				}
+				await applyBedrockConfig({
+					bedrockConfig,
+					modelId: arn,
+					customModelBaseId: baseModelId,
+					controller,
+				})
+
+				const stateManager = StateManager.get()
+				stateManager.setGlobalState("welcomeViewCompleted", true)
+				await stateManager.flushPendingState()
+
+				setStep("success")
+			} catch (error) {
+				setErrorMessage(error instanceof Error ? error.message : String(error))
+				setStep("error")
+			}
+		},
+		[bedrockConfig, controller],
+	)
+
 	const saveConfiguration = useCallback(
 		async (model: string, base: string) => {
 			try {
@@ -423,6 +460,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const handleModelIdSubmit = useCallback(
 		(value: string) => {
+			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
+			if (value === CUSTOM_MODEL_ID && selectedProvider === "bedrock") {
+				setCustomArn("")
+				setBedrockBaseModelId(getDefaultModelId("bedrock"))
+				setStep("bedrock_custom_arn")
+				return
+			}
+
 			if (value.trim()) {
 				setModelId(value)
 			}
@@ -530,6 +575,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				// Go back to cline_model if we came from there (Cline provider)
 				if (selectedProvider === "cline") {
 					setStep("cline_model")
+				} else if (selectedProvider === "bedrock") {
+					// Bedrock skips the API key step — go back to Bedrock setup
+					setStep("bedrock")
 				} else {
 					setStep("apikey")
 				}
@@ -562,6 +610,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "import":
 				setImportSource(null)
 				setStep("menu")
+				break
+			case "bedrock_custom_arn":
+				setCustomArn("")
+				setStep("modelid")
+				break
+			case "bedrock_base_model":
+				setBedrockBaseModelId("")
+				setStep("bedrock_custom_arn")
 				break
 			case "error":
 				setErrorMessage("")
@@ -741,6 +797,49 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					/>
 				)
 
+			case "bedrock_custom_arn":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">Custom Model ID</Text>
+						<Text> </Text>
+						<Text color="gray">Enter your Application Inference Profile ARN or custom model ID</Text>
+						<Text> </Text>
+						<TextInput
+							onChange={setCustomArn}
+							onSubmit={(value: string) => {
+								if (value.trim()) {
+									setCustomArn(value)
+									setStep("bedrock_base_model")
+								}
+							}}
+							placeholder="arn:aws:bedrock:region:account:application-inference-profile/..."
+							value={customArn}
+						/>
+						<Text> </Text>
+						<Text color="gray">Enter to continue, Esc to go back</Text>
+					</Box>
+				)
+
+			case "bedrock_base_model":
+				return (
+					<Box flexDirection="column">
+						<Text color="white">Base Inference Model</Text>
+						<Text color="gray">Select the base model your inference profile uses (for capability detection)</Text>
+						<Text> </Text>
+						<SearchableList
+							isActive={step === "bedrock_base_model"}
+							items={getModelList("bedrock").map((id) => ({ id, label: id }))}
+							onSelect={(item) => {
+								setBedrockBaseModelId(item.id)
+								setStep("saving")
+								saveCustomBedrockConfiguration(customArn, item.id)
+							}}
+						/>
+						<Text> </Text>
+						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
+					</Box>
+				)
+
 			case "import":
 				if (!importSource) {
 					return null
@@ -780,6 +879,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"cline_model",
 		"openai_codex_auth",
 		"bedrock",
+		"bedrock_custom_arn",
+		"bedrock_base_model",
 		"error",
 	].includes(step)
 
