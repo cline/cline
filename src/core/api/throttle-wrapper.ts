@@ -3,11 +3,12 @@ import { ClineTool } from "@/shared/tools"
 import { ApiHandler } from "."
 import { sanitizeApiStream } from "./transform/sanitize-stream"
 import { ApiStream } from "./transform/stream"
-import { throttleReasoningStream } from "./transform/throttle-reasoning"
 
 /**
- * Wraps an API handler to apply consistent reasoning stream throttling
- * This ensures a smooth, readable streaming experience across all providers
+ * Wraps an API handler to apply consistent stream sanitization.
+ * Drops empty text/reasoning chunks at the source before they reach
+ * downstream consumers. The canonical throttle lives in
+ * subscribeToPartialMessage.ts — no timing is applied here.
  */
 export class ThrottledApiHandler implements ApiHandler {
 	constructor(private readonly handler: ApiHandler) {}
@@ -18,9 +19,8 @@ export class ThrottledApiHandler implements ApiHandler {
 		tools?: ClineTool[],
 		useResponseApi?: boolean,
 	): ApiStream {
-		// Shared provider-agnostic stream hygiene first, then reasoning smoothing.
-		const sanitizedStream = sanitizeApiStream(this.handler.createMessage(systemPrompt, messages, tools, useResponseApi))
-		yield* throttleReasoningStream(sanitizedStream)
+		// Provider-agnostic stream hygiene only — no timing/throttling.
+		yield* sanitizeApiStream(this.handler.createMessage(systemPrompt, messages, tools, useResponseApi))
 	}
 
 	getModel() {

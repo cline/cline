@@ -349,151 +349,29 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 
-	const pendingPartialMessageRef = useRef<ReturnType<typeof convertProtoToClineMessage> | null>(null)
-	const partialFlushTimeoutRef = useRef<number | null>(null)
-	const lastPartialFlushRef = useRef(0)
-	const lastPartialTextLengthByTsRef = useRef<Map<number, number>>(new Map())
-	const PARTIAL_FLUSH_INTERVAL_MS = 50
-	const PARTIAL_TEXT_FLUSH_INTERVAL_MS = 300
-	const COMPLETION_FLUSH_INTERVAL_MS = 250
-	const COMPLETION_MIN_TEXT_DELTA = 48
-	const COMPLETION_MESSAGE_TYPES = new Set(["completion_result", "plan_mode_respond"])
-	const getPartialFlushInterval = (message: ReturnType<typeof convertProtoToClineMessage>) =>
-		message.say === "text"
-			? PARTIAL_TEXT_FLUSH_INTERVAL_MS
-			: COMPLETION_MESSAGE_TYPES.has(message.say ?? "")
-				? COMPLETION_FLUSH_INTERVAL_MS
-				: PARTIAL_FLUSH_INTERVAL_MS
-
 	const applyPartialMessageUpdate = useCallback((partialMessage: ReturnType<typeof convertProtoToClineMessage>) => {
 		setState((prevState) => {
-			// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
 			const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
 			if (lastIndex === -1) {
-				if (!partialMessage.partial) {
-					lastPartialTextLengthByTsRef.current.delete(partialMessage.ts)
-				}
 				return prevState
 			}
 
-			const previousMessage = prevState.clineMessages[lastIndex]
-			const isCompletionMessage = COMPLETION_MESSAGE_TYPES.has(partialMessage.say ?? "")
-			const isCompletionPartial = isCompletionMessage && partialMessage.partial
-			if (partialMessage.partial && partialMessage.say === "text") {
-				const currentLength = partialMessage.text?.length ?? 0
-				const lastLength = lastPartialTextLengthByTsRef.current.get(partialMessage.ts) ?? 0
-				if (currentLength <= lastLength) {
-					return prevState
-				}
-				lastPartialTextLengthByTsRef.current.set(partialMessage.ts, currentLength)
-			}
-			const previousPartialValue = previousMessage.partial ?? false
-			const incomingPartialValue = partialMessage.partial ?? false
+			const prev = prevState.clineMessages[lastIndex]
+			// Cheap dedup: skip if nothing changed
 			if (
-				partialMessage.partial &&
-				partialMessage.say === "text" &&
-				(previousMessage.text?.length ?? 0) === (partialMessage.text?.length ?? 0)
+				prev.text === partialMessage.text &&
+				(prev.partial ?? false) === (partialMessage.partial ?? false) &&
+				prev.images === partialMessage.images &&
+				prev.files === partialMessage.files
 			) {
-				return prevState
-			}
-			if (
-				isCompletionMessage &&
-				previousMessage.text === partialMessage.text &&
-				previousMessage.partial === (partialMessage.partial ?? false) &&
-				previousMessage.images === partialMessage.images &&
-				previousMessage.files === partialMessage.files
-			) {
-				return prevState
-			}
-			if (
-				partialMessage.partial &&
-				partialMessage.say === "text" &&
-				previousMessage.text === partialMessage.text &&
-				previousPartialValue === incomingPartialValue
-			) {
-				return prevState
-			}
-			if (isCompletionPartial) {
-				const previousLength = previousMessage.text?.length ?? 0
-				const currentLength = partialMessage.text?.length ?? 0
-				if (currentLength - previousLength < COMPLETION_MIN_TEXT_DELTA) {
-					return prevState
-				}
-			}
-			const isDuplicate =
-				previousMessage.text === partialMessage.text &&
-				previousMessage.images === partialMessage.images &&
-				previousMessage.files === partialMessage.files &&
-				previousPartialValue === incomingPartialValue
-			if (isDuplicate) {
-				if (!partialMessage.partial) {
-					lastPartialTextLengthByTsRef.current.delete(partialMessage.ts)
-				}
 				return prevState
 			}
 
 			const newClineMessages = [...prevState.clineMessages]
 			newClineMessages[lastIndex] = partialMessage
-			if (!partialMessage.partial) {
-				lastPartialTextLengthByTsRef.current.delete(partialMessage.ts)
-			}
 			return { ...prevState, clineMessages: newClineMessages }
 		})
 	}, [])
-
-	const flushPartialMessage = useCallback(() => {
-		if (!pendingPartialMessageRef.current) {
-			partialFlushTimeoutRef.current = null
-			return
-		}
-
-		const messageToApply = pendingPartialMessageRef.current
-		pendingPartialMessageRef.current = null
-		lastPartialFlushRef.current = Date.now()
-		partialFlushTimeoutRef.current = null
-		applyPartialMessageUpdate(messageToApply)
-	}, [applyPartialMessageUpdate])
-
-	const queuePartialMessageUpdate = useCallback(
-		(partialMessage: ReturnType<typeof convertProtoToClineMessage>) => {
-			const currentPending = pendingPartialMessageRef.current
-			if (
-				partialMessage.partial &&
-				partialMessage.say === "text" &&
-				currentPending &&
-				currentPending.text === partialMessage.text &&
-				currentPending.partial === partialMessage.partial
-			) {
-				return
-			}
-			if (
-				currentPending &&
-				currentPending.text === partialMessage.text &&
-				currentPending.partial === partialMessage.partial &&
-				currentPending.say === partialMessage.say
-			) {
-				return
-			}
-
-			pendingPartialMessageRef.current = partialMessage
-			const now = Date.now()
-			const elapsed = now - lastPartialFlushRef.current
-			const flushInterval = getPartialFlushInterval(partialMessage)
-
-			if (elapsed >= flushInterval && partialFlushTimeoutRef.current === null) {
-				flushPartialMessage()
-				return
-			}
-
-			if (partialFlushTimeoutRef.current === null) {
-				const delay = Math.max(flushInterval - elapsed, 0)
-				partialFlushTimeoutRef.current = window.setTimeout(() => {
-					flushPartialMessage()
-				}, delay)
-			}
-		},
-		[flushPartialMessage],
-	)
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -665,18 +543,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-
-					if (partialMessage.partial) {
-						queuePartialMessageUpdate(partialMessage)
-						return
-					}
-
-					if (partialFlushTimeoutRef.current !== null) {
-						clearTimeout(partialFlushTimeoutRef.current)
-						partialFlushTimeoutRef.current = null
-						pendingPartialMessageRef.current = null
-					}
-
 					applyPartialMessageUpdate(partialMessage)
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
@@ -834,12 +700,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current()
 				mcpServersSubscriptionRef.current = null
 			}
-			if (partialFlushTimeoutRef.current !== null) {
-				clearTimeout(partialFlushTimeoutRef.current)
-				partialFlushTimeoutRef.current = null
-			}
 		}
-	}, [applyPartialMessageUpdate, queuePartialMessageUpdate])
+	}, [applyPartialMessageUpdate])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
