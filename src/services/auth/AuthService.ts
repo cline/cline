@@ -418,7 +418,9 @@ export class AuthService {
 		}
 
 		// Update banners based on new auth token
-		BannerService.onAuthUpdate(this._clineAuthInfo?.userInfo?.id || null)
+		BannerService.onAuthUpdate(this._clineAuthInfo?.userInfo?.id || null).catch((error) => {
+			Logger.error("[AuthService] Banner update failed", error)
+		})
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))

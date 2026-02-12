@@ -74,7 +74,8 @@ export class BannerService {
 		return BannerService.instance
 	}
 
-	public static get(): BannerService {
+	public static get(): BannerService | null {
+		if (!BannerService.instance && !HostRegistryInfo.get()) return null
 		return BannerService.instance ?? BannerService.initialize()
 	}
 
@@ -347,9 +348,9 @@ export class BannerService {
 
 			return rules.providers.some((ruleProvider) => {
 				// Check if ruleProvider is an alias for the selected provider
-				for (const [canonical, aliases] of Object.entries(PROVIDER_ALIASES)) {
+				for (const [_, aliases] of Object.entries(PROVIDER_ALIASES)) {
 					if (aliases.includes(ruleProvider)) {
-						return provider === canonical
+						return aliases.includes(provider as string)
 					}
 				}
 				return provider === ruleProvider
