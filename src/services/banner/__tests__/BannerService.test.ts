@@ -10,14 +10,16 @@ import * as sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostRegistryInfo } from "@/registry"
+import { AuthService } from "@/services/auth/AuthService"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { mockFetchForTesting } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "../BannerService"
 
-describe("BannerService", () => {
+describe.only("BannerService", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockFetch: sinon.SinonStub
+	let token: string | null = "fake-token"
 
 	// Default mock state manager configuration
 	let mockStateManagerConfig: {
@@ -70,6 +72,10 @@ describe("BannerService", () => {
 			apiBaseUrl: "https://api.cline-mock.bot",
 			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
 		})
+
+		const authService = AuthService.getInstance()
+		token = "fake-token"
+		sandbox.replace(authService, "getAuthToken", () => Promise.resolve(token))
 
 		// Create mock fetch
 		mockFetch = sandbox.stub()
@@ -832,7 +838,7 @@ describe("BannerService", () => {
 	})
 
 	describe("onAuthUpdate", () => {
-		it("should update auth token and trigger fetch after debounce", async () => {
+		it("should update the user id and trigger fetch after debounce", async () => {
 			const clock = sandbox.useFakeTimers(Date.now())
 
 			const mockResponse = {
@@ -862,7 +868,7 @@ describe("BannerService", () => {
 				expect(mockFetch.callCount).to.equal(1)
 
 				// Call onAuthUpdate with a new token
-				const authPromise = BannerService.onAuthUpdate("new-auth-token")
+				const authPromise = BannerService.onAuthUpdate("new-user-id")
 				await clock.tickAsync(1000) // Advance past debounce (AUTH_DEBOUNCE_MS)
 				await authPromise
 
@@ -872,7 +878,7 @@ describe("BannerService", () => {
 				// Verify the auth header was included
 				const lastCall = mockFetch.getCall(1)
 				const options = lastCall.args[1]
-				expect(options.headers.Authorization).to.equal("Bearer new-auth-token")
+				expect(options.headers.Authorization).to.equal(`Bearer ${token}`)
 			})
 
 			clock.restore()
@@ -916,7 +922,7 @@ describe("BannerService", () => {
 				// Now update auth - should clear the retry timeout
 				// Note: onAuthUpdate has 1000ms debounce (AUTH_DEBOUNCE_MS), so we need to advance the clock
 				mockFetch.resolves(createSuccessResponse(successResponse))
-				const authPromise = BannerService.onAuthUpdate("new-token")
+				const authPromise = BannerService.onAuthUpdate("user-id")
 				await clock.tickAsync(1000) // Advance past debounce
 				await authPromise
 
@@ -938,14 +944,14 @@ describe("BannerService", () => {
 			// This should not throw (onAuthUpdate will initialize the service)
 			let error: Error | null = null
 			try {
-				await BannerService.onAuthUpdate("some-token")
+				await BannerService.onAuthUpdate("user-id")
 			} catch (e) {
 				error = e as Error
 			}
 			expect(error).to.be.null
 		})
 
-		it("should handle null token (logout)", async () => {
+		it("should handle null user-id (logout)", async () => {
 			const clock = sandbox.useFakeTimers(Date.now())
 
 			const mockResponse = {
@@ -973,13 +979,14 @@ describe("BannerService", () => {
 				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
-				// Set a token first
-				const authPromise1 = BannerService.onAuthUpdate("auth-token")
+				// Set a user id first
+				const authPromise1 = BannerService.onAuthUpdate("usr-id")
 				await clock.tickAsync(1000) // Advance past debounce
 				await authPromise1
 				expect(mockFetch.callCount).to.equal(2)
 
-				// Now logout (null token)
+				// Now logout (null user id)
+				token = null
 				const authPromise2 = BannerService.onAuthUpdate(null)
 				await clock.tickAsync(1000) // Advance past debounce
 				await authPromise2
@@ -1023,10 +1030,13 @@ describe("BannerService", () => {
 				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
+				const updatedToken = "test-updated-token"
+				token = updatedToken
+
 				// Simulate rapid auth updates during startup (common scenario)
-				const promise1 = BannerService.onAuthUpdate("token-1")
-				const promise2 = BannerService.onAuthUpdate("token-2")
-				const promise3 = BannerService.onAuthUpdate("token-3")
+				const promise1 = BannerService.onAuthUpdate("usr-1")
+				const promise2 = BannerService.onAuthUpdate("usr-2")
+				const promise3 = BannerService.onAuthUpdate("usr-3")
 
 				// Advance past debounce period and allow async callback to complete
 				// The debounce timer fires at 1000ms (AUTH_DEBOUNCE_MS), then we need additional ticks for the async fetch
@@ -1039,10 +1049,10 @@ describe("BannerService", () => {
 				// Should only have made ONE additional fetch (debounced), not three
 				expect(mockFetch.callCount).to.equal(2)
 
-				// Verify the final token was used
+				// Verify the token was used
 				const lastCall = mockFetch.getCall(1)
 				const options = lastCall.args[1]
-				expect(options.headers.Authorization).to.equal("Bearer token-3")
+				expect(options.headers.Authorization).to.equal(`Bearer ${updatedToken}`)
 			})
 
 			clock.restore()

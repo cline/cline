@@ -90,7 +90,6 @@ export class BannerService {
 	public static async onAuthUpdate(userId: string | null): Promise<void> {
 		const instance = BannerService.instance
 
-		Logger.info("[BannerService] Verifying user id", userId === instance?.userId)
 		if (!instance || instance.userId === userId) return
 
 		// Clear existing debounce timer and resolve any pending promise
@@ -112,20 +111,12 @@ export class BannerService {
 		// while we're waiting for the debounce to settle
 		instance.authFetchPending = true
 		instance.userId = userId
-		Logger.info("[BannerService] Updated user id, proceeding to fetch", userId)
 
 		return new Promise<void>((resolve) => {
 			instance.pendingDebounceResolve = resolve
 			instance.debounceTimer = setTimeout(async () => {
 				instance.debounceTimer = null
 				instance.pendingDebounceResolve = null
-
-				// Skip if token reverted during debounce
-				if (instance.userId === userId) {
-					instance.authFetchPending = false
-					resolve()
-					return
-				}
 
 				instance.consecutiveFailures = 0
 				instance.backoffUntil = 0
