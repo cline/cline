@@ -84,8 +84,18 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
 						</li>
 						<li className="mb-2">
-							<strong> Anthropic Opus 4.6 is now available!</strong> Experience Anthropic's latest and most capable
-							model. <InlineModelLink label="Try now" modelId="anthropic/claude-opus-4.6" pickerTab="recommended" />
+							<strong>Z AI's GLM 5 is now available!</strong> Built for complex systems engineering and long-horizon
+							agentic tasks. <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="recommended" />
+						</li>
+						<li className="mb-2">
+							<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
+							<a
+								href="https://docs.cline.bot/features/subagents"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								Learn more
+							</a>
 						</li>
 						<li className="mb-2">
 							<strong>🎉 Free promo: Minimax-2.1 and Kimi-k2.5!</strong> Available free for a limited time.{" "}
