@@ -10,6 +10,8 @@ describe("Task.say", () => {
 
 		const fakeTask: any = {
 			taskState: { abort: false, lastMessageTs: 0 },
+			lastPartialTextUpdateAtByType: new Map(),
+			lastPartialMessageIndexByType: new Map(),
 			getCurrentProviderInfo: () => ({
 				providerId: "minimax",
 				model: { id: "MiniMax-M2.1" },
@@ -53,6 +55,8 @@ describe("Task.say", () => {
 
 		const fakeTask: any = {
 			taskState: { abort: false, lastMessageTs: 0 },
+			lastPartialTextUpdateAtByType: new Map(),
+			lastPartialMessageIndexByType: new Map(),
 			getCurrentProviderInfo: () => ({
 				providerId: "minimax",
 				model: { id: "MiniMax-M2.1" },
