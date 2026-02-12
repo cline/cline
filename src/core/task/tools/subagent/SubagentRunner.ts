@@ -9,6 +9,7 @@ import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
+import type { ClineTool } from "@shared/tools"
 import { ClineDefaultTool } from "@shared/tools"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
@@ -27,6 +28,8 @@ const SUBAGENT_ALLOWED_TOOLS: ClineDefaultTool[] = [
 	ClineDefaultTool.ATTEMPT,
 ]
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
+const MAX_INITIAL_STREAM_ATTEMPTS = 3
+const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 250
 
 export type SubagentRunStatus = "completed" | "failed"
 
@@ -379,7 +382,7 @@ export class SubagentRunner {
 				let assistantTextSignature: string | undefined
 				let requestId: string | undefined
 
-				const stream = api.createMessage(systemPrompt, conversation, nativeTools)
+				const stream = this.createMessageWithInitialChunkRetry(api, systemPrompt, conversation, nativeTools)
 
 				for await (const chunk of stream) {
 					switch (chunk.type) {
@@ -641,7 +644,66 @@ export class SubagentRunner {
 		}
 	}
 
-	private buildNativeTools(context: SystemPromptContext) {
+	private shouldRetryInitialStreamError(error: unknown): boolean {
+		const rawError = error as {
+			code?: string
+			status?: number
+			statusCode?: number
+			error?: { code?: string; param?: { statusCode?: number } }
+			message?: string
+		}
+		const status = rawError?.status ?? rawError?.statusCode ?? rawError?.error?.param?.statusCode
+		const errorCode = rawError?.code ?? rawError?.error?.code
+		const message = String(rawError?.message || "")
+
+		if (status === 429 || errorCode === "stream_initialization_failed") {
+			return true
+		}
+
+		return [
+			/stream_initialization_failed/i,
+			/failed to create stream/i,
+			/failed to generate stream/i,
+			/failed to send request/i,
+			/\btimeout\b/i,
+			/\btemporarily unavailable\b/i,
+			/\bnetwork\b/i,
+		].some((pattern) => pattern.test(message))
+	}
+
+	private async *createMessageWithInitialChunkRetry(
+		api: ReturnType<typeof buildApiHandler>,
+		systemPrompt: string,
+		conversation: ClineStorageMessage[],
+		nativeTools: ClineTool[] | undefined,
+	) {
+		for (let attempt = 1; attempt <= MAX_INITIAL_STREAM_ATTEMPTS; attempt += 1) {
+			const stream = api.createMessage(systemPrompt, conversation, nativeTools)
+			const iterator = stream[Symbol.asyncIterator]()
+
+			try {
+				const firstChunk = await iterator.next()
+				if (!firstChunk.done) {
+					yield firstChunk.value
+				}
+
+				yield* iterator
+				return
+			} catch (error) {
+				const shouldRetry =
+					!this.shouldAbort() && attempt < MAX_INITIAL_STREAM_ATTEMPTS && this.shouldRetryInitialStreamError(error)
+				if (!shouldRetry) {
+					throw error
+				}
+
+				const delayMs = INITIAL_STREAM_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)
+				Logger.warn(`[SubagentRunner] Initial stream failed. Retrying attempt ${attempt + 1}.`, error)
+				await delay(delayMs)
+			}
+		}
+	}
+
+	private buildNativeTools(context: SystemPromptContext): ClineTool[] {
 		const family = PromptRegistry.getInstance().getModelFamily(context)
 		const toolSets = ClineToolSet.getToolsForVariantWithFallback(family, SUBAGENT_ALLOWED_TOOLS)
 		const filteredToolSpecs = toolSets

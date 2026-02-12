@@ -333,6 +333,52 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 2)
 	})
 
+	it("retries initial stream failures before failing the subagent", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield* []
+			throw new Error(
+				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
+			)
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield {
+				type: "text",
+				text: "<attempt_completion><result>done</result></attempt_completion>",
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(coreApi, "buildApiHandler").returns({
+			abort: sinon.stub(),
+			getModel: () => ({
+				id: "anthropic/claude-sonnet-4.5",
+				info: {
+					contextWindow: 200_000,
+					apiFormat: ApiFormat.ANTHROPIC_CHAT,
+					supportsPromptCache: true,
+				},
+			}),
+			createMessage,
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		initializeHostProvider()
+
+		const config = createTaskConfig(false)
+		const runner = new SubagentRunner(config)
+
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.equal(createMessage.callCount, 2)
+	})
+
 	it("falls back to non-native mode when native settings are enabled but variant has no native tools", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
