@@ -160,8 +160,6 @@ import { ThinkingIndicator } from "./ThinkingIndicator"
 interface PersistedInputState {
 	text: string
 	cursorPos: number
-	pastedTexts: Map<number, string>
-	pasteCounter: number
 }
 
 const inputStateStorage = new Map<string, PersistedInputState>()
@@ -185,7 +183,6 @@ const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 const DEFAULT_CONTEXT_WINDOW = 200000
-const PASTE_COLLAPSE_THRESHOLD = 100 // Characters before showing placeholder
 const MAX_HISTORY_ITEMS = 20 // Max history items to navigate with up/down arrows
 
 /**
@@ -326,17 +323,6 @@ function parseAskOptions(text: string): string[] {
 	return parts.options || []
 }
 
-/**
- * Expand pasted text placeholders back to actual content
- * Replaces [Pasted text #N +X lines] with the stored content
- */
-function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
-	return text.replace(/\[Pasted text #(\d+) \+\d+ lines\]/g, (match, num) => {
-		const content = pastedTexts.get(Number.parseInt(num, 10))
-		return content ?? match
-	})
-}
-
 export const ChatView: React.FC<ChatViewProps> = ({
 	controller,
 	onExit,
@@ -357,6 +343,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// Prefer prop controller over context controller (memoized for stable reference in callbacks)
 	const ctrl = useMemo(() => controller || taskController, [controller, taskController])
 
+	// Get storage key for persisting input across remounts
+	const storageKey = useMemo(() => getInputStorageKey(ctrl, taskId), [ctrl, taskId])
+
 	// Input state - using hook for text editing with keyboard shortcuts
 	const {
 		text: textInput,
@@ -368,9 +357,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		deleteCharBefore,
 		insertText: insertTextAtCursor,
 	} = useTextInput()
-
-	// Get storage key for persisting input across remounts
-	const storageKey = useMemo(() => getInputStorageKey(ctrl, taskId), [ctrl, taskId])
 
 	// Refs for text input and cursor position (used by useHomeEndKeys and to avoid stale closures in useInput)
 	const textInputRef = useRef(textInput)
@@ -386,20 +372,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [showRipgrepWarning, setShowRipgrepWarning] = useState(false)
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 	const [userScrolled, setUserScrolled] = useState(false)
-
-	// Pasted text storage - maps placeholder number to full pasted content
-	const [pastedTexts, setPastedTexts] = useState<Map<number, string>>(() => {
-		return inputStateStorage.get(storageKey)?.pastedTexts ?? new Map()
-	})
-	const pasteCounterRef = useRef<number>(inputStateStorage.get(storageKey)?.pasteCounter ?? 0)
-	// Track paste timing to combine chunks that arrive in rapid succession
-	const lastPasteTimeRef = useRef<number>(0)
-	const activePasteNumRef = useRef<number>(0)
-	const activePasteStartPosRef = useRef<number>(0) // Where the placeholder starts in the text
-	const activePasteLinesRef = useRef<number>(0) // Total line count for current paste
-	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce placeholder updates
-	const PASTE_CHUNK_WINDOW_MS = 150 // Chunks within this window are combined into one paste
-	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
 
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -431,22 +403,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (stored) {
 			setTextInput(stored.text)
 			setCursorPos(stored.cursorPos)
-			setPastedTexts(stored.pastedTexts)
-			pasteCounterRef.current = stored.pasteCounter
 		}
 	}, [storageKey, setTextInput, setCursorPos])
 
 	// Persist input state to storage whenever it changes (survives remount)
 	useEffect(() => {
-		if (textInput || pastedTexts.size > 0) {
+		if (textInput) {
 			inputStateStorage.set(storageKey, {
 				text: textInput,
 				cursorPos,
-				pastedTexts: new Map(pastedTexts),
-				pasteCounter: pasteCounterRef.current,
 			})
 		}
-	}, [storageKey, textInput, cursorPos, pastedTexts])
+	}, [storageKey, textInput, cursorPos])
 
 	// Task switch handling: when switching tasks via /history, we clear the terminal and
 	// increment a counter used as the root Box's key. This forces React to remount the tree,
@@ -517,12 +485,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// When switching from plan to act, include any text in the input box
 		// Text stays visible in the input - don't clear it
 		if (newMode === "act" && textInput.trim()) {
-			const expandedText = expandPastedTexts(textInput, pastedTexts)
-			await ctrl.togglePlanActMode(newMode, { message: expandedText.trim() })
+			await ctrl.togglePlanActMode(newMode, { message: textInput.trim() })
 		} else {
 			await ctrl.togglePlanActMode(newMode)
 		}
-	}, [mode, ctrl, textInput, pastedTexts])
+	}, [mode, ctrl, textInput])
 
 	// Clear the terminal view and reset task state (used by /clear and "Start New Task" button)
 	// This is async to ensure clearTask() completes before we remount, preventing race conditions
@@ -800,24 +767,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (responseType: string, text?: string) => {
 			if (!ctrl?.task || !pendingAsk) return
 
-			// Expand any pasted text placeholders
-			const expandedText = text ? expandPastedTexts(text, pastedTexts) : text
-
 			setRespondedToAsk(pendingAsk.ts)
 			setTextInput("")
 			setCursorPos(0)
-			setPastedTexts(new Map()) // Clear stored pastes
-			pasteCounterRef.current = 0
 			// Clear persisted state
 			inputStateStorage.delete(storageKey)
 
 			try {
-				await ctrl.task.handleWebviewAskResponse(responseType, expandedText)
+				await ctrl.task.handleWebviewAskResponse(responseType, text)
 			} catch {
 				// Controller may be disposed
 			}
 		},
-		[ctrl, pendingAsk, pastedTexts, storageKey],
+		[ctrl, pendingAsk, storageKey],
 	)
 
 	// Handle cancel/interrupt
@@ -901,13 +863,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (text: string, images: string[]) => {
 			if (!ctrl || !text.trim()) return
 
-			// Expand any pasted text placeholders
-			const expandedText = expandPastedTexts(text, pastedTexts)
-
 			setTextInput("")
 			setCursorPos(0)
-			setPastedTexts(new Map()) // Clear stored pastes
-			pasteCounterRef.current = 0
 			// Clear persisted state
 			inputStateStorage.delete(storageKey)
 
@@ -931,13 +888,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							)
 						: []
 				const validImages = imageDataUrls.filter((img): img is string => img !== null)
-				setTerminalTitle(expandedText.trim())
-				await ctrl.initTask(expandedText.trim(), validImages.length > 0 ? validImages : undefined)
+				setTerminalTitle(text.trim())
+				await ctrl.initTask(text.trim(), validImages.length > 0 ? validImages : undefined)
 			} catch (_error) {
 				onError?.()
 			}
 		},
-		[ctrl, onError, pastedTexts, storageKey],
+		[ctrl, onError, storageKey],
 	)
 
 	// Auto-submit initial prompt if provided
@@ -1064,8 +1021,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// 8. Button actions -> "1"/"2" keys when buttons shown and no text typed
 	// 9. Ask responses -> return to send, numbers for option selection
 	// 10. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
-	// 11. Large paste detection -> collapse into placeholder
-	// 12. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
+	// 11. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
 	//
 	// Note: Home/End keys are handled separately by useHomeEndKeys hook because
 	// Ink doesn't expose them in useInput (it sets input='' for these keys).
@@ -1310,72 +1266,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		// 11. Detect paste by checking if input length exceeds threshold
-		// Large pastes mess up the terminal UI, so we collapse them into a placeholder
-		// Terminal sends large pastes in multiple chunks, so we combine chunks that arrive rapidly
-		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
-			const now = Date.now()
-			const timeSinceLastPaste = now - lastPasteTimeRef.current
-			lastPasteTimeRef.current = now
-
-			// Check if this is a continuation of a recent paste (within time window)
-			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS && activePasteNumRef.current > 0) {
-				// Append to existing paste content (store immediately, don't lose data)
-				const pasteNum = activePasteNumRef.current
-				const chunkLines = input.match(/[\r\n]/g)?.length || 0
-				activePasteLinesRef.current += chunkLines
-
-				setPastedTexts((prev) => {
-					const next = new Map(prev)
-					const existing = next.get(pasteNum) || ""
-					next.set(pasteNum, existing + input)
-					return next
-				})
-
-				// Debounce the visual update to avoid flicker while chunks are arriving
-				if (pasteUpdateTimeoutRef.current) {
-					clearTimeout(pasteUpdateTimeoutRef.current)
-				}
-				pasteUpdateTimeoutRef.current = setTimeout(() => {
-					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
-					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-					const newText = textInputRef.current.replace(pattern, newPlaceholder)
-					textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
-					setTextInput(newText)
-					// Update cursor to be right after the placeholder
-					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
-					Logger.info(`Paste #${pasteNum} complete: ${activePasteLinesRef.current} lines`)
-				}, PASTE_UPDATE_DEBOUNCE_MS)
-
-				return // Don't add another placeholder
-			}
-
-			// New paste operation - create placeholder
-			pasteCounterRef.current += 1
-			const pasteNum = pasteCounterRef.current
-			activePasteNumRef.current = pasteNum
-			const currentCursorPos = cursorPosRef.current // Use ref to avoid stale closure
-			activePasteStartPosRef.current = currentCursorPos // Track where placeholder starts
-			// Count line breaks in the pasted content (handle both \n and \r)
-			const extraLines = input.match(/[\r\n]/g)?.length || 0
-			activePasteLinesRef.current = extraLines // Track total lines
-			const placeholder = `[Pasted text #${pasteNum} +${extraLines} lines]`
-			// Store the full content
-			setPastedTexts((prev) => {
-				const next = new Map(prev)
-				next.set(pasteNum, input)
-				return next
-			})
-
-			const newText =
-				textInputRef.current.slice(0, currentCursorPos) + placeholder + textInputRef.current.slice(currentCursorPos)
-			textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
-			setTextInput(newText)
-			setCursorPos(currentCursorPos + placeholder.length)
-			return // Exit early - don't also add the raw input via normal handling below
-		}
-
-		// 12. Normal input handling
+		// 11. Normal input handling
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
@@ -1411,7 +1302,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			setCursorPos(moveCursorDown(textInputRef.current, cursorPosRef.current))
 			return
 		}
-		// Normal input (single char or short paste)
+		// Normal input (including pastes)
 		if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow && !key.tab) {
 			insertTextAtCursor(input)
 		}
