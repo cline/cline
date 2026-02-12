@@ -198,9 +198,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5", "minimax/minimax-m2.1"].includes(
-						modelId,
-					)
+					const isFreeModel = ["kwaipilot/kat-coder-pro", "minimax/minimax-m2.5"].includes(modelId)
 
 					if (isFreeModel) {
 						totalCost = 0
@@ -254,7 +252,7 @@ export class ClineHandler implements ApiHandler {
 				const generation = response.data
 				let totalCost = generation?.total_cost || 0
 				const modelId = this.getModel().id
-				const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(modelId)
+				const isFreeModel = ["kwaipilot/kat-coder-pro", "minimax/minimax-m2.5"].includes(modelId)
 
 				if (isFreeModel) {
 					totalCost = 0

@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.59.0]
+
+- Added Minimax 2.5 Free Promo
+- Fixed Response chaining for OpenAI's Responses API 
+
 ## [3.58.0]
 
 ### Added

@@ -1,8 +1,14 @@
 # cline
 
+## [2.2.1]
+
+- Added Minimax 2.5 Free Promo
+- Fixed Response chaining for OpenAI's Responses API 
+
 ## [2.2.0]
 
 ### Added
+
 - Subagent: replace legacy subagents with the native `use_subagents` tool
 - Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
 - Amazon Bedrock: support parallel tool calling
@@ -13,6 +19,7 @@
 - ZAI/GLM: add GLM-5
 
 ### Fixed
+
 - CLI: handle stdin redirection correctly in CI/headless environments
 - CLI: preserve OAuth callback paths during auth redirects
 - VS Code Web: generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
@@ -24,6 +31,7 @@
 - CI: increase Windows E2E test timeout to reduce flakiness
 
 ### Changed
+
 - Settings/model UX: move "reasoning effort" into model configuration and expose it in settings
 - CLI provider selection: limit provider list to those remotely configured
 - UI: consolidate ViewHeader component/styling across views
