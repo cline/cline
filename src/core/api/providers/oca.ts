@@ -307,7 +307,7 @@ export class OcaHandler implements ApiHandler {
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
-		const inputMessages = convertToOpenAIResponsesInput(messages).input
+		const inputMessages = convertToOpenAIResponsesInput(messages, { disablePreviousResponseId: true }).input
 		// Convert messages to Responses API input format
 		const input: OpenAI.Responses.ResponseInputItem[] = [{ role: "system", content: systemPrompt }, ...inputMessages]
 
@@ -329,14 +329,18 @@ export class OcaHandler implements ApiHandler {
 			tools: responseTools,
 		}
 
-		if (this.options.ocaModelInfo && this.options.ocaModelInfo.supportsReasoning) {
-			responsesParams["reasoning"] = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
+		const ocaModelInfo = this.options.ocaModelInfo
+		if (!ocaModelInfo) {
+			throw new Error("Oracle Code Assist (OCA) model info is required for Responses API")
+		}
+		if (ocaModelInfo.supportsReasoning) {
+			responsesParams.reasoning = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
 		}
 
 		// Create the response using Responses API
 		const stream = await client.responses.create(responsesParams)
 
-		yield* handleResponsesApiStreamResponse(stream, this.options.ocaModelInfo!, this.calculateCost.bind(this))
+		yield* handleResponsesApiStreamResponse(stream, ocaModelInfo, this.calculateCost.bind(this))
 	}
 
 	getModel() {

@@ -9,6 +9,8 @@ import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { WebSocket as UndiciWebSocket } from "undici"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
@@ -27,11 +29,14 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	apiModelId?: string
 	store?: boolean
+	openAiNativeUseResponsesWebsocket?: boolean
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: OpenAiNativeHandlerOptions
 	private client: OpenAI | undefined
+	private responsesWs: UndiciWebSocket | undefined
+	private websocketRequestInFlight = false
 
 	constructor(options: OpenAiNativeHandlerOptions) {
 		this.options = options
@@ -152,26 +157,58 @@ export class OpenAiNativeHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools: ChatCompletionTool[],
 	): ApiStream {
-		const client = this.ensureClient()
 		const model = this.getModel()
-
-		// Convert messages to Responses API input format
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages)
+		const { input: fullInput } = convertToOpenAIResponsesInput(messages, { disablePreviousResponseId: false })
+		const responseTools = this.mapResponseTools(tools)
 
-		// Convert ChatCompletion tools to Responses API format if provided
-		const responseTools = tools
+		const params = this.buildResponseCreateParams({
+			modelId: model.id,
+			systemPrompt,
+			input,
+			previousResponseId,
+			tools: responseTools,
+		})
+
+		const fallbackParams = this.buildResponseCreateParams({
+			modelId: model.id,
+			systemPrompt,
+			input: fullInput,
+			tools: responseTools,
+		})
+
+		if (this.shouldUseResponsesWebsocketMode()) {
+			try {
+				yield* this.createResponseStreamWebsocket(model.info, params, fallbackParams)
+				return
+			} catch (error) {
+				Logger.error("OpenAI websocket mode failed, falling back to HTTP Responses API:", error)
+				this.closeResponsesWebsocket()
+			}
+		}
+
+		yield* this.createResponseStreamHttp(model.info, params)
+	}
+
+	private mapResponseTools(tools: ChatCompletionTool[]): OpenAI.Responses.Tool[] {
+		return tools
 			?.filter((tool) => tool?.type === "function")
 			.map((tool: any) => ({
 				type: "function" as const,
 				name: tool.function.name,
 				description: tool.function.description,
 				parameters: tool.function.parameters,
-				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
+				strict: tool.function.strict ?? true,
 			}))
+	}
 
-		Logger.debug(`OpenAI Responses Input: ${JSON.stringify(input)}`)
-
-		// Create the response using Responses API
+	private buildResponseCreateParams(args: {
+		modelId: string
+		systemPrompt: string
+		input: OpenAI.Responses.ResponseInput
+		tools: OpenAI.Responses.Tool[]
+		previousResponseId?: string
+	}): OpenAI.Responses.ResponseCreateParamsStreaming {
 		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
 		const reasoning: { effort: ChatCompletionReasoningEffort; summary: "auto" } | undefined =
 			requestedEffort === "none"
@@ -181,25 +218,253 @@ export class OpenAiNativeHandler implements ApiHandler {
 						summary: "auto",
 					}
 
-		const stream = await client.responses.create({
-			model: model.id,
-			instructions: systemPrompt,
-			input,
+		return {
+			model: args.modelId,
+			instructions: args.systemPrompt,
+			input: args.input,
 			stream: true,
-			tools: responseTools,
+			tools: args.tools,
 			store: this.options.store ?? false,
-			...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+			...(args.previousResponseId ? { previous_response_id: args.previousResponseId } : {}),
 			...(reasoning ? { reasoning } : {}),
-			// include: ["reasoning.encrypted_content"],
+		}
+	}
+
+	private async *createResponseStreamHttp(
+		modelInfo: ModelInfo,
+		params: OpenAI.Responses.ResponseCreateParamsStreaming,
+	): ApiStream {
+		const client = this.ensureClient()
+		Logger.debug(`OpenAI Responses Input (HTTP): ${JSON.stringify(params.input)}`)
+		const stream = await client.responses.create(params)
+		yield* this.processResponsesEvents(stream, modelInfo)
+	}
+
+	private async *createResponseStreamWebsocket(
+		modelInfo: ModelInfo,
+		primaryParams: OpenAI.Responses.ResponseCreateParamsStreaming,
+		fallbackParams: OpenAI.Responses.ResponseCreateParamsStreaming,
+	): ApiStream {
+		Logger.debug(`OpenAI Responses Input (WebSocket): ${JSON.stringify(primaryParams.input)}`)
+		try {
+			yield* this.processResponsesEvents(this.createResponseEventsViaWebsocket(primaryParams), modelInfo)
+		} catch (error) {
+			if (this.shouldRetryWebsocketWithFullContext(error, !!primaryParams.previous_response_id)) {
+				Logger.log("Retrying websocket response with full context after previous_response_not_found or socket reset")
+				this.closeResponsesWebsocket()
+				yield* this.processResponsesEvents(this.createResponseEventsViaWebsocket(fallbackParams), modelInfo)
+				return
+			}
+			throw error
+		}
+	}
+
+	private shouldUseResponsesWebsocketMode(): boolean {
+		if (typeof this.options.openAiNativeUseResponsesWebsocket === "boolean") {
+			return this.options.openAiNativeUseResponsesWebsocket
+		}
+		if (this.getModel().id.includes("codex")) {
+			return true
+		}
+		return process?.env?.IS_DEV?.toLowerCase() === "true"
+	}
+
+	private shouldRetryWebsocketWithFullContext(error: unknown, hadPreviousResponseId: boolean): boolean {
+		const errorCode =
+			typeof error === "object" && error && "code" in error && typeof (error as any).code === "string"
+				? (error as any).code
+				: undefined
+
+		if (hadPreviousResponseId && errorCode === "previous_response_not_found") {
+			return true
+		}
+		if (errorCode === "websocket_closed" || errorCode === "websocket_error") {
+			return true
+		}
+		return false
+	}
+
+	private async ensureResponsesWebsocket(): Promise<UndiciWebSocket> {
+		if (this.responsesWs && this.responsesWs.readyState === UndiciWebSocket.OPEN) {
+			return this.responsesWs
+		}
+
+		this.closeResponsesWebsocket()
+
+		if (!this.options.openAiNativeApiKey) {
+			throw new Error("OpenAI API key is required")
+		}
+
+		const ws = new UndiciWebSocket("wss://api.openai.com/v1/responses", {
+			headers: {
+				Authorization: `Bearer ${this.options.openAiNativeApiKey}`,
+				"OpenAI-Beta": "responses_websockets=2026-02-06",
+				...buildExternalBasicHeaders(),
+			},
 		})
 
+		await new Promise<void>((resolve, reject) => {
+			const cleanup = () => {
+				ws.removeEventListener("open", handleOpen)
+				ws.removeEventListener("error", handleError)
+				ws.removeEventListener("close", handleClose)
+			}
+			const handleOpen = () => {
+				cleanup()
+				resolve()
+			}
+			const handleError = () => {
+				cleanup()
+				reject(new Error("Failed to open Responses websocket"))
+			}
+			const handleClose = () => {
+				cleanup()
+				reject(new Error("Responses websocket closed before opening"))
+			}
+			ws.addEventListener("open", handleOpen)
+			ws.addEventListener("error", handleError)
+			ws.addEventListener("close", handleClose)
+		})
+
+		this.responsesWs = ws
+		return ws
+	}
+
+	private closeResponsesWebsocket() {
+		if (this.responsesWs) {
+			try {
+				this.responsesWs.close()
+			} catch {}
+			this.responsesWs = undefined
+		}
+	}
+
+	private async *createResponseEventsViaWebsocket(
+		params: OpenAI.Responses.ResponseCreateParamsStreaming,
+	): AsyncGenerator<OpenAI.Responses.ResponseStreamEvent> {
+		if (this.websocketRequestInFlight) {
+			const error: Error & { code?: string } = new Error("Websocket response.create is already in progress")
+			error.code = "websocket_concurrency_limit"
+			throw error
+		}
+
+		const ws = await this.ensureResponsesWebsocket()
+		this.websocketRequestInFlight = true
+
+		const eventQueue: OpenAI.Responses.ResponseStreamEvent[] = []
+		let resolver: (() => void) | undefined
+		let completed = false
+		let failure: (Error & { code?: string }) | undefined
+
+		const wake = () => {
+			const next = resolver
+			resolver = undefined
+			next?.()
+		}
+
+		const handleMessage = (evt: any) => {
+			try {
+				let raw = ""
+				if (typeof evt.data === "string") {
+					raw = evt.data
+				} else if (evt.data instanceof ArrayBuffer) {
+					raw = new TextDecoder().decode(new Uint8Array(evt.data))
+				} else if (ArrayBuffer.isView(evt.data)) {
+					raw = new TextDecoder().decode(new Uint8Array(evt.data.buffer, evt.data.byteOffset, evt.data.byteLength))
+				} else {
+					raw = String(evt.data)
+				}
+				const parsed = JSON.parse(raw)
+
+				if (parsed?.type === "error" && parsed?.error) {
+					const error: Error & { code?: string } = new Error(parsed.error.message || "Responses websocket error")
+					error.code = parsed.error.code
+					failure = error
+					completed = true
+					wake()
+					return
+				}
+
+				eventQueue.push(parsed as OpenAI.Responses.ResponseStreamEvent)
+				if (parsed?.type === "response.completed" || parsed?.type === "response.failed") {
+					completed = true
+				}
+				wake()
+			} catch (error) {
+				const parseError: Error & { code?: string } = new Error(
+					`Failed to parse websocket event: ${error instanceof Error ? error.message : String(error)}`,
+				)
+				parseError.code = "websocket_parse_error"
+				failure = parseError
+				completed = true
+				wake()
+			}
+		}
+
+		const handleError = () => {
+			const error: Error & { code?: string } = new Error("Responses websocket emitted an error event")
+			error.code = "websocket_error"
+			failure = error
+			completed = true
+			wake()
+		}
+
+		const handleClose = () => {
+			if (!completed) {
+				const error: Error & { code?: string } = new Error("Responses websocket closed during response stream")
+				error.code = "websocket_closed"
+				failure = error
+				completed = true
+				wake()
+			}
+		}
+
+		ws.addEventListener("message", handleMessage)
+		ws.addEventListener("error", handleError)
+		ws.addEventListener("close", handleClose)
+
+		try {
+			ws.send(
+				JSON.stringify({
+					type: "response.create",
+					...params,
+				}),
+			)
+
+			while (!completed || eventQueue.length > 0) {
+				if (eventQueue.length === 0) {
+					await new Promise<void>((resolve) => {
+						resolver = resolve
+					})
+					continue
+				}
+
+				const event = eventQueue.shift()
+				if (event) {
+					yield event
+				}
+			}
+
+			if (failure) {
+				throw failure
+			}
+		} finally {
+			ws.removeEventListener("message", handleMessage)
+			ws.removeEventListener("error", handleError)
+			ws.removeEventListener("close", handleClose)
+			this.websocketRequestInFlight = false
+		}
+	}
+
+	private async *processResponsesEvents(
+		stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>,
+		modelInfo: ModelInfo,
+	): ApiStream {
 		const functionCallByItemId = new Map<string, { call_id?: string; name?: string; id?: string }>()
 
-		// Process the response stream
 		for await (const chunk of stream) {
 			Logger.debug(`OpenAI Responses Chunk: ${JSON.stringify(chunk)}`)
 
-			// Handle different event types from Responses API
 			if (chunk.type === "response.output_item.added") {
 				const item = chunk.item
 				if (item.type === "function_call" && item.id) {
@@ -277,7 +542,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 			}
 			if (chunk.type === "response.output_text.delta") {
-				// Handle text content deltas
 				if (chunk.delta) {
 					yield {
 						id: chunk.item_id,
@@ -287,7 +551,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 			}
 			if (chunk.type === "response.reasoning_text.delta") {
-				// Handle reasoning content deltas
 				if (chunk.delta) {
 					yield {
 						id: chunk.item_id,
@@ -315,7 +578,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 			}
 			if (chunk.type === "response.function_call_arguments.done") {
-				// Handle completed function call
 				if (chunk.item_id && chunk.name && chunk.arguments) {
 					const pendingCall = functionCallByItemId.get(chunk.item_id)
 					const callId = pendingCall?.call_id
@@ -348,7 +610,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 
 			if (chunk.type === "response.completed" && chunk.response?.usage) {
-				// Handle usage information when response is complete
 				const usage = chunk.response.usage
 				const inputTokens = usage.input_tokens || 0
 				const outputTokens = usage.output_tokens || 0
@@ -357,7 +618,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 				const totalTokens = usage.total_tokens || 0
 				Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				const totalCost = calculateApiCostOpenAI(modelInfo, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 				const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 				yield {
 					type: "usage",
@@ -371,6 +632,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 			}
 		}
+	}
+
+	abort(): void {
+		this.closeResponsesWebsocket()
 	}
 
 	getModel(): { id: OpenAiNativeModelId; info: OpenAiCompatibleModelInfo } {
