@@ -357,7 +357,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 				const totalTokens = usage.total_tokens || 0
 				Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens + reasoningTokens, cacheWriteTokens, cacheReadTokens)
 				const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 				yield {
 					type: "usage",
