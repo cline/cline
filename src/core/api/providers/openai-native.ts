@@ -26,6 +26,7 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	apiModelId?: string
+	store?: boolean
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
@@ -186,8 +187,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 			input,
 			stream: true,
 			tools: responseTools,
+			store: this.options.store ?? false,
 			...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
-			// store: true,
 			...(reasoning ? { reasoning } : {}),
 			// include: ["reasoning.encrypted_content"],
 		})
@@ -351,11 +352,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const usage = chunk.response.usage
 				const inputTokens = usage.input_tokens || 0
 				const outputTokens = usage.output_tokens || 0
-				const cacheReadTokens = usage.output_tokens_details?.reasoning_tokens || 0
-				const cacheWriteTokens = usage.input_tokens_details?.cached_tokens || 0
+				const cacheReadTokens = usage.input_tokens_details?.cached_tokens || 0
+				const cacheWriteTokens = 0
+				const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 				const totalTokens = usage.total_tokens || 0
 				Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens + reasoningTokens, cacheWriteTokens, cacheReadTokens)
 				const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 				yield {
 					type: "usage",
@@ -363,6 +365,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					outputTokens: outputTokens,
 					cacheWriteTokens: cacheWriteTokens,
 					cacheReadTokens: cacheReadTokens,
+					thoughtsTokenCount: reasoningTokens,
 					totalCost: totalCost,
 					id: chunk.response.id,
 				}
