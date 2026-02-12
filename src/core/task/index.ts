@@ -2491,7 +2491,7 @@ export class Task {
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				request: `${userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n")}\n\nLoading...`,
 			}),
 		)
 
@@ -2540,7 +2540,7 @@ export class Task {
 
 				// if last message is a partial we need to update and save it
 				const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-				if (lastMessage && lastMessage.partial) {
+				if (lastMessage?.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
@@ -2562,21 +2562,24 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				// Let assistant know their response was interrupted for when task is resumed
+				const abortedAssistantContent: Array<ClineAssistantContent> = [
+					{
+						type: "text",
+						text: assistantMessage,
+					},
+					// Let assistant know their response was interrupted for when task is resumed
+					{
+						type: "text",
+						text: `[ERROR] ${cancelReason === "streaming_failed" ? "Response interrupted by API Error" : "Response interrupted by user"}`,
+					},
+				]
+
+				// Include any native tool call blocks that were streamed before the interruption
+				abortedAssistantContent.push(...toolUseHandler.getAllFinalizedToolUses())
+
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
-					content: [
-						{
-							type: "text",
-							text:
-								assistantMessage +
-								`\n\n[${
-									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
-								}]`,
-						},
-					],
+					content: abortedAssistantContent,
 					modelInfo,
 					metrics: {
 						tokens: {
@@ -2724,7 +2727,9 @@ export class Task {
 
 					// present content to user - we don't want the stream to break if present fails, so we catch errors here
 					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
+						Logger.debug(
+							`[Task] Failed to present message: ${error instanceof Error ? error.message : String(error)}`,
+						),
 					)
 
 					if (this.taskState.abort) {
@@ -3249,8 +3254,7 @@ export class Task {
 	 */
 	private formatWorkspaceRootsSection(): string {
 		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
-		const hasWorkspaceManager = !!this.workspaceManager
-		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
+		const roots = this.workspaceManager?.getRoots() || []
 
 		// Only show workspace roots if multi-root is enabled and there are multiple roots
 		if (!multiRootEnabled || roots.length <= 1) {
@@ -3267,7 +3271,7 @@ export class Task {
 		}
 
 		// Add primary workspace information
-		const primary = this.workspaceManager!.getPrimaryRoot()
+		const primary = this.workspaceManager?.getPrimaryRoot()
 		const primaryName = this.getPrimaryWorkspaceName(primary)
 		section += `\n\nPrimary workspace: ${primaryName}`
 
@@ -3507,7 +3511,7 @@ export class Task {
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		if (mode === "plan") {
-			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
+			details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
 		} else {
 			details += "\nACT MODE"
 		}

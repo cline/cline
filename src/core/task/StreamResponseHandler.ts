@@ -1,5 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
+import { jsonrepair } from "jsonrepair"
 import { nanoid } from "nanoid"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
@@ -130,11 +131,7 @@ class ToolUseHandler {
 		if (pending.parsedInput != null) {
 			input = pending.parsedInput
 		} else if (pending.input) {
-			try {
-				input = JSON.parse(pending.input)
-			} catch {
-				input = this.extractPartialJsonFields(pending.input)
-			}
+			parseJsonSafe(pending.input)
 		}
 
 		return {
@@ -348,4 +345,20 @@ class ReasoningHandler {
 	reset(): void {
 		this.pendingReasoning = null
 	}
+}
+
+function parseJsonSafe(input: unknown): string | unknown {
+	if (typeof input === "string" && (input.startsWith("{") || input.startsWith("["))) {
+		try {
+			return JSON.parse(input)
+		} catch {
+			try {
+				const repaired = jsonrepair(input)
+				return JSON.parse(repaired)
+			} catch {
+				return input
+			}
+		}
+	}
+	return input
 }

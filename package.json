@@ -564,6 +564,7 @@
 		"isbinaryfile": "^5.0.2",
 		"jschardet": "^3.1.4",
 		"json5": "^2.2.3",
+		"jsonrepair": "^3.13.2",
 		"mammoth": "^1.11.0",
 		"nanoid": "^5.1.6",
 		"nice-grpc": "^2.1.12",
