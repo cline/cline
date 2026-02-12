@@ -19,6 +19,10 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 const TASK_PREVIEW_MAX_CHARS = 8000
 
+function getCompletionResult(params: ToolUse["params"]): string | undefined {
+	return params.result || params.response
+}
+
 function getInitialTaskPreview(config: TaskConfig): string | undefined {
 	const firstTaskMessage = config.messageState
 		.getClineMessages()
@@ -44,7 +48,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	 * Handle partial block streaming for attempt_completion
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const result = uiHelpers.removeClosingTag(block, "result", block.params.result)
+		const rawResult = getCompletionResult(block.params)
+		const result = uiHelpers.removeClosingTag(block, "result", rawResult)
 		if (result) {
 			await uiHelpers.say("completion_result", result, undefined, undefined, block.partial)
 		}
@@ -52,7 +57,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const result: string | undefined = block.params.result
+		const result: string | undefined = getCompletionResult(block.params)
 		const command: string | undefined = block.params.command
 
 		// Validate required parameters
@@ -315,7 +320,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 						taskMetadata: {
 							taskId: config.taskId,
 							ulid: config.ulid,
-							result: block.params.result || "",
+							result: getCompletionResult(block.params) || "",
 							command: block.params.command || "",
 						},
 					},
