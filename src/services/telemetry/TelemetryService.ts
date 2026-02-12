@@ -468,7 +468,7 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
-			...(this.activeOrg ?? {}),
+			...this.activeOrg,
 			...(extra ?? {}),
 		}
 	}
@@ -821,8 +821,8 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		ulid: string,
-		provider: string = "unknown",
-		model: string = "unknown",
+		provider = "unknown",
+		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
 		tokenUsage: {
