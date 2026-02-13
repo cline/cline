@@ -173,13 +173,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		// Create the response using Responses API
 		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
-		// Map "xhigh" to "high" since OpenAI SDK doesn't support "xhigh" for Responses API
-		const mappedEffort: ChatCompletionReasoningEffort | "none" = requestedEffort === "xhigh" ? "high" : requestedEffort
 		const reasoning: { effort: ChatCompletionReasoningEffort; summary: "auto" } | undefined =
-			mappedEffort === "none"
+			requestedEffort === "none"
 				? undefined
 				: {
-						effort: mappedEffort,
+						effort: requestedEffort,
 						summary: "auto",
 					}
 

@@ -216,10 +216,16 @@ export function isNativeToolCallingConfig(providerInfo: ApiProviderInfo, enableN
  * Check if parallel tool calling is enabled.
  * Parallel tool calling is enabled if:
  * 1. User has enabled it in settings, OR
- * 2. The current model is GPT-5 (which handles parallel tools well)
+ * 2. The current model/provider supports native tool calling and handles parallel tools well
  */
-export function isParallelToolCallingEnabled(enableParallelSetting: boolean, modelId: string): boolean {
-	return enableParallelSetting || isGPT5ModelFamily(modelId)
+export function isParallelToolCallingEnabled(enableParallelSetting: boolean, providerInfo: ApiProviderInfo): boolean {
+	if (enableParallelSetting) {
+		return true
+	}
+	if (!providerInfo.providerId) {
+		return false
+	}
+	return isNativeToolCallingConfig(providerInfo, true) || isGPT5ModelFamily(providerInfo.model.id)
 }
 
 function normalize(text: string): string {
