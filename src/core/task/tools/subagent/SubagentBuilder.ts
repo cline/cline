@@ -21,7 +21,7 @@ export const SUBAGENT_DEFAULT_ALLOWED_TOOLS: ClineDefaultTool[] = [
 	ClineDefaultTool.ATTEMPT,
 ]
 
-const SUBAGENT_SYSTEM_SUFFIX = `\n\n# Subagent Execution Mode
+export const SUBAGENT_SYSTEM_SUFFIX = `\n\n# Subagent Execution Mode
 You are running as a research subagent. Your job is to explore the codebase and gather information to answer the question.
 Explore, read related files, trace through call chains, and build a complete picture before reporting back.
 You can read files, list directories, search for patterns, list code definitions, and run commands.
