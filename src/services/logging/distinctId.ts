@@ -1,5 +1,6 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
+import { HostRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline/context"
 import { Logger } from "@/shared/services/Logger"
 
@@ -31,6 +32,8 @@ export async function initializeDistinctId(context: ClineExtensionContext, uuid:
 	}
 
 	setDistinctId(distinctId)
+
+	await HostRegistryInfo.init(distinctId)
 
 	Logger.log("[DistinctId] initialized:", distinctId)
 }

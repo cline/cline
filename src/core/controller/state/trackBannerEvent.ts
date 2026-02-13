@@ -20,7 +20,7 @@ export async function trackBannerEvent(_controller: Controller, request: TrackBa
 		return {}
 	}
 	try {
-		await BannerService.get().sendBannerEvent(bannerId, eventType)
+		await BannerService.get()?.sendBannerEvent(bannerId, eventType)
 	} catch (error) {
 		Logger.error("Failed to track banner event:", error)
 	}

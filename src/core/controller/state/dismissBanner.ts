@@ -17,7 +17,7 @@ export async function dismissBanner(controller: Controller, request: StringReque
 		return {}
 	}
 	try {
-		await BannerService.get().dismissBanner(bannerId)
+		await BannerService.get()?.dismissBanner(bannerId)
 		await controller.postStateToWebview()
 	} catch (error) {
 		Logger.error("Failed to dismiss banner:", error)
