@@ -15,9 +15,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
-import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
 import { HistoryItem } from "@/shared/HistoryItem"
@@ -76,7 +74,24 @@ async function disposeTelemetryServices(): Promise<void> {
 	await Promise.allSettled([telemetryService.dispose(), PostHogClientProvider.getInstance().dispose()])
 }
 
+/**
+ * Restore yoloModeToggled to its original value from before this CLI session.
+ * This ensures the --yolo flag is session-only and doesn't leak into future runs.
+ * Must be called before flushPendingState so the restored value gets persisted.
+ */
+function restoreYoloState(): void {
+	if (savedYoloModeToggled !== null) {
+		try {
+			StateManager.get().setGlobalState("yoloModeToggled", savedYoloModeToggled)
+			savedYoloModeToggled = null
+		} catch {
+			// StateManager may not be initialized (e.g., early exit before init)
+		}
+	}
+}
+
 async function disposeCliContext(ctx: CliContext): Promise<void> {
+	restoreYoloState()
 	await ctx.controller.stateManager.flushPendingState()
 	await ctx.controller.dispose()
 	await ErrorService.get().dispose()
@@ -189,9 +204,12 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
-	// Set yolo mode based on --yolo flag
+	// Override yolo mode only if --yolo flag is explicitly passed.
+	// The original value is saved in initializeCli and restored on exit.
 	if (options.yolo) {
-		StateManager.get().setGlobalState("yoloModeToggled", true)
+		const state = StateManager.get()
+		savedYoloModeToggled = state.getGlobalSettingsKey("yoloModeToggled") ?? false
+		state.setGlobalState("yoloModeToggled", true)
 		telemetryService.captureHostEvent("yolo_flag", "true")
 	}
 
@@ -296,6 +314,9 @@ let activeContext: CliContext | null = null
 let isShuttingDown = false
 // Track if we're in plain text mode (no Ink UI) - set by runTask when piped stdin detected
 let isPlainTextMode = false
+// Track the original yoloModeToggled value from before this CLI session so we can restore it on exit.
+// The --yolo flag should only affect the current invocation, not persist across runs.
+let savedYoloModeToggled: boolean | null = null
 
 /**
  * Wait for stdout to fully drain before exiting.
@@ -337,6 +358,10 @@ function setupSignalHandlers() {
 		printWarning(`${signal} received, shutting down...`)
 
 		try {
+			// Restore yolo state before any cleanup - this is idempotent and safe
+			// even if disposeCliContext also calls it (restoreYoloState checks savedYoloModeToggled !== null)
+			restoreYoloState()
+
 			if (activeContext) {
 				const task = activeContext.controller.task
 				if (task) {
@@ -344,6 +369,12 @@ function setupSignalHandlers() {
 				}
 				await disposeCliContext(activeContext)
 			} else {
+				// Best-effort flush of restored yolo state when no active context
+				try {
+					await StateManager.get().flushPendingState()
+				} catch {
+					// StateManager may not be initialized yet
+				}
 				await ErrorService.get().dispose()
 				await disposeTelemetryServices()
 			}
@@ -407,7 +438,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	Logger.subscribe(logToChannel)
 
 	await ClineEndpoint.initialize(EXTENSION_DIR)
-	await initializeDistinctId(extensionContext)
 
 	// Auto-update check (after endpoints initialized, so we can detect bundled configs)
 	autoUpdateOnStartup(CLI_VERSION)
@@ -437,6 +467,7 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	)
 
 	await StateManager.initialize(extensionContext as any)
+
 	await ErrorService.initialize()
 
 	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
@@ -444,8 +475,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	BannerService.initialize(webview.controller)
 
 	await telemetryService.captureExtensionActivated()
 	await telemetryService.captureHostEvent("cline_cli", "initialized")

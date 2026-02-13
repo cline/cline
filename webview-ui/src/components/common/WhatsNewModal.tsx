@@ -80,12 +80,12 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
-							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
+							<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
+							fast inference. <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
 						</li>
 						<li className="mb-2">
-							<strong>Z AI's GLM 5 is now available!</strong> Built for complex systems engineering and long-horizon
-							agentic tasks. <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="recommended" />
+							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
+							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
 						</li>
 						<li className="mb-2">
 							<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
@@ -96,12 +96,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 								target="_blank">
 								Learn more
 							</a>
-						</li>
-						<li className="mb-2">
-							<strong>🎉 Free promo: Minimax-2.1 and Kimi-k2.5!</strong> Available free for a limited time.{" "}
-							<InlineModelLink label="Minimax-2.1" modelId="minimax/minimax-m2.1" pickerTab="free" />
-							{" | "}
-							<InlineModelLink label="Kimi-k2.5" modelId="moonshotai/kimi-k2.5" pickerTab="free" />
 						</li>
 					</ul>
 

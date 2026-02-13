@@ -18,7 +18,7 @@ When Cline uses the `use_subagents` tool, it launches independent agents simulta
 - Runs with a separate context window and token budget
 - Can read files, search code, list directories, run read-only commands, and use skills
 - Cannot edit files, use the browser, access MCP servers, or spawn nested subagents
-- Returns a result that includes file paths, line numbers, and recommended files for the main agent to read next
+- Returns a result focused on the most relevant file paths for the main agent to read next
 
 Subagent costs (tokens and API spend) are tracked separately per subagent and rolled into the task's total cost. You can see per-subagent stats (tool calls, tokens, cost) in the chat UI as they run.
 
@@ -43,6 +43,7 @@ Example prompts:
 - "I'm new to this codebase. Use subagents to map out the main entry points, the routing layer, and the data access patterns"
 
 Each subagent prompt should describe a focused research question. Cline will run them in parallel and synthesize the results.
+You can also run only one subagent when the task is small enough that parallel discovery would be unnecessary overhead.
 
 ## Auto-Approve Behavior
 
@@ -69,6 +70,7 @@ Subagents cannot write files, apply patches, use the browser, access MCP servers
 
 <Note>
   Commands run by subagents execute in the background and are restricted to read-only operations. Subagents will not run commands that modify files or system state.
+  Subagents also benefit from command pipelines and filters to narrow output quickly before reading files, for example `rg ... | sort | uniq`.
 </Note>
 
 ## When to Use Subagents
