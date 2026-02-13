@@ -237,7 +237,18 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 
 	return (
 		<div>
-			{/* "Working..." and "Thinking..." now shown in Virtuoso Footer */}
+			{/* Show inline streaming "Thinking..." when reasoning is active but not yet complete.
+			    This keeps thinking anchored to the request row instead of the Virtuoso footer,
+			    preventing a visual "jump" when followup options stream in and grow the row. */}
+			{reasoningContent && !hasCost && (
+				<div className="ml-1 pl-0 mb-1 -mt-1.25 pt-1">
+					<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
+						<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+							Thinking...
+						</span>
+					</div>
+				</div>
+			)}
 
 			{apiReqState === "pre" && shouldShowActivities && (
 				<div className="flex items-center text-description w-full text-sm">

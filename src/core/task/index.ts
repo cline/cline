@@ -822,11 +822,15 @@ export class Task {
 			// partial=false means its a complete version of a previously partial message
 			if (isUpdatingPreviousPartial) {
 				const previousMessage = clineMessages[trackedIndex]
-				// Cheap dedup: skip if content is identical (no time-based coalescing)
+				// Cheap dedup: skip if content is identical AND already finalized.
+				// Content dedupe is fine, but state-transition dedupe is not—
+				// we must still write partial:false and emit the final event even
+				// when the payload hasn't changed, otherwise the message stays
+				// stuck as partial=true forever.
 				const isDuplicate =
 					this.messagePayloadFingerprint(text, images, files) ===
 					this.messagePayloadFingerprint(previousMessage.text, previousMessage.images, previousMessage.files)
-				if (isDuplicate) {
+				if (isDuplicate && previousMessage.partial === false) {
 					this.lastPartialMessageTsByType.delete(type)
 					return undefined
 				}

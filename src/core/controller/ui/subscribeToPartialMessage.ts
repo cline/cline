@@ -110,12 +110,24 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 		if (!throttleTimer) {
 			const delay = throttleDelayMs - timeSinceLastSend
 			throttleTimer = setTimeout(async () => {
-				if (pendingPartialMessage) {
+				// Snapshot+clear pending BEFORE the await to prevent a newer
+				// partial arriving during sendToSubscribers from being wiped
+				// when we null-out pendingPartialMessage after the await.
+				const messageToSend = pendingPartialMessage
+				pendingPartialMessage = null
+				if (messageToSend) {
 					lastPartialSendTime = Date.now()
-					await sendToSubscribers(pendingPartialMessage)
-					pendingPartialMessage = null
+					await sendToSubscribers(messageToSend)
 				}
 				throttleTimer = null
+				// If a newer partial arrived while we were sending, re-schedule
+				if (pendingPartialMessage) {
+					// Kick off another send cycle immediately (enough time has passed)
+					lastPartialSendTime = Date.now()
+					const next = pendingPartialMessage
+					pendingPartialMessage = null
+					sendToSubscribers(next).catch((e) => Logger.error("Error in re-scheduled partial send:", e))
+				}
 			}, delay)
 		}
 		// If timer already exists, the latest pendingPartialMessage will be sent when it fires

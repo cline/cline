@@ -146,8 +146,11 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					components={{
 						Footer: () => (
 							<div>
-								{/* Show "Working..." or streaming "Thinking..." at bottom of chat stream */}
-								{(isWaitingForContent || isReasoningActive) && (
+								{/* Show "Working..." at bottom of chat stream.
+								    "Thinking..." is now rendered inline in RequestStartRow to keep it
+								    anchored to the request row and avoid visual jumps during followup
+								    question streaming when options grow the row. */}
+								{isWaitingForContent && (
 									<div className="pl-[16px] pt-2.5">
 										{/* Non-streaming models: just shimmer text */}
 										{(supportsStreaming === false || !streamingReasoningContent) && (
