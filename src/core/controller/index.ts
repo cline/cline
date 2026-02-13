@@ -912,7 +912,8 @@ export class Controller {
 		const version = ExtensionRegistryInfo.version
 		const clineConfig = ClineEnv.config()
 		const environment = clineConfig.environment
-		const banners = BannerService.get()?.getActiveBanners() ?? []
+		BannerService.initialize(this)
+		const banners = BannerService.get().getActiveBanners() ?? []
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
