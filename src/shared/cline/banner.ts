@@ -74,13 +74,36 @@ export interface BannerAction {
 	 * - Others: generally unused
 	 */
 	arg?: string
+
+	/**
+	 * Optional model picker tab to open when using SetModel action
+	 */
+	tab?: "recommended" | "free"
 }
 
 /**
  * The list of predefined banner config rendered by the Welcome Section UI.
  * TODO: Backend would return a similar JSON structure in the future which we will replace this with.
  */
+
 export const BANNER_DATA: BannerCardData[] = [
+	// Minimax free promo banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: `minimax-m2.5-free-2026-feb-13`,
+		icon: "zap",
+		title: "Try MiniMax M2.5 Free",
+		description: "SOTA open source model with great coding capability and subagent use.",
+		actions: [
+			{
+				title: "Try now",
+				action: BannerActionType.SetModel,
+				arg: "minimax/minimax-m2.5",
+				tab: "free",
+			},
+		],
+	},
+
 	// ChatGPT integration banner
 	{
 		id: "chatgpt-integration-v1",

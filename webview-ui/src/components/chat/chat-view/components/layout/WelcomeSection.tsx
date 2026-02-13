@@ -155,6 +155,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 				case BannerActionType.SetModel: {
 					const modelId = action.arg || "anthropic/claude-opus-4.6"
+					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
 						actModeOpenRouterModelId: modelId,
@@ -163,7 +164,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
-					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab: "recommended" })
+					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 					break
 				}
 
