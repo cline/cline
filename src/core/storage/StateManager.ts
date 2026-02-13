@@ -19,6 +19,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
+import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -137,6 +138,8 @@ export class StateManager {
 			await StateManager.instance.setupTaskHistoryWatcher()
 
 			StateManager.instance.isInitialized = true
+
+			AgentConfigLoader.getInstance()
 		} catch (error) {
 			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error
@@ -820,9 +823,8 @@ export class StateManager {
 					const value = this.secretsCache[key]
 					if (value) {
 						return this.context.secrets.store(key, value)
-					} else {
-						return this.context.secrets.delete(key)
 					}
+					return this.context.secrets.delete(key)
 				}),
 			)
 		} catch (error) {

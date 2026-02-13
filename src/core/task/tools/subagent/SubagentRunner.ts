@@ -1,15 +1,15 @@
+import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
+import type { ApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
-import { ClineToolSet } from "@core/prompts/system-prompt/registry/ClineToolSet"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock, ClineUserContent } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
@@ -17,16 +17,8 @@ import { TaskState } from "../../TaskState"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
+import { SubagentBuilder } from "./SubagentBuilder"
 
-const SUBAGENT_ALLOWED_TOOLS: ClineDefaultTool[] = [
-	ClineDefaultTool.FILE_READ,
-	ClineDefaultTool.LIST_FILES,
-	ClineDefaultTool.SEARCH,
-	ClineDefaultTool.LIST_CODE_DEF,
-	ClineDefaultTool.BASH,
-	ClineDefaultTool.USE_SKILL,
-	ClineDefaultTool.ATTEMPT,
-]
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
 
 export type SubagentRunStatus = "completed" | "failed"
@@ -67,18 +59,6 @@ interface SubagentToolCall {
 	input: unknown
 	isNativeToolCall: boolean
 }
-
-const SUBAGENT_SYSTEM_SUFFIX = `\n\n# Subagent Execution Mode
-You are running as a research subagent. Your job is to thoroughly explore the codebase and gather comprehensive information to answer the question.
-Explore broadly, read related files, trace through call chains, and build a complete picture before reporting back.
-You can read files, list directories, search for patterns, list code definitions, and run commands.
-Only use execute_command for readonly operations like ls, grep, git log, git diff, gh, etc.
-Do not run commands that modify files or system state.
-When you have a comprehensive answer, call the attempt_completion tool.
-The attempt_completion result field is sent directly to the main agent, so put your full final findings there.
-Include file paths and line numbers in that result field.
-Also include a section titled "Recommended files for main agent" with a list of the highest-value files the main agent should read next, and a one-line reason for each file.
-`
 
 function serializeToolResult(result: unknown): string {
 	if (typeof result === "string") {
@@ -212,12 +192,22 @@ function pushSubagentToolResultBlock(toolResultBlocks: any[], call: SubagentTool
 }
 
 export class SubagentRunner {
+	private readonly agent: SubagentBuilder
+	private readonly apiHandler: ApiHandler
+	private readonly allowedTools: ClineDefaultTool[]
 	private activeApiAbort: (() => void) | undefined
 	private abortRequested = false
 	private activeCommandExecutions = 0
 	private abortingCommands = false
 
-	constructor(private baseConfig: TaskConfig) {}
+	constructor(
+		private baseConfig: TaskConfig,
+		subagentName = "subagent",
+	) {
+		this.agent = new SubagentBuilder(baseConfig, subagentName)
+		this.apiHandler = this.agent.getApiHandler()
+		this.allowedTools = this.agent.getAllowedTools()
+	}
 
 	async abort(): Promise<void> {
 		this.abortRequested = true
@@ -288,7 +278,7 @@ export class SubagentRunner {
 		try {
 			const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
 			const apiConfiguration = this.baseConfig.services.stateManager.getApiConfiguration()
-			const api = this.baseConfig.api
+			const api = this.apiHandler
 			this.activeApiAbort = api.abort?.bind(api)
 
 			const providerId = (
@@ -323,9 +313,10 @@ export class SubagentRunner {
 			}
 
 			const promptRegistry = PromptRegistry.getInstance()
-			const systemPrompt = (await promptRegistry.get(context)) + SUBAGENT_SYSTEM_SUFFIX
+			const generatedSystemPrompt = await promptRegistry.get(context)
+			const systemPrompt = this.agent.buildSystemPrompt(generatedSystemPrompt)
 			const useNativeToolCalls = !!promptRegistry.nativeTools?.length
-			const nativeTools = useNativeToolCalls ? this.buildNativeTools(context) : undefined
+			const nativeTools = useNativeToolCalls ? this.agent.buildNativeTools(context) : undefined
 			const workspaceMetadataEnvironmentBlock = await this.getWorkspaceMetadataEnvironmentBlock()
 
 			if (useNativeToolCalls && (!nativeTools || nativeTools.length === 0)) {
@@ -542,7 +533,7 @@ export class SubagentRunner {
 						return { status: "completed", result: completionResult, stats }
 					}
 
-					if (!SUBAGENT_ALLOWED_TOOLS.includes(toolName)) {
+					if (!this.allowedTools.includes(toolName)) {
 						const deniedResult = formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`)
 						pushSubagentToolResultBlock(toolResultBlocks, call, toolName, deniedResult)
 						continue
@@ -615,12 +606,13 @@ export class SubagentRunner {
 		const coordinator = new ToolExecutorCoordinator()
 		const validator = new ToolValidator(this.baseConfig.services.clineIgnoreController)
 
-		for (const tool of SUBAGENT_ALLOWED_TOOLS) {
+		for (const tool of this.allowedTools) {
 			coordinator.registerByName(tool, validator)
 		}
 
 		return {
 			...this.baseConfig,
+			api: this.apiHandler,
 			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
@@ -643,21 +635,5 @@ export class SubagentRunner {
 				},
 			},
 		}
-	}
-
-	private buildNativeTools(context: SystemPromptContext) {
-		const family = PromptRegistry.getInstance().getModelFamily(context)
-		const toolSets = ClineToolSet.getToolsForVariantWithFallback(family, SUBAGENT_ALLOWED_TOOLS)
-		const filteredToolSpecs = toolSets
-			.map((toolSet) => toolSet.config)
-			.filter(
-				(toolSpec) =>
-					SUBAGENT_ALLOWED_TOOLS.includes(toolSpec.id) &&
-					(!toolSpec.contextRequirements || toolSpec.contextRequirements(context)),
-			)
-
-		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
-
-		return filteredToolSpecs.map((tool) => converter(tool, context))
 	}
 }
