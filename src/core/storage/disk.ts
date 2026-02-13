@@ -57,6 +57,7 @@ export const GlobalFileNames = {
 	clineruleSkillsDir: ".clinerules/skills",
 	clineSkillsDir: ".cline/skills",
 	claudeSkillsDir: ".claude/skills",
+	agentsSkillsDir: ".agents/skills",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
@@ -164,18 +165,52 @@ export async function ensureHooksDirectoryExists(): Promise<string> {
 }
 
 /**
- * Returns the global skills directory path (~/.cline/skills).
- * Creates the directory if it doesn't exist.
+ * Returns the global skills directory path (~/.cline/skills) without creating it.
  */
-export async function ensureSkillsDirectoryExists(): Promise<string> {
-	const clineSkillsDir = path.join(getClineHomePath(), "skills")
+function getClineSkillsDirectoryPath(): string {
+	return path.join(getClineHomePath(), "skills")
+}
+
+function getAgentSkillsDirectoryPath(): string {
+	return path.join(os.homedir(), ".agents", "skills")
+}
+
+/**
+ * Returns the global agent skills directory path (~/.agents/skills).
+ * Creates the directory if it doesn't exist.
+ * This is the opinionated location for new global skills.
+ */
+export async function ensureAgentSkillsDirectoryExists(options: { isGlobal: boolean; workspacePath?: string }): Promise<string> {
+	const agentSkillsDir = options.isGlobal
+		? getAgentSkillsDirectoryPath()
+		: path.join(options.workspacePath ?? "", GlobalFileNames.agentsSkillsDir)
 	try {
-		await fs.mkdir(clineSkillsDir, { recursive: true })
+		await fs.mkdir(agentSkillsDir, { recursive: true })
 	} catch (_error) {
 		// Fallback - return the path even if mkdir fails, we'll fail gracefully later
-		return clineSkillsDir
+		return agentSkillsDir
 	}
-	return clineSkillsDir
+	return agentSkillsDir
+}
+
+export type SkillsScanDirectory = {
+	path: string
+	source: "project" | "global"
+}
+
+/**
+ * Returns the list of skills directories to scan without creating them.
+ * Order is project directories first, then global directories.
+ */
+export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] {
+	return [
+		{ path: path.join(cwd, GlobalFileNames.clineruleSkillsDir), source: "project" },
+		{ path: path.join(cwd, GlobalFileNames.clineSkillsDir), source: "project" },
+		{ path: path.join(cwd, GlobalFileNames.claudeSkillsDir), source: "project" },
+		{ path: path.join(cwd, GlobalFileNames.agentsSkillsDir), source: "project" },
+		{ path: getClineSkillsDirectoryPath(), source: "global" },
+		{ path: getAgentSkillsDirectoryPath(), source: "global" },
+	]
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
