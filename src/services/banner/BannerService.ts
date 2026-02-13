@@ -1,4 +1,4 @@
-import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
+import type { Banner, BannerAction, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
@@ -438,8 +438,25 @@ export class BannerService {
 		}
 	}
 
+	private getBannerActions(banner: Banner): BannerAction[] {
+		if (banner.actions && banner.actions.length > 0) {
+			return banner.actions
+		}
+
+		try {
+			const rules: BannerRules = JSON.parse(banner.rulesJson || "{}")
+			return rules?.actions ?? []
+		} catch (error) {
+			Logger.log(
+				`[BannerService] Error parsing actions from rulesJson for banner ${banner.id}: ` +
+					`${error instanceof Error ? error.message : String(error)}`,
+			)
+			return []
+		}
+	}
+
 	private toBannerCardData(banner: Banner): BannerCardData | null {
-		const actions = banner.actions || []
+		const actions = this.getBannerActions(banner)
 
 		// Validate all actions have valid types
 		for (const action of actions) {

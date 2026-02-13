@@ -110,21 +110,23 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 										</Markdown>
 									)}
 									{banner.actions && banner.actions.length > 0 && onBannerAction && (
-										<div className="flex gap-2 mt-2">
+										<span className="inline-flex gap-2 ml-2 align-middle">
 											{banner.actions.map((action, idx) => (
-												<button
-													className="px-3 py-1 text-xs rounded cursor-pointer border-none"
+												<a
+													href="#"
 													key={idx}
-													onClick={() => onBannerAction(action)}
-													style={{
-														backgroundColor: "var(--vscode-button-background)",
-														color: "var(--vscode-button-foreground)",
+													onClick={(event) => {
+														event.preventDefault()
+														onBannerAction(action)
 													}}
-													type="button">
+													style={{
+														color: "var(--vscode-textLink-foreground)",
+														cursor: "pointer",
+													}}>
 													{action.title}
-												</button>
+												</a>
 											))}
-										</div>
+										</span>
 									)}
 								</li>
 							))}

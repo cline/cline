@@ -57,6 +57,8 @@ export interface BannerRules {
 	org_type?: "all" | "team_only" | "enterprise_only" | ""
 	/** Minimum extension version required (e.g., "3.39.2") */
 	min_extension_version?: string
+	/** Optional actions embedded in rules JSON for banners */
+	actions?: BannerAction[]
 }
 
 /**
