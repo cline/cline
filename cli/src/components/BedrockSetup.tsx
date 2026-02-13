@@ -341,7 +341,7 @@ export const BedrockSetup: React.FC<BedrockSetupProps> = ({ isActive, onComplete
 				<Text color="white">AWS Region</Text>
 				<Text> </Text>
 				<Box>
-					<Text color="gray">Type to search or enter custom region: </Text>
+					<Text color="gray">Search or enter custom region: </Text>
 					<Text color="white">{regionSearch}</Text>
 					<Text inverse> </Text>
 				</Box>
