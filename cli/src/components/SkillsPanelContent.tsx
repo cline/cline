@@ -7,6 +7,8 @@ import { exec } from "node:child_process"
 import os from "node:os"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { refreshSkills } from "@/core/controller/file/refreshSkills"
+import { toggleSkill } from "@/core/controller/file/toggleSkill"
 import type { Controller } from "@/core/controller"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
@@ -41,7 +43,6 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	useEffect(() => {
 		const loadSkills = async () => {
 			try {
-				const { refreshSkills } = await import("@/core/controller/file/refreshSkills")
 				const skillsData = await refreshSkills(controller)
 				setGlobalSkills(skillsData.globalSkills || [])
 				setLocalSkills(skillsData.localSkills || [])
@@ -70,7 +71,6 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 		const entry = skillEntries[selectedIndex]
 		if (!entry) return
 
-		const { toggleSkill } = await import("@/core/controller/file/toggleSkill")
 		const newEnabled = !entry.skill.enabled
 
 		// Optimistic update
