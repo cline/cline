@@ -29,12 +29,16 @@ describe("BannerService", () => {
 		dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
 	}
 
-	const mockController: Controller = {
-		postStateToWebview: sinon.stub().resolves(undefined),
-	} as any
+	let mockedPostStateToWebview: sinon.SinonStub
+	let mockController: Controller
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
+
+		mockedPostStateToWebview = sandbox.stub().resolves(undefined)
+		mockController = {
+			postStateToWebview: mockedPostStateToWebview,
+		} as any
 
 		sandbox.stub(Logger, "log")
 		sandbox.stub(Logger, "error")
@@ -784,6 +788,7 @@ describe("BannerService", () => {
 				await new Promise((resolve) => setTimeout(resolve, 10))
 
 				const banners = bannerService.getActiveBanners()
+				expect(mockedPostStateToWebview.called).to.be.true
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].actions).to.have.lengthOf(validActionTypes.length)
 				banners[0].actions!.forEach((action, index) => {
