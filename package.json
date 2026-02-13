@@ -5,6 +5,7 @@
 	"version": "3.61.0",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
+		".",
 		"cli"
 	],
 	"engines": {
