@@ -28,10 +28,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -63,10 +59,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
 
             - name: Install root dependencies
               run: npm ci
@@ -141,11 +133,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
-                      testing-platform/package-lock.json
 
             - name: Install root dependencies
               run: npm ci

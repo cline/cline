@@ -40,45 +40,6 @@ jobs:
               with:
                   node-version: 22
 
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
-            # Cache VS Code installation
-            - name: Cache VS Code
-              uses: actions/cache@v4
-              id: vscode-cache
-              with:
-                  path: .vscode-test
-                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('.vscode-test.mjs', 'package.json') }}
-                  restore-keys: |
-                      vscode-${{ runner.os }}-stable-
-
-            # Cache Playwright browsers
-            - name: Cache Playwright browsers
-              uses: actions/cache@v4
-              id: playwright-cache
-              with:
-                  path: |
-                      ~/.cache/ms-playwright
-                      ~/Library/Caches/ms-playwright
-                      ~/AppData/Local/ms-playwright
-                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-                  restore-keys: |
-                      playwright-browsers-${{ runner.os }}-
-
             - name: Install root dependencies
               run: npm ci
               env:
