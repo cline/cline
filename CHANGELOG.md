@@ -1,5 +1,8 @@
 # Changelog
 
+## [3.62.0]
+- Adding Minimax-2.5 Banner
+
 ## [3.61.0]
 
 - UI/UX fixes with minimax model family
