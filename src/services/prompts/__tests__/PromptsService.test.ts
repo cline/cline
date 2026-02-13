@@ -1,6 +1,6 @@
 import * as assert from "assert"
-import * as sinon from "sinon"
 import axios from "axios"
+import * as sinon from "sinon"
 import { PromptsService } from "@/services/prompts/PromptsService"
 
 describe("PromptsService", () => {
@@ -40,13 +40,18 @@ tags: [tag1, tag2, tag3]
 # Test Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] }) // workflows directory
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -79,13 +84,18 @@ tags: ['tag1', 'tag2']
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -113,13 +123,18 @@ description: Only description
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -149,13 +164,18 @@ author: https://github.com/octocat
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -178,13 +198,18 @@ Content`,
 					data: "# Just content, no frontmatter",
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -212,13 +237,18 @@ author: testuser
 Content without closing delimiter`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -246,13 +276,18 @@ tags: []
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -279,13 +314,18 @@ tags: tag1, tag2
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -377,15 +417,21 @@ description: Good prompt
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockGoodContent)
-					.onThirdCall()
-					.rejects(new Error("Failed to fetch"))
-					.onCall(3)
-					.resolves({ data: [] }) // workflows directory
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("good.md")) {
+						return mockGoodContent
+					}
+					if (url.includes("bad.md")) {
+						throw new Error("Failed to fetch")
+					}
+					return { data: [] }
+				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -415,13 +461,18 @@ description: Test
 Content`,
 				}
 
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				// First fetch
 				await service.fetchPromptsCatalog()
@@ -453,7 +504,18 @@ description: Test
 Content`,
 				}
 
-				axiosGetStub.resolves(mockDirectoryResponse).onSecondCall().resolves(mockContentResponse)
+				axiosGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.includes("raw.githubusercontent.com")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
 
 				// First fetch
 				await service.fetchPromptsCatalog()
@@ -462,13 +524,6 @@ Content`,
 				;(service as any).lastFetchTime = Date.now() - 61 * 60 * 1000 // 61 minutes ago
 
 				axiosGetStub.resetHistory()
-				axiosGetStub
-					.onFirstCall()
-					.resolves(mockDirectoryResponse)
-					.onSecondCall()
-					.resolves(mockContentResponse)
-					.onThirdCall()
-					.resolves({ data: [] })
 
 				// Should make new API calls
 				await service.fetchPromptsCatalog()
