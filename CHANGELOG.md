@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.60.0]
+
+- Fixes for Minimax model family
+
 ## [3.59.0]
 
 - Added Minimax 2.5 Free Promo
