@@ -2681,7 +2681,6 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
-							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2707,13 +2706,12 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
-							// Process the new text content as it streams in without awaiting for full message
-							this.presentAssistantMessage()
 							break
 						}
 					}
 
-					// present content to user - we don't want the stream to break if present fails, so we catch errors here
+					// Present content once per chunk. Calling this from multiple case branches can
+					// race partial updates and duplicate text rows in the chat.
 					await this.presentAssistantMessage().catch((error) =>
 						Logger.debug("[Task] Failed to present message: " + error),
 					)
