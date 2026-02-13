@@ -341,19 +341,19 @@
 		},
 		{
 			"source": "/getting-started/understanding-context-management",
-			"destination": "/archive/understanding-context-management"
+			"destination": "/model-config/context-windows"
 		},
 		{
 			"source": "/best-practices/understanding-context-management",
-			"destination": "/archive/understanding-context-management"
+			"destination": "/model-config/context-windows"
 		},
 		{
 			"source": "/prompting/understanding-context-management",
-			"destination": "/archive/understanding-context-management"
+			"destination": "/model-config/context-windows"
 		},
 		{
 			"source": "/prompting/prompt-engineering-guide",
-			"destination": "/archive/prompt-engineering-guide"
+			"destination": "/customization/cline-rules"
 		},
 		{
 			"source": "/prompting/cline-memory-bank",
@@ -525,7 +525,7 @@
 		},
 		{
 			"source": "/more-info/telemetry",
-			"destination": "/archive/telemetry"
+			"destination": "/enterprise-solutions/monitoring/telemetry"
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
