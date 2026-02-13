@@ -17,6 +17,7 @@ import {
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
+import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
@@ -125,6 +126,7 @@ export class StateManager {
 		}
 
 		try {
+			await initializeDistinctId(context)
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(context)
 			const secrets = await readSecretsFromDisk()

@@ -685,6 +685,39 @@ export class ContextManager {
 	}
 
 	/**
+	 * Public helper that attempts file read optimization in memory without persisting context history.
+	 */
+	public attemptFileReadOptimizationInMemory(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+		timestamp: number,
+	): {
+		anyContextUpdates: boolean
+		needToTruncate: boolean
+		optimizedConversationHistory: Anthropic.Messages.MessageParam[]
+	} {
+		const { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
+			apiConversationHistory,
+			conversationHistoryDeletedRange,
+			timestamp,
+		)
+
+		if (!anyContextUpdates) {
+			return {
+				anyContextUpdates: false,
+				needToTruncate: true,
+				optimizedConversationHistory: apiConversationHistory,
+			}
+		}
+
+		return {
+			anyContextUpdates: true,
+			needToTruncate,
+			optimizedConversationHistory: this.getTruncatedMessages(apiConversationHistory, conversationHistoryDeletedRange),
+		}
+	}
+
+	/**
 	 * Public function for triggering potentially setting the truncation message
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
@@ -813,9 +846,8 @@ export class ContextManager {
 							}
 							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
 							// to do so we need to keep track of which files we've already replaced so we don't replace them again
-							else {
-								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-							}
+
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again

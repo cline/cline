@@ -62,15 +62,16 @@ The description is critical because it's how Cline decides whether to activate a
 Skills can be stored in two locations:
 
 **Global Skills** apply to all your projects:
-- **macOS/Linux:** `~/.cline/skills/`
-- **Windows:** `C:\Users\USERNAME\.cline\skills\`
+- **macOS/Linux:** `~/.agents/skills/` (recommended) or `~/.cline/skills/`
+- **Windows:** `C:\Users\USERNAME\.agents\skills\` (recommended) or `C:\Users\USERNAME\.cline\skills\`
 
 **Project Skills** apply only to the current workspace:
-- `.cline/skills/` (recommended)
+- `.agents/skills/` (recommended)
+- `.cline/skills/`
 - `.clinerules/skills/`
 - `.claude/skills/` (for Claude Code compatibility)
 
-When a global skill and project skill have the same name, the global skill takes precedence. This lets you customize skills for your personal workflow while still using project defaults.
+When a global skill and project skill have the same name, the global skill takes precedence. Skills in `.agents/skills` directories take precedence over other locations with the same name, letting you customize skills for your personal workflow while still using project defaults.
 
 ## Managing Skills
 
