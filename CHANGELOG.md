@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.61.0]
+
+- UI/UX fixes with minimax model family
+
 ## [3.60.0]
 
 - Fixes for Minimax model family
