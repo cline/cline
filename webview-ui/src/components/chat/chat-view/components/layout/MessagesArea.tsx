@@ -40,17 +40,24 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	const { clineMessages } = useExtensionState()
 	const [isStreamingReasoningExpanded, setIsStreamingReasoningExpanded] = React.useState(true)
 	const reasoningScrollRef = React.useRef<HTMLDivElement>(null)
+	const rafPendingRef = React.useRef(false)
 
-	// Auto-scroll reasoning content to bottom as it streams
+	// Auto-scroll reasoning content to bottom as it streams.
+	// Uses a pending-RAF guard so rapid content updates coalesce into a single
+	// scroll-to-bottom per frame instead of queuing redundant callbacks that
+	// could race with DOM updates during fast streams.
 	React.useEffect(() => {
 		if (reasoningScrollRef.current && streamingReasoningContent && isStreamingReasoningExpanded) {
-			const scrollElement = reasoningScrollRef.current
-			// Single RAF is sufficient for simple DOM updates
-			requestAnimationFrame(() => {
-				if (scrollElement) {
-					scrollElement.scrollTop = scrollElement.scrollHeight
-				}
-			})
+			if (!rafPendingRef.current) {
+				rafPendingRef.current = true
+				requestAnimationFrame(() => {
+					rafPendingRef.current = false
+					const scrollElement = reasoningScrollRef.current
+					if (scrollElement) {
+						scrollElement.scrollTop = scrollElement.scrollHeight
+					}
+				})
+			}
 		}
 	}, [streamingReasoningContent, isStreamingReasoningExpanded])
 

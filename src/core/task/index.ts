@@ -735,8 +735,11 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const isEmptyText = text !== undefined && text.trim().length === 0
 			const hasNoPayload = text === undefined && images === undefined && files === undefined
+			// Only treat text as "empty" when there are no images/files either—
+			// an empty-string text with image or file attachments is a valid payload
+			// (e.g. image-only or file-only messages).
+			const isEmptyText = text !== undefined && text.trim().length === 0 && images === undefined && files === undefined
 			// CRITICAL FIX: Block empty/undefined partial or final messages before ANY processing
 			// OpenAI Codex can emit empty deltas that create ghost/flicker updates
 			if ((partial || type === "text" || type === "reasoning") && (hasNoPayload || isEmptyText)) {
@@ -905,8 +908,10 @@ export class Task {
 	 * 2. The current model is GPT-5 (which handles parallel tools well)
 	 */
 	private isParallelToolCallingEnabled(): boolean {
+		const { isParallelToolCallingEnabled: checkParallelToolCalling } = require("@utils/model-utils")
+		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
 		const modelId = this.api.getModel().id
-		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+		return checkParallelToolCalling(enableParallelSetting, modelId)
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
