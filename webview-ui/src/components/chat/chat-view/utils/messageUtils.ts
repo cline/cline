@@ -735,7 +735,12 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	const pendingTools: ClineMessage[] = []
 
 	const flushPending = () => {
-		pendingApiReq.forEach((m) => result.push(m))
+		for (const m of pendingApiReq) {
+			result.push(m)
+		}
+		for (const m of pendingReasoning) {
+			result.push(m)
+		}
 		pendingApiReq = []
 		pendingReasoning = []
 	}
