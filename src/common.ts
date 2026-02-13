@@ -14,7 +14,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
-import { getDistinctId, initializeDistinctId } from "./services/logging/distinctId"
+import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ClineTempManager } from "./services/temp"
@@ -42,9 +42,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Throws ClineConfigurationError if config file exists but is invalid
 	const { ClineEndpoint } = await import("./config")
 	await ClineEndpoint.initialize(HostProvider.get().extensionFsPath)
-
-	// Set the distinct ID for logging and telemetry
-	await initializeDistinctId(context)
 
 	try {
 		await StateManager.initialize(context)
