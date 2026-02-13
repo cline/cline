@@ -38,6 +38,12 @@ name = "pull main"
 icon = "tool"
 command = '''
 git fetch origin main                                                                                                                                                             
-git update-ref refs/heads/main refs/remotes/origin/main                         
+                                                                                                                                                                                
+if ! git merge-base --is-ancestor main origin/main; then                                                                                                                          
+  echo "Local main has commits not on origin/main. Aborting..."                                                                                                                     
+  exit 1                                                                                                                                                                          
+fi
+
+git update-ref refs/heads/main refs/remotes/origin/main
 echo "main updated to $(git rev-parse --short main)"
 '''
