@@ -3,7 +3,7 @@
  */
 
 export type BannerSeverity = "info" | "success" | "warning"
-export type BannerPlacement = "top" | "bottom"
+export type BannerPlacement = "top" | "bottom" | "welcome"
 
 export interface Banner {
 	id: string
@@ -16,7 +16,6 @@ export interface Banner {
 	activeFrom?: string
 	activeTo?: string
 
-	// Severity and placement are not used in the extension
 	severity?: BannerSeverity
 	placement?: BannerPlacement
 }

@@ -1,4 +1,6 @@
+import { BannerAction, BannerCardData } from "@shared/cline/banner"
 import React, { useCallback } from "react"
+import Markdown from "react-markdown"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"
@@ -13,9 +15,11 @@ interface WhatsNewModalProps {
 	open: boolean
 	onClose: () => void
 	version: string
+	welcomeBanners?: BannerCardData[]
+	onBannerAction?: (action: BannerAction) => void
 }
 
-export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
+export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
 	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -63,6 +67,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		fontSize: "0.9em",
 	}
 
+	const hasWelcomeBanners = welcomeBanners && welcomeBanners.length > 0
+
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
 			<DialogContent
@@ -77,8 +83,51 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						🎉 New in v{version}
 					</h2>
 
-					{/* Description */}
+					{/* Hardcoded description - always shown alongside dynamic banners */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
+						{hasWelcomeBanners &&
+							welcomeBanners.map((banner) => (
+								<li className="mb-2" key={banner.id}>
+									{banner.title && <strong>{banner.title}</strong>}{" "}
+									{banner.description && (
+										<Markdown
+											components={{
+												a: ({ href, children }) => (
+													<a
+														href={href}
+														rel="noopener noreferrer"
+														style={{
+															color: "var(--vscode-textLink-foreground)",
+														}}
+														target="_blank">
+														{children}
+													</a>
+												),
+												code: ({ children }) => <code style={inlineCodeStyle}>{children}</code>,
+												p: ({ children }) => <p className="mb-0">{children}</p>,
+											}}>
+											{banner.description}
+										</Markdown>
+									)}
+									{banner.actions && banner.actions.length > 0 && onBannerAction && (
+										<div className="flex gap-2 mt-2">
+											{banner.actions.map((action, idx) => (
+												<button
+													className="px-3 py-1 text-xs rounded cursor-pointer border-none"
+													key={idx}
+													onClick={() => onBannerAction(action)}
+													style={{
+														backgroundColor: "var(--vscode-button-background)",
+														color: "var(--vscode-button-foreground)",
+													}}
+													type="button">
+													{action.title}
+												</button>
+											))}
+										</div>
+									)}
+								</li>
+							))}
 						<li className="mb-2">
 							<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
 							fast inference. <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
