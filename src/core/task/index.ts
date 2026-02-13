@@ -728,32 +728,35 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastSameTypeSayIndex = findLastIndex(clineMessages, (message) => message.type === "say" && message.say === type)
+			const lastSameTypeSay = lastSameTypeSayIndex >= 0 ? clineMessages[lastSameTypeSayIndex] : undefined
+			const isUpdatingPreviousPartial = lastSameTypeSay?.partial === true
+			const isStaleReasoningPartial = partial && type === "reasoning" && lastSameTypeSay && !lastSameTypeSay.partial
+			if (isStaleReasoningPartial) {
+				return undefined
+			}
 			const isDuplicateCompletedTextSay =
 				partial &&
 				type === "text" &&
-				lastMessage &&
-				lastMessage.type === "say" &&
-				lastMessage.say === "text" &&
-				!lastMessage.partial &&
-				(lastMessage.text ?? "") === (text ?? "")
+				lastSameTypeSay &&
+				!lastSameTypeSay.partial &&
+				(lastSameTypeSay.text ?? "") === (text ?? "")
 			if (isDuplicateCompletedTextSay) {
 				return undefined
 			}
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					await this.messageStateHandler.updateClineMessage(lastSameTypeSayIndex, {
 						text,
 						images,
 						files,
 						partial,
 					})
 
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const updatedMessage = this.messageStateHandler.getClineMessages()[lastSameTypeSayIndex]
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
 				}
@@ -776,10 +779,9 @@ export class Task {
 			// partial=false means its a complete version of a previously partial message
 			if (isUpdatingPreviousPartial) {
 				// this is the complete version of a previously partial message, so replace the partial with the complete version
-				this.taskState.lastMessageTs = lastMessage.ts
-				const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+				this.taskState.lastMessageTs = lastSameTypeSay.ts
 				// updateClineMessage emits the change event and saves to disk
-				await this.messageStateHandler.updateClineMessage(lastIndex, {
+				await this.messageStateHandler.updateClineMessage(lastSameTypeSayIndex, {
 					text,
 					images,
 					files,
@@ -787,7 +789,8 @@ export class Task {
 				})
 
 				// await this.postStateToWebview()
-				const protoMessage = convertClineMessageToProto(lastMessage)
+				const updatedMessage = this.messageStateHandler.getClineMessages()[lastSameTypeSayIndex]
+				const protoMessage = convertClineMessageToProto(updatedMessage)
 				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 				return undefined
 			}
@@ -2694,12 +2697,6 @@ export class Task {
 							break
 						}
 						case "text": {
-							// If we have reasoning content, finalize it before processing text (only once)
-							const currentReasoning = reasonsHandler.getCurrentReasoning()
-							if (currentReasoning?.thinking && assistantMessage.length === 0) {
-								// Complete the reasoning message (only once)
-								await this.say("reasoning", currentReasoning.thinking, undefined, undefined, false)
-							}
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature
 							}
@@ -2936,6 +2933,13 @@ export class Task {
 			// in case there are native tool calls pending
 			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
 			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+
+			// Finalize reasoning once the stream is done so providers that continue
+			// emitting reasoning after text don't downgrade the UI back to partial.
+			const finalReasoning = reasonsHandler.getCurrentReasoning()
+			if (finalReasoning?.thinking) {
+				await this.say("reasoning", finalReasoning.thinking, undefined, undefined, false)
+			}
 
 			if (partialBlocks.length > 0) {
 				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
@@ -3249,8 +3253,7 @@ export class Task {
 	 */
 	private formatWorkspaceRootsSection(): string {
 		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
-		const hasWorkspaceManager = !!this.workspaceManager
-		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
+		const roots = this.workspaceManager?.getRoots() || []
 
 		// Only show workspace roots if multi-root is enabled and there are multiple roots
 		if (!multiRootEnabled || roots.length <= 1) {
@@ -3267,7 +3270,7 @@ export class Task {
 		}
 
 		// Add primary workspace information
-		const primary = this.workspaceManager!.getPrimaryRoot()
+		const primary = this.workspaceManager?.getPrimaryRoot()
 		const primaryName = this.getPrimaryWorkspaceName(primary)
 		section += `\n\nPrimary workspace: ${primaryName}`
 
