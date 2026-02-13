@@ -17,6 +17,7 @@ import {
 } from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
+import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import {
@@ -124,6 +125,7 @@ export class StateManager {
 		}
 
 		try {
+			await initializeDistinctId(context)
 			// Load all extension state from disk
 			const globalState = await readGlobalStateFromDisk(context)
 			const secrets = await readSecretsFromDisk()
@@ -820,9 +822,8 @@ export class StateManager {
 					const value = this.secretsCache[key]
 					if (value) {
 						return this.context.secrets.store(key, value)
-					} else {
-						return this.context.secrets.delete(key)
 					}
+					return this.context.secrets.delete(key)
 				}),
 			)
 		} catch (error) {

@@ -685,6 +685,39 @@ export class ContextManager {
 	}
 
 	/**
+	 * Public helper that attempts file read optimization in memory without persisting context history.
+	 */
+	public attemptFileReadOptimizationInMemory(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+		timestamp: number,
+	): {
+		anyContextUpdates: boolean
+		needToTruncate: boolean
+		optimizedConversationHistory: Anthropic.Messages.MessageParam[]
+	} {
+		const { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
+			apiConversationHistory,
+			conversationHistoryDeletedRange,
+			timestamp,
+		)
+
+		if (!anyContextUpdates) {
+			return {
+				anyContextUpdates: false,
+				needToTruncate: true,
+				optimizedConversationHistory: apiConversationHistory,
+			}
+		}
+
+		return {
+			anyContextUpdates: true,
+			needToTruncate,
+			optimizedConversationHistory: this.getTruncatedMessages(apiConversationHistory, conversationHistoryDeletedRange),
+		}
+	}
+
+	/**
 	 * Public function for triggering potentially setting the truncation message
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */

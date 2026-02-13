@@ -820,8 +820,12 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			continue
 		}
 
-		// Text - render separately, keep pending for potential future tools
+		// Text - once a tool group is active, ignore additional text so it
+		// doesn't continue mutating the text row rendered above the group.
 		if (messageType === "text") {
+			if (hasTools) {
+				continue
+			}
 			result.push(message)
 			continue
 		}

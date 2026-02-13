@@ -1,0 +1,85 @@
+---
+title: "Subagents"
+sidebarTitle: "Subagents"
+description: "Run parallel research agents to explore your codebase without filling the main agent's context window."
+---
+
+Subagents let Cline spawn focused research agents that run in parallel. Each subagent gets its own prompt and context window, explores the codebase independently, and returns a detailed report to the main agent. This keeps the main agent's context clean while gathering broad information fast.
+
+<Tip>
+  Subagents is an experimental feature. Behavior may change in future releases.
+</Tip>
+
+## How It Works
+
+When Cline uses the `use_subagents` tool, it launches independent agents simultaneously. Each one:
+
+- Gets its own prompt describing what to investigate
+- Runs with a separate context window and token budget
+- Can read files, search code, list directories, run read-only commands, and use skills
+- Cannot edit files, use the browser, access MCP servers, or spawn nested subagents
+- Returns a result focused on the most relevant file paths for the main agent to read next
+
+Subagent costs (tokens and API spend) are tracked separately per subagent and rolled into the task's total cost. You can see per-subagent stats (tool calls, tokens, cost) in the chat UI as they run.
+
+## Enabling Subagents
+
+Subagents are disabled by default. To turn them on:
+
+1. Open Cline Settings (click the gear icon in the Cline panel)
+2. Go to **Features**
+3. Under the **Agent** section, toggle **Subagents** on
+
+This setting applies across all editors (VS Code, JetBrains, CLI).
+
+## Using Subagents
+
+Cline does not automatically decide to use subagents. You need to ask for them in your prompt. When the feature is enabled and you mention subagents (or describe a task that benefits from parallel exploration), Cline will use the `use_subagents` tool.
+
+Example prompts:
+
+- "Use subagents to explore how authentication works and where the database models are defined"
+- "Spin up subagents to investigate the API routes, the test setup, and the deployment config"
+- "I'm new to this codebase. Use subagents to map out the main entry points, the routing layer, and the data access patterns"
+
+Each subagent prompt should describe a focused research question. Cline will run them in parallel and synthesize the results.
+You can also run only one subagent when the task is small enough that parallel discovery would be unnecessary overhead.
+
+## Auto-Approve Behavior
+
+Subagents follow the **Read project files** auto-approve permission. If you have "Read project files" enabled in [Auto Approve](/features/auto-approve), subagent launches will be auto-approved.
+
+In [YOLO mode](/features/yolo-mode), subagents are always auto-approved.
+
+If auto-approve is off, Cline will ask for your approval before launching subagents, showing you the prompts it plans to send.
+
+## What Subagents Can Do
+
+Subagents are read-only research agents. Here is what they have access to:
+
+| Tool | Purpose |
+|------|---------|
+| `read_file` | Read file contents |
+| `list_files` | List directory contents |
+| `search_files` | Regex search across files |
+| `list_code_definition_names` | List top-level classes, functions, and methods |
+| `execute_command` | Run read-only commands (`ls`, `grep`, `git log`, `git diff`, etc.) |
+| `use_skill` | Load and activate skills |
+
+Subagents cannot write files, apply patches, use the browser, access MCP servers, or perform web searches. They also cannot spawn their own subagents.
+
+<Note>
+  Commands run by subagents execute in the background and are restricted to read-only operations. Subagents will not run commands that modify files or system state.
+  Subagents also benefit from command pipelines and filters to narrow output quickly before reading files, for example `rg ... | sort | uniq`.
+</Note>
+
+## When to Use Subagents
+
+Subagents work best when you need broad context from multiple areas of a codebase at once:
+
+- **Onboarding to an unfamiliar project**: Ask subagents to map out the architecture, key entry points, and data flow in parallel.
+- **Investigating cross-cutting concerns**: Have separate subagents trace authentication, logging, and error handling simultaneously.
+- **Pre-edit research**: Before making changes, use subagents to gather context from related files so the main agent can make informed edits without burning through its context window.
+- **Large codebases**: When reading many files sequentially would consume too much of the main agent's context, subagents let you explore broadly without that tradeoff.
+
+For small, focused tasks where you already know which files to look at, subagents add unnecessary overhead. Just ask Cline directly.
