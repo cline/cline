@@ -60,9 +60,15 @@
 				"icon": "square-terminal",
 				"groups": [
 					{
+						"group": "Home",
+						"pages": [
+							"home",
+							"getting-started/quick-start"
+						]
+					},
+					{
 						"group": "Getting Started",
 						"pages": [
-							"getting-started/quick-start",
 							"getting-started/what-is-cline",
 							"getting-started/installing-cline",
 							"getting-started/authorizing-with-cline",
