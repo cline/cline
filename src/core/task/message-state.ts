@@ -73,9 +73,12 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	/**
 	 * Update the in-memory favorite state so that subsequent saves
 	 * persist the correct value instead of overwriting external changes.
+	 * Protected by stateMutex to avoid racing with an ongoing save.
 	 */
-	setTaskIsFavorited(isFavorited: boolean): void {
-		this.taskIsFavorited = isFavorited
+	async setTaskIsFavorited(isFavorited: boolean): Promise<void> {
+		await this.withStateLock(() => {
+			this.taskIsFavorited = isFavorited
+		})
 	}
 
 	/**
