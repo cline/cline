@@ -140,18 +140,19 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		return false
 	}, [clineMessages, groupedMessages.length, lastVisibleMessage, lastVisibleRow, modifiedMessages])
 
-	const itemContent = useCallback(
-		createMessageRenderer(
-			groupedMessages,
-			modifiedMessages,
-			expandedRows,
-			toggleRowExpansion,
-			handleRowHeightChange,
-			setActiveQuote,
-			inputValue,
-			messageHandlers,
-			isWaitingForResponse,
-		),
+	const itemContent = useMemo(
+		() =>
+			createMessageRenderer(
+				groupedMessages,
+				modifiedMessages,
+				expandedRows,
+				toggleRowExpansion,
+				handleRowHeightChange,
+				setActiveQuote,
+				inputValue,
+				messageHandlers,
+				isWaitingForResponse,
+			),
 		[
 			groupedMessages,
 			modifiedMessages,
@@ -163,6 +164,26 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			messageHandlers,
 			isWaitingForResponse,
 		],
+	)
+
+	// Keep Virtuoso footer component identity stable while waiting state is unchanged.
+	// This avoids remounting the shimmer node on every message update.
+	const virtuosoComponents = useMemo(
+		() => ({
+			Footer: () =>
+				isWaitingForResponse ? (
+					<div className="px-4 pt-2 pb-2.5">
+						<div className="ml-1">
+							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent select-none">
+								Thinking...
+							</span>
+						</div>
+					</div>
+				) : (
+					<div className="min-h-1" />
+				),
+		}),
+		[isWaitingForResponse],
 	)
 
 	return (
@@ -191,20 +212,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					}}
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable grow overflow-y-scroll"
-					components={{
-						Footer: () =>
-							isWaitingForResponse ? (
-								<div className="px-4 pt-2 pb-2.5">
-									<div className="ml-1">
-										<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent select-none">
-											Thinking...
-										</span>
-									</div>
-								</div>
-							) : (
-								<div className="min-h-1" />
-							),
-					}}
+					components={virtuosoComponents}
 					data={groupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row
 					increaseViewportBy={{
