@@ -25,7 +25,7 @@ import { Controller } from ".."
 export async function refreshOcaModels(controller: Controller, request: StringRequest): Promise<OcaCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
-			return parseFloat(price) * 1_000_000
+			return Number.parseFloat(price) * 1_000_000
 		}
 		return undefined
 	}
@@ -63,10 +63,9 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				}
 				const modelInfo = model.model_info
 				const supportedApiList = modelInfo.supported_api_list ?? [CHAT_COMPLETIONS_API]
-				const apiFormat: ApiFormat =
-					supportedApiList.includes(RESPONSES_API) && !supportedApiList.includes(CHAT_COMPLETIONS_API)
-						? ApiFormat.OPENAI_RESPONSES
-						: ApiFormat.OPENAI_CHAT
+				const apiFormat: ApiFormat = supportedApiList.includes(RESPONSES_API)
+					? ApiFormat.OPENAI_RESPONSES
+					: ApiFormat.OPENAI_CHAT
 				models[modelId] = OcaModelInfo.create({
 					maxTokens: model.litellm_params?.max_tokens || -1,
 					contextWindow: modelInfo.context_window,
