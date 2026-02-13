@@ -160,8 +160,6 @@ export class BannerService {
 	public getWelcomeBanners(): BannerCardData[] {
 		this.ensureFreshCache()
 		const dismissed = StateManager.get().getGlobalStateKey("dismissedBanners") || []
-		const bypassDismissals = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
-		Logger.log(`[BannerService] Welcome banner dismissals bypassed: ${bypassDismissals}`)
 		Logger.log(
 			`[BannerService] Dismissed banner ids: ${JSON.stringify(
 				dismissed.map((banner: { bannerId: string }) => banner.bannerId),
@@ -180,7 +178,7 @@ export class BannerService {
 		)
 
 		const welcomeBanners = welcomeCandidates
-			.filter((b) => bypassDismissals || !this.isBannerDismissed(b.id))
+			.filter((b) => !this.isBannerDismissed(b.id))
 			.map((b) => this.toBannerCardData(b))
 			.filter((b): b is BannerCardData => b !== null)
 
