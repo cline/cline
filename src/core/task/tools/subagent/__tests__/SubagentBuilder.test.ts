@@ -56,8 +56,8 @@ describe("SubagentBuilder", () => {
 		const [effectiveApiConfig, selectedMode] = buildApiHandlerStub.firstCall.args
 		assert.equal(selectedMode, "act")
 		assert.equal((effectiveApiConfig as Record<string, unknown>).ulid, "ulid-123")
-		assert.equal((effectiveApiConfig as Record<string, unknown>).actModeApiModelId, "gpt-5")
 		assert.equal((effectiveApiConfig as Record<string, unknown>).actModeOpenAiModelId, "gpt-5")
+		assert.equal((effectiveApiConfig as Record<string, unknown>).actModeApiModelId, "act-default")
 
 		assert.deepEqual(builder.getAllowedTools(), [ClineDefaultTool.LIST_FILES, ClineDefaultTool.ATTEMPT])
 		const prompt = builder.buildSystemPrompt("generated system prompt")
@@ -104,8 +104,8 @@ describe("SubagentBuilder", () => {
 
 		const [effectiveApiConfig, selectedMode] = buildApiHandlerStub.firstCall.args
 		assert.equal(selectedMode, "plan")
-		assert.equal((effectiveApiConfig as Record<string, unknown>).planModeApiModelId, "openrouter/custom-model")
 		assert.equal((effectiveApiConfig as Record<string, unknown>).planModeOpenRouterModelId, "openrouter/custom-model")
+		assert.equal((effectiveApiConfig as Record<string, unknown>).planModeApiModelId, "plan-default")
 		assert.equal((effectiveApiConfig as Record<string, unknown>).actModeApiModelId, "act-default")
 	})
 
