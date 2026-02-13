@@ -6,6 +6,7 @@ import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessa
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { isToolGroup } from "../../utils/messageUtils"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {
@@ -60,13 +61,68 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	}, [scrollToMessage, scrolledPastUserMessageIndex])
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
+	const lastVisibleRow = useMemo(() => groupedMessages.at(-1), [groupedMessages])
+	const lastVisibleMessage = useMemo(() => {
+		const lastRow = lastVisibleRow
+		if (!lastRow) {
+			return undefined
+		}
+		return Array.isArray(lastRow) ? lastRow.at(-1) : lastRow
+	}, [lastVisibleRow])
 
 	// Show "Thinking..." in the Footer until real content starts streaming.
 	// This is the sole early loading indicator - RequestStartRow does NOT duplicate it.
 	// Covers: pre-api_req_started (backend processing) AND post-api_req_started (waiting for model).
 	// Hides once reasoning, tools, text, or any other content message appears.
 	const isWaitingForResponse = useMemo(() => {
+		const lastRawMessage = clineMessages.at(-1)
+
 		const lastMsg = modifiedMessages[modifiedMessages.length - 1]
+
+		// Never show thinking while waiting on user input (any ask state).
+		// This includes completion_result, tool approvals, followups, and resume asks.
+		if (lastRawMessage?.type === "ask") {
+			return false
+		}
+		// attempt_completion emits a final say("completion_result") before ask("completion_result").
+		// Treat that final completion message as non-waiting to avoid a brief footer flicker.
+		if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+			return false
+		}
+		if (lastRawMessage?.type === "say" && lastRawMessage.say === "api_req_started") {
+			try {
+				const info = JSON.parse(lastRawMessage.text || "{}")
+				if (info.cancelReason === "user_cancelled") {
+					return false
+				}
+			} catch {
+				// ignore parse errors
+			}
+		}
+
+		// Always show while task has started but no visible rows are rendered yet.
+		if (groupedMessages.length === 0) {
+			return true
+		}
+
+		// Defensive guard for transient states where a grouped row exists
+		// but we still cannot resolve a concrete visible message.
+		if (!lastVisibleMessage) {
+			return true
+		}
+
+		// Always show when the last rendered row is a toolgroup.
+		if (lastVisibleRow && isToolGroup(lastVisibleRow)) {
+			return true
+		}
+
+		// User-requested behavior:
+		// if the last visible row is not actively partial, always show Thinking in the footer.
+		// (some rows like checkpoint_created don't set `partial`, and should be treated as non-partial)
+		if (lastVisibleMessage.partial !== true) {
+			return true
+		}
+
 		if (!lastMsg) {
 			// No messages after the initial task message - new task just started
 			return true
@@ -82,7 +138,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			}
 		}
 		return false
-	}, [modifiedMessages])
+	}, [clineMessages, groupedMessages.length, lastVisibleMessage, lastVisibleRow, modifiedMessages])
 
 	const itemContent = useCallback(
 		createMessageRenderer(
