@@ -97,10 +97,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				bannerWaitTimeoutRef.current = null
 			}
 			waitingForBannersRef.current = false
-			console.log(
-				"[WelcomeSection] Welcome banners received, opening modal:",
-				welcomeBanners.map((banner) => ({ id: banner.id, title: banner.title })),
-			)
 			setShowWhatsNewModal(true)
 			setHasShownWhatsNewModal(true)
 		}

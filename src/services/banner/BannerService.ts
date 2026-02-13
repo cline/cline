@@ -148,8 +148,6 @@ export class BannerService {
 			.map((b) => this.toBannerCardData(b))
 			.filter((b): b is BannerCardData => b !== null)
 
-		Logger.log(`[BannerService] Active banners computed: ${activeBanners.length} of ${this.cachedBanners.length}`)
-
 		return activeBanners
 	}
 
@@ -159,30 +157,12 @@ export class BannerService {
 	 */
 	public getWelcomeBanners(): BannerCardData[] {
 		this.ensureFreshCache()
-		const dismissed = StateManager.get().getGlobalStateKey("dismissedBanners") || []
-		Logger.log(
-			`[BannerService] Dismissed banner ids: ${JSON.stringify(
-				dismissed.map((banner: { bannerId: string }) => banner.bannerId),
-			)}`,
-		)
 
-		const welcomeCandidates = this.cachedBanners.filter((b) => b.placement === "welcome")
-		Logger.log(
-			`[BannerService] Welcome banner candidates: ${JSON.stringify(
-				welcomeCandidates.map((banner) => ({
-					id: banner.id,
-					placement: banner.placement,
-					dismissed: dismissed.some((entry: { bannerId: string }) => entry.bannerId === banner.id),
-				})),
-			)}`,
-		)
-
-		const welcomeBanners = welcomeCandidates
+		const welcomeBanners = this.cachedBanners
+			.filter((b) => b.placement === "welcome")
 			.filter((b) => !this.isBannerDismissed(b.id))
 			.map((b) => this.toBannerCardData(b))
 			.filter((b): b is BannerCardData => b !== null)
-
-		Logger.log(`[BannerService] Welcome banners computed: ${welcomeBanners.length} of ${this.cachedBanners.length}`)
 
 		return welcomeBanners
 	}
@@ -196,7 +176,6 @@ export class BannerService {
 			!this.authFetchPending
 
 		if (shouldFetch) {
-			Logger.log("[BannerService] Cache expired, fetching new banners")
 			this.fetchPromise = this.doFetch()
 			this.fetchPromise.finally(() => {
 				this.fetchPromise = null
@@ -273,9 +252,7 @@ export class BannerService {
 	private async doFetch(): Promise<Banner[]> {
 		// Do not fetch banners when feature flag is off
 		const remoteBannersEnabled = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS)
-		Logger.log(`[BannerService] Remote banners enabled: ${remoteBannersEnabled}`)
 		if (!remoteBannersEnabled) {
-			Logger.log("[BannerService] Skipping fetch because remote banners feature flag is disabled")
 			return []
 		}
 
@@ -285,7 +262,6 @@ export class BannerService {
 
 		try {
 			const url = this.buildFetchUrl()
-			Logger.log(`[BannerService] Fetching banners from: ${url}`)
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
 				...(await buildBasicClineHeaders()),
@@ -295,9 +271,7 @@ export class BannerService {
 				headers.Authorization = `Bearer ${authToken}`
 			}
 
-			Logger.log(`[BannerService] Auth token present: ${Boolean(authToken)}`)
 			const response = await fetch(url, { method: "GET", headers, signal })
-			Logger.log(`[BannerService] Fetch response status: ${response.status} ${response.statusText}`)
 			clearTimeout(timeoutId)
 
 			if (!response.ok) {
@@ -308,25 +282,16 @@ export class BannerService {
 			}
 
 			const data = (await response.json()) as BannersResponse
-			Logger.log(`[BannerService] Raw response: ${JSON.stringify(data)}`)
 
 			if (!data?.data?.items || !Array.isArray(data.data.items)) {
 				Logger.log("BannerService: Invalid response format")
 				return []
 			}
 
-			Logger.log(`[BannerService] Response items: ${data.data.items.length}`)
-
 			const banners = data.data.items.filter((b) => this.matchesProviderRule(b))
 			this.cachedBanners = banners
 			this.lastFetchTime = Date.now()
 			this.consecutiveFailures = 0
-
-			Logger.log(
-				`[BannerService] Processed ${banners.length} banners. Items: ${JSON.stringify(banners.map((b) => ({ id: b.id, placement: b.placement })))}`,
-			)
-
-			Logger.log("[BannerService] Posting updated state to webview after fetch")
 			this.controller.postStateToWebview().catch((error) => {
 				Logger.error("Failed to post state to webview after fetching banners:", error)
 			})
