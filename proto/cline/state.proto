@@ -104,7 +104,7 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 47;
+  optional string openai_codex_oauth_credentials = 48;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -249,7 +249,6 @@ message Settings {
   optional string default_terminal_profile = 137;
   optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
-  optional int32 subagent_terminal_output_line_limit = 140;
   optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;

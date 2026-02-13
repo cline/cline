@@ -46,7 +46,6 @@ export const DEFAULT_PLATFORM = "unknown"
 export type ActiveTaskStatus = "active" | "done" | "error" | "pending"
 
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
-
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
@@ -74,7 +73,6 @@ export interface ExtensionState {
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
 	maxConsecutiveMistakes: number
-	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean
@@ -98,6 +96,7 @@ export interface ExtensionState {
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
+	subagentsEnabled?: boolean
 	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings
@@ -116,7 +115,6 @@ export interface ExtensionState {
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
-	subagentsEnabled?: boolean
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	nativeToolCallSetting?: boolean
@@ -165,6 +163,7 @@ export type ClineAsk =
 	| "condense"
 	| "summarize_task"
 	| "report_bug"
+	| "use_subagents"
 
 export type ClineSay =
 	| "task"
@@ -201,6 +200,9 @@ export type ClineSay =
 	| "task_progress"
 	| "hook_status"
 	| "hook_output_stream"
+	| "subagent"
+	| "use_subagents"
+	| "subagent_usage"
 	| "conditional_rules_applied"
 
 export interface ClineSayTool {
@@ -280,6 +282,39 @@ export interface ClineSayGenerateExplanation {
 	error?: string
 }
 
+export type SubagentExecutionStatus = "pending" | "running" | "completed" | "failed"
+
+export interface SubagentStatusItem {
+	index: number
+	prompt: string
+	status: SubagentExecutionStatus
+	toolCalls: number
+	inputTokens: number
+	outputTokens: number
+	totalCost: number
+	contextTokens: number
+	contextWindow: number
+	contextUsagePercentage: number
+	latestToolCall?: string
+	result?: string
+	error?: string
+}
+
+export interface ClineSaySubagentStatus {
+	status: "running" | "completed" | "failed"
+	total: number
+	completed: number
+	successes: number
+	failures: number
+	toolCalls: number
+	inputTokens: number
+	outputTokens: number
+	contextWindow: number
+	maxContextTokens: number
+	maxContextUsagePercentage: number
+	items: SubagentStatusItem[]
+}
+
 export type BrowserActionResult = {
 	screenshot?: string
 	logs?: string
@@ -293,6 +328,10 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+}
+
+export interface ClineAskUseSubagents {
+	prompts: string[]
 }
 
 export interface ClinePlanModeResponse {
@@ -326,6 +365,15 @@ export interface ClineApiReqInfo {
 		delaySec: number
 		errorSnippet?: string
 	}
+}
+
+export interface ClineSubagentUsageInfo {
+	source: "subagents"
+	tokensIn: number
+	tokensOut: number
+	cacheWrites: number
+	cacheReads: number
+	cost: number
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"

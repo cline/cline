@@ -3,6 +3,7 @@ import type { FileContextTracker } from "@core/context/context-tracking/FileCont
 import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import type { CommandPermissionController } from "@core/permissions"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import type { CommandExecutionOptions } from "@integrations/terminal"
 import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import type { McpHub } from "@services/mcp/McpHub"
@@ -39,6 +40,7 @@ export interface TaskConfig {
 	doubleCheckCompletionEnabled: boolean
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	enableParallelToolCalling: boolean
+	isSubagentExecution: boolean
 	context: vscode.ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)
@@ -104,7 +106,12 @@ export interface TaskCallbacks {
 
 	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
 
-	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
+	executeCommandTool: (
+		command: string,
+		timeoutSeconds: number | undefined,
+		options?: CommandExecutionOptions,
+	) => Promise<[boolean, any]>
+	cancelRunningCommandTool?: () => Promise<boolean>
 
 	doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>
 

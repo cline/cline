@@ -341,8 +341,18 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"sonnet[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	opus: {
-		...anthropicModels["claude-opus-4-1-20250805"],
+		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"opus[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -356,6 +366,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-sonnet-4-5-20250929[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
 		supportsImages: false,
@@ -363,6 +378,11 @@ export const claudeCodeModels = {
 	},
 	"claude-opus-4-6": {
 		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-6[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -4099,11 +4119,20 @@ export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
-// https://docs.z.ai/guides/llm/glm-4.5
+// https://docs.z.ai/guides/llm/glm-5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.7"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5"
 export const internationalZAiModels = {
+	"glm-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.2,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+	},
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
@@ -4149,8 +4178,17 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.7"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5"
 export const mainlandZAiModels = {
+	"glm-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.2,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+	},
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,

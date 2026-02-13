@@ -82,13 +82,8 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "minimax/minimax-m2.1",
-		description: "MiniMax-M2.1 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
-		label: "FREE",
-	},
-	{
-		id: "moonshotai/kimi-k2.5",
-		description: "Moonshot's SOTA Coding Model",
+		id: "minimax/minimax-m2.5",
+		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
 		label: "FREE",
 	},
 	{
@@ -99,11 +94,6 @@ export const freeModels = [
 	{
 		id: "arcee-ai/trinity-large-preview:free",
 		description: "Arcee AI's advanced large preview model in the Trinity series",
-		label: "FREE",
-	},
-	{
-		id: "stealth/giga-potato",
-		description: "A stealth model for coding(may underperform in quality and have longer latency)",
 		label: "FREE",
 	},
 ]
@@ -399,6 +389,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						role="combobox"
 						style={{
 							width: "100%",
 							zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX,
@@ -424,7 +415,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<DropdownList ref={dropdownListRef}>
+						<DropdownList ref={dropdownListRef} role="listbox">
 							{modelSearchResults.map((item, index) => {
 								const isFavorite = (favoritedModelIds || []).includes(item.id)
 								return (
@@ -436,7 +427,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 											setIsDropdownVisible(false)
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => (itemRefs.current[index] = el)}
+										role="option">
 										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 											<span dangerouslySetInnerHTML={{ __html: item.html }} />
 											<StarIcon
