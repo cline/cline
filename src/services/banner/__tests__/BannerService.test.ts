@@ -16,7 +16,7 @@ import { mockFetchForTesting } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "../BannerService"
 
-describe.only("BannerService", () => {
+describe("BannerService", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockFetch: sinon.SinonStub
 	let token: string | null = "fake-token"
