@@ -1,8 +1,20 @@
 # cline
 
+## 2.2.3
+
+### Patch Changes
+
+- e853323: Add .agents/skills as default skill directory (global and local)
+- 3899469: Add comprehensive LLM evaluation framework with CI integration
+
+  - Smoke tests: 7 curated scenarios testing tools across providers (Claude, GPT-5, Gemini)
+  - Analysis framework: pass@k metrics for measuring reliability
+  - CI workflow: Parallel smoke tests on PRs with ~3min execution time
+  - E2E runner: cline-bench integration for real-world task evaluation (local only for now)
+
 ## [2.2.2]
 
--  Allows users to enter custom aws region when selecting bedrock as a provider
+- Allows users to enter custom aws region when selecting bedrock as a provider
 - Prevent Parent Container Scrolling In Dropdowns
 
 ## [2.2.1]
