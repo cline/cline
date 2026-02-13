@@ -327,12 +327,15 @@ export class ToolExecutor {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 * 2. The current model/provider supports native tool calling and handles parallel tools well
 	 */
 	private isParallelToolCallingEnabled(): boolean {
 		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		const modelId = this.api.getModel().id
-		return isParallelToolCallingEnabled(enableParallelSetting, modelId)
+		const model = this.api.getModel()
+		const apiConfig = this.stateManager.getApiConfiguration()
+		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
 	}
 
 	/**
