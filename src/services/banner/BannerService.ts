@@ -266,11 +266,12 @@ export class BannerService {
 
 			const banners = data.data.items.filter((b) => this.matchesProviderRule(b))
 			this.cachedBanners = banners
+			this.lastFetchTime = Date.now()
+			this.consecutiveFailures = 0
+
 			this.controller.postStateToWebview().catch((error) => {
 				Logger.error("Failed to post state to webview after fetching banners:", error)
 			})
-			this.lastFetchTime = Date.now()
-			this.consecutiveFailures = 0
 
 			Logger.log(`[BannerService] Fetched ${banners.length} banner(s) at ${new Date(this.lastFetchTime).toISOString()}`)
 			return banners
