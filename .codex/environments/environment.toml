@@ -32,3 +32,12 @@ rm node_modules
 rm webview-ui/node_modules
 npm run install:all
 '''
+
+[[actions]]
+name = "pull main"
+icon = "tool"
+command = '''
+git fetch origin main                                                                                                                                                             
+git update-ref refs/heads/main refs/remotes/origin/main                         
+echo "main updated to $(git rev-parse --short main)"
+'''
