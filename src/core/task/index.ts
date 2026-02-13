@@ -728,10 +728,23 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
-			const isDuplicateCompletedTextSay =
+			const messages = this.messageStateHandler.getClineMessages()
+			const lastMessage = messages.at(-1)
+			const lastApiReqStartedIndex = findLastIndex(
+				messages,
+				(message) => message.type === "say" && message.say === "api_req_started",
+			)
+			let previousPartialIndex = -1
+			for (let i = messages.length - 1; i > lastApiReqStartedIndex; i--) {
+				const message = messages[i]
+				if (message.partial === true && message.type === "say" && message.say === type) {
+					previousPartialIndex = i
+					break
+				}
+			}
+			const previousPartialMessage = previousPartialIndex !== -1 ? messages[previousPartialIndex] : undefined
+			const isUpdatingPreviousPartial = !!previousPartialMessage
+			const isDuplicateCompletedTextSay = !!(
 				partial &&
 				type === "text" &&
 				lastMessage &&
@@ -739,21 +752,21 @@ export class Task {
 				lastMessage.say === "text" &&
 				!lastMessage.partial &&
 				(lastMessage.text ?? "") === (text ?? "")
+			)
 			if (isDuplicateCompletedTextSay) {
 				return undefined
 			}
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					await this.messageStateHandler.updateClineMessage(previousPartialIndex, {
 						text,
 						images,
 						files,
 						partial,
 					})
 
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const protoMessage = convertClineMessageToProto(previousPartialMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
 				}
@@ -776,10 +789,9 @@ export class Task {
 			// partial=false means its a complete version of a previously partial message
 			if (isUpdatingPreviousPartial) {
 				// this is the complete version of a previously partial message, so replace the partial with the complete version
-				this.taskState.lastMessageTs = lastMessage.ts
-				const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+				this.taskState.lastMessageTs = previousPartialMessage.ts
 				// updateClineMessage emits the change event and saves to disk
-				await this.messageStateHandler.updateClineMessage(lastIndex, {
+				await this.messageStateHandler.updateClineMessage(previousPartialIndex, {
 					text,
 					images,
 					files,
@@ -787,7 +799,7 @@ export class Task {
 				})
 
 				// await this.postStateToWebview()
-				const protoMessage = convertClineMessageToProto(lastMessage)
+				const protoMessage = convertClineMessageToProto(previousPartialMessage)
 				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 				return undefined
 			}
