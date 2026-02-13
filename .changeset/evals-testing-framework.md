@@ -1,5 +1,5 @@
 ---
-"claude-dev": patch
+"cline": patch
 ---
 
 Add comprehensive LLM evaluation framework with CI integration

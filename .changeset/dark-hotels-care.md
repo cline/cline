@@ -1,5 +1,5 @@
 ---
-"claude-dev": patch
+"cline": patch
 ---
 
 Add .agents/skills as default skill directory (global and local)
