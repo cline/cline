@@ -25,12 +25,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
-		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
 		name: "newrule",
 		description: "Create a new Cline rule based on your conversation",
 		section: "default",

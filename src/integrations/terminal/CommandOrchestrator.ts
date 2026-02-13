@@ -36,6 +36,7 @@ import type {
 	ITerminalManager,
 	OrchestrationOptions,
 	OrchestrationResult,
+	TerminalCompletionDetails,
 	TerminalProcessResultPromise,
 } from "./types"
 
@@ -60,7 +61,34 @@ export async function orchestrateCommandExecution(
 		showShellIntegrationSuggestion,
 		onProceedWhileRunning,
 		terminalType = "vscode",
+		suppressUserInteraction = false,
 	} = options
+
+	const say = async (
+		type: Parameters<CommandExecutorCallbacks["say"]>[0],
+		text?: Parameters<CommandExecutorCallbacks["say"]>[1],
+		images?: Parameters<CommandExecutorCallbacks["say"]>[2],
+		files?: Parameters<CommandExecutorCallbacks["say"]>[3],
+		partial?: Parameters<CommandExecutorCallbacks["say"]>[4],
+	): Promise<Awaited<ReturnType<CommandExecutorCallbacks["say"]>>> => {
+		if (suppressUserInteraction) {
+			return undefined
+		}
+
+		return callbacks.say(type, text, images, files, partial)
+	}
+
+	const ask = async (
+		type: Parameters<CommandExecutorCallbacks["ask"]>[0],
+		text?: Parameters<CommandExecutorCallbacks["ask"]>[1],
+		partial?: Parameters<CommandExecutorCallbacks["ask"]>[2],
+	): Promise<Awaited<ReturnType<CommandExecutorCallbacks["ask"]>> | undefined> => {
+		if (suppressUserInteraction) {
+			return undefined
+		}
+
+		return callbacks.ask(type, text, partial)
+	}
 
 	// Track command execution state
 	callbacks.updateBackgroundCommandState(true)
@@ -91,7 +119,7 @@ export async function orchestrateCommandExecution(
 
 	// Chunked terminal output buffering
 	let outputBuffer: string[] = []
-	let outputBufferSize: number = 0
+	let outputBufferSize = 0
 	let chunkTimer: NodeJS.Timeout | null = null
 
 	// Track if buffer gets stuck
@@ -120,7 +148,11 @@ export async function orchestrateCommandExecution(
 			try {
 				// Use ask() to present output and wait for user response
 				// This enables "Proceed While Running" button functionality
-				const { response, text, images, files } = await callbacks.ask("command_output", chunk)
+				const interaction = await ask("command_output", chunk)
+				if (!interaction) {
+					return
+				}
+				const { response, text, images, files } = interaction
 
 				if (response === "yesButtonClicked") {
 					// Track when user clicks "Proceed While Running"
@@ -166,7 +198,7 @@ export async function orchestrateCommandExecution(
 						// Send log file message to UI BEFORE resuming the process
 						// This ensures the message appears before any new output lines
 						if (trackingResult?.logFilePath) {
-							await callbacks.say("command_output", `\n📋 Output is being logged to: ${trackingResult.logFilePath}`)
+							await say("command_output", `\n📋 Output is being logged to: ${trackingResult.logFilePath}`)
 						}
 
 						// Now resume the process - any new lines will be handled by the background tracker
@@ -185,7 +217,7 @@ export async function orchestrateCommandExecution(
 					outputBufferSize = 0
 					// Send cancellation message BEFORE resuming the process
 					// This ensures the message appears before any new output lines
-					await callbacks.say("command_output", "Command cancelled")
+					await say("command_output", "Command cancelled")
 					// Now resume the process
 					process.continue()
 				} else {
@@ -208,7 +240,7 @@ export async function orchestrateCommandExecution(
 			}
 		} else {
 			// After "Proceed While Running": stream output directly to UI
-			await callbacks.say("command_output", chunk)
+			await say("command_output", chunk)
 		}
 	}
 
@@ -244,7 +276,7 @@ export async function orchestrateCommandExecution(
 			outputBufferSize = 0
 			if (!didContinue) {
 				// Use say() instead of ask() since we're transitioning to file mode
-				await callbacks.say("command_output", chunk)
+				await say("command_output", chunk)
 			}
 		}
 
@@ -270,7 +302,7 @@ export async function orchestrateCommandExecution(
 		lastLines = outputLines.slice(-SUMMARY_LINES_TO_KEEP)
 
 		// FINALLY: Notify user (now this will appear at the end after all buffered output)
-		await callbacks.say(
+		await say(
 			"command_output",
 			`\n📋 Output is large (${outputLines.length} lines, ${Math.round(totalOutputBytes / 1024)}KB). Writing to: ${largeOutputLogPath}`,
 		)
@@ -345,12 +377,13 @@ export async function orchestrateCommandExecution(
 			// After "Proceed While Running" (without background tracking): stream output directly to UI
 			// But throttle if we're in file mode to avoid flooding UI
 			if (!isWritingToFile) {
-				await callbacks.say("command_output", line)
+				await say("command_output", line)
 			}
 		}
 	})
 
 	let completed = false
+	let completionDetails: TerminalCompletionDetails | undefined
 	let completionTimer: NodeJS.Timeout | null = null
 
 	// Start timer to detect if waiting for completion takes too long
@@ -361,8 +394,9 @@ export async function orchestrateCommandExecution(
 		}
 	}, COMPLETION_TIMEOUT_MS)
 
-	process.once("completed", async () => {
+	process.once("completed", async (details?: TerminalCompletionDetails) => {
 		completed = true
+		completionDetails = details
 		// Clear the completion timer
 		if (completionTimer) {
 			clearTimeout(completionTimer)
@@ -380,9 +414,9 @@ export async function orchestrateCommandExecution(
 
 	process.once("no_shell_integration", async () => {
 		if (showShellIntegrationSuggestion) {
-			await callbacks.say("shell_integration_warning_with_suggestion")
+			await say("shell_integration_warning_with_suggestion")
 		} else {
-			await callbacks.say("shell_integration_warning")
+			await say("shell_integration_warning")
 		}
 	})
 
@@ -432,7 +466,7 @@ export async function orchestrateCommandExecution(
 
 						// Send log file message to UI BEFORE resuming the process
 						if (trackingResult?.logFilePath) {
-							await callbacks.say(
+							await say(
 								"command_output",
 								`\n⏱️ Command timed out. Output is being logged to: ${trackingResult.logFilePath}`,
 							)
@@ -514,11 +548,13 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: completionDetails?.exitCode,
+			signal: completionDetails?.signal,
 		}
 	}
 
 	if (userFeedback) {
-		await callbacks.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
+		await say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
 
 		let fileContentString = ""
 		if (userFeedback.files && userFeedback.files.length > 0) {
@@ -537,29 +573,45 @@ export async function orchestrateCommandExecution(
 			completed: false,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode: completionDetails?.exitCode,
+			signal: completionDetails?.signal,
 		}
 	}
 
 	if (completed) {
+		const exitCode = completionDetails?.exitCode
+		const signal = completionDetails?.signal
+		const hasExitCode = typeof exitCode === "number"
 		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+		const statusMessage = hasExitCode
+			? exitCode === 0
+				? "Command executed successfully (exit code 0)."
+				: `Command failed with exit code ${exitCode}.`
+			: signal
+				? `Command terminated by signal ${signal}.`
+				: "Command executed."
+
 		return {
 			userRejected: false,
-			result: `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
+			result: `${statusMessage}${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
 			completed: true,
 			outputLines: resultOutputLines,
 			logFilePath: largeOutputLogPath || undefined,
+			exitCode,
+			signal,
 		}
-	} else {
-		const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
-		return {
-			userRejected: false,
-			result: `Command is still running in the user's terminal.${
-				result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-			}${logFileMsg}\n\nYou will be updated on the terminal status and new output in the future.`,
-			completed: false,
-			outputLines: resultOutputLines,
-			logFilePath: largeOutputLogPath || undefined,
-		}
+	}
+	const logFileMsg = largeOutputLogPath ? `\nFull output saved to: ${largeOutputLogPath}` : ""
+	return {
+		userRejected: false,
+		result: `Command is still running in the user's terminal.${
+			result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+		}${logFileMsg}\n\nYou will be updated on the terminal status and new output in the future.`,
+		completed: false,
+		outputLines: resultOutputLines,
+		logFilePath: largeOutputLogPath || undefined,
+		exitCode: completionDetails?.exitCode,
+		signal: completionDetails?.signal,
 	}
 }
 

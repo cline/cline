@@ -1,5 +1,5 @@
 import { ApiFormat } from "./proto/cline/models"
-import { ApiHandlerSettings } from "./storage/state-keys"
+import type { ApiHandlerSettings } from "./storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -126,6 +126,22 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		cacheReadsPrice: 0.6,
 	},
 ]
+export const CLAUDE_OPUS_1M_TIERS = [
+	{
+		contextWindow: 200000,
+		inputPrice: 5.0,
+		outputPrice: 25,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	{
+		contextWindow: Number.MAX_SAFE_INTEGER,
+		inputPrice: 10,
+		outputPrice: 37.5,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1.0,
+	},
+]
 
 export interface HicapCompatibleModelInfo extends ModelInfo {
 	temperature?: number
@@ -204,6 +220,29 @@ export const anthropicModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
+	"claude-opus-4-6": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"claude-opus-4-6:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-5-20251101": {
 		maxTokens: 8192,
@@ -302,8 +341,18 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"sonnet[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	opus: {
-		...anthropicModels["claude-opus-4-1-20250805"],
+		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"opus[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -317,8 +366,23 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-sonnet-4-5-20250929[1m]": {
+		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-6": {
+		...anthropicModels["claude-opus-4-6"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-opus-4-6[1m]": {
+		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -415,6 +479,31 @@ export const bedrockModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
+	"anthropic.claude-opus-4-6-v1": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+	},
+	"anthropic.claude-opus-4-6-v1:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
 		maxTokens: 8192,
@@ -624,6 +713,7 @@ export const bedrockModels = {
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
 export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -804,6 +894,31 @@ export const vertexModels = {
 		cacheWritesPrice: 1.25,
 		cacheReadsPrice: 0.1,
 		supportsReasoning: true,
+	},
+	"claude-opus-4-6": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+	},
+	"claude-opus-4-6:1m": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-5@20251101": {
 		maxTokens: 8192,
@@ -1010,7 +1125,7 @@ export const vertexModels = {
 				cacheReadsPrice: 0.31,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 2.5,
 				outputPrice: 15,
 				cacheReadsPrice: 0.625,
@@ -1079,7 +1194,7 @@ export const vertexModels = {
 				cacheReadsPrice: 0.01875,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
 				cacheReadsPrice: 0.0375,
@@ -1162,7 +1277,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.2,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 4.0,
 				outputPrice: 18.0,
 				cacheReadsPrice: 0.4,
@@ -1191,7 +1306,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.03,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.3,
 				outputPrice: 2.5,
 				cacheReadsPrice: 0.03,
@@ -1217,7 +1332,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.31,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 2.5,
 				outputPrice: 15,
 				cacheReadsPrice: 0.625,
@@ -1318,7 +1433,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.01875,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.15,
 				outputPrice: 0.6,
 				cacheReadsPrice: 0.0375,
@@ -1653,8 +1768,20 @@ export const openAiNativeModels = {
 // Uses OAuth authentication via ChatGPT, routes to chatgpt.com/backend-api/codex/responses
 // Subscription-based pricing (all costs are $0)
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
-export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.2-codex"
+export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.3-codex"
 export const openAiCodexModels = {
+	"gpt-5.3-codex": {
+		maxTokens: 128_000,
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.3 Codex: OpenAI's latest flagship coding model via ChatGPT subscription",
+	},
 	"gpt-5.2-codex": {
 		maxTokens: 128_000,
 		contextWindow: 400_000,
@@ -3992,11 +4119,20 @@ export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
-// https://docs.z.ai/guides/llm/glm-4.5
+// https://docs.z.ai/guides/llm/glm-5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.7"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5"
 export const internationalZAiModels = {
+	"glm-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.2,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+	},
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
@@ -4042,8 +4178,17 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.7"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5"
 export const mainlandZAiModels = {
+	"glm-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.2,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+	},
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
@@ -4087,7 +4232,7 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.057,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.29,
 				outputPrice: 1.14,
 				cacheReadsPrice: 0.057,
@@ -4119,7 +4264,7 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.017,
 			},
 			{
-				contextWindow: Infinity,
+				contextWindow: Number.POSITIVE_INFINITY,
 				inputPrice: 0.086,
 				outputPrice: 0.57,
 				cacheReadsPrice: 0.017,

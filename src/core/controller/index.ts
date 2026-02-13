@@ -35,7 +35,6 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
-import { BannerCardData } from "@/shared/cline/banner"
 import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -250,7 +249,6 @@ export class Controller {
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
-		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
@@ -314,7 +312,6 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
-			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -416,10 +413,9 @@ export class Controller {
 				)
 
 				return true
-			} else {
-				this.cancelTask()
-				return false
 			}
+			this.cancelTask()
+			return false
 		}
 
 		return false
@@ -759,6 +755,30 @@ export class Controller {
 		return undefined
 	}
 
+	// Hicap
+	async handleHicapCallback(code: string) {
+		const apiKey: string = code
+
+		const hicap: ApiProvider = "hicap"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+
+		// Update API configuration through cache service
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: hicap,
+			actModeApiProvider: hicap,
+			hicapApiKey: apiKey,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+
+		await this.postStateToWebview()
+		this.accountService
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -832,11 +852,11 @@ export class Controller {
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
 		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
@@ -861,13 +881,12 @@ export class Controller {
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const maxConsecutiveMistakes = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
-		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
 		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
-		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -893,7 +912,7 @@ export class Controller {
 		const version = ExtensionRegistryInfo.version
 		const clineConfig = ClineEnv.config()
 		const environment = clineConfig.environment
-		const banners = await this.getBanners()
+		const banners = BannerService.get()?.getActiveBanners() ?? []
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
@@ -917,11 +936,11 @@ export class Controller {
 			focusChainSettings,
 			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
-			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
 			yoloModeToggled,
 			useAutoCondense,
+			subagentsEnabled,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -952,7 +971,6 @@ export class Controller {
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 			maxConsecutiveMistakes,
-			subagentTerminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
@@ -982,11 +1000,11 @@ export class Controller {
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 			lastDismissedCliBannerVersion,
 			dismissedBanners,
-			subagentsEnabled,
 			nativeToolCallSetting: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+			doubleCheckCompletionEnabled,
 			banners,
 			openAiCodexIsAuthenticated,
 		}
@@ -1029,14 +1047,5 @@ export class Controller {
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
-	}
-
-	async getBanners(): Promise<BannerCardData[]> {
-		try {
-			return BannerService.get().getActiveBanners()
-		} catch (err) {
-			Logger.log(err)
-			return []
-		}
 	}
 }

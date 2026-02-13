@@ -1,6 +1,8 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import { AnthropicModelId, anthropicModels } from "@/shared/api"
 
+export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
+
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
@@ -8,6 +10,7 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	return [
 		"cline",
 		"anthropic",
+		"bedrock",
 		"gemini",
 		"vertex",
 		"openrouter",
@@ -62,7 +65,7 @@ export function isClaude4PlusModelFamily(id: string): boolean {
 	if (!versionMatch) {
 		return false
 	}
-	const version = parseFloat(versionMatch[1])
+	const version = Number.parseFloat(versionMatch[1])
 	// Check if version is 4.0 or higher
 	return version >= 4
 }
@@ -95,6 +98,8 @@ export function isGPT52Model(id: string): boolean {
 export function isGLMModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
+		modelId.includes("glm-5") ||
+		modelId.includes("glm-4.7") ||
 		modelId.includes("glm-4.6") ||
 		modelId.includes("glm-4.5") ||
 		modelId.includes("z-ai/glm") ||
@@ -181,7 +186,7 @@ export function parsePrice(priceString: string | undefined): number {
 	if (!priceString || priceString === "" || priceString === "0") {
 		return 0
 	}
-	const parsed = parseFloat(priceString)
+	const parsed = Number.parseFloat(priceString)
 	if (Number.isNaN(parsed)) {
 		return 0
 	}
@@ -205,6 +210,22 @@ export function isNativeToolCallingConfig(providerInfo: ApiProviderInfo, enableN
 	}
 	const modelId = providerInfo.model.id.toLowerCase()
 	return isNextGenModelFamily(modelId)
+}
+
+/**
+ * Check if parallel tool calling is enabled.
+ * Parallel tool calling is enabled if:
+ * 1. User has enabled it in settings, OR
+ * 2. The current model/provider supports native tool calling and handles parallel tools well
+ */
+export function isParallelToolCallingEnabled(enableParallelSetting: boolean, providerInfo: ApiProviderInfo): boolean {
+	if (enableParallelSetting) {
+		return true
+	}
+	if (!providerInfo.providerId) {
+		return false
+	}
+	return isNativeToolCallingConfig(providerInfo, true) || isGPT5ModelFamily(providerInfo.model.id)
 }
 
 function normalize(text: string): string {

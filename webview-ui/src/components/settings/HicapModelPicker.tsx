@@ -33,7 +33,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 	const { apiConfiguration, favoritedModelIds, hicapModels, refreshHicapModels } = useExtensionState()
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.hicapModelId || "gpt-5")
+	const [searchTerm, setSearchTerm] = useState(modeFields.hicapModelId || "")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -60,7 +60,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.hicapModelId || "gpt-5"
+		const currentModelId = modeFields.hicapModelId || ""
 		setSearchTerm(currentModelId)
 	}, [modeFields.hicapModelId])
 
@@ -180,6 +180,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						role="combobox"
 						style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX }}
 						value={searchTerm}>
 						{searchTerm && (
@@ -201,6 +202,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 							border border-[var(--vscode-list-activeSelectionBackground)]
 							rounded-b-[3px]"
 							ref={dropdownListRef}
+							role="listbox"
 							style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX - 1 }}>
 							{modelSearchResults.map((item, index) => {
 								const isFavorite = (favoritedModelIds || []).includes(item.id)
@@ -215,7 +217,8 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 											setIsDropdownVisible(false)
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => (itemRefs.current[index] = el)}
+										role="option">
 										<div className="flex justify-between items-center [&_.model-item-highlight]:bg-[var(--vscode-editor-findMatchHighlightBackground)] [&_.model-item-highlight]:text-inherit">
 											<span dangerouslySetInnerHTML={{ __html: item.html }} />
 											<StarIcon

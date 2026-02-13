@@ -1,7 +1,7 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -12,10 +12,15 @@ import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { DropdownContainer } from "./common/ModelSelector"
 import FeaturedModelCard from "./FeaturedModelCard"
+import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { filterOpenRouterModelIds, getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import {
+	filterOpenRouterModelIds,
+	getModeSpecificFields,
+	normalizeApiConfiguration,
+	supportsReasoningEffortForModelId,
+} from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -56,17 +61,17 @@ export const recommendedModels = [
 	{
 		id: "google/gemini-3-flash-preview",
 		description: "Intelligent model built for speed and price efficiency",
-		label: "NEW",
+		label: "HOT",
 	},
 	{
-		id: "anthropic/claude-opus-4.5",
-		description: "State-of-the-art for complex coding",
-		label: "HOT",
+		id: "anthropic/claude-opus-4.6",
+		description: "Most intelligent model for agents and coding",
+		label: "NEW",
 	},
 	{
 		id: "openai/gpt-5.2-codex",
 		description: "OpenAI's latest with strong coding abilities",
-		label: "NEW",
+		label: "HOT",
 	},
 	{
 		id: "google/gemini-3-pro-preview",
@@ -77,6 +82,11 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
+		id: "minimax/minimax-m2.5",
+		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+		label: "FREE",
+	},
+	{
 		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
@@ -84,11 +94,6 @@ export const freeModels = [
 	{
 		id: "arcee-ai/trinity-large-preview:free",
 		description: "Arcee AI's advanced large preview model in the Trinity series",
-		label: "FREE",
-	},
-	{
-		id: "stealth/giga-potato",
-		description: "A stealth model for coding(may underperform in quality and have longer latency)",
 		label: "FREE",
 	},
 ]
@@ -101,7 +106,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	showProviderRouting,
 	initialTab,
 }) => {
-	const { handleModeFieldChange, handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -285,28 +290,28 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		}
 	}, [selectedIndex])
 
+	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
+	const showReasoningEffort = useMemo(() => supportsReasoningEffortForModelId(selectedModelId), [selectedModelId])
+
 	const showBudgetSlider = useMemo(() => {
+		if (showReasoningEffort) {
+			return false
+		}
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
-			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
-			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
-			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
-			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
-			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
-			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
-			selectedModelId?.toLowerCase().includes("claude-opus-4.5") ||
-			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
+			selectedModelIdLower.includes("claude-opus-4.6") ||
+			selectedModelIdLower.includes("claude-haiku-4.5") ||
+			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.5") ||
+			selectedModelIdLower.includes("claude-sonnet-4") ||
+			selectedModelIdLower.includes("claude-opus-4.1") ||
+			selectedModelIdLower.includes("claude-opus-4") ||
+			selectedModelIdLower.includes("claude-opus-4.5") ||
+			selectedModelIdLower.includes("claude-3-7-sonnet") ||
+			selectedModelIdLower.includes("claude-3.7-sonnet") ||
+			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
 		)
-	}, [selectedModelId])
-
-	const showThinkingLevel = useMemo(() => {
-		return selectedModelId?.toLowerCase().includes("gemini") && selectedModelId?.includes("3")
-	}, [selectedModelId])
-
-	const geminiThinkingLevel =
-		currentMode === "plan" ? apiConfiguration?.geminiPlanModeThinkingLevel : apiConfiguration?.geminiActModeThinkingLevel
+	}, [openRouterModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -384,6 +389,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						role="combobox"
 						style={{
 							width: "100%",
 							zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX,
@@ -409,7 +415,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<DropdownList ref={dropdownListRef}>
+						<DropdownList ref={dropdownListRef} role="listbox">
 							{modelSearchResults.map((item, index) => {
 								const isFavorite = (favoritedModelIds || []).includes(item.id)
 								return (
@@ -421,7 +427,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 											setIsDropdownVisible(false)
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => (itemRefs.current[index] = el)}
+										role="option">
 										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 											<span dangerouslySetInnerHTML={{ __html: item.html }} />
 											<StarIcon
@@ -440,6 +447,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{/* Context window switcher for Claude Opus 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher
@@ -460,29 +475,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && !showThinkingLevel && <ThinkingBudgetSlider currentMode={currentMode} />}
-
-					{showThinkingLevel && (
-						<DropdownContainer className="dropdown-container" zIndex={1}>
-							<label htmlFor="thinking-level">
-								<span className="font-medium">Thinking Level</span>
-							</label>
-							<VSCodeDropdown
-								className="w-full"
-								id="thinking-level"
-								onChange={(e: any) =>
-									handleModeFieldChange(
-										{ plan: "geminiPlanModeThinkingLevel", act: "geminiActModeThinkingLevel" },
-										e.target.value,
-										currentMode,
-									)
-								}
-								value={geminiThinkingLevel || "high"}>
-								<VSCodeOption value="low">Low</VSCodeOption>
-								<VSCodeOption value="high">High</VSCodeOption>
-							</VSCodeDropdown>
-						</DropdownContainer>
-					)}
+					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
 					<ModelInfoView
 						isPopup={isPopup}

@@ -142,6 +142,17 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 		printInfo("Shutting down...")
 		return proto.cline.Empty.create()
 	}
+
+	async openExternal(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
+		const url = request.value || ""
+		if (url) {
+			printInfo(`🌐 Opening: ${url}`)
+			// Dynamically import 'open' to open URL in default browser
+			const { default: open } = await import("open")
+			await open(url)
+		}
+		return proto.cline.Empty.create()
+	}
 }
 
 /**
