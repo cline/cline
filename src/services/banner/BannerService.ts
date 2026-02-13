@@ -251,8 +251,7 @@ export class BannerService {
 
 	private async doFetch(): Promise<Banner[]> {
 		// Do not fetch banners when feature flag is off
-		const remoteBannersEnabled = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS)
-		if (!remoteBannersEnabled) {
+		if (!featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS)) {
 			return []
 		}
 
@@ -282,7 +281,6 @@ export class BannerService {
 			}
 
 			const data = (await response.json()) as BannersResponse
-
 			if (!data?.data?.items || !Array.isArray(data.data.items)) {
 				Logger.log("BannerService: Invalid response format")
 				return []
@@ -292,6 +290,7 @@ export class BannerService {
 			this.cachedBanners = banners
 			this.lastFetchTime = Date.now()
 			this.consecutiveFailures = 0
+
 			this.controller.postStateToWebview().catch((error) => {
 				Logger.error("Failed to post state to webview after fetching banners:", error)
 			})
