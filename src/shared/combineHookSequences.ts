@@ -63,22 +63,26 @@ function parseHookMetadata(hookMessage: ClineMessage): HookMetadata | null {
 // ============================================================================
 
 /**
- * Filters out partial tool/command messages while preserving all other types.
- * Reasoning messages are always kept, even if marked partial.
+ * Deduplicates tool/command messages by timestamp while preserving all
+ * non-tool messages and the newest tool/command version for each timestamp.
  *
- * This prevents duplicate messages during React render cycles where partial
- * messages are removed and replaced with complete versions.
+ * This preserves streaming partial tool rows in the UI while still preventing
+ * duplicate tool/command entries when both partial and final variants exist.
  */
-function filterPartialToolMessages(messages: ClineMessage[]): ClineMessage[] {
-	return messages.filter((msg) => {
-		// Always keep reasoning messages
-		if (msg.say === "reasoning") {
+function dedupeToolOrCommandMessagesByTimestamp(messages: ClineMessage[]): ClineMessage[] {
+	const lastToolOrCommandIndexByTs = new Map<number, number>()
+
+	for (let i = 0; i < messages.length; i++) {
+		if (isToolOrCommandMessage(messages[i])) {
+			lastToolOrCommandIndexByTs.set(messages[i].ts, i)
+		}
+	}
+
+	return messages.filter((msg, index) => {
+		if (!isToolOrCommandMessage(msg)) {
 			return true
 		}
-
-		// Filter out partial tool/command messages only
-		const isToolOrCommand = isToolOrCommandMessage(msg)
-		return !(isToolOrCommand && msg.partial === true)
+		return lastToolOrCommandIndexByTs.get(msg.ts) === index
 	})
 }
 
@@ -343,7 +347,7 @@ function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map
  * PreToolUse hooks to appear before their associated tool messages.
  *
  * Process:
- * 1. Filter out partial tool/command messages (React render cycle cleanup)
+ * 1. Deduplicate tool/command messages by timestamp (preserve newest variant)
  * 2. Combine hooks with their hook_output messages
  * 3. Build mapping of tools to their PreToolUse hooks
  * 4. Reorder so PreToolUse hooks appear before their tools
@@ -352,8 +356,8 @@ function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map
  * @returns New array with hooks combined and PreToolUse hooks reordered
  */
 export function combineHookSequences(messages: ClineMessage[]): ClineMessage[] {
-	// Phase 1: Filter out partial tool/command messages
-	const filtered = filterPartialToolMessages(messages)
+	// Phase 1: Deduplicate tool/command messages while preserving streaming partials
+	const filtered = dedupeToolOrCommandMessagesByTimestamp(messages)
 
 	// Phase 2: Combine hooks with their outputs
 	const combined = combineAllHooks(filtered)
