@@ -183,7 +183,7 @@ export class BannerService {
 
 	public async sendBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
 		try {
-			const url = new URL("/banners/v1/events", ClineEnv.config().apiBaseUrl).toString()
+			const url = new URL("/banners/v2/messages", ClineEnv.config().apiBaseUrl).toString()
 			const ideType = this.getIdeType()
 			const surface = ideType === "cli" ? "cli" : ideType === "jetbrains" ? "jetbrains" : "vscode"
 
@@ -240,7 +240,7 @@ export class BannerService {
 			}
 			const authToken = await AuthService.getInstance().getAuthToken()
 			if (authToken) {
-				headers["Authorization"] = `Bearer ${authToken}`
+				headers.Authorization = `Bearer ${authToken}`
 			}
 
 			const response = await fetch(url, { method: "GET", headers, signal })
