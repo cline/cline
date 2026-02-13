@@ -37,8 +37,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
-	// Track whether we're waiting for welcome banners before opening the modal.
-	// Uses a ref (not state) to avoid re-renders that would trigger useEffect cleanup and clear the timeout.
 	const waitingForBannersRef = useRef(false)
 	const bannerWaitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -106,7 +104,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		setShowWhatsNewModal(false)
 		// Call hideAnnouncement to persist dismissal (same as old banner behavior)
 		hideAnnouncement()
-		// Also dismiss each welcome banner by ID so they won't reappear
 		if (welcomeBanners && welcomeBanners.length > 0) {
 			for (const banner of welcomeBanners) {
 				StateServiceClient.dismissBanner({ value: banner.id }).catch(console.error)
