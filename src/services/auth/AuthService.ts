@@ -101,7 +101,7 @@ export class AuthService {
 				AuthService.instance = new AuthService(controller)
 			}
 			// Initialize BannerService after AuthService is created
-			BannerService.initialize()
+			BannerService.initialize(controller)
 		}
 		if (controller !== undefined && AuthService.instance) {
 			AuthService.instance.controller = controller

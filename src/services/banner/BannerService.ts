@@ -1,6 +1,7 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import { ClineEnv } from "@/config"
+import { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostInfo, HostRegistryInfo } from "@/registry"
 import { fetch } from "@/shared/net"
@@ -57,12 +58,15 @@ export class BannerService {
 
 	private readonly validActionTypes: Set<string>
 
-	private constructor(private readonly hostInfo: HostInfo) {
+	private constructor(
+		private readonly controller: Controller,
+		private readonly hostInfo: HostInfo,
+	) {
 		this.validActionTypes = new Set(Object.values(BannerActionType))
 		Logger.log("[BannerService] initialized")
 	}
 
-	public static initialize(): BannerService {
+	public static initialize(controller: Controller): BannerService {
 		if (BannerService.instance) {
 			return BannerService.instance
 		}
@@ -70,13 +74,15 @@ export class BannerService {
 		if (!hostInfo) {
 			throw new Error("[BannerService] Ensure HostRegistryInfo is initialized before BannerService.")
 		}
-		BannerService.instance = new BannerService(hostInfo)
+		BannerService.instance = new BannerService(controller, hostInfo)
 		return BannerService.instance
 	}
 
-	public static get(): BannerService | null {
-		if (!BannerService.instance && !HostRegistryInfo.get()) return null
-		return BannerService.instance ?? BannerService.initialize()
+	public static get(): BannerService {
+		if (!BannerService.instance) {
+			throw new Error("BannerService not initialized. Call BannerService.initialize(controller) first.")
+		}
+		return BannerService.instance
 	}
 
 	public static reset(): void {
@@ -136,7 +142,6 @@ export class BannerService {
 	public getActiveBanners(): BannerCardData[] {
 		const now = Date.now()
 		const shouldFetch =
-			featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS) &&
 			now >= this.backoffUntil &&
 			now - this.lastFetchTime >= CACHE_DURATION_MS &&
 			!this.fetchPromise &&
@@ -263,6 +268,10 @@ export class BannerService {
 			this.cachedBanners = banners
 			this.lastFetchTime = Date.now()
 			this.consecutiveFailures = 0
+
+			this.controller.postStateToWebview().catch((error) => {
+				Logger.error("Failed to post state to webview after fetching banners:", error)
+			})
 
 			Logger.log(`[BannerService] Fetched ${banners.length} banner(s) at ${new Date(this.lastFetchTime).toISOString()}`)
 			return banners
