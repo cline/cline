@@ -6,6 +6,7 @@ import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
+import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
@@ -120,7 +121,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			// Use smarter error with progressive guidance and token budget awareness
 			const relPath = rawRelPath || "unknown"
-			const contextUsagePercent = this.getContextUsagePercent(config)
+			const contextWindow = config.api.getModel().info.contextWindow ?? 128_000
+			const lastApiReqTotalTokens = getLastApiReqTotalTokens(config.messageState.getClineMessages())
+			const contextUsagePercent = contextWindow > 0 ? Math.round((lastApiReqTotalTokens / contextWindow) * 100) : 0
 			const errorMessage = formatResponse.writeToFileMissingContentError(
 				relPath,
 				config.taskState.consecutiveMistakeCount,
@@ -513,35 +516,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices }
-	}
-
-	/**
-	 * Compute the approximate context window usage percentage.
-	 * Uses the last api_req_started message to get token counts and the model's context window size.
-	 * Returns undefined if the information is not available.
-	 */
-	private getContextUsagePercent(config: TaskConfig): number | undefined {
-		try {
-			const clineMessages = config.messageState.getClineMessages()
-			const modelInfo = config.api.getModel()
-			const contextWindow = modelInfo.info.contextWindow ?? 128_000
-
-			// Find the last api_req_started message with token data
-			for (let i = clineMessages.length - 1; i >= 0; i--) {
-				const msg = clineMessages[i]
-				if (msg.say === "api_req_started" && msg.text) {
-					const parsed = JSON.parse(msg.text)
-					const totalTokens =
-						(parsed.tokensIn || 0) + (parsed.tokensOut || 0) + (parsed.cacheWrites || 0) + (parsed.cacheReads || 0)
-					if (totalTokens > 0) {
-						return Math.round((totalTokens / contextWindow) * 100)
-					}
-				}
-			}
-			return undefined
-		} catch {
-			return undefined
-		}
 	}
 
 	private getModelInfo(config: TaskConfig) {
