@@ -1,8 +1,7 @@
-import type { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
-import type { Mode } from "@shared/storage/types"
-import type { LucideIcon } from "lucide-react"
-import type React from "react"
-import { useMemo } from "react"
+import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import { Mode } from "@shared/storage/types"
+import { LucideIcon } from "lucide-react"
+import React, { useMemo } from "react"
 import { cleanPathPrefix } from "../common/CodeAccordian"
 import { getIconByToolName } from "./chat-view"
 import { isApiReqAbsorbable, isLowStakesTool } from "./chat-view/utils/messageUtils"
@@ -207,11 +206,50 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	// (otherwise they'll be shown in the unified ToolGroupRenderer list)
 	const shouldShowActivities = currentActivities.length > 0 && !hasCompletedTools
 
-	// Initial loading ("Thinking..." before any content) is handled by the MessagesArea Footer
-	// to avoid flicker during the handoff between Footer and this component.
+	// Detect "waiting for anything to happen" state - shows "Working..." shimmer
+	const isWaitingForContent = useMemo(() => {
+		// Don't show if there's already content
+		if (reasoningContent || hasError || hasCost) {
+			return false
+		}
+
+		// Find current api_req
+		const currentApiReq = findCurrentApiReq(clineMessages)
+		if (!currentApiReq || currentApiReq.hasCost) {
+			return false
+		}
+
+		// Check if there's ANY content after this api_req
+		const hasAnyContent = clineMessages
+			.slice(currentApiReq.index + 1)
+			.some(
+				(msg) =>
+					msg.say === "reasoning" ||
+					msg.say === "text" ||
+					msg.ask === "tool" ||
+					msg.say === "tool" ||
+					msg.say === "command" ||
+					msg.ask === "command",
+			)
+
+		return !hasAnyContent
+	}, [clineMessages, reasoningContent, hasError, hasCost])
 
 	return (
 		<div>
+			{/* Show inline streaming "Thinking..." when reasoning is active but not yet complete.
+			    This keeps thinking anchored to the request row instead of the Virtuoso footer,
+			    preventing a visual "jump" when followup options stream in and grow the row. */}
+			{reasoningContent && !hasCost && (
+				<div className="ml-1 pl-0 mb-1 -mt-1.25 pt-1">
+					<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
+						<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+							Thinking...
+						</span>
+					</div>
+				</div>
+			)}
+
 			{apiReqState === "pre" && shouldShowActivities && (
 				<div className="flex items-center text-description w-full text-sm">
 					<div className="ml-1 flex-1 w-full h-full">
@@ -226,26 +264,17 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					</div>
 				</div>
 			)}
-			{reasoningContent &&
-				(!hasCost ? (
-					// Still streaming - show "Thinking..." text with shimmer
-					<div className="ml-1 pl-0 mb-1 -mt-1.25 pt-1">
-						<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
-							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
-								Thinking...
-							</span>
-						</div>
-					</div>
-				) : (
-					// Complete - always show collapsible "Thoughts" section
-					<ThinkingRow
-						isExpanded={isExpanded}
-						isVisible={true}
-						onToggle={handleToggle}
-						reasoningContent={reasoningContent}
-						showTitle={true}
-					/>
-				))}
+
+			{/* Only show ThinkingRow when completed (hasCost) */}
+			{reasoningContent && hasCost && (
+				<ThinkingRow
+					isExpanded={isExpanded}
+					isVisible={true}
+					onToggle={handleToggle}
+					reasoningContent={reasoningContent}
+					showTitle={true}
+				/>
+			)}
 
 			{apiReqState === "error" && (
 				<ErrorRow

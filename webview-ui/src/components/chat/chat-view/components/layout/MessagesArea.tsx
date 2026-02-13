@@ -1,11 +1,11 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import type React from "react"
-import { useCallback, useMemo } from "react"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import React, { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {
@@ -15,6 +15,10 @@ interface MessagesAreaProps {
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
+	isReasoningActive?: boolean
+	isWaitingForContent?: boolean
+	streamingReasoningContent?: string
+	supportsStreaming?: boolean
 }
 
 /**
@@ -28,8 +32,34 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	scrollBehavior,
 	chatState,
 	messageHandlers,
+	isReasoningActive,
+	isWaitingForContent,
+	streamingReasoningContent,
+	supportsStreaming,
 }) => {
 	const { clineMessages } = useExtensionState()
+	const [isStreamingReasoningExpanded, setIsStreamingReasoningExpanded] = React.useState(true)
+	const reasoningScrollRef = React.useRef<HTMLDivElement>(null)
+	const rafPendingRef = React.useRef(false)
+
+	// Auto-scroll reasoning content to bottom as it streams.
+	// Uses a pending-RAF guard so rapid content updates coalesce into a single
+	// scroll-to-bottom per frame instead of queuing redundant callbacks that
+	// could race with DOM updates during fast streams.
+	React.useEffect(() => {
+		if (reasoningScrollRef.current && streamingReasoningContent && isStreamingReasoningExpanded) {
+			if (!rafPendingRef.current) {
+				rafPendingRef.current = true
+				requestAnimationFrame(() => {
+					rafPendingRef.current = false
+					const scrollElement = reasoningScrollRef.current
+					if (scrollElement) {
+						scrollElement.scrollTop = scrollElement.scrollHeight
+					}
+				})
+			}
+		}
+	}, [streamingReasoningContent, isStreamingReasoningExpanded])
 
 	const {
 		virtuosoRef,
@@ -61,29 +91,6 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
 
-	// Show "Thinking..." in the Footer until real content starts streaming.
-	// This is the sole early loading indicator - RequestStartRow does NOT duplicate it.
-	// Covers: pre-api_req_started (backend processing) AND post-api_req_started (waiting for model).
-	// Hides once reasoning, tools, text, or any other content message appears.
-	const isWaitingForResponse = useMemo(() => {
-		const lastMsg = modifiedMessages[modifiedMessages.length - 1]
-		if (!lastMsg) {
-			// No messages after the initial task message - new task just started
-			return true
-		}
-		if (lastMsg.say === "user_feedback" || lastMsg.say === "user_feedback_diff") return true
-		if (lastMsg.say === "api_req_started") {
-			try {
-				const info = JSON.parse(lastMsg.text || "{}")
-				// Still in progress (no cost) and nothing has streamed after it yet
-				return info.cost == null
-			} catch {
-				return true
-			}
-		}
-		return false
-	}, [modifiedMessages])
-
 	const itemContent = useCallback(
 		createMessageRenderer(
 			groupedMessages,
@@ -94,7 +101,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
-			isWaitingForResponse,
+			!!(isWaitingForContent || isReasoningActive),
 		),
 		[
 			groupedMessages,
@@ -105,7 +112,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
-			isWaitingForResponse,
+			isWaitingForContent,
+			isReasoningActive,
 		],
 	)
 
@@ -136,18 +144,56 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 					atBottomThreshold={10} // trick to make sure virtuoso re-renders when task changes, and we use initialTopMostItemIndex to start at the bottom
 					className="scrollable grow overflow-y-scroll"
 					components={{
-						Footer: () =>
-							isWaitingForResponse ? (
-								<div className="px-4 pt-2 pb-2.5">
-									<div className="ml-1">
-										<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent select-none">
-											Thinking...
-										</span>
+						Footer: () => (
+							<div>
+								{/* Show "Working..." at bottom of chat stream.
+								    "Thinking..." is now rendered inline in RequestStartRow to keep it
+								    anchored to the request row and avoid visual jumps during followup
+								    question streaming when options grow the row. */}
+								{isWaitingForContent && (
+									<div className="pl-[16px] pt-2.5">
+										{/* Non-streaming models: just shimmer text */}
+										{(supportsStreaming === false || !streamingReasoningContent) && (
+											<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
+												<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+													{isWaitingForContent ? "Working..." : "Thinking..."}
+												</span>
+											</div>
+										)}
+
+										{/* Streaming models with reasoning: show expandable content */}
+										{supportsStreaming !== false && streamingReasoningContent && (
+											<div className="mb-1">
+												<button
+													className="inline-flex items-center justify-baseline gap-0.5 text-left select-none cursor-pointer px-0 w-full bg-transparent border-0"
+													onClick={() => setIsStreamingReasoningExpanded(!isStreamingReasoningExpanded)}
+													type="button">
+													<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+														Thinking...
+													</span>
+													{isStreamingReasoningExpanded ? (
+														<ChevronDownIcon className="size-1 ml-1 text-foreground" />
+													) : (
+														<ChevronRightIcon className="size-1 ml-1 text-foreground" />
+													)}
+												</button>
+												{isStreamingReasoningExpanded && (
+													<div
+														className="mt-1 max-h-[75px] overflow-y-auto text-description text-sm leading-normal whitespace-pre-wrap break-words pl-2 border-l border-description/50"
+														ref={reasoningScrollRef}
+														// column-reverse keeps content anchored at bottom as it streams in
+														// Combined with scrollTop = scrollHeight, this ensures latest content is visible
+														style={{ display: "flex", flexDirection: "column-reverse" }}>
+														<span className="block">{streamingReasoningContent}</span>
+													</div>
+												)}
+											</div>
+										)}
 									</div>
-								</div>
-							) : (
+								)}
 								<div className="min-h-1" />
-							),
+							</div>
+						),
 					}}
 					data={groupedMessages}
 					// increasing top by 3_000 to prevent jumping around when user collapses a row

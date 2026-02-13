@@ -2,13 +2,21 @@ import { Task } from "@core/task"
 import { expect } from "chai"
 import sinon from "sinon"
 
+// Helper: bind private prototype methods needed by say() onto a fake task object
+function addSayInternals(fakeTask: any): any {
+	fakeTask.lastPartialMessageTsByType = new Map()
+	fakeTask.listFingerprint = (Task.prototype as any).listFingerprint
+	fakeTask.messagePayloadFingerprint = (Task.prototype as any).messagePayloadFingerprint
+	return fakeTask
+}
+
 describe("Task.say", () => {
 	it("skips duplicate partial text when the same completed text was just rendered", async () => {
 		const addToClineMessages = sinon.stub().resolves()
 		const updateClineMessage = sinon.stub().resolves()
 		const postStateToWebview = sinon.stub().resolves()
 
-		const fakeTask: any = {
+		const fakeTask: any = addSayInternals({
 			taskState: { abort: false, lastMessageTs: 0 },
 			getCurrentProviderInfo: () => ({
 				providerId: "minimax",
@@ -29,7 +37,7 @@ describe("Task.say", () => {
 				updateClineMessage,
 			},
 			postStateToWebview,
-		}
+		})
 
 		const result = await Task.prototype.say.call(
 			fakeTask,
@@ -51,7 +59,7 @@ describe("Task.say", () => {
 		const updateClineMessage = sinon.stub().resolves()
 		const postStateToWebview = sinon.stub().resolves()
 
-		const fakeTask: any = {
+		const fakeTask: any = addSayInternals({
 			taskState: { abort: false, lastMessageTs: 0 },
 			getCurrentProviderInfo: () => ({
 				providerId: "minimax",
@@ -72,7 +80,7 @@ describe("Task.say", () => {
 				updateClineMessage,
 			},
 			postStateToWebview,
-		}
+		})
 
 		await Task.prototype.say.call(
 			fakeTask,

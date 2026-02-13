@@ -329,6 +329,75 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return text
 	}, [task])
 
+	// Detect if we're waiting for initial content, if reasoning is active, and get streaming reasoning
+	const { isReasoningActive, isWaitingForContent, streamingReasoningContent } = useMemo(() => {
+		// Find the last api_req_started
+		for (let i = modifiedMessages.length - 1; i >= 0; i--) {
+			const msg = modifiedMessages[i]
+			if (msg.say === "api_req_started" && msg.text) {
+				try {
+					const info = JSON.parse(msg.text)
+					// If it doesn't have cost yet
+					if (info.cost == null) {
+						// Check if there's completion_result or plan_mode_respond after this api_req - hide immediately
+						const hasCompletionAfter = modifiedMessages
+							.slice(i + 1)
+							.some(
+								(m) =>
+									m.ask === "completion_result" ||
+									m.say === "completion_result" ||
+									m.ask === "plan_mode_respond",
+							)
+
+						if (hasCompletionAfter) {
+							return { isReasoningActive: false, isWaitingForContent: false, streamingReasoningContent: undefined }
+						}
+
+						// Collect streaming reasoning content
+						const reasoningParts: string[] = []
+						for (let j = i + 1; j < modifiedMessages.length; j++) {
+							if (modifiedMessages[j].say === "reasoning" && modifiedMessages[j].text) {
+								reasoningParts.push(modifiedMessages[j].text!)
+							}
+						}
+
+						const hasReasoning = reasoningParts.length > 0
+						const reasoningContent = hasReasoning ? reasoningParts.join("\n\n") : undefined
+
+						if (hasReasoning) {
+							return {
+								isReasoningActive: true,
+								isWaitingForContent: false,
+								streamingReasoningContent: reasoningContent,
+							}
+						}
+
+						// No reasoning yet - check if any content exists
+						const hasAnyContent = modifiedMessages
+							.slice(i + 1)
+							.some(
+								(m) =>
+									m.say === "reasoning" ||
+									m.say === "text" ||
+									m.ask === "tool" ||
+									m.say === "tool" ||
+									m.say === "command" ||
+									m.ask === "command",
+							)
+
+						if (!hasAnyContent) {
+							return { isReasoningActive: false, isWaitingForContent: true, streamingReasoningContent: undefined }
+						}
+					}
+					break
+				} catch {
+					break
+				}
+			}
+		}
+		return { isReasoningActive: false, isWaitingForContent: false, streamingReasoningContent: undefined }
+	}, [modifiedMessages])
+
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
@@ -361,9 +430,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<MessagesArea
 						chatState={chatState}
 						groupedMessages={groupedMessages}
+						isReasoningActive={isReasoningActive}
+						isWaitingForContent={isWaitingForContent}
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
 						scrollBehavior={scrollBehavior}
+						streamingReasoningContent={streamingReasoningContent}
+						supportsStreaming={selectedModelInfo.supportsStreaming}
 						task={task}
 					/>
 				)}

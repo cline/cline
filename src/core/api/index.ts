@@ -44,6 +44,7 @@ import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
+import { SanitizedApiHandler } from "./throttle-wrapper"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
@@ -459,8 +460,12 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
 
+	// Helper to wrap handler with sanitization for consistent streaming experience
+	const wrapHandler = (handler: ApiHandler): ApiHandler => new SanitizedApiHandler(handler)
+
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors
-	// wrapped in a try-catch for safety, but this should never throw
+	// If validation passes and no clipping needed, return the wrapped handler immediately to avoid rebuilding.
+	// If clipping is needed, fall through to rebuild handler with adjusted values.
 	try {
 		const thinkingBudgetTokens = mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens
 		if (thinkingBudgetTokens && thinkingBudgetTokens > 0) {
@@ -474,13 +479,15 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 				} else {
 					options.actModeThinkingBudgetTokens = clippedValue
 				}
+				// Fall through to rebuild handler with clipped values
 			} else {
-				return handler // don't rebuild unless its necessary
+				return wrapHandler(handler) // Validation passed, return wrapped handler without rebuilding
 			}
 		}
 	} catch (error) {
 		Logger.error("buildApiHandler error:", error)
 	}
 
-	return createHandlerForProvider(apiProvider, options, mode)
+	// Rebuild handler with potentially clipped thinking budget or as fallback
+	return wrapHandler(createHandlerForProvider(apiProvider, options, mode))
 }

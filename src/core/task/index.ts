@@ -19,7 +19,7 @@ import {
 	getLocalWindsurfRules,
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
-import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { resetPartialMessageThrottle, sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
@@ -62,17 +62,10 @@ import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import {
-	isClaude4PlusModelFamily,
-	isGPT5ModelFamily,
-	isLocalModel,
-	isNextGenModelFamily,
-	isParallelToolCallingEnabled,
-} from "@utils/model-utils"
+import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
-import fs from "fs/promises"
 import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
@@ -152,6 +145,18 @@ export class Task {
 	private taskIsFavorited?: boolean
 	private cwd: string
 	private taskInitializationStartTime: number
+	private lastPartialMessageTsByType = new Map<ClineSay, number>()
+
+	private listFingerprint(list?: string[]): string {
+		if (!list || list.length === 0) {
+			return ""
+		}
+		return list.join("\u0001")
+	}
+
+	private messagePayloadFingerprint(text?: string, images?: string[], files?: string[]): string {
+		return `${text ?? ""}|img:${this.listFingerprint(images)}|file:${this.listFingerprint(files)}`
+	}
 
 	taskState: TaskState
 
@@ -604,7 +609,8 @@ export class Task {
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					const updatedMessage = this.messageStateHandler.getClineMessages().at(-1)!
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				}
@@ -646,7 +652,8 @@ export class Task {
 					partial: false,
 				})
 				// await this.postStateToWebview()
-				const protoMessage = convertClineMessageToProto(lastMessage)
+				const updatedMessage = this.messageStateHandler.getClineMessages().at(-1)!
+				const protoMessage = convertClineMessageToProto(updatedMessage)
 				await sendPartialMessageEvent(protoMessage)
 			} else {
 				// this is a new partial=false message, so add it like normal
@@ -728,9 +735,37 @@ export class Task {
 		}
 
 		if (partial !== undefined) {
-			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+			const hasNoPayload = text === undefined && images === undefined && files === undefined
+			// Only treat text as "empty" when there are no images/files either—
+			// an empty-string text with image or file attachments is a valid payload
+			// (e.g. image-only or file-only messages).
+			const isEmptyText = text !== undefined && text.trim().length === 0 && images === undefined && files === undefined
+			// CRITICAL FIX: Block empty/undefined partial or final messages before ANY processing
+			// OpenAI Codex can emit empty deltas that create ghost/flicker updates
+			if ((partial || type === "text" || type === "reasoning") && (hasNoPayload || isEmptyText)) {
+				return undefined
+			}
+
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastMessage = clineMessages.at(-1)
+			if (
+				partial === false &&
+				lastMessage &&
+				lastMessage.type === "say" &&
+				lastMessage.say === type &&
+				lastMessage.partial === false &&
+				this.messagePayloadFingerprint(text, images, files) ===
+					this.messagePayloadFingerprint(lastMessage.text, lastMessage.images, lastMessage.files)
+			) {
+				return undefined
+			}
+			// Use ts-based tracking (stable identity) instead of index-based (fragile — indices shift when other messages are inserted)
+			const trackedTs = this.lastPartialMessageTsByType.get(type)
+			const trackedIndex =
+				trackedTs !== undefined
+					? clineMessages.findIndex((m) => m.ts === trackedTs && m.type === "say" && m.say === type)
+					: -1
+			const isUpdatingPreviousPartial = trackedIndex !== -1
 			const isDuplicateCompletedTextSay =
 				partial &&
 				type === "text" &&
@@ -744,16 +779,26 @@ export class Task {
 			}
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
-					// existing partial message, so update it
-					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					// CRITICAL FIX: Skip duplicate updates (prevents redundant React re-renders)
+					const previousMessage = clineMessages[trackedIndex]
+					const isDuplicate =
+						this.messagePayloadFingerprint(text, images, files) ===
+						this.messagePayloadFingerprint(previousMessage.text, previousMessage.images, previousMessage.files)
+					if (isDuplicate) {
+						return undefined
+					}
+
+					await this.messageStateHandler.updateClineMessage(trackedIndex, {
 						text,
 						images,
 						files,
 						partial,
 					})
 
-					const protoMessage = convertClineMessageToProto(lastMessage)
+					// CRITICAL FIX: Get the UPDATED message, not the old lastMessage!
+					// The old code used lastMessage which still had old text value
+					const updatedMessage = this.messageStateHandler.getClineMessages()[trackedIndex]!
+					const protoMessage = convertClineMessageToProto(updatedMessage)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
 				}
@@ -770,25 +815,40 @@ export class Task {
 					partial,
 					modelInfo,
 				})
+				this.lastPartialMessageTsByType.set(type, sayTs)
 				await this.postStateToWebview()
 				return sayTs
 			}
 			// partial=false means its a complete version of a previously partial message
 			if (isUpdatingPreviousPartial) {
+				const previousMessage = clineMessages[trackedIndex]
+				// Cheap dedup: skip if content is identical AND already finalized.
+				// Content dedupe is fine, but state-transition dedupe is not—
+				// we must still write partial:false and emit the final event even
+				// when the payload hasn't changed, otherwise the message stays
+				// stuck as partial=true forever.
+				const isDuplicate =
+					this.messagePayloadFingerprint(text, images, files) ===
+					this.messagePayloadFingerprint(previousMessage.text, previousMessage.images, previousMessage.files)
+				if (isDuplicate && previousMessage.partial === false) {
+					this.lastPartialMessageTsByType.delete(type)
+					return undefined
+				}
 				// this is the complete version of a previously partial message, so replace the partial with the complete version
-				this.taskState.lastMessageTs = lastMessage.ts
-				const lastIndex = this.messageStateHandler.getClineMessages().length - 1
+				this.taskState.lastMessageTs = previousMessage.ts
 				// updateClineMessage emits the change event and saves to disk
-				await this.messageStateHandler.updateClineMessage(lastIndex, {
+				await this.messageStateHandler.updateClineMessage(trackedIndex, {
 					text,
 					images,
 					files,
 					partial: false,
 				})
 
-				// await this.postStateToWebview()
-				const protoMessage = convertClineMessageToProto(lastMessage)
+				// CRITICAL FIX: Get the UPDATED message, not the old lastMessage!
+				const updatedMessage = this.messageStateHandler.getClineMessages()[trackedIndex]!
+				const protoMessage = convertClineMessageToProto(updatedMessage)
 				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+				this.lastPartialMessageTsByType.delete(type)
 				return undefined
 			}
 			// this is a new partial=false message, so add it like normal
@@ -849,12 +909,13 @@ export class Task {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model/provider supports native tool calling and handles parallel tools well
+	 * 2. The current model is GPT-5 (which handles parallel tools well)
 	 */
 	private isParallelToolCallingEnabled(): boolean {
+		const { isParallelToolCallingEnabled: checkParallelToolCalling } = require("@utils/model-utils")
 		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		const providerInfo = this.getCurrentProviderInfo()
-		return isParallelToolCallingEnabled(enableParallelSetting, providerInfo)
+		const modelId = this.api.getModel().id
+		return checkParallelToolCalling(enableParallelSetting, modelId)
 	}
 
 	private async switchToActModeCallback(): Promise<boolean> {
@@ -1538,6 +1599,8 @@ export class Task {
 			await this.browserSession.dispose()
 			this.clineIgnoreController.dispose()
 			this.fileContextTracker.dispose()
+			// CRITICAL: Reset partial message throttle state to prevent cross-task contamination
+			resetPartialMessageThrottle()
 			// need to await for when we want to make sure directories/files are reverted before
 			// re-starting the task from a checkpoint
 			await this.diffViewProvider.revertChanges()
@@ -1634,51 +1697,6 @@ export class Task {
 		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return { model, providerId, customPrompt, mode }
-	}
-
-	private async writePromptMetadataArtifacts(params: { systemPrompt: string; providerInfo: ApiProviderInfo }): Promise<void> {
-		const enabledFlag = process.env.CLINE_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
-		const enabled = enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes"
-		if (!enabled) {
-			return
-		}
-
-		try {
-			const configuredDir = process.env.CLINE_PROMPT_ARTIFACT_DIR?.trim()
-			const artifactDir = configuredDir
-				? path.isAbsolute(configuredDir)
-					? configuredDir
-					: path.resolve(this.cwd, configuredDir)
-				: path.resolve(this.cwd, ".cline-prompt-artifacts")
-
-			await fs.mkdir(artifactDir, { recursive: true })
-
-			const ts = new Date().toISOString()
-			const safeTs = ts.replace(/[:.]/g, "-")
-			const baseName = `task-${this.taskId}-req-${this.taskState.apiRequestCount}-${safeTs}`
-			const manifestPath = path.join(artifactDir, `${baseName}.manifest.json`)
-			const promptPath = path.join(artifactDir, `${baseName}.system_prompt.md`)
-
-			const manifest = {
-				taskId: this.taskId,
-				ulid: this.ulid,
-				apiRequestCount: this.taskState.apiRequestCount,
-				ts,
-				cwd: this.cwd,
-				mode: params.providerInfo.mode,
-				provider: params.providerInfo.providerId,
-				model: params.providerInfo.model.id,
-				apiRequestId: this.getApiRequestIdSafe(),
-				systemPromptPath: promptPath,
-			}
-
-			await Promise.all([
-				fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8"),
-				fs.writeFile(promptPath, params.systemPrompt, "utf8"),
-			])
-		} catch (error) {
-			Logger.error("Failed to write prompt metadata artifacts:", error)
-		}
 	}
 
 	private getApiRequestIdSafe(): string | undefined {
@@ -1872,7 +1890,7 @@ export class Task {
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
+			enableParallelToolCalling: this.stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
@@ -1884,7 +1902,6 @@ export class Task {
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length
-		await this.writePromptMetadataArtifacts({ systemPrompt, providerInfo })
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
@@ -2118,48 +2135,53 @@ export class Task {
 					break
 				}
 				let content = block.content
-				if (content) {
-					// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
-					// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
-					// (this is done with the xml parsing below now, but keeping here for reference)
-					// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
-					// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
-					// - Needs to be separate since we dont want to remove the line break before the first tag
-					// - Needs to happen before the xml parsing below
-					content = content.replace(/<thinking>\s?/g, "")
-					content = content.replace(/\s?<\/thinking>/g, "")
 
-					// Remove all instances of <think> tags (alternative to <thinking>, some models are trained to use this tag instead)
-					content = content.replace(/<think>\s?/g, "")
-					content = content.replace(/\s?<\/think>/g, "")
+				// CRITICAL FIX: Skip rendering if content is undefined/empty (prevents UI flickering)
+				// Some providers send empty content blocks that cause messages to flash
+				if (!content || content.trim().length === 0) {
+					break
+				}
 
-					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
-					content = content.replace(/<function_calls>\s?/g, "")
-					content = content.replace(/\s?<\/function_calls>/g, "")
+				// (have to do this for partial and complete since sending content in thinking tags to markdown renderer will automatically be removed)
+				// Remove end substrings of <thinking or </thinking (below xml parsing is only for opening tags)
+				// (this is done with the xml parsing below now, but keeping here for reference)
+				// content = content.replace(/<\/?t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?$/, "")
+				// Remove all instances of <thinking> (with optional line break after) and </thinking> (with optional line break before)
+				// - Needs to be separate since we dont want to remove the line break before the first tag
+				// - Needs to happen before the xml parsing below
+				content = content.replace(/<thinking>\s?/g, "")
+				content = content.replace(/\s?<\/thinking>/g, "")
 
-					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
-					// (prevents scrollview from jumping when tags are automatically removed)
-					const lastOpenBracketIndex = content.lastIndexOf("<")
-					if (lastOpenBracketIndex !== -1) {
-						const possibleTag = content.slice(lastOpenBracketIndex)
-						// Check if there's a '>' after the last '<' (i.e., if the tag is complete) (complete thinking and tool tags will have been removed by now)
-						const hasCloseBracket = possibleTag.includes(">")
-						if (!hasCloseBracket) {
-							// Extract the potential tag name
-							let tagContent: string
-							if (possibleTag.startsWith("</")) {
-								tagContent = possibleTag.slice(2).trim()
-							} else {
-								tagContent = possibleTag.slice(1).trim()
-							}
-							// Check if tagContent is likely an incomplete tag name (letters and underscores only)
-							const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
-							// Preemptively remove < or </ to keep from these artifacts showing up in chat (also handles closing thinking tags)
-							const isOpeningOrClosing = possibleTag === "<" || possibleTag === "</"
-							// If the tag is incomplete and at the end, remove it from the content
-							if (isOpeningOrClosing || isLikelyTagName) {
-								content = content.slice(0, lastOpenBracketIndex).trim()
-							}
+				// Remove all instances of <think> tags (alternative to <thinking>, some models are trained to use this tag instead)
+				content = content.replace(/<think>\s?/g, "")
+				content = content.replace(/\s?<\/think>/g, "")
+
+				// New claude models tend to output <function_calls> tags which we don't want to show in the chat
+				content = content.replace(/<function_calls>\s?/g, "")
+				content = content.replace(/\s?<\/function_calls>/g, "")
+
+				// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
+				// (prevents scrollview from jumping when tags are automatically removed)
+				const lastOpenBracketIndex = content.lastIndexOf("<")
+				if (lastOpenBracketIndex !== -1) {
+					const possibleTag = content.slice(lastOpenBracketIndex)
+					// Check if there's a '>' after the last '<' (i.e., if the tag is complete) (complete thinking and tool tags will have been removed by now)
+					const hasCloseBracket = possibleTag.includes(">")
+					if (!hasCloseBracket) {
+						// Extract the potential tag name
+						let tagContent: string
+						if (possibleTag.startsWith("</")) {
+							tagContent = possibleTag.slice(2).trim()
+						} else {
+							tagContent = possibleTag.slice(1).trim()
+						}
+						// Check if tagContent is likely an incomplete tag name (letters and underscores only)
+						const isLikelyTagName = /^[a-zA-Z_]+$/.test(tagContent)
+						// Preemptively remove < or </ to keep from these artifacts showing up in chat (also handles closing thinking tags)
+						const isOpeningOrClosing = possibleTag === "<" || possibleTag === "</"
+						// If the tag is incomplete and at the end, remove it from the content
+						if (isOpeningOrClosing || isLikelyTagName) {
+							content = content.slice(0, lastOpenBracketIndex).trim()
 						}
 					}
 				}
@@ -3224,11 +3246,17 @@ export class Task {
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
-			lastMessage.text = textContent
-			lastMessage.partial = false
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			const protoMessage = convertClineMessageToProto(lastMessage)
-			await sendPartialMessageEvent(protoMessage)
+			// Avoid emitting empty final text updates (these cause visible flicker in the webview)
+			const finalText = textContent || lastMessage.text || ""
+			if (finalText.trim().length > 0) {
+				lastMessage.text = finalText
+				lastMessage.partial = false
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				// Get the updated message after mutation
+				const updatedMessage = this.messageStateHandler.getClineMessages().at(-1)!
+				const protoMessage = convertClineMessageToProto(updatedMessage)
+				await sendPartialMessageEvent(protoMessage)
+			}
 		}
 
 		this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
