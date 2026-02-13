@@ -59,8 +59,8 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
-		id: "google/gemini-3-flash-preview",
-		description: "Intelligent model built for speed and price efficiency",
+		id: "minimax/minimax-m2.5",
+		description: "Great coding capability and subagent use",
 		label: "HOT",
 	},
 	{

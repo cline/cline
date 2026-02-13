@@ -8,6 +8,7 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
+import { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -28,8 +29,16 @@ describe("BannerService", () => {
 		dismissedBanners: Array<{ bannerId: string; dismissedAt: number }>
 	}
 
+	let mockedPostStateToWebview: sinon.SinonStub
+	let mockController: Controller
+
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
+
+		mockedPostStateToWebview = sandbox.stub().resolves(undefined)
+		mockController = {
+			postStateToWebview: mockedPostStateToWebview,
+		} as any
 
 		sandbox.stub(Logger, "log")
 		sandbox.stub(Logger, "error")
@@ -127,7 +136,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners() // Triggers background fetch
 
 				// Wait for background fetch to complete
@@ -146,7 +155,7 @@ describe("BannerService", () => {
 			mockFetch.rejects(new Error("Network error"))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				const banners = bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -177,7 +186,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 
 				// Trigger initial fetch by calling getActiveBanners (fires background fetch)
 				bannerService.getActiveBanners()
@@ -236,7 +245,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -270,7 +279,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -304,7 +313,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -337,7 +346,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -371,7 +380,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -403,7 +412,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -433,7 +442,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -466,7 +475,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -503,7 +512,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -542,7 +551,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -583,7 +592,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -631,7 +640,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -663,7 +672,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -696,7 +705,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -729,7 +738,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -772,13 +781,14 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
 				await new Promise((resolve) => setTimeout(resolve, 10))
 
 				const banners = bannerService.getActiveBanners()
+				expect(mockedPostStateToWebview.called).to.be.true
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].actions).to.have.lengthOf(validActionTypes.length)
 				banners[0].actions!.forEach((action, index) => {
@@ -811,7 +821,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(successResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -860,7 +870,7 @@ describe("BannerService", () => {
 
 			await mockFetchForTesting(mockFetch, async () => {
 				// Initialize the service
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -905,7 +915,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(successResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -972,7 +982,7 @@ describe("BannerService", () => {
 			mockFetch.resolves(createSuccessResponse(mockResponse))
 
 			await mockFetchForTesting(mockFetch, async () => {
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
@@ -1023,7 +1033,7 @@ describe("BannerService", () => {
 
 			await mockFetchForTesting(mockFetch, async () => {
 				// Initialize the service
-				const bannerService = BannerService.initialize()
+				const bannerService = BannerService.initialize(mockController)
 				bannerService.getActiveBanners()
 
 				// Wait for background fetch to complete
