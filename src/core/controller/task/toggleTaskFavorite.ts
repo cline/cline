@@ -38,6 +38,12 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 			Logger.error("Error processing task history:", historyErr)
 		}
 
+		// Sync the favorite state to the running task so that subsequent
+		// saves don't overwrite the value with the stale cached copy.
+		if (controller.task?.taskId === request.taskId) {
+			controller.task.messageStateHandler.setTaskIsFavorited(request.isFavorited)
+		}
+
 		// Post to webview
 		try {
 			await controller.postStateToWebview()

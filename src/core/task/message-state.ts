@@ -71,6 +71,14 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	/**
+	 * Update the in-memory favorite state so that subsequent saves
+	 * persist the correct value instead of overwriting external changes.
+	 */
+	setTaskIsFavorited(isFavorited: boolean): void {
+		this.taskIsFavorited = isFavorited
+	}
+
+	/**
 	 * Emit a clineMessagesChanged event with the change details
 	 */
 	private emitClineMessagesChanged(change: ClineMessageChange): void {
