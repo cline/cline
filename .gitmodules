@@ -1,0 +1,3 @@
+[submodule "evals/cline-bench"]
+	path = evals/cline-bench
+	url = https://github.com/cline/cline-bench.git

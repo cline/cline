@@ -14,10 +14,12 @@ import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
+import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
@@ -37,6 +39,7 @@ import {
 } from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
 import { hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -162,6 +165,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
+	const [isShowingOcaEmployeeCheck, setIsShowingOcaEmployeeCheck] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
 	const [apiKeyValue, setApiKeyValue] = useState("")
@@ -235,6 +239,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// OCA auth hook
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
+		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		await refreshOcaModels(controller!, StringRequest.create({ value: "" }))
 		setProvider("oca")
 		refreshModelIds()
 	}, [controller, refreshModelIds])
@@ -1078,8 +1084,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					setProvider("oca")
 					refreshModelIds()
 				} else {
-					// Not logged in - trigger OAuth
-					startOcaAuth()
+					// Not logged in - show employee check before auth
+					setIsShowingOcaEmployeeCheck(true)
 				}
 				return
 			}
@@ -1370,7 +1376,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock },
+		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isShowingOcaEmployeeCheck },
 	)
 
 	// Render content
@@ -1543,6 +1549,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						<Text color="gray">Esc to cancel</Text>
 					</Box>
 				</Box>
+			)
+		}
+
+		if (isShowingOcaEmployeeCheck) {
+			return (
+				<OcaEmployeeCheck
+					isActive={isShowingOcaEmployeeCheck}
+					onCancel={() => setIsShowingOcaEmployeeCheck(false)}
+					onSignIn={() => {
+						setIsShowingOcaEmployeeCheck(false)
+						startOcaAuth()
+					}}
+				/>
 			)
 		}
 
@@ -1727,6 +1746,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isPickingOrganization ||
 		isWaitingForClineAuth ||
+		isShowingOcaEmployeeCheck ||
 		isWaitingForOcaAuth ||
 		isEditing
 

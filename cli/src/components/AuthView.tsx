@@ -5,12 +5,13 @@
 
 import { Box, Text, useApp, useInput } from "ink"
 import Spinner from "ink-spinner"
-// biome-ignore lint/style/useImportType: React is used as a value by JSX (jsx: "react" in tsconfig)
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
-import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
@@ -31,6 +32,7 @@ import {
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
 import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
 import { getProviderLabel } from "./ProviderPicker"
 
 type AuthStep =
@@ -43,6 +45,7 @@ type AuthStep =
 	| "success"
 	| "error"
 	| "cline_auth"
+	| "oca_employee_check"
 	| "oca_auth"
 	| "cline_model"
 	| "openai_codex_auth"
@@ -160,7 +163,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [modelId, setModelId] = useState("")
 	const [baseUrl, setBaseUrl] = useState("")
 	const [errorMessage, setErrorMessage] = useState("")
-	const [authStatus, setAuthStatus] = useState<string>("")
 	const [providerSearch, setProviderSearch] = useState("")
 	const [providerIndex, setProviderIndex] = useState(0)
 	const [clineModelIndex, setClineModelIndex] = useState(0)
@@ -171,11 +173,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
+		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		await refreshOcaModels(controller, StringRequest.create({ value: "" }))
 		const stateManager = StateManager.get()
 		stateManager.setGlobalState("welcomeViewCompleted", true)
 		await stateManager.flushPendingState()
 		setSelectedProvider("oca")
-		setModelId(liteLlmDefaultModelId)
+		const actModelId = stateManager.getGlobalSettingsKey("actModeOcaModelId") || ""
+		setModelId(actModelId)
 		setStep("success")
 	}, [controller])
 
@@ -317,7 +322,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const startClineAuth = useCallback(async () => {
 		try {
 			setStep("cline_auth")
-			setAuthStatus("Starting authentication...")
 			await AuthService.getInstance(controller).createAuthRequest()
 		} catch (error) {
 			setErrorMessage(error instanceof Error ? error.message : String(error))
@@ -327,7 +331,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const startOcaAuth = useCallback(() => {
 		setStep("oca_auth")
-		setAuthStatus("Starting authentication...")
 		initiateOcaAuth()
 	}, [initiateOcaAuth])
 
@@ -358,7 +361,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		(value: string) => {
 			setSelectedProvider(value)
 			if (value === "oca") {
-				startOcaAuth()
+				// Show employee check screen before starting auth
+				setStep("oca_employee_check")
 			} else if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
@@ -534,8 +538,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setBaseUrl("")
 				setStep("modelid")
 				break
-			case "oca_auth":
+			case "oca_employee_check":
 				setStep("provider")
+				break
+			case "oca_auth":
+				setStep("oca_employee_check")
 				break
 			case "cline_auth":
 				setStep("menu")
@@ -675,6 +682,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					</Box>
 				)
 
+			case "oca_employee_check":
+				return <OcaEmployeeCheck isActive={step === "oca_employee_check"} onCancel={goBack} onSignIn={startOcaAuth} />
+
 			case "oca_auth":
 			case "cline_auth":
 				return (
@@ -760,6 +770,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [menuIndex, setMenuIndex] = useState(0)
 
 	// Steps that allow going back with escape (apikey handled by ApiKeyInput component)
+	// OcaEmployeeCheck handles its own escape key, so oca_employee_check is not in this list
 	const canGoBack = [
 		"provider",
 		"modelid",
