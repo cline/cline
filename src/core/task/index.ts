@@ -2664,7 +2664,9 @@ export class Task {
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
 								const thinkingBlock = reasonsHandler.getCurrentReasoning()
-								if (thinkingBlock?.thinking && chunk.reasoning) {
+								// Some providers can interleave reasoning after text has started.
+								// Keep rendering stable by only streaming reasoning UI before the first text chunk.
+								if (thinkingBlock?.thinking && chunk.reasoning && assistantMessage.length === 0) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
