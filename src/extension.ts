@@ -151,7 +151,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
-		const success = await SharedUriHandler.handleUri(url)
+		const isTaskUri = getUriPath(url) === TASK_URI_PATH
+
+		if (isTaskUri) {
+			await openClineSidebarForTaskUri()
+		}
+
+		let success = await SharedUriHandler.handleUri(url)
+
+		// Task deeplinks can race with first-time sidebar initialization.
+		if (!success && isTaskUri) {
+			await openClineSidebarForTaskUri()
+			success = await SharedUriHandler.handleUri(url)
+		}
+
 		if (!success) {
 			Logger.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
@@ -608,6 +621,32 @@ function setupHostProvider(context: ExtensionContext) {
 		context.extensionUri.fsPath,
 		context.globalStorageUri.fsPath,
 	)
+}
+
+const TASK_URI_PATH = "/task"
+const SIDEBAR_WAIT_TIMEOUT_MS = 3000
+const SIDEBAR_WAIT_INTERVAL_MS = 50
+
+function getUriPath(url: string): string | undefined {
+	try {
+		return new URL(url).pathname
+	} catch {
+		return undefined
+	}
+}
+
+async function openClineSidebarForTaskUri(): Promise<void> {
+	await vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
+
+	const startedAt = Date.now()
+	while (Date.now() - startedAt < SIDEBAR_WAIT_TIMEOUT_MS) {
+		if (WebviewProvider.getVisibleInstance()) {
+			return
+		}
+		await new Promise((resolve) => setTimeout(resolve, SIDEBAR_WAIT_INTERVAL_MS))
+	}
+
+	Logger.warn("Task URI handling timed out waiting for Cline sidebar visibility")
 }
 
 async function getBinaryLocation(name: string): Promise<string> {
