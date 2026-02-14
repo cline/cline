@@ -2,7 +2,7 @@ import { describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
-import { arePathsEqual, getReadablePath } from "./path"
+import { arePathsEqual, getReadablePath, isLocatedInPath } from "./path"
 
 describe("Path Utilities", () => {
 	describe("arePathsEqual", () => {
@@ -48,6 +48,35 @@ describe("Path Utilities", () => {
 			const cwd = path.resolve("/home/user/project")
 			const filePath = path.resolve("/home/user/other/file.txt")
 			getReadablePath(cwd, filePath).should.equal(filePath.toPosix())
+		})
+
+		it("should not confuse similar path prefixes (bug #8761)", () => {
+			// Regression test for: /home/user/project should NOT match /home/user/project-backup
+			const cwd = path.resolve("/home/user/project")
+			const similarPath = path.resolve("/home/user/project-backup/src/file.txt")
+			// project-backup is NOT inside project, so should return absolute path
+			getReadablePath(cwd, similarPath).should.equal(similarPath.toPosix())
+		})
+	})
+
+	describe("isLocatedInPath", () => {
+		it("should return true for paths inside directory", () => {
+			isLocatedInPath("/home/user/project", "/home/user/project/src/file.txt").should.be.true()
+		})
+
+		it("should return false for paths outside directory", () => {
+			isLocatedInPath("/home/user/project", "/home/user/other/file.txt").should.be.false()
+		})
+
+		it("should return false for similar path prefixes (bug #8761)", () => {
+			// /home/user/project should NOT match /home/user/project-backup
+			isLocatedInPath("/home/user/project", "/home/user/project-backup/file.txt").should.be.false()
+			isLocatedInPath("/home/user/project", "/home/user/project-backup/src/file.txt").should.be.false()
+		})
+
+		it("should handle empty paths", () => {
+			isLocatedInPath("", "/some/path").should.be.false()
+			isLocatedInPath("/some/path", "").should.be.false()
 		})
 	})
 })
