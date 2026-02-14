@@ -7,7 +7,7 @@ import { Logger } from "@/shared/services/Logger"
 /*
  * Unique identifier for the current installation.
  */
-let _distinctId = ""
+let _distinctId: string = ""
 
 /**
  * Some environments don't return a value for the machine ID. For these situations we generated

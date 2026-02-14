@@ -10,7 +10,7 @@ describe("distinctId", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockContext: vscode.ExtensionContext
 	let mockGlobalState: any
-	let hostProviderInitialized = false
+	let hostProviderInitialized: boolean = false
 
 	const MOCK_GLOBAL_STATE_ID = "existing-distinct-id-123"
 	const MOCK_MACHINE_ID = "machine-id-456"
