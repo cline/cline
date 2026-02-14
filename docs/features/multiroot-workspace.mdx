@@ -19,7 +19,7 @@ Cline works with VSCode's multi-root workspaces, letting you manage multiple pro
 <Warning>
 Multi-root workspaces have two limitations:
 - **Cline rules** only work in the primary workspace folder
-- **Checkpoints** are disabled (restored when you return to a single folder)
+- **[Checkpoints](/core-workflows/checkpoints)** are disabled (restored when you return to a single folder)
 
 See [Current Limitations](#current-limitations) for details.
 </Warning>
@@ -111,7 +111,7 @@ For each workspace folder, Cline detects:
 This means Cline understands that your frontend and backend might be at different commits, on different branches, or even use different version control systems.
 
 <Note>
-While Cline detects VCS information for all workspace folders, certain features only use the **primary workspace** (the first folder): [Cline rules](/features/cline-rules), [workflows](/features/slash-commands/workflows/index), and [Git-related features](/features/at-mentions/git-mentions) like `@git` mentions.
+While Cline detects VCS information for all workspace folders, certain features only use the **primary workspace** (the first folder): [Cline rules](/customization/cline-rules), [workflows](/customization/workflows), and [Git-related features](/core-workflows/working-with-files) like `@git` mentions.
 </Note>
 
 ## Referencing Files Across Workspaces
@@ -217,13 +217,13 @@ Two features have limitations in multi-root workspace mode:
 
 ### Cline Rules
 
-[Cline rules](/features/cline-rules) (`.clinerules/` directory) only work in the **primary workspace** (the first folder in your workspace). Rules in other workspace folders are ignored.
+[Cline rules](/customization/cline-rules) (`.clinerules/` directory) only work in the **primary workspace** (the first folder in your workspace). Rules in other workspace folders are ignored.
 
 **Workaround:** Place shared rules in the primary workspace, or use global rules (`~/Documents/Cline/Rules/`) which apply everywhere.
 
 ### Checkpoints
 
-[Checkpoints](/features/checkpoints) are disabled in multi-root workspace mode. Cline displays a warning when this happens.
+[Checkpoints](/core-workflows/checkpoints) are disabled in multi-root workspace mode. Cline displays a warning when this happens.
 
 **Why:** Checkpoints use a shadow Git repository to track changes. With multiple repositories, coordinating checkpoints across independent Git histories adds complexity that isn't yet supported.
 
@@ -250,7 +250,7 @@ Both limitations are restored when you return to a single-folder workspace.
 ### Working with Large Workspaces
 
 - Break large tasks into workspace-specific operations when possible
-- Use [Plan mode](/features/plan-and-act) to let Cline understand structure first
+- Use [Plan mode](/core-workflows/plan-and-act) to let Cline understand structure first
 - Add a `.clineignore` file to reduce noise, speed up scanning, and keep Cline focused on source code:
 
 ```text
@@ -265,4 +265,4 @@ Both limitations are restored when you return to a single-folder workspace.
 **/.git/
 ```
 
-For more patterns and gotchas, see the [.clineignore File Guide](/prompting/prompt-engineering-guide#clineignore-file-guide).
+For more patterns and gotchas, see the [.clineignore File Guide](/customization/clineignore).

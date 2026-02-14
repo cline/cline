@@ -130,9 +130,9 @@
 							"features/subagents",
 							"features/background-edit",
 							"features/jupyter-notebooks",
+							"features/deep-planning",
 							"features/web-tools",
-							"features/worktrees",
-							"features/dictation"
+							"features/worktrees"
 						]
 					},
 					{
@@ -156,21 +156,34 @@
 							{
 								"group": "Cloud Providers",
 								"pages": [
+									"provider-config/qwen",
 									"provider-config/anthropic",
+									"provider-config/asksage",
+									"provider-config/baseten",
+									"provider-config/cerebras",
 									"provider-config/claude-code",
+									"provider-config/deepseek",
+									"provider-config/doubao",
+									"provider-config/fireworks",
+									"provider-config/gcp-vertex-ai",
+									"provider-config/google-gemini",
+									"provider-config/groq",
+									"provider-config/huawei-cloud-maas",
+									"provider-config/huggingface",
+									"provider-config/minimax",
+									"provider-config/mistral-ai",
+									"provider-config/moonshot",
+									"provider-config/nebius",
+									"provider-config/nousresearch",
 									"provider-config/openai",
 									"provider-config/openai-codex",
 									"provider-config/openrouter",
-									"provider-config/cerebras",
-									"provider-config/deepseek",
-									"provider-config/groq",
+									"provider-config/oracle-code-assist",
+									"provider-config/qwen-code",
+									"provider-config/sambanova",
+									"provider-config/together",
 									"provider-config/xai-grok",
-									"provider-config/mistral-ai",
-									"provider-config/doubao",
-									"provider-config/fireworks",
 									"provider-config/zai",
-									"provider-config/gcp-vertex-ai",
-									"provider-config/baseten",
 									{
 										"group": "AWS Bedrock",
 										"pages": [
@@ -184,12 +197,15 @@
 							{
 								"group": "Advanced Configuration",
 								"pages": [
-									"provider-config/openai-compatible",
+									"provider-config/aihubmix",
+									"provider-config/dify",
+									"provider-config/hicap",
 									"provider-config/litellm-and-cline-using-codestral",
-									"provider-config/vscode-language-model-api",
+									"provider-config/openai-compatible",
+									"provider-config/requesty",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty"
+									"provider-config/vscode-language-model-api"
 								]
 							}
 						]
@@ -570,6 +586,26 @@
 		{
 			"source": "/troubleshooting/terminal-integration-guide",
 			"destination": "/troubleshooting/terminal-quick-fixes"
+		},
+		{
+			"source": "/features/slash-commands/deep-planning",
+			"destination": "/features/deep-planning"
+		},
+		{
+			"source": "/features/slash-commands/smol",
+			"destination": "/core-workflows/using-commands#smol"
+		},
+		{
+			"source": "/features/slash-commands/explain-changes",
+			"destination": "/core-workflows/using-commands#explain-changes"
+		},
+		{
+			"source": "/features/slash-commands/new-rule",
+			"destination": "/core-workflows/using-commands#newrule"
+		},
+		{
+			"source": "/features/skills",
+			"destination": "/customization/skills"
 		}
 	],
 	"search": {

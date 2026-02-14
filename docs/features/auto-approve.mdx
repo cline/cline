@@ -20,7 +20,7 @@ If you find yourself repeatedly clicking approve for the same safe operations, A
 
 ## How It Works
 
-Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a file, run a command, or use the browser, he checks your Auto Approve settings for that category.
+Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a file, run a command, or use the browser, it checks your Auto Approve settings for that category.
 
 A few details matter:
 
@@ -72,10 +72,10 @@ If you enable edits, use [Checkpoints](/core-workflows/checkpoints) so you can r
 
 ## YOLO Mode
 
-YOLO mode is Auto Approve on steroids. Check the box and Cline auto-approves everything: file changes, terminal commands, browser actions, MCP tools, even mode transitions.
+YOLO mode is Auto Approve on steroids. Check the box and Cline auto-approves everything: file changes, terminal commands, browser actions, MCP tools, and mode transitions.
 
 <Note>
-**Warning: This is dangerous.** YOLO mode disables all safety checks. Cline executes whatever he decides without asking permission.
+**Warning: This is dangerous.** YOLO mode disables all safety checks. Cline executes whatever it decides without asking permission.
 </Note>
 
 ### What Gets Auto-Approved
@@ -109,9 +109,9 @@ Cline could:
 
 - **Start with isolated environments.** Use throwaway projects or sandboxed environments first.
 - **Be specific with requests.** Vague instructions + unlimited permissions = unpredictable results.
-- **Monitor the output.** Cline still shows what he's doing. Watch the terminal and file changes.
+- **Monitor the output.** Cline still shows what it's doing. Watch the terminal and file changes.
 - **Keep version control handy.** Git becomes your safety net.
 
 ### Enabling YOLO Mode
 
-Navigate to Cline Settings → Features and check "YOLO Mode." No confirmation dialogs. Once enabled, Cline auto-approves all actions immediately. Uncheck to disable.
+Navigate to Cline Settings, then Features, and check "YOLO Mode." No confirmation dialogs. Once enabled, Cline auto-approves all actions immediately. Uncheck to disable.

@@ -1,6 +1,6 @@
 ---
 title: "Model Selection Guide"
-description: "Last updated: August 20, 2025."
+description: "Choose the right AI model for your workflow based on reliability, speed, cost, and context window size."
 ---
 
 New models drop constantly, so this guide focuses on what's working well with Cline right now. We'll keep it updated as the landscape shifts.
@@ -59,12 +59,17 @@ Choose your preferred AI provider from the dropdown menu.
 | **Cline** | Easiest setup | No API keys needed, access to multiple models including stealth models |
 | **OpenRouter** | Value seekers | Multiple models, competitive pricing |
 | **Anthropic** | Reliability | Claude models, most dependable tool usage |
-| **OpenAI** | Latest tech | GPT models |
-| **Google Gemini** | Large context | Google's AI models |
+| **OpenAI** | Latest tech | GPT-5, o3, o4-mini models |
+| **OpenAI Codex** | ChatGPT subscribers | Use your ChatGPT subscription — no API key needed |
+| **Google Gemini** | Large context | Gemini 3/2.5 with up to 2M context |
+| **DeepSeek** | Budget reasoning | V3.2, R1 models at low cost |
+| **Alibaba Qwen** | Open source coding | Qwen3 Coder with 1M context |
+| **Moonshot** | Agentic coding | Kimi K2.5 with 262K context |
+| **Cerebras** | Speed | Up to 2,600 tokens/sec |
 | **AWS Bedrock** | Enterprise | Advanced features |
 | **Ollama** | Privacy | Run models locally |
 
-See the [full provider list](/provider-config) for more options including Cerebras, Vertex AI, Azure, and more.
+See the [full provider list](/getting-started/authorizing-with-cline) for all 30+ supported providers including xAI Grok, Mistral, Groq, Fireworks, Together, Baseten, SambaNova, Nebius, Hugging Face, and more.
 
 <Info>
 **Recommended for beginners:** Start with **Cline** as your provider - no API key management needed, instant access to multiple models, and occasional free inferencing through partner providers.
@@ -85,6 +90,15 @@ The next step depends on which provider you selected.
   For detailed information about the Cline authentication flow, OAuth tokens, and troubleshooting, see [Authorizing with Cline](/getting-started/authorizing-with-cline).
 </Note>
 
+#### If you selected **OpenAI Codex** as your provider:
+
+- **No API key needed!** If you have a ChatGPT subscription (Plus, Pro, or Team), you can use it directly in Cline
+- Click **"Sign in with OpenAI"** to authenticate via your browser
+- Once authorized, all models available on your OpenAI plan will appear automatically
+- Usage is governed by your ChatGPT subscription — no separate API billing
+
+See the full [OpenAI Codex setup guide](/provider-config/openai-codex) for details.
+
 #### If you selected any other provider:
 
 You'll need to get an API key from your chosen provider:
@@ -94,7 +108,7 @@ You'll need to get an API key from your chosen provider:
    - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
    - **OpenAI**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
    - **Google**: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-   - **Others**: See [Provider Setup Guide](/provider-config)
+   - **Others**: See [Provider Setup Guide](/getting-started/authorizing-with-cline)
 
 2. **Generate a new API key** on the provider's website
 
@@ -198,6 +212,7 @@ For detailed model comparisons and performance metrics, see:
 | Huge context windows | Gemini 2.5 Pro or Claude Sonnet 4.5 |
 | Open source | Qwen3 Coder, Z AI GLM 4.5, or Kimi K2 |
 | Latest tech | GPT-5 |
+| To use your ChatGPT subscription | [OpenAI Codex](/provider-config/openai-codex) — sign in with your OpenAI account, no API key needed |
 | Speed | Qwen3 Coder on Cerebras (fastest available) |
 
 ## What Others Are Using

@@ -15,12 +15,12 @@ When your conversation approaches the model's context window limit, Cline automa
 
 ## How It Works
 
-Cline monitors token usage during your conversation. When you're getting close to the limit, he:
+Cline monitors token usage during your conversation. When you're getting close to the limit, it:
 
 1. Creates a comprehensive summary of everything that's happened
 2. Preserves all technical details, code changes, and decisions
 3. Replaces the conversation history with the summary
-4. Continues exactly where he left off
+4. Continues exactly where it left off
 
 You'll see a summarization tool call when this happens, showing the cost like any other API call.
 
@@ -31,11 +31,11 @@ Previously, Cline would truncate older messages when hitting context limits, los
 Now with summarization:
 - All technical decisions and code patterns are preserved
 - File changes and project context remain intact
-- Cline remembers everything he's done
+- Cline remembers everything it's done
 - You can work on much larger projects without interruption
 
 <Tip>
-Auto Compact works beautifully with [Focus Chain](/core-workflows/task-management#focus-chain). When Focus Chain is enabled, todo lists persist across summarizations. Cline can work on long-horizon tasks spanning multiple context windows while staying on track.
+Auto Compact works beautifully with [Focus Chain](/features/focus-chain). When Focus Chain is enabled, todo lists persist across summarizations. Cline can work on long-horizon tasks spanning multiple context windows while staying on track.
 </Tip>
 
 ## Cost Considerations
