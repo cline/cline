@@ -43,7 +43,11 @@ cline
   ```bash
   which -a cline
   ```
-- If the active binary is an old Homebrew path (for example `/opt/homebrew/bin/cline`), uninstall the legacy binary and reinstall from npm.
+- If the active binary is an old Homebrew path (for example `/opt/homebrew/bin/cline`), it likely came from an older Homebrew-distributed version of Cline (Cline is now distributed via npm only). Remove the legacy binary before reinstalling:
+  ```bash
+  brew uninstall cline            # if Cline was installed via Homebrew
+  # or manually remove the legacy binary, for example:
+  rm -f /opt/homebrew/bin/cline
 - If Cline was installed globally via Bun and interactive mode fails, reinstall globally with npm:
   ```bash
   npm uninstall -g cline
