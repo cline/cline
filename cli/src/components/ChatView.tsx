@@ -1014,14 +1014,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// 1. Mouse escape sequences -> filtered out (from AsciiMotionCli tracking)
 	// 2. Option+arrow escape sequences -> word navigation (handleKeyboardSequence)
 	// 3. Option+arrow via key.meta -> word navigation (backup for when Ink parses it)
-	// 4. Panel open -> bail (let panel handle its own input)
-	// 5. Slash menu open -> menu navigation (up/down/tab/return/escape)
-	// 6. File menu open -> menu navigation (up/down/tab/return/escape)
-	// 7. History navigation -> up/down when input empty or matches history item
-	// 8. Button actions -> "1"/"2" keys when buttons shown and no text typed
-	// 9. Ask responses -> return to send, numbers for option selection
-	// 10. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
-	// 11. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
+	// 4. Paste detection -> multi-char input with \r/\n is a paste, not submit
+	// 5. Panel open -> bail (let panel handle its own input)
+	// 6. Slash menu open -> menu navigation (up/down/tab/return/escape)
+	// 7. File menu open -> menu navigation (up/down/tab/return/escape)
+	// 8. History navigation -> up/down when input empty or matches history item
+	// 9. Button actions -> "1"/"2" keys when buttons shown and no text typed
+	// 10. Ask responses -> return to send, numbers for option selection
+	// 11. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
+	// 12. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
 	//
 	// Note: Home/End keys are handled separately by useHomeEndKeys hook because
 	// Ink doesn't expose them in useInput (it sets input='' for these keys).
@@ -1049,7 +1050,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 4. When a panel is open, let the panel handle its own input
+		// 4. Paste detection: multi-character input containing \r or \n is a paste, not a submit.
+		// Terminals deliver pastes as a single chunk. A manual Enter press is a single \r (length 1).
+		// We must intercept pastes BEFORE any key.return handler can trigger submit.
+		if (input.length > 1 && /[\r\n]/.test(input)) {
+			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+			insertTextAtCursor(normalized)
+			return
+		}
+
+		// 5. When a panel is open, let the panel handle its own input
 		if (activePanel) {
 			return
 		}
@@ -1057,7 +1067,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
-		// 5. Slash command menu navigation (takes priority over file menu)
+		// 6. Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
 			if (key.upArrow) {
 				setSelectedSlashIndex((i) => Math.max(0, i - 1))
@@ -1137,7 +1147,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 6. File mention menu navigation
+		// 7. File mention menu navigation
 		if (inFileMenu) {
 			if (key.upArrow) {
 				setSelectedIndex((i) => Math.max(0, i - 1))
@@ -1165,7 +1175,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 7. History navigation with up/down arrows
+		// 8. History navigation with up/down arrows
 		// Only works when: input is empty, or input matches the currently selected history item
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
 			const historyItems = getHistoryItems()
@@ -1215,7 +1225,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 8. Handle button actions (1 for primary, 2 for secondary)
+		// 9. Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
 		if (
 			buttonConfig.enableButtons &&
@@ -1243,7 +1253,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 9. Handle ask responses for options and text input
+		// 10. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as ClineAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
 			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
@@ -1261,12 +1271,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 10. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
+		// 11. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
 		if (key.ctrl && input && handleCtrlShortcut(input)) {
 			return
 		}
 
-		// 11. Normal input handling
+		// 12. Normal input handling
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
