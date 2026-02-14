@@ -137,6 +137,21 @@ For example, when working with a local web server, you can use 'Restore Workspac
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
+<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
+
+### Worktrees: Parallel Development
+
+Worktrees let you work on multiple branches simultaneously, each in its own folder. This enables Cline to work on tasks in parallel across separate VS Code windows, or lets Cline work independently while you continue coding in your main workspace.
+
+Cline takes over your VS Code window while working on a task. With worktrees, you can:
+- **Run Cline in parallel** - Have Cline work on multiple tasks simultaneously
+- **Keep working while Cline works** - Let Cline handle a task in a separate worktree while you continue coding
+- **Isolate experimental changes** - Test risky changes in a worktree without affecting your main branch
+
+<!-- Transparent pixel to create line break after floating image -->
+
+<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
+
 ## Contributing
 
 To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the `#contributors` channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
