@@ -74,6 +74,9 @@ cline auth -p openai-native -k sk-xxxxx -m gpt-4o
 # OpenRouter
 cline auth -p openrouter -k sk-or-xxxxx -m anthropic/claude-sonnet-4-5-20250929
 
+# Moonshot
+cline auth -p moonshot -k sk-xxxxx -m kimi-k2.5
+
 # OpenAI-compatible provider with custom base URL
 cline auth -p openai -k your-api-key -b https://api.example.com/v1
 ```
@@ -82,7 +85,7 @@ cline auth -p openai -k your-api-key -b https://api.example.com/v1
 
 | Flag | Description |
 |------|-------------|
-| `-p, --provider <id>` | Provider ID (e.g., `anthropic`, `openai-native`, `openrouter`) |
+| `-p, --provider <id>` | Provider ID (e.g., `anthropic`, `openai-native`, `openrouter`, `moonshot`) |
 | `-k, --apikey <key>` | Your API key |
 | `-m, --modelid <id>` | Model ID (e.g., `claude-sonnet-4-5-20250929`, `gpt-4o`) |
 | `-b, --baseurl <url>` | Base URL for OpenAI-compatible providers |
@@ -104,6 +107,7 @@ Flags are especially useful for scripting, CI/CD environments, or setting up mul
 | X AI (Grok) | `xai` | Grok models |
 | Cerebras | `cerebras` | Fast inference |
 | DeepSeek | `deepseek` | DeepSeek models |
+| Moonshot | `moonshot` | Kimi models via Moonshot AI |
 | Ollama | `ollama` | Local models |
 | LM Studio | `lmstudio` | Local models |
 | OpenAI Compatible | `openai` | Any OpenAI-compatible API |

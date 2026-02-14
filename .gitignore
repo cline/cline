@@ -48,3 +48,6 @@ test-results
 .secrets
 
 *.tsbuildinfo
+
+# Smoke test results (generated)
+evals/smoke-tests/results/

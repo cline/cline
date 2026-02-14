@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.62.0]
+
+### Fixed
+- Banners now display immediately when opening the extension instead of requiring user interaction first
+- Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
+
+
+## [3.61.0]
+
+- UI/UX fixes with minimax model family
+
+## [3.60.0]
+
+- Fixes for Minimax model family
+
 ## [3.59.0]
 
 - Added Minimax 2.5 Free Promo

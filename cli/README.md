@@ -45,7 +45,7 @@ cline
 
 ### Use any API and Model
 
-Cline supports API providers like ChatGPT, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, GCP Vertex, Cerebras and Groq. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using a Cline Account, you'll always have access to the newest models as soon as they're available.
+Cline supports API providers like ChatGPT, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, GCP Vertex, Cerebras, Groq, and Moonshot. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using a Cline Account, you'll always have access to the newest models as soon as they're available.
 
 <!-- Transparent pixel to create line break after floating image -->
 
@@ -79,4 +79,3 @@ Get the same Cline experience with enterprise-grade controls: SSO (SAML/OIDC), g
 ## License
 
 [Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
-

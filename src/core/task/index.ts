@@ -731,17 +731,6 @@ export class Task {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
-			const isDuplicateCompletedTextSay =
-				partial &&
-				type === "text" &&
-				lastMessage &&
-				lastMessage.type === "say" &&
-				lastMessage.say === "text" &&
-				!lastMessage.partial &&
-				(lastMessage.text ?? "") === (text ?? "")
-			if (isDuplicateCompletedTextSay) {
-				return undefined
-			}
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -2664,7 +2653,9 @@ export class Task {
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
 								const thinkingBlock = reasonsHandler.getCurrentReasoning()
-								if (thinkingBlock?.thinking && chunk.reasoning) {
+								// Some providers can interleave reasoning after text has started.
+								// Keep rendering stable by only streaming reasoning UI before the first text chunk.
+								if (thinkingBlock?.thinking && chunk.reasoning && assistantMessage.length === 0) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
@@ -2690,7 +2681,6 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
-							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2716,13 +2706,12 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
-							// Process the new text content as it streams in without awaiting for full message
-							this.presentAssistantMessage()
 							break
 						}
 					}
 
-					// present content to user - we don't want the stream to break if present fails, so we catch errors here
+					// Present content once per chunk. Calling this from multiple case branches can
+					// race partial updates and duplicate text rows in the chat.
 					await this.presentAssistantMessage().catch((error) =>
 						Logger.debug("[Task] Failed to present message: " + error),
 					)

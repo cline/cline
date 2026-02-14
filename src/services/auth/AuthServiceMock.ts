@@ -6,6 +6,7 @@ import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
+import { BannerService } from "../banner/BannerService"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { AuthService } from "./AuthService"
 
@@ -30,6 +31,8 @@ export class AuthServiceMock extends AuthService {
 				throw new Error("Extension controller was not provided to AuthServiceMock.getInstance")
 			}
 			AuthServiceMock.instance = new AuthServiceMock(controller)
+			// Initialize BannerService after AuthService is created
+			BannerService.initialize(controller)
 		}
 		if (controller !== undefined) {
 			AuthServiceMock.instance.controller = controller

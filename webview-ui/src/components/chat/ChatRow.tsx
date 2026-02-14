@@ -1208,15 +1208,17 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
-								<OptionsButtons
-									inputValue={inputValue}
-									isActive={
-										(isLast && lastModifiedMessage?.ask === "followup") ||
-										(!selected && options && options.length > 0)
-									}
-									options={options}
-									selected={selected}
-								/>
+								<div className="pt-3">
+									<OptionsButtons
+										inputValue={inputValue}
+										isActive={
+											(isLast && lastModifiedMessage?.ask === "followup") ||
+											(!selected && options && options.length > 0)
+										}
+										options={options}
+										selected={selected}
+									/>
+								</div>
 							</div>
 						)
 					case "new_task":

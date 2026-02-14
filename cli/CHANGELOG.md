@@ -1,9 +1,19 @@
 # cline
 
+
+### Fixed
+- Banners now display immediately when opening the extension instead of requiring user interaction first
+- Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
+
+## [2.2.2]
+
+- Allows users to enter custom aws region when selecting bedrock as a provider
+- Prevent Parent Container Scrolling In Dropdowns
+
 ## [2.2.1]
 
 - Added Minimax 2.5 Free Promo
-- Fixed Response chaining for OpenAI's Responses API 
+- Fixed Response chaining for OpenAI's Responses API
 
 ## [2.2.0]
 

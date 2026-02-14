@@ -1,0 +1,70 @@
+name: Smoke Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/core/**'
+      - 'src/shared/**'
+      - 'proto/**'
+      - 'evals/**'
+      - '.github/workflows/cline-evals-regression.yml'
+  pull_request:
+    paths:
+      - 'src/core/**'
+      - 'src/shared/**'
+      - 'proto/**'
+      - 'evals/**'
+      - '.github/workflows/cline-evals-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and install CLI
+        run: |
+          npm run protos
+          cd cli && npm install && npm run build && npm link
+          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
+
+      - name: Verify CLI
+        run: cline --version
+
+      - name: Run smoke tests
+        env:
+          CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
+        run: |
+          cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
+          npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --parallel
+
+      - name: Generate summary
+        if: always()
+        run: cat evals/smoke-tests/results/latest/summary.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-results-${{ github.run_id }}
+          path: evals/smoke-tests/results/latest/
+          retention-days: 30

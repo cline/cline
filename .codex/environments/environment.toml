@@ -32,3 +32,18 @@ rm node_modules
 rm webview-ui/node_modules
 npm run install:all
 '''
+
+[[actions]]
+name = "pull main"
+icon = "tool"
+command = '''
+git fetch origin main                                                                                                                                                             
+                                                                                                                                                                                
+if ! git merge-base --is-ancestor main origin/main; then                                                                                                                          
+  echo "Local main has commits not on origin/main. Aborting..."                                                                                                                     
+  exit 1                                                                                                                                                                          
+fi
+
+git update-ref refs/heads/main refs/remotes/origin/main
+echo "main updated to $(git rev-parse --short main)"
+'''

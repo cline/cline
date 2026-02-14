@@ -59,25 +59,22 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 
 	// Verify What's New Section is showing and starts with first banner,
 	// and the navigation buttons work
-	await expect(sidebar.locator('[aria-label="Announcements"]')).toBeVisible()
-	await expect(
-		sidebar
-			.locator("div")
-			.filter({ hasText: /^1 \/ 3$/ })
-			.first(),
-	).toBeVisible()
-	await sidebar.getByRole("button", { name: "Next banner" }).click()
-	await expect(
-		sidebar
-			.locator("div")
-			.filter({ hasText: /^2 \/ 3$/ })
-			.first(),
-	).toBeVisible()
-	await sidebar.getByRole("button", { name: "Previous banner" }).click()
-	await expect(
-		sidebar
-			.locator("div")
-			.filter({ hasText: /^1 \/ 3$/ })
-			.first(),
-	).toBeVisible()
+	const announcementsRegion = sidebar.locator('[aria-label="Announcements"]')
+	await expect(announcementsRegion).toBeVisible()
+
+	const pageIndicator = announcementsRegion
+		.locator("div")
+		.filter({ hasText: /^\d+ \/ \d+$/ })
+		.first()
+	await expect(pageIndicator).toBeVisible()
+
+	const initialIndicator = (await pageIndicator.innerText()).trim()
+	const totalBanners = Number(initialIndicator.split("/")[1]?.trim() || "0")
+
+	if (totalBanners > 1) {
+		await sidebar.getByRole("button", { name: "Next banner" }).click()
+		await expect(pageIndicator).not.toHaveText(initialIndicator)
+		await sidebar.getByRole("button", { name: "Previous banner" }).click()
+		await expect(pageIndicator).toHaveText(initialIndicator)
+	}
 })

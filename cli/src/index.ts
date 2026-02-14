@@ -15,9 +15,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
-import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
 import { HistoryItem } from "@/shared/HistoryItem"
@@ -440,7 +438,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	Logger.subscribe(logToChannel)
 
 	await ClineEndpoint.initialize(EXTENSION_DIR)
-	await initializeDistinctId(extensionContext)
 
 	// Auto-update check (after endpoints initialized, so we can detect bundled configs)
 	autoUpdateOnStartup(CLI_VERSION)
@@ -478,8 +475,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	BannerService.initialize(webview.controller)
 
 	await telemetryService.captureExtensionActivated()
 	await telemetryService.captureHostEvent("cline_cli", "initialized")
@@ -795,9 +790,9 @@ program
 program
 	.command("auth")
 	.description("Authenticate a provider and configure what model is used")
-	.option("-p, --provider <id>", "Provider ID for quick setup (e.g., openai-native, anthropic)")
+	.option("-p, --provider <id>", "Provider ID for quick setup (e.g., openai-native, anthropic, moonshot)")
 	.option("-k, --apikey <key>", "API key for the provider")
-	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929)")
+	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929, kimi-k2.5)")
 	.option("-b, --baseurl <url>", "Base URL (optional, only for openai provider)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
