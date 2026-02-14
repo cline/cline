@@ -48,9 +48,10 @@ cline
   brew uninstall cline            # if Cline was installed via Homebrew
   # or manually remove the legacy binary, for example:
   rm -f /opt/homebrew/bin/cline
-- If Cline was installed globally via Bun and interactive mode fails, reinstall globally with npm:
+  ```
+- If Cline was installed globally via Bun and interactive mode fails, first uninstall with Bun, then reinstall globally with npm:
   ```bash
-  npm uninstall -g cline
+  bun remove -g cline
   npm i -g cline
   ```
 

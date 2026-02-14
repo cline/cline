@@ -30,6 +30,7 @@ import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
+import { isBunGlobalInstallPath } from "./utils/bun-install"
 import { restoreConsole } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
 import { selectOutputMode } from "./utils/mode-selection"
@@ -317,7 +318,6 @@ let isPlainTextMode = false
 // Track the original yoloModeToggled value from before this CLI session so we can restore it on exit.
 // The --yolo flag should only affect the current invocation, not persist across runs.
 let savedYoloModeToggled: boolean | null = null
-const BUN_GLOBAL_CLINE_PATH_REGEX = /[/\\]\.bun[/\\]install[/\\]global[/\\]node_modules[/\\]cline(?:[/\\]|$)/
 
 /**
  * Wait for stdout to fully drain before exiting.
@@ -336,8 +336,7 @@ async function drainStdout(): Promise<void> {
 }
 
 function isBunGlobalInstall(): boolean {
-	const scriptPath = process.argv[1] || ""
-	return BUN_GLOBAL_CLINE_PATH_REGEX.test(scriptPath)
+	return isBunGlobalInstallPath(process.argv[1] || "")
 }
 
 async function ensureInkRuntimeSupported(ctx: CliContext): Promise<void> {
@@ -345,8 +344,11 @@ async function ensureInkRuntimeSupported(ctx: CliContext): Promise<void> {
 		return
 	}
 
-	printWarning("Interactive mode is currently unsupported when Cline is installed globally with Bun.")
-	printInfo("Use npm for global installs: npm uninstall -g cline && npm i -g cline")
+	printWarning(
+		"Interactive mode is currently unsupported when Cline is installed globally with Bun due to React/Ink runtime incompatibilities in Bun's global install environment.",
+	)
+	printInfo("Uninstall Cline with Bun first: bun remove -g cline")
+	printInfo("Then reinstall with npm: npm i -g cline")
 	await disposeCliContext(ctx)
 	exit(1)
 }
