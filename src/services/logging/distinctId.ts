@@ -17,7 +17,7 @@ export const _GENERATED_MACHINE_ID_KEY = "cline.generatedMachineId"
 
 export async function initializeDistinctId(storage: StorageContext, uuid: () => string = uuidv4) {
 	// Try to read the ID from storage.
-	let distinctId = storage.globalState.get(_GENERATED_MACHINE_ID_KEY)
+	let distinctId = storage.globalState.get<string>(_GENERATED_MACHINE_ID_KEY)
 
 	if (!distinctId) {
 		// Get the ID from the host environment.

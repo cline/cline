@@ -15,8 +15,8 @@ import {
 	type Settings,
 	type SettingsKey,
 } from "@shared/storage/state-keys"
-import chokidar, { FSWatcher } from "chokidar"
 import type { StorageContext } from "@shared/storage/storage-context"
+import chokidar, { FSWatcher } from "chokidar"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import {
@@ -134,7 +134,7 @@ export class StateManager {
 			await initializeDistinctId(storage)
 
 			// Load all extension state from file-backed stores
-			const globalState = await readGlobalStateFromStorage(storage.globalState)
+			const globalState = await readGlobalStateFromStorage(storage.globalStateBackingStore)
 			const secrets = readSecretsFromStorage(storage.secrets)
 			const workspaceState = readWorkspaceStateFromStorage(storage.workspaceState)
 
@@ -657,6 +657,9 @@ export class StateManager {
 	 * Used for error recovery when write operations fail
 	 */
 	async reInitialize(currentTaskId?: string): Promise<void> {
+		if (this.persistenceTimeout) {
+			await this.persistPendingState()
+		}
 		// Clear all cached data and pending state
 		this.dispose()
 
@@ -785,7 +788,7 @@ export class StateManager {
 
 		// Batch write all regular keys in a single disk operation
 		if (Object.keys(regularEntries).length > 0) {
-			this.storage.globalState.setBatch(regularEntries)
+			this.storage.globalStateBackingStore.setBatch(regularEntries)
 		}
 	}
 

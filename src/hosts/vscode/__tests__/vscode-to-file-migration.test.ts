@@ -111,7 +111,7 @@ describe("vscode-to-file-migration", () => {
 
 		it("should skip everything when both sentinels are current version", async () => {
 			// Pre-set BOTH sentinels
-			storageContext.globalState.set("__vscodeMigrationVersion", 1)
+			storageContext.globalState.update("__vscodeMigrationVersion", 1)
 			storageContext.workspaceState.set("__vscodeMigrationVersion", 1)
 
 			const mockCtx = createMockVSCodeContext()
@@ -129,7 +129,7 @@ describe("vscode-to-file-migration", () => {
 		})
 
 		it("should skip everything when both sentinels are higher version", async () => {
-			storageContext.globalState.set("__vscodeMigrationVersion", 999)
+			storageContext.globalState.update("__vscodeMigrationVersion", 999)
 			storageContext.workspaceState.set("__vscodeMigrationVersion", 999)
 
 			const mockCtx = createMockVSCodeContext()
@@ -141,7 +141,7 @@ describe("vscode-to-file-migration", () => {
 		})
 
 		it("should re-run migration if sentinels are lower version", async () => {
-			storageContext.globalState.set("__vscodeMigrationVersion", 0)
+			storageContext.globalState.update("__vscodeMigrationVersion", 0)
 			storageContext.workspaceState.set("__vscodeMigrationVersion", 0)
 
 			const mockCtx = createMockVSCodeContext()
@@ -154,7 +154,7 @@ describe("vscode-to-file-migration", () => {
 
 		it("should migrate workspace state when globals already migrated (new workspace)", async () => {
 			// Simulate: globals+secrets already migrated, but this is a fresh workspace
-			storageContext.globalState.set("__vscodeMigrationVersion", 1)
+			storageContext.globalState.update("__vscodeMigrationVersion", 1)
 			// workspaceState has NO sentinel — this is a new workspace
 
 			const mockCtx = createMockVSCodeContext()
@@ -215,7 +215,7 @@ describe("vscode-to-file-migration", () => {
 
 		it("should NOT overwrite existing file store values", async () => {
 			// Pre-populate the file store with a value
-			storageContext.globalState.set("mode", "act")
+			storageContext.globalState.update("mode", "act")
 
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan") // VSCode has different value
@@ -345,14 +345,15 @@ describe("vscode-to-file-migration", () => {
 			// Make secrets.get throw for ALL keys to trigger a fatal error path
 			// Actually the migration catches individual secret errors. Let's make
 			// globalState iteration fail by corrupting the storage.
-			const origSet = storageContext.globalState.set.bind(storageContext.globalState)
+			const origSet = storageContext.globalState.update.bind(storageContext.globalState)
 			let callCount = 0
-			sandbox.stub(storageContext.globalState, "set").callsFake((key: string, value: any) => {
+			sandbox.stub(storageContext.globalState, "update").callsFake((key: string, value: any) => {
 				callCount++
 				if (callCount > 2) {
 					throw new Error("Simulated disk write error")
 				}
 				origSet(key, value)
+				return Promise.resolve()
 			})
 
 			mockCtx._globalStateStore.set("mode", "act")
@@ -452,7 +453,7 @@ describe("createStorageContext", () => {
 	it("should store and retrieve values correctly", () => {
 		const ctx = createStorageContext({ clineDir: tempDir, workspacePath: "/test" })
 
-		ctx.globalState.set("testKey", "testValue")
+		ctx.globalState.update("testKey", "testValue")
 		ctx.globalState.get("testKey")!.should.equal("testValue")
 
 		ctx.secrets.set("secretKey", "secretValue")

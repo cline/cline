@@ -25,13 +25,13 @@ export class ClineSecretStorage extends ClineStorage {
 		return this.secretStorage
 	}
 
-	public init(store: SecretStores) {
-		if (!this.secretStorage) {
-			this.secretStorage = store
-			Logger.info("[ClineSecretStorage] initialized")
-		}
-		return this.secretStorage
-	}
+	//	public init(store: SecretStores) {
+	//		if (!this.secretStorage) {
+	//			this.secretStorage = store
+	//			Logger.info("[ClineSecretStorage] initialized")
+	//		}
+	//		return this.secretStorage
+	//	}
 
 	protected async _get(key: string): Promise<string | undefined> {
 		try {

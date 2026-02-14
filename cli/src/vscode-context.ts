@@ -39,7 +39,7 @@ const CLI_STATE_OVERRIDES: Record<string, any> = {
  */
 class MementoAdapter implements ClineMemento {
 	constructor(
-		private readonly store: ClineFileStorage,
+		private readonly store: ClineMemento,
 		private readonly overrides: Record<string, any> = {},
 	) {}
 
@@ -57,7 +57,7 @@ class MementoAdapter implements ClineMemento {
 		if (key in this.overrides) {
 			return Promise.resolve()
 		}
-		this.store.set(key, value)
+		this.store.update(key, value)
 		return Promise.resolve()
 	}
 
@@ -120,11 +120,16 @@ export function initializeCliContext(config: CliContextConfig = {}): CliContextR
 
 	// Create the shared StorageContext — this owns all ClineFileStorage instances.
 	// CLI, JetBrains, and VSCode all share this same file-backed implementation.
-	const storageContext = createStorageContext({
+	let storageContext = createStorageContext({
 		clineDir: CLINE_DIR,
 		workspacePath: config.workspaceDir || process.cwd(),
 		workspaceStorageDir: process.env.WORKSPACE_STORAGE_DIR || undefined,
 	})
+	storageContext = {
+		...storageContext,
+		// Storage — delegates to storageContext stores (with CLI overrides for globalState)
+		globalState: new MementoAdapter(storageContext.globalState, CLI_STATE_OVERRIDES),
+	}
 
 	const DATA_DIR = storageContext.dataDir
 	const WORKSPACE_STORAGE_DIR = storageContext.workspaceStoragePath
@@ -149,11 +154,6 @@ export function initializeCliContext(config: CliContextConfig = {}): CliContextR
 	const extensionContext: ClineExtensionContext = {
 		extension: extension,
 		extensionMode: EXTENSION_MODE,
-
-		// Storage — delegates to storageContext stores (with CLI overrides for globalState)
-		globalState: new MementoAdapter(storageContext.globalState, CLI_STATE_OVERRIDES),
-		secrets: new SecretStoreAdapter(storageContext.secrets),
-		workspaceState: new MementoAdapter(storageContext.workspaceState),
 
 		// URIs / paths
 		storageUri: URI.file(WORKSPACE_STORAGE_DIR),

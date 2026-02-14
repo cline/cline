@@ -118,7 +118,7 @@ export async function exportVSCodeStorageToSharedFiles(
 					continue
 				}
 
-				storage.globalState.set(key, vscodeValue)
+				storage.globalState.update(key, vscodeValue)
 				result.globalStateCount++
 			}
 
@@ -143,7 +143,7 @@ export async function exportVSCodeStorageToSharedFiles(
 			}
 
 			// Write global sentinel
-			storage.globalState.set(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
+			storage.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
 		}
 
 		// ─── 2. Migrate workspace state (if needed) ────────────────────

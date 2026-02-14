@@ -1,6 +1,6 @@
 import type * as vscode from "vscode"
 import { WebviewProvider } from "./core/webview"
-import "./utils/path"; // necessary to have access to String.prototype.toPosix
+import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
@@ -34,7 +34,7 @@ type SlimExtensionContext = Omit<vscode.ExtensionContext, "globalState" | "secre
  * @returns The webview provider
  * @throws ClineConfigurationError if endpoints.json exists but is invalid
  */
-export async function initialize(context: SlimExtensionContext, storageContext: StorageContext): Promise<WebviewProvider> {
+export async function initialize(storageContext: StorageContext): Promise<WebviewProvider> {
 	// Configure the shared Logging class to use HostProvider's output channels and debug logger
 	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
 	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging

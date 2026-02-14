@@ -12,10 +12,10 @@ import {
 	SecretKeys,
 	Secrets,
 } from "@shared/storage/state-keys"
-import { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"
+import { StateManager } from "../StateManager"
 
 // ─── File-backed storage readers (used by StateManager) ────────────────────
 
@@ -114,19 +114,16 @@ async function handleAsyncProperties(result: any): Promise<void> {
 	result.taskHistory = await readTaskHistoryFromState()
 }
 
-export async function resetWorkspaceState(controller: Controller) {
-	await Promise.all(LocalStateKeys.map((key) => controller.context.workspaceState.update(key, undefined)))
-
-	await controller.stateManager.reInitialize()
+export async function resetWorkspaceState() {
+	const stateManager = StateManager.get()
+	LocalStateKeys.map((key) => stateManager.setWorkspaceState(key, {}))
+	await stateManager.reInitialize()
 }
 
-export async function resetGlobalState(controller: Controller) {
+export async function resetGlobalState() {
 	// TODO: Reset all workspace states?
-	const context = controller.context
-
-	await Promise.all(GlobalStateAndSettingKeys.map((key) => context.globalState.update(key, undefined)))
-
+	const stateManager = StateManager.get()
+	await Promise.all(GlobalStateAndSettingKeys.map((key) => stateManager.setGlobalState(key, undefined)))
 	await Promise.all(SecretKeys.map((key) => secretStorage.delete(key)))
-
-	await controller.stateManager.reInitialize()
+	stateManager.reInitialize()
 }
