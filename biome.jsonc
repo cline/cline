@@ -61,6 +61,8 @@
 				"noUselessElse": "info"
 			},
 			"suspicious": {
+				"noSkippedTests": "warn",
+				"noFocusedTests": "error",
 				"noDoubleEquals": "warn",
 				"noImplicitAnyLet": "info",
 				"noThenProperty": "off",
