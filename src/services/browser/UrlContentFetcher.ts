@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio"
-// @ts-expect-error
 import { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
 import { StateManager } from "@/core/storage/StateManager"
