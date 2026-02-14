@@ -52,7 +52,7 @@ import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
-import { SharedUriHandler } from "./services/uri/SharedUriHandler"
+import { SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 
@@ -623,10 +623,6 @@ function setupHostProvider(context: ExtensionContext) {
 	)
 }
 
-const TASK_URI_PATH = "/task"
-const SIDEBAR_WAIT_TIMEOUT_MS = 3000
-const SIDEBAR_WAIT_INTERVAL_MS = 50
-
 function getUriPath(url: string): string | undefined {
 	try {
 		return new URL(url).pathname
@@ -636,14 +632,17 @@ function getUriPath(url: string): string | undefined {
 }
 
 async function openClineSidebarForTaskUri(): Promise<void> {
+	const sidebarWaitTimeoutMs = 3000
+	const sidebarWaitIntervalMs = 50
+
 	await vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 
 	const startedAt = Date.now()
-	while (Date.now() - startedAt < SIDEBAR_WAIT_TIMEOUT_MS) {
+	while (Date.now() - startedAt < sidebarWaitTimeoutMs) {
 		if (WebviewProvider.getVisibleInstance()) {
 			return
 		}
-		await new Promise((resolve) => setTimeout(resolve, SIDEBAR_WAIT_INTERVAL_MS))
+		await new Promise((resolve) => setTimeout(resolve, sidebarWaitIntervalMs))
 	}
 
 	Logger.warn("Task URI handling timed out waiting for Cline sidebar visibility")
