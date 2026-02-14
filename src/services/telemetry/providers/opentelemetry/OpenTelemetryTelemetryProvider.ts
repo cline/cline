@@ -183,7 +183,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 				organization_id: activeOrg.organizationId,
 				organization_name: activeOrg.name,
 				member_id: activeOrg.memberId,
-				member_roles: activeOrg.roles.join(","), // Convert array to comma-separated string
+				member_role: activeOrg.roles[0] || "", // Effectively a single value despite the array type
 			}),
 			...this.flattenProperties(properties),
 		}

@@ -73,7 +73,7 @@ describe("OpenTelemetryTelemetryProvider.identifyUser", () => {
 		assert.strictEqual(attrs.organization_id, "org-a")
 		assert.strictEqual(attrs.organization_name, "Org A")
 		assert.strictEqual(attrs.member_id, "member-1")
-		assert.strictEqual(attrs.member_roles, "admin")
+		assert.strictEqual(attrs.member_role, "admin")
 		assert.strictEqual(attrs.alias, "machine-id-123")
 
 		// Should update distinct ID
@@ -147,7 +147,7 @@ describe("OpenTelemetryTelemetryProvider.identifyUser", () => {
 		assert.strictEqual(records[0].attributes.organization_id, "org-b", "Should reflect new org ID")
 		assert.strictEqual(records[0].attributes.organization_name, "Org B", "Should reflect new org name")
 		assert.strictEqual(records[0].attributes.member_id, "member-2", "Should reflect new member ID")
-		assert.strictEqual(records[0].attributes.member_roles, "viewer,editor", "Should reflect new roles")
+		assert.strictEqual(records[0].attributes.member_role, "viewer", "Should reflect new role")
 	})
 
 	it("should handle user with no active organization", () => {
