@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
+import * as skillsUtils from "@core/context/instructions/user-instructions/skills"
 import * as sinon from "sinon"
 import { Controller } from "../core/controller"
 import { getAvailableSlashCommands } from "../core/controller/slash/getAvailableSlashCommands"
@@ -36,6 +37,9 @@ describe("getAvailableSlashCommands", () => {
 		mockController = {
 			stateManager: mockStateManager as any,
 		}
+
+		sinon.stub(skillsUtils, "discoverSkills").resolves([])
+		sinon.stub(skillsUtils, "getAvailableSkills").returns([])
 	})
 
 	afterEach(() => {
@@ -86,12 +90,12 @@ describe("getAvailableSlashCommands", () => {
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
-			const myWorkflow = response.commands.find((cmd) => cmd.name === "my-workflow.md")
+			const myWorkflow = response.commands.find((cmd) => cmd.name === "my-workflow")
 			myWorkflow!.should.not.be.undefined()
 			myWorkflow!.section.should.equal("custom")
 			myWorkflow!.cliCompatible.should.equal(true)
 
-			const anotherWorkflow = response.commands.find((cmd) => cmd.name === "another-workflow.md")
+			const anotherWorkflow = response.commands.find((cmd) => cmd.name === "another-workflow")
 			anotherWorkflow!.should.not.be.undefined()
 		})
 
@@ -103,10 +107,10 @@ describe("getAvailableSlashCommands", () => {
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
-			const enabled = response.commands.find((cmd) => cmd.name === "enabled-workflow.md")
+			const enabled = response.commands.find((cmd) => cmd.name === "enabled-workflow")
 			enabled!.should.not.be.undefined()
 
-			const disabled = response.commands.find((cmd) => cmd.name === "disabled-workflow.md")
+			const disabled = response.commands.find((cmd) => cmd.name === "disabled-workflow")
 			;(disabled === undefined).should.be.true()
 		})
 
@@ -117,7 +121,7 @@ describe("getAvailableSlashCommands", () => {
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
-			const workflow = response.commands.find((cmd) => cmd.name === "deep-analysis.md")
+			const workflow = response.commands.find((cmd) => cmd.name === "deep-analysis")
 			workflow!.should.not.be.undefined()
 		})
 
@@ -128,7 +132,7 @@ describe("getAvailableSlashCommands", () => {
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
-			const workflow = response.commands.find((cmd) => cmd.name === "windows-workflow.md")
+			const workflow = response.commands.find((cmd) => cmd.name === "windows-workflow")
 			workflow!.should.not.be.undefined()
 		})
 	})
@@ -141,7 +145,7 @@ describe("getAvailableSlashCommands", () => {
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
-			const workflow = response.commands.find((cmd) => cmd.name === "global-workflow.md")
+			const workflow = response.commands.find((cmd) => cmd.name === "global-workflow")
 			workflow!.should.not.be.undefined()
 			workflow!.section.should.equal("custom")
 		})
@@ -153,7 +157,7 @@ describe("getAvailableSlashCommands", () => {
 
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
-			const workflow = response.commands.find((cmd) => cmd.name === "disabled-global.md")
+			const workflow = response.commands.find((cmd) => cmd.name === "disabled-global")
 			;(workflow === undefined).should.be.true()
 		})
 	})
@@ -171,7 +175,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			// Should only appear once
-			const matches = response.commands.filter((cmd) => cmd.name === "shared-workflow.md")
+			const matches = response.commands.filter((cmd) => cmd.name === "shared-workflow")
 			matches.length.should.equal(1)
 		})
 
@@ -186,7 +190,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			// Global should appear since local is disabled
-			const workflow = response.commands.find((cmd) => cmd.name === "shared-workflow.md")
+			const workflow = response.commands.find((cmd) => cmd.name === "shared-workflow")
 			workflow!.should.not.be.undefined()
 		})
 	})
@@ -280,6 +284,102 @@ describe("getAvailableSlashCommands", () => {
 
 			// Should not throw, just return base commands
 			response.commands.length.should.be.greaterThanOrEqual(BASE_SLASH_COMMANDS.length)
+		})
+	})
+
+	describe("Skills", () => {
+		beforeEach(() => {
+			;(skillsUtils.discoverSkills as sinon.SinonStub).resolves([
+				{
+					name: "summarize-pr",
+					description: "Summarize a pull request",
+					path: "/Users/test/.cline/skills/summarize-pr/SKILL.md",
+					source: "global",
+				},
+				{
+					name: "project-planner",
+					description: "Plan a project",
+					path: "/workspace/.clinerules/skills/project-planner/SKILL.md",
+					source: "project",
+				},
+			])
+			;(skillsUtils.getAvailableSkills as sinon.SinonStub).callsFake((skills) => skills)
+		})
+
+		it("should include enabled skills as slash commands", async () => {
+			mockStateManager.getGlobalSettingsKey.withArgs("globalSkillsToggles").returns({
+				"/Users/test/.cline/skills/summarize-pr/SKILL.md": true,
+			})
+			mockStateManager.getWorkspaceStateKey.withArgs("localSkillsToggles").returns({
+				"/workspace/.clinerules/skills/project-planner/SKILL.md": true,
+			})
+
+			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
+
+			const globalSkill = response.commands.find((cmd) => cmd.name === "summarize-pr")
+			globalSkill!.should.not.be.undefined()
+			globalSkill!.section.should.equal("skill")
+
+			const localSkill = response.commands.find((cmd) => cmd.name === "project-planner")
+			localSkill!.should.not.be.undefined()
+			localSkill!.section.should.equal("skill")
+		})
+
+		it("should prefer skill when skill and workflow names collide", async () => {
+			mockStateManager.getWorkspaceStateKey.withArgs("workflowToggles").returns({
+				"/path/to/summarize-pr.md": true,
+			})
+			mockStateManager.getGlobalSettingsKey.withArgs("globalSkillsToggles").returns({
+				"/Users/test/.cline/skills/summarize-pr/SKILL.md": true,
+			})
+
+			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
+			const skillMatches = response.commands.filter((cmd) => cmd.name === "summarize-pr" && cmd.section === "skill")
+			const workflowMatches = response.commands.filter((cmd) => cmd.name === "summarize-pr" && cmd.section === "custom")
+
+			skillMatches.length.should.equal(1)
+			workflowMatches.length.should.equal(0)
+		})
+
+		it("should exclude disabled skills", async () => {
+			mockStateManager.getGlobalSettingsKey.withArgs("globalSkillsToggles").returns({
+				"/Users/test/.cline/skills/summarize-pr/SKILL.md": false,
+			})
+			mockStateManager.getWorkspaceStateKey.withArgs("localSkillsToggles").returns({
+				"/workspace/.clinerules/skills/project-planner/SKILL.md": false,
+			})
+
+			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
+			const skillCommands = response.commands.filter((cmd) => cmd.section === "skill")
+			skillCommands.length.should.equal(0)
+		})
+
+		it("should keep skill description unchanged when it overrides a workflow", async () => {
+			mockStateManager.getWorkspaceStateKey.withArgs("workflowToggles").returns({
+				"/path/to/summarize-pr.md": true,
+			})
+			mockStateManager.getGlobalSettingsKey.withArgs("globalSkillsToggles").returns({
+				"/Users/test/.cline/skills/summarize-pr/SKILL.md": true,
+			})
+
+			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
+			const skill = response.commands.find((cmd) => cmd.name === "summarize-pr" && cmd.section === "skill")
+
+			skill?.description.should.equal("Summarize a pull request")
+		})
+
+		it("should keep skill description unchanged when it overrides a remote workflow", async () => {
+			mockStateManager.getRemoteConfigSettings.returns({
+				remoteGlobalWorkflows: [{ name: "summarize-pr", alwaysEnabled: true }],
+			})
+			mockStateManager.getGlobalSettingsKey.withArgs("globalSkillsToggles").returns({
+				"/Users/test/.cline/skills/summarize-pr/SKILL.md": true,
+			})
+
+			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
+			const skill = response.commands.find((cmd) => cmd.name === "summarize-pr" && cmd.section === "skill")
+
+			skill?.description.should.equal("Summarize a pull request")
 		})
 	})
 })

@@ -1,4 +1,6 @@
 import type { McpServer } from "@shared/mcp"
+import { SkillInfo } from "@shared/proto/cline/file"
+import { toWorkflowCommandName } from "@shared/slash-command-names"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { BASE_SLASH_COMMANDS, type SlashCommand, VSCODE_ONLY_COMMANDS } from "../../../src/shared/slashCommands.ts"
 
@@ -17,11 +19,12 @@ export function getWorkflowCommands(
 		.filter(([_, enabled]) => enabled)
 		.reduce(
 			(acc, [filePath, _]) => {
-				const fileName = filePath.replace(/^.*[/\\]/, "")
+				const fileName = toWorkflowCommandName(filePath)
 
 				// Add to array of workflows
 				acc.workflows.push({
 					name: fileName,
+					description: "Workflow command",
 					section: "custom",
 				} as SlashCommand)
 
@@ -36,7 +39,7 @@ export function getWorkflowCommands(
 	const globalWorkflows = Object.entries(globalWorkflowToggles)
 		.filter(([_, enabled]) => enabled)
 		.flatMap(([filePath, _]) => {
-			const fileName = filePath.replace(/^.*[/\\]/, "")
+			const fileName = toWorkflowCommandName(filePath)
 
 			// skip if a local workflow with the same name exists
 			if (localWorkflowNames.has(fileName)) {
@@ -46,6 +49,7 @@ export function getWorkflowCommands(
 			return [
 				{
 					name: fileName,
+					description: "Workflow command",
 					section: "custom",
 				},
 			] as SlashCommand[]
@@ -59,7 +63,8 @@ export function getWorkflowCommands(
 			const enabled = workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
 			if (enabled) {
 				remoteWorkflowCommands.push({
-					name: workflow.name,
+					name: toWorkflowCommandName(workflow.name),
+					description: "Workflow command",
 					section: "custom",
 				})
 			}
@@ -68,6 +73,40 @@ export function getWorkflowCommands(
 
 	const workflows = [...localWorkflows, ...globalWorkflows, ...remoteWorkflowCommands]
 	return workflows
+}
+
+/**
+ * Gets enabled skill commands from discovered skills.
+ * Global skills override local skills with the same name.
+ */
+export function getSkillCommands(globalSkills: SkillInfo[] = [], localSkills: SkillInfo[] = []): SlashCommand[] {
+	const commandsByName = new Map<string, SlashCommand>()
+
+	for (const skill of localSkills) {
+		if (skill.enabled === false) {
+			continue
+		}
+
+		commandsByName.set(skill.name, {
+			name: skill.name,
+			description: skill.description,
+			section: "skill",
+		})
+	}
+
+	for (const skill of globalSkills) {
+		if (skill.enabled === false) {
+			continue
+		}
+
+		commandsByName.set(skill.name, {
+			name: skill.name,
+			description: skill.description,
+			section: "skill",
+		})
+	}
+
+	return Array.from(commandsByName.values())
 }
 
 /**
@@ -181,6 +220,8 @@ export function getMatchingSlashCommands(
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
+	globalSkills: SkillInfo[] = [],
+	localSkills: SkillInfo[] = [],
 ): SlashCommand[] {
 	const workflowCommands = getWorkflowCommands(
 		localWorkflowToggles,
@@ -188,8 +229,11 @@ export function getMatchingSlashCommands(
 		remoteWorkflowToggles,
 		remoteWorkflows,
 	)
+	const skillCommands = getSkillCommands(globalSkills, localSkills)
+	const skillNames = new Set(skillCommands.map((command) => command.name))
+	const filteredWorkflowCommands = workflowCommands.filter((workflow) => !skillNames.has(workflow.name))
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...skillCommands, ...filteredWorkflowCommands, ...mcpPromptCommands]
 
 	if (!query) {
 		return allCommands
@@ -233,6 +277,8 @@ export function validateSlashCommand(
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
+	globalSkills: SkillInfo[] = [],
+	localSkills: SkillInfo[] = [],
 ): "full" | "partial" | null {
 	if (!command) {
 		return null
@@ -244,8 +290,11 @@ export function validateSlashCommand(
 		remoteWorkflowToggles,
 		remoteWorkflows,
 	)
+	const skillCommands = getSkillCommands(globalSkills, localSkills)
+	const skillNames = new Set(skillCommands.map((skill) => skill.name))
+	const filteredWorkflowCommands = workflowCommands.filter((workflow) => !skillNames.has(workflow.name))
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...skillCommands, ...filteredWorkflowCommands, ...mcpPromptCommands]
 
 	// case insensitive matching
 	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())

@@ -22,7 +22,7 @@ export interface VisibleWindow<T> {
  * Centers the selected item in the visible window when possible.
  * Returns the visible items and the start index for selection tracking.
  */
-export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible: number = 5): VisibleWindow<T> {
+export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible = 5): VisibleWindow<T> {
 	if (items.length <= maxVisible) {
 		return { items, startIndex: 0 }
 	}
@@ -40,10 +40,24 @@ export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisibl
 }
 
 /**
- * Sort commands with workflows (custom section) first, then default commands.
+ * Sort commands by section priority for menu display.
  */
 export function sortCommandsWorkflowsFirst(commands: SlashCommandInfo[]): SlashCommandInfo[] {
-	return [...commands.filter((cmd) => cmd.section === "custom"), ...commands.filter((cmd) => cmd.section !== "custom")]
+	const sectionPriority: Record<string, number> = {
+		skill: 0,
+		custom: 1,
+		default: 2,
+		mcp: 3,
+	}
+
+	return [...commands].sort((a, b) => {
+		const aPriority = sectionPriority[a.section || "default"] ?? 99
+		const bPriority = sectionPriority[b.section || "default"] ?? 99
+		if (aPriority !== bPriority) {
+			return aPriority - bPriority
+		}
+		return a.name.localeCompare(b.name)
+	})
 }
 
 /**
@@ -78,7 +92,7 @@ export function extractSlashQuery(text: string, cursorPosition?: number): SlashQ
 
 	// Check if there's already a completed slash command earlier in the text
 	// (only first slash command per message is processed)
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/
+	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.:@-]+\s/
 	const textBeforeCurrentSlash = text.slice(0, slashIndex)
 	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return { inSlashMode: false, query: "", slashIndex: -1 }

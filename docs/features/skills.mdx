@@ -99,6 +99,20 @@ description: Deploy applications to AWS using CDK. Use when deploying, updating 
 
 Asking "deploy this to AWS" would trigger Cline to activate the skill, load its detailed instructions, and follow them to complete your request.
 
+## Calling Skills with Slash Commands
+
+Enabled skills are also available as slash commands.
+
+- Type `/` in chat and pick a skill from the **Skill Commands** section
+- Use `/skill-name` directly (for example, `/aws-deploy`)
+- Skill commands use the skill's `name` from `SKILL.md`
+
+When a skill name collides with a workflow name, the skill command wins for `/name`.
+
+<Note>
+  Workflows are still supported, but we recommend creating new automation as skills. Workflow support is planned for future deprecation.
+</Note>
+
 ## Example: Data Analysis Skill
 
 Here's a practical skill for data analysis tasks. Create a directory called `data-analysis/` with this `SKILL.md`:
@@ -209,12 +223,12 @@ The best skills encode institutional knowledge that would otherwise live only in
 | Feature | Purpose | When Active |
 |---------|---------|-------------|
 | **Rules** | Define how Cline should behave | Always (or contextually) |
-| **Workflows** | Step-by-step task automation | Invoked with `/workflow.md` |
+| **Workflows** | Step-by-step task automation | Invoked with `/workflow` (legacy `/workflow.md` also works) |
 | **Skills** | Domain expertise loaded on-demand | Triggered by matching requests |
 
 **Rules** set constraints and preferences (like "always use TypeScript" or "follow this style guide").
 
-**Workflows** are explicit sequences you invoke for specific tasks (like `/release.md` for a release process).
+**Workflows** are explicit sequences you invoke for specific tasks (like `/release` for a release process).
 
 **Skills** are expertise that Cline activates automatically when relevant (like data analysis knowledge when you're working with CSV files).
 
@@ -225,4 +239,3 @@ Use rules for ongoing constraints, workflows for explicit automation, and skills
 - [Cline Rules](/features/cline-rules) for always-active project guidance
 - [Workflows](/features/slash-commands/workflows/index) for explicit task automation
 - [Hooks](/features/hooks/index) for injecting custom logic at key moments
-

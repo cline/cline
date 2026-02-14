@@ -85,7 +85,7 @@ Compare @src/old-api.ts with @src/new-api.ts and list the breaking changes
 
 ## Slash Commands
 
-Type `/` to see available commands. Slash commands provide quick access to settings, history, and workflows.
+Type `/` to see available commands. Slash commands provide quick access to settings, history, skills, and workflows.
 
 ### Built-in Commands
 
@@ -105,6 +105,18 @@ If you have [workflows](/features/slash-commands/workflows/index) configured, th
 ```
 /code-review
 ```
+
+Legacy filename-style workflow commands like `/code-review.md` are also supported for compatibility.
+
+### Skill Commands
+
+If you have [skills](/features/skills) enabled and discovered, they also appear as slash commands.
+
+```
+/my-skill
+```
+
+If a skill and workflow share the same command name, the skill command wins for `/name`.
 
 ## Settings Panel
 
