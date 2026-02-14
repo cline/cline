@@ -13,7 +13,6 @@ import {
 	Secrets,
 } from "@shared/storage/state-keys"
 import { Logger } from "@/shared/services/Logger"
-import { secretStorage } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"
 import { StateManager } from "../StateManager"
 
@@ -123,7 +122,7 @@ export async function resetWorkspaceState() {
 export async function resetGlobalState() {
 	// TODO: Reset all workspace states?
 	const stateManager = StateManager.get()
-	await Promise.all(GlobalStateAndSettingKeys.map((key) => stateManager.setGlobalState(key, undefined)))
-	await Promise.all(SecretKeys.map((key) => secretStorage.delete(key)))
+	GlobalStateAndSettingKeys.map((key) => stateManager.setGlobalState(key, undefined))
+	SecretKeys.map((key) => stateManager.setSecret(key, undefined))
 	stateManager.reInitialize()
 }
