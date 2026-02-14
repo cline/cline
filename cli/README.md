@@ -37,6 +37,19 @@ npm i -g cline
 cline
 ```
 
+### Troubleshooting
+
+- If you see `instance not found in registry: database not available`, check which binary is running:
+  ```bash
+  which -a cline
+  ```
+- If the active binary is an old Homebrew path (for example `/opt/homebrew/bin/cline`), uninstall the legacy binary and reinstall from npm.
+- If Cline was installed globally via Bun and interactive mode fails, reinstall globally with npm:
+  ```bash
+  npm uninstall -g cline
+  npm i -g cline
+  ```
+
 > Move your mouse around under the Cline icon for a surprise!
 
 ---

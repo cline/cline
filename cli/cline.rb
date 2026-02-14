@@ -2,8 +2,8 @@
 class Cline < Formula
   desc "Autonomous coding agent CLI - capable of creating/editing files, running commands, and more"
   homepage "https://cline.bot"
-  url "https://registry.npmjs.org/cline/-/cline-2.0.0.tgz" # GET from https://registry.npmjs.org/cline/latest tarball URL
-  sha256 "65bae90401191aeeabfbbc0b315e816aea96742043ba85b90671bf5e19d0761e"
+  url "https://registry.npmjs.org/cline/-/cline-2.2.2.tgz" # GET from https://registry.npmjs.org/cline/latest tarball URL
+  sha256 "36a16ca2476137dafef67457d4ad897b32c947bbab4cded26f1f54ea530d561e"
   license "Apache-2.0"
 
   depends_on "node@20"

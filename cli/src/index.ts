@@ -317,6 +317,7 @@ let isPlainTextMode = false
 // Track the original yoloModeToggled value from before this CLI session so we can restore it on exit.
 // The --yolo flag should only affect the current invocation, not persist across runs.
 let savedYoloModeToggled: boolean | null = null
+const BUN_GLOBAL_CLINE_PATH_REGEX = /[/\\]\.bun[/\\]install[/\\]global[/\\]node_modules[/\\]cline(?:[/\\]|$)/
 
 /**
  * Wait for stdout to fully drain before exiting.
@@ -332,6 +333,22 @@ async function drainStdout(): Promise<void> {
 			setImmediate(resolve)
 		}
 	})
+}
+
+function isBunGlobalInstall(): boolean {
+	const scriptPath = process.argv[1] || ""
+	return BUN_GLOBAL_CLINE_PATH_REGEX.test(scriptPath)
+}
+
+async function ensureInkRuntimeSupported(ctx: CliContext): Promise<void> {
+	if (!isBunGlobalInstall()) {
+		return
+	}
+
+	printWarning("Interactive mode is currently unsupported when Cline is installed globally with Bun.")
+	printInfo("Use npm for global installs: npm uninstall -g cline && npm i -g cline")
+	await disposeCliContext(ctx)
+	exit(1)
 }
 
 function setupSignalHandlers() {
@@ -542,6 +559,8 @@ async function runTask(prompt: string, options: TaskOptions & { images?: string[
 		})
 	}
 
+	await ensureInkRuntimeSupported(ctx)
+
 	// Interactive mode: Render the welcome view with optional initial prompt/images
 	// If prompt provided (cline task "prompt"), ChatView will auto-submit
 	// If no prompt (cline interactive), user will type it in
@@ -588,6 +607,8 @@ async function listHistory(options: { config?: string; limit?: number; page?: nu
 		exit(0)
 	}
 
+	await ensureInkRuntimeSupported(ctx)
+
 	await runInkApp(
 		React.createElement(App, {
 			view: "history",
@@ -615,6 +636,7 @@ async function showConfig(options: { config?: string }) {
 	const { ConfigViewWrapper } = await import("./components/ConfigViewWrapper")
 
 	telemetryService.captureHostEvent("config_command", "executed")
+	await ensureInkRuntimeSupported(ctx)
 
 	await runInkApp(
 		React.createElement(ConfigViewWrapper, {
@@ -714,6 +736,8 @@ async function runAuth(options: {
 		await disposeCliContext(ctx)
 		exit(0)
 	}
+
+	await ensureInkRuntimeSupported(ctx)
 
 	// Interactive mode - show Ink UI
 	let authError = false
@@ -922,6 +946,8 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 		})
 	}
 
+	await ensureInkRuntimeSupported(ctx)
+
 	// Interactive mode: render the task view with the existing task
 	let taskError = false
 
@@ -955,6 +981,7 @@ async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: 
 	const hasAuth = await isAuthConfigured()
 
 	let hadError = false
+	await ensureInkRuntimeSupported(ctx)
 
 	await runInkApp(
 		React.createElement(App, {
