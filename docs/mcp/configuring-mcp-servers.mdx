@@ -59,7 +59,28 @@ Settings for all installed MCP servers are located in the `cline_mcp_settings.js
 2. Select the "Configure" tab.
 3. Click the "Configure MCP Servers" button at the bottom of the pane.
 
-The file uses a JSON format with a `mcpServers` object containing named server configurations:
+The file uses a JSON format with a `mcpServers` object containing named server configurations.
+
+## Referencing environment variables
+
+You can reference environment variables in your MCP server configuration using `${env:VAR_NAME}` syntax. Cline expands these values at runtime while keeping the `${env:...}` placeholder in the settings file, so your secrets never get written to disk.
+
+### Why use environment variables
+
+Most MCP servers need credentials somewhere.
+
+- Local STDIO servers often read secrets from their process environment (for example `API_KEY` in an `env` block).
+- Remote servers often expect secrets in request headers (for example `Authorization: Bearer ...`).
+
+Hardcoding these values in a JSON settings file makes them easy to leak through normal workflows like commits, diffs, screenshots, and copy-pasted snippets.
+
+Environment variables keep the secret out of the file, make rotation easier, and make the config safe to share.
+
+<Note>
+If the environment variable is not set, Cline leaves the `${env:VAR_NAME}` value unchanged and the server will likely fail to connect.
+</Note>
+
+#### Example: STDIO server env vars
 
 ```json
 {
@@ -68,7 +89,7 @@ The file uses a JSON format with a `mcpServers` object containing named server c
 			"command": "python",
 			"args": ["/path/to/server.py"],
 			"env": {
-				"API_KEY": "your_api_key"
+				"API_KEY": "${env:MY_SERVER_API_KEY}"
 			},
 			"alwaysAllow": ["tool1", "tool2"],
 			"disabled": false
@@ -77,7 +98,24 @@ The file uses a JSON format with a `mcpServers` object containing named server c
 }
 ```
 
-_Example of MCP Server config in Cline (STDIO Transport)_
+#### Example: Remote server auth headers
+
+```json
+{
+	"mcpServers": {
+		"remote-server": {
+			"type": "streamableHttp",
+			"url": "https://your-server-url.com/mcp",
+			"headers": {
+				"Authorization": "Bearer ${env:MY_MCP_TOKEN}"
+			},
+			"disabled": false
+		}
+	}
+}
+```
+
+_Examples of MCP server config using environment variable references_
 
 ---
 
@@ -95,25 +133,9 @@ Used for local servers running on your machine:
 -   Simpler setup (no HTTP server needed)
 -   Runs as a child process on your machine
 
+STDIO servers use `command` and `args` fields to launch the server process. See the [STDIO example above](#example-stdio-server-env-vars) for a complete configuration.
+
 For more in-depth information about how STDIO transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
-
-STDIO configuration example:
-
-```json
-{
-	"mcpServers": {
-		"local-server": {
-			"command": "node",
-			"args": ["/path/to/server.js"],
-			"env": {
-				"API_KEY": "your_api_key"
-			},
-			"alwaysAllow": ["tool1", "tool2"],
-			"disabled": false
-		}
-	}
-}
-```
 
 ### SSE Transport
 
@@ -125,24 +147,9 @@ Used for remote servers accessed over HTTP/HTTPS:
 -   Requires network access
 -   Allows centralized deployment and management
 
+SSE servers use `url` and optional `headers` fields for authentication. See the [remote server example above](#example-remote-server-auth-headers) for a complete configuration.
+
 For more in-depth information about how SSE transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
-
-SSE configuration example:
-
-```json
-{
-	"mcpServers": {
-		"remote-server": {
-			"url": "https://your-server-url.com/mcp",
-			"headers": {
-				"Authorization": "Bearer your-token"
-			},
-			"alwaysAllow": ["tool3"],
-			"disabled": false
-		}
-	}
-}
-```
 
 ---
 
