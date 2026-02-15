@@ -231,13 +231,13 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					// Still streaming - show "Thinking..." text with shimmer
 					<div className="ml-1 pl-0 mb-1 -mt-1.25 pt-1">
 						<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
-							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent">
+							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent text-[13px] leading-none">
 								Thinking...
 							</span>
 						</div>
 					</div>
 				) : (
-					// Complete - always show collapsible "Thoughts" section
+					// Complete - always show collapsible thinking section
 					<ThinkingRow
 						isExpanded={isExpanded}
 						isVisible={true}

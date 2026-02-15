@@ -2622,6 +2622,28 @@ export class Task {
 
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
+			let didFinalizeReasoningForUi = false
+
+			const finalizePendingReasoningMessage = async (thinking: string): Promise<boolean> => {
+				const pendingReasoningIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(message) => message.type === "say" && message.say === "reasoning" && message.partial === true,
+				)
+
+				if (pendingReasoningIndex === -1) {
+					return false
+				}
+
+				await this.messageStateHandler.updateClineMessage(pendingReasoningIndex, {
+					text: thinking,
+					partial: false,
+				})
+				const completedReasoning = this.messageStateHandler.getClineMessages()[pendingReasoningIndex]
+				if (completedReasoning) {
+					await sendPartialMessageEvent(convertClineMessageToProto(completedReasoning))
+				}
+				return true
+			}
 
 			// Track API call time for session statistics
 			Session.get().startApiCall()
@@ -2686,9 +2708,11 @@ export class Task {
 						case "text": {
 							// If we have reasoning content, finalize it before processing text (only once)
 							const currentReasoning = reasonsHandler.getCurrentReasoning()
-							if (currentReasoning?.thinking && assistantMessage.length === 0) {
-								// Complete the reasoning message (only once)
-								await this.say("reasoning", currentReasoning.thinking, undefined, undefined, false)
+							if (currentReasoning?.thinking && !didFinalizeReasoningForUi) {
+								const finalizedReasoning = await finalizePendingReasoningMessage(currentReasoning.thinking)
+								if (finalizedReasoning) {
+									didFinalizeReasoningForUi = true
+								}
 							}
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature
@@ -2739,6 +2763,17 @@ export class Task {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
+					}
+				}
+
+				if (!this.taskState.abort && !didFinalizeReasoningForUi) {
+					const finalReasoning = reasonsHandler.getCurrentReasoning()
+					if (finalReasoning?.thinking) {
+						const finalizedPendingReasoning = await finalizePendingReasoningMessage(finalReasoning.thinking)
+						if (!finalizedPendingReasoning) {
+							await this.say("reasoning", finalReasoning.thinking, undefined, undefined, false)
+						}
+						didFinalizeReasoningForUi = true
 					}
 				}
 			} catch (error) {
