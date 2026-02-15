@@ -1,0 +1,129 @@
+---
+title: "Deep Planning"
+sidebarTitle: "Deep Planning"
+description: "Transform Cline into a meticulous architect who investigates your codebase and creates comprehensive implementation plans."
+---
+
+Deep Planning (`/deep-planning`) turns Cline into an architect before it becomes a builder. Instead of jumping straight into code, Cline systematically explores your codebase, asks targeted questions, and produces a detailed implementation plan — all before writing a single line.
+
+<Tip>
+**When should you use this?** Use `/deep-planning` for features that touch multiple files, architectural changes, complex integrations, or any task where "just start coding" would lead to rework.
+</Tip>
+
+## How It Works
+
+Deep Planning follows a four-step process:
+
+<Steps>
+  <Step title="Silent Investigation">
+    Cline explores your codebase without asking you anything. It reads relevant files, traces dependencies, examines patterns, and builds a mental model of how your project is structured. You'll see Cline reading files and running searches during this phase.
+
+    This step is intentionally silent — Cline gathers context first so it can ask better questions next.
+  </Step>
+
+  <Step title="Discussion">
+    Based on what it learned, Cline asks you targeted, specific questions about your requirements and preferences. These aren't generic questions — they're informed by what Cline found in your code.
+
+    For example, instead of asking "how should authentication work?", Cline might ask "I see you're using JWT tokens in `auth/middleware.ts` with refresh token rotation. Should the new endpoint follow the same pattern, or do you want session-based auth for this feature?"
+
+    Answer these questions to shape the plan. The more specific you are, the better the implementation plan will be.
+  </Step>
+
+  <Step title="Plan Creation">
+    Cline generates a comprehensive `implementation_plan.md` file in your project. This plan typically includes:
+
+    - **Overview** of the feature and its scope
+    - **File-by-file changes** with specific descriptions of what to add, modify, or remove
+    - **Dependencies** between changes (what needs to happen first)
+    - **Edge cases** and error handling considerations
+    - **Testing strategy** for the implementation
+
+    The plan is saved as a markdown file you can review, edit, and share with your team before any code is written.
+  </Step>
+
+  <Step title="Task Creation">
+    After you approve the plan, Cline creates a new task with the implementation steps loaded as trackable items. This gives you a clean context window focused entirely on execution, with the plan serving as the roadmap.
+  </Step>
+</Steps>
+
+## Using Deep Planning
+
+### Invoking It
+
+Type `/deep-planning` in the Cline chat input, followed by a description of what you want to build:
+
+```
+/deep-planning Add a notification system that sends email and in-app 
+notifications when users receive comments on their posts
+```
+
+The more context you provide upfront, the more focused the investigation phase will be. Include:
+
+- What you want to build
+- Any constraints or preferences
+- Which parts of the codebase are relevant (if you know)
+
+### Reviewing the Plan
+
+Once Cline generates `implementation_plan.md`, review it carefully:
+
+1. **Check the scope** — Does it cover everything you need? Is anything missing?
+2. **Verify the approach** — Does the technical approach match your preferences?
+3. **Review the order** — Are dependencies handled correctly?
+4. **Edit if needed** — It's a markdown file. Change anything that doesn't look right.
+
+Tell Cline about any adjustments before proceeding to implementation.
+
+## Model-Specific Optimization
+
+The deep planning prompt is optimized for each model family. Cline adapts its investigation and planning approach based on the strengths of whatever model you're using — whether that's Claude, GPT, Gemini, DeepSeek, or others.
+
+This means you get effective deep planning regardless of your model choice, though stronger reasoning models will generally produce more thorough plans.
+
+<Tip>
+Consider using a stronger reasoning model for the planning phase and a faster model for implementation. You can configure separate models for Plan and Act modes in Cline Settings. See [Plan & Act Mode](/core-workflows/plan-and-act#using-different-models-for-each-mode) for details.
+</Tip>
+
+## Pairing with Other Features
+
+Deep Planning works well with several other Cline features:
+
+| Feature | How It Helps |
+|---------|-------------|
+| [Focus Chain](/features/focus-chain) | Tracks implementation progress against the plan with a visible todo list |
+| [Memory Bank](/features/memory-bank) | Preserves project context across sessions so deep planning has richer input |
+| [Plan & Act Mode](/core-workflows/plan-and-act) | Use Plan mode for quick exploration, deep planning for thorough architecture |
+| [Checkpoints](/core-workflows/checkpoints) | Roll back implementation steps if something goes wrong during execution |
+
+<Tip>
+A powerful workflow: run `/deep-planning` to create the plan, enable [Focus Chain](/features/focus-chain) to track progress, then let Cline implement step by step. You get architecture-level thinking with granular progress visibility.
+</Tip>
+
+## Deep Planning vs Plan Mode
+
+Both involve thinking before doing, but they serve different purposes:
+
+| | Plan Mode | Deep Planning |
+|---|-----------|---------------|
+| **Scope** | Quick exploration and discussion | Thorough codebase investigation |
+| **Output** | Conversation context | `implementation_plan.md` file |
+| **Best for** | Medium tasks, understanding code | Large tasks, multi-file features |
+| **Duration** | Minutes | Longer — depends on codebase size |
+| **Persistence** | Lives in conversation history | Saved as a file you can reference later |
+
+For most development work, starting in Plan mode is sufficient. Reserve `/deep-planning` for tasks where you'd normally spend significant time planning on a whiteboard before coding.
+
+## Tips
+
+- **Be specific in your initial prompt.** "Add authentication" gives a vague plan. "Add OAuth2 authentication with Google and GitHub providers, using our existing user model in `models/user.ts`" gives a focused one.
+- **Point Cline at relevant files.** Use `@` mentions to highlight key files in your prompt so the investigation phase starts in the right place.
+- **Edit the plan before implementing.** The generated plan is a starting point. Adjust priorities, remove unnecessary steps, or add details before Cline starts coding.
+- **Save plans for reference.** The `implementation_plan.md` file is useful documentation even after the feature is built. Consider committing it or moving it to a docs folder.
+- **Use for onboarding.** Run `/deep-planning` on a feature you're unfamiliar with to get Cline to map out the codebase and explain how things connect.
+
+## Related
+
+- [Plan & Act Mode](/core-workflows/plan-and-act) — Cline's dual-mode system for structured development
+- [Focus Chain](/features/focus-chain) — Automatic todo list tracking for long-running tasks
+- [Memory Bank](/features/memory-bank) — Structured documentation for cross-session context
+- [Using Commands](/core-workflows/using-commands) — All available slash commands

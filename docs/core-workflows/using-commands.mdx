@@ -1,0 +1,75 @@
+---
+title: "Using Commands"
+sidebarTitle: "Using Commands"
+description: "Built-in slash commands to manage context, plan implementations, and create reusable workflows."
+---
+
+Cline provides slash commands in chat that help you manage your conversation and plan complex implementations.
+
+<Tip>
+**New to slash commands?** Watch our [quick video walkthrough](https://youtu.be/MxS5Jerpf-o) to see these commands in action.
+</Tip>
+
+## Slash Commands
+
+Type `/` in the chat input to see available slash commands:
+
+| Command | What It Does |
+|---------|--------------|
+| `/newtask` | Start fresh task with distilled context from current conversation |
+| `/smol` | Compress conversation history while preserving essential context |
+| `/newrule` | Create a rule file to teach Cline your preferences |
+| `/deep-planning` | Investigate codebase, plan thoroughly, then create implementation task |
+| `/explain-changes` | Generate AI explanations for any git diff (VS Code only) |
+| `/reportbug` | Report a bug with diagnostic info |
+
+### /newtask
+
+`/newtask` works like a developer handoff. It packages what matters (overall plan, work accomplished, relevant files, next steps) into a fresh task with a clean context window, leaving behind the noise of tool calls and implementation details.
+
+I use `/newtask` when working through complex implementations. If I've completed 3 steps of a 10-step process and my context is already 75% full, I use `/newtask` to extract key decisions, file changes, and progress without all the noise.
+
+### /smol
+
+`/smol` (or its alias `/compact`) compresses your conversation history while preserving essential context. Unlike `/newtask` which creates a new task, `/smol` condenses your current conversation into a comprehensive summary, freeing up context window space while allowing you to continue working in the same task.
+
+Use `/smol` when you're deep into a debugging session or brainstorming and need to continue in the same task without losing the insights you've gained. For more details, see [Smol Command](#smol).
+
+### /newrule
+
+`/newrule` creates a rule file that teaches Cline your preferences. Cline will guide you through setting up guidelines for communication style, coding standards, project context, and workflows. The rule is saved to your `.clinerules` directory and automatically loaded for future conversations.
+
+Use `/newrule` when you find yourself repeating the same instructions across tasks. For more about rules, see [Cline Rules](/customization/cline-rules).
+
+### /deep-planning
+
+Transform Cline into a meticulous architect who investigates your codebase, asks clarifying questions, and creates a comprehensive implementation plan before writing any code. Deep planning follows a four-step process:
+
+1. **Silent Investigation** - Cline explores your codebase structure and patterns
+2. **Discussion** - Targeted questions about requirements and approach
+3. **Plan Creation** - Generates `implementation_plan.md` with detailed specifications
+4. **Task Creation** - Creates a new task with trackable implementation steps
+
+Use `/deep-planning` for features touching multiple parts of your codebase, architectural changes, or complex integrations. For detailed documentation, see [Deep Planning](/features/deep-planning).
+
+### /explain-changes
+
+<Note>
+This command is only available in VS Code.
+</Note>
+
+`/explain-changes` generates AI-powered explanations for any git diff. You can explain the last commit, uncommitted work, staged changes, specific commits, branches, PRs, or any range of changes.
+
+Use `/explain-changes` when reviewing code, onboarding to a new codebase, or understanding what changed. For the full list of use cases and examples, see [Explain Changes Command](#explain-changes).
+
+### /reportbug
+
+`/reportbug` collects diagnostic information and helps you report issues with Cline. It gathers relevant context like your configuration, recent errors, and system details to make bug reports more useful for the development team.
+
+Use `/reportbug` when you encounter unexpected behavior, crashes, or bugs you want to report.
+
+## Custom Workflows
+
+Beyond the built-in slash commands, you can create your own workflow files that work the same way. Store Markdown files in `.clinerules/workflows/` and invoke them with `/your-workflow.md`.
+
+For a complete guide on creating and managing custom workflows, see [Workflows](/customization/workflows).

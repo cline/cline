@@ -1,0 +1,110 @@
+---
+title: ".clineignore"
+sidebarTitle: ".clineignore"
+description: "Control which files and directories Cline can access in your project."
+---
+
+The `.clineignore` file tells Cline which files and directories to skip when analyzing your codebase. It works like `.gitignore`: create a file named `.clineignore` in your project root, add patterns for files you want excluded, and Cline will ignore them.
+
+## Why It Matters
+
+Without a `.clineignore`, Cline may load your entire project into context, including dependencies, build artifacts, and generated files. This wastes tokens, increases costs, and can push useful context out of the window.
+
+Adding a `.clineignore` can cut your starting context from 200k+ tokens to under 50k. That means faster responses, lower costs, and the ability to use smaller, cheaper models effectively.
+
+## Creating a .clineignore
+
+Create a file named `.clineignore` in your project root:
+
+```text
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+/build/
+/dist/
+/.next/
+/out/
+
+# Testing artifacts
+/coverage/
+
+# Environment variables
+.env
+.env.*
+
+# Large data files
+*.csv
+*.xlsx
+*.sqlite
+
+# Generated/minified code
+*.min.js
+*.map
+```
+
+## Pattern Syntax
+
+`.clineignore` uses the same pattern syntax as `.gitignore`:
+
+| Pattern | Matches |
+|---------|---------|
+| `node_modules/` | The `node_modules` directory |
+| `**/node_modules/` | `node_modules` at any depth |
+| `*.csv` | All CSV files |
+| `/build/` | The `build` directory at the project root only |
+| `*.env.*` | Files like `.env.local`, `.env.production` |
+| `!important.csv` | Exception: do not ignore this file |
+
+Lines starting with `#` are comments. Blank lines are ignored.
+
+## What to Exclude
+
+Start with these categories and adjust for your project:
+
+**Almost always exclude:**
+- Package manager directories (`node_modules/`, `vendor/`, `.venv/`)
+- Build outputs (`dist/`, `build/`, `.next/`, `out/`)
+- Coverage reports (`coverage/`)
+- Lock files if large (`package-lock.json`, `yarn.lock`)
+
+**Exclude if present:**
+- Large data files (`.csv`, `.xlsx`, `.sqlite`, `.parquet`)
+- Binary assets (images, fonts, videos)
+- Generated code (API clients, protobuf outputs, minified bundles)
+- Environment files with secrets (`.env`, `.env.local`)
+
+**Keep accessible:**
+- Source code you actively work on
+- Configuration files Cline needs to understand (`tsconfig.json`, `package.json`)
+- Documentation and READMEs
+- Test files (Cline often needs these for context)
+
+## How It Works
+
+When Cline scans your project to build context, it checks each file path against your `.clineignore` patterns. Matching files are excluded from:
+
+- The file listing Cline sees when starting a task
+- Automatic context gathering during conversations
+- Search results when Cline looks for relevant code
+
+You can still reference ignored files explicitly using [@ mentions](/core-workflows/working-with-files). If you type `@/node_modules/some-package/index.js`, Cline will read that specific file even though `node_modules/` is in your `.clineignore`. The ignore rules control automatic loading, not explicit access.
+
+<Note>
+`.clineignore` is separate from `.gitignore`. Files tracked by Git but irrelevant to Cline (like large test fixtures or data files) should go in `.clineignore` even if they're not in `.gitignore`.
+</Note>
+
+## Tips
+
+- Add `.clineignore` early in your project. It's easier to start with broad exclusions and narrow them than to debug why context is bloated later.
+- Check your token usage in the task header after adding a `.clineignore`. The difference is often dramatic.
+- If Cline seems to be missing context about a file, check whether it's being excluded by your ignore patterns.
+- For monorepos or multi-root workspaces, each workspace root can have its own `.clineignore`. See [Multi-Root Workspaces](/features/multiroot-workspace) for details.
+
+## Related
+
+- [Cline Rules](/customization/cline-rules) - Define persistent instructions for Cline
+- [Task Management](/core-workflows/task-management#context-window) - Understand how context windows work
+- [Auto-Compact](/features/auto-compact) - Automatic context compression during long tasks
+- [Memory Bank](/features/memory-bank) - Structured documentation for cross-session context
