@@ -8,7 +8,7 @@
  */
 
 import { EventEmitter } from "events"
-import type { ClineSessionEvents } from "./types.js"
+import type { ClineSessionEvents } from "./public-types.js"
 
 /**
  * Type-safe EventEmitter for ClineAgent session events.

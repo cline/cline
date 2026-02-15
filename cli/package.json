@@ -2,9 +2,16 @@
 	"name": "cline",
 	"version": "2.2.3",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
-	"main": "dist/cli.mjs",
+	"main": "dist/lib.mjs",
+	"types": "dist/lib.d.ts",
 	"bin": {
 		"cline": "./dist/cli.mjs"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/lib.mjs",
+			"types": "./dist/lib.d.ts"
+		}
 	},
 	"os": [
 		"darwin",
@@ -23,8 +30,9 @@
 	"scripts": {
 		"package:brew": "npx tsx ./scripts/update-brew-formula.mts",
 		"package": "npm pack --pack-destination ./dist",
-		"build": "npm run typecheck && npx tsx esbuild.mts",
-		"build:production": "npm run typecheck && npx tsx esbuild.mts --production",
+		"build": "npm run typecheck && npx tsx esbuild.mts && npm run build:types",
+		"build:production": "npm run typecheck && npx tsx esbuild.mts --production && npm run build:types",
+		"build:types": "(npx tsc -p tsconfig.lib.json || true) && cp dist/types/cli/src/exports.d.ts dist/lib.d.ts && mkdir -p dist/agent && cp dist/types/cli/src/agent/ClineAgent.d.ts dist/types/cli/src/agent/ClineSessionEmitter.d.ts dist/types/cli/src/agent/public-types.d.ts dist/agent/ && rm -rf dist/types",
 		"watch": "npx tsx esbuild.mts --watch",
 		"dev": "IS_DEV=true && npm run link && npm run watch ; npm run unlink",
 		"clean": "rimraf dist",

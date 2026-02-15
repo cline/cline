@@ -12,11 +12,19 @@ export const originalConsoleWarn = console.warn.bind(console)
 export const originalConsoleInfo = console.info.bind(console)
 export const originalConsoleDebug = console.debug.bind(console)
 
-// Check for verbose flag early (before commander parses)
-const isVerbose = process.argv.includes("-v") || process.argv.includes("--verbose")
+/**
+ * Suppress console output unless verbose mode is enabled.
+ *
+ * This is intentionally opt-in and should only be called by the CLI entrypoint.
+ * Library consumers should not have their global console methods mutated as a
+ * side effect of importing the library bundle.
+ */
+export function suppressConsoleUnlessVerbose(argv: string[] = process.argv) {
+	const isVerbose = argv.includes("-v") || argv.includes("--verbose")
+	if (isVerbose) {
+		return
+	}
 
-// Suppress console output unless verbose mode
-if (!isVerbose) {
 	console.log = () => {}
 	console.warn = () => {}
 	console.error = () => {}
