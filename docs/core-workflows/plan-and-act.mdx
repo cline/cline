@@ -1,0 +1,120 @@
+---
+title: "Plan & Act Mode"
+sidebarTitle: "Plan & Act Mode"
+description: "Think first, then build. Cline's dual-mode system for structured development."
+---
+
+Plan & Act modes separate thinking from doing. Plan mode lets you explore and strategize without changing files. Act mode executes against your plan.
+
+<Tip>
+	**New to Plan & Act?** Watch [Plan & Act Deep Dive](https://youtu.be/b7o6URFPp64) to see it in action.
+</Tip>
+
+## Plan Mode
+
+Plan mode is where you and Cline figure out what you're building and how. In this mode, Cline can read your codebase, run searches, and discuss strategy, but cannot modify any files or execute commands.
+
+This constraint is intentional. It keeps the conversation focused on understanding and planning, without the distraction of implementation details. You can explore freely, ask questions, and iterate on the approach before committing to changes.
+
+Use Plan mode to:
+
+- Explore unfamiliar codebases before making changes
+- Discuss architecture decisions and tradeoffs
+- Identify edge cases and potential issues upfront
+- Create a clear implementation strategy
+- Review code and understand complex workflows
+
+## Act Mode
+
+Once you have a plan, switch to Act mode. Cline retains the full context from your planning session and can now modify files, run commands, and execute your strategy.
+
+The conversation history carries over when you switch modes. Cline remembers everything you discussed in Plan mode, so you don't need to repeat yourself. This makes the transition seamless.
+
+<Note>
+	While you can start directly in Act mode, planning first is highly recommended. The planning phase intentionally builds context that Cline needs to implement changes effectively. Without it, Cline may lack the understanding required to make the right decisions.
+</Note>
+
+## Typical Workflow
+
+1. Start in Plan mode and describe what you want to build
+2. Let Cline explore relevant files and understand the codebase
+3. Discuss the approach, considering edge cases and potential issues
+4. When confident in the plan, switch to Act mode
+5. Cline implements the solution based on your planning session
+
+For complex projects, you may cycle between modes multiple times. Return to Plan mode when you hit unexpected complexity or need to rethink the approach, then switch back to Act mode to continue implementation.
+
+## When to Use Each Mode
+
+| Scenario | Recommended Mode |
+|----------|-----------------|
+| Starting new features where the approach isn't obvious | Plan |
+| Debugging tricky issues where you're unsure what's wrong | Plan |
+| Making architectural decisions affecting multiple files | Plan |
+| Understanding complex workflows before modifying them | Plan |
+| Code review and security analysis | Plan |
+| Learning a new codebase | Plan |
+| Implementing a solution you've already planned | Act |
+| Making routine changes with a clear approach | Act |
+| Following established patterns in the codebase | Act |
+| Running tests and making adjustments | Act |
+| Quick fixes where the solution is obvious | Act |
+
+## Using Different Models for Each Mode
+
+You can configure separate models for Plan and Act modes. This is useful when you want to use a stronger reasoning model for planning and a faster model for implementation.
+
+To enable this:
+
+1. Open Cline Settings
+2. Enable "Use different models for Plan and Act"
+3. Select your preferred model for each mode
+
+When enabled, switching between Plan and Act mode automatically switches to the configured model for that mode. Your model selection is preserved when you switch back.
+
+**Example configurations:**
+
+| Use Case | Plan Mode | Act Mode |
+|----------|-----------|----------|
+| Cost optimization | GLM 4.6 | Grok Code Fast |
+| Maximum quality | Claude Opus | Claude Sonnet |
+| Speed-focused | Gemini 3 Flash | Cerebras |
+
+## Using `/deep-planning`
+
+For complex tasks that need thorough analysis, use the `/deep-planning` slash command. This triggers an extended planning session where Cline:
+
+1. Explores the codebase systematically
+2. Identifies all affected files and dependencies
+3. Creates a detailed implementation plan
+4. Asks clarifying questions before proceeding
+
+The deep planning prompt is optimized for each model family, so it adapts to the strengths of whatever model you're using. See the [Deep Planning docs](/features/deep-planning) for more details.
+
+## Choosing the Right Approach by Task Size
+
+### Small tasks: Act mode only
+
+For quick fixes like typos, simple bug fixes, or following established patterns, start directly in Act mode. Planning adds overhead when the solution is obvious.
+
+**Examples:** Fix a typo, add a missing import, update a config value, rename a variable.
+
+### Medium tasks: Plan → Act
+
+For most development work, start in Plan mode to understand the scope and approach, then switch to Act mode to implement. This is the sweet spot for features that touch a few files and have some complexity.
+
+**Examples:** Add a new API endpoint, implement a UI component, fix a bug that requires investigation, refactor a single module.
+
+### Large tasks: Use `/deep-planning`
+
+For complex features that span multiple files, require architectural decisions, or will take multiple sessions to complete, use the `/deep-planning` slash command. This creates a detailed implementation plan that Cline can reference throughout the work.
+
+**Examples:** Add a new feature across frontend and backend, major refactoring across the codebase, implementing a new system or integration, multi-step migrations.
+
+## Tips
+
+- Have Cline write a markdown file summarizing the plan for future reference
+- Use [file mentions](/core-workflows/working-with-files) to point Cline at relevant files during planning
+- Switch back to Plan mode when encountering unexpected complexity rather than pushing through
+- Enable [Checkpoints](/core-workflows/checkpoints) before Act mode so you can roll back if needed
+- For large tasks, ask Cline to create a todo list during planning that you can track in Act mode

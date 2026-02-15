@@ -65,7 +65,7 @@ Keyboard shortcuts are the primary way to navigate and control the interactive C
 
 Reference files from your workspace by typing `@` followed by the filename:
 
-```
+```text
 @src/utils.ts can you add error handling to this file?
 ```
 
@@ -79,7 +79,7 @@ File search uses ripgrep for fast, fuzzy matching. You can type partial paths li
 
 Include multiple files in a single message:
 
-```
+```text
 Compare @src/old-api.ts with @src/new-api.ts and list the breaking changes
 ```
 
@@ -100,9 +100,9 @@ Type `/` to see available commands. Slash commands provide quick access to setti
 
 ### Workflow Commands
 
-If you have [workflows](/features/slash-commands/workflows/index) configured, they appear as additional slash commands. For example, if you have a workflow named `code-review`, you can invoke it with:
+If you have [workflows](/customization/workflows) configured, they appear as additional slash commands. For example, if you have a workflow named `code-review`, you can invoke it with:
 
-```
+```text
 /code-review
 ```
 
@@ -120,7 +120,7 @@ Access the settings panel with `/settings`. Navigate between tabs using arrow ke
 
 ## Plan and Act Modes
 
-Cline operates in two modes, toggled with `Tab`. These modes work the same way in the CLI as they do in the VS Code extension. For a deeper explanation of how Plan and Act modes work, see the [Plan and Act documentation](/features/plan-and-act).
+Cline operates in two modes, toggled with `Tab`. These modes work the same way in the CLI as they do in the VS Code extension. For a deeper explanation of how Plan and Act modes work, see the [Plan and Act documentation](/core-workflows/plan-and-act).
 
 ### Plan Mode
 
@@ -211,7 +211,7 @@ Use terminal multiplexers like tmux or split terminals to run multiple Cline ins
 
 Give Cline context about what you're working on:
 
-```
+```text
 I'm building a REST API with Express. The routes are in @src/routes/ and models in @src/models/. Help me add user authentication.
 ```
 
@@ -219,7 +219,7 @@ I'm building a REST API with Express. The routes are in @src/routes/ and models 
 
 When you're unsure about the best approach:
 
-```
+```text
 [Tab to Plan mode]
 How should I structure the database schema for a multi-tenant SaaS app?
 ```
@@ -228,7 +228,7 @@ How should I structure the database schema for a multi-tenant SaaS app?
 
 The interactive CLI maintains conversation context. Build on previous messages:
 
-```
+```text
 > Add a login endpoint
 [Cline creates the endpoint]
 
@@ -242,8 +242,8 @@ The interactive CLI maintains conversation context. Build on previous messages:
 ## Next Steps
 
 <Columns cols={2}>
-  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
-    Learn about interactive mode, direct execution, and automation patterns.
+  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+    Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
   </Card>
   
   <Card title="Configuration" icon="gear" href="/cline-cli/configuration">

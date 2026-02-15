@@ -174,7 +174,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				isWaitingForResponse ? (
 					<div className="px-4 pt-2 pb-2.5">
 						<div className="ml-1">
-							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent select-none">
+							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent text-[13px] leading-none select-none">
 								Thinking...
 							</span>
 						</div>
