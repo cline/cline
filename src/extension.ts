@@ -504,6 +504,75 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
+	// Register the registerMcpServer command handler
+	// This allows other VSCode extensions to dynamically register MCP servers at runtime
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			commands.RegisterMcpServer,
+			async (config: {
+				serverName: string
+				command?: string
+				args?: string[]
+				env?: Record<string, string>
+				cwd?: string
+				url?: string
+				headers?: Record<string, string>
+				transportType?: "stdio" | "sse" | "streamableHttp"
+				disabled?: boolean
+				autoApprove?: string[]
+				timeout?: number
+			}) => {
+				try {
+					const mcpHub = webview.controller.mcpHub
+					if (!mcpHub) {
+						throw new Error("MCP Hub is not initialized")
+					}
+
+					const servers = await mcpHub.registerMcpServerDynamically(config)
+
+					telemetryService.captureButtonClick("command_registerMcpServer", webview.controller?.task?.ulid)
+
+					return { success: true, servers }
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Failed to register MCP server: ${errorMessage}`,
+					})
+					telemetryService.captureButtonClick("command_registerMcpServer_failed", webview.controller?.task?.ulid)
+					return { success: false, error: errorMessage }
+				}
+			},
+		),
+	)
+
+	// Register the unregisterMcpServer command handler
+	// This allows other VSCode extensions to clean up their dynamically registered MCP servers
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.UnregisterMcpServer, async (serverName: string) => {
+			try {
+				const mcpHub = webview.controller.mcpHub
+				if (!mcpHub) {
+					throw new Error("MCP Hub is not initialized")
+				}
+
+				const servers = await mcpHub.unregisterMcpServerDynamically(serverName)
+
+				telemetryService.captureButtonClick("command_unregisterMcpServer", webview.controller?.task?.ulid)
+
+				return { success: true, servers }
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Failed to unregister MCP server: ${errorMessage}`,
+				})
+				telemetryService.captureButtonClick("command_unregisterMcpServer_failed", webview.controller?.task?.ulid)
+				return { success: false, error: errorMessage }
+			}
+		}),
+	)
+
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
