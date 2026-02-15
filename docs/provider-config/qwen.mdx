@@ -1,0 +1,70 @@
+---
+title: "Alibaba Qwen"
+description: "Learn how to configure and use Alibaba Cloud's Qwen models with Cline. Access Qwen3 series models with thinking capabilities and extensive model options."
+---
+
+Alibaba Cloud's Qwen (通义千问) is a comprehensive family of AI models offering everything from compact 0.6B parameter models to massive 235B MoE models. Qwen3 series features hybrid thinking capabilities and strong coding performance.
+
+**Website:** [https://bailian.console.aliyun.com/](https://bailian.console.aliyun.com/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to the [Alibaba Cloud Bailian Console](https://bailian.console.aliyun.com/). Create an account or sign in.
+2.  **Navigate to API Keys:** Access the API key management section.
+3.  **Create a Key:** Generate a new API key for your application.
+4.  **Copy the Key:** Copy the API key immediately and store it securely.
+
+### Supported Models
+
+Cline supports Qwen models with separate catalogs for International and China regions:
+
+#### Qwen3 Coder Series
+-   `qwen3-coder-plus` - High-performance coding model with 1M context ($1.00/$5.00 per 1M tokens)
+-   `qwen3-coder-480b-a35b-instruct` - 480B MoE coding model with 204K context ($1.50/$7.50 per 1M tokens)
+
+#### Qwen3 Thinking Models
+-   `qwen3-235b-a22b` - 235B MoE model with thinking support (131K context, $2.00/$8.00 per 1M tokens)
+-   `qwen3-32b` - Dense 32B model with thinking (131K context)
+-   `qwen3-30b-a3b` - Compact 30B MoE with thinking (131K context)
+-   `qwen3-14b` - Mid-size model with thinking (131K context)
+-   `qwen3-8b` - Efficient model with thinking (131K context)
+-   `qwen3-4b` - Compact model with thinking (131K context)
+-   `qwen3-1.7b` - Small model with thinking (32K context)
+-   `qwen3-0.6b` - Ultra-compact model with thinking (32K context)
+
+#### Qwen2.5 Coder Series
+-   `qwen2.5-coder-32b-instruct` through `qwen2.5-coder-0.5b-instruct` - Range of coding-optimized models
+
+#### Qwen API Models
+-   `qwen-coder-plus` / `qwen-coder-plus-latest` - API-hosted coder models
+-   `qwen-plus` / `qwen-plus-latest` - General-purpose API models with thinking
+-   `qwen-turbo` / `qwen-turbo-latest` - Fast API models with 1M context
+-   `qwen-max` / `qwen-max-latest` - Maximum capability API models
+
+#### Vision Models
+-   `qwen-vl-max` / `qwen-vl-max-latest` - Vision-language max models with image support
+-   `qwen-vl-plus` / `qwen-vl-plus-latest` - Vision-language plus models
+
+#### Third-Party Models (via Qwen API)
+-   `deepseek-v3` - DeepSeek V3 hosted on Qwen infrastructure
+-   `deepseek-r1` - DeepSeek R1 reasoning model
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Alibaba Qwen" from the "API Provider" dropdown.
+3.  **Select Region:** Choose "International" or "China" based on your location.
+4.  **Enter API Key:** Paste your Qwen API key into the "Qwen API Key" field.
+5.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Thinking / Reasoning Support
+
+Qwen3 models support hybrid thinking with configurable thinking budgets. When enabled, models generate step-by-step reasoning before providing answers, improving performance on complex coding and math tasks.
+
+### Tips and Notes
+
+-   **Region Selection:** International and China regions have the same model lineup but may differ in pricing and latency.
+-   **Thinking Models:** Qwen3 models with thinking support have separate output pricing for thinking tokens.
+-   **Coder Models:** Qwen3 Coder Plus offers 1M context window, ideal for large codebases.
+-   **Vision Support:** VL (Vision-Language) models support image inputs for multimodal tasks.
+-   **Pricing:** Check the [Alibaba Cloud Bailian Console](https://bailian.console.aliyun.com/) for current pricing.

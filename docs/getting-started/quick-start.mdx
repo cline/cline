@@ -1,0 +1,86 @@
+---
+title: "Quick Start"
+sidebarTitle: "Quick Start"
+description: "Get Cline running in under 2 minutes."
+---
+
+Cline is an AI coding agent that lives in your editor. It can read and write files, run terminal commands, and help you build features through natural conversation. You stay in control: every action requires your approval.
+
+This guide gets you from zero to working code in under 2 minutes.
+
+<Info>
+  **Before You Begin: You only need one of the following installed:**
+  - **VS Code**, **Cursor**, or **Windsurf** (any recent version)
+  - **JetBrains IDE** (IntelliJ, PyCharm, WebStorm, etc.)
+  - **CLI only?** Just need Node.js 20+
+</Info>
+
+## 1. Install
+
+<Tabs>
+  <Tab title="VS Code / Cursor / Windsurf">
+    Open Extensions (`Cmd+Shift+X` on Mac, `Ctrl+Shift+X` on Windows/Linux), search **Cline**, click **Install**.
+  </Tab>
+  <Tab title="JetBrains">
+    Go to **Settings > Plugins > Marketplace**, search **Cline**, click **Install**, then restart your IDE.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    npm install -g cline
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+For detailed installation instructions including troubleshooting, see the [full installation guide](/getting-started/installing-cline).
+</Tip>
+
+## 2. Authenticate
+
+Click the Cline icon in your editor's sidebar, then click **Sign Up**. You'll authenticate at [app.cline.bot](https://app.cline.bot) and return to your editor ready to go.
+
+Authenticating gives you access to multiple AI models without managing separate API keys.
+
+<Note>
+**CLI users:** Run `cline auth` to authenticate from your terminal.
+</Note>
+
+## 3. Verify Your Connection
+
+Before building anything, let's make sure Cline is working. Send any message, even just:
+
+```text
+ping
+```
+
+If Cline responds, you're connected and ready to go.
+
+## 4. Build Something
+
+Now let's have Cline write some code. Open any folder in your editor, then paste this:
+
+```text
+Create a Python function that checks if a string is a palindrome. Include tests.
+```
+
+Cline will analyze your request, create a new file, and ask for your approval before writing anything to disk. Click **Approve** to create the file.
+
+That's it. You have working code with tests.
+
+## 5. You're All Set
+
+Let's recap what you just did:
+
+1. **Installed Cline** in your editor
+2. **Authenticated** to connect to AI models
+3. **Verified your connection** with a quick ping
+4. **Built working code**: Cline wrote it, you approved it
+
+Every step of the way, Cline showed you exactly what it planned to do and waited for your approval. Every file edit, terminal command, and browser action requires your explicit permission. You're always in control of what changes in your project.
+
+## Next Steps
+
+- [What is Cline?](/getting-started/what-is-cline): Understand Cline's full capabilities and how it works
+- [Build Your First Project](/getting-started/your-first-project): Hands-on tutorial building a complete todo app
+- [Select Your Model](/getting-started/authorizing-with-cline): Connect Claude, GPT-4, Gemini, DeepSeek, or local models
+- [Core Workflows](/core-workflows/task-management): Learn the patterns you'll use daily with Cline
