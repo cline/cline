@@ -85,4 +85,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "skills",
+		description: "View and manage installed skills",
+		section: "default",
+		cliCompatible: true,
+	},
 ]
