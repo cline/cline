@@ -15,15 +15,13 @@ import { StateManager } from "@/core/storage/StateManager"
 export function shouldUseMultiRoot({
 	workspaceManager,
 	enableCheckpoints,
-	stateManager,
 	multiRootEnabledOverride,
 }: {
 	workspaceManager?: WorkspaceRootManager
 	enableCheckpoints: boolean
-	stateManager: StateManager
 	multiRootEnabledOverride?: boolean
 }): boolean {
-	const multiRootEnabled = multiRootEnabledOverride ?? isMultiRootEnabled(stateManager)
+	const multiRootEnabled = multiRootEnabledOverride ?? isMultiRootEnabled()
 	return Boolean(multiRootEnabled && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
 }
 
@@ -75,7 +73,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 
-	if (shouldUseMultiRoot({ workspaceManager, enableCheckpoints, stateManager })) {
+	if (shouldUseMultiRoot({ workspaceManager, enableCheckpoints })) {
 		// Multi-root manager (init should be kicked off externally, non-blocking)
 		return new MultiRootCheckpointManager(workspaceManager!, taskId, enableCheckpoints, messageStateHandler)
 	}

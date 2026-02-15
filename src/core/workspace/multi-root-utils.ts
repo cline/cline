@@ -1,4 +1,4 @@
-import type { StateManager } from "../storage/StateManager"
+import { StateManager } from "../storage/StateManager"
 
 /**
  * Determines if multi-root workspace mode should be enabled.
@@ -8,7 +8,8 @@ import type { StateManager } from "../storage/StateManager"
  * @param stateManager - The state manager to check user preferences
  * @returns true if user setting is enabled
  */
-export function isMultiRootEnabled(stateManager: StateManager): boolean {
+export function isMultiRootEnabled(): boolean {
+	const stateManager = StateManager.get()
 	const userSetting = stateManager.getGlobalStateKey("multiRootEnabled")
 	return !!userSetting
 }
