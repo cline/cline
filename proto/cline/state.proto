@@ -104,7 +104,7 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 46;
+  optional string openai_codex_oauth_credentials = 47;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
