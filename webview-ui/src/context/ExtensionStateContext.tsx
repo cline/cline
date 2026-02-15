@@ -33,6 +33,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
+	clineModels: Record<string, ModelInfo>
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
@@ -297,6 +298,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
 
+	const [clineModels, setClineModels] = useState<Record<string, ModelInfo>>({})
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -763,11 +765,30 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshLiteLlmModels,
 	])
 
+	// Refresh Cline models function
+	const refreshClineModels = useCallback(() => {
+		ModelsServiceClient.refreshClineModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setClineModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh Cline models:", error))
+	}, [])
+
+	// Auto-refresh Cline models when provider is cline
+	useEffect(() => {
+		const provider = state.apiConfiguration?.actModeApiProvider ?? state.apiConfiguration?.planModeApiProvider
+		if (provider === "cline" && Object.keys(clineModels).length === 0) {
+			refreshClineModels()
+		}
+	}, [state.apiConfiguration?.actModeApiProvider, state.apiConfiguration?.planModeApiProvider, refreshClineModels])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
 		onboardingModels,
+		clineModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
