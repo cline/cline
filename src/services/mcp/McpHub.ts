@@ -373,8 +373,13 @@ export class McpHub {
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
 			// Create OAuth provider for remote transports (SSE and HTTP)
+			// Note: Only create authProvider if there are NO static Authorization headers.
+			// When static headers are present, the user wants to use their own authentication
+			// (e.g., API keys) rather than OAuth flow.
+			const hasStaticAuthHeader = expandedConfig.headers?.["Authorization"] || expandedConfig.headers?.["authorization"]
+
 			const authProvider =
-				expandedConfig.type === "sse" || expandedConfig.type === "streamableHttp"
+				(expandedConfig.type === "sse" || expandedConfig.type === "streamableHttp") && !hasStaticAuthHeader
 					? await this.mcpOAuthManager.getOrCreateProvider(name, expandedConfig.url)
 					: undefined
 
