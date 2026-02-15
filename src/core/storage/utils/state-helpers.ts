@@ -13,6 +13,7 @@ import {
 	Secrets,
 } from "@shared/storage/state-keys"
 import { Logger } from "@/shared/services/Logger"
+import { ClineMemento } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"
 import { StateManager } from "../StateManager"
 
@@ -41,7 +42,7 @@ export function readWorkspaceStateFromStorage(store: ClineFileStorage): LocalSta
 /**
  * Read global state from a ClineFileStorage instance.
  */
-export async function readGlobalStateFromStorage(store: ClineFileStorage): Promise<GlobalStateAndSettings> {
+export async function readGlobalStateFromStorage(store: ClineMemento): Promise<GlobalStateAndSettings> {
 	try {
 		// Batch read all state values in a single optimized pass
 		const stateValues = new Map<string, any>()
@@ -124,5 +125,5 @@ export async function resetGlobalState() {
 	const stateManager = StateManager.get()
 	GlobalStateAndSettingKeys.map((key) => stateManager.setGlobalState(key, undefined))
 	SecretKeys.map((key) => stateManager.setSecret(key, undefined))
-	stateManager.reInitialize()
+	await stateManager.reInitialize()
 }

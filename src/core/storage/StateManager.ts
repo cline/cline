@@ -134,7 +134,7 @@ export class StateManager {
 			await initializeDistinctId(storage)
 
 			// Load all extension state from file-backed stores
-			const globalState = await readGlobalStateFromStorage(storage.globalStateBackingStore)
+			const globalState = await readGlobalStateFromStorage(storage.globalState)
 			const secrets = readSecretsFromStorage(storage.secrets)
 			const workspaceState = readWorkspaceStateFromStorage(storage.workspaceState)
 
