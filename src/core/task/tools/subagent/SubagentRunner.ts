@@ -1,40 +1,25 @@
+import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { buildApiHandler } from "@core/api"
+import type { ApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
-import { ContextManager } from "@core/context/context-management/ContextManager"
-import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
-import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
-import { ClineToolSet } from "@core/prompts/system-prompt/registry/ClineToolSet"
 import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
-import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
+import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock, ClineUserContent } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
-import type { ClineTool } from "@shared/tools"
 import { ClineDefaultTool } from "@shared/tools"
-import { isNextGenModelFamily } from "@utils/model-utils"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { ClineError, ClineErrorType } from "@/services/error/ClineError"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
+import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
+import { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
+import { SubagentBuilder } from "./SubagentBuilder"
 
-const SUBAGENT_ALLOWED_TOOLS: ClineDefaultTool[] = [
-	ClineDefaultTool.FILE_READ,
-	ClineDefaultTool.LIST_FILES,
-	ClineDefaultTool.SEARCH,
-	ClineDefaultTool.LIST_CODE_DEF,
-	ClineDefaultTool.BASH,
-	ClineDefaultTool.USE_SKILL,
-	ClineDefaultTool.ATTEMPT,
-]
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
-const MAX_INITIAL_STREAM_ATTEMPTS = 3
-const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 250
 
 export type SubagentRunStatus = "completed" | "failed"
 
@@ -74,20 +59,6 @@ interface SubagentToolCall {
 	input: unknown
 	isNativeToolCall: boolean
 }
-
-const SUBAGENT_SYSTEM_SUFFIX = `\n\n# Subagent Execution Mode
-You are running as a research subagent. Your job is to explore the codebase and gather information to answer the question.
-Explore, read related files, trace through call chains, and build a complete picture before reporting back.
-You can read files, list directories, search for patterns, list code definitions, and run commands.
-Only use execute_command for readonly operations like ls, grep, git log, git diff, gh, etc.
-When it makes sense, be clever about chaining commands or in-command scripting in execute_command to quickly get relevant context - and using pipes / filters to help narrow results.
-Do not run commands that modify files or system state.
-When you have a comprehensive answer, call the attempt_completion tool.
-The attempt_completion result field is sent directly to the main agent, so put your full final findings there.
-Unless the subagent prompt explicitly asks for detailed analysis, keep the result concise and focus on the files the main agent should read next.
-Include a section titled "Relevant file paths" and list only file paths, one per line.
-Do not include line numbers, summaries, or per-file explanations unless explicitly requested.
-`
 
 function serializeToolResult(result: unknown): string {
 	if (typeof result === "string") {
@@ -221,12 +192,22 @@ function pushSubagentToolResultBlock(toolResultBlocks: any[], call: SubagentTool
 }
 
 export class SubagentRunner {
+	private readonly agent: SubagentBuilder
+	private readonly apiHandler: ApiHandler
+	private readonly allowedTools: ClineDefaultTool[]
 	private activeApiAbort: (() => void) | undefined
 	private abortRequested = false
 	private activeCommandExecutions = 0
 	private abortingCommands = false
 
-	constructor(private baseConfig: TaskConfig) {}
+	constructor(
+		private baseConfig: TaskConfig,
+		subagentName = "subagent",
+	) {
+		this.agent = new SubagentBuilder(baseConfig, subagentName)
+		this.apiHandler = this.agent.getApiHandler()
+		this.allowedTools = this.agent.getAllowedTools()
+	}
 
 	async abort(): Promise<void> {
 		this.abortRequested = true
@@ -280,7 +261,6 @@ export class SubagentRunner {
 		this.abortRequested = false
 		const state = new TaskState()
 		let emptyAssistantResponseRetries = 0
-		let previousRequestTotalTokens: number | undefined
 		const stats: SubagentRunStats = {
 			toolCalls: 0,
 			inputTokens: 0,
@@ -298,11 +278,7 @@ export class SubagentRunner {
 		try {
 			const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
 			const apiConfiguration = this.baseConfig.services.stateManager.getApiConfiguration()
-			const effectiveApiConfiguration = {
-				...apiConfiguration,
-				ulid: this.baseConfig.ulid,
-			}
-			const api = buildApiHandler(effectiveApiConfiguration, mode)
+			const api = this.apiHandler
 			this.activeApiAbort = api.abort?.bind(api)
 
 			const providerId = (
@@ -337,9 +313,10 @@ export class SubagentRunner {
 			}
 
 			const promptRegistry = PromptRegistry.getInstance()
-			const systemPrompt = (await promptRegistry.get(context)) + SUBAGENT_SYSTEM_SUFFIX
+			const generatedSystemPrompt = await promptRegistry.get(context)
+			const systemPrompt = this.agent.buildSystemPrompt(generatedSystemPrompt)
 			const useNativeToolCalls = !!promptRegistry.nativeTools?.length
-			const nativeTools = useNativeToolCalls ? this.buildNativeTools(context) : undefined
+			const nativeTools = useNativeToolCalls ? this.agent.buildNativeTools(context) : undefined
 			const workspaceMetadataEnvironmentBlock = await this.getWorkspaceMetadataEnvironmentBlock()
 
 			if (useNativeToolCalls && (!nativeTools || nativeTools.length === 0)) {
@@ -378,18 +355,6 @@ export class SubagentRunner {
 			]
 
 			while (true) {
-				if (
-					previousRequestTotalTokens !== undefined &&
-					this.shouldCompactBeforeNextRequest(previousRequestTotalTokens, api, providerInfo.model.id)
-				) {
-					const didCompact = this.compactConversationForContextWindow(conversation)
-					if (didCompact) {
-						Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
-					}
-					// Prevent repeated compaction attempts off the same token sample.
-					previousRequestTotalTokens = undefined
-				}
-
 				const streamHandler = new StreamResponseHandler()
 				const { toolUseHandler } = streamHandler.getHandlers()
 				let requestInputTokens = 0
@@ -402,14 +367,7 @@ export class SubagentRunner {
 				let assistantTextSignature: string | undefined
 				let requestId: string | undefined
 
-				const stream = this.createMessageWithInitialChunkRetry(
-					api,
-					systemPrompt,
-					conversation,
-					nativeTools,
-					providerInfo.providerId,
-					providerInfo.model.id,
-				)
+				const stream = api.createMessage(systemPrompt, conversation, nativeTools)
 
 				for await (const chunk of stream) {
 					switch (chunk.type) {
@@ -471,8 +429,6 @@ export class SubagentRunner {
 						requestCacheReadTokens,
 					)
 				stats.totalCost += calculatedRequestCost || 0
-				previousRequestTotalTokens =
-					requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
 
 				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
 					toolUseId: resolveToolUseId(toolCall, index),
@@ -558,7 +514,7 @@ export class SubagentRunner {
 				}
 				emptyAssistantResponseRetries = 0
 
-				const toolResultBlocks = [] as any[]
+				const toolResultBlocks = [] as ClineUserContent[]
 				for (const call of finalizedToolCalls) {
 					const toolName = call.name as ClineDefaultTool
 					const toolCallParams = toToolUseParams(call.input)
@@ -577,7 +533,7 @@ export class SubagentRunner {
 						return { status: "completed", result: completionResult, stats }
 					}
 
-					if (!SUBAGENT_ALLOWED_TOOLS.includes(toolName)) {
+					if (!this.allowedTools.includes(toolName)) {
 						const deniedResult = formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`)
 						pushSubagentToolResultBlock(toolResultBlocks, call, toolName, deniedResult)
 						continue
@@ -647,9 +603,17 @@ export class SubagentRunner {
 
 	private createSubagentTaskConfig(state: TaskState): TaskConfig {
 		const baseCallbacks = this.baseConfig.callbacks
+		const coordinator = new ToolExecutorCoordinator()
+		const validator = new ToolValidator(this.baseConfig.services.clineIgnoreController)
+
+		for (const tool of this.allowedTools) {
+			coordinator.registerByName(tool, validator)
+		}
 
 		return {
 			...this.baseConfig,
+			api: this.apiHandler,
+			coordinator,
 			taskState: state,
 			isSubagentExecution: true,
 			vscodeTerminalExecutionMode: "backgroundExec",
@@ -671,139 +635,5 @@ export class SubagentRunner {
 				},
 			},
 		}
-	}
-
-	private shouldRetryInitialStreamError(error: unknown, providerId: string, modelId: string): boolean {
-		// Mirror main loop behavior: do not auto-retry auth/balance failures.
-		const parsedError = ClineError.transform(error, modelId, providerId)
-		const isAuthError = parsedError.isErrorType(ClineErrorType.Auth)
-		const isBalanceError = parsedError.isErrorType(ClineErrorType.Balance)
-
-		if (isAuthError || isBalanceError) {
-			return false
-		}
-
-		return true
-	}
-
-	private compactConversationForContextWindow(conversation: ClineStorageMessage[]): boolean {
-		const contextManager = new ContextManager()
-		const optimizationResult = this.optimizeConversationForContextWindow(contextManager, conversation)
-		if (optimizationResult.didOptimize && !optimizationResult.needToTruncate) {
-			return true
-		}
-
-		const deletedRange = contextManager.getNextTruncationRange(conversation, undefined, "quarter")
-		if (deletedRange[1] < deletedRange[0]) {
-			return optimizationResult.didOptimize
-		}
-
-		const truncated = contextManager
-			.getTruncatedMessages(conversation, deletedRange)
-			.map((message) => message as ClineStorageMessage)
-		if (truncated.length >= conversation.length) {
-			return optimizationResult.didOptimize
-		}
-
-		conversation.splice(0, conversation.length, ...truncated)
-		return true
-	}
-
-	private optimizeConversationForContextWindow(
-		contextManager: ContextManager,
-		conversation: ClineStorageMessage[],
-	): {
-		didOptimize: boolean
-		needToTruncate: boolean
-	} {
-		const timestamp = Date.now()
-		const optimizationResult = contextManager.attemptFileReadOptimizationInMemory(conversation, undefined, timestamp)
-		if (!optimizationResult.anyContextUpdates) {
-			return { didOptimize: false, needToTruncate: true }
-		}
-
-		const optimizedConversation = optimizationResult.optimizedConversationHistory.map(
-			(message) => message as ClineStorageMessage,
-		)
-		conversation.splice(0, conversation.length, ...optimizedConversation)
-		return { didOptimize: true, needToTruncate: optimizationResult.needToTruncate }
-	}
-
-	private shouldCompactBeforeNextRequest(
-		previousRequestTotalTokens: number,
-		api: ReturnType<typeof buildApiHandler>,
-		modelId: string,
-	): boolean {
-		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
-		if (useAutoCondense && isNextGenModelFamily(modelId)) {
-			const autoCondenseThreshold = this.baseConfig.services.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
-				| number
-				| undefined
-			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
-			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
-			return previousRequestTotalTokens >= thresholdTokens
-		}
-
-		return previousRequestTotalTokens >= maxAllowedSize
-	}
-
-	private async *createMessageWithInitialChunkRetry(
-		api: ReturnType<typeof buildApiHandler>,
-		systemPrompt: string,
-		conversation: ClineStorageMessage[],
-		nativeTools: ClineTool[] | undefined,
-		providerId: string,
-		modelId: string,
-	) {
-		for (let attempt = 1; attempt <= MAX_INITIAL_STREAM_ATTEMPTS; attempt += 1) {
-			const stream = api.createMessage(systemPrompt, conversation, nativeTools)
-			const iterator = stream[Symbol.asyncIterator]()
-
-			try {
-				const firstChunk = await iterator.next()
-				if (!firstChunk.done) {
-					yield firstChunk.value
-				}
-
-				yield* iterator
-				return
-			} catch (error) {
-				if (checkContextWindowExceededError(error)) {
-					const didCompact = this.compactConversationForContextWindow(conversation)
-					if (!didCompact || this.shouldAbort() || attempt >= MAX_INITIAL_STREAM_ATTEMPTS) {
-						throw error
-					}
-					Logger.warn(
-						`[SubagentRunner] Context window exceeded on initial stream attempt ${attempt}; compacted conversation and retrying.`,
-					)
-					continue
-				}
-
-				const shouldRetry =
-					!this.shouldAbort() &&
-					attempt < MAX_INITIAL_STREAM_ATTEMPTS &&
-					this.shouldRetryInitialStreamError(error, providerId, modelId)
-				if (!shouldRetry) {
-					throw error
-				}
-
-				const delayMs = INITIAL_STREAM_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)
-				Logger.warn(`[SubagentRunner] Initial stream failed. Retrying attempt ${attempt + 1}.`, error)
-				await delay(delayMs)
-			}
-		}
-	}
-
-	private buildNativeTools(context: SystemPromptContext): ClineTool[] {
-		const family = PromptRegistry.getInstance().getModelFamily(context)
-		const toolSets = ClineToolSet.getToolsForVariantWithFallback(family, SUBAGENT_ALLOWED_TOOLS)
-		const filteredToolSpecs = toolSets
-			.map((toolSet) => toolSet.config)
-			.filter((toolSpec) => !toolSpec.contextRequirements || toolSpec.contextRequirements(context))
-
-		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
-
-		return filteredToolSpecs.map((tool) => converter(tool, context))
 	}
 }

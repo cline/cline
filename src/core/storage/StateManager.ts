@@ -20,6 +20,7 @@ import type { ExtensionContext } from "vscode"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
 import { secretStorage } from "@/shared/storage/ClineSecretStorage"
+import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -139,6 +140,8 @@ export class StateManager {
 			await StateManager.instance.setupTaskHistoryWatcher()
 
 			StateManager.instance.isInitialized = true
+
+			AgentConfigLoader.getInstance()
 		} catch (error) {
 			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error

@@ -846,9 +846,8 @@ export class ContextManager {
 							}
 							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
 							// to do so we need to keep track of which files we've already replaced so we don't replace them again
-							else {
-								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-							}
+
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again
