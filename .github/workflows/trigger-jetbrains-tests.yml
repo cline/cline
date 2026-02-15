@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: 1998650
           private-key: ${{ secrets.CLINE_JETBRAINS_WORKFLOW_KEY }}
