@@ -2,11 +2,12 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
+import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import { InvalidGrantError, InvalidTokenError, OAuthError } from "@modelcontextprotocol/sdk/server/auth/errors.js"
 import {
 	CallToolResultSchema,
 	GetPromptResultSchema,
@@ -550,9 +551,24 @@ export class McpHub {
 			try {
 				await client.connect(transport)
 			} catch (error) {
-				if (error instanceof UnauthorizedError) {
-					// Server requires OAuth authentication
-					Logger.log(`Server "${name}" requires OAuth authentication`)
+				// Check for OAuth-related errors (including refresh token failures)
+				const isAuthError =
+					error instanceof UnauthorizedError ||
+					error instanceof InvalidGrantError ||
+					error instanceof InvalidTokenError ||
+					error instanceof OAuthError
+
+				if (isAuthError) {
+					// Server requires OAuth authentication (or re-authentication due to expired tokens)
+					const isInitialAuth = error instanceof UnauthorizedError
+					Logger.log(
+						`Server "${name}" requires OAuth ${isInitialAuth ? "authentication" : "re-authentication (token expired)"}`,
+					)
+
+					// Clear expired tokens so next auth attempt starts fresh (not for initial auth)
+					if (!isInitialAuth && config.url) {
+						await this.mcpOAuthManager.clearServerTokens(name, config.url)
+					}
 					const unauthConnection: McpConnection = {
 						server: {
 							name,
@@ -561,7 +577,9 @@ export class McpHub {
 							disabled: false,
 							oauthRequired: true,
 							oauthAuthStatus: "unauthenticated",
-							error: "This MCP server requires authentication to get started.",
+							error: isInitialAuth
+								? "This MCP server requires authentication to get started."
+								: "Authentication expired. Please re-authenticate.",
 							uid: this.getMcpServerKey(name),
 						},
 						client,
@@ -1112,6 +1130,29 @@ export class McpHub {
 		await this.notifyWebviewOfServerChanges()
 	}
 
+	/**
+	 * Marks a server as requiring re-authentication and updates UI
+	 */
+	private async markServerAsNeedingAuth(serverName: string, connection: McpConnection, errorMessage: string): Promise<void> {
+		// Clear expired tokens so auth() starts fresh when user clicks "Authenticate"
+		// Without this, auth() would find old expired tokens and try to refresh them again
+		try {
+			const config = JSON.parse(connection.server.config)
+			if (config.url) {
+				await this.mcpOAuthManager.clearServerTokens(serverName, config.url)
+			}
+		} catch (e) {
+			Logger.error(`[McpHub] Failed to clear tokens for "${serverName}":`, e)
+		}
+
+		// Update server state to show "Authenticate" button
+		connection.server.oauthRequired = true
+		connection.server.oauthAuthStatus = "unauthenticated"
+		connection.server.status = "disconnected"
+		connection.server.error = errorMessage
+		await this.notifyWebviewOfServerChanges()
+	}
+
 	async getLatestMcpServersRPC(): Promise<McpServer[]> {
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (!settings) {
@@ -1292,6 +1333,20 @@ export class McpHub {
 				content: result.content ?? [],
 			}
 		} catch (error) {
+			// Check if this is an OAuth authentication error
+			const isAuthError =
+				error instanceof UnauthorizedError ||
+				error instanceof InvalidGrantError ||
+				error instanceof InvalidTokenError ||
+				error instanceof OAuthError
+
+			if (isAuthError && connection.authProvider) {
+				// Show "Authenticate" button instead of "Retry Connection"
+				await this.markServerAsNeedingAuth(serverName, connection, "Authentication failed. Please re-authenticate.")
+				throw new Error(`Authentication failed for "${serverName}". Please click "Authenticate" to re-authenticate.`)
+			}
+
+			// Log and throw error
 			this.telemetryService.captureMcpToolCall(
 				ulid,
 				serverName,
@@ -1595,8 +1650,8 @@ export class McpHub {
 	 */
 	async initiateOAuth(serverName: string): Promise<void> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (!connection) {
-			throw new Error(`No connection found for server: ${serverName}`)
+		if (!connection?.authProvider) {
+			throw new Error(`No connection or auth provider found for server: ${serverName}`)
 		}
 
 		// Extract serverUrl from config
@@ -1606,7 +1661,8 @@ export class McpHub {
 			throw new Error(`No URL found in config for server: ${serverName}`)
 		}
 
-		// Start OAuth flow - opens the SDK-generated authorization URL in browser
+		// Generate fresh OAuth URL and open browser
+		await auth(connection.authProvider, { serverUrl, fetchFn: fetch })
 		await this.mcpOAuthManager.startOAuthFlow(serverName, serverUrl)
 	}
 
