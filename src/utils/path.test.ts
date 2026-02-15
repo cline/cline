@@ -2,7 +2,7 @@ import { describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
-import { arePathsEqual, getReadablePath } from "./path"
+import { arePathsEqual, getReadablePath, isLocatedInPath } from "./path"
 
 describe("Path Utilities", () => {
 	describe("arePathsEqual", () => {
@@ -48,6 +48,52 @@ describe("Path Utilities", () => {
 			const cwd = path.resolve("/home/user/project")
 			const filePath = path.resolve("/home/user/other/file.txt")
 			getReadablePath(cwd, filePath).should.equal(filePath.toPosix())
+		})
+
+		it("should not treat project-backup as inside project", () => {
+			const base = path.join(os.tmpdir(), "cline-path-tests")
+			const cwd = path.join(base, "project")
+			const filePath = path.join(base, "project-backup", "src", "file.txt")
+			getReadablePath(cwd, filePath).should.equal(filePath.toPosix())
+		})
+
+		it("should not treat project2 as inside project", () => {
+			const base = path.join(os.tmpdir(), "cline-path-tests")
+			const cwd = path.join(base, "project")
+			const filePath = path.join(base, "project2", "src", "file.txt")
+			getReadablePath(cwd, filePath).should.equal(filePath.toPosix())
+		})
+	})
+
+	describe("isLocatedInPath", () => {
+		it("should treat windows extended-length paths as boundary-aware", () => {
+			const dirPath = "\\\\?\\C:\\Users\\user\\project"
+			const insidePath = "\\\\?\\C:\\Users\\user\\project\\src\\file.ts"
+			const prefixCollisionPath = "\\\\?\\C:\\Users\\user\\project-backup\\src\\file.ts"
+
+			isLocatedInPath(dirPath, insidePath).should.be.true()
+			isLocatedInPath(dirPath, prefixCollisionPath).should.be.false()
+		})
+
+		it("should compare windows extended-length paths case-insensitively", () => {
+			const dirPath = "\\\\?\\C:\\Users\\User\\Project"
+			const insidePath = "\\\\?\\c:\\users\\user\\project\\src\\file.ts"
+
+			isLocatedInPath(dirPath, insidePath).should.be.true()
+		})
+
+		it("should handle mixed extended and non-extended windows paths", () => {
+			const dirPath = "\\\\?\\C:\\Users\\user\\project"
+			const insidePath = "C:\\Users\\user\\project\\src\\file.ts"
+
+			isLocatedInPath(dirPath, insidePath).should.be.true()
+		})
+
+		it("should preserve case sensitivity for non-windows-style extended paths", () => {
+			const dirPath = "\\\\?\\tmp\\Project"
+			const insidePath = "\\\\?\\tmp\\project\\src\\file.ts"
+
+			isLocatedInPath(dirPath, insidePath).should.be.false()
 		})
 	})
 })
