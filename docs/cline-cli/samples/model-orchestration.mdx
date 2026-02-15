@@ -3,26 +3,21 @@ title: "Model Orchestration"
 description: "Use multiple AI models strategically: optimize costs, reduce bias, and leverage model-specific strengths in your workflows"
 ---
 
-# Model Orchestration
-
 Cline CLI's `--config` and `--thinking` flags enable sophisticated multi-model workflows. Instead of using a single model for all tasks, you can route different work to different models based on cost, capability, and specialization.
 
 ## Why Orchestrate Multiple Models?
 
 **Cost Optimization**
-- Use fast, cheap models (Haiku, Gemini Flash) for simple tasks like summarization
-- Reserve expensive models (Opus, O1) for complex reasoning and planning
-- Reduce API costs by 10-100x on routine operations
+
+By routing work to the right model for the job, you can dramatically reduce API costs. Fast, inexpensive models like Haiku and Gemini Flash handle simple tasks such as summarization, while expensive models like Opus and O1 are reserved for complex reasoning and planning. This approach can reduce costs by 10-100x on routine operations.
 
 **Bias Reduction**
-- Different models catch different issues in code reviews
-- Cross-validate solutions with multiple AI perspectives
-- Reduce blind spots from single-model thinking
+
+Different models catch different issues, so cross-validating solutions with multiple AI perspectives helps reduce blind spots that come from relying on a single model. In code reviews especially, combining viewpoints surfaces problems that any one model might miss.
 
 **Specialization**
-- Some models excel at code (Codex, DeepSeek)
-- Others are better at documentation (GPT-4, Claude)
-- Security analysis benefits from multiple viewpoints
+
+Certain models excel in specific domains: Codex and DeepSeek are strong at code generation, while GPT-4 and Claude shine at documentation and prose. Security analysis in particular benefits from combining multiple model viewpoints, since each brings different training data and heuristics to the table.
 
 ## Pattern 1: CI/CD Code Review
 
@@ -213,8 +208,8 @@ cat *-sec.md | cline -y "find security issues all 3 reviews mentioned"
     Complete documentation for --config and --thinking flags
   </Card>
   
-  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
-    Learn about interactive mode, headless automation, and multi-instance workflows
+  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+    Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
   </Card>
   
   <Card title="Model Selection Guide" icon="brain" href="/core-features/model-selection-guide">
