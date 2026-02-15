@@ -106,7 +106,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	}
 
 	const handleToggleChange = (event: any) => {
-		const isChecked = (event.target as HTMLInputElement).checked
+		const isChecked = event.target.checked === true
 		const newThinkingBudgetValue = isChecked ? ANTHROPIC_MIN_THINKING_BUDGET : 0
 		setIsEnabled(isChecked)
 		setLocalValue(newThinkingBudgetValue)
@@ -121,7 +121,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	return (
 		<div className="w-full">
 			{showEnableToggle ? (
-				<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
+				<VSCodeCheckbox checked={isEnabled} onChange={handleToggleChange}>
 					Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
 				</VSCodeCheckbox>
 			) : null}
