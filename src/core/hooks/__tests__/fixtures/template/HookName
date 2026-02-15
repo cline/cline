@@ -1,66 +1,69 @@
 #!/usr/bin/env node
-
 /**
- * TEMPLATE HOOK SCRIPT
+ * Hook Template Script
  *
- * This is a template for creating new hook fixtures.
- * Copy this file to create a new fixture script.
+ * This is a template for creating new hook test fixtures.
+ * Copy this file and customize the logic for your specific test case.
  *
- * Customize the logic below to implement your specific hook behavior.
+ * Available input data (depends on hook type):
+ * - Common: clineVersion, hookName, timestamp, taskId, workspaceRoots, userId
+ * - PreToolUse: preToolUse.toolName, preToolUse.parameters
+ * - PostToolUse: postToolUse.toolName, postToolUse.parameters, postToolUse.result, postToolUse.success, postToolUse.executionTimeMs
+ * - UserPromptSubmit: userPromptSubmit.prompt, userPromptSubmit.attachments
+ * - TaskStart/Resume/Cancel/Complete: taskX.taskMetadata
+ * - PreCompact: preCompact.contextSize, preCompact.messagesToCompact, preCompact.compactionStrategy
  */
 
 try {
-  // Parse the input from stdin (what gets passed to the hook)
+  // Parse input from stdin
   const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 
-  // Extract relevant input data
-  // For PreToolUse hooks:
-  const { toolName, parameters } = input.preToolUse || {};
-  // For PostToolUse hooks:
-  // const { toolName, parameters, result, success, executionTimeMs } = input.postToolUse || {};
-
   // Common metadata (available in all hook types)
-  const { hookName: hookType, timestamp, taskId, workspaceRoots, userId } = input;
+  const { hookName, timestamp, taskId, workspaceRoots, userId, clineVersion } = input;
 
-  // Initialize output variables
-  let shouldContinue = true;
+  // Hook-specific data (only one of these will be present)
+  const { preToolUse, postToolUse, userPromptSubmit, taskStart, taskResume, taskCancel, taskComplete, preCompact } = input;
+
+  // Initialize output
+  let cancel = false;
   let contextModification = "";
   let errorMessage = "";
 
-  // === CUSTOMIZE THIS LOGIC ===
-  // Implement your hook logic here
-
-  // Example: Simple success hook
+  // === CUSTOMIZE THIS SECTION ===
+  
+  // Example: Success case
   contextModification = "TEMPLATE: Hook executed successfully";
 
-  // Example: Context injection based on tool name
-  if (toolName === "write_to_file") {
-    contextModification = "FILE_OPERATIONS: File modification operation";
-  } else if (toolName === "run_command") {
-    contextModification = "SYSTEM_OPERATIONS: Command execution operation";
+  // Example: PreToolUse - block specific tools
+  if (preToolUse) {
+    const { toolName, parameters } = preToolUse;
+    // Uncomment to block a specific tool:
+    // if (toolName === "execute_command") {
+    //   cancel = true;
+    //   errorMessage = "Tool blocked by hook";
+    // }
   }
 
-  // Example: Validation/blocking
-  // if (!parameters?.path) {
-  //   shouldContinue = false;
-  //   errorMessage = "ERROR: Tool requires a 'path' parameter";
-  // }
+  // Example: PostToolUse - track results
+  if (postToolUse) {
+    const { toolName, success, executionTimeMs } = postToolUse;
+    contextModification = `POST_TOOL: ${toolName} completed (success: ${success})`;
+  }
 
-  // === END CUSTOM LOGIC ===
+  // === END CUSTOMIZATION ===
 
-  // Return the standardized output format
+  // Output result (must be valid JSON)
   console.log(JSON.stringify({
-    shouldContinue,
+    cancel,
     contextModification,
     errorMessage
   }));
 
 } catch (error) {
-  // Error handling - hooks should handle their own errors gracefully
-  const errorMessage = error instanceof Error ? error.message : String(error);
+  // Error handling - output valid JSON even on error
   console.log(JSON.stringify({
     cancel: true,
     contextModification: "",
-    errorMessage: `HOOK_ERROR: ${errorMessage}`
+    errorMessage: `HOOK_ERROR: ${error instanceof Error ? error.message : String(error)}`
   }));
 }
