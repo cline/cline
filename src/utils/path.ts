@@ -155,13 +155,19 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 	}
 	// Handle long paths in Windows
 	if (dirPath.startsWith(WINDOWS_EXTENDED_PATH_PREFIX) || pathToCheck.startsWith(WINDOWS_EXTENDED_PATH_PREFIX)) {
-		const normalizedDir = normalizeExtendedLengthPath(dirPath).toLowerCase()
-		const normalizedPathToCheck = normalizeExtendedLengthPath(pathToCheck).toLowerCase()
-		if (normalizedPathToCheck === normalizedDir) {
+		const normalizedDir = normalizeExtendedLengthPath(dirPath)
+		const normalizedPathToCheck = normalizeExtendedLengthPath(pathToCheck)
+		const shouldUseCaseInsensitiveComparison = isWindowsStylePath(normalizedDir) && isWindowsStylePath(normalizedPathToCheck)
+		const comparableDir = shouldUseCaseInsensitiveComparison ? normalizedDir.toLowerCase() : normalizedDir
+		const comparablePathToCheck = shouldUseCaseInsensitiveComparison
+			? normalizedPathToCheck.toLowerCase()
+			: normalizedPathToCheck
+
+		if (comparablePathToCheck === comparableDir) {
 			return true
 		}
-		const dirWithSeparator = normalizedDir.endsWith("\\") ? normalizedDir : `${normalizedDir}\\`
-		return normalizedPathToCheck.startsWith(dirWithSeparator)
+		const dirWithSeparator = comparableDir.endsWith("\\") ? comparableDir : `${comparableDir}\\`
+		return comparablePathToCheck.startsWith(dirWithSeparator)
 	}
 
 	const resolvedDirResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Utils.path.isLocatedInPath")
@@ -178,6 +184,10 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 		return false
 	}
 	return true
+}
+
+function isWindowsStylePath(p: string): boolean {
+	return /^[a-zA-Z]:\\/.test(p) || p.startsWith("\\\\")
 }
 
 function normalizeExtendedLengthPath(rawPath: string): string {

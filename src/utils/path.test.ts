@@ -88,5 +88,12 @@ describe("Path Utilities", () => {
 
 			isLocatedInPath(dirPath, insidePath).should.be.true()
 		})
+
+		it("should preserve case sensitivity for non-windows-style extended paths", () => {
+			const dirPath = "\\\\?\\tmp\\Project"
+			const insidePath = "\\\\?\\tmp\\project\\src\\file.ts"
+
+			isLocatedInPath(dirPath, insidePath).should.be.false()
+		})
 	})
 })
