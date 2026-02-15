@@ -1128,33 +1128,37 @@ export class McpHub {
 	// Public methods for server management
 
 	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
+		// Set flag to prevent file watcher from triggering during our update
+		this.isUpdatingClineSettings = true
 		try {
-			const config = await this.readAndValidateMcpSettingsFile()
-			if (!config) {
-				throw new Error("Failed to read or validate MCP settings")
+			// Read raw JSON to preserve environment variables (e.g., ${env:VAR_NAME})
+			// Using readAndValidateMcpSettingsFile() would expand env vars, causing them to be
+			// overwritten with resolved values when the config is written back
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			if (!config.mcpServers?.[serverName]) {
+				Logger.error(`Server "${serverName}" not found in MCP configuration`)
+				throw new Error(`Server "${serverName}" not found in MCP configuration`)
 			}
 
-			if (config.mcpServers[serverName]) {
-				config.mcpServers[serverName].disabled = disabled
+			config.mcpServers[serverName].disabled = disabled
 
-				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
-				const connection = this.connections.find((conn) => conn.server.name === serverName)
-				if (connection) {
-					connection.server.disabled = disabled
-					// When enabling a server, set status to "connecting" so UI shows yellow indicator
-					if (!disabled) {
-						connection.server.status = "connecting"
-						connection.server.error = ""
-					}
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection) {
+				connection.server.disabled = disabled
+				// When enabling a server, set status to "connecting" so UI shows yellow indicator
+				if (!disabled) {
+					connection.server.status = "connecting"
+					connection.server.error = ""
 				}
-
-				const serverOrder = Object.keys(config.mcpServers || {})
-				return this.getSortedMcpServers(serverOrder)
 			}
-			Logger.error(`Server "${serverName}" not found in MCP configuration`)
-			throw new Error(`Server "${serverName}" not found in MCP configuration`)
+
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			Logger.error("Failed to update server disabled state:", error)
 			if (error instanceof Error) {
@@ -1165,6 +1169,12 @@ export class McpHub {
 				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			throw error
+		} finally {
+			// Clear flag after a delay to ensure file watcher event has been processed
+			// The file watcher has a 100ms stabilityThreshold, so we wait a bit longer
+			setTimeout(() => {
+				this.isUpdatingClineSettings = false
+			}, 300)
 		}
 	}
 
