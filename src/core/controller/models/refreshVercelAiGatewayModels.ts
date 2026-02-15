@@ -121,7 +121,7 @@ async function fetchAndCacheModels(): Promise<Record<string, ModelInfo>> {
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
 				if (price) {
-					return parseFloat(price) * 1_000_000
+					return Number.parseFloat(price) * 1_000_000
 				}
 				return undefined
 			}

@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatView } from "./ChatView"
 
 // Helper to wait for async state updates
-const delay = (ms: number = 60) => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Type for our exit mock function
 type ExitMockFn = ReturnType<typeof vi.fn> & (() => void)

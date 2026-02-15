@@ -128,7 +128,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 		otlpProtocol: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_PROTOCOL,
 		otlpEndpoint: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_ENDPOINT,
 		metricExportInterval: BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL
-			? parseInt(BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL, 10)
+			? Number.parseInt(BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL, 10)
 			: undefined,
 	}
 }
@@ -174,17 +174,17 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 		otlpLogsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
 		otlpLogsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
 		metricExportInterval: process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL
-			? parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
+			? Number.parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
 			: undefined,
 		otlpInsecure: process.env.CLINE_OTEL_EXPORTER_OTLP_INSECURE === "true",
 		logBatchSize: process.env.CLINE_OTEL_LOG_BATCH_SIZE
-			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
+			? Math.max(1, Number.parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
 			: undefined,
 		logBatchTimeout: process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT
-			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
+			? Math.max(1, Number.parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
 			: undefined,
 		logMaxQueueSize: process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE
-			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
+			? Math.max(1, Number.parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
 			: undefined,
 	}
 }

@@ -112,49 +112,48 @@ function getMessageIcon(message: ClineMessage): string {
 			default:
 				return "❔"
 		}
-	} else {
-		switch (message.say) {
-			case "task":
-				return "📋"
-			case "error":
-				return "❌"
-			case "text":
-				return "💬"
-			case "reasoning":
-				return "🧠"
-			case "completion_result":
-				return "✅"
-			case "user_feedback":
-				return "👤"
-			case "command":
-			case "command_output":
-				return "⚙️ "
-			case "tool":
-				return "🔧"
-			case "browser_action":
-			case "browser_action_launch":
-			case "browser_action_result":
-				return "🌐"
-			case "mcp_server_request_started":
-			case "mcp_server_response":
-				return "🔌"
-			case "api_req_started":
-			case "api_req_finished":
-				return "🔄"
-			case "checkpoint_created":
-				return "💾"
-			case "info":
-				return "ℹ️ "
-			default:
-				return "  "
-		}
+	}
+	switch (message.say) {
+		case "task":
+			return "📋"
+		case "error":
+			return "❌"
+		case "text":
+			return "💬"
+		case "reasoning":
+			return "🧠"
+		case "completion_result":
+			return "✅"
+		case "user_feedback":
+			return "👤"
+		case "command":
+		case "command_output":
+			return "⚙️ "
+		case "tool":
+			return "🔧"
+		case "browser_action":
+		case "browser_action_launch":
+		case "browser_action_result":
+			return "🌐"
+		case "mcp_server_request_started":
+		case "mcp_server_response":
+			return "🔌"
+		case "api_req_started":
+		case "api_req_finished":
+			return "🔄"
+		case "checkpoint_created":
+			return "💾"
+		case "info":
+			return "ℹ️ "
+		default:
+			return "  "
 	}
 }
 
 /**
  * Format a ClineMessage for terminal display
  */
-export function formatMessage(message: ClineMessage, verbose: boolean = false): string {
+export function formatMessage(message: ClineMessage, verbose = false): string {
 	const icon = getMessageIcon(message)
 	const timestamp = formatTimestamp(message.ts)
 	const lines: string[] = []
@@ -289,7 +288,7 @@ function formatSayMessage(message: ClineMessage, prefix: string, verbose: boolea
 /**
  * Display a horizontal separator
  */
-export function separator(char: string = "─", width: number = 60): string {
+export function separator(char = "─", width = 60): string {
 	return style.dim(char.repeat(width))
 }
 
@@ -309,7 +308,7 @@ export function taskHeader(taskId: string, task?: string): string {
 /**
  * Format the current state for display
  */
-export function formatState(state: ExtensionState, verbose: boolean = false): string {
+export function formatState(state: ExtensionState, verbose = false): string {
 	const lines: string[] = []
 
 	if (state.currentTaskItem) {
@@ -344,7 +343,7 @@ export class Spinner {
 	private frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 	private frameIndex = 0
 	private interval: NodeJS.Timeout | null = null
-	private message: string = ""
+	private message = ""
 
 	start(message: string) {
 		this.message = message
@@ -392,7 +391,7 @@ export function clearLine() {
 /**
  * Move cursor up n lines
  */
-export function cursorUp(n: number = 1) {
+export function cursorUp(n = 1) {
 	process.stdout.write(`\x1b[${n}A`)
 }
 

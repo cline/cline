@@ -13,7 +13,7 @@ export class PromptRegistry {
 	private static instance: PromptRegistry
 	private variants: Map<string, PromptVariant> = new Map()
 	private components: ComponentRegistry = {}
-	private loaded: boolean = false
+	private loaded = false
 	public nativeTools: ClineTool[] | undefined = undefined
 
 	private constructor() {

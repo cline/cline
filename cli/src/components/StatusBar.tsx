@@ -50,7 +50,7 @@ function formatNumber(num: number): string {
 /**
  * Create a progress bar for context window usage
  */
-function createContextBar(used: number, total: number, width: number = 8): string {
+function createContextBar(used: number, total: number, width = 8): string {
 	const ratio = Math.min(used / total, 1)
 	const filled = Math.round(ratio * width)
 	const empty = width - filled

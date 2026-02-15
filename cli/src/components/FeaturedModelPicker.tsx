@@ -81,7 +81,7 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
  * Get the maximum valid index for the featured model picker
  * (includes "Browse all" option if showBrowseAll is true)
  */
-export function getFeaturedModelMaxIndex(showBrowseAll: boolean = true): number {
+export function getFeaturedModelMaxIndex(showBrowseAll = true): number {
 	const featuredModels = getAllFeaturedModels()
 	return showBrowseAll ? featuredModels.length : featuredModels.length - 1
 }

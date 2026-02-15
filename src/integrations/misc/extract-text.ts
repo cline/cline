@@ -15,17 +15,17 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	const detected = chardet.detect(fileBuffer)
 	if (typeof detected === "string") {
 		return detected
-	} else if (detected && (detected as any).encoding) {
-		return (detected as any).encoding
-	} else {
-		if (fileExtension) {
-			const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
-			if (isBinary) {
-				throw new Error(`Cannot read text for file type: ${fileExtension}`)
-			}
-		}
-		return "utf8"
 	}
+	if (detected && (detected as any).encoding) {
+		return (detected as any).encoding
+	}
+	if (fileExtension) {
+		const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
+		if (isBinary) {
+			throw new Error(`Cannot read text for file type: ${fileExtension}`)
+		}
+	}
+	return "utf8"
 }
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
@@ -131,9 +131,8 @@ function formatCellValue(cell: ExcelJS.Cell): string {
 	if (typeof value === "object" && "formula" in value) {
 		if ("result" in value && value.result !== undefined && value.result !== null) {
 			return value.result.toString()
-		} else {
-			return `[Formula: ${value.formula}]`
 		}
+		return `[Formula: ${value.formula}]`
 	}
 
 	return value.toString()

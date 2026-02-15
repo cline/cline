@@ -37,7 +37,7 @@ const HISTORY_FILTERS = {
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
+	const { activeTasks, taskHistory, onRelinquishControl, environment } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -157,9 +157,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setSelectedItems((prev) => {
 			if (checked) {
 				return [...prev, itemId]
-			} else {
-				return prev.filter((id) => id !== itemId)
 			}
+			return prev.filter((id) => id !== itemId)
 		})
 	}, [])
 
@@ -197,14 +196,34 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [tasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		const results = searchQuery
-			? fuse
-					.search(searchQuery)
-					?.filter(({ matches }) => matches && matches.length)
-					.map(({ item }) => item)
-			: tasks
+		const results = searchQuery ? highlight(fuse.search(searchQuery)) : tasks
+
+		// Create a map of taskId to its index in activeTasks for quick lookup
+		const reversedActiveTasks = activeTasks ? [...activeTasks].reverse() : []
+		const activeTaskIndexMap = new Map(reversedActiveTasks?.map((task, index) => [task.taskId, index]) || [])
 
 		results.sort((a, b) => {
+			// to prevent reordering while active
+			const aActiveIndex = activeTaskIndexMap.get(a.id)
+			const bActiveIndex = activeTaskIndexMap.get(b.id)
+
+			const aIsActive = aActiveIndex !== undefined
+			const bIsActive = bActiveIndex !== undefined
+
+			// If both are active, preserve their activeTasks order
+			if (aIsActive && bIsActive) {
+				return aActiveIndex - bActiveIndex
+			}
+
+			// If only one is active, active tasks come first
+			if (aIsActive) {
+				return -1
+			}
+			if (bIsActive) {
+				return 1
+			}
+
+			// Neither is active: apply the selected sort option
 			switch (sortOption) {
 				case "oldest":
 					return a.ts - b.ts
@@ -228,7 +247,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		})
 
 		return results
-	}, [tasks, searchQuery, fuse, sortOption])
+	}, [tasks, searchQuery, fuse, sortOption, activeTasks])
 
 	// Group tasks into "Today" and "Older" (only for date-based sorts)
 	const { groupedTasks, groupCounts, groupLabels } = useMemo(() => {
@@ -394,19 +413,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			<div className="flex-grow overflow-y-auto m-0 w-full py-2">
 				<GroupedVirtuoso
 					className="flex-grow overflow-y-scroll"
+					context={{ activeTasks }}
 					groupContent={(index) => (
 						<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
 							{groupLabels[index]}
 						</div>
 					)}
 					groupCounts={groupCounts}
-					itemContent={(index) => {
+					itemContent={(index, _groupIndex, _data, context) => {
 						const item = groupedTasks[index]
 						return (
 							<HistoryViewItem
 								handleDeleteHistoryItem={handleDeleteHistoryItem}
 								handleHistorySelect={handleHistorySelect}
 								index={index}
+								isActive={context.activeTasks?.find((task) => task.taskId === item.id)?.status === "active"}
 								item={item}
 								pendingFavoriteToggles={pendingFavoriteToggles}
 								selectedItems={selectedItems}
@@ -460,7 +481,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number

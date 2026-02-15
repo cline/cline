@@ -20,7 +20,7 @@ interface FileMentionMenuProps {
 /**
  * Truncate path from the left if too long, keeping the filename visible
  */
-function truncatePath(filePath: string, maxLength: number = 50): string {
+function truncatePath(filePath: string, maxLength = 50): string {
 	if (filePath.length <= maxLength) {
 		return filePath
 	}

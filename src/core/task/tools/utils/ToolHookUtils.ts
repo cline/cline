@@ -95,7 +95,7 @@ export class ToolHookUtils {
 			await config.callbacks.clearActiveHookExecution()
 
 			// Abort the entire task (consistent with PostToolUse and other hook cancellations)
-			await config.callbacks.cancelTask()
+			await config.callbacks.cancelTask(config.taskId)
 			throw new PreToolUseHookCancellationError(preToolResult.errorMessage || "PreToolUse hook requested cancellation")
 		}
 

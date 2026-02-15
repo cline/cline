@@ -9,6 +9,7 @@ import {
 	ChevronsDownUpIcon,
 	ChevronsUpDownIcon,
 	DownloadIcon,
+	LoaderIcon,
 	StarIcon,
 	TrashIcon,
 } from "lucide-react"
@@ -26,6 +27,7 @@ type HistoryViewItemProps = {
 	handleDeleteHistoryItem: (id: string) => void
 	toggleFavorite: (id: string, isCurrentlyFavorited: boolean) => void
 	handleHistorySelect: (itemId: string, checked: boolean) => void
+	isActive?: boolean
 }
 
 const HistoryViewItem = ({
@@ -34,6 +36,7 @@ const HistoryViewItem = ({
 	handleDeleteHistoryItem,
 	toggleFavorite,
 	handleHistorySelect,
+	isActive,
 	selectedItems,
 }: HistoryViewItemProps) => {
 	const [expanded, setExpanded] = useState(false)
@@ -96,7 +99,10 @@ const HistoryViewItem = ({
 				}}>
 				<div className="flex items-center gap-2">
 					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
-						<span className="ph-no-capture">{item.task}</span>
+						<span className="ph-no-capture flex items-center">
+							{isActive && <LoaderIcon className="animate-spin size-2 mr-1" />}
+							{item.task}
+						</span>
 					</div>
 					<div className="flex gap-2 flex-shrink-0">
 						<Button

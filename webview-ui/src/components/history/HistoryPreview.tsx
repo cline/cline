@@ -1,14 +1,16 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { memo } from "react"
+import { memo, useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { Button } from "../ui/button"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { activeTasks, taskHistory } = useExtensionState()
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
@@ -22,6 +24,45 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			day: "numeric",
 		})
 	}
+
+	// Get the top 3 history items, but preserve the order of active tasks
+	// Active tasks should maintain their position from activeTasks array to prevent reordering while displayed
+	const displayItems = useMemo(() => {
+		const validItems = taskHistory.filter((item) => item.ts && item.task).slice(0, 3)
+
+		if (!activeTasks?.length) {
+			return validItems
+		}
+
+		// Reverse active tasks to maintain their order when sorting
+		const reversedActiveTasks = [...activeTasks].reverse()
+		// Create a map of taskId to its index in activeTasks for quick lookup
+		const activeTaskIndexMap = new Map(reversedActiveTasks.map((t, i) => [t?.taskId, i]))
+
+		// Sort items: active tasks maintain their relative order from activeTasks,
+		// non-active tasks come after in their original order
+		return [...validItems].sort((a, b) => {
+			const aActiveIndex = activeTaskIndexMap.get(a.id)
+			const bActiveIndex = activeTaskIndexMap.get(b.id)
+
+			const aIsActive = aActiveIndex !== undefined
+			const bIsActive = bActiveIndex !== undefined
+
+			if (aIsActive && bIsActive) {
+				// Both are active: preserve activeTasks order
+				return aActiveIndex - bActiveIndex
+			} else if (aIsActive) {
+				// Only a is active: a comes first
+				return -1
+			} else if (bIsActive) {
+				// Only b is active: b comes first
+				return 1
+			} else {
+				// Neither is active: preserve original taskHistory order
+				return 0
+			}
+		})
+	}, [taskHistory, activeTasks])
 
 	return (
 		<div style={{ flexShrink: 0 }}>
@@ -81,82 +122,35 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						font-weight: 500;
 						white-space: nowrap;
 					}
-					.history-view-all-btn {
-						background: none;
-						border: none;
-						padding: 4px 0 4px 8px;
-						cursor: pointer;
-						font-size: 0.85em;
-						font-weight: 500;
-						color: var(--vscode-descriptionForeground);
-						white-space: nowrap;
-						display: flex;
-						align-items: center;
-						gap: 2px;
-					}
-					.history-view-all-btn .codicon {
-						font-size: 1.2em;
-					}
-					.history-view-all-btn:hover {
-						color: var(--vscode-foreground);
-					}
 				`}
 			</style>
 
-			<div
-				className="history-header"
-				style={{
-					color: "var(--vscode-descriptionForeground)",
-					margin: "10px 16px 10px 16px",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-				}}>
-				<div style={{ display: "flex", alignItems: "center" }}>
-					<span
-						className="codicon codicon-comment-discussion"
-						style={{
-							marginRight: "4px",
-							transform: "scale(0.9)",
-						}}></span>
-					<span
-						style={{
-							fontWeight: 500,
-							fontSize: "0.85em",
-							textTransform: "uppercase",
-						}}>
-						Recent
-					</span>
-				</div>
-				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
-					<button
-						aria-label="View all history"
-						className="history-view-all-btn"
-						onClick={() => showHistoryView()}
-						type="button">
-						View All
-						<span className="codicon codicon-chevron-right" />
-					</button>
-				)}
+			<div className="history-header text-description my-2.5 mx-4 flex items-center">
+				<span className="codicon codicon-comment-discussion mr-1 scale-90"></span>
+				<span className="font-medium text-sm uppercase">Recent Tasks</span>
 			</div>
 
 			{
 				<div className="px-4">
-					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
-						taskHistory
-							.filter((item) => item.ts && item.task)
-							.slice(0, 3)
-							.map((item) => (
+					{displayItems.length > 0 ? (
+						<>
+							{displayItems.map((item) => (
 								<div className="history-preview-item" key={item.id} onClick={() => handleHistorySelect(item.id)}>
 									<div className="history-task-content">
+										<div
+											className={cn("w-0 h-0 rounded-full self-center", {
+												"w-2 h-2 bg-success":
+													activeTasks?.find((task) => task.taskId === item.id)?.status === "active",
+												"w-2 h-2 bg-warning":
+													activeTasks?.find((task) => task.taskId === item.id)?.status === "pending",
+												"w-2 h-2 bg-error":
+													activeTasks?.find((task) => task.taskId === item.id)?.status === "error",
+											})}
+										/>
 										{item.isFavorited && (
 											<span
 												aria-label="Favorited"
-												className="codicon codicon-star-full"
-												style={{
-													color: "var(--vscode-button-background)",
-													flexShrink: 0,
-												}}
+												className="codicon codicon-star-full shrink-0 bg-button-background"
 											/>
 										)}
 										<div className="history-task-description ph-no-capture">{item.task}</div>
@@ -168,17 +162,21 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										)}
 									</div>
 								</div>
-							))
+							))}
+							<div className="flex items-center justify-center">
+								<Button
+									aria-label="View all history"
+									onClick={() => showHistoryView()}
+									style={{
+										opacity: 0.9,
+									}}
+									variant="ghost">
+									<div className="text-base text-description">View All</div>
+								</Button>
+							</div>
+						</>
 					) : (
-						<div
-							style={{
-								textAlign: "center",
-								color: "var(--vscode-descriptionForeground)",
-								fontSize: "var(--vscode-font-size)",
-								padding: "10px 0",
-							}}>
-							No recent tasks
-						</div>
+						<div className="text-center text-description font-base py-2.5">No recent tasks</div>
 					)}
 				</div>
 			}

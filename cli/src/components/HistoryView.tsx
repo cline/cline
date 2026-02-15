@@ -40,7 +40,7 @@ interface HistoryViewProps {
 /**
  * Format separator
  */
-function formatSeparator(char: string = "─", width: number = 80): string {
+function formatSeparator(char = "─", width = 80): string {
 	return char.repeat(Math.max(width, 10))
 }
 
