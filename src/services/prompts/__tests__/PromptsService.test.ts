@@ -1,15 +1,16 @@
 import * as assert from "assert"
-import axios from "axios"
 import * as sinon from "sinon"
 import { PromptsService } from "@/services/prompts/PromptsService"
 
 describe("PromptsService", () => {
 	let service: PromptsService
-	let axiosGetStub: sinon.SinonStub
+	let httpGetStub: sinon.SinonStub
 
 	beforeEach(() => {
 		service = new PromptsService()
-		axiosGetStub = sinon.stub(axios, "get")
+		// Stub the instance's httpGet method directly to avoid module-level
+		// stubbing issues with axios/getAxiosSettings in CI environments
+		httpGetStub = sinon.stub(service as any, "httpGet")
 	})
 
 	afterEach(() => {
@@ -40,7 +41,7 @@ tags: [tag1, tag2, tag3]
 # Test Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -84,7 +85,7 @@ tags: ['tag1', 'tag2']
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -123,7 +124,7 @@ description: Only description
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -164,7 +165,7 @@ author: https://github.com/octocat
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -198,7 +199,7 @@ Content`,
 					data: "# Just content, no frontmatter",
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -237,7 +238,7 @@ author: testuser
 Content without closing delimiter`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -276,7 +277,7 @@ tags: []
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -314,7 +315,7 @@ tags: tag1, tag2
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -338,7 +339,7 @@ Content`,
 			it("should return empty catalog on network timeout", async () => {
 				const timeoutError = new Error("Timeout")
 				timeoutError.name = "ETIMEDOUT"
-				axiosGetStub.rejects(timeoutError)
+				httpGetStub.rejects(timeoutError)
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -349,7 +350,7 @@ Content`,
 			it("should return empty catalog on 404 response", async () => {
 				const error: any = new Error("Not Found")
 				error.response = { status: 404 }
-				axiosGetStub.rejects(error)
+				httpGetStub.rejects(error)
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -359,7 +360,7 @@ Content`,
 			it("should return empty catalog on 403 rate limit", async () => {
 				const error: any = new Error("Rate limit exceeded")
 				error.response = { status: 403 }
-				axiosGetStub.rejects(error)
+				httpGetStub.rejects(error)
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -369,7 +370,7 @@ Content`,
 			it("should return empty catalog on 500 server error", async () => {
 				const error: any = new Error("Server error")
 				error.response = { status: 500 }
-				axiosGetStub.rejects(error)
+				httpGetStub.rejects(error)
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -377,7 +378,7 @@ Content`,
 			})
 
 			it("should handle malformed JSON response", async () => {
-				axiosGetStub.resolves({ data: "not json" })
+				httpGetStub.resolves({ data: "not json" })
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -385,7 +386,7 @@ Content`,
 			})
 
 			it("should handle empty directory response", async () => {
-				axiosGetStub.resolves({ data: [] })
+				httpGetStub.resolves({ data: [] })
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -417,7 +418,7 @@ description: Good prompt
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -461,7 +462,7 @@ description: Test
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -478,10 +479,10 @@ Content`,
 				await service.fetchPromptsCatalog()
 
 				// Second fetch should use cache (no new API calls)
-				axiosGetStub.resetHistory()
+				httpGetStub.resetHistory()
 				const catalog = await service.fetchPromptsCatalog()
 
-				assert.strictEqual(axiosGetStub.callCount, 0, "Should not make API calls when cache is fresh")
+				assert.strictEqual(httpGetStub.callCount, 0, "Should not make API calls when cache is fresh")
 				assert.strictEqual(catalog.items.length, 1)
 			})
 
@@ -504,7 +505,7 @@ description: Test
 Content`,
 				}
 
-				axiosGetStub.callsFake(async (url: string) => {
+				httpGetStub.callsFake(async (url: string) => {
 					if (url.includes("/contents/.clinerules")) {
 						return mockDirectoryResponse
 					}
@@ -523,12 +524,12 @@ Content`,
 				// Manually expire cache by setting lastFetchTime
 				;(service as any).lastFetchTime = Date.now() - 61 * 60 * 1000 // 61 minutes ago
 
-				axiosGetStub.resetHistory()
+				httpGetStub.resetHistory()
 
 				// Should make new API calls
 				await service.fetchPromptsCatalog()
 
-				assert.ok(axiosGetStub.callCount > 0, "Should make API calls when cache is expired")
+				assert.ok(httpGetStub.callCount > 0, "Should make API calls when cache is expired")
 			})
 		})
 	})
