@@ -88,7 +88,8 @@ export async function parseSlashCommands(
 	//
 	// Only ONE slash command per message is processed (first match found).
 	// Note: Colons are allowed to support MCP prompt commands like /mcp:server:prompt
-	const slashCommandInTextRegex = /(^|\s)\/([a-zA-Z0-9_.:@-]+)(?=\s|$)/
+	// Note: Non-ASCII characters are allowed to support workflow files with unicode names
+	const slashCommandInTextRegex = /(^|\s)\/([^\s]+)(?=\s|$)/
 
 	// Helper function to calculate positions and remove slash command from text
 	const removeSlashCommand = (
