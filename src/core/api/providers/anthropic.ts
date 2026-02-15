@@ -217,6 +217,7 @@ export class AnthropicHandler implements ApiHandler {
 									type: "tool_calls",
 									tool_call: {
 										...lastStartedToolCall,
+										call_id: lastStartedToolCall.id,
 										function: {
 											...lastStartedToolCall,
 											id: lastStartedToolCall.id,
