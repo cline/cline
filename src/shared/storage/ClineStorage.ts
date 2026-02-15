@@ -22,17 +22,6 @@ export interface ClineMemento {
 }
 
 /**
- * SecretStorage-compatible interface for async secret storage.
- * VSCode's SecretStorage and ClineStorage both satisfy this interface.
- */
-export interface ClineSecretStore {
-	get(key: string): Thenable<string | undefined>
-	store(key: string, value: string): Thenable<void>
-	delete(key: string): Thenable<void>
-	onDidChange: any
-}
-
-/**
  * An abstract storage class that provides a template for storage operations.
  * Subclasses must implement the protected abstract methods to define their storage logic.
  * The public methods (get, store, delete) are final and cannot be overridden.

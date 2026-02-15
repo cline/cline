@@ -524,6 +524,7 @@ ${ctx.cellJson || "{}"}
 	)
 
 	context.subscriptions.push(
+		// TODO: context.secrets should use StateManager now.
 		context.secrets.onDidChange(async (event) => {
 			if (event.key === "cline:clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)

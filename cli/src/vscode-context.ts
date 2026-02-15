@@ -8,8 +8,7 @@ import os from "os"
 import path from "path"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline"
-import type { ClineFileStorage } from "@/shared/storage"
-import type { ClineMemento, ClineSecretStore } from "@/shared/storage/ClineStorage"
+import type { ClineMemento } from "@/shared/storage/ClineStorage"
 import { createStorageContext, type StorageContext } from "@/shared/storage/storage-context"
 import { EnvironmentVariableCollection, ExtensionKind, ExtensionMode, readJson, URI } from "./vscode-shim"
 
@@ -67,30 +66,6 @@ class MementoAdapter implements ClineMemento {
 
 	setKeysForSync(_keys: readonly string[]): void {
 		// No-op for CLI
-	}
-}
-
-/**
- * SecretStorage adapter that wraps a ClineFileStorage<string> to satisfy
- * the ClineSecretStore (async) interface expected by ClineExtensionContext.
- */
-class SecretStoreAdapter implements ClineSecretStore {
-	onDidChange = () => ({ dispose: () => {} })
-
-	constructor(private readonly _storage: ClineFileStorage<string>) {}
-
-	get(key: string): Thenable<string | undefined> {
-		return Promise.resolve(this._storage.get(key))
-	}
-
-	store(key: string, value: string): Thenable<void> {
-		this._storage.set(key, value)
-		return Promise.resolve()
-	}
-
-	delete(key: string): Thenable<void> {
-		this._storage.delete(key)
-		return Promise.resolve()
 	}
 }
 
