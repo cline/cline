@@ -4,7 +4,6 @@ import * as vscode from "vscode"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
-import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -665,12 +664,12 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 	}
 }
 
-export function cleanupOldApiKey() {
+export async function cleanupOldApiKey(context: vscode.ExtensionContext) {
 	try {
 		// Old API Keys were introduced in March 2025 and later replaced with tokens
 		// Now that we have new API keys that are prefixed with `sk_`,
 		// we need to clean up the old ones to free the secret storage
-		StateManager.get().setSecret("clineApiKey", undefined)
+		await context.secrets.delete("clineApiKey")
 	} catch (error) {
 		Logger.error("Failed to cleanup old clineApiKey", error)
 	}

@@ -1,19 +1,12 @@
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
 import * as cheerio from "cheerio"
-// @ts-ignore
 import { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
-import * as vscode from "vscode"
+import { StateManager } from "@/core/storage/StateManager"
 import { ensureChromiumExists } from "./utils"
 
 export class UrlContentFetcher {
-	private context: vscode.ExtensionContext
 	private browser?: Browser
 	private page?: Page
-
-	constructor(context: vscode.ExtensionContext) {
-		this.context = context
-	}
 
 	async launchBrowser(): Promise<void> {
 		if (this.browser) {
@@ -21,7 +14,7 @@ export class UrlContentFetcher {
 		}
 		const stats = await ensureChromiumExists()
 		// Read browser settings from globalState for custom args only
-		const browserSettings = this.context.globalState.get<BrowserSettings>("browserSettings", DEFAULT_BROWSER_SETTINGS)
+		const browserSettings = StateManager.get().getGlobalSettingsKey("browserSettings")
 		const customArgsStr = browserSettings.customArgs || ""
 		const customArgs = customArgsStr.trim() ? customArgsStr.split(/\s+/) : []
 		this.browser = await stats.puppeteer.launch({

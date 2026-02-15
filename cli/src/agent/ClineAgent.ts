@@ -53,7 +53,6 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/index.js"
 import { AuthService } from "@/services/auth/AuthService.js"
 import { Logger } from "@/shared/services/Logger.js"
-import { secretStorage } from "@/shared/storage/ClineSecretStorage"
 import type { Mode } from "@/shared/storage/types"
 import { openExternal } from "@/utils/env"
 import { ACPDiffViewProvider } from "../acp/ACPDiffViewProvider.js"
@@ -177,7 +176,7 @@ export class ClineAgent implements acp.Agent {
 		this.clientCapabilities = params.clientCapabilities
 		this.initializeHostProvider(this.clientCapabilities, connection)
 		await ClineEndpoint.initialize(this.ctx.EXTENSION_DIR)
-		await StateManager.initialize(this.ctx.extensionContext)
+		await StateManager.initialize(this.ctx.storageContext)
 
 		return {
 			protocolVersion: PROTOCOL_VERSION,
@@ -1007,13 +1006,14 @@ export class ClineAgent implements acp.Agent {
 			const startTime = Date.now()
 
 			while (Date.now() - startTime < AUTH_TIMEOUT_MS) {
+				const stateManager = StateManager.get()
+
 				// Check if auth data has been stored
-				const authData = await secretStorage.get("cline:clineAccountId")
+				const authData = stateManager.getSecretKey("cline:clineAccountId")
 				if (authData) {
 					Logger.debug("[ClineAgent] Authentication successful")
 
 					// Set up the provider configuration for cline
-					const stateManager = StateManager.get()
 					stateManager.setGlobalState("actModeApiProvider", "cline")
 					stateManager.setGlobalState("planModeApiProvider", "cline")
 					await stateManager.flushPendingState()
@@ -1161,13 +1161,11 @@ export class ClineAgent implements acp.Agent {
 
 		if (currentProvider === "cline") {
 			// For Cline provider, check if we have stored auth data
-			const values = await Promise.all(["clineApiKey", "clineAccountId"].map((key) => secretStorage.get(key)))
-			return values.some(Boolean)
+			return Boolean(stateManager.getSecretKey("clineApiKey") || stateManager.getSecretKey("clineAccountId"))
 		}
 
 		// For OpenAI Codex provider, check OAuth credentials
 		if (currentProvider === "openai-codex") {
-			openAiCodexOAuthManager.initialize(this.ctx.extensionContext)
 			return await openAiCodexOAuthManager.isAuthenticated()
 		}
 
@@ -1178,14 +1176,7 @@ export class ClineAgent implements acp.Agent {
 		}
 
 		const fields = Array.isArray(keyField) ? keyField : [keyField]
-		for (const field of fields) {
-			const value = await secretStorage.get(field)
-			if (value) {
-				return true
-			}
-		}
-
-		return false
+		return fields.some((key) => stateManager.getSecretKey(key))
 	}
 
 	/**
@@ -1201,9 +1192,6 @@ export class ClineAgent implements acp.Agent {
 		Logger.debug("[ClineAgent] Starting OpenAI Codex OAuth flow...")
 
 		try {
-			// Initialize the OAuth manager with extension context
-			openAiCodexOAuthManager.initialize(this.ctx.extensionContext)
-
 			// Get the authorization URL and start the callback server
 			const authUrl = openAiCodexOAuthManager.startAuthorizationFlow()
 
