@@ -15,6 +15,15 @@ Ready to get started? Check out the [installation guide](/cline-cli/installation
 
 ## Two Ways to Use Cline CLI
 
+<Columns cols={2}>
+  <Card title="Interactive Mode" icon="terminal" href="/cline-cli/interactive-mode">
+    **For hands-on development.** Launch `cline` in your terminal and collaborate with Cline in real-time — chat, review plans, approve actions, and iterate on tasks with a rich visual interface.
+  </Card>
+  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+    **For automation & CI/CD.** Run `cline -y "task"` to let Cline work autonomously — no interaction needed. Pipe input/output, get JSON results, and chain commands in scripts and pipelines.
+  </Card>
+</Columns>
+
 The CLI operates in two distinct modes, automatically selecting the appropriate one based on how you invoke it:
 
 ### Interactive Mode
@@ -86,7 +95,7 @@ Cline automatically detects which mode to use based on your invocation. This tab
 | `cat file \| cline "task"` | Headless | stdin is piped |
 | `cline "task" > output.txt` | Headless | stdout is redirected |
 
-[Learn more about CLI workflows →](/cline-cli/three-core-flows)
+[Learn more about headless mode →](/cline-cli/three-core-flows)
 
 ## Supported Model Providers
 
@@ -210,8 +219,8 @@ Chains multiple Cline invocations together for creative multi-step workflows.
     Master the interactive CLI with keyboard shortcuts and slash commands.
   </Card>
   
-  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
-    Learn interactive mode, direct execution, and automation patterns.
+  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+    Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
   </Card>
   
   <Card title="Configuration" icon="gear" href="/cline-cli/configuration">
@@ -222,7 +231,7 @@ Chains multiple Cline invocations together for creative multi-step workflows.
     Run Cline as an ACP agent in JetBrains, Neovim, Zed, and more.
   </Card>
   
-  <Card title="Use in Other Editors" icon="code" href="/cline-cli/acp-editor-integrations">
-    Run Cline as an ACP agent in JetBrains, Neovim, Zed, and more.
+  <Card title="CLI Samples" icon="flask" href="/cline-cli/samples/overview">
+    Real-world examples of headless workflows and automation patterns.
   </Card>
 </Columns>

@@ -82,6 +82,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import {
+	type CommandExecutionOptions,
 	CommandExecutor,
 	CommandExecutorCallbacks,
 	FullCommandExecutorConfig,
@@ -104,7 +105,6 @@ import { ApiFormat } from "@/shared/proto/cline/models"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
-import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
@@ -132,7 +132,6 @@ type TaskParams = {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
-	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile: string
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
@@ -267,7 +266,6 @@ export class Task {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
-			subagentTerminalOutputLineLimit,
 			defaultTerminalProfile,
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -309,7 +307,6 @@ export class Task {
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
-		this.terminalManager.setSubagentTerminalOutputLineLimit(subagentTerminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
@@ -558,6 +555,7 @@ export class Task {
 			this.sayAndCreateMissingParamError.bind(this),
 			this.removeLastPartialMessageIfExistsWithType.bind(this),
 			this.executeCommandTool.bind(this),
+			this.cancelBackgroundCommand.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
@@ -1559,8 +1557,12 @@ export class Task {
 	}
 
 	// Tools
-	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ClineToolResponseContent]> {
-		return this.commandExecutor.execute(command, timeoutSeconds)
+	async executeCommandTool(
+		command: string,
+		timeoutSeconds: number | undefined,
+		options?: CommandExecutionOptions,
+	): Promise<[boolean, ClineToolResponseContent]> {
+		return this.commandExecutor.execute(command, timeoutSeconds, options)
 	}
 
 	/**
@@ -1764,14 +1766,6 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
-		// Check CLI installation status only if subagents are enabled
-		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
-		let isSubagentsEnabledAndCliInstalled = false
-		if (subagentsEnabled) {
-			const clineCliInstalled = await isClineCliInstalled()
-			isSubagentsEnabledAndCliInstalled = subagentsEnabled && clineCliInstalled
-		}
-
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
 		const { windsurfLocalToggles, cursorLocalToggles, agentsLocalToggles } = await refreshExternalRulesToggles(
 			this.controller,
@@ -1815,12 +1809,6 @@ export class Task {
 			}))
 		}
 
-		// Detect if this is a CLI subagent to prevent nested subagent creation
-		const isCliSubagent = isCliSubagentContext({
-			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
-		})
-
 		// Discover and filter available skills
 		const allSkills = await discoverSkills(this.cwd)
 		const resolvedSkills = getAvailableSkills(allSkills)
@@ -1863,12 +1851,12 @@ export class Task {
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			subagentsEnabled: this.stateManager.getGlobalSettingsKey("subagentsEnabled"),
 			clineWebToolsEnabled:
 				this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled") && featureFlagsService.getWebtoolsEnabled(),
 			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
-			isSubagentsEnabledAndCliInstalled,
-			isCliSubagent,
+			isSubagentRun: false,
 			isCliEnvironment,
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
@@ -2665,7 +2653,9 @@ export class Task {
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
 								const thinkingBlock = reasonsHandler.getCurrentReasoning()
-								if (thinkingBlock?.thinking && chunk.reasoning) {
+								// Some providers can interleave reasoning after text has started.
+								// Keep rendering stable by only streaming reasoning UI before the first text chunk.
+								if (thinkingBlock?.thinking && chunk.reasoning && assistantMessage.length === 0) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
@@ -2691,7 +2681,6 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
-							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2717,13 +2706,12 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
-							// Process the new text content as it streams in without awaiting for full message
-							this.presentAssistantMessage()
 							break
 						}
 					}
 
-					// present content to user - we don't want the stream to break if present fails, so we catch errors here
+					// Present content once per chunk. Calling this from multiple case branches can
+					// race partial updates and duplicate text rows in the chat.
 					await this.presentAssistantMessage().catch((error) =>
 						Logger.debug("[Task] Failed to present message: " + error),
 					)

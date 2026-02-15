@@ -1,0 +1,11 @@
+# Application Configuration
+name = MyApp
+version = 1.0.0
+
+# Debug settings
+debug = false
+log_level = info
+
+# Server settings
+host = localhost
+port = 8080

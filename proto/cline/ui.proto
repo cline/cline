@@ -33,6 +33,7 @@ enum ClineAsk {
   REPORT_BUG = 14;
   SUMMARIZE_TASK = 15;
   ACT_MODE_RESPOND = 16;
+  USE_SUBAGENTS = 17;
 }
 
 // Enum for ClineSay types
@@ -71,6 +72,9 @@ enum ClineSay {
   HOOK_OUTPUT_STREAM = 31;
   COMMAND_PERMISSION_DENIED = 32;
   CONDITIONAL_RULES_APPLIED = 33;
+  SUBAGENT_STATUS = 34;
+  USE_SUBAGENTS_SAY = 35;
+  SUBAGENT_USAGE = 36;
 }
 
 // Enum for ClineSayTool tool types

@@ -1,467 +1,399 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
-import axios from "axios"
 import { ClineEnv } from "@/config"
-import type { Controller } from "@/core/controller"
-import { HostProvider } from "@/hosts/host-provider"
-import { getAxiosSettings } from "@/shared/net"
+import { Controller } from "@/core/controller"
+import { StateManager } from "@/core/storage/StateManager"
+import { HostInfo, HostRegistryInfo } from "@/registry"
+import { fetch } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
-import { getDistinctId } from "../logging/distinctId"
+import { featureFlagsService } from "../feature-flags"
+
+const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
+const CIRCUIT_BREAKER_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
+const SERVER_ERROR_BACKOFF_MS = 15 * 60 * 1000 // 15 minutes
+const AUTH_DEBOUNCE_MS = 1000 // 1 second
+const FETCH_TIMEOUT_MS = 10000 // 10 seconds
+const MAX_CONSECUTIVE_FAILURES = 3
+
+const OS_MAP: Record<string, string> = {
+	win32: "windows",
+	linux: "linux",
+	darwin: "macos",
+}
+
+const IDE_MAP: Record<string, string> = {
+	vscode: "vscode",
+	jetbrains: "jetbrains",
+	cli: "cli",
+}
+
+const PROVIDER_ALIASES: Record<string, string[]> = {
+	anthropic: ["anthropic", "claude-code"],
+	openai: ["openai", "openai-native"],
+	qwen: ["qwen", "qwen-code"],
+}
 
 /**
  * Service for fetching and evaluating banner messages
  */
 export class BannerService {
 	private static instance: BannerService | null = null
-	private _cachedBanners: Banner[] = []
-	private _lastFetchTime: number = 0
-	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
-	private _controller: Controller
-	private _authService?: AuthService
-	private actionTypes: Set<string>
-	private _fetchPromise: Promise<Banner[]> | null = null
 
-	private get _baseUrl(): string {
-		return ClineEnv.config().apiBaseUrl
+	private cachedBanners: Banner[] = []
+	private lastFetchTime = 0
+	private backoffUntil = 0
+	private consecutiveFailures = 0
+
+	private userId: string | null = null
+
+	private fetchPromise: Promise<Banner[]> | null = null
+	private abortController: AbortController | null = null
+
+	private debounceTimer: ReturnType<typeof setTimeout> | null = null
+	private pendingDebounceResolve: (() => void) | null = null
+	private authFetchPending = false
+
+	private readonly validActionTypes: Set<string>
+
+	private constructor(
+		private readonly controller: Controller,
+		private readonly hostInfo: HostInfo,
+	) {
+		this.validActionTypes = new Set(Object.values(BannerActionType))
+		Logger.log("[BannerService] initialized")
 	}
 
-	private constructor(controller: Controller) {
-		this._controller = controller
-		this.actionTypes = new Set<string>(Object.values(BannerActionType))
-	}
-
-	/**
-	 * Initializes the BannerService singleton with required dependencies
-	 * @param controller The controller instance for accessing state and services
-	 * @returns The initialized BannerService instance
-	 * @throws Error if already initialized
-	 */
 	public static initialize(controller: Controller): BannerService {
 		if (BannerService.instance) {
-			throw new Error("BannerService has already been initialized.")
+			return BannerService.instance
 		}
-		BannerService.instance = new BannerService(controller)
+		const hostInfo = HostRegistryInfo.get()
+		if (!hostInfo) {
+			throw new Error("[BannerService] Ensure HostRegistryInfo is initialized before BannerService.")
+		}
+		BannerService.instance = new BannerService(controller, hostInfo)
 		return BannerService.instance
 	}
 
-	/**
-	 * Returns the singleton instance of BannerService
-	 * @throws Error if not initialized
-	 */
 	public static get(): BannerService {
 		if (!BannerService.instance) {
-			throw new Error("BannerService not initialized. Call BannerService.initialize() first.")
+			throw new Error("BannerService not initialized. Call BannerService.initialize(controller) first.")
 		}
 		return BannerService.instance
 	}
 
-	/**
-	 * Checks if BannerService has been initialized
-	 */
-	public static isInitialized(): boolean {
-		return !!BannerService.instance
-	}
-
-	/**
-	 * Resets the BannerService instance (primarily for testing)
-	 */
 	public static reset(): void {
+		const instance = BannerService.instance
+		if (instance) {
+			if (instance.debounceTimer) clearTimeout(instance.debounceTimer)
+			instance.abortController?.abort()
+		}
 		BannerService.instance = null
 	}
 
-	/**
-	 * Sets the AuthService instance for testing purposes
-	 * In production, AuthService is loaded dynamically when needed
-	 */
-	public setAuthService(authService: AuthService): void {
-		this._authService = authService
-	}
+	public static async onAuthUpdate(userId: string | null): Promise<void> {
+		const instance = BannerService.instance
 
-	/**
-	 * Fetches active banners from the API
-	 * Backend handles all filtering based on ide and user context
-	 * Extension only filters by providers (API provider configuration)
-	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of banners that match current environment
-	 */
-	private async internalGetActiveBanners(forceRefresh = false): Promise<Banner[]> {
-		try {
-			// Return cached banners if still valid
-			const now = Date.now()
-			if (!forceRefresh && this._cachedBanners.length > 0 && now - this._lastFetchTime < this.CACHE_DURATION_MS) {
-				Logger.log("BannerService: Returning cached banners")
-				return this._cachedBanners
-			}
+		if (!instance || instance.userId === userId) return
 
-			if (this._fetchPromise && !forceRefresh) {
-				return this._fetchPromise
-			}
-
-			this._fetchPromise = this.fetchActiveBanners()
-			return this._fetchPromise
-		} catch (error) {
-			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.error("BannerService: Error getting internal banners", error)
-			return []
+		// Clear existing debounce timer and resolve any pending promise
+		if (instance.debounceTimer) {
+			clearTimeout(instance.debounceTimer)
+			instance.debounceTimer = null
 		}
-	}
-
-	private async fetchActiveBanners(): Promise<Banner[]> {
-		try {
-			const now = Date.now()
-			const ideType = await this.getIdeType()
-			const extensionVersion = await this.getExtensionVersion()
-			const osType = await this.getOSType()
-
-			const urlObj = new URL("/banners/v1/messages", this._baseUrl)
-			urlObj.searchParams.set("ide", ideType)
-			if (extensionVersion) {
-				urlObj.searchParams.set("extension_version", extensionVersion)
-			}
-			urlObj.searchParams.set("os", osType)
-
-			const url = urlObj.toString()
-			Logger.log(`BannerService: Fetching banners from ${url}`)
-
-			const authService = this.getAuthServiceInstance()
-			const token: string | null = (await authService?.getAuthToken()) || null
-
-			const headers: Record<string, string> = {
-				"Content-Type": "application/json",
-				...(await buildBasicClineHeaders()),
-			}
-			if (token) {
-				headers["Authorization"] = `Bearer ${token}`
-			}
-
-			const response = await axios.get<BannersResponse>(url, {
-				timeout: 10000,
-				headers,
-				...getAxiosSettings(),
-			})
-
-			if (!response.data?.data || !Array.isArray(response.data.data.items)) {
-				Logger.log("BannerService: Invalid response format - items array is missing or malformed")
-				return []
-			}
-
-			const backendFilteredBanners = response.data.data.items
-			Logger.log(`BannerService: Received ${backendFilteredBanners.length} banners from backend (already filtered)`)
-
-			// Client-side filtering: Only filter by providers
-			const matchingBanners = backendFilteredBanners.filter((banner) => this.matchesProviderRule(banner))
-			Logger.log(`BannerService: ${matchingBanners.length} banners match provider requirements`)
-
-			// Update cache
-			this._cachedBanners = matchingBanners
-			this._lastFetchTime = now
-
-			if (matchingBanners.length > 0) {
-				Logger.log(`BannerService: ${matchingBanners.length} active banner(s) fetched.`)
-			}
-			return matchingBanners
-		} catch (error) {
-			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.error("BannerService: Error fetching banners", error)
-			return []
-		} finally {
-			this._fetchPromise = null
+		if (instance.pendingDebounceResolve) {
+			instance.pendingDebounceResolve()
+			instance.pendingDebounceResolve = null
 		}
-	}
 
-	/**
-	 * Gets the current extension version
-	 * @returns Extension version string (e.g., "3.39.2")
-	 */
-	private async getExtensionVersion(): Promise<string> {
-		try {
-			const hostVersion = await HostProvider.env.getHostVersion({})
-			return hostVersion.clineVersion || ""
-		} catch (error) {
-			Logger.error("BannerService: Error getting extension version", error)
-			return ""
-		}
-	}
+		// Cancel any in-progress fetch immediately - we'll fetch with the new token after debounce
+		instance.abortController?.abort()
+		instance.abortController = null
+		instance.fetchPromise = null
 
-	/**
-	 * Client-side filtering by providers rule only
-	 * Backend handles all other filtering (ide, employee_only, audience, org_type, version)
-	 * @param banner Banner to check
-	 * @returns true if banner matches provider requirements or has no provider restrictions
-	 */
-	private matchesProviderRule(banner: Banner): boolean {
-		try {
-			const rules: BannerRules = JSON.parse(banner.rulesJson || "{}")
+		// Set pending flag immediately to prevent getActiveBanners() from starting a fetch
+		// while we're waiting for the debounce to settle
+		instance.authFetchPending = true
+		instance.userId = userId
 
-			if (!rules.providers || rules.providers.length === 0) {
-				return true
-			}
+		return new Promise<void>((resolve) => {
+			instance.pendingDebounceResolve = resolve
+			instance.debounceTimer = setTimeout(async () => {
+				instance.debounceTimer = null
+				instance.pendingDebounceResolve = null
 
-			const apiConfiguration = this._controller.stateManager.getApiConfiguration()
-			const currentMode = this._controller.stateManager.getGlobalSettingsKey("mode")
-			const selectedProvider =
-				currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
+				instance.consecutiveFailures = 0
+				instance.backoffUntil = 0
 
-			if (!selectedProvider) {
-				Logger.log(`BannerService: Banner ${banner.id} filtered by client - no provider selected for ${currentMode} mode`)
-				return false
-			}
-
-			const hasMatchingProvider = rules.providers.some((provider) => {
-				// Normalize provider names for comparison
-				switch (provider) {
-					case "anthropic":
-					case "claude-code":
-						return selectedProvider === "anthropic"
-					case "openai":
-					case "openai-native":
-						return selectedProvider === "openai" || selectedProvider === "openai-native"
-					case "qwen":
-					case "qwen-code":
-						return selectedProvider === "qwen"
-					default:
-						// For any other providers, do a direct string comparison
-						return selectedProvider === provider
+				try {
+					await instance.doFetch()
+					Logger.info("[BannerService] Fetched")
+				} finally {
+					instance.authFetchPending = false
+					resolve()
 				}
+			}, AUTH_DEBOUNCE_MS)
+		})
+	}
+
+	public getActiveBanners(): BannerCardData[] {
+		const now = Date.now()
+		const shouldFetch =
+			now >= this.backoffUntil &&
+			now - this.lastFetchTime >= CACHE_DURATION_MS &&
+			!this.fetchPromise &&
+			!this.authFetchPending
+
+		if (shouldFetch) {
+			Logger.log("[BannerService] Cache expired, fetching new banners")
+			this.fetchPromise = this.doFetch()
+			this.fetchPromise.finally(() => {
+				this.fetchPromise = null
 			})
-
-			if (!hasMatchingProvider) {
-				Logger.log(
-					`BannerService: Banner ${banner.id} filtered by client - selected provider '${selectedProvider}' doesn't match any of these required providers: ${rules.providers.join(", ")}`,
-				)
-			}
-
-			return hasMatchingProvider
-		} catch (error) {
-			Logger.log(
-				`BannerService: Error parsing provider rules for banner ${banner.id}: ${error instanceof Error ? error.message : String(error)}`,
-			)
-			return true
 		}
+
+		return this.cachedBanners
+			.filter((b) => !this.isBannerDismissed(b.id))
+			.map((b) => this.toBannerCardData(b))
+			.filter((b): b is BannerCardData => b !== null)
 	}
 
-	/**
-	 * Gets the current Operating System
-	 * @returns OS type (windows, linux, macos or unknown)
-	 */
-	private async getOSType(): Promise<string> {
-		try {
-			switch (process.platform) {
-				case "win32":
-					return "windows"
-				case "linux":
-					return "linux"
-				case "darwin":
-					return "macos"
-				default:
-					return "unknown"
-			}
-		} catch (error) {
-			Logger.error("BannerService: Error getting OS type", error)
-			return "unknown"
-		}
-	}
-
-	/**
-	 * Gets the current IDE type
-	 * @returns IDE type (vscode, jetbrains, cli, or unknown)
-	 */
-	private async getIdeType(): Promise<string> {
-		try {
-			const hostVersion = await HostProvider.env.getHostVersion({})
-
-			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", "CLI", etc.
-			const clineType = hostVersion.clineType?.toLowerCase() || ""
-
-			if (clineType.includes("vscode")) {
-				return "vscode"
-			}
-			if (clineType.includes("jetbrains")) {
-				return "jetbrains"
-			}
-			if (clineType.includes("cli")) {
-				return "cli"
-			}
-
-			return "unknown"
-		} catch (error) {
-			Logger.error("BannerService: Error getting IDE type", error)
-			return "unknown"
-		}
-	}
-
-	/**
-	 * Gets the AuthService instance
-	 * @returns AuthService instance or undefined if not available
-	 */
-	private getAuthServiceInstance(): AuthService | undefined {
-		// Use injected instance if available (for testing)
-		if (this._authService) {
-			return this._authService
-		}
-
-		// Otherwise, get singleton instance
-		try {
-			return AuthService.getInstance(this._controller)
-		} catch {
-			return undefined
-		}
-	}
-
-	/**
-	 * Clears the banner cache
-	 */
 	public clearCache(): void {
-		this._cachedBanners = []
-		this._lastFetchTime = 0
-		Logger.log("BannerService: Cache cleared")
+		this.abortController?.abort()
+		this.abortController = null
+		this.cachedBanners = []
+		this.lastFetchTime = 0
+		this.consecutiveFailures = 0
+		this.backoffUntil = 0
+		this.fetchPromise = null
+		Logger.log("BannerService: Cache cleared and circuit breaker reset")
 	}
 
-	/**
-	 * Sends a banner event to the telemetry endpoint
-	 * @param bannerId The ID of the banner
-	 * @param eventType The type of event (now we only support dismiss, in the future we might want to support seen, click...)
-	 */
+	public async dismissBanner(bannerId: string): Promise<void> {
+		try {
+			const dismissed = StateManager.get().getGlobalStateKey("dismissedBanners") || []
+			if (dismissed.some((b) => b.bannerId === bannerId)) return
+
+			StateManager.get().setGlobalState("dismissedBanners", [...dismissed, { bannerId, dismissedAt: Date.now() }])
+
+			await this.sendBannerEvent(bannerId, "dismiss")
+			this.clearCache()
+		} catch (error) {
+			Logger.error("[BannerService] Error dismissing banner", error)
+		}
+	}
+
 	public async sendBannerEvent(bannerId: string, eventType: "dismiss"): Promise<void> {
 		try {
-			const url = new URL("/banners/v1/events", this._baseUrl).toString()
+			const url = new URL("/banners/v2/messages", ClineEnv.config().apiBaseUrl).toString()
+			const ideType = this.getIdeType()
+			const surface = ideType === "cli" ? "cli" : ideType === "jetbrains" ? "jetbrains" : "vscode"
 
-			// Get IDE type for surface
-			const ideType = await this.getIdeType()
-			let surface: string
-			if (ideType === "cli") {
-				surface = "cli"
-			} else if (ideType === "jetbrains") {
-				surface = "jetbrains"
-			} else {
-				surface = "vscode"
-			}
+			const controller = new AbortController()
+			const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
-			const instanceId = this.getInstanceDistinctId()
-
-			const payload = {
-				banner_id: bannerId,
-				instance_id: instanceId,
-				surface,
-				event_type: eventType,
-			}
-
-			await axios.post(url, payload, {
-				timeout: 10000,
+			await fetch(url, {
+				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 					...(await buildBasicClineHeaders()),
 				},
-				...getAxiosSettings(),
+				body: JSON.stringify({
+					banner_id: bannerId,
+					instance_id: this.hostInfo.distinctId,
+					surface,
+					event_type: eventType,
+				}),
+				signal: controller.signal,
 			})
 
-			Logger.log(`BannerService: Sent ${eventType} event for banner ${bannerId}`)
+			clearTimeout(timeoutId)
+			Logger.log(`[BannerService] Sent ${eventType} event for banner ${bannerId}`)
 		} catch (error) {
-			Logger.error(`BannerService: Error sending banner event`, error)
+			Logger.error("[BannerService] Error sending banner event", error)
 		}
 	}
 
-	/**
-	 * Marks a banner as dismissed and stores it in state
-	 * @param bannerId The ID of the banner to dismiss
-	 */
-	public async dismissBanner(bannerId: string): Promise<void> {
-		try {
-			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
-
-			if (dismissedBanners.some((b) => b.bannerId === bannerId)) {
-				Logger.log(`BannerService: Banner ${bannerId} already dismissed`)
-				return
-			}
-			const newDismissal = {
-				bannerId,
-				dismissedAt: Date.now(),
-			}
-
-			this._controller.stateManager.setGlobalState("dismissedBanners", [...dismissedBanners, newDismissal])
-
-			await this.sendBannerEvent(bannerId, "dismiss")
-
-			this.clearCache()
-
-			Logger.log(`BannerService: Banner ${bannerId} dismissed`)
-		} catch (error) {
-			Logger.error(`BannerService: Error dismissing banner`, error)
-		}
-	}
-
-	/**
-	 * Checks if a banner has been dismissed by the user
-	 * @param bannerId The ID of the banner to check
-	 * @returns true if the banner has been dismissed
-	 */
 	public isBannerDismissed(bannerId: string): boolean {
 		try {
-			const dismissedBanners = this._controller.stateManager.getGlobalStateKey("dismissedBanners") || []
-			return dismissedBanners.some((b) => b.bannerId === bannerId)
+			const dismissed = StateManager.get().getGlobalStateKey("dismissedBanners") || []
+			return dismissed.some((b) => b.bannerId === bannerId)
 		} catch (error) {
-			Logger.error(`BannerService: Error checking if banner is dismissed`, error)
+			Logger.error("[BannerService] Error checking dismissed banner", error)
 			return false
 		}
 	}
 
-	/**
-	 * Converts a Banner (API response format) to BannerCardData (UI format)
-	 * @param banner The banner from the API
-	 * @returns BannerCardData suitable for the carousel, or null if banner is invalid.
-	 */
-	private convertToBannerCardData(banner: Banner): BannerCardData | null {
-		// Validate all action types before conversion
-		// Each action must have a valid action type - undefined is not allowed
-		for (const action of banner.actions || []) {
-			if (!action.action || !this.actionTypes.has(action.action)) {
-				Logger.error(`BannerService: ${banner.id} has invalid or missing action type '${action.action ?? "undefined"}'.`)
-				return null
+	private async doFetch(): Promise<Banner[]> {
+		// Do not fetch banners when feature flag is off
+		if (!featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_BANNERS)) {
+			return []
+		}
+
+		this.abortController = new AbortController()
+		const { signal } = this.abortController
+		const timeoutId = setTimeout(() => this.abortController?.abort(), FETCH_TIMEOUT_MS)
+
+		try {
+			const url = this.buildFetchUrl()
+			const headers: Record<string, string> = {
+				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
 			}
-			if (!action.title) {
-				Logger.error(`BannerService: ${banner.id} is missing an action title: ${JSON.stringify(action)}`)
+			const authToken = await AuthService.getInstance().getAuthToken()
+			if (authToken) {
+				headers.Authorization = `Bearer ${authToken}`
+			}
+
+			const response = await fetch(url, { method: "GET", headers, signal })
+			clearTimeout(timeoutId)
+
+			if (!response.ok) {
+				throw Object.assign(new Error(`HTTP ${response.status}`), {
+					status: response.status,
+					headers: response.headers,
+				})
+			}
+
+			const data = (await response.json()) as BannersResponse
+			if (!data?.data?.items || !Array.isArray(data.data.items)) {
+				Logger.log("BannerService: Invalid response format")
+				return []
+			}
+
+			const banners = data.data.items.filter((b) => this.matchesProviderRule(b))
+			this.cachedBanners = banners
+			this.lastFetchTime = Date.now()
+			this.consecutiveFailures = 0
+
+			this.controller.postStateToWebview().catch((error) => {
+				Logger.error("Failed to post state to webview after fetching banners:", error)
+			})
+
+			Logger.log(`[BannerService] Fetched ${banners.length} banner(s) at ${new Date(this.lastFetchTime).toISOString()}`)
+			return banners
+		} catch (error) {
+			clearTimeout(timeoutId)
+
+			if (error instanceof Error && error.name === "AbortError") {
+				return this.cachedBanners
+			}
+
+			this.handleFetchError(error)
+			return this.cachedBanners
+		} finally {
+			this.abortController = null
+		}
+	}
+
+	private handleFetchError(error: unknown): void {
+		this.consecutiveFailures++
+
+		const typedError = error as { status?: number; headers?: { get(name: string): string | null } }
+		const status = typedError.status
+
+		let backoffMs = CIRCUIT_BREAKER_TIMEOUT_MS
+
+		if (status === 429) {
+			const retryAfter = typedError.headers?.get("retry-after")
+			if (retryAfter) {
+				const seconds = Number.parseInt(retryAfter, 10)
+				if (!Number.isNaN(seconds)) {
+					backoffMs = seconds * 1000
+				} else {
+					const date = new Date(retryAfter)
+					if (!Number.isNaN(date.getTime())) {
+						backoffMs = Math.max(0, date.getTime() - Date.now())
+					}
+				}
+			}
+		} else if (status && status >= 500 && status < 600) {
+			backoffMs = SERVER_ERROR_BACKOFF_MS
+		}
+
+		this.backoffUntil = Date.now() + backoffMs
+
+		if (this.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+			this.backoffUntil = Date.now() + CIRCUIT_BREAKER_TIMEOUT_MS
+			const msg =
+				this.consecutiveFailures === MAX_CONSECUTIVE_FAILURES ? "Circuit breaker tripped" : "Half-open recovery failed"
+			Logger.log(`BannerService: ${msg}, will allow recovery attempt after 1 hour`)
+		}
+
+		Logger.error(
+			`[BannerService] Failed ${this.consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}. ` +
+				`Backing off for ${Math.ceil(backoffMs / 60000)} minutes`,
+			error,
+		)
+	}
+
+	private buildFetchUrl(): string {
+		const url = new URL("/banners/v2/messages", ClineEnv.config().apiBaseUrl)
+		url.searchParams.set("ide", this.getIdeType())
+		url.searchParams.set("extension_version", this.hostInfo.extensionVersion)
+		url.searchParams.set("os", OS_MAP[this.hostInfo.os] || "unknown")
+		return url.toString()
+	}
+
+	private getIdeType(): string {
+		const ide = this.hostInfo.ide
+		for (const [key, value] of Object.entries(IDE_MAP)) {
+			if (ide.includes(key)) return value
+		}
+		return "unknown"
+	}
+
+	private matchesProviderRule(banner: Banner): boolean {
+		try {
+			const rules: BannerRules = JSON.parse(banner.rulesJson || "{}")
+			if (!rules?.providers?.length) return true
+
+			const config = StateManager.get().getApiConfiguration()
+			const mode = StateManager.get().getGlobalSettingsKey("mode")
+			const provider = mode === "plan" ? config?.planModeApiProvider : config?.actModeApiProvider
+
+			return rules.providers.some((ruleProvider) => {
+				// Check if ruleProvider is an alias for the selected provider
+				for (const [_, aliases] of Object.entries(PROVIDER_ALIASES)) {
+					if (aliases.includes(ruleProvider)) {
+						return aliases.includes(provider as string)
+					}
+				}
+				return provider === ruleProvider
+			})
+		} catch (error) {
+			Logger.log(
+				`[BannerService] Error parsing provider rules for banner ${banner.id}: ` +
+					`${error instanceof Error ? error.message : String(error)}`,
+			)
+			return true // Fail open
+		}
+	}
+
+	private toBannerCardData(banner: Banner): BannerCardData | null {
+		const actions = banner.actions || []
+
+		// Validate all actions have valid types
+		for (const action of actions) {
+			if (!action.action || !this.validActionTypes.has(action.action) || !action.title) {
+				Logger.error(`[BannerService] Invalid action type (${action.action}) for banner ${banner.id}`)
 				return null
 			}
 		}
 
-		const actions = (banner.actions || []).map((action) => ({
-			title: action.title || "",
-			action: action.action as BannerActionType,
-			arg: action.arg,
-		}))
 		return {
 			id: banner.id,
 			title: banner.titleMd,
 			description: banner.bodyMd,
 			icon: banner.icon,
-			actions,
-		}
-	}
-
-	/**
-	 * Gets banners that haven't been dismissed by the user
-	 * @param forceRefresh If true, bypasses cache and fetches fresh data
-	 * @returns Array of non-dismissed banners converted to BannerCardData format
-	 *
-	 * TEMPORARILY DISABLED: Returning empty array to prevent API calls
-	 */
-	public async getActiveBanners(forceRefresh = false): Promise<BannerCardData[]> {
-		// Disable all banner fetching to prevent blocking the extension
-		return []
-	}
-
-	/**
-	 * Gets the distinct ID for the current user
-	 * @returns distinct ID string
-	 */
-	private getInstanceDistinctId(): string {
-		try {
-			return getDistinctId()
-		} catch (error) {
-			Logger.error("BannerService: Error getting distinct ID", error)
-			return "unknown"
+			actions: actions.map((a) => ({
+				title: a.title || "",
+				action: a.action as BannerActionType,
+				arg: a.arg,
+			})),
 		}
 	}
 }

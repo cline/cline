@@ -14,11 +14,7 @@
 
 import { ClineTempManager } from "@services/temp"
 import * as fs from "fs"
-import {
-	BACKGROUND_COMMAND_TIMEOUT_MS,
-	DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT,
-	DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT,
-} from "../constants"
+import { BACKGROUND_COMMAND_TIMEOUT_MS, DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT } from "../constants"
 import type { BackgroundCommand, ITerminalManager, TerminalInfo, TerminalProcessResultPromise } from "../types"
 import { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
 import { StandaloneTerminalRegistry } from "./StandaloneTerminalRegistry"
@@ -80,9 +76,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 	/** Maximum output lines to keep */
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
-
-	/** Maximum output lines for subagent commands */
-	private subagentTerminalOutputLineLimit: number = DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT
 
 	/** Default terminal profile */
 	private defaultTerminalProfile = "default"
@@ -227,15 +220,10 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override
-	 * @param isSubagentCommand Whether this is a subagent command
 	 * @returns Processed output string
 	 */
-	processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string {
-		const limit = isSubagentCommand
-			? overrideLimit !== undefined
-				? overrideLimit
-				: this.subagentTerminalOutputLineLimit
-			: this.terminalOutputLineLimit
+	processOutput(outputLines: string[], overrideLimit?: number): string {
+		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
@@ -293,14 +281,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	setTerminalOutputLineLimit(limit: number): void {
 		this.terminalOutputLineLimit = limit
-	}
-
-	/**
-	 * Set the maximum number of output lines for subagent commands.
-	 * @param limit Maximum number of lines
-	 */
-	setSubagentTerminalOutputLineLimit(limit: number): void {
-		this.subagentTerminalOutputLineLimit = limit
 	}
 
 	/**

@@ -1,4 +1,4 @@
-import { ensureSkillsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { getSkillsDirectoriesForScan } from "@core/storage/disk"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
@@ -98,22 +98,12 @@ async function loadSkillMetadata(
 export async function discoverSkills(cwd: string): Promise<SkillMetadata[]> {
 	const skills: SkillMetadata[] = []
 
-	const globalSkillsDir = await ensureSkillsDirectoryExists()
-	const projectDirs = [
-		path.join(cwd, GlobalFileNames.clineruleSkillsDir),
-		path.join(cwd, GlobalFileNames.clineSkillsDir),
-		path.join(cwd, GlobalFileNames.claudeSkillsDir),
-	]
+	const scanDirs = getSkillsDirectoriesForScan(cwd)
 
-	// Load project skills first (lower priority)
-	for (const dir of projectDirs) {
-		const projectSkills = await scanSkillsDirectory(dir, "project")
-		skills.push(...projectSkills)
+	for (const dir of scanDirs) {
+		const dirSkills = await scanSkillsDirectory(dir.path, dir.source)
+		skills.push(...dirSkills)
 	}
-
-	// Load global skills last (~/.cline/skills) - higher priority
-	const globalSkills = await scanSkillsDirectory(globalSkillsDir, "global")
-	skills.push(...globalSkills)
 
 	return skills
 }

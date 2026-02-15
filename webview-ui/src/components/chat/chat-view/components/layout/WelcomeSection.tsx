@@ -63,7 +63,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		navigateToSettings,
 		navigateToSettingsModelPicker,
 		navigateToWorktrees,
-		subagentsEnabled,
 		worktreesEnabled,
 		banners,
 	} = useExtensionState()
@@ -156,6 +155,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 				case BannerActionType.SetModel: {
 					const modelId = action.arg || "anthropic/claude-opus-4.6"
+					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
 						actModeOpenRouterModelId: modelId,
@@ -164,7 +164,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
-					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab: "recommended" })
+					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 					break
 				}
 
@@ -242,7 +242,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 		// Combine both sources: extension state banners first, then hardcoded banners
 		return [...extensionStateBanners, ...hardcodedBanners]
-	}, [bannerConfig, banners, clineUser, subagentsEnabled, handleBannerAction, handleBannerDismiss])
+	}, [bannerConfig, banners, clineUser, handleBannerAction, handleBannerDismiss])
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">

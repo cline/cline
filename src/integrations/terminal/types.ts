@@ -224,12 +224,6 @@ export interface ITerminalManager {
 	setTerminalOutputLineLimit(limit: number): void
 
 	/**
-	 * Set the maximum number of output lines for subagent commands.
-	 * @param limit Maximum number of lines
-	 */
-	setSubagentTerminalOutputLineLimit(limit: number): void
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */
@@ -239,10 +233,9 @@ export interface ITerminalManager {
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override
-	 * @param isSubagentCommand Whether this is a subagent command
 	 * @returns Processed output string
 	 */
-	processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string
+	processOutput(outputLines: string[], overrideLimit?: number): string
 }
 
 /**
@@ -349,6 +342,22 @@ export interface CommandExecutorCallbacks {
 }
 
 /**
+ * Optional per-command execution behavior overrides.
+ */
+export interface CommandExecutionOptions {
+	/**
+	 * Force command execution in standalone/background terminal mode for this command.
+	 * This is useful for subagent runs and headless-style execution flows.
+	 */
+	useBackgroundExecution?: boolean
+	/**
+	 * Suppress command interaction/output UI messages (ask/say) for this command execution.
+	 * Command output is still captured and returned as the tool result.
+	 */
+	suppressUserInteraction?: boolean
+}
+
+/**
  * Configuration for CommandExecutor
  */
 export interface CommandExecutorConfig {
@@ -395,6 +404,11 @@ export interface OrchestrationOptions {
 	 * Defaults to "vscode" for backward compatibility.
 	 */
 	terminalType?: "vscode" | "standalone"
+	/**
+	 * If true, suppresses command-output ask/say UI interactions.
+	 * Output is still collected and included in the final result.
+	 */
+	suppressUserInteraction?: boolean
 }
 
 /**

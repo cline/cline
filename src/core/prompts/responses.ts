@@ -29,11 +29,9 @@ export const formatResponse = {
 		`Command execution blocked by CLINE_COMMAND_PERMISSIONS: ${reason}. You must try a different approach or ask the user to update the permission settings.`,
 
 	noToolsUsed: (usingNativeToolCalls: boolean) =>
-		usingNativeToolCalls
-			? "[ERROR] You did not use a tool in your previous response! Please retry with a tool use."
-			: `[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
+		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
 
-${toolUseInstructionsReminder}
+${usingNativeToolCalls ? "" : toolUseInstructionsReminder}
 
 # Next Steps
 
@@ -138,11 +136,11 @@ Otherwise, if you have not completed the task and do not need additional informa
 			return `${clineIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
-			return "No files found."
-		} else {
-			return clineIgnoreParsed.join("\n")
 		}
+		if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
+			return "No files found."
+		}
+		return clineIgnoreParsed.join("\n")
 	},
 
 	createPrettyPatch: (filename = "file", oldStr?: string, newStr?: string) => {
