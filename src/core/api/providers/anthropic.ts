@@ -97,9 +97,8 @@ export class AnthropicHandler implements ApiHandler {
 								"anthropic-beta": "context-1m-2025-08-07",
 							},
 						}
-					} else {
-						return undefined
 					}
+					return undefined
 				})(),
 			)
 		} else {
@@ -217,6 +216,7 @@ export class AnthropicHandler implements ApiHandler {
 									type: "tool_calls",
 									tool_call: {
 										...lastStartedToolCall,
+										call_id: lastStartedToolCall.id,
 										function: {
 											...lastStartedToolCall,
 											id: lastStartedToolCall.id,
