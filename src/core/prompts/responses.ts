@@ -46,6 +46,23 @@ Otherwise, if you have not completed the task and do not need additional informa
 	missingToolParameterError: (paramName: string) =>
 		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
 
+	/**
+	 * Error for write_to_file when the 'content' parameter is missing/empty.
+	 * Follows the same pattern as diffError — a clear error message with actionable guidance appended as a reminder.
+	 * The proactive strategy guidance (skeleton + replace_in_file) lives in the tool description itself.
+	 * Optionally includes context window usage info to help the model gauge available space.
+	 */
+	writeToFileMissingContentError: (relPath: string, contextUsagePercent?: number): string =>
+		`Failed to write to '${relPath}': The 'content' parameter was empty. This typically happens when the file content is too large to generate in a single response, or when output token limits are reached before the content parameter is fully written.\n\n` +
+		(contextUsagePercent && contextUsagePercent > 0
+			? `Note: Context window is ${contextUsagePercent}% full. Keep responses concise to avoid hitting output limits.\n\n`
+			: "") +
+		`Suggestions:\n` +
+		`- If the file is large, try breaking down the task into smaller steps. Write a skeleton first, then fill in sections using replace_in_file.\n` +
+		`- If the file already exists, prefer replace_in_file to make targeted edits instead of rewriting the entire file.\n` +
+		`- Ensure the 'content' parameter contains the complete file content before closing the tool tag.\n\n` +
+		toolUseInstructionsReminder,
+
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 
