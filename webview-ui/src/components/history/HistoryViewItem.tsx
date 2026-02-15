@@ -94,14 +94,17 @@ const HistoryViewItem = ({
 					e.stopPropagation()
 					handleShowTaskWithId(item.id)
 				}}>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 min-w-0">
 					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
 						<span className="ph-no-capture">{item.task}</span>
 					</div>
 					<div className="flex gap-2 flex-shrink-0">
 						<Button
 							aria-label="Delete"
-							className="p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+							className={cn("p-0 transition-opacity", {
+								"opacity-0 group-hover:opacity-100": !isFavoritedItem,
+								"opacity-0 pointer-events-none": isFavoritedItem,
+							})}
 							disabled={isFavoritedItem}
 							onClick={(e) => {
 								e.stopPropagation()
