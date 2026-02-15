@@ -523,26 +523,24 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	context.subscriptions.push(
-		// TODO: context.secrets should use StateManager now.
-		context.secrets.onDidChange(async (event) => {
-			if (event.key === "cline:clineAccountId") {
-				// Check if the secret was removed (logout) or added/updated (login)
-				const secretValue = await context.secrets.get(event.key)
-				const activeWebview = WebviewProvider.getVisibleInstance()
-				const controller = activeWebview?.controller
+	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
+		if (event.key === "cline:clineAccountId") {
+			const secretValue = storageContext.secrets.get<string>(event.key)
+			const activeWebview = WebviewProvider.getVisibleInstance()
+			const controller = activeWebview?.controller
 
-				const authService = AuthService.getInstance(controller)
-				if (secretValue) {
-					// Secret was added or updated - restore auth info (login from another window)
-					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
-				} else {
-					// Secret was removed - handle logout for all windows
-					authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
-				}
+			const authService = AuthService.getInstance(controller)
+			if (secretValue) {
+				// Secret was added or updated - restore auth info (login from another window)
+				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+			} else {
+				// Secret was removed - handle logout for all windows
+				authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
 			}
-		}),
-	)
+		}
+	})
+	context.subscriptions.push({ dispose: unsubSecrets })
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 

@@ -117,8 +117,41 @@ export abstract class ClineStorage {
  * values and provides synchronous access - required for VSCode Memento compatibility.
  */
 
+export type SyncStorageEventListener = (event: ClineStorageChangeEvent) => void
+
 export abstract class ClineSyncStorage<T = any> {
 	protected abstract name: string
+
+	/**
+	 * List of subscribers to storage change events.
+	 */
+	private readonly changeSubscribers: Array<SyncStorageEventListener> = []
+
+	/**
+	 * Subscribe to storage change events. Returns an unsubscribe function.
+	 */
+	public onDidChange(callback: SyncStorageEventListener): () => void {
+		this.changeSubscribers.push(callback)
+		return () => {
+			const idx = this.changeSubscribers.indexOf(callback)
+			if (idx >= 0) {
+				this.changeSubscribers.splice(idx, 1)
+			}
+		}
+	}
+
+	/**
+	 * Notify all subscribers of a key change.
+	 */
+	protected fireChange(key: string): void {
+		for (const subscriber of this.changeSubscribers) {
+			try {
+				subscriber({ key })
+			} catch (error) {
+				Logger.error(`[${this.name}] change subscriber error for '${key}':`, error)
+			}
+		}
+	}
 
 	public get<V = T>(key: string): V | undefined
 	public get<V = T>(key: string, defaultValue: V): V
@@ -143,6 +176,7 @@ export abstract class ClineSyncStorage<T = any> {
 	public set(key: string, value: T | undefined): void {
 		try {
 			this._set(key, value)
+			this.fireChange(key)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to set '${key}':`, error)
 		}
@@ -151,6 +185,7 @@ export abstract class ClineSyncStorage<T = any> {
 	public delete(key: string): void {
 		try {
 			this._delete(key)
+			this.fireChange(key)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to delete '${key}':`, error)
 		}

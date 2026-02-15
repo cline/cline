@@ -54,20 +54,23 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 	 * since it only writes to disk once.
 	 */
 	public setBatch(entries: Record<string, T | undefined>): void {
-		let changed = false
+		const changedKeys: string[] = []
 		for (const [key, value] of Object.entries(entries)) {
 			if (value === undefined) {
 				if (key in this.data) {
 					delete this.data[key]
-					changed = true
+					changedKeys.push(key)
 				}
 			} else {
 				this.data[key] = value
-				changed = true
+				changedKeys.push(key)
 			}
 		}
-		if (changed) {
+		if (changedKeys.length > 0) {
 			this.writeToDisk()
+			for (const key of changedKeys) {
+				this.fireChange(key)
+			}
 		}
 	}
 
