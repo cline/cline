@@ -3212,7 +3212,8 @@ export class Task {
 		// The text appears to "disappear" when tool calls start, even though it's still in the array.
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
-		if (lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
+		const shouldFinalizePartialText = textBlocks.length > 0
+		if (shouldFinalizePartialText && lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
 			lastMessage.text = textContent
 			lastMessage.partial = false
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()

@@ -8,6 +8,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ACT_MODE
+	private lastPartialByCallId = new Map<string, string>()
 
 	constructor() {}
 
@@ -22,6 +23,14 @@ export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler
 		const response = block.params.response
 
 		const message = uiHelpers.removeClosingTag(block, "response", response)
+		const callId = block.call_id ?? "act_mode_respond"
+		const previous = this.lastPartialByCallId.get(callId)
+
+		// Skip no-op partial updates to avoid webview churn during tool arg streaming.
+		if (!message || message === previous) {
+			return
+		}
+		this.lastPartialByCallId.set(callId, message)
 
 		// Display partial message as "text" type to avoid blocking
 		await uiHelpers.say("text", message, undefined, undefined, true).catch(() => {})
@@ -62,6 +71,9 @@ export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler
 		// Display complete message to user using "text" type (non-blocking)
 		// This allows us to show the progress update and immediately continue
 		await config.callbacks.say("text", response, undefined, undefined, false)
+		if (block.call_id) {
+			this.lastPartialByCallId.delete(block.call_id)
+		}
 
 		// Update focus chain if task_progress provided
 		if (taskProgress) {
