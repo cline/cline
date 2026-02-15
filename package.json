@@ -551,7 +551,7 @@
 		"chrome-launcher": "^1.1.2",
 		"clone-deep": "^4.0.1",
 		"default-shell": "^2.2.0",
-		"diff": "^5.2.0",
+		"diff": "^8.0.3",
 		"exceljs": "^4.4.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
