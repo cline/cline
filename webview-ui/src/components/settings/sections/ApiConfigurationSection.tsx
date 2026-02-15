@@ -59,27 +59,29 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 				)}
 
 				<div className="mb-[5px]">
-					<VSCodeCheckbox
-						checked={planActSeparateModelsSetting}
-						className="mb-[5px]"
-						onChange={async (e: any) => {
-							const checked = e.target.checked === true
-							try {
-								// If unchecking the toggle, wait a bit for state to update, then sync configurations
-								if (!checked) {
-									await syncModeConfigurations(apiConfiguration, currentTab, handleFieldsChange)
+					<div style={{ display: "inline-flex" }}>
+						<VSCodeCheckbox
+							checked={planActSeparateModelsSetting}
+							className="mb-[5px]"
+							onChange={async (e: any) => {
+								const checked = e.target.checked === true
+								try {
+									// If unchecking the toggle, wait a bit for state to update, then sync configurations
+									if (!checked) {
+										await syncModeConfigurations(apiConfiguration, currentTab, handleFieldsChange)
+									}
+									await StateServiceClient.updateSettings(
+										UpdateSettingsRequest.create({
+											planActSeparateModelsSetting: checked,
+										}),
+									)
+								} catch (error) {
+									console.error("Failed to update separate models setting:", error)
 								}
-								await StateServiceClient.updateSettings(
-									UpdateSettingsRequest.create({
-										planActSeparateModelsSetting: checked,
-									}),
-								)
-							} catch (error) {
-								console.error("Failed to update separate models setting:", error)
-							}
-						}}>
-						Use different models for Plan and Act modes
-					</VSCodeCheckbox>
+							}}>
+							Use different models for Plan and Act modes
+						</VSCodeCheckbox>
+					</div>
 					<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
 						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.

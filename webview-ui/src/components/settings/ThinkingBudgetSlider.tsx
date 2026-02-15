@@ -27,7 +27,7 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 	padding: 0;
 	background: ${(props) => {
 		const percentage = ((props.$value - props.$min) / (props.$max - props.$min)) * 100
-		return `linear-gradient(to right, 
+		return `linear-gradient(to right,
 			var(--vscode-progressBar-background) 0%,
 			var(--vscode-progressBar-background) ${percentage}%,
 			var(--vscode-scrollbarSlider-background) ${percentage}%,
@@ -121,9 +121,11 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 	return (
 		<div className="w-full">
 			{showEnableToggle ? (
-				<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
-					Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
-				</VSCodeCheckbox>
+				<div style={{ display: "inline-flex" }}>
+					<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
+						Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
+					</VSCodeCheckbox>
+				</div>
 			) : null}
 
 			{isEnabled && (

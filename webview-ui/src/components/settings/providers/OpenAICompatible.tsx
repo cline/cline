@@ -223,14 +223,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				/>
 			)}
 
-			<VSCodeCheckbox
-				checked={apiConfiguration?.azureIdentity || false}
-				onChange={(e: any) => {
-					const isChecked = e.target.checked === true
-					return handleFieldChange("azureIdentity", isChecked)
-				}}>
-				Use Azure Identity Authentication
-			</VSCodeCheckbox>
+			<div style={{ display: "inline-flex" }}>
+				<VSCodeCheckbox
+					checked={apiConfiguration?.azureIdentity || false}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked === true
+						return handleFieldChange("azureIdentity", isChecked)
+					}}>
+					Use Azure Identity Authentication
+				</VSCodeCheckbox>
+			</div>
 
 			<div
 				onClick={() => setModelConfigurationSelected((val) => !val)}
@@ -258,36 +260,40 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 			{modelConfigurationSelected && (
 				<>
-					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-							modelInfo.supportsImages = isChecked
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
-						}}>
-						Supports Images
-					</VSCodeCheckbox>
+					<div style={{ display: "inline-flex" }}>
+						<VSCodeCheckbox
+							checked={!!openAiModelInfo?.supportsImages}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+								modelInfo.supportsImages = isChecked
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
+							}}>
+							Supports Images
+						</VSCodeCheckbox>
+					</div>
 
-					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.isR1FormatRequired}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-							modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
+					<div style={{ display: "inline-flex" }}>
+						<VSCodeCheckbox
+							checked={!!openAiModelInfo?.isR1FormatRequired}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+								modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
 
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
-						}}>
-						Enable R1 messages format
-					</VSCodeCheckbox>
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
+							}}>
+							Enable R1 messages format
+						</VSCodeCheckbox>
+					</div>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField

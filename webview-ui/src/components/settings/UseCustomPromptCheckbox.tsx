@@ -21,9 +21,11 @@ const UseCustomPromptCheckbox: React.FC<CustomPromptCheckboxProps> = ({ provider
 
 	return (
 		<div id={providerId}>
-			<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
-				Use compact prompt
-			</VSCodeCheckbox>
+			<div style={{ display: "inline-flex" }}>
+				<VSCodeCheckbox checked={isCompactPromptEnabled} onChange={() => toggleCompactPrompt(!isCompactPromptEnabled)}>
+					Use compact prompt
+				</VSCodeCheckbox>
+			</div>
 			<div className="text-xs text-description">
 				A system prompt optimized for smaller context window (e.g. 8k or less).
 				<div className="text-error flex align-middle">

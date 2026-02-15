@@ -70,22 +70,24 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 
 					{selectedModelId && selectedModelId.includes("3-mini") && (
 						<>
-							<VSCodeCheckbox
-								checked={reasoningEffortSelected}
-								onChange={(e: any) => {
-									const isChecked = e.target.checked === true
-									setReasoningEffortSelected(isChecked)
-									if (!isChecked) {
-										handleModeFieldChange(
-											{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
-											"",
-											currentMode,
-										)
-									}
-								}}
-								style={{ marginTop: 0 }}>
-								Modify reasoning effort
-							</VSCodeCheckbox>
+							<div style={{ display: "inline-flex" }}>
+								<VSCodeCheckbox
+									checked={reasoningEffortSelected}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setReasoningEffortSelected(isChecked)
+										if (!isChecked) {
+											handleModeFieldChange(
+												{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+												"",
+												currentMode,
+											)
+										}
+									}}
+									style={{ marginTop: 0 }}>
+									Modify reasoning effort
+								</VSCodeCheckbox>
+							</div>
 
 							{reasoningEffortSelected && (
 								<div>

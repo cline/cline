@@ -162,13 +162,15 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 				<div id="browser-settings-section" style={{ marginBottom: 20 }}>
 					{/* Master Toggle */}
 					<div style={{ marginBottom: isSubSettingsOpen ? 0 : 10 }}>
-						<VSCodeCheckbox
-							checked={browserSettings.disableToolUse || false}
-							onChange={(e) =>
-								updateSetting("browserSettings", { disableToolUse: (e.target as HTMLInputElement).checked })
-							}>
-							Disable browser tool usage
-						</VSCodeCheckbox>
+						<div style={{ display: "inline-flex" }}>
+							<VSCodeCheckbox
+								checked={browserSettings.disableToolUse || false}
+								onChange={(e) =>
+									updateSetting("browserSettings", { disableToolUse: (e.target as HTMLInputElement).checked })
+								}>
+								Disable browser tool usage
+							</VSCodeCheckbox>
+						</div>
 						<p
 							style={{
 								fontSize: "12px",
@@ -222,18 +224,20 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 									alignItems: "center",
 									justifyContent: "space-between",
 								}}>
-								<VSCodeCheckbox
-									checked={browserSettings.remoteBrowserEnabled}
-									onChange={(e) => {
-										const enabled = (e.target as HTMLInputElement).checked
-										updateSetting("browserSettings", { remoteBrowserEnabled: enabled })
-										// If disabling, also clear the host
-										if (!enabled) {
-											updateSetting("browserSettings", { remoteBrowserHost: undefined })
-										}
-									}}>
-									Use remote browser connection
-								</VSCodeCheckbox>
+								<div style={{ display: "inline-flex" }}>
+									<VSCodeCheckbox
+										checked={browserSettings.remoteBrowserEnabled}
+										onChange={(e) => {
+											const enabled = (e.target as HTMLInputElement).checked
+											updateSetting("browserSettings", { remoteBrowserEnabled: enabled })
+											// If disabling, also clear the host
+											if (!enabled) {
+												updateSetting("browserSettings", { remoteBrowserHost: undefined })
+											}
+										}}>
+										Use remote browser connection
+									</VSCodeCheckbox>
+								</div>
 								<ConnectionStatusIndicator
 									isChecking={isCheckingConnection}
 									isConnected={connectionStatus}

@@ -277,14 +277,16 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 							marginTop: 12,
 							marginBottom: 4,
 						}}>
-						<VSCodeCheckbox
-							checked={ocaMode !== "external"}
-							onChange={(e: any) => {
-								const checked = (e?.target as HTMLInputElement)?.checked
-								handleToggleMode(checked ? "internal" : "external")
-							}}>
-							I’m an Oracle Employee
-						</VSCodeCheckbox>
+						<div style={{ display: "inline-flex" }}>
+							<VSCodeCheckbox
+								checked={ocaMode !== "external"}
+								onChange={(e: any) => {
+									const checked = (e?.target as HTMLInputElement)?.checked
+									handleToggleMode(checked ? "internal" : "external")
+								}}>
+								I'm an Oracle Employee
+							</VSCodeCheckbox>
+						</div>
 					</div>
 					<VSCodeButton
 						onClick={async () => {
