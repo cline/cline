@@ -1,4 +1,4 @@
-import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
+import type { Banner, BannerAction, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
@@ -140,6 +140,34 @@ export class BannerService {
 	}
 
 	public getActiveBanners(): BannerCardData[] {
+		this.ensureFreshCache()
+
+		const activeBanners = this.cachedBanners
+			.filter((b) => b.placement !== "welcome")
+			.filter((b) => !this.isBannerDismissed(b.id))
+			.map((b) => this.toBannerCardData(b))
+			.filter((b): b is BannerCardData => b !== null)
+
+		return activeBanners
+	}
+
+	/**
+	 * Returns welcome banners (placement === "welcome") for the What's New modal.
+	 * These are version-targeted banners fetched from the backend.
+	 */
+	public getWelcomeBanners(): BannerCardData[] {
+		this.ensureFreshCache()
+
+		const welcomeBanners = this.cachedBanners
+			.filter((b) => b.placement === "welcome")
+			.filter((b) => !this.isBannerDismissed(b.id))
+			.map((b) => this.toBannerCardData(b))
+			.filter((b): b is BannerCardData => b !== null)
+
+		return welcomeBanners
+	}
+
+	private ensureFreshCache(): void {
 		const now = Date.now()
 		const shouldFetch =
 			now >= this.backoffUntil &&
@@ -148,17 +176,11 @@ export class BannerService {
 			!this.authFetchPending
 
 		if (shouldFetch) {
-			Logger.log("[BannerService] Cache expired, fetching new banners")
 			this.fetchPromise = this.doFetch()
 			this.fetchPromise.finally(() => {
 				this.fetchPromise = null
 			})
 		}
-
-		return this.cachedBanners
-			.filter((b) => !this.isBannerDismissed(b.id))
-			.map((b) => this.toBannerCardData(b))
-			.filter((b): b is BannerCardData => b !== null)
 	}
 
 	public clearCache(): void {
@@ -339,9 +361,14 @@ export class BannerService {
 	}
 
 	private getIdeType(): string {
-		const ide = this.hostInfo.ide
+		const ide = this.hostInfo.ide?.toLowerCase() ?? ""
 		for (const [key, value] of Object.entries(IDE_MAP)) {
 			if (ide.includes(key)) return value
+		}
+
+		const platform = this.hostInfo.platform?.toLowerCase() ?? ""
+		if (platform.includes("visual studio") || platform.includes("vscode")) {
+			return "vscode"
 		}
 		return "unknown"
 	}
@@ -373,8 +400,25 @@ export class BannerService {
 		}
 	}
 
+	private getBannerActions(banner: Banner): BannerAction[] {
+		if (banner.actions && banner.actions.length > 0) {
+			return banner.actions
+		}
+
+		try {
+			const rules: BannerRules = JSON.parse(banner.rulesJson || "{}")
+			return rules?.actions ?? []
+		} catch (error) {
+			Logger.log(
+				`[BannerService] Error parsing actions from rulesJson for banner ${banner.id}: ` +
+					`${error instanceof Error ? error.message : String(error)}`,
+			)
+			return []
+		}
+	}
+
 	private toBannerCardData(banner: Banner): BannerCardData | null {
-		const actions = banner.actions || []
+		const actions = this.getBannerActions(banner)
 
 		// Validate all actions have valid types
 		for (const action of actions) {
