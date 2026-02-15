@@ -3836,6 +3836,13 @@ export const sapAiCoreModels = {
 		supportsPromptCache: false,
 		description: sapAiCoreModelDescription,
 	},
+	"sonar-deep-research": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		description: sapAiCoreModelDescription,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Moonshot AI Studio
