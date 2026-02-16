@@ -48,8 +48,13 @@ tags: [tag1, tag2, tag3]
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
-						return mockContentResponse
+					try {
+						const parsedUrl = new URL(url)
+						if (parsedUrl.hostname === "raw.githubusercontent.com") {
+							return mockContentResponse
+						}
+					} catch {
+						// If URL parsing fails, fall through to default response
 					}
 					return { data: [] }
 				})
