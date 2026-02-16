@@ -304,7 +304,37 @@
 			{
 				"tab": "Changelog",
 				"icon": "clock-rotate-left",
-				"href": "/changelog"
+				"groups": [
+					{
+						"group": "February 13, 2026",
+						"pages": [
+							"changelog/v3.62.0",
+							"changelog/v3.61.0",
+							"changelog/v3.60.0"
+						]
+					},
+					{
+						"group": "February 12, 2026",
+						"pages": [
+							"changelog/v3.59.0",
+							"changelog/v3.58.0"
+						]
+					},
+					{
+						"group": "February 5, 2026",
+						"pages": [
+							"changelog/v3.57.1",
+							"changelog/v3.57.0"
+						]
+					},
+					{
+						"group": "January 30, 2026",
+						"pages": [
+							"changelog/v3.56.2",
+							"changelog/v3.56.1"
+						]
+					}
+				]
 			},
 			{
 				"tab": "Learn",
@@ -611,6 +641,10 @@
 		{
 			"source": "/features/skills",
 			"destination": "/customization/skills"
+		},
+		{
+			"source": "/changelog",
+			"destination": "/changelog/v3.62.0"
 		}
 	],
 	"changelog": {
