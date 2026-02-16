@@ -83,9 +83,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						🎉 New in v{version}
 					</h2>
 
-					{/* Hardcoded description - always shown alongside dynamic banners */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						{hasWelcomeBanners &&
+						{hasWelcomeBanners ? (
 							welcomeBanners.map((banner) => (
 								<li className="mb-2" key={banner.id}>
 									{banner.title && <strong>{banner.title}</strong>}{" "}
@@ -129,25 +128,32 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 										</span>
 									)}
 								</li>
-							))}
-						<li className="mb-2">
-							<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
-							fast inference. <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
-						</li>
-						<li className="mb-2">
-							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
-							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
-						</li>
-						<li className="mb-2">
-							<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
-							<a
-								href="https://docs.cline.bot/features/subagents"
-								rel="noopener noreferrer"
-								style={{ color: "var(--vscode-textLink-foreground)" }}
-								target="_blank">
-								Learn more
-							</a>
-						</li>
+							))
+						) : (
+							<>
+								{/* Hardcoded fallback items shown when remote welcome banners feature flag is off */}
+								<li className="mb-2">
+									<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with
+									lightning fast inference.{" "}
+									<InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
+								</li>
+								<li className="mb-2">
+									<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic
+									coding to your terminal. Install with{" "}
+									<code style={inlineCodeStyle}>npm install -g cline</code>
+								</li>
+								<li className="mb-2">
+									<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
+									<a
+										href="https://docs.cline.bot/features/subagents"
+										rel="noopener noreferrer"
+										style={{ color: "var(--vscode-textLink-foreground)" }}
+										target="_blank">
+										Learn more
+									</a>
+								</li>
+							</>
+						)}
 					</ul>
 
 					{/* Social Icons Section */}

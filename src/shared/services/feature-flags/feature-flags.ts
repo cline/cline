@@ -7,6 +7,9 @@ export enum FeatureFlag {
 	ONBOARDING_MODELS = "onboarding_models",
 	// Feature flag for remote banner service
 	REMOTE_BANNERS = "remote-banners",
+	// Feature flag for DB-backed welcome banners (What's New modal)
+	// When off, hardcoded welcome items are shown instead
+	REMOTE_WELCOME_BANNERS = "remote-welcome-banners",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
