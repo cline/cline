@@ -97,7 +97,17 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					let hostname: string | null = null
+					try {
+						hostname = new URL(url).hostname
+					} catch {
+						try {
+							hostname = new URL(url, "https://dummy.test").hostname
+						} catch {
+							hostname = null
+						}
+					}
+					if (hostname === "raw.githubusercontent.com") {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -136,7 +146,17 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					let hostname: string | null = null
+					try {
+						hostname = new URL(url).hostname
+					} catch {
+						try {
+							hostname = new URL(url, "https://dummy.test").hostname
+						} catch {
+							hostname = null
+						}
+					}
+					if (hostname === "raw.githubusercontent.com") {
 						return mockContentResponse
 					}
 					return { data: [] }
