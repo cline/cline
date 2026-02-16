@@ -117,6 +117,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 													onClick={(event) => {
 														event.preventDefault()
 														onBannerAction(action)
+														onClose()
 													}}
 													style={{
 														color: "var(--vscode-textLink-foreground)",
