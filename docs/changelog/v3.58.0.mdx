@@ -1,0 +1,38 @@
+---
+title: "v3.58.0"
+date: "2026-02-12"
+description: "Native subagents, double-check completion, CLI improvements, and more"
+---
+
+## Added
+
+- **Subagent**: Replace legacy subagents with the native `use_subagents` tool
+- Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
+- **Amazon Bedrock**: Support parallel tool calling
+- New "double-check completion" experimental feature to verify work before marking tasks complete
+- **CLI**: New task controls/flags including custom `--thinking` token budget and `--max-consecutive-mistakes` for yolo runs
+- **Remote config**: New UI/options (including connection/test buttons) and support for syncing deletion of remotely configured MCP servers
+- **Vertex / Claude Code**: Add 1M context model options for Claude Opus 4.6
+- **ZAI/GLM**: Add GLM-5
+
+## Fixed
+
+- **CLI**: Handle stdin redirection correctly in CI/headless environments
+- **CLI**: Preserve OAuth callback paths during auth redirects
+- **VS Code Web**: Generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
+- **Terminal**: Surface command exit codes in results and improve long-running `execute_command` timeout behavior
+- **UI**: Add loading indicator and fix `api_req_started` rendering
+- **Task streaming**: Prevent duplicate streamed text rows after completion
+- **API**: Preserve selected Vercel model when model metadata is missing
+- **Telemetry**: Route PostHog networking through proxy-aware shared fetch and ensure telemetry flushes on shutdown
+- **CI**: Increase Windows E2E test timeout to reduce flakiness
+
+## Changed
+
+- **Settings/model UX**: Move "reasoning effort" into model configuration and expose it in settings
+- **CLI provider selection**: Limit provider list to those remotely configured
+- **UI**: Consolidate ViewHeader component/styling across views
+- **Tools**: Add auto-approval support for `attempt_completion` commands
+- Remotely configured MCP server schema now supports custom headers
+
+**Full Changelog**: [v3.57.1...v3.58.0](https://github.com/cline/cline/compare/cli-build-6278382...v3.58.0)

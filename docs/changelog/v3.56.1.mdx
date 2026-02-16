@@ -1,0 +1,27 @@
+---
+title: "v3.56.1"
+date: "2026-01-30"
+description: "CLI auth support, Kimi-K2.5 model, OpenTelemetry improvements, and settings refresh"
+---
+
+## Added
+
+- **CLI authentication**: Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- **New model**: Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- **Prompt variant**: Added Trinity Large prompt variant for improved tool-calling support
+- **OpenTelemetry**: Added support for custom headers on metrics and logs endpoints
+- **Social links**: Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+
+## Fixed
+
+- **LiteLLM**: Fixed thinking configuration not appearing for reasoning-capable models
+- **OpenTelemetry**: Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VS Code telemetry settings
+- **CLI auth**: Fixed `cline auth` displaying incorrect provider information after configuration
+
+## Changed
+
+- **Hooks**: Hook scripts now run from the workspace repository root instead of filesystem root
+- **Default settings**: Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- **Settings UI**: Refreshed feature settings section with collapsible design
+
+**Full Changelog**: [v3.56.0...v3.56.1](https://github.com/cline/cline/compare/v3.56.0...v3.56.1)

@@ -302,6 +302,11 @@
 				]
 			},
 			{
+				"tab": "Changelog",
+				"icon": "clock-rotate-left",
+				"href": "/changelog"
+			},
+			{
 				"tab": "Learn",
 				"icon": "graduation-cap",
 				"href": "https://cline.bot/learn"
@@ -608,6 +613,10 @@
 			"destination": "/customization/skills"
 		}
 	],
+	"changelog": {
+		"title": "Changelog",
+		"description": "Latest updates and improvements to Cline"
+	},
 	"search": {
 		"prompt": "Search Cline documentation..."
 	}
