@@ -1,8 +1,13 @@
 # cline
 
+## 2.2.3
+
+### Patch Changes
+
+- c0020e1: Allows users to enter custom aws region when selecting bedrock as a provider in CLI
 
 ### Fixed
-- Banners now display immediately when opening the extension instead of requiring user interaction first
+
 - Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
 
 ## [2.2.2]
