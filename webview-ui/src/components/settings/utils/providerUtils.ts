@@ -270,18 +270,20 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
-			const clineOpenRouterModelId =
+			const clineModelId =
 				(currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelId
-					: apiConfiguration?.actModeOpenRouterModelId) || openRouterDefaultModelId
-			const clineOpenRouterModelInfo =
+					? (apiConfiguration?.planModeClineModelId ?? apiConfiguration?.planModeOpenRouterModelId)
+					: (apiConfiguration?.actModeClineModelId ?? apiConfiguration?.actModeOpenRouterModelId)) ||
+				openRouterDefaultModelId
+			const clineModelInfo =
 				(currentMode === "plan"
-					? apiConfiguration?.planModeOpenRouterModelInfo
-					: apiConfiguration?.actModeOpenRouterModelInfo) || openRouterDefaultModelInfo
+					? (apiConfiguration?.planModeClineModelInfo ?? apiConfiguration?.planModeOpenRouterModelInfo)
+					: (apiConfiguration?.actModeClineModelInfo ?? apiConfiguration?.actModeOpenRouterModelInfo)) ||
+				openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: clineOpenRouterModelId,
-				selectedModelInfo: clineOpenRouterModelInfo,
+				selectedModelId: clineModelId,
+				selectedModelInfo: clineModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -519,6 +521,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			requestyModelId: undefined,
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
+			clineModelId: undefined,
 			groqModelId: undefined,
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
@@ -532,6 +535,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openAiModelInfo: undefined,
 			liteLlmModelInfo: undefined,
 			openRouterModelInfo: undefined,
+			clineModelInfo: undefined,
 			requestyModelInfo: undefined,
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
@@ -567,6 +571,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
+		clineModelId:
+			mode === "plan"
+				? (apiConfiguration.planModeClineModelId ?? apiConfiguration.planModeOpenRouterModelId)
+				: (apiConfiguration.actModeClineModelId ?? apiConfiguration.actModeOpenRouterModelId),
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
 		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
 		huggingFaceModelId:
@@ -586,6 +594,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		liteLlmModelInfo: mode === "plan" ? apiConfiguration.planModeLiteLlmModelInfo : apiConfiguration.actModeLiteLlmModelInfo,
 		openRouterModelInfo:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo,
+		clineModelInfo:
+			mode === "plan"
+				? (apiConfiguration.planModeClineModelInfo ?? apiConfiguration.planModeOpenRouterModelInfo)
+				: (apiConfiguration.actModeClineModelInfo ?? apiConfiguration.actModeOpenRouterModelInfo),
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
@@ -661,11 +673,17 @@ export async function syncModeConfigurations(
 	// Handle provider-specific fields
 	switch (apiProvider) {
 		case "openrouter":
-		case "cline":
 			updates.planModeOpenRouterModelId = sourceFields.openRouterModelId
 			updates.actModeOpenRouterModelId = sourceFields.openRouterModelId
 			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			break
+
+		case "cline":
+			updates.planModeClineModelId = sourceFields.clineModelId
+			updates.actModeClineModelId = sourceFields.clineModelId
+			updates.planModeClineModelInfo = sourceFields.clineModelInfo
+			updates.actModeClineModelInfo = sourceFields.clineModelInfo
 			break
 
 		case "requesty":

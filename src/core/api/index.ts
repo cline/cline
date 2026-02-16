@@ -264,8 +264,14 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				openRouterProviderSorting: options.openRouterProviderSorting,
-				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
-				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
+				openRouterModelId:
+					mode === "plan"
+						? (options.planModeClineModelId ?? options.planModeOpenRouterModelId)
+						: (options.actModeClineModelId ?? options.actModeOpenRouterModelId),
+				openRouterModelInfo:
+					mode === "plan"
+						? (options.planModeClineModelInfo ?? options.planModeOpenRouterModelInfo)
+						: (options.actModeClineModelInfo ?? options.actModeOpenRouterModelInfo),
 			})
 		case "litellm":
 			return new LiteLlmHandler({

@@ -110,10 +110,12 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 		if (response.data?.data) {
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
-				if (price) {
-					return Number.parseFloat(price) * 1_000_000
+				if (price === undefined || price === null || price === "") {
+					return undefined
 				}
-				return undefined
+
+				const parsedPrice = Number.parseFloat(String(price))
+				return Number.isNaN(parsedPrice) ? undefined : parsedPrice * 1_000_000
 			}
 			for (const rawModel of rawModels as ClineRawModelInfo[]) {
 				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning" || p === "reasoning")
@@ -194,8 +196,9 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 					default:
 						// Check for cache pricing from the API response
 						if (rawModel.id.startsWith("openai/") || rawModel.id.startsWith("google/")) {
-							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
-							if (modelInfo.cacheReadsPrice) {
+							const cacheReadPrice = parsePrice(rawModel.pricing?.input_cache_read)
+							modelInfo.cacheReadsPrice = cacheReadPrice
+							if (cacheReadPrice !== undefined) {
 								modelInfo.supportsPromptCache = true
 								modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
 							}
