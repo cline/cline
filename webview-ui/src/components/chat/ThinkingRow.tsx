@@ -11,6 +11,7 @@ interface ThinkingRowProps {
 	onToggle?: () => void
 	title?: string
 	isStreaming?: boolean
+	showChevron?: boolean
 }
 
 export const ThinkingRow = memo(
@@ -22,6 +23,7 @@ export const ThinkingRow = memo(
 		onToggle,
 		title = "Thinking",
 		isStreaming = false,
+		showChevron = true,
 	}: ThinkingRowProps) => {
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const [canScrollUp, setCanScrollUp] = useState(false)
@@ -74,11 +76,12 @@ export const ThinkingRow = memo(
 						})}>
 						{title}
 					</span>
-					{isExpanded ? (
-						<ChevronDownIcon className="!size-1 text-description" />
-					) : (
-						<ChevronRightIcon className="!size-1 text-description" />
-					)}
+					{showChevron &&
+						(isExpanded ? (
+							<ChevronDownIcon className="!size-1 text-description" />
+						) : (
+							<ChevronRightIcon className="!size-1 text-description" />
+						))}
 				</Button>
 			) : null}
 
