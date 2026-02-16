@@ -41,7 +41,7 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 		{
 			id: "z-ai/glm-5",
 			name: "Z-AI GLM5",
-			description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
+			description: "Z.AI's  latest GLM 5 model with strong coding and agent performance",
 			labels: ["FREE"],
 		},
 		{
