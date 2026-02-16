@@ -87,6 +87,11 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
+		id: "z-ai/glm-5",
+		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
+		label: "FREE",
+	},
+	{
 		id: "kwaipilot/kat-coder-pro",
 		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
 		label: "FREE",
