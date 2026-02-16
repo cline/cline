@@ -85,6 +85,12 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				setHasShownWhatsNewModal(true)
 			}, 3000)
 		}
+		return () => {
+			if (bannerWaitTimeoutRef.current) {
+				clearTimeout(bannerWaitTimeoutRef.current)
+				bannerWaitTimeoutRef.current = null
+			}
+		}
 	}, [showAnnouncement, hasShownWhatsNewModal])
 
 	// Open modal early if welcome banners arrive before the timeout
