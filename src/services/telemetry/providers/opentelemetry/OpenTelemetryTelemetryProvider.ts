@@ -183,7 +183,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 				organization_id: activeOrg.organizationId,
 				organization_name: activeOrg.name,
 				member_id: activeOrg.memberId,
-				member_role: activeOrg.roles[0] || "", // Effectively a single value despite the array type
+				member_role: activeOrg.roles[0] || "member",
 			}),
 			...this.flattenProperties(properties),
 		}
