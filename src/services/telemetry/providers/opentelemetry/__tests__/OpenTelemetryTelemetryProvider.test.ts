@@ -5,9 +5,6 @@ import type { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import * as distinctIdModule from "@/services/logging/distinctId"
 import { OpenTelemetryTelemetryProvider } from "../OpenTelemetryTelemetryProvider"
 
-/**
- * Helper to build a ClineAccountUserInfo with an active organization.
- */
 function makeUserInfo(
 	overrides: Partial<ClineAccountUserInfo> & { orgOverrides?: Record<string, unknown> } = {},
 ): ClineAccountUserInfo {
