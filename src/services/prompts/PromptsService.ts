@@ -13,6 +13,13 @@ export class PromptsService {
 	private readonly CACHE_DURATION = 60 * 60 * 1000 // 1 hour
 
 	/**
+	 * Wrapper for HTTP GET requests. Protected to allow test stubbing.
+	 */
+	protected async httpGet(url: string) {
+		return axios.get(url, getAxiosSettings())
+	}
+
+	/**
 	 * Fetches the prompts catalog from GitHub
 	 */
 	async fetchPromptsCatalog(): Promise<PromptsCatalog> {
@@ -58,7 +65,7 @@ export class PromptsService {
 	private async fetchPromptsFromDirectory(directory: string, type: "rule" | "workflow"): Promise<PromptItem[]> {
 		try {
 			const url = `${this.PROMPTS_REPO_API}/${directory}`
-			const response = await axios.get(url, getAxiosSettings())
+			const response = await this.httpGet(url)
 
 			if (!Array.isArray(response.data)) {
 				return []
@@ -78,7 +85,7 @@ export class PromptsService {
 				const batchResults = await Promise.all(
 					batch.map(async (file: { name: string; download_url: string; html_url: string }) => {
 						try {
-							const contentResponse = await axios.get(file.download_url, getAxiosSettings())
+							const contentResponse = await this.httpGet(file.download_url)
 							return { file, content: contentResponse.data }
 						} catch (error) {
 							Logger.error(`Error fetching prompt ${file.name}:`, error)
@@ -145,9 +152,16 @@ export class PromptsService {
 			// Extract username from GitHub URL if present
 			let authorName = author || "Unknown"
 			if (author) {
-				const githubMatch = author.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^/\s?#()>\]]+)/i)
-				if (githubMatch) {
-					authorName = githubMatch[1]
+				try {
+					const authorUrl = new URL(author.startsWith("http") ? author : `https://${author}`)
+					if (authorUrl.hostname === "github.com" || authorUrl.hostname === "www.github.com") {
+						const pathSegments = authorUrl.pathname.split("/").filter(Boolean)
+						if (pathSegments.length > 0) {
+							authorName = pathSegments[0]
+						}
+					}
+				} catch {
+					// Not a valid URL, use as-is
 				}
 			}
 

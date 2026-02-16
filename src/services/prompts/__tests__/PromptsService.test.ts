@@ -48,13 +48,8 @@ tags: [tag1, tag2, tag3]
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					try {
-						const parsedUrl = new URL(url)
-						if (parsedUrl.hostname === "raw.githubusercontent.com") {
-							return mockContentResponse
-						}
-					} catch {
-						// If URL parsing fails, fall through to default response
+					if (url.startsWith("https://raw.githubusercontent.com")) {
+						return mockContentResponse
 					}
 					return { data: [] }
 				})
@@ -97,17 +92,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					let hostname: string | null = null
-					try {
-						hostname = new URL(url).hostname
-					} catch {
-						try {
-							hostname = new URL(url, "https://dummy.test").hostname
-						} catch {
-							hostname = null
-						}
-					}
-					if (hostname === "raw.githubusercontent.com") {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -146,17 +131,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					let hostname: string | null = null
-					try {
-						hostname = new URL(url).hostname
-					} catch {
-						try {
-							hostname = new URL(url, "https://dummy.test").hostname
-						} catch {
-							hostname = null
-						}
-					}
-					if (hostname === "raw.githubusercontent.com") {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -197,7 +172,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -231,7 +206,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -270,7 +245,7 @@ Content without closing delimiter`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -309,7 +284,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -347,7 +322,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -494,7 +469,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
@@ -537,7 +512,7 @@ Content`,
 					if (url.includes("/contents/workflows")) {
 						return { data: [] }
 					}
-					if (url.includes("raw.githubusercontent.com")) {
+					if (url.startsWith("https://raw.githubusercontent.com")) {
 						return mockContentResponse
 					}
 					return { data: [] }
