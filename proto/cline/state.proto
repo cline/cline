@@ -104,13 +104,16 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 47;
+  optional string openai_codex_oauth_credentials = 46;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 140; // was subagent_terminal_output_line_limit
+  reserved 146; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
+
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -284,7 +287,7 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
-  map<string, string> open_ai_headers = 182;
+  map<string, string> open_ai_headers = 175;
 }
 
 message DictationSettings {
