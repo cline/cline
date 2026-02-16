@@ -409,10 +409,6 @@ export class AuthService {
 
 		// Identify the user in telemetry if available
 		if (this._clineAuthInfo?.userInfo?.id) {
-			const activeOrg = this._clineAuthInfo.userInfo.organizations?.find((org) => org.active)
-			Logger.info(
-				`[AuthService] identifyAccount - userId: ${this._clineAuthInfo.userInfo.id}, activeOrg: ${JSON.stringify(activeOrg ?? null)}`,
-			)
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 			// Poll feature flags immediately for authenticated users to ensure cache is populated
 			await featureFlagsService.poll(this._clineAuthInfo.userInfo?.id)
