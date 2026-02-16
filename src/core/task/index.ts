@@ -3517,8 +3517,8 @@ export class Task {
 		let shouldShowContextWindow = true
 		// For next-gen models, only show context window usage if it exceeds a certain threshold
 		if (isNextGenModel) {
-			const autoCondenseThreshold =
-				(this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as number | undefined) ?? 0.75
+			// Hardcoded to default — the UI to adjust this is disabled; stored values may be corrupted.
+			const autoCondenseThreshold = 0.75
 			const displayThreshold = autoCondenseThreshold - 0.15
 			const currentUsageRatio = lastApiReqTotalTokens / contextWindow
 			shouldShowContextWindow = currentUsageRatio >= displayThreshold
