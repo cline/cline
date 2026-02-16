@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import { afterEach, describe, it } from "mocha"
 import os from "os"
 import * as path from "path"
-import { ClineDefaultTool } from "@/shared/tools"
+import { ClineDefaultTool, getToolUseNames } from "@/shared/tools"
 import { AgentConfigLoader, getAgentsConfigPath, parseAgentConfigFromYaml, readAgentConfigsFromDisk } from "../AgentConfigLoader"
 
 async function createTempHomeDir(): Promise<string> {
@@ -118,5 +118,35 @@ Reviewer prompt`,
 		assert.equal(reviewer?.name, "reviewer")
 		assert.deepEqual(reviewer?.tools, [ClineDefaultTool.LIST_FILES])
 		assert.equal(loader.getAllCachedConfigs().size, 2)
+	})
+
+	it("creates dynamic subagent tool mappings after loading configs", async () => {
+		const tempHome = await createTempHomeDir()
+		tempDirs.push(tempHome)
+
+		const directoryPath = getAgentsConfigPath(tempHome)
+		await fs.mkdir(directoryPath, { recursive: true })
+		await fs.writeFile(
+			path.join(directoryPath, "code-reviewer.yaml"),
+			`---
+name: code reviewer
+description: reviewer agent
+tools: read_file
+modelId: sonnet
+---
+
+Reviewer prompt`,
+			"utf8",
+		)
+
+		const loader = AgentConfigLoader.getInstance(tempHome)
+		await loader.load()
+
+		const withToolNames = loader.getAllCachedConfigsWithToolNames()
+		assert.equal(withToolNames.length, 1)
+		assert.equal(withToolNames[0].config.name, "code reviewer")
+		assert.equal(loader.resolveSubagentNameForTool(withToolNames[0].toolName), "code reviewer")
+		assert.equal(loader.isDynamicSubagentTool(withToolNames[0].toolName), true)
+		assert.ok(getToolUseNames().includes(withToolNames[0].toolName))
 	})
 })

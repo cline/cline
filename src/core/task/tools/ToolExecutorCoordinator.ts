@@ -26,6 +26,7 @@ import { UseSkillToolHandler } from "./handlers/UseSkillToolHandler"
 import { WebFetchToolHandler } from "./handlers/WebFetchToolHandler"
 import { WebSearchToolHandler } from "./handlers/WebSearchToolHandler"
 import { WriteToFileToolHandler } from "./handlers/WriteToFileToolHandler"
+import { AgentConfigLoader } from "./subagent/AgentConfigLoader"
 import { ToolValidator } from "./ToolValidator"
 import type { TaskConfig } from "./types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "./types/UIHelpers"
@@ -73,6 +74,7 @@ export class SharedToolHandler implements IFullyManagedTool {
  */
 export class ToolExecutorCoordinator {
 	private handlers = new Map<string, IToolHandler>()
+	private dynamicSubagentHandlers = new Map<string, IToolHandler>()
 
 	private readonly toolHandlersMap: Record<ClineDefaultTool, (v: ToolValidator) => IToolHandler | undefined> = {
 		[ClineDefaultTool.ASK]: (_v: ToolValidator) => new AskFollowupQuestionToolHandler(),
@@ -124,7 +126,7 @@ export class ToolExecutorCoordinator {
 	 * Check if a handler is registered for the given tool
 	 */
 	has(toolName: string): boolean {
-		return this.handlers.has(toolName)
+		return this.getHandler(toolName) !== undefined
 	}
 
 	/**
@@ -135,14 +137,30 @@ export class ToolExecutorCoordinator {
 		if (toolName.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
 			toolName = ClineDefaultTool.MCP_USE
 		}
-		return this.handlers.get(toolName)
+
+		const staticHandler = this.handlers.get(toolName)
+		if (staticHandler) {
+			return staticHandler
+		}
+
+		if (AgentConfigLoader.getInstance().isDynamicSubagentTool(toolName)) {
+			const existingHandler = this.dynamicSubagentHandlers.get(toolName)
+			if (existingHandler) {
+				return existingHandler
+			}
+			const handler = new SharedToolHandler(toolName as ClineDefaultTool, new UseSubagentsToolHandler())
+			this.dynamicSubagentHandlers.set(toolName, handler)
+			return handler
+		}
+
+		return undefined
 	}
 
 	/**
 	 * Execute a tool through its registered handler
 	 */
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const handler = this.handlers.get(block.name)
+		const handler = this.getHandler(block.name)
 		if (!handler) {
 			throw new Error(`No handler registered for tool: ${block.name}`)
 		}
