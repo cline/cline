@@ -44,6 +44,7 @@ interface ViewportInfo {
 /**
  * Given multi-line text and a cursor position, compute a viewport window
  * of `maxLines` lines centered on the cursor. Returns null if no windowing needed.
+ * Only uses logical lines (separated by \n) - text wrapping is handled by Ink.
  */
 function computeViewport(text: string, cursorPos: number, maxLines: number): ViewportInfo | null {
 	const lines = text.split(/\r?\n|\r/)
@@ -51,32 +52,22 @@ function computeViewport(text: string, cursorPos: number, maxLines: number): Vie
 
 	// Find which line the cursor is on
 	let charCount = 0
-	let cursorLine = lines.length - 1 // fallback to last line
+	let cursorLine = lines.length - 1
 	for (let i = 0; i < lines.length; i++) {
 		if (cursorPos <= charCount + lines[i].length) {
 			cursorLine = i
 			break
 		}
-		charCount += lines[i].length + 1 // +1 for \n
+		charCount += lines[i].length + 1
 	}
 
-	// Position viewport with padding so cursor doesn't sit at the edge
 	const padding = Math.max(2, Math.floor(maxLines / 4))
-	let viewStart = cursorLine - (maxLines - padding - 1)
-	viewStart = Math.max(0, Math.min(viewStart, cursorLine - padding))
-	let viewEnd = viewStart + maxLines
+	let viewStart = Math.max(0, Math.min(cursorLine - (maxLines - padding - 1), cursorLine - padding))
+	const viewEnd = Math.min(lines.length, viewStart + maxLines)
+	if (viewEnd - viewStart < maxLines) viewStart = Math.max(0, viewEnd - maxLines)
 
-	// Clamp to bounds
-	if (viewEnd > lines.length) {
-		viewEnd = lines.length
-		viewStart = Math.max(0, viewEnd - maxLines)
-	}
-
-	// Calculate character offset where the viewport starts
 	let startCharOffset = 0
-	for (let i = 0; i < viewStart; i++) {
-		startCharOffset += lines[i].length + 1
-	}
+	for (let i = 0; i < viewStart; i++) startCharOffset += lines[i].length + 1
 
 	return {
 		viewportText: lines.slice(viewStart, viewEnd).join("\n"),
@@ -216,13 +207,20 @@ function renderHighlightedText(
 			const cursorChar = segment.text[localCursorPos]
 			const afterCursor = segment.text.slice(localCursorPos + 1)
 
+			// When cursor sits on a newline (empty line), render a visible
+			// inverse space so the cursor block is visible, then the actual
+			// newline character so line structure stays correct.
+			const cursorOnNewline = cursorChar === "\n"
+			const displayCursor = cursorOnNewline ? " " : cursorChar
+
 			if (isHighlighted) {
 				return (
 					<Text key={segmentIdx}>
 						{beforeCursor && <Text backgroundColor="gray">{beforeCursor}</Text>}
 						<Text backgroundColor="gray" inverse>
-							{cursorChar}
+							{displayCursor}
 						</Text>
+						{cursorOnNewline && "\n"}
 						{afterCursor && <Text backgroundColor="gray">{afterCursor}</Text>}
 					</Text>
 				)
@@ -230,7 +228,8 @@ function renderHighlightedText(
 			return (
 				<Text key={segmentIdx}>
 					{beforeCursor}
-					<Text inverse>{cursorChar}</Text>
+					<Text inverse>{displayCursor}</Text>
+					{cursorOnNewline && "\n"}
 					{afterCursor}
 				</Text>
 			)
