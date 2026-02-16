@@ -271,14 +271,10 @@ export function normalizeApiConfiguration(
 			}
 		case "cline":
 			const clineModelId =
-				(currentMode === "plan"
-					? (apiConfiguration?.planModeClineModelId ?? apiConfiguration?.planModeOpenRouterModelId)
-					: (apiConfiguration?.actModeClineModelId ?? apiConfiguration?.actModeOpenRouterModelId)) ||
+				(currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId) ||
 				openRouterDefaultModelId
 			const clineModelInfo =
-				(currentMode === "plan"
-					? (apiConfiguration?.planModeClineModelInfo ?? apiConfiguration?.planModeOpenRouterModelInfo)
-					: (apiConfiguration?.actModeClineModelInfo ?? apiConfiguration?.actModeOpenRouterModelInfo)) ||
+				(currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo) ||
 				openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
@@ -571,10 +567,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
-		clineModelId:
-			mode === "plan"
-				? (apiConfiguration.planModeClineModelId ?? apiConfiguration.planModeOpenRouterModelId)
-				: (apiConfiguration.actModeClineModelId ?? apiConfiguration.actModeOpenRouterModelId),
+		clineModelId: mode === "plan" ? apiConfiguration.planModeClineModelId : apiConfiguration.actModeClineModelId,
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
 		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
 		huggingFaceModelId:
@@ -594,10 +587,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		liteLlmModelInfo: mode === "plan" ? apiConfiguration.planModeLiteLlmModelInfo : apiConfiguration.actModeLiteLlmModelInfo,
 		openRouterModelInfo:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo,
-		clineModelInfo:
-			mode === "plan"
-				? (apiConfiguration.planModeClineModelInfo ?? apiConfiguration.planModeOpenRouterModelInfo)
-				: (apiConfiguration.actModeClineModelInfo ?? apiConfiguration.actModeOpenRouterModelInfo),
+		clineModelInfo: mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo,
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
