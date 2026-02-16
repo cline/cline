@@ -1,11 +1,19 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import type { ModelInfo } from "@shared/api"
 import axios from "axios"
+import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
-import { ANTHROPIC_MAX_THINKING_BUDGET } from "@/shared/api"
+import {
+	ANTHROPIC_MAX_THINKING_BUDGET,
+	CLAUDE_OPUS_1M_TIERS,
+	CLAUDE_SONNET_1M_TIERS,
+	openRouterClaudeOpus461mModelId,
+	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet451mModelId,
+} from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
@@ -213,6 +221,23 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 				}
 
 				models[rawModel.id] = modelInfo
+
+				// Add custom :1m model variant for Sonnet models
+				if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
+					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
+					claudeSonnet1mModelInfo.contextWindow = 1_000_000
+					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
+					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+				}
+
+				// Add custom :1m model variant for Opus 4.6
+				if (rawModel.id === "anthropic/claude-opus-4.6") {
+					const claudeOpus1mModelInfo = cloneDeep(modelInfo)
+					claudeOpus1mModelInfo.contextWindow = 1_000_000
+					claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
+					models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo
+				}
 			}
 			if (Object.keys(models).length === 0) {
 				throw new Error("No Cline models returned from API")
