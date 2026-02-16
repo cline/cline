@@ -2389,9 +2389,9 @@ export class Task {
 					}
 				}
 			} else {
-				const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
-					| number
-					| undefined
+				// Hardcoded to default — the UI to adjust this (click on progress bar) is disabled.
+				// Stored values in globalState may be corrupted from accidental clicks; ignore them.
+				const autoCondenseThreshold = 0.75
 				shouldCompact = this.contextManager.shouldCompactContextWindow(
 					this.messageStateHandler.getClineMessages(),
 					this.api,
