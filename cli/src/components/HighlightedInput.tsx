@@ -42,6 +42,74 @@ interface ViewportInfo {
 }
 
 /**
+ * Calculate how many visual lines each logical line takes up when wrapped.
+ */
+function calculateVisualLineCounts(lines: string[], contentWidth: number): number[] {
+	return lines.map((line) => Math.max(1, Math.ceil(line.length / contentWidth)))
+}
+
+/**
+ * Find which logical line contains the cursor position.
+ */
+function findCursorLine(lines: string[], cursorPos: number): number {
+	let charCount = 0
+	for (let i = 0; i < lines.length; i++) {
+		if (cursorPos <= charCount + lines[i].length) {
+			return i
+		}
+		charCount += lines[i].length + 1 // +1 for newline
+	}
+	return lines.length - 1
+}
+
+/**
+ * Calculate character offset from start of text to start of a given line.
+ */
+function calculateCharOffset(lines: string[], upToLineIndex: number): number {
+	let offset = 0
+	for (let i = 0; i < upToLineIndex; i++) {
+		offset += lines[i].length + 1 // +1 for newline
+	}
+	return offset
+}
+
+/**
+ * Expand viewport window above and below cursor line to fill visual line budget.
+ * Returns [startLine, endLine] inclusive range.
+ */
+function expandViewportWindow(
+	cursorLine: number,
+	visualCounts: number[],
+	maxLines: number,
+	totalLines: number,
+): [number, number] {
+	let viewStart = cursorLine
+	let viewEnd = cursorLine + 1 // End is exclusive
+	let visualBudget = maxLines - visualCounts[cursorLine]
+
+	while (visualBudget > 0 && (viewStart > 0 || viewEnd < totalLines)) {
+		const canAddAbove = viewStart > 0 && visualCounts[viewStart - 1] <= visualBudget
+		const canAddBelow = viewEnd < totalLines && visualCounts[viewEnd] <= visualBudget
+
+		// Prefer keeping cursor centered when both directions available
+		const distanceFromCursor = {
+			above: cursorLine - viewStart,
+			below: viewEnd - cursorLine,
+		}
+
+		if (canAddAbove && (!canAddBelow || distanceFromCursor.above < distanceFromCursor.below)) {
+			visualBudget -= visualCounts[--viewStart]
+		} else if (canAddBelow) {
+			visualBudget -= visualCounts[viewEnd++]
+		} else {
+			break
+		}
+	}
+
+	return [viewStart, viewEnd]
+}
+
+/**
  * Given multi-line text and a cursor position, compute a viewport window
  * of `maxLines` visual lines centered on the cursor. Returns null if no windowing needed.
  * Accounts for text wrapping: long logical lines count as multiple visual lines.
@@ -51,44 +119,15 @@ function computeViewport(text: string, cursorPos: number, maxLines: number): Vie
 	const terminalWidth = process.stdout.columns || 80
 	const contentWidth = Math.max(1, terminalWidth - 4) // Border + padding
 
-	// Calculate visual line count for each logical line
-	const visualCounts = lines.map((line) => Math.max(1, Math.ceil(line.length / contentWidth)))
+	const visualCounts = calculateVisualLineCounts(lines, contentWidth)
 	const totalVisualLines = visualCounts.reduce((sum, count) => sum + count, 0)
 
+	// No viewport needed if everything fits
 	if (totalVisualLines <= maxLines) return null
 
-	// Find cursor's logical line
-	let charCount = 0
-	let cursorLine = lines.length - 1
-	for (let i = 0; i < lines.length; i++) {
-		if (cursorPos <= charCount + lines[i].length) {
-			cursorLine = i
-			break
-		}
-		charCount += lines[i].length + 1
-	}
-
-	// Greedily select logical lines centered on cursor, staying under visual line budget
-	let viewStart = cursorLine
-	let viewEnd = cursorLine + 1
-	let visualBudget = maxLines - visualCounts[cursorLine]
-
-	// Expand above and below alternately until budget exhausted
-	while (visualBudget > 0 && (viewStart > 0 || viewEnd < lines.length)) {
-		const canAddAbove = viewStart > 0 && visualCounts[viewStart - 1] <= visualBudget
-		const canAddBelow = viewEnd < lines.length && visualCounts[viewEnd] <= visualBudget
-
-		if (canAddAbove && (!canAddBelow || viewStart > cursorLine - (viewEnd - cursorLine))) {
-			visualBudget -= visualCounts[--viewStart]
-		} else if (canAddBelow) {
-			visualBudget -= visualCounts[viewEnd++]
-		} else {
-			break
-		}
-	}
-
-	let startCharOffset = 0
-	for (let i = 0; i < viewStart; i++) startCharOffset += lines[i].length + 1
+	const cursorLine = findCursorLine(lines, cursorPos)
+	const [viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines, lines.length)
+	const startCharOffset = calculateCharOffset(lines, viewStart)
 
 	return {
 		viewportText: lines.slice(viewStart, viewEnd).join("\n"),
@@ -99,44 +138,57 @@ function computeViewport(text: string, cursorPos: number, maxLines: number): Vie
 	}
 }
 
-function parseInput(text: string, availableCommands?: string[]): Segment[] {
-	const highlights: { start: number; end: number; type: "mention" | "command" }[] = []
+type Highlight = { start: number; end: number; type: "mention" | "command" }
 
-	// Find all mentions
+/**
+ * Find all @mentions in the text.
+ */
+function findMentions(text: string): Highlight[] {
+	const mentions: Highlight[] = []
 	mentionRegexGlobal.lastIndex = 0
 	let match
 	while ((match = mentionRegexGlobal.exec(text)) !== null) {
-		highlights.push({
+		mentions.push({
 			start: match.index,
 			end: match.index + match[0].length,
 			type: "mention",
 		})
 	}
+	return mentions
+}
 
-	// Find first slash command only (must be complete and valid)
+/**
+ * Find the first valid slash command in the text.
+ */
+function findSlashCommand(text: string, availableCommands?: string[]): Highlight | null {
 	slashCommandRegex.lastIndex = 0
-	const slashMatch = slashCommandRegex.exec(text)
-	if (slashMatch) {
-		const prefix = slashMatch[1] || ""
-		const commandText = slashMatch[2] // e.g., "/help"
-		const commandName = commandText.slice(1) // e.g., "help"
-		const commandStart = slashMatch.index + prefix.length
-		const commandEnd = commandStart + commandText.length
+	const match = slashCommandRegex.exec(text)
+	if (!match) return null
 
-		// Only highlight if command exists in available commands (or if no list provided)
-		if (!availableCommands || availableCommands.includes(commandName)) {
-			highlights.push({
-				start: commandStart,
-				end: commandEnd,
-				type: "command",
-			})
-		}
+	const prefix = match[1] || ""
+	const commandText = match[2] // e.g., "/help"
+	const commandName = commandText.slice(1) // e.g., "help"
+
+	// Only highlight if command is valid
+	if (availableCommands && !availableCommands.includes(commandName)) {
+		return null
 	}
 
-	// Sort highlights by start position
-	highlights.sort((a, b) => a.start - b.start)
+	return {
+		start: match.index + prefix.length,
+		end: match.index + prefix.length + commandText.length,
+		type: "command",
+	}
+}
 
-	// Build segments
+/**
+ * Build text segments from highlights, filling gaps with normal text.
+ */
+function buildSegments(text: string, highlights: Highlight[]): Segment[] {
+	if (highlights.length === 0) {
+		return [{ text, type: "normal", startIndex: 0 }]
+	}
+
 	const segments: Segment[] = []
 	let lastIndex = 0
 
@@ -172,16 +224,75 @@ function parseInput(text: string, availableCommands?: string[]): Segment[] {
 		})
 	}
 
-	// Always ensure at least one segment exists for stable cursor rendering
-	if (segments.length === 0) {
-		segments.push({
-			text: text,
-			type: "normal",
-			startIndex: 0,
-		})
-	}
-
 	return segments
+}
+
+/**
+ * Parse text into segments with @mentions and /commands highlighted.
+ */
+function parseInput(text: string, availableCommands?: string[]): Segment[] {
+	const highlights: Highlight[] = [
+		...findMentions(text),
+		...(findSlashCommand(text, availableCommands) ? [findSlashCommand(text, availableCommands)!] : []),
+	]
+
+	// Sort by start position
+	highlights.sort((a, b) => a.start - b.start)
+
+	return buildSegments(text, highlights)
+}
+
+/**
+ * Render a text segment without cursor (just highlighting if needed).
+ */
+function renderSegment(segment: Segment, key: number): React.ReactElement {
+	const isHighlighted = segment.type === "mention" || segment.type === "command"
+	return isHighlighted ? (
+		<Text backgroundColor="gray" key={key}>
+			{segment.text}
+		</Text>
+	) : (
+		<Text key={key}>{segment.text}</Text>
+	)
+}
+
+/**
+ * Check if cursor is within a segment's bounds.
+ */
+function cursorInSegment(cursorPos: number, segment: Segment): boolean {
+	const segmentEnd = segment.startIndex + segment.text.length
+	return cursorPos >= segment.startIndex && cursorPos < segmentEnd
+}
+
+/**
+ * Render a segment with the cursor inside it.
+ */
+function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: number): React.ReactElement {
+	const isHighlighted = segment.type === "mention" || segment.type === "command"
+	const localCursorPos = cursorPos - segment.startIndex
+
+	const beforeCursor = segment.text.slice(0, localCursorPos)
+	const cursorChar = segment.text[localCursorPos]
+	const afterCursor = segment.text.slice(localCursorPos + 1)
+
+	// When cursor is on a newline, show a visible cursor block followed by the newline
+	const cursorOnNewline = cursorChar === "\n"
+	const displayCursor = cursorOnNewline ? " " : cursorChar
+
+	const TextWrapper = isHighlighted
+		? ({ children }: { children: React.ReactNode }) => <Text backgroundColor="gray">{children}</Text>
+		: React.Fragment
+
+	return (
+		<Text key={key}>
+			{beforeCursor && <TextWrapper>{beforeCursor}</TextWrapper>}
+			<Text backgroundColor={isHighlighted ? "gray" : undefined} inverse>
+				{displayCursor}
+			</Text>
+			{cursorOnNewline && "\n"}
+			{afterCursor && <TextWrapper>{afterCursor}</TextWrapper>}
+		</Text>
+	)
 }
 
 /**
@@ -193,84 +304,25 @@ function renderHighlightedText(
 	displayCursorPos: number | undefined,
 	availableCommands?: string[],
 ): React.ReactElement {
-	// If no cursor position provided, just render text with highlights
+	// No cursor - just render highlighted segments (or empty)
 	if (displayCursorPos === undefined) {
 		if (!displayText) return <Text />
 		const segments = parseInput(displayText, availableCommands)
-		return (
-			<Text>
-				{segments.map((segment, idx) => {
-					if (segment.type === "mention" || segment.type === "command") {
-						return (
-							<Text backgroundColor="gray" key={idx}>
-								{segment.text}
-							</Text>
-						)
-					}
-					return <Text key={idx}>{segment.text}</Text>
-				})}
-			</Text>
-		)
+		return <Text>{segments.map((segment, idx) => renderSegment(segment, idx))}</Text>
 	}
 
-	// With cursor position - render cursor within the text
-	const safeCursorPos = Math.min(Math.max(0, displayCursorPos), displayText.length)
+	// With cursor - always show cursor even for empty text
 	const segments = parseInput(displayText, availableCommands)
-
-	const renderSegmentWithCursor = (segment: Segment, segmentIdx: number) => {
-		const segmentStart = segment.startIndex
-		const segmentEnd = segmentStart + segment.text.length
-		const isHighlighted = segment.type === "mention" || segment.type === "command"
-
-		if (safeCursorPos >= segmentStart && safeCursorPos < segmentEnd) {
-			const localCursorPos = safeCursorPos - segmentStart
-			const beforeCursor = segment.text.slice(0, localCursorPos)
-			const cursorChar = segment.text[localCursorPos]
-			const afterCursor = segment.text.slice(localCursorPos + 1)
-
-			// When cursor sits on a newline (empty line), render a visible
-			// inverse space so the cursor block is visible, then the actual
-			// newline character so line structure stays correct.
-			const cursorOnNewline = cursorChar === "\n"
-			const displayCursor = cursorOnNewline ? " " : cursorChar
-
-			if (isHighlighted) {
-				return (
-					<Text key={segmentIdx}>
-						{beforeCursor && <Text backgroundColor="gray">{beforeCursor}</Text>}
-						<Text backgroundColor="gray" inverse>
-							{displayCursor}
-						</Text>
-						{cursorOnNewline && "\n"}
-						{afterCursor && <Text backgroundColor="gray">{afterCursor}</Text>}
-					</Text>
-				)
-			}
-			return (
-				<Text key={segmentIdx}>
-					{beforeCursor}
-					<Text inverse>{displayCursor}</Text>
-					{cursorOnNewline && "\n"}
-					{afterCursor}
-				</Text>
-			)
-		}
-
-		if (isHighlighted) {
-			return (
-				<Text backgroundColor="gray" key={segmentIdx}>
-					{segment.text}
-				</Text>
-			)
-		}
-		return <Text key={segmentIdx}>{segment.text}</Text>
-	}
-
+	const safeCursorPos = Math.min(Math.max(0, displayCursorPos), displayText.length)
 	const cursorAtEnd = safeCursorPos >= displayText.length
 
 	return (
 		<Text>
-			{segments.map((segment, idx) => renderSegmentWithCursor(segment, idx))}
+			{segments.map((segment, idx) =>
+				cursorInSegment(safeCursorPos, segment)
+					? renderSegmentWithCursor(segment, safeCursorPos, idx)
+					: renderSegment(segment, idx),
+			)}
 			{cursorAtEnd && <Text inverse> </Text>}
 		</Text>
 	)
