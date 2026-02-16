@@ -4,21 +4,23 @@ sidebarTitle: "Quick Start"
 description: "Get Cline running in under 2 minutes."
 ---
 
-Cline is an AI coding agent that lives in your editor. It can read and write files, run terminal commands, and help you build features through natural conversation. You stay in control: every action requires your approval.
+Cline is an AI-powered coding assistant that works directly inside your editor. You describe what you want in plain text, and Cline writes code, creates files, runs terminal commands, and even tests web apps in a browser, all while asking for your permission before making any changes.
+
+Think of it as pair programming with an AI that can actually touch your files and run your tools, but only when you say so.
 
 This guide gets you from zero to working code in under 2 minutes.
 
 <Info>
-  **Before You Begin: You only need one of the following installed:**
-  - **VS Code**, **Cursor**, or **Windsurf** (any recent version)
-  - **JetBrains IDE** (IntelliJ, PyCharm, WebStorm, etc.)
-  - **CLI only?** Just need Node.js 20+
+  **What You'll Need:**
+  - One of: **VS Code**, **Cursor**, **Windsurf**, **Antigravity**, a **JetBrains IDE**, or **Node.js 20+** (for CLI)
+  - An internet connection (Cline connects to AI models in the cloud)
+  - ~2 minutes
 </Info>
 
 ## 1. Install
 
 <Tabs>
-  <Tab title="VS Code / Cursor / Windsurf">
+  <Tab title="VS Code / Cursor / Windsurf / Antigravity">
     Open Extensions (`Cmd+Shift+X` on Mac, `Ctrl+Shift+X` on Windows/Linux), search **Cline**, click **Install**.
   </Tab>
   <Tab title="JetBrains">
@@ -39,23 +41,15 @@ For detailed installation instructions including troubleshooting, see the [full 
 
 Click the Cline icon in your editor's sidebar, then click **Sign Up**. You'll authenticate at [app.cline.bot](https://app.cline.bot) and return to your editor ready to go.
 
-Authenticating gives you access to multiple AI models without managing separate API keys.
+Authenticating gives you access to multiple AI models without managing separate API keys. Your account includes both free and paid models. Free models are labeled **FREE** in the model selector. For paid models, you can add credits in your [account dashboard](https://app.cline.bot/dashboard). You're always in control of which model you use.
+
+Send any message to confirm you're connected, then move on to building something.
 
 <Note>
 **CLI users:** Run `cline auth` to authenticate from your terminal.
 </Note>
 
-## 3. Verify Your Connection
-
-Before building anything, let's make sure Cline is working. Send any message, even just:
-
-```text
-ping
-```
-
-If Cline responds, you're connected and ready to go.
-
-## 4. Build Something
+## 3. Build Something
 
 Now let's have Cline write some code. Open any folder in your editor, then paste this:
 
@@ -67,16 +61,37 @@ Cline will analyze your request, create a new file, and ask for your approval be
 
 That's it. You have working code with tests.
 
-## 5. You're All Set
+<Note>
+**Not seeing file changes?** You might be in **Plan Mode**, where Cline discusses the approach without modifying files. Look for the **Plan/Act toggle** at the bottom of the Cline panel and switch to **Act** to let Cline start writing code. [Learn more about Plan & Act →](/core-workflows/plan-and-act)
+</Note>
+
+## 4. You're All Set
 
 Let's recap what you just did:
 
 1. **Installed Cline** in your editor
 2. **Authenticated** to connect to AI models
-3. **Verified your connection** with a quick ping
-4. **Built working code**: Cline wrote it, you approved it
+3. **Built working code**: Cline wrote it, you approved it
 
-Every step of the way, Cline showed you exactly what it planned to do and waited for your approval. Every file edit, terminal command, and browser action requires your explicit permission. You're always in control of what changes in your project.
+Every step of the way, Cline showed you exactly what it planned to do and waited for your approval. This is Cline's **human-in-the-loop** model: every file edit, terminal command, and browser action is shown to you first and only happens after you click Approve. You can review exactly what's changing, reject anything you don't want, and stay fully in control of your codebase. Nothing happens behind your back.
+
+## What Else Can Cline Do?
+
+The palindrome example is just the beginning. Here are some prompts to explore Cline's full capabilities:
+
+- `Read my project and explain the architecture`: Cline navigates and analyzes your codebase
+- `Find and fix the bug in src/utils.ts`: Cline reads files, proposes edits, and can run tests
+- `Run my test suite and fix any failures`: Cline executes terminal commands and iterates on problems
+- `Open a browser and test my app at localhost:3000`: Cline launches a browser and interacts with pages
+- `Set up an MCP server for my database`: Cline can connect to external tools and APIs
+
+Cline works best when you give it clear, specific instructions. The more context you provide about what you want, the better the results.
+
+<AccordionGroup>
+  <Accordion title="How does Cline work under the hood?">
+    Cline runs entirely in your editor (or terminal). When you send a message, it goes to the AI model you've selected (like Claude, GPT-4, or Gemini). The model's response is parsed into actions (file edits, terminal commands, browser interactions) which Cline presents to you for approval. Your code never passes through Cline's servers. It goes directly from your machine to your chosen AI provider.
+  </Accordion>
+</AccordionGroup>
 
 ## Next Steps
 
