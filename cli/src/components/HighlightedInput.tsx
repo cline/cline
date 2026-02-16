@@ -87,20 +87,21 @@ function expandViewportWindow(
 	let viewEnd = cursorLine + 1 // End is exclusive
 	let visualBudget = maxLines - visualCounts[cursorLine]
 
-	while (visualBudget > 0 && (viewStart > 0 || viewEnd < totalLines)) {
-		const canAddAbove = viewStart > 0 && visualCounts[viewStart - 1] <= visualBudget
-		const canAddBelow = viewEnd < totalLines && visualCounts[viewEnd] <= visualBudget
-
-		// Prefer keeping cursor centered when both directions available
-		const distanceFromCursor = {
-			above: cursorLine - viewStart,
-			below: viewEnd - cursorLine,
+	// First, expand below as much as possible
+	for (let i = viewEnd; i < totalLines && visualBudget > 0; i++) {
+		if (visualCounts[i] <= visualBudget) {
+			visualBudget -= visualCounts[i]
+			viewEnd = i + 1
+		} else {
+			break
 		}
+	}
 
-		if (canAddAbove && (!canAddBelow || distanceFromCursor.above < distanceFromCursor.below)) {
-			visualBudget -= visualCounts[--viewStart]
-		} else if (canAddBelow) {
-			visualBudget -= visualCounts[viewEnd++]
+	// Then, expand above with remaining budget
+	for (let i = viewStart - 1; i >= 0 && visualBudget > 0; i--) {
+		if (visualCounts[i] <= visualBudget) {
+			visualBudget -= visualCounts[i]
+			viewStart = i
 		} else {
 			break
 		}
@@ -126,7 +127,20 @@ function computeViewport(text: string, cursorPos: number, maxLines: number): Vie
 	if (totalVisualLines <= maxLines) return null
 
 	const cursorLine = findCursorLine(lines, cursorPos)
-	const [viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines, lines.length)
+
+	// Calculate viewport conservatively assuming both indicators (worst case)
+	let [viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines - 2, lines.length)
+
+	// Check which indicators are actually needed
+	const needsTopIndicator = viewStart > 0
+	const needsBottomIndicator = viewEnd < lines.length
+	const actualIndicatorCount = (needsTopIndicator ? 1 : 0) + (needsBottomIndicator ? 1 : 0)
+
+	// If we have extra space (reserved too much), recalculate with correct amount
+	if (actualIndicatorCount < 2) {
+		;[viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines - actualIndicatorCount, lines.length)
+	}
+
 	const startCharOffset = calculateCharOffset(lines, viewStart)
 
 	return {

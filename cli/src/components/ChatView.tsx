@@ -1050,9 +1050,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 4. Paste detection: multi-character input containing \r or \n is a paste, not a submit.
-		// Terminals deliver pastes as a single chunk. A manual Enter press is a single \r (length 1).
-		// We must intercept pastes BEFORE any key.return handler can trigger submit.
+		// 4. Paste detection: Normalize line endings (\r\n or \r → \n) for multi-line pastes. Helps with 2 things:
+		//		a. Fixes Rendering: Without normalization, raw \r\n would be inserted into the text, breaking visual rendering.
+		//		b. Enables Multi-Line Cursor Navigation: The cursor movement functions in cursor.ts use indexOf("\n") to find
+		//    	   line boundaries and calculate positions. Mixed line endings break position math, causing up/down arrows
+		//         to jump to top/bottom instead of moving one line at a time.
+		//	       (Manual Enter presses come through as key.return=true, not as \r in input string)
 		if (input.length > 1 && /[\r\n]/.test(input)) {
 			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 			insertTextAtCursor(normalized)
