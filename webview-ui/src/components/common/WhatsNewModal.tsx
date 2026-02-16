@@ -80,12 +80,25 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
+							<strong>GLM 5 is now available with free promo!</strong> the latest open-source SOTA model for
+							advanced reasoning, coding, and agentic tasks.{" "}
+							<InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
+						</li>
+						<li className="mb-2">
 							<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
 							fast inference. <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
 						</li>
 						<li className="mb-2">
 							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
 							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
+							<a
+								href="https://cline.bot/cli"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								{" "}
+								Learn more
+							</a>
 						</li>
 						<li className="mb-2">
 							<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
