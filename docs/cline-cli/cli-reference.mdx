@@ -3,8 +3,6 @@ title: "CLI Reference"
 description: "Complete command reference for Cline CLI including all commands, flags, and configuration options"
 ---
 
-# CLI Reference
-
 This page documents all available commands, flags, and configuration options for Cline CLI. For quick help in your terminal, use:
 
 ```bash
@@ -316,7 +314,7 @@ When using `--json`, each message is output as a JSON object (one per line):
 
 Cline stores all data in `~/.cline/` by default:
 
-```
+```text
 ~/.cline/
 ├── data/                    # Configuration directory
 │   ├── globalState.json     # Global settings
@@ -416,8 +414,8 @@ cline auth -p openai -k your-key -b https://api.example.com/v1
     Keyboard shortcuts, slash commands, and file mentions.
   </Card>
   
-  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
-    Interactive mode, direct execution, and automation patterns.
+  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+    Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
   </Card>
   
   <Card title="Configuration" icon="gear" href="/cline-cli/configuration">

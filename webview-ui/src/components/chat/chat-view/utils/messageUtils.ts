@@ -736,6 +736,7 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 
 	const flushPending = () => {
 		pendingApiReq.forEach((m) => result.push(m))
+		pendingReasoning.forEach((m) => result.push(m))
 		pendingApiReq = []
 		pendingReasoning = []
 	}
@@ -757,10 +758,6 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			toolGroup.push(...pendingApiReq)
 			pendingApiReq = []
 		}
-		if (pendingReasoning.length > 0) {
-			toolGroup.push(...pendingReasoning)
-			pendingReasoning = []
-		}
 	}
 
 	for (let i = 0; i < groupedMessages.length; i++) {
@@ -780,6 +777,11 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 
 		// Low-stakes tool - absorb pending and add to group
 		if (isLowStakesTool(message)) {
+			// Keep reasoning visible as its own row when it happens before a tool group.
+			// If we absorb it into the group, ToolGroupRenderer hides it entirely.
+			if (!hasTools && pendingReasoning.length > 0) {
+				flushPending()
+			}
 			absorbPending()
 			hasTools = true
 			toolGroup.push(message)
@@ -826,6 +828,7 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			if (hasTools) {
 				continue
 			}
+			flushPending()
 			result.push(message)
 			continue
 		}

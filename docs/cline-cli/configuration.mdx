@@ -38,7 +38,7 @@ Rules help Cline understand your project's conventions, coding standards, and pr
 
 ### Workflows Tab
 
-View and manage [workflows](/features/slash-commands/workflows/index):
+View and manage [workflows](/customization/workflows):
 
 - List available workflows
 - View workflow definitions
@@ -46,7 +46,7 @@ View and manage [workflows](/features/slash-commands/workflows/index):
 
 ### Hooks Tab
 
-Configure [hooks](/features/hooks/index) for custom logic integration:
+Configure [hooks](/customization/hooks) for custom logic integration:
 
 - Enable/disable hooks globally
 - View configured hook scripts
@@ -58,7 +58,7 @@ Hooks must be enabled via settings. Use `cline config` to toggle `hooks-enabled`
 
 ### Skills Tab
 
-Manage [skills](/features/skills) that extend Cline's capabilities:
+Manage [skills](/customization/skills) that extend Cline's capabilities:
 
 - View available skills
 - Enable/disable specific skills
@@ -68,7 +68,7 @@ Manage [skills](/features/skills) that extend Cline's capabilities:
 
 Cline stores configuration in `~/.cline/data/`:
 
-```
+```text
 ~/.cline/
 ├── data/                    # Configuration directory
 │   ├── globalState.json     # Global settings
@@ -268,8 +268,8 @@ cline auth  # Re-authenticate
 ## Next Steps
 
 <Columns cols={2}>
-  <Card title="CLI Workflows" icon="route" href="/cline-cli/three-core-flows">
-    Learn about interactive mode, direct execution, and automation patterns.
+  <Card title="Headless Mode" icon="robot" href="/cline-cli/three-core-flows">
+    Run Cline autonomously in scripts, CI/CD pipelines, and automated workflows.
   </Card>
   
   <Card title="CLI Reference" icon="terminal" href="/cline-cli/cli-reference">
