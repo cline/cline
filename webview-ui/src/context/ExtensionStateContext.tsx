@@ -771,7 +771,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		ModelsServiceClient.refreshClineModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
-				setClineModels(models)
+				setClineModels((prev) => (Object.keys(models).length > 0 ? models : (prev ?? null)))
 			})
 			.catch((error: Error) => console.error("Failed to refresh Cline models:", error))
 	}, [])

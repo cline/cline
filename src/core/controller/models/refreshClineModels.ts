@@ -161,6 +161,12 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
 						break
+					case "anthropic/claude-opus-4.6":
+						modelInfo.contextWindow = 200_000
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 6.25
+						modelInfo.cacheReadsPrice = 0.5
+						break
 					case "anthropic/claude-opus-4.5":
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 6.25
@@ -208,6 +214,9 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 
 				models[rawModel.id] = modelInfo
 			}
+			if (Object.keys(models).length === 0) {
+				throw new Error("No Cline models returned from API")
+			}
 			// Save models and cache them in memory
 			await fs.writeFile(clineModelsFilePath, JSON.stringify(models))
 			Logger.log("Cline models fetched and saved")
@@ -233,8 +242,10 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 		}
 	}
 
-	// Store in StateManager's in-memory cache
-	StateManager.get().setModelsCache("cline", models)
+	// Avoid poisoning in-memory cache with an empty model map after transient failures.
+	if (Object.keys(models).length > 0) {
+		StateManager.get().setModelsCache("cline", models)
+	}
 
 	return models
 }
