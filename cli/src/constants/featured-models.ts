@@ -39,6 +39,12 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 			labels: ["FREE"],
 		},
 		{
+			id: "z-ai/glm-5",
+			name: "Z-AI GLM5",
+			description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
+			labels: ["FREE"],
+		},
+		{
 			id: "kwaipilot/kat-coder-pro",
 			name: "KAT Coder Pro",
 			description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",

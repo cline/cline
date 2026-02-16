@@ -790,9 +790,9 @@ program
 program
 	.command("auth")
 	.description("Authenticate a provider and configure what model is used")
-	.option("-p, --provider <id>", "Provider ID for quick setup (e.g., openai-native, anthropic)")
+	.option("-p, --provider <id>", "Provider ID for quick setup (e.g., openai-native, anthropic, moonshot)")
 	.option("-k, --apikey <key>", "API key for the provider")
-	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929)")
+	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929, kimi-k2.5)")
 	.option("-b, --baseurl <url>", "Base URL (optional, only for openai provider)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")

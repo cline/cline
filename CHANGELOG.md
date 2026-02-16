@@ -1,11 +1,20 @@
 # Changelog
 
+## [3.63.0]
+
+### Added
+
+- added zai GLM 5 Free promo
+
+### Fixed
+
+- Restore reasoning trace visibility in chat and improve the thinking row UX so reasoning is visible, then collapsible after completion.
+
 ## [3.62.0]
 
 ### Fixed
 - Banners now display immediately when opening the extension instead of requiring user interaction first
 - Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
-
 
 ## [3.61.0]
 

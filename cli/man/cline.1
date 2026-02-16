@@ -125,13 +125,13 @@ authentication wizard, or use quick setup flags.
 Options:
 .PP
 \f[B]\-p\f[R], \f[B]\-\-provider\f[R] \f[I]id\f[R] : Provider ID for
-quick setup (e.g., openai\-native, anthropic, openrouter)
+quick setup (e.g., openai\-native, anthropic, openrouter, moonshot)
 .PP
 \f[B]\-k\f[R], \f[B]\-\-apikey\f[R] \f[I]key\f[R] : API key for the
 provider
 .PP
 \f[B]\-m\f[R], \f[B]\-\-modelid\f[R] \f[I]id\f[R] : Model ID to
-configure (e.g., gpt\-4o, claude\-sonnet\-4\-5\-20250929)
+configure (e.g., gpt\-4o, claude\-sonnet\-4\-5\-20250929, kimi\-k2.5)
 .PP
 \f[B]\-b\f[R], \f[B]\-\-baseurl\f[R] \f[I]url\f[R] : Base URL (optional,
 for OpenAI\-compatible providers)
@@ -242,6 +242,9 @@ cline \-m claude\-sonnet\-4\-5\-20250929 \(dqRefactor this function\(dq
 
 \f[I]# Quick auth setup with model\f[R]
 cline auth \-p anthropic \-k sk\-ant\-xxxxx \-m claude\-sonnet\-4\-5\-20250929
+
+\f[I]# Quick auth setup for Moonshot\f[R]
+cline auth \-p moonshot \-k sk\-xxxxx \-m kimi\-k2.5
 .EE
 .SS Including Images
 .IP
@@ -308,6 +311,9 @@ cline auth \-p anthropic \-k sk\-ant\-api\-xxxxx
 
 \f[I]# Quick setup for OpenAI\f[R]
 cline auth \-p openai\-native \-k sk\-xxxxx \-m gpt\-4o
+
+\f[I]# Quick setup for Moonshot\f[R]
+cline auth \-p moonshot \-k sk\-xxxxx \-m kimi\-k2.5
 
 \f[I]# OpenAI\-compatible provider with custom base URL\f[R]
 cline auth \-p openai \-k your\-api\-key \-b https://api.example.com/v1

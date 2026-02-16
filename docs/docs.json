@@ -1,6 +1,6 @@
 {
 	"$schema": "https://mintlify.com/docs.json",
-	"theme": "linden",
+	"theme": "mint",
 	"name": "Cline",
 	"description": "AI-powered coding agent for complex work",
 	"colors": {
@@ -60,178 +60,89 @@
 				"icon": "square-terminal",
 				"groups": [
 					{
-						"group": "Introduction",
+						"group": "Home",
 						"pages": [
-							"introduction/welcome",
-							"introduction/overview"
+							"home",
+							"getting-started/quick-start"
 						]
 					},
 					{
 						"group": "Getting Started",
 						"pages": [
+							"getting-started/what-is-cline",
 							"getting-started/installing-cline",
-							"getting-started/selecting-your-model",
+							"getting-started/authorizing-with-cline",
 							"getting-started/your-first-project"
 						]
 					},
 					{
-						"group": "Best Practices",
+						"group": "Core Workflows",
 						"pages": [
-							"prompting/understanding-context-management",
-							"prompting/prompt-engineering-guide",
-							"prompting/cline-memory-bank"
+							"core-workflows/task-management",
+							"core-workflows/plan-and-act",
+							"core-workflows/working-with-files",
+							"core-workflows/using-commands",
+							"core-workflows/checkpoints"
 						]
 					},
 					{
-						"group": "CLI",
+						"group": "Customization",
+						"pages": [
+							"customization/overview",
+							"customization/cline-rules",
+							"customization/skills",
+							"customization/workflows",
+							"customization/hooks",
+							"customization/clineignore"
+						]
+					},
+					{
+						"group": "Cline CLI",
 						"pages": [
 							"cline-cli/overview",
 							"cline-cli/installation",
 							"cline-cli/interactive-mode",
-							"cline-cli/configuration",
-							"cline-cli/three-core-flows",
-							"cline-cli/acp-editor-integrations",
 							{
-								"group": "CLI Samples",
+								"group": "Headless Mode",
 								"pages": [
+									"cline-cli/three-core-flows",
 									"cline-cli/samples/overview",
-									"cline-cli/samples/model-orchestration",
-									"cline-cli/samples/worktree-workflows",
 									"cline-cli/samples/github-issue-rca",
 									"cline-cli/samples/github-integration",
-									"cline-cli/samples/github-pr-review"
+									"cline-cli/samples/github-pr-review",
+									"cline-cli/samples/model-orchestration",
+									"cline-cli/samples/worktree-workflows"
 								]
 							},
+							"cline-cli/configuration",
+							"cline-cli/acp-editor-integrations",
 							"cline-cli/cli-reference"
 						]
 					},
 					{
 						"group": "Features",
 						"pages": [
-							{
-								"group": "@ Mentions",
-								"pages": [
-									"features/at-mentions/overview",
-									"features/at-mentions/file-mentions",
-									"features/at-mentions/terminal-mentions",
-									"features/at-mentions/problem-mentions",
-									"features/at-mentions/git-mentions",
-									"features/at-mentions/url-mentions"
-								]
-							},
+							"features/memory-bank",
+							"features/focus-chain",
 							"features/auto-approve",
 							"features/auto-compact",
-							"features/background-edit",
-							"features/checkpoints",
-							{
-								"group": "Cline Rules",
-								"pages": [
-									"features/cline-rules/overview",
-									"features/cline-rules/conditional-rules"
-								]
-							},
-							{
-								"group": "Commands & Shortcuts",
-								"pages": [
-									"features/commands-and-shortcuts/overview",
-									"features/commands-and-shortcuts/code-commands",
-									"features/commands-and-shortcuts/terminal-integration",
-									"features/commands-and-shortcuts/git-integration",
-									"features/commands-and-shortcuts/keyboard-shortcuts"
-								]
-							},
-							{
-								"group": "Customization",
-								"pages": [
-									"features/customization/opening-cline-in-sidebar",
-									"features/customization/disable-terminal-pagers"
-								]
-							},
-							"features/dictation",
-							"features/drag-and-drop",
-							"features/editing-messages",
-							"features/explain-changes",
-							"features/focus-chain",
-							{
-								"group": "Hooks",
-								"pages": [
-									"features/hooks/index",
-									"features/hooks/hook-reference",
-									"features/hooks/samples"
-								]
-							},
-							"features/jupyter-notebooks",
 							"features/multiroot-workspace",
-							"features/plan-and-act",
-							"features/skills",
 							"features/subagents",
-							{
-								"group": "Slash Commands",
-								"pages": [
-									"features/slash-commands/new-task",
-									"features/slash-commands/new-rule",
-									"features/slash-commands/explain-changes",
-									"features/slash-commands/smol",
-									"features/slash-commands/report-bug",
-									"features/slash-commands/deep-planning"
-								]
-							},
-							{
-								"group": "Workflows",
-								"pages": [
-									"features/slash-commands/workflows/index",
-									"features/slash-commands/workflows/quickstart",
-									"features/slash-commands/workflows/best-practices"
-								]
-							},
-							{
-								"group": "Task Management",
-								"pages": [
-									"features/tasks/understanding-tasks",
-									"features/tasks/task-management"
-								]
-							},
-							"features/worktrees",
-							"features/yolo-mode"
+							"features/background-edit",
+							"features/jupyter-notebooks",
+							"features/deep-planning",
+							"features/web-tools",
+							"features/worktrees"
 						]
 					},
 					{
-						"group": "Model & Provider Configuration",
+						"group": "Models & Providers",
 						"pages": [
 							{
-								"group": "Model Selection",
+								"group": "Choosing & Configuring Models",
 								"pages": [
 									"core-features/model-selection-guide",
-									"model-config/model-comparison",
 									"model-config/context-windows"
-								]
-							},
-							{
-								"group": "Cloud Providers",
-								"pages": [
-									"provider-config/anthropic",
-									"provider-config/claude-code",
-									"provider-config/openai",
-									"provider-config/openai-codex",
-									"provider-config/openrouter",
-									"provider-config/cerebras",
-									"provider-config/deepseek",
-									"provider-config/groq",
-									"provider-config/xai-grok",
-									"provider-config/mistral-ai",
-									"provider-config/doubao",
-									"provider-config/fireworks",
-									"provider-config/zai",
-									"provider-config/gcp-vertex-ai",
-									"provider-config/baseten",
-									{
-										"group": "AWS Bedrock",
-										"pages": [
-											"provider-config/aws-bedrock/api-key",
-											"provider-config/aws-bedrock/iam-credentials",
-											"provider-config/aws-bedrock/cli-profile"
-										]
-									}
 								]
 							},
 							{
@@ -243,46 +154,93 @@
 								]
 							},
 							{
+								"group": "Cloud Providers",
+								"pages": [
+									"provider-config/qwen",
+									"provider-config/anthropic",
+									"provider-config/asksage",
+									"provider-config/baseten",
+									"provider-config/cerebras",
+									"provider-config/claude-code",
+									"provider-config/deepseek",
+									"provider-config/doubao",
+									"provider-config/fireworks",
+									"provider-config/gcp-vertex-ai",
+									"provider-config/google-gemini",
+									"provider-config/groq",
+									"provider-config/huawei-cloud-maas",
+									"provider-config/huggingface",
+									"provider-config/minimax",
+									"provider-config/mistral-ai",
+									"provider-config/moonshot",
+									"provider-config/nebius",
+									"provider-config/nousresearch",
+									"provider-config/openai",
+									"provider-config/openai-codex",
+									"provider-config/openrouter",
+									"provider-config/oracle-code-assist",
+									"provider-config/qwen-code",
+									"provider-config/sambanova",
+									"provider-config/together",
+									"provider-config/xai-grok",
+									"provider-config/zai",
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"provider-config/aws-bedrock/api-key",
+											"provider-config/aws-bedrock/iam-credentials",
+											"provider-config/aws-bedrock/cli-profile"
+										]
+									}
+								]
+							},
+							{
 								"group": "Advanced Configuration",
 								"pages": [
-									"provider-config/openai-compatible",
+									"provider-config/aihubmix",
+									"provider-config/dify",
+									"provider-config/hicap",
 									"provider-config/litellm-and-cline-using-codestral",
-									"provider-config/vscode-language-model-api",
+									"provider-config/openai-compatible",
+									"provider-config/requesty",
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty"
+									"provider-config/vscode-language-model-api"
 								]
 							}
 						]
 					},
 					{
-						"group": "MCP Integration",
+						"group": "MCP (Extending Cline)",
 						"pages": [
 							"mcp/mcp-overview",
-							"mcp/adding-mcp-servers-from-github",
-							"mcp/configuring-mcp-servers",
-							"mcp/connecting-to-a-remote-server",
 							"mcp/mcp-marketplace",
+							"mcp/adding-and-configuring-servers",
 							"mcp/mcp-server-development-protocol",
+							"mcp/connecting-to-a-remote-server",
 							"mcp/mcp-transport-mechanisms"
 						]
 					},
 					{
-						"group": "Cline Tools Reference",
+						"group": "Tools Reference",
 						"pages": [
-							"exploring-clines-tools/cline-tools-guide",
-							"exploring-clines-tools/new-task-tool",
-							"exploring-clines-tools/remote-browser-support"
+							"tools-reference/all-cline-tools",
+							"tools-reference/browser-automation"
 						]
 					},
 					{
-						"group": "Reference",
+						"group": "Troubleshooting",
 						"pages": [
-							"troubleshooting/networking-and-proxies",
 							"troubleshooting/terminal-quick-fixes",
-							"troubleshooting/terminal-integration-guide",
-							"troubleshooting/task-history-recovery",
-							"more-info/telemetry"
+							"troubleshooting/networking-and-proxies",
+							"troubleshooting/task-history-recovery"
+						]
+					},
+					{
+						"group": "Contributing",
+						"pages": [
+							"contributing/documentation-guide",
+							"contributing/doc-templates"
 						]
 					}
 				]
@@ -336,8 +294,7 @@
 								"pages": [
 									"enterprise-solutions/monitoring/overview",
 									"enterprise-solutions/monitoring/telemetry",
-									"enterprise-solutions/monitoring/opentelemetry",
-									"enterprise-solutions/monitoring/opentelemetry_override"
+									"enterprise-solutions/monitoring/opentelemetry"
 								]
 							}
 						]
@@ -362,7 +319,7 @@
 		{
 			"name": "Overview",
 			"icon": "house",
-			"url": "introduction/overview"
+			"url": "getting-started/what-is-cline"
 		}
 	],
 	"redirects": [
@@ -371,16 +328,20 @@
 			"destination": "/getting-started/installing-cline"
 		},
 		{
-			"source": "/getting-started/what-is-cline",
-			"destination": "/introduction/overview"
-		},
-		{
 			"source": "/getting-started/overview",
-			"destination": "/introduction/overview"
+			"destination": "/getting-started/what-is-cline"
 		},
 		{
 			"source": "/introduction",
-			"destination": "/introduction/welcome"
+			"destination": "/getting-started/what-is-cline"
+		},
+		{
+			"source": "/introduction/welcome",
+			"destination": "/getting-started/what-is-cline"
+		},
+		{
+			"source": "/introduction/overview",
+			"destination": "/getting-started/what-is-cline"
 		},
 		{
 			"source": "/getting-started/model-selection-guide",
@@ -396,11 +357,39 @@
 		},
 		{
 			"source": "/getting-started/understanding-context-management",
-			"destination": "/prompting/understanding-context-management"
+			"destination": "/model-config/context-windows"
 		},
 		{
 			"source": "/best-practices/understanding-context-management",
-			"destination": "/prompting/understanding-context-management"
+			"destination": "/model-config/context-windows"
+		},
+		{
+			"source": "/prompting/understanding-context-management",
+			"destination": "/model-config/context-windows"
+		},
+		{
+			"source": "/prompting/prompt-engineering-guide",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/prompting/cline-memory-bank",
+			"destination": "/features/memory-bank"
+		},
+		{
+			"source": "/customization/memory-bank",
+			"destination": "/features/memory-bank"
+		},
+		{
+			"source": "/customization/focus-chain",
+			"destination": "/features/focus-chain"
+		},
+		{
+			"source": "/customization/auto-approve",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/customization/auto-compact",
+			"destination": "/features/auto-compact"
 		},
 		{
 			"source": "/getting-started/your-first-task",
@@ -411,8 +400,148 @@
 			"destination": "/cline-cli/samples/overview"
 		},
 		{
+			"source": "/cline-cli/overview",
+			"destination": "/cline-cli/getting-started"
+		},
+		{
 			"source": "/features/hooks/real-world-examples",
-			"destination": "/features/hooks/samples"
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/hooks/index",
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/hooks/hook-reference",
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/hooks/samples",
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/plan-and-act",
+			"destination": "/core-workflows/plan-and-act"
+		},
+		{
+			"source": "/features/checkpoints",
+			"destination": "/core-workflows/checkpoints"
+		},
+		{
+			"source": "/features/tasks/understanding-tasks",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/features/tasks/task-management",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/features/at-mentions/overview",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/file-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/folder-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/terminal-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/problem-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/git-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/url-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/drag-and-drop",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/yolo-mode",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/features/cline-rules",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/cline-rules/overview",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/cline-rules/conditional-rules",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/overview",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/code-commands",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/terminal-integration",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/git-integration",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/keyboard-shortcuts",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/slash-commands/new-task",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/slash-commands/workflows/index",
+			"destination": "/customization/workflows"
+		},
+		{
+			"source": "/features/slash-commands/workflows/quickstart",
+			"destination": "/customization/workflows"
+		},
+		{
+			"source": "/features/slash-commands/workflows/best-practices",
+			"destination": "/customization/workflows"
+		},
+		{
+			"source": "/exploring-clines-tools/cline-tools-guide",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/exploring-clines-tools/new-task-tool",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/exploring-clines-tools/remote-browser-support",
+			"destination": "/tools-reference/browser-automation"
+		},
+		{
+			"source": "/mcp/adding-mcp-servers-from-github",
+			"destination": "/mcp/adding-and-configuring-servers"
+		},
+		{
+			"source": "/mcp/configuring-mcp-servers",
+			"destination": "/mcp/adding-and-configuring-servers"
+		},
+		{
+			"source": "/more-info/telemetry",
+			"destination": "/enterprise-solutions/monitoring/telemetry"
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
@@ -439,16 +568,44 @@
 			"destination": "/enterprise-solutions/team-management/managing-members"
 		},
 		{
-			"source": "/features/cline-rules",
-			"destination": "/features/cline-rules/overview"
+			"source": "/features/customization/opening-cline-in-sidebar",
+			"destination": "/getting-started/installing-cline"
 		},
 		{
-			"source": "/features/conditional-rules",
-			"destination": "/features/cline-rules/conditional-rules"
+			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
+			"destination": "/customization/clineignore"
 		},
 		{
-			"source": "/cline-cli/authentication",
-			"destination": "/cline-cli/installation"
+			"source": "/getting-started/selecting-your-model",
+			"destination": "/getting-started/authorizing-with-cline"
+		},
+		{
+			"source": "/model-config/model-comparison",
+			"destination": "/core-features/model-selection-guide"
+		},
+		{
+			"source": "/troubleshooting/terminal-integration-guide",
+			"destination": "/troubleshooting/terminal-quick-fixes"
+		},
+		{
+			"source": "/features/slash-commands/deep-planning",
+			"destination": "/features/deep-planning"
+		},
+		{
+			"source": "/features/slash-commands/smol",
+			"destination": "/core-workflows/using-commands#smol"
+		},
+		{
+			"source": "/features/slash-commands/explain-changes",
+			"destination": "/core-workflows/using-commands#explain-changes"
+		},
+		{
+			"source": "/features/slash-commands/new-rule",
+			"destination": "/core-workflows/using-commands#newrule"
+		},
+		{
+			"source": "/features/skills",
+			"destination": "/customization/skills"
 		}
 	],
 	"search": {
