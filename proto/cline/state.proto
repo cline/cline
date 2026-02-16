@@ -282,12 +282,12 @@ message Settings {
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
+  map<string, string> open_ai_headers = 175;
   optional bool double_check_completion_enabled = 176;
   optional string plan_mode_cline_model_id = 178;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
-  map<string, string> open_ai_headers = 175;
 }
 
 message DictationSettings {
