@@ -43,14 +43,21 @@ interface ViewportInfo {
 
 /**
  * Given multi-line text and a cursor position, compute a viewport window
- * of `maxLines` lines centered on the cursor. Returns null if no windowing needed.
- * Only uses logical lines (separated by \n) - text wrapping is handled by Ink.
+ * of `maxLines` visual lines centered on the cursor. Returns null if no windowing needed.
+ * Accounts for text wrapping: long logical lines count as multiple visual lines.
  */
 function computeViewport(text: string, cursorPos: number, maxLines: number): ViewportInfo | null {
 	const lines = text.split(/\r?\n|\r/)
-	if (lines.length <= maxLines) return null
+	const terminalWidth = process.stdout.columns || 80
+	const contentWidth = Math.max(1, terminalWidth - 4) // Border + padding
 
-	// Find which line the cursor is on
+	// Calculate visual line count for each logical line
+	const visualCounts = lines.map((line) => Math.max(1, Math.ceil(line.length / contentWidth)))
+	const totalVisualLines = visualCounts.reduce((sum, count) => sum + count, 0)
+
+	if (totalVisualLines <= maxLines) return null
+
+	// Find cursor's logical line
 	let charCount = 0
 	let cursorLine = lines.length - 1
 	for (let i = 0; i < lines.length; i++) {
@@ -61,10 +68,24 @@ function computeViewport(text: string, cursorPos: number, maxLines: number): Vie
 		charCount += lines[i].length + 1
 	}
 
-	const padding = Math.max(2, Math.floor(maxLines / 4))
-	let viewStart = Math.max(0, Math.min(cursorLine - (maxLines - padding - 1), cursorLine - padding))
-	const viewEnd = Math.min(lines.length, viewStart + maxLines)
-	if (viewEnd - viewStart < maxLines) viewStart = Math.max(0, viewEnd - maxLines)
+	// Greedily select logical lines centered on cursor, staying under visual line budget
+	let viewStart = cursorLine
+	let viewEnd = cursorLine + 1
+	let visualBudget = maxLines - visualCounts[cursorLine]
+
+	// Expand above and below alternately until budget exhausted
+	while (visualBudget > 0 && (viewStart > 0 || viewEnd < lines.length)) {
+		const canAddAbove = viewStart > 0 && visualCounts[viewStart - 1] <= visualBudget
+		const canAddBelow = viewEnd < lines.length && visualCounts[viewEnd] <= visualBudget
+
+		if (canAddAbove && (!canAddBelow || viewStart > cursorLine - (viewEnd - cursorLine))) {
+			visualBudget -= visualCounts[--viewStart]
+		} else if (canAddBelow) {
+			visualBudget -= visualCounts[viewEnd++]
+		} else {
+			break
+		}
+	}
 
 	let startCharOffset = 0
 	for (let i = 0; i < viewStart; i++) startCharOffset += lines[i].length + 1
