@@ -181,6 +181,7 @@ export function validateModelId(
 	currentMode: Mode,
 	apiConfiguration?: ApiConfiguration,
 	openRouterModels?: Record<string, ModelInfo>,
+	clineModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
 		const { apiProvider, openRouterModelId, clineModelId } = getModeSpecificFields(apiConfiguration, currentMode)
@@ -206,7 +207,7 @@ export function validateModelId(
 				if (clineResolvedModelId.startsWith("@preset/")) {
 					break
 				}
-				if (openRouterModels && !Object.keys(openRouterModels).includes(clineResolvedModelId)) {
+				if (clineModels && !Object.keys(clineModels).includes(clineResolvedModelId)) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
