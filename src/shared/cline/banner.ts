@@ -87,6 +87,23 @@ export interface BannerAction {
  */
 
 export const BANNER_DATA: BannerCardData[] = [
+	// Sonnet 5 banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "claude-sonnet-5-2026-feb-17",
+		icon: "sparkles",
+		title: "Try Claude Sonnet 5",
+		description: "Our latest default for the best balance of speed, cost, and coding quality.",
+		actions: [
+			{
+				title: "Use Sonnet 5",
+				action: BannerActionType.SetModel,
+				arg: "anthropic/claude-sonnet-5",
+				tab: "recommended",
+			},
+		],
+	},
+
 	// Minimax free promo banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
