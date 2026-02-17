@@ -80,13 +80,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Claude Sonnet 4.6 is free for a limited time!</strong> advanced reasoning and coding
-							performance, now available in the free models tab.{" "}
+							<strong>Claude Sonnet 4.6 is here!</strong> Anthropic's latest model with advanced reasoning and coding
+							performance. Free for a limited time for Cline users.{" "}
 							<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="free" />
 						</li>
 						<li className="mb-2">
-							<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
-							fast inference. <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
+							<strong>Minimax M2.5:</strong> SOTA coding capability with lightning
+							fast inference, now available with free promo! <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
 						</li>
 						<li className="mb-2">
 							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to

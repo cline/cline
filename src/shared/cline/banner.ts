@@ -93,7 +93,7 @@ export const BANNER_DATA: BannerCardData[] = [
 		id: "claude-sonnet-4-6-free-limited-2026-feb-17",
 		icon: "sparkles",
 		title: "Try Claude Sonnet 4.6 Free",
-		description: "Free for a limited 2-day window. Offer ends February 18, 2026 at 11:59 PM PST.",
+		description: "Free for a limited 24-hour window. Offer ends February 18, 2026 at 12:00 PM PST.",
 		actions: [
 			{
 				title: "Try now",
