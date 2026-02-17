@@ -82,6 +82,11 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
+		id: "anthropic/claude-sonnet-5",
+		description: "Claude Sonnet 5 with strong coding and agent performance, now available free in Cline",
+		label: "FREE",
+	},
+	{
 		id: "minimax/minimax-m2.5",
 		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
 		label: "FREE",
@@ -103,7 +108,7 @@ export const freeModels = [
 	},
 ]
 
-const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
+const FREE_CLINE_MODELS = [...freeModels.map((m) => m.id), "anthropic/claude-5-sonnet"]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	isPopup,

@@ -90,16 +90,16 @@ export const BANNER_DATA: BannerCardData[] = [
 	// Sonnet 5 banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
-		id: "claude-sonnet-5-2026-feb-17",
+		id: "claude-sonnet-5-free-2026-feb-17",
 		icon: "sparkles",
-		title: "Try Claude Sonnet 5",
-		description: "Our latest default for the best balance of speed, cost, and coding quality.",
+		title: "Try Claude Sonnet 5 Free",
+		description: "Claude Sonnet 5 is now available at no cost for Cline users.",
 		actions: [
 			{
-				title: "Use Sonnet 5",
+				title: "Try now",
 				action: BannerActionType.SetModel,
 				arg: "anthropic/claude-sonnet-5",
-				tab: "recommended",
+				tab: "free",
 			},
 		],
 	},
