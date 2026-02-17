@@ -22,9 +22,12 @@ const DEFAULT_MAX_LINES = 10
 // Regex for / commands (at start or after whitespace)
 const slashCommandRegex = /(^|\s)(\/[a-zA-Z0-9_.-]+)/g
 
+// Regex for paste placeholders
+const pastePlaceholderRegex = /▸ \d+ lines pasted #\d+/g
+
 interface Segment {
 	text: string
-	type: "normal" | "mention" | "command"
+	type: "normal" | "mention" | "command" | "placeholder"
 	startIndex: number
 }
 
@@ -152,7 +155,7 @@ function computeViewport(text: string, cursorPos: number, maxLines: number): Vie
 	}
 }
 
-type Highlight = { start: number; end: number; type: "mention" | "command" }
+type Highlight = { start: number; end: number; type: "mention" | "command" | "placeholder" }
 
 /**
  * Find all @mentions in the text.
@@ -169,6 +172,23 @@ function findMentions(text: string): Highlight[] {
 		})
 	}
 	return mentions
+}
+
+/**
+ * Find all paste placeholders in the text.
+ */
+function findPlaceholders(text: string): Highlight[] {
+	const placeholders: Highlight[] = []
+	pastePlaceholderRegex.lastIndex = 0
+	let match
+	while ((match = pastePlaceholderRegex.exec(text)) !== null) {
+		placeholders.push({
+			start: match.index,
+			end: match.index + match[0].length,
+			type: "placeholder",
+		})
+	}
+	return placeholders
 }
 
 /**
@@ -242,11 +262,12 @@ function buildSegments(text: string, highlights: Highlight[]): Segment[] {
 }
 
 /**
- * Parse text into segments with @mentions and /commands highlighted.
+ * Parse text into segments with @mentions, /commands, and paste placeholders highlighted.
  */
 function parseInput(text: string, availableCommands?: string[]): Segment[] {
 	const highlights: Highlight[] = [
 		...findMentions(text),
+		...findPlaceholders(text),
 		...(findSlashCommand(text, availableCommands) ? [findSlashCommand(text, availableCommands)!] : []),
 	]
 
@@ -259,7 +280,21 @@ function parseInput(text: string, availableCommands?: string[]): Segment[] {
 /**
  * Render a text segment without cursor (just highlighting if needed).
  */
+const PLACEHOLDER_HINT = " (space to expand...)"
+
 function renderSegment(segment: Segment, key: number): React.ReactElement {
+	if (segment.type === "placeholder") {
+		return (
+			<Text key={key}>
+				<Text bold underline>
+					{segment.text}
+				</Text>
+				<Text bold underline>
+					{PLACEHOLDER_HINT}
+				</Text>
+			</Text>
+		)
+	}
 	const isHighlighted = segment.type === "mention" || segment.type === "command"
 	return isHighlighted ? (
 		<Text backgroundColor="gray" key={key}>
@@ -282,6 +317,7 @@ function cursorInSegment(cursorPos: number, segment: Segment): boolean {
  * Render a segment with the cursor inside it.
  */
 function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: number): React.ReactElement {
+	const isPlaceholder = segment.type === "placeholder"
 	const isHighlighted = segment.type === "mention" || segment.type === "command"
 	const localCursorPos = cursorPos - segment.startIndex
 
@@ -293,9 +329,15 @@ function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: numbe
 	const cursorOnNewline = cursorChar === "\n"
 	const displayCursor = cursorOnNewline ? " " : cursorChar
 
-	const TextWrapper = isHighlighted
-		? ({ children }: { children: React.ReactNode }) => <Text backgroundColor="gray">{children}</Text>
-		: React.Fragment
+	const TextWrapper = isPlaceholder
+		? ({ children }: { children: React.ReactNode }) => (
+				<Text bold underline>
+					{children}
+				</Text>
+			)
+		: isHighlighted
+			? ({ children }: { children: React.ReactNode }) => <Text backgroundColor="gray">{children}</Text>
+			: React.Fragment
 
 	return (
 		<Text key={key}>
@@ -305,6 +347,11 @@ function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: numbe
 			</Text>
 			{cursorOnNewline && "\n"}
 			{afterCursor && <TextWrapper>{afterCursor}</TextWrapper>}
+			{isPlaceholder && (
+				<Text bold underline>
+					{PLACEHOLDER_HINT}
+				</Text>
+			)}
 		</Text>
 	)
 }

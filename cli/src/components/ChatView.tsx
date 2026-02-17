@@ -160,6 +160,8 @@ import { ThinkingIndicator } from "./ThinkingIndicator"
 interface PersistedInputState {
 	text: string
 	cursorPos: number
+	pastedTexts: Map<number, string>
+	pasteCounter: number
 }
 
 const inputStateStorage = new Map<string, PersistedInputState>()
@@ -183,6 +185,7 @@ const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 const DEFAULT_CONTEXT_WINDOW = 200000
+const PASTE_COLLAPSE_THRESHOLD = 100 // Characters before showing placeholder
 const MAX_HISTORY_ITEMS = 20 // Max history items to navigate with up/down arrows
 
 /**
@@ -323,6 +326,42 @@ function parseAskOptions(text: string): string[] {
 	return parts.options || []
 }
 
+/**
+ * Expand pasted text placeholders back to actual content
+ * Replaces [Pasted text #N +X lines] with the stored content
+ */
+function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
+	return text.replace(/▸ \d+ lines pasted #(\d+)/g, (match, num) => {
+		const content = pastedTexts.get(Number.parseInt(num, 10))
+		return content ?? match
+	})
+}
+
+/**
+ * Find placeholder at cursor position
+ * Returns the placeholder info if cursor is within a placeholder, null otherwise
+ */
+function findPlaceholderAtCursor(
+	text: string,
+	cursorPos: number,
+): { pasteNum: number; start: number; end: number; lineCount: number } | null {
+	const placeholderRegex = /▸ (\d+) lines pasted #(\d+)/g
+	let match
+	while ((match = placeholderRegex.exec(text)) !== null) {
+		const start = match.index
+		const end = match.index + match[0].length
+		if (cursorPos >= start && cursorPos <= end) {
+			return {
+				pasteNum: Number.parseInt(match[2], 10),
+				start,
+				end,
+				lineCount: Number.parseInt(match[1], 10),
+			}
+		}
+	}
+	return null
+}
+
 export const ChatView: React.FC<ChatViewProps> = ({
 	controller,
 	onExit,
@@ -373,6 +412,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 	const [userScrolled, setUserScrolled] = useState(false)
 
+	// Pasted text storage - maps placeholder number to full pasted content
+	// Using ref instead of state for synchronous read/write (no async state update delays)
+	const pastedTextsRef = useRef<Map<number, string>>(inputStateStorage.get(storageKey)?.pastedTexts ?? new Map())
+	const pasteCounterRef = useRef<number>(inputStateStorage.get(storageKey)?.pasteCounter ?? 0)
+	// Track paste timing to combine chunks that arrive in rapid succession
+	const lastPasteTimeRef = useRef<number>(0)
+	const activePasteNumRef = useRef<number>(0)
+	const activePasteStartPosRef = useRef<number>(0) // Where the placeholder starts in the text
+	const activePasteLinesRef = useRef<number>(0) // Total line count for current paste
+	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce placeholder updates
+	const PASTE_CHUNK_WINDOW_MS = 150 // Chunks within this window are combined into one paste
+	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
+
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
 	const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
@@ -403,15 +455,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (stored) {
 			setTextInput(stored.text)
 			setCursorPos(stored.cursorPos)
+			pastedTextsRef.current = stored.pastedTexts
+			pasteCounterRef.current = stored.pasteCounter
 		}
 	}, [storageKey, setTextInput, setCursorPos])
 
 	// Persist input state to storage whenever it changes (survives remount)
 	useEffect(() => {
-		if (textInput) {
+		if (textInput || pastedTextsRef.current.size > 0) {
 			inputStateStorage.set(storageKey, {
 				text: textInput,
 				cursorPos,
+				pastedTexts: new Map(pastedTextsRef.current),
+				pasteCounter: pasteCounterRef.current,
 			})
 		}
 	}, [storageKey, textInput, cursorPos])
@@ -485,7 +541,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// When switching from plan to act, include any text in the input box
 		// Text stays visible in the input - don't clear it
 		if (newMode === "act" && textInput.trim()) {
-			await ctrl.togglePlanActMode(newMode, { message: textInput.trim() })
+			// Expand any pasted text placeholders
+			const expandedText = expandPastedTexts(textInput, pastedTextsRef.current)
+			await ctrl.togglePlanActMode(newMode, { message: expandedText.trim() })
 		} else {
 			await ctrl.togglePlanActMode(newMode)
 		}
@@ -507,6 +565,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		clearState() // Force clear React state (bypasses empty messages check)
 		setTextInput("")
 		setCursorPos(0)
+		pastedTextsRef.current = new Map() // Clear stored pastes
+		pasteCounterRef.current = 0
 		// Clear persisted state
 		inputStateStorage.delete(storageKey)
 
@@ -767,14 +827,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		async (responseType: string, text?: string) => {
 			if (!ctrl?.task || !pendingAsk) return
 
+			// Expand any pasted text placeholders
+			const expandedText = text ? expandPastedTexts(text, pastedTextsRef.current) : text
+
 			setRespondedToAsk(pendingAsk.ts)
 			setTextInput("")
 			setCursorPos(0)
+			pastedTextsRef.current = new Map() // Clear stored pastes
+			pasteCounterRef.current = 0
 			// Clear persisted state
 			inputStateStorage.delete(storageKey)
 
 			try {
-				await ctrl.task.handleWebviewAskResponse(responseType, text)
+				await ctrl.task.handleWebviewAskResponse(responseType, expandedText)
 			} catch {
 				// Controller may be disposed
 			}
@@ -859,12 +924,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	)
 
 	// Handle task submission (new task)
+	// Note: text should already have placeholders expanded by caller
 	const handleSubmit = useCallback(
 		async (text: string, images: string[]) => {
 			if (!ctrl || !text.trim()) return
 
 			setTextInput("")
 			setCursorPos(0)
+			pastedTextsRef.current = new Map() // Clear stored pastes
+			pasteCounterRef.current = 0
 			// Clear persisted state
 			inputStateStorage.delete(storageKey)
 
@@ -1014,15 +1082,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	// 1. Mouse escape sequences -> filtered out (from AsciiMotionCli tracking)
 	// 2. Option+arrow escape sequences -> word navigation (handleKeyboardSequence)
 	// 3. Option+arrow via key.meta -> word navigation (backup for when Ink parses it)
-	// 4. Paste detection -> multi-char input with \r/\n is a paste, not submit
-	// 5. Panel open -> bail (let panel handle its own input)
-	// 6. Slash menu open -> menu navigation (up/down/tab/return/escape)
-	// 7. File menu open -> menu navigation (up/down/tab/return/escape)
-	// 8. History navigation -> up/down when input empty or matches history item
-	// 9. Button actions -> "1"/"2" keys when buttons shown and no text typed
-	// 10. Ask responses -> return to send, numbers for option selection
-	// 11. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
-	// 12. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
+	// 4. Active paste continuation -> append chunks to existing paste during paste window
+	// 5. Small multi-line paste normalization -> normalize \r\n for small pastes (≤100 chars)
+	// 6. Large paste detection -> collapse into placeholder (>100 chars)
+	// 7. Space on placeholder -> expand placeholder inline
+	// 8. Panel open -> bail (let panel handle its own input)
+	// 9. Slash menu open -> menu navigation (up/down/tab/return/escape)
+	// 10. File menu open -> menu navigation (up/down/tab/return/escape)
+	// 11. History navigation -> up/down when input empty or matches history item
+	// 12. Button actions -> "1"/"2" keys when buttons shown and no text typed
+	// 13. Ask responses -> return to send, numbers for option selection
+	// 14. Ctrl shortcuts -> Ctrl+A/E/W/U (handleCtrlShortcut)
+	// 15. Normal input -> tab (mode toggle), return (submit), backspace, arrows, text
 	//
 	// Note: Home/End keys are handled separately by useHomeEndKeys hook because
 	// Ink doesn't expose them in useInput (it sets input='' for these keys).
@@ -1050,19 +1121,102 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 4. Paste detection: Normalize line endings (\r\n or \r → \n) for multi-line pastes. Helps with 2 things:
-		//		a. Fixes Rendering: Without normalization, raw \r\n would be inserted into the text, breaking visual rendering.
-		//		b. Enables Multi-Line Cursor Navigation: The cursor movement functions in cursor.ts use indexOf("\n") to find
-		//    	   line boundaries and calculate positions. Mixed line endings break position math, causing up/down arrows
-		//         to jump to top/bottom instead of moving one line at a time.
-		//	       (Manual Enter presses come through as key.return=true, not as \r in input string)
-		if (input.length > 1 && /[\r\n]/.test(input)) {
+		// 4. Active paste continuation: When we're in an active paste window,
+		// ALL multi-char input gets appended to the paste storage, not inserted as text.
+		// This MUST run before step 5 (newline normalization) and step 6 (large paste detection)
+		// to prevent continuation chunks from being inserted as raw text and corrupting the placeholder.
+		if (input.length > 1 && activePasteNumRef.current > 0) {
+			const now = Date.now()
+			const timeSinceLastPaste = now - lastPasteTimeRef.current
+			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS) {
+				lastPasteTimeRef.current = now
+				const pasteNum = activePasteNumRef.current
+				const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+				const chunkLines = normalized.match(/\n/g)?.length || 0
+				activePasteLinesRef.current += chunkLines
+
+				// Store immediately in ref (synchronous)
+				const existing = pastedTextsRef.current.get(pasteNum) || ""
+				pastedTextsRef.current.set(pasteNum, existing + normalized)
+
+				// Debounce the visual placeholder update
+				if (pasteUpdateTimeoutRef.current) {
+					clearTimeout(pasteUpdateTimeoutRef.current)
+				}
+				pasteUpdateTimeoutRef.current = setTimeout(() => {
+					const newPlaceholder = `▸ ${activePasteLinesRef.current} lines pasted #${pasteNum}`
+					const pattern = new RegExp(`▸ \\d+ lines pasted #${pasteNum}`)
+					const newText = textInputRef.current.replace(pattern, newPlaceholder)
+					textInputRef.current = newText
+					setTextInput(newText) // setText auto-sets cursor to end, which is fine
+				}, PASTE_UPDATE_DEBOUNCE_MS)
+
+				return
+			}
+		}
+
+		// 5. Small multi-line paste normalization (for pastes UNDER the collapse threshold).
+		// Large pastes (>100 chars) fall through to step 6 for placeholder creation.
+		if (input.length > 1 && input.length <= PASTE_COLLAPSE_THRESHOLD && /[\r\n]/.test(input)) {
 			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 			insertTextAtCursor(normalized)
 			return
 		}
 
-		// 5. When a panel is open, let the panel handle its own input
+		// 6. Large paste detection → collapse into placeholder.
+		// This catches large pastes (>100 chars) whether or not they contain newlines.
+		// Step 5 above already handled small multi-line pastes.
+		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
+			// Normalize newlines in stored content
+			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+
+			// New paste operation - create placeholder
+			pasteCounterRef.current += 1
+			const pasteNum = pasteCounterRef.current
+			activePasteNumRef.current = pasteNum
+			lastPasteTimeRef.current = Date.now()
+			const currentCursorPos = cursorPosRef.current
+			activePasteStartPosRef.current = currentCursorPos
+			const extraLines = normalized.match(/\n/g)?.length || 0
+			activePasteLinesRef.current = extraLines
+			const placeholder = `▸ ${extraLines} lines pasted #${pasteNum}`
+
+			// Store the full normalized content immediately in ref (synchronous)
+			pastedTextsRef.current.set(pasteNum, normalized)
+
+			// Add a trailing space after the placeholder so users can continue typing naturally
+			const newText =
+				textInputRef.current.slice(0, currentCursorPos) + placeholder + " " + textInputRef.current.slice(currentCursorPos)
+			textInputRef.current = newText
+
+			// Use functional form of setText to avoid auto-cursor-to-end behavior.
+			// Then DON'T call setCursorPos separately (it would be clamped by stale textRef in the hook).
+			// Instead, we let the next render pick up the correct cursor from the setText auto-behavior.
+			setTextInput(newText) // auto-sets cursor to newText.length (end of text)
+			// The cursor ends up at the end of the text, which is at or after the placeholder.
+			// findPlaceholderAtCursor checks cursorPos <= end, so this works.
+			return
+		}
+
+		// 7. Space on placeholder -> expand placeholder inline
+		// Only triggers when cursor is strictly INSIDE the placeholder (not at edges),
+		// so users can still add spaces before/after the placeholder normally.
+		if (input === " " && !key.ctrl && !key.meta) {
+			const placeholder = findPlaceholderAtCursor(textInputRef.current, cursorPosRef.current)
+			if (placeholder && cursorPosRef.current > placeholder.start && cursorPosRef.current < placeholder.end) {
+				const content = pastedTextsRef.current.get(placeholder.pasteNum)
+				if (content) {
+					const text = textInputRef.current
+					const newText = text.slice(0, placeholder.start) + content + text.slice(placeholder.end)
+					textInputRef.current = newText
+					setTextInput(newText) // auto-sets cursor to end
+					return
+				}
+			}
+			// Not inside a placeholder - fall through to normal space insertion below
+		}
+
+		// 8. When a panel is open, let the panel handle its own input
 		if (activePanel) {
 			return
 		}
@@ -1070,7 +1224,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
 
-		// 6. Slash command menu navigation (takes priority over file menu)
+		// 9. Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
 			if (key.upArrow) {
 				setSelectedSlashIndex((i) => Math.max(0, i - 1))
@@ -1150,7 +1304,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 7. File mention menu navigation
+		// 10. File mention menu navigation
 		if (inFileMenu) {
 			if (key.upArrow) {
 				setSelectedIndex((i) => Math.max(0, i - 1))
@@ -1178,7 +1332,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 8. History navigation with up/down arrows
+		// 11. History navigation with up/down arrows
 		// Only works when: input is empty, or input matches the currently selected history item
 		if (key.upArrow && !inSlashMenu && !inFileMenu) {
 			const historyItems = getHistoryItems()
@@ -1228,7 +1382,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 9. Handle button actions (1 for primary, 2 for secondary)
+		// 12. Handle button actions (1 for primary, 2 for secondary)
 		// Only when buttons are enabled, not streaming, and no text has been typed
 		if (
 			buttonConfig.enableButtons &&
@@ -1256,7 +1410,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 10. Handle ask responses for options and text input
+		// 13. Handle ask responses for options and text input
 		if (pendingAsk && !isYoloSuppressed(yolo, pendingAsk.ask as ClineAsk | undefined)) {
 			// Allow sending text message for any ask type where sending is enabled
 			if (key.return && textInput.trim() && !buttonConfig.sendingDisabled) {
@@ -1274,12 +1428,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 11. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
+		// 14. Handle Ctrl+ shortcuts (Ctrl+A, Ctrl+E, Ctrl+W, etc.)
 		if (key.ctrl && input && handleCtrlShortcut(input)) {
 			return
 		}
 
-		// 12. Normal input handling
+		// 15. Normal input handling
 		if (key.shift && key.tab) {
 			toggleAutoApproveAll()
 			return
@@ -1289,12 +1443,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 		if (key.return && !mentionInfo.inMentionMode && !slashInfo.inSlashMode && !pendingAsk && !isSpinnerActive) {
-			if (prompt.trim() || imagePaths.length > 0) {
-				handleSubmit(prompt.trim(), imagePaths)
+			// Expand placeholders before submitting
+			const expandedPrompt = expandPastedTexts(prompt, pastedTextsRef.current)
+			if (expandedPrompt.trim() || imagePaths.length > 0) {
+				handleSubmit(expandedPrompt.trim(), imagePaths)
 			}
 			return
 		}
 		if (key.backspace || key.delete) {
+			// If cursor is inside a placeholder, delete the whole placeholder as a unit
+			const placeholder = findPlaceholderAtCursor(textInputRef.current, cursorPosRef.current)
+			if (placeholder) {
+				const newText = textInputRef.current.slice(0, placeholder.start) + textInputRef.current.slice(placeholder.end)
+				textInputRef.current = newText
+				// Use functional form to avoid setText auto-cursor-to-end
+				setTextInput((prev) => newText)
+				setCursorPos(placeholder.start)
+				pastedTextsRef.current.delete(placeholder.pasteNum)
+				return
+			}
 			deleteCharBefore()
 			return
 		}
