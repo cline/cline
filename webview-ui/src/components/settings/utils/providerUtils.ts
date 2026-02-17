@@ -822,12 +822,21 @@ export async function syncModeConfigurations(
  * For OpenRouter/Vercel: excludes cline/ prefixed models
  * @param modelIds Array of model IDs to filter
  * @param provider The current API provider
+ * @param allowedFreeModelIds Optional list of Cline free model IDs to keep visible
  * @returns Filtered array of model IDs
  */
-export function filterOpenRouterModelIds(modelIds: string[], provider: ApiProvider): string[] {
+export function filterOpenRouterModelIds(
+	modelIds: string[],
+	provider: ApiProvider,
+	allowedFreeModelIds: string[] = [],
+): string[] {
 	if (provider === "cline") {
-		// For Cline provider: exclude :free models, but keep Minimax models
+		const allowedFreeIdSet = new Set(allowedFreeModelIds.map((id) => id.toLowerCase()))
+		// For Cline provider: exclude :free models, but keep known special cases and explicitly allowed free IDs
 		return modelIds.filter((id) => {
+			if (allowedFreeIdSet.has(id.toLowerCase())) {
+				return true
+			}
 			// Keep all Minimax and devstral models regardless of :free suffix
 			if (id.toLowerCase().includes("minimax-m2") || id.toLowerCase().includes("arcee-ai/trinity-large")) {
 				return true
