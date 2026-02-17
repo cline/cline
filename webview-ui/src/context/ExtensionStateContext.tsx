@@ -7,7 +7,11 @@ import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import type {
+	ClineRecommendedModel,
+	ClineRecommendedModelsResponse,
+	OpenRouterCompatibleModelInfo,
+} from "@shared/proto/cline/models"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -34,6 +38,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	clineModels: Record<string, ModelInfo> | null
+	clineRecommendedModels: ClineRecommendedModel[]
+	clineFreeModels: ClineRecommendedModel[]
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
@@ -91,6 +97,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshClineModels: () => void
+	refreshClineRecommendedModels: () => void
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
@@ -300,6 +307,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
 
 	const [clineModels, setClineModels] = useState<Record<string, ModelInfo> | null>(null)
+	const [clineRecommendedModels, setClineRecommendedModels] = useState<ClineRecommendedModel[]>([])
+	const [clineFreeModels, setClineFreeModels] = useState<ClineRecommendedModel[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -776,6 +785,15 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Cline models:", error))
 	}, [])
 
+	const refreshClineRecommendedModels = useCallback(() => {
+		ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
+			.then((response: ClineRecommendedModelsResponse) => {
+				setClineRecommendedModels(response.recommended ?? [])
+				setClineFreeModels(response.free ?? [])
+			})
+			.catch((error: Error) => console.error("Failed to refresh Cline recommended models:", error))
+	}, [])
+
 	// Auto-refresh Cline models when provider is cline
 	useEffect(() => {
 		const hasClineProvider =
@@ -783,7 +801,18 @@ export const ExtensionStateContextProvider: React.FC<{
 		if (hasClineProvider && clineModels === null) {
 			refreshClineModels()
 		}
-	}, [state.apiConfiguration?.actModeApiProvider, state.apiConfiguration?.planModeApiProvider, clineModels, refreshClineModels])
+		if (hasClineProvider && clineRecommendedModels.length === 0 && clineFreeModels.length === 0) {
+			refreshClineRecommendedModels()
+		}
+	}, [
+		state.apiConfiguration?.actModeApiProvider,
+		state.apiConfiguration?.planModeApiProvider,
+		clineModels,
+		clineRecommendedModels.length,
+		clineFreeModels.length,
+		refreshClineModels,
+		refreshClineRecommendedModels,
+	])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -791,6 +820,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		showWelcome,
 		onboardingModels,
 		clineModels,
+		clineRecommendedModels,
+		clineFreeModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
@@ -914,6 +945,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshClineModels,
+		refreshClineRecommendedModels,
 		refreshOpenRouterModels,
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,
