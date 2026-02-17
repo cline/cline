@@ -164,7 +164,7 @@ export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-2025
 export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
-	"claude-sonnet-5": {
+	"claude-sonnet-4-6": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -175,7 +175,7 @@ export const anthropicModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 	},
-	"claude-sonnet-5:1m": {
+	"claude-sonnet-4-6:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -384,13 +384,13 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
-	"claude-sonnet-5": {
-		...anthropicModels["claude-sonnet-5"],
+	"claude-sonnet-4-6": {
+		...anthropicModels["claude-sonnet-4-6"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
-	"claude-sonnet-5[1m]": {
-		...anthropicModels["claude-sonnet-5:1m"],
+	"claude-sonnet-4-6[1m]": {
+		...anthropicModels["claude-sonnet-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -451,7 +451,7 @@ export const claudeCodeModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 export const bedrockModels = {
-	"anthropic.claude-sonnet-5-v1": {
+	"anthropic.claude-sonnet-4-6-v1": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -463,7 +463,7 @@ export const bedrockModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 	},
-	"anthropic.claude-sonnet-5-v1:1m": {
+	"anthropic.claude-sonnet-4-6-v1:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -771,7 +771,7 @@ export const bedrockModels = {
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
 export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
-export const openRouterClaudeSonnet51mModelId = `anthropic/claude-sonnet-5${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
@@ -921,7 +921,7 @@ export const vertexModels = {
 			supportsThinkingLevel: true,
 		},
 	},
-	"claude-sonnet-5": {
+	"claude-sonnet-4-6": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -932,7 +932,7 @@ export const vertexModels = {
 		cacheReadsPrice: 0.3,
 		supportsReasoning: true,
 	},
-	"claude-sonnet-5:1m": {
+	"claude-sonnet-4-6:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -2976,7 +2976,7 @@ export const askSageModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"claude-5-sonnet": {
+	"claude-4.6-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: false,
@@ -3745,7 +3745,7 @@ export const sapAiCoreModels = {
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
-	"anthropic--claude-5-sonnet": {
+	"anthropic--claude-4.6-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,

@@ -938,17 +938,17 @@ describe("AwsBedrockHandler", () => {
 			modelId.should.equal("jp.anthropic.claude-sonnet-4-5-20250929-v1:0")
 		})
 
-		it("should apply JP cross-region prefix for sonnet 5", async () => {
+		it("should apply JP cross-region prefix for sonnet 4.6", async () => {
 			const jpOptions: AwsBedrockHandlerOptions = {
 				...mockOptions,
 				awsUseCrossRegionInference: true,
-				apiModelId: "anthropic.claude-sonnet-5-v1",
+				apiModelId: "anthropic.claude-sonnet-4-6-v1",
 				awsRegion: "ap-northeast-1",
 			}
 			const jpHandler = new AwsBedrockHandler(jpOptions)
 
 			const modelId = await jpHandler.getModelId()
-			modelId.should.equal("jp.anthropic.claude-sonnet-5-v1")
+			modelId.should.equal("jp.anthropic.claude-sonnet-4-6-v1")
 		})
 
 		it("should apply global cross-region prefix for supported models", async () => {

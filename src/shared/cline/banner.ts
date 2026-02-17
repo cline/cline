@@ -87,18 +87,18 @@ export interface BannerAction {
  */
 
 export const BANNER_DATA: BannerCardData[] = [
-	// Sonnet 5 banner
+	// Sonnet 4.6 banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
-		id: "claude-sonnet-5-free-2026-feb-17",
+		id: "claude-sonnet-4-6-free-2026-feb-17",
 		icon: "sparkles",
-		title: "Try Claude Sonnet 5 Free",
-		description: "Claude Sonnet 5 is now available at no cost for Cline users.",
+		title: "Try Claude Sonnet 4.6 Free",
+		description: "Claude Sonnet 4.6 is now available at no cost for Cline users.",
 		actions: [
 			{
 				title: "Try now",
 				action: BannerActionType.SetModel,
-				arg: "anthropic/claude-sonnet-5",
+				arg: "anthropic/claude-sonnet-4.6",
 				tab: "free",
 			},
 		],

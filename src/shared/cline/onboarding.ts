@@ -7,8 +7,8 @@ import type { OnboardingModel } from "../proto/cline/state"
 export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	{
 		group: "free",
-		id: "anthropic/claude-sonnet-5",
-		name: "Anthropic: Claude Sonnet 5",
+		id: "anthropic/claude-sonnet-4.6",
+		name: "Anthropic: Claude Sonnet 4.6",
 		badge: "New",
 		score: 97,
 		latency: 3,

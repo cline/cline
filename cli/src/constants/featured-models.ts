@@ -19,8 +19,8 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 			labels: ["BEST"],
 		},
 		{
-			id: "anthropic/claude-sonnet-5",
-			name: "Claude Sonnet 5",
+			id: "anthropic/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
 			description: "Best balance of speed, cost, and quality",
 			labels: ["NEW"],
 		},
@@ -33,8 +33,8 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 	],
 	free: [
 		{
-			id: "anthropic/claude-sonnet-5",
-			name: "Claude Sonnet 5",
+			id: "anthropic/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
 			description: "Best balance of speed, cost, and quality, now free in Cline",
 			labels: ["FREE"],
 		},
