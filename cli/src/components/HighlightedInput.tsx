@@ -1,13 +1,22 @@
 /**
  * Highlighted input component for CLI
- * Renders text with @ mentions and / commands highlighted, plus a movable cursor.
- * For long multi-line input (e.g. large pastes), only a viewport window of lines
- * is rendered, centered on the cursor position, with scroll indicators.
+ * Renders text with @ mentions, / commands, and paste placeholders highlighted,
+ * plus a movable cursor. For long multi-line input, only a viewport window of
+ * lines is rendered, centered on the cursor position, with scroll indicators.
  */
 
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { Box, Text } from "ink"
 import React from "react"
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+const DEFAULT_MAX_LINES = 10
+const SLASH_COMMAND_REGEX = /(^|\s)(\/[a-zA-Z0-9_.-]+)/g
+const PASTE_PLACEHOLDER_REGEX = /▸ \d+ lines pasted #\d+/g
+const PLACEHOLDER_HINT = " (space to expand...)"
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface HighlightedInputProps {
 	text: string
@@ -17,319 +26,213 @@ interface HighlightedInputProps {
 	maxLines?: number
 }
 
-const DEFAULT_MAX_LINES = 10
-
-// Regex for / commands (at start or after whitespace)
-const slashCommandRegex = /(^|\s)(\/[a-zA-Z0-9_.-]+)/g
-
-// Regex for paste placeholders
-const pastePlaceholderRegex = /▸ \d+ lines pasted #\d+/g
+type SegmentType = "normal" | "mention" | "command" | "placeholder"
 
 interface Segment {
 	text: string
-	type: "normal" | "mention" | "command" | "placeholder"
+	type: SegmentType
 	startIndex: number
 }
 
-interface ViewportInfo {
-	/** The visible slice of text to render */
-	viewportText: string
-	/** Cursor position relative to viewportText */
-	adjustedCursorPos: number
-	/** Number of lines hidden above the viewport */
-	linesAbove: number
-	/** Number of lines hidden below the viewport */
-	linesBelow: number
-	/** Total line count of the full text */
-	totalLines: number
+interface Highlight {
+	start: number
+	end: number
+	type: "mention" | "command" | "placeholder"
 }
 
-/**
- * Calculate how many visual lines each logical line takes up when wrapped.
- */
+interface ViewportInfo {
+	viewportText: string
+	adjustedCursorPos: number
+	linesAbove: number
+	linesBelow: number
+}
+
+// ── Viewport Windowing ─────────────────────────────────────────────────────────
+
 function calculateVisualLineCounts(lines: string[], contentWidth: number): number[] {
 	return lines.map((line) => Math.max(1, Math.ceil(line.length / contentWidth)))
 }
 
-/**
- * Find which logical line contains the cursor position.
- */
 function findCursorLine(lines: string[], cursorPos: number): number {
 	let charCount = 0
 	for (let i = 0; i < lines.length; i++) {
-		if (cursorPos <= charCount + lines[i].length) {
-			return i
-		}
-		charCount += lines[i].length + 1 // +1 for newline
+		if (cursorPos <= charCount + lines[i].length) return i
+		charCount += lines[i].length + 1
 	}
 	return lines.length - 1
 }
 
-/**
- * Calculate character offset from start of text to start of a given line.
- */
 function calculateCharOffset(lines: string[], upToLineIndex: number): number {
 	let offset = 0
 	for (let i = 0; i < upToLineIndex; i++) {
-		offset += lines[i].length + 1 // +1 for newline
+		offset += lines[i].length + 1
 	}
 	return offset
 }
 
 /**
- * Expand viewport window above and below cursor line to fill visual line budget.
- * Returns [startLine, endLine] inclusive range.
+ * Greedily expand a viewport window around the cursor line to fill a visual line budget.
+ * Expands below first, then above with any remaining budget.
  */
 function expandViewportWindow(
 	cursorLine: number,
 	visualCounts: number[],
 	maxLines: number,
 	totalLines: number,
-): [number, number] {
+): [start: number, end: number] {
 	let viewStart = cursorLine
-	let viewEnd = cursorLine + 1 // End is exclusive
-	let visualBudget = maxLines - visualCounts[cursorLine]
+	let viewEnd = cursorLine + 1
+	let budget = maxLines - visualCounts[cursorLine]
 
-	// First, expand below as much as possible
-	for (let i = viewEnd; i < totalLines && visualBudget > 0; i++) {
-		if (visualCounts[i] <= visualBudget) {
-			visualBudget -= visualCounts[i]
-			viewEnd = i + 1
-		} else {
-			break
-		}
+	for (let i = viewEnd; i < totalLines && budget > 0; i++) {
+		if (visualCounts[i] > budget) break
+		budget -= visualCounts[i]
+		viewEnd = i + 1
 	}
-
-	// Then, expand above with remaining budget
-	for (let i = viewStart - 1; i >= 0 && visualBudget > 0; i--) {
-		if (visualCounts[i] <= visualBudget) {
-			visualBudget -= visualCounts[i]
-			viewStart = i
-		} else {
-			break
-		}
+	for (let i = viewStart - 1; i >= 0 && budget > 0; i--) {
+		if (visualCounts[i] > budget) break
+		budget -= visualCounts[i]
+		viewStart = i
 	}
 
 	return [viewStart, viewEnd]
 }
 
 /**
- * Given multi-line text and a cursor position, compute a viewport window
- * of `maxLines` visual lines centered on the cursor. Returns null if no windowing needed.
- * Accounts for text wrapping: long logical lines count as multiple visual lines.
+ * Compute a viewport window of `maxLines` visual lines centered on the cursor.
+ * Returns null if the entire text fits without windowing.
  */
 function computeViewport(text: string, cursorPos: number, maxLines: number): ViewportInfo | null {
 	const lines = text.split(/\r?\n|\r/)
-	const terminalWidth = process.stdout.columns || 80
-	const contentWidth = Math.max(1, terminalWidth - 4) // Border + padding
-
+	const contentWidth = Math.max(1, (process.stdout.columns || 80) - 4)
 	const visualCounts = calculateVisualLineCounts(lines, contentWidth)
-	const totalVisualLines = visualCounts.reduce((sum, count) => sum + count, 0)
+	const totalVisualLines = visualCounts.reduce((sum, c) => sum + c, 0)
 
-	// No viewport needed if everything fits
 	if (totalVisualLines <= maxLines) return null
 
 	const cursorLine = findCursorLine(lines, cursorPos)
 
-	// Calculate viewport conservatively assuming both indicators (worst case)
+	// First pass: reserve space for both scroll indicators (worst case)
 	let [viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines - 2, lines.length)
 
-	// Check which indicators are actually needed
-	const needsTopIndicator = viewStart > 0
-	const needsBottomIndicator = viewEnd < lines.length
-	const actualIndicatorCount = (needsTopIndicator ? 1 : 0) + (needsBottomIndicator ? 1 : 0)
-
-	// If we have extra space (reserved too much), recalculate with correct amount
-	if (actualIndicatorCount < 2) {
-		;[viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines - actualIndicatorCount, lines.length)
+	// Second pass: reclaim space if fewer indicators are actually needed
+	const indicatorCount = (viewStart > 0 ? 1 : 0) + (viewEnd < lines.length ? 1 : 0)
+	if (indicatorCount < 2) {
+		;[viewStart, viewEnd] = expandViewportWindow(cursorLine, visualCounts, maxLines - indicatorCount, lines.length)
 	}
-
-	const startCharOffset = calculateCharOffset(lines, viewStart)
 
 	return {
 		viewportText: lines.slice(viewStart, viewEnd).join("\n"),
-		adjustedCursorPos: cursorPos - startCharOffset,
+		adjustedCursorPos: cursorPos - calculateCharOffset(lines, viewStart),
 		linesAbove: viewStart,
 		linesBelow: lines.length - viewEnd,
-		totalLines: lines.length,
 	}
 }
 
-type Highlight = { start: number; end: number; type: "mention" | "command" | "placeholder" }
+// ── Highlight Detection ────────────────────────────────────────────────────────
 
-/**
- * Find all @mentions in the text.
- */
-function findMentions(text: string): Highlight[] {
-	const mentions: Highlight[] = []
-	mentionRegexGlobal.lastIndex = 0
+function findAllMatches(regex: RegExp, text: string, type: Highlight["type"]): Highlight[] {
+	regex.lastIndex = 0
+	const results: Highlight[] = []
 	let match
-	while ((match = mentionRegexGlobal.exec(text)) !== null) {
-		mentions.push({
-			start: match.index,
-			end: match.index + match[0].length,
-			type: "mention",
-		})
+	while ((match = regex.exec(text)) !== null) {
+		results.push({ start: match.index, end: match.index + match[0].length, type })
 	}
-	return mentions
+	return results
 }
 
-/**
- * Find all paste placeholders in the text.
- */
-function findPlaceholders(text: string): Highlight[] {
-	const placeholders: Highlight[] = []
-	pastePlaceholderRegex.lastIndex = 0
-	let match
-	while ((match = pastePlaceholderRegex.exec(text)) !== null) {
-		placeholders.push({
-			start: match.index,
-			end: match.index + match[0].length,
-			type: "placeholder",
-		})
-	}
-	return placeholders
-}
-
-/**
- * Find the first valid slash command in the text.
- */
 function findSlashCommand(text: string, availableCommands?: string[]): Highlight | null {
-	slashCommandRegex.lastIndex = 0
-	const match = slashCommandRegex.exec(text)
+	SLASH_COMMAND_REGEX.lastIndex = 0
+	const match = SLASH_COMMAND_REGEX.exec(text)
 	if (!match) return null
 
 	const prefix = match[1] || ""
-	const commandText = match[2] // e.g., "/help"
-	const commandName = commandText.slice(1) // e.g., "help"
+	const commandName = match[2].slice(1) // strip leading /
 
-	// Only highlight if command is valid
-	if (availableCommands && !availableCommands.includes(commandName)) {
-		return null
-	}
+	if (availableCommands && !availableCommands.includes(commandName)) return null
 
-	return {
-		start: match.index + prefix.length,
-		end: match.index + prefix.length + commandText.length,
-		type: "command",
-	}
+	const start = match.index + prefix.length
+	return { start, end: start + match[2].length, type: "command" }
 }
 
 /**
- * Build text segments from highlights, filling gaps with normal text.
+ * Parse text into segments with highlighted regions (mentions, commands, placeholders)
+ * and normal text filling the gaps.
  */
-function buildSegments(text: string, highlights: Highlight[]): Segment[] {
+function parseInput(text: string, availableCommands?: string[]): Segment[] {
+	const highlights: Highlight[] = [
+		...findAllMatches(mentionRegexGlobal, text, "mention"),
+		...findAllMatches(PASTE_PLACEHOLDER_REGEX, text, "placeholder"),
+	]
+
+	const slashCmd = findSlashCommand(text, availableCommands)
+	if (slashCmd) highlights.push(slashCmd)
+
+	highlights.sort((a, b) => a.start - b.start)
+
 	if (highlights.length === 0) {
 		return [{ text, type: "normal", startIndex: 0 }]
 	}
 
 	const segments: Segment[] = []
-	let lastIndex = 0
+	let cursor = 0
 
-	for (const highlight of highlights) {
-		// Skip overlapping highlights
-		if (highlight.start < lastIndex) continue
-
-		// Add normal text before this highlight
-		if (highlight.start > lastIndex) {
-			segments.push({
-				text: text.slice(lastIndex, highlight.start),
-				type: "normal",
-				startIndex: lastIndex,
-			})
+	for (const h of highlights) {
+		if (h.start < cursor) continue // skip overlapping
+		if (h.start > cursor) {
+			segments.push({ text: text.slice(cursor, h.start), type: "normal", startIndex: cursor })
 		}
-
-		// Add highlighted segment
-		segments.push({
-			text: text.slice(highlight.start, highlight.end),
-			type: highlight.type,
-			startIndex: highlight.start,
-		})
-
-		lastIndex = highlight.end
+		segments.push({ text: text.slice(h.start, h.end), type: h.type, startIndex: h.start })
+		cursor = h.end
 	}
 
-	// Add remaining text
-	if (lastIndex < text.length) {
-		segments.push({
-			text: text.slice(lastIndex),
-			type: "normal",
-			startIndex: lastIndex,
-		})
+	if (cursor < text.length) {
+		segments.push({ text: text.slice(cursor), type: "normal", startIndex: cursor })
 	}
 
 	return segments
 }
 
-/**
- * Parse text into segments with @mentions, /commands, and paste placeholders highlighted.
- */
-function parseInput(text: string, availableCommands?: string[]): Segment[] {
-	const highlights: Highlight[] = [
-		...findMentions(text),
-		...findPlaceholders(text),
-		...(findSlashCommand(text, availableCommands) ? [findSlashCommand(text, availableCommands)!] : []),
-	]
-
-	// Sort by start position
-	highlights.sort((a, b) => a.start - b.start)
-
-	return buildSegments(text, highlights)
-}
-
-/**
- * Render a text segment without cursor (just highlighting if needed).
- */
-const PLACEHOLDER_HINT = " (space to expand...)"
+// ── Segment Rendering ──────────────────────────────────────────────────────────
 
 function renderSegment(segment: Segment, key: number): React.ReactElement {
 	if (segment.type === "placeholder") {
 		return (
-			<Text key={key}>
-				<Text bold underline>
-					{segment.text}
-				</Text>
-				<Text bold underline>
-					{PLACEHOLDER_HINT}
-				</Text>
+			<Text bold key={key} underline>
+				{segment.text}
+				{PLACEHOLDER_HINT}
 			</Text>
 		)
 	}
-	const isHighlighted = segment.type === "mention" || segment.type === "command"
-	return isHighlighted ? (
-		<Text backgroundColor="gray" key={key}>
-			{segment.text}
-		</Text>
-	) : (
-		<Text key={key}>{segment.text}</Text>
-	)
+
+	if (segment.type === "mention" || segment.type === "command") {
+		return (
+			<Text backgroundColor="gray" key={key}>
+				{segment.text}
+			</Text>
+		)
+	}
+
+	return <Text key={key}>{segment.text}</Text>
 }
 
-/**
- * Check if cursor is within a segment's bounds.
- */
 function cursorInSegment(cursorPos: number, segment: Segment): boolean {
-	const segmentEnd = segment.startIndex + segment.text.length
-	return cursorPos >= segment.startIndex && cursorPos < segmentEnd
+	return cursorPos >= segment.startIndex && cursorPos < segment.startIndex + segment.text.length
 }
 
-/**
- * Render a segment with the cursor inside it.
- */
 function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: number): React.ReactElement {
-	const isPlaceholder = segment.type === "placeholder"
-	const isHighlighted = segment.type === "mention" || segment.type === "command"
-	const localCursorPos = cursorPos - segment.startIndex
+	const { type, text: segText, startIndex } = segment
+	const isPlaceholder = type === "placeholder"
+	const isHighlighted = type === "mention" || type === "command"
+	const localPos = cursorPos - startIndex
 
-	const beforeCursor = segment.text.slice(0, localCursorPos)
-	const cursorChar = segment.text[localCursorPos]
-	const afterCursor = segment.text.slice(localCursorPos + 1)
+	const before = segText.slice(0, localPos)
+	const char = segText[localPos]
+	const after = segText.slice(localPos + 1)
+	const onNewline = char === "\n"
 
-	// When cursor is on a newline, show a visible cursor block followed by the newline
-	const cursorOnNewline = cursorChar === "\n"
-	const displayCursor = cursorOnNewline ? " " : cursorChar
-
-	const TextWrapper = isPlaceholder
+	// Wrapper applies segment-specific styling to non-cursor text
+	const Wrap = isPlaceholder
 		? ({ children }: { children: React.ReactNode }) => (
 				<Text bold underline>
 					{children}
@@ -341,12 +244,12 @@ function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: numbe
 
 	return (
 		<Text key={key}>
-			{beforeCursor && <TextWrapper>{beforeCursor}</TextWrapper>}
+			{before && <Wrap>{before}</Wrap>}
 			<Text backgroundColor={isHighlighted ? "gray" : undefined} inverse>
-				{displayCursor}
+				{onNewline ? " " : char}
 			</Text>
-			{cursorOnNewline && "\n"}
-			{afterCursor && <TextWrapper>{afterCursor}</TextWrapper>}
+			{onNewline && "\n"}
+			{after && <Wrap>{after}</Wrap>}
 			{isPlaceholder && (
 				<Text bold underline>
 					{PLACEHOLDER_HINT}
@@ -356,38 +259,28 @@ function renderSegmentWithCursor(segment: Segment, cursorPos: number, key: numbe
 	)
 }
 
-/**
- * Renders the highlighted text content with cursor.
- * This is the core rendering logic, shared between viewport and non-viewport modes.
- */
-function renderHighlightedText(
-	displayText: string,
-	displayCursorPos: number | undefined,
-	availableCommands?: string[],
-): React.ReactElement {
-	// No cursor - just render highlighted segments (or empty)
-	if (displayCursorPos === undefined) {
-		if (!displayText) return <Text />
-		const segments = parseInput(displayText, availableCommands)
-		return <Text>{segments.map((segment, idx) => renderSegment(segment, idx))}</Text>
+// ── Main Render Logic ──────────────────────────────────────────────────────────
+
+function renderHighlightedText(text: string, cursorPos: number | undefined, availableCommands?: string[]): React.ReactElement {
+	if (cursorPos === undefined) {
+		if (!text) return <Text />
+		return <Text>{parseInput(text, availableCommands).map(renderSegment)}</Text>
 	}
 
-	// With cursor - always show cursor even for empty text
-	const segments = parseInput(displayText, availableCommands)
-	const safeCursorPos = Math.min(Math.max(0, displayCursorPos), displayText.length)
-	const cursorAtEnd = safeCursorPos >= displayText.length
+	const segments = parseInput(text, availableCommands)
+	const safePos = Math.min(Math.max(0, cursorPos), text.length)
 
 	return (
 		<Text>
-			{segments.map((segment, idx) =>
-				cursorInSegment(safeCursorPos, segment)
-					? renderSegmentWithCursor(segment, safeCursorPos, idx)
-					: renderSegment(segment, idx),
+			{segments.map((seg, i) =>
+				cursorInSegment(safePos, seg) ? renderSegmentWithCursor(seg, safePos, i) : renderSegment(seg, i),
 			)}
-			{cursorAtEnd && <Text inverse> </Text>}
+			{safePos >= text.length && <Text inverse> </Text>}
 		</Text>
 	)
 }
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 export const HighlightedInput: React.FC<HighlightedInputProps> = ({
 	text,
@@ -395,28 +288,25 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({
 	availableCommands,
 	maxLines = DEFAULT_MAX_LINES,
 }) => {
-	// Check if viewport windowing is needed
 	const viewport = cursorPos !== undefined ? computeViewport(text, cursorPos, maxLines) : null
 
-	if (viewport) {
-		const content = renderHighlightedText(viewport.viewportText, viewport.adjustedCursorPos, availableCommands)
-		return (
-			<Box flexDirection="column">
-				{viewport.linesAbove > 0 && (
-					<Text color="gray">
-						↑ {viewport.linesAbove} more {viewport.linesAbove === 1 ? "line" : "lines"}
-					</Text>
-				)}
-				{content}
-				{viewport.linesBelow > 0 && (
-					<Text color="gray">
-						↓ {viewport.linesBelow} more {viewport.linesBelow === 1 ? "line" : "lines"}
-					</Text>
-				)}
-			</Box>
-		)
+	if (!viewport) {
+		return renderHighlightedText(text, cursorPos, availableCommands)
 	}
 
-	// No viewport needed — render normally
-	return renderHighlightedText(text, cursorPos, availableCommands)
+	return (
+		<Box flexDirection="column">
+			{viewport.linesAbove > 0 && (
+				<Text color="gray">
+					↑ {viewport.linesAbove} more {viewport.linesAbove === 1 ? "line" : "lines"}
+				</Text>
+			)}
+			{renderHighlightedText(viewport.viewportText, viewport.adjustedCursorPos, availableCommands)}
+			{viewport.linesBelow > 0 && (
+				<Text color="gray">
+					↓ {viewport.linesBelow} more {viewport.linesBelow === 1 ? "line" : "lines"}
+				</Text>
+			)}
+		</Box>
+	)
 }

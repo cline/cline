@@ -185,7 +185,9 @@ const SEARCH_DEBOUNCE_MS = 150
 const RIPGREP_WARNING_DURATION_MS = 5000
 const MAX_SEARCH_RESULTS = 15
 const DEFAULT_CONTEXT_WINDOW = 200000
-const PASTE_COLLAPSE_THRESHOLD = 100 // Characters before showing placeholder
+const PASTE_COLLAPSE_THRESHOLD = 100 // Characters before collapsing into expandable placeholder
+const PASTE_CHUNK_WINDOW_MS = 150 // Chunks arriving within this window are combined into one paste
+const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual placeholder updates to avoid flicker
 const MAX_HISTORY_ITEMS = 20 // Max history items to navigate with up/down arrows
 
 /**
@@ -326,36 +328,29 @@ function parseAskOptions(text: string): string[] {
 	return parts.options || []
 }
 
-/**
- * Expand pasted text placeholders back to actual content
- * Replaces [Pasted text #N +X lines] with the stored content
- */
+/** Replace paste placeholders (e.g. `▸ 21 lines pasted #1`) with stored content. */
 function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
-	return text.replace(/▸ \d+ lines pasted #(\d+)/g, (match, num) => {
-		const content = pastedTexts.get(Number.parseInt(num, 10))
-		return content ?? match
+	return text.replace(/▸ \d+ lines pasted #(\d+)/g, (match, id) => {
+		return pastedTexts.get(Number.parseInt(id, 10)) ?? match
 	})
 }
 
-/**
- * Find placeholder at cursor position
- * Returns the placeholder info if cursor is within a placeholder, null otherwise
- */
+/** Find the paste placeholder surrounding or adjacent to `cursorPos`, if any. */
 function findPlaceholderAtCursor(
 	text: string,
 	cursorPos: number,
-): { pasteNum: number; start: number; end: number; lineCount: number } | null {
-	const placeholderRegex = /▸ (\d+) lines pasted #(\d+)/g
+): { pasteId: number; start: number; end: number; lineCount: number } | null {
+	const regex = /▸ (\d+) lines pasted #(\d+)/g
 	let match
-	while ((match = placeholderRegex.exec(text)) !== null) {
+	while ((match = regex.exec(text)) !== null) {
 		const start = match.index
-		const end = match.index + match[0].length
+		const end = start + match[0].length
 		if (cursorPos >= start && cursorPos <= end) {
 			return {
-				pasteNum: Number.parseInt(match[2], 10),
+				pasteId: Number.parseInt(match[2], 10),
+				lineCount: Number.parseInt(match[1], 10),
 				start,
 				end,
-				lineCount: Number.parseInt(match[1], 10),
 			}
 		}
 	}
@@ -412,18 +407,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const [respondedToAsk, setRespondedToAsk] = useState<number | null>(null)
 	const [userScrolled, setUserScrolled] = useState(false)
 
-	// Pasted text storage - maps placeholder number to full pasted content
-	// Using ref instead of state for synchronous read/write (no async state update delays)
+	// Paste placeholder state — uses refs for synchronous read/write (no async state delays).
+	// pastedTextsRef maps paste ID → full content; the text model only stores the placeholder string.
 	const pastedTextsRef = useRef<Map<number, string>>(inputStateStorage.get(storageKey)?.pastedTexts ?? new Map())
-	const pasteCounterRef = useRef<number>(inputStateStorage.get(storageKey)?.pasteCounter ?? 0)
-	// Track paste timing to combine chunks that arrive in rapid succession
-	const lastPasteTimeRef = useRef<number>(0)
-	const activePasteNumRef = useRef<number>(0)
-	const activePasteStartPosRef = useRef<number>(0) // Where the placeholder starts in the text
-	const activePasteLinesRef = useRef<number>(0) // Total line count for current paste
-	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce placeholder updates
-	const PASTE_CHUNK_WINDOW_MS = 150 // Chunks within this window are combined into one paste
-	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
+	const pasteCounterRef = useRef(inputStateStorage.get(storageKey)?.pasteCounter ?? 0)
+	const activePasteRef = useRef({ id: 0, lines: 0, lastTime: 0 })
+	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
@@ -1121,99 +1110,71 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 		}
 
-		// 4. Active paste continuation: When we're in an active paste window,
-		// ALL multi-char input gets appended to the paste storage, not inserted as text.
-		// This MUST run before step 5 (newline normalization) and step 6 (large paste detection)
-		// to prevent continuation chunks from being inserted as raw text and corrupting the placeholder.
-		if (input.length > 1 && activePasteNumRef.current > 0) {
-			const now = Date.now()
-			const timeSinceLastPaste = now - lastPasteTimeRef.current
-			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS) {
-				lastPasteTimeRef.current = now
-				const pasteNum = activePasteNumRef.current
+		// 4. Active paste continuation: chunks arriving rapidly after a large paste
+		// get appended to the stored content rather than inserted as visible text.
+		// Must run before newline normalization (step 5) to prevent placeholder corruption.
+		if (input.length > 1 && activePasteRef.current.id > 0) {
+			const elapsed = Date.now() - activePasteRef.current.lastTime
+			if (elapsed < PASTE_CHUNK_WINDOW_MS) {
+				activePasteRef.current.lastTime = Date.now()
+				const { id, lines } = activePasteRef.current
 				const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-				const chunkLines = normalized.match(/\n/g)?.length || 0
-				activePasteLinesRef.current += chunkLines
+				const newLines = normalized.match(/\n/g)?.length || 0
+				activePasteRef.current.lines = lines + newLines
 
-				// Store immediately in ref (synchronous)
-				const existing = pastedTextsRef.current.get(pasteNum) || ""
-				pastedTextsRef.current.set(pasteNum, existing + normalized)
+				const existing = pastedTextsRef.current.get(id) || ""
+				pastedTextsRef.current.set(id, existing + normalized)
 
-				// Debounce the visual placeholder update
-				if (pasteUpdateTimeoutRef.current) {
-					clearTimeout(pasteUpdateTimeoutRef.current)
-				}
+				// Debounce visual update to avoid flicker while chunks stream in
+				if (pasteUpdateTimeoutRef.current) clearTimeout(pasteUpdateTimeoutRef.current)
 				pasteUpdateTimeoutRef.current = setTimeout(() => {
-					const newPlaceholder = `▸ ${activePasteLinesRef.current} lines pasted #${pasteNum}`
-					const pattern = new RegExp(`▸ \\d+ lines pasted #${pasteNum}`)
-					const newText = textInputRef.current.replace(pattern, newPlaceholder)
+					const updated = `▸ ${activePasteRef.current.lines} lines pasted #${id}`
+					const newText = textInputRef.current.replace(new RegExp(`▸ \\d+ lines pasted #${id}`), updated)
 					textInputRef.current = newText
-					setTextInput(newText) // setText auto-sets cursor to end, which is fine
+					setTextInput(newText)
 				}, PASTE_UPDATE_DEBOUNCE_MS)
 
 				return
 			}
 		}
 
-		// 5. Small multi-line paste normalization (for pastes UNDER the collapse threshold).
-		// Large pastes (>100 chars) fall through to step 6 for placeholder creation.
+		// 5. Small multi-line paste: normalize \r\n → \n and insert directly.
+		// Large pastes (>threshold) fall through to step 6 for placeholder creation.
 		if (input.length > 1 && input.length <= PASTE_COLLAPSE_THRESHOLD && /[\r\n]/.test(input)) {
-			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-			insertTextAtCursor(normalized)
+			insertTextAtCursor(input.replace(/\r\n/g, "\n").replace(/\r/g, "\n"))
 			return
 		}
 
-		// 6. Large paste detection → collapse into placeholder.
-		// This catches large pastes (>100 chars) whether or not they contain newlines.
-		// Step 5 above already handled small multi-line pastes.
+		// 6. Large paste detection → collapse into an expandable placeholder.
 		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
-			// Normalize newlines in stored content
 			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+			const pasteId = ++pasteCounterRef.current
+			const lineCount = normalized.match(/\n/g)?.length || 0
 
-			// New paste operation - create placeholder
-			pasteCounterRef.current += 1
-			const pasteNum = pasteCounterRef.current
-			activePasteNumRef.current = pasteNum
-			lastPasteTimeRef.current = Date.now()
-			const currentCursorPos = cursorPosRef.current
-			activePasteStartPosRef.current = currentCursorPos
-			const extraLines = normalized.match(/\n/g)?.length || 0
-			activePasteLinesRef.current = extraLines
-			const placeholder = `▸ ${extraLines} lines pasted #${pasteNum}`
+			activePasteRef.current = { id: pasteId, lines: lineCount, lastTime: Date.now() }
+			pastedTextsRef.current.set(pasteId, normalized)
 
-			// Store the full normalized content immediately in ref (synchronous)
-			pastedTextsRef.current.set(pasteNum, normalized)
-
-			// Add a trailing space after the placeholder so users can continue typing naturally
-			const newText =
-				textInputRef.current.slice(0, currentCursorPos) + placeholder + " " + textInputRef.current.slice(currentCursorPos)
+			const placeholder = `▸ ${lineCount} lines pasted #${pasteId}`
+			const pos = cursorPosRef.current
+			const newText = textInputRef.current.slice(0, pos) + placeholder + " " + textInputRef.current.slice(pos)
 			textInputRef.current = newText
-
-			// Use functional form of setText to avoid auto-cursor-to-end behavior.
-			// Then DON'T call setCursorPos separately (it would be clamped by stale textRef in the hook).
-			// Instead, we let the next render pick up the correct cursor from the setText auto-behavior.
-			setTextInput(newText) // auto-sets cursor to newText.length (end of text)
-			// The cursor ends up at the end of the text, which is at or after the placeholder.
-			// findPlaceholderAtCursor checks cursorPos <= end, so this works.
+			setTextInput(newText)
 			return
 		}
 
-		// 7. Space on placeholder -> expand placeholder inline
-		// Only triggers when cursor is strictly INSIDE the placeholder (not at edges),
-		// so users can still add spaces before/after the placeholder normally.
+		// 7. Space inside placeholder → expand to full content.
+		// Strictly inside (not at edges) so space before/after the placeholder inserts normally.
 		if (input === " " && !key.ctrl && !key.meta) {
-			const placeholder = findPlaceholderAtCursor(textInputRef.current, cursorPosRef.current)
-			if (placeholder && cursorPosRef.current > placeholder.start && cursorPosRef.current < placeholder.end) {
-				const content = pastedTextsRef.current.get(placeholder.pasteNum)
+			const ph = findPlaceholderAtCursor(textInputRef.current, cursorPosRef.current)
+			if (ph && cursorPosRef.current > ph.start && cursorPosRef.current < ph.end) {
+				const content = pastedTextsRef.current.get(ph.pasteId)
 				if (content) {
-					const text = textInputRef.current
-					const newText = text.slice(0, placeholder.start) + content + text.slice(placeholder.end)
+					const newText = textInputRef.current.slice(0, ph.start) + content + textInputRef.current.slice(ph.end)
 					textInputRef.current = newText
-					setTextInput(newText) // auto-sets cursor to end
+					setTextInput(newText)
 					return
 				}
 			}
-			// Not inside a placeholder - fall through to normal space insertion below
 		}
 
 		// 8. When a panel is open, let the panel handle its own input
@@ -1452,14 +1413,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 		if (key.backspace || key.delete) {
 			// If cursor is inside a placeholder, delete the whole placeholder as a unit
-			const placeholder = findPlaceholderAtCursor(textInputRef.current, cursorPosRef.current)
-			if (placeholder) {
-				const newText = textInputRef.current.slice(0, placeholder.start) + textInputRef.current.slice(placeholder.end)
+			const ph = findPlaceholderAtCursor(textInputRef.current, cursorPosRef.current)
+			if (ph) {
+				const newText = textInputRef.current.slice(0, ph.start) + textInputRef.current.slice(ph.end)
 				textInputRef.current = newText
-				// Use functional form to avoid setText auto-cursor-to-end
-				setTextInput((prev) => newText)
-				setCursorPos(placeholder.start)
-				pastedTextsRef.current.delete(placeholder.pasteNum)
+				setTextInput(() => newText)
+				setCursorPos(ph.start)
+				pastedTextsRef.current.delete(ph.pasteId)
 				return
 			}
 			deleteCharBefore()
