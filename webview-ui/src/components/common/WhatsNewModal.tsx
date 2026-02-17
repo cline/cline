@@ -80,9 +80,9 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>GLM 5 is now available with free promo!</strong> the latest open-source SOTA model for
-							advanced reasoning, coding, and agentic tasks.{" "}
-							<InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
+							<strong>Claude Sonnet 4.6 is free for a limited time!</strong> advanced reasoning and coding
+							performance, now available in the free models tab.{" "}
+							<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="free" />
 						</li>
 						<li className="mb-2">
 							<strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
