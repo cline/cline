@@ -222,12 +222,19 @@ async function fetchAndCacheClineModels(_controller: Controller): Promise<Record
 
 				models[rawModel.id] = modelInfo
 
-				// Add custom :1m model variant for Sonnet models
-				if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
+				// Add custom :1m model variant for Sonnet 4
+				if (rawModel.id === "anthropic/claude-sonnet-4") {
 					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet1mModelInfo.contextWindow = 1_000_000
 					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+				}
+
+				// Add custom :1m model variant for Sonnet 4.5
+				if (rawModel.id === "anthropic/claude-sonnet-4.5") {
+					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
+					claudeSonnet1mModelInfo.contextWindow = 1_000_000
+					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
 					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
 				}
 

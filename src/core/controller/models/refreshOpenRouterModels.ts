@@ -118,7 +118,7 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
 				if (price) {
-					return parseFloat(price) * 1_000_000
+					return Number.parseFloat(price) * 1_000_000
 				}
 				return undefined
 			}
@@ -263,14 +263,19 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 
 				models[rawModel.id] = modelInfo
 
-				// add custom :1m model variant for sonnet
-				if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
+				// add custom :1m model variant for sonnet 4
+				if (rawModel.id === "anthropic/claude-sonnet-4") {
 					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
 					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
-					// sonnet 4
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
-					// sonnet 4.5
+				}
+
+				// add custom :1m model variant for sonnet 4.5
+				if (rawModel.id === "anthropic/claude-sonnet-4.5") {
+					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
+					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
+					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
 					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
 				}
 
