@@ -581,5 +581,38 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			logSpy.restore()
 			await noOpProvider.dispose()
 		})
+
+		it("should capture instruction source activation events correctly", async () => {
+			const noOpProvider = new NoOpTelemetryProvider()
+			const logSpy = sinon.spy(noOpProvider, "log")
+			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
+
+			logSpy.resetHistory()
+
+			telemetryService.captureInstructionSourceActivated({
+				ulid: "task-999",
+				sourceType: "skill",
+				sourceName: "release-checklist",
+				activationPath: "slash",
+				sourceScope: "global",
+			})
+
+			assert.ok(logSpy.calledOnce, "Log should be called once")
+			const [eventName, properties] = logSpy.firstCall.args
+			assert.strictEqual(
+				eventName,
+				"task.instruction_source_activated",
+				"Event name should be task.instruction_source_activated",
+			)
+			assert.ok(properties, "Properties should be defined")
+			assert.strictEqual(properties.ulid, "task-999", "Properties should include task ULID")
+			assert.strictEqual(properties.sourceType, "skill", "Properties should include sourceType")
+			assert.strictEqual(properties.sourceName, "release-checklist", "Properties should include sourceName")
+			assert.strictEqual(properties.activationPath, "slash", "Properties should include activationPath")
+			assert.strictEqual(properties.sourceScope, "global", "Properties should include sourceScope")
+
+			logSpy.restore()
+			await noOpProvider.dispose()
+		})
 	})
 })
