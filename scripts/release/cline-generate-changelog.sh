@@ -5,6 +5,12 @@
 #   2. Identifying first-time contributor PRs via gh-first-time-contributors.sh
 #   3. Passing both datasets to cline for synthesis into a consistently formatted changelog
 #
+# Use --scope to target either the VSCode extension (CHANGELOG.md) or the CLI (cli/CHANGELOG.md).
+#
+# Model: defaults to claude-opus-4-6; override with --model.
+# Provider: whichever provider is currently selected in your cline configuration will be used.
+#   To change provider, run `cline auth` first.
+#
 # Output sections (any empty section is omitted):
 #   Added / Fixed / Changed / New Contributors
 #
@@ -20,24 +26,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/gh-generate-changelog.sh [--model <model>] [--from-tag <tag>] [--debug]
+Usage: scripts/release/cline-generate-changelog.sh --scope <vscode|cli> [--model <model>] [--from-tag <tag>] [--debug]
 
 Options:
-  --model <model>   Model to pass to cline (e.g. claude-opus-4-5).
-                    If omitted, cline uses its configured default.
-  --from-tag <tag>  Override the autodetected latest vX.Y.Z tag.
-  --debug           Print debug stats to stderr.
+  --scope <vscode|cli>  Required. Target product surface:
+                          vscode  Generate entries for CHANGELOG.md (VS Code extension)
+                          cli     Generate entries for cli/CHANGELOG.md (Cline CLI)
+  --model <model>       Model to pass to cline (default: claude-opus-4-6).
+  --from-tag <tag>      Override the autodetected latest vX.Y.Z tag.
+  --debug               Print debug stats to stderr.
 
 Requires: git, gh (authenticated), jq, cline (authenticated)
 USAGE
 }
 
-MODEL=""
+SCOPE=""
+MODEL="claude-opus-4-6"
 FROM_TAG_ARG=""
 DEBUG=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --scope)
+      SCOPE="${2-}"
+      shift 2
+      ;;
     --model)
       MODEL="${2-}"
       shift 2
@@ -61,6 +74,18 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+if [ -z "${SCOPE}" ]; then
+  echo "Error: --scope <vscode|cli> is required." >&2
+  usage >&2
+  exit 2
+fi
+
+if [ "${SCOPE}" != "vscode" ] && [ "${SCOPE}" != "cli" ]; then
+  echo "Error: --scope must be 'vscode' or 'cli' (got '${SCOPE}')." >&2
+  usage >&2
+  exit 2
+fi
 
 for cmd in gh jq cline; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -92,6 +117,44 @@ if [ -z "${PR_LIST}" ]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Scope-specific context inserted into the prompt
+# ---------------------------------------------------------------------------
+
+if [ "${SCOPE}" = "vscode" ]; then
+  SCOPE_CONTEXT="This changelog is for the Cline VS Code extension (CHANGELOG.md), not the CLI.
+
+Focus on changes that affect the extension experience:
+- New AI provider integrations or model support
+- Webview UI improvements (chat interface, settings panel, history view)
+- MCP (Model Context Protocol) server integration and tooling
+- Plan/Act mode, context window management, and checkpoints
+- Task execution capabilities: file editing, browser automation, terminal, tool use
+- Extension commands, settings, and keyboard shortcuts
+- Core agent behavior and system prompt improvements
+
+Exclude changes that only affect the CLI (cli/ directory) or are purely internal (CI, build tooling, test infrastructure, dependency bumps) with no user-visible impact."
+
+  CHANGELOG_FILE="CHANGELOG.md"
+else
+  SCOPE_CONTEXT="This changelog is for the Cline CLI (cli/CHANGELOG.md), not the VS Code extension.
+
+Focus on changes that affect the CLI experience:
+- CLI commands and options (cline task, cline auth, cline config, cline history, etc.)
+- Terminal UI components (model picker, settings panel, auth flows)
+- ACP (Agent Client Protocol) integration
+- Provider authentication and configuration within the CLI
+- CLI-specific behavior, flags, and output formatting
+
+Exclude changes that only affect the VS Code extension (webview-ui/, VS Code API integrations, extension-only settings) or are purely internal (CI, build tooling, test infrastructure, dependency bumps) with no user-visible impact. Include changes to shared core code (src/) only if they meaningfully affect CLI behavior."
+
+  CHANGELOG_FILE="cli/CHANGELOG.md"
+fi
+
+# ---------------------------------------------------------------------------
+# Build prompt
+# ---------------------------------------------------------------------------
+
 PROMPT="You have been provided with two datasets to help generate a changelog for the next release of this repository.
 
 ## Merged PRs since last release
@@ -104,23 +167,23 @@ ${FIRST_TIME_PRS:-"(none)"}
 
 ## Your task
 
-Generate a concise, human-readable changelog for this upcoming release.
+${SCOPE_CONTEXT}
+
+Generate a concise, human-readable changelog suitable for inclusion in ${CHANGELOG_FILE}.
 
 Format requirements:
 - Use exactly four sections in this order: Added, Fixed, Changed, New Contributors.
-- Each of Added, Fixed, and Changed contains plain-language bullet points describing user-facing changes. Omit internal refactors, dependency bumps, CI/tooling changes, and test-only changes unless they have meaningful user impact.
+- Each of Added, Fixed, and Changed contains plain-language bullet points. Write from the perspective of a user of the product surface described above — what did they gain, what got fixed, what changed for them.
 - If two or more entries naturally combine into a single more general statement, merge them into one bullet point.
 - The New Contributors section lists each first-time contributor as: - @<login> made their first contribution in #<number> (<url>)
 - Omit any section that has no entries.
 - Output only the changelog — no preamble, no explanation, no markdown code fences."
 
-MODEL_FLAG=""
-if [ -n "${MODEL}" ]; then
-  MODEL_FLAG="-m ${MODEL}"
-fi
+# ---------------------------------------------------------------------------
+# Invoke cline
+# ---------------------------------------------------------------------------
 
-echo "Generating changelog with cline..." >&2
+echo "Generating ${SCOPE} changelog with cline (model: ${MODEL})..." >&2
 echo "" >&2
 
-# shellcheck disable=SC2086
-cline -a -y --timeout 120 ${MODEL_FLAG} "${PROMPT}"
+cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}"
