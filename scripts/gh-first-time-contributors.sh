@@ -22,7 +22,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/gh-list-first-time-contributor-prs-since-last-release.sh [--from-tag <tag>] [--to-tag <tag>] [--base <ref>] [--debug]
+Usage: scripts/gh-first-time-contributors.sh [--from-tag <tag>] [--to-tag <tag>] [--base <ref>] [--debug]
 
 Options:
   --from-tag <tag>  The start tag (default: latest vX.Y.Z tag). In single-window
