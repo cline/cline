@@ -89,6 +89,18 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 				"UseSkillToolHandler.execute",
 			)
 
+			telemetryService.safeCapture(
+				() =>
+					telemetryService.captureInstructionSourceActivated({
+						ulid: config.ulid,
+						sourceType: "skill",
+						sourceName: skillContent.name,
+						activationPath: "use_skill",
+						sourceScope: skillContent.source === "global" ? "global" : "project",
+					}),
+				"UseSkillToolHandler.execute",
+			)
+
 			return `# Skill "${skillContent.name}" is now active
 
 ${skillContent.instructions}

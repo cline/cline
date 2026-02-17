@@ -264,6 +264,8 @@ export class TelemetryService {
 			AUTO_COMPACT: "task.summarize_task",
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
+			// Tracks when an instruction source is resolved and activated (slash or tool path)
+			INSTRUCTION_SOURCE_ACTIVATED: "task.instruction_source_activated",
 			// Tracks when a feature is toggled on/off
 			FEATURE_TOGGLED: "task.feature_toggled",
 			// Tracks when individual Cline rules are toggled on/off
@@ -1578,6 +1580,39 @@ export class TelemetryService {
 				ulid,
 				commandName,
 				commandType,
+			},
+		})
+	}
+
+	/**
+	 * Records the resolved instruction source that was activated.
+	 * This normalizes telemetry across slash-command activation and tool-based activation paths.
+	 *
+	 * @param ulid Unique identifier for the task
+	 * @param sourceType The resolved instruction source type
+	 * @param sourceName The resolved source name
+	 * @param activationPath How the source was activated
+	 * @param sourceScope Optional scope/origin of the source
+	 */
+	public captureInstructionSourceActivated(args: {
+		ulid: string
+		sourceType: "builtin" | "workflow" | "mcp_prompt" | "skill"
+		sourceName: string
+		activationPath: "slash" | "use_skill"
+		sourceScope?: "first_party" | "project" | "global" | "remote"
+	}) {
+		if (!args.ulid || !args.sourceName) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.INSTRUCTION_SOURCE_ACTIVATED,
+			properties: {
+				ulid: args.ulid,
+				sourceType: args.sourceType,
+				sourceName: args.sourceName,
+				activationPath: args.activationPath,
+				sourceScope: args.sourceScope,
 			},
 		})
 	}

@@ -27,6 +27,7 @@ type FileBasedWorkflow = {
 	fullPath: string
 	fileName: string
 	isRemote: false
+	scope: "project" | "global"
 }
 
 type RemoteWorkflow = {
@@ -34,6 +35,7 @@ type RemoteWorkflow = {
 	fileName: string
 	isRemote: true
 	contents: string
+	scope: "remote"
 }
 
 type Workflow = FileBasedWorkflow | RemoteWorkflow
@@ -141,6 +143,13 @@ export async function parseSlashCommands(
 
 				// Track telemetry for builtin slash command usage
 				telemetryService.captureSlashCommandUsed(ulid, commandName, "builtin")
+				telemetryService.captureInstructionSourceActivated({
+					ulid,
+					sourceType: "builtin",
+					sourceName: commandName,
+					activationPath: "slash",
+					sourceScope: "first_party",
+				})
 
 				return { processedText: processedText, needsClinerulesFileCheck: commandName === "newrule" }
 			}
@@ -166,6 +175,13 @@ export async function parseSlashCommands(
 
 							// Track telemetry for MCP prompt usage
 							telemetryService.captureSlashCommandUsed(ulid, commandName, "mcp_prompt")
+							telemetryService.captureInstructionSourceActivated({
+								ulid,
+								sourceType: "mcp_prompt",
+								sourceName: commandName,
+								activationPath: "slash",
+								sourceScope: "remote",
+							})
 
 							return { processedText, needsClinerulesFileCheck: false }
 						}
@@ -189,6 +205,13 @@ export async function parseSlashCommands(
 							textWithoutSlashCommand
 
 						telemetryService.captureSlashCommandUsed(ulid, commandName, "skill")
+						telemetryService.captureInstructionSourceActivated({
+							ulid,
+							sourceType: "skill",
+							sourceName: matchingSkill.name,
+							activationPath: "slash",
+							sourceScope: matchingSkill.source === "global" ? "global" : "project",
+						})
 
 						return { processedText, needsClinerulesFileCheck: false }
 					}
@@ -203,6 +226,7 @@ export async function parseSlashCommands(
 					fullPath: filePath,
 					fileName: filePath.replace(/^.*[/\\]/, ""),
 					isRemote: false,
+					scope: "global",
 				}))
 
 			const localWorkflows: Workflow[] = Object.entries(localWorkflowToggles)
@@ -211,6 +235,7 @@ export async function parseSlashCommands(
 					fullPath: filePath,
 					fileName: filePath.replace(/^.*[/\\]/, ""),
 					isRemote: false,
+					scope: "project",
 				}))
 
 			// Get remote workflows from remote config (if state manager is initialized)
@@ -235,6 +260,7 @@ export async function parseSlashCommands(
 					fileName: workflow.name,
 					isRemote: true,
 					contents: workflow.contents,
+					scope: "remote",
 				}))
 
 			// local workflows have precedence over global workflows, which have precedence over remote workflows
@@ -263,6 +289,13 @@ export async function parseSlashCommands(
 
 					// Track telemetry for workflow command usage
 					telemetryService.captureSlashCommandUsed(ulid, commandName, "workflow")
+					telemetryService.captureInstructionSourceActivated({
+						ulid,
+						sourceType: "workflow",
+						sourceName: matchingWorkflow.fileName,
+						activationPath: "slash",
+						sourceScope: matchingWorkflow.scope,
+					})
 
 					return { processedText, needsClinerulesFileCheck: false }
 				} catch (error) {
