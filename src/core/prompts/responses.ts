@@ -4,6 +4,8 @@ import * as path from "path"
 import { Mode } from "@/shared/storage/types"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
+const CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT = 50
+
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
 		`[[NOTE] This file read has been removed to save space in the context window. Refer to the latest file read for the most up to date version of this file.]`,
@@ -55,8 +57,8 @@ Otherwise, if you have not completed the task and do not need additional informa
 		const baseError = `Failed to write to '${relPath}': The 'content' parameter was empty. This typically happens when the file content is too large to generate in a single response, or when output token limits are reached before the content parameter is fully written.`
 
 		const contextWarning =
-			contextUsagePercent !== undefined && contextUsagePercent > 50
-				? `\n\n⚠️ Context window is ${contextUsagePercent}% full. The remaining output budget may be insufficient for large file writes. You MUST use a strategy that produces smaller outputs.`
+			contextUsagePercent !== undefined && contextUsagePercent > CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT
+				? `\n\nWarning: Context window is ${contextUsagePercent}% full. The remaining output budget may be insufficient for large file writes. You MUST use a strategy that produces smaller outputs.`
 				: ""
 
 		if (consecutiveFailures >= 3) {
