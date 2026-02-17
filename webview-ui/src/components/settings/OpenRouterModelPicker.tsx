@@ -59,11 +59,6 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
-		id: "minimax/minimax-m2.5",
-		description: "Great coding capability and subagent use",
-		label: "HOT",
-	},
-	{
 		id: "anthropic/claude-opus-4.6",
 		description: "Most intelligent model for agents and coding",
 		label: "NEW",
