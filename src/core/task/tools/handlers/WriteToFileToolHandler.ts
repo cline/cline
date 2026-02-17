@@ -119,15 +119,24 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
 
+			// Use progressive error with token budget awareness
 			const relPath = rawRelPath || "unknown"
 			const contextWindow = config.api.getModel().info.contextWindow ?? 128_000
 			const lastApiReqTotalTokens = getLastApiReqTotalTokens(config.messageState.getClineMessages())
 			const contextUsagePercent = contextWindow > 0 ? Math.round((lastApiReqTotalTokens / contextWindow) * 100) : undefined
-			const errorMessage = formatResponse.writeToFileMissingContentError(relPath, contextUsagePercent)
+			const errorMessage = formatResponse.writeToFileMissingContentError(
+				relPath,
+				config.taskState.consecutiveMistakeCount,
+				contextUsagePercent,
+			)
 
 			await config.callbacks.say(
 				"error",
-				`Cline tried to use write_to_file for '${relPath}' without value for required parameter 'content'. Retrying...`,
+				`Cline tried to use write_to_file for '${relPath}' without value for required parameter 'content'. ${
+					config.taskState.consecutiveMistakeCount >= 2
+						? "This has happened multiple times — Cline will try a different approach."
+						: "Retrying..."
+				}`,
 			)
 			return formatResponse.toolError(errorMessage)
 		}
