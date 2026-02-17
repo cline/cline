@@ -739,7 +739,7 @@ export class SubagentRunner {
 		if (useAutoCondense && isNextGenModelFamily(modelId)) {
 			// Hardcoded to default — the UI to adjust this (click on progress bar) is disabled.
 			// Stored values in globalState may be corrupted from accidental clicks; ignore them.
-			const autoCondenseThreshold: number | undefined = 0.75
+			const autoCondenseThreshold = 0.75
 			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
 			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
 			return previousRequestTotalTokens >= thresholdTokens
