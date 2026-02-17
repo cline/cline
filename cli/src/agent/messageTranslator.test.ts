@@ -12,6 +12,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it } from "vitest"
 import { createSessionState, translateMessage, translateMessages } from "./messageTranslator"
 import type { AcpSessionState } from "./types"
+import { AcpSessionStatus } from "./types"
 
 // =============================================================================
 // Test Helpers
@@ -175,8 +176,7 @@ describe("createSessionState", () => {
 		const state = createSessionState("my-session-123")
 
 		expect(state.sessionId).toBe("my-session-123")
-		expect(state.isProcessing).toBe(false)
-		expect(state.cancelled).toBe(false)
+		expect(state.status).toBe(AcpSessionStatus.Idle)
 		expect(state.pendingToolCalls).toBeInstanceOf(Map)
 		expect(state.pendingToolCalls.size).toBe(0)
 		expect(state.currentToolCallId).toBeUndefined()
@@ -187,11 +187,11 @@ describe("createSessionState", () => {
 		const state2 = createSessionState("session-2")
 
 		// Modify state1
-		state1.isProcessing = true
+		state1.status = AcpSessionStatus.Processing
 		state1.pendingToolCalls.set("tool-1", {} as acp.ToolCall)
 
 		// state2 should be unaffected
-		expect(state2.isProcessing).toBe(false)
+		expect(state2.status).toBe(AcpSessionStatus.Idle)
 		expect(state2.pendingToolCalls.size).toBe(0)
 	})
 })

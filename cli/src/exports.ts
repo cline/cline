@@ -2,31 +2,25 @@
  * Cline Library Exports
  *
  * This file exports the public API for programmatic use of Cline.
- * Consumers can import these classes and types to embed Cline in their applications.
+ * Use these classes and types to embed Cline into your applications.
  *
  * @example
  * ```typescript
  * import { ClineAgent } from "cline"
  *
- * const agent = new ClineAgent({ version: "1.0.0" })
+ * const agent = new ClineAgent()
  * await agent.initialize({ clientCapabilities: {} })
  * const session = await agent.newSession({ cwd: process.cwd() })
  * ```
- *
  * @module cline
  */
 
-// Core Agent
 export { ClineAgent } from "./agent/ClineAgent.js"
 export { ClineSessionEmitter } from "./agent/ClineSessionEmitter.js"
-
-// All public types (including re-exported ACP SDK types) come from public-types.ts
-// which is free of internal dependencies (Controller, StateManager, etc.)
 export type {
-	// Cline-specific types
 	AcpAgentOptions,
 	AcpSessionState,
-	// ACP SDK re-exports
+	AcpSessionStatus,
 	Agent,
 	AgentSideConnection,
 	AudioContent,
@@ -38,7 +32,6 @@ export type {
 	ClineAgentOptions,
 	ClinePermissionOption,
 	ClineSessionEvents,
-	ClineToAcpUpdateMapping,
 	ContentBlock,
 	ImageContent,
 	InitializeRequest,
@@ -52,7 +45,6 @@ export type {
 	PermissionHandler,
 	PermissionOption,
 	PermissionOptionKind,
-	PermissionResolver,
 	PromptRequest,
 	PromptResponse,
 	RequestPermissionRequest,

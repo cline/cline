@@ -9,19 +9,26 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk"
+import type { Controller } from "@/core/controller"
+import { controllerSymbol } from "./types"
 
 // ============================================================
 // Session Update Type Utilities
 // ============================================================
 
 /**
- * Extract the sessionUpdate discriminator value from a SessionUpdate variant.
+ * Different types of updates that can be sent during session processing.
+ *
+ * These updates provide real-time feedback about the agent's progress.
+ *
+ * See protocol docs: [Agent Reports Output](https://agentclientprotocol.com/protocol/prompt-turn#3-agent-reports-output)
  */
 export type SessionUpdateType = acp.SessionUpdate["sessionUpdate"]
 
 /**
- * Extract the payload type for a given sessionUpdate discriminator value.
- * This removes the `sessionUpdate` discriminator field from the type.
+ * Different types of update payloads that can be sent during session processing.
+ *
+ * Each update type has a corresponding payload structure defined in the ACP SessionUpdate union.
  */
 export type SessionUpdatePayload<T extends SessionUpdateType> = Omit<
 	Extract<acp.SessionUpdate, { sessionUpdate: T }>,
@@ -33,16 +40,11 @@ export type SessionUpdatePayload<T extends SessionUpdateType> = Omit<
 // ============================================================
 
 /**
- * Callback to resolve a permission request with the user's response.
- */
-export type PermissionResolver = (response: acp.RequestPermissionResponse) => void
-
-/**
  * Handler function for permission requests.
  * Called when the agent needs permission for a tool call.
  * The handler should present the request to the user and call resolve() with their response.
  */
-export type PermissionHandler = (request: Omit<acp.RequestPermissionRequest, "sessionId">, resolve: PermissionResolver) => void
+export type PermissionHandler = (request: acp.RequestPermissionRequest) => Promise<acp.RequestPermissionResponse>
 
 // ============================================================
 // Session Event Emitter Types
@@ -67,8 +69,6 @@ export type ClineSessionEvents = {
  * Options for creating a ClineAgent instance.
  */
 export interface ClineAgentOptions {
-	/** CLI version string */
-	version: string
 	/** Whether debug logging is enabled */
 	debug?: boolean
 	/** Cline Config Directory (defaults to ~/.cline) */
@@ -79,8 +79,6 @@ export interface ClineAgentOptions {
  * Options for creating an ACP agent instance.
  */
 export interface AcpAgentOptions {
-	/** CLI version string */
-	version: string
 	/** Whether debug logging is enabled */
 	debug?: boolean
 }
@@ -88,16 +86,14 @@ export interface AcpAgentOptions {
 // ============================================================
 // Session Types
 // ============================================================
+type SessionID = string
 
 /**
  * Extended session data stored by Cline for ACP sessions.
- *
- * This is the public-facing type. Internal code uses
- * {@link InternalClineAcpSession} which adds the `controller` field.
  */
 export interface ClineAcpSession {
 	/** Unique session/task ID */
-	sessionId: string
+	sessionId: SessionID
 	/** Working directory for the session */
 	cwd: string
 	/** Current mode (plan/act) */
@@ -114,6 +110,23 @@ export interface ClineAcpSession {
 	planModeModelId?: string
 	/** Model ID override for act mode (format: "provider/modelId") */
 	actModeModelId?: string
+	[controllerSymbol]?: Controller // Internal field
+}
+
+/**
+ * Lifecycle status of an ACP session.
+ *
+ * Represents the state machine:
+ *   Idle → Processing → Idle       (normal completion)
+ *   Idle → Processing → Cancelled  (cancellation, then back to Idle on next prompt)
+ */
+export enum AcpSessionStatus {
+	/** Session is idle, waiting for a prompt */
+	Idle = "idle",
+	/** Session is actively processing a prompt */
+	Processing = "processing",
+	/** Session processing was cancelled */
+	Cancelled = "cancelled",
 }
 
 /**
@@ -121,13 +134,11 @@ export interface ClineAcpSession {
  */
 export interface AcpSessionState {
 	/** Session ID */
-	sessionId: string
-	/** Whether the session is currently processing a prompt */
-	isProcessing: boolean
+	sessionId: SessionID
+	/** Current lifecycle status of the session */
+	status: AcpSessionStatus
 	/** Current tool call ID being executed (if any) */
 	currentToolCallId?: string
-	/** Whether the session has been cancelled */
-	cancelled: boolean
 	/** Accumulated tool calls for permission batching */
 	pendingToolCalls: Map<string, acp.ToolCall>
 }

@@ -39,18 +39,17 @@ export class AcpAgent implements acp.Agent {
 		this.clineAgent = new ClineAgent(options)
 
 		// Wire up the permission handler to use the connection
-		this.clineAgent.setPermissionHandler(async (request, resolve) => {
+		this.clineAgent.setPermissionHandler(async (request) => {
 			try {
 				Logger.debug("[AcpAgent] Forwarding permission request to connection")
-				const response = await this.connection.requestPermission({
+				return await this.connection.requestPermission({
 					sessionId: this.getCurrentSessionId() ?? "",
 					toolCall: request.toolCall,
 					options: request.options,
 				})
-				resolve(response)
 			} catch (error) {
 				Logger.debug("[AcpAgent] Error requesting permission:", error)
-				resolve({ outcome: "rejected" as unknown as acp.RequestPermissionOutcome })
+				return { outcome: "rejected" as unknown as acp.RequestPermissionOutcome }
 			}
 		})
 	}

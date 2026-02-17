@@ -11,6 +11,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import type { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
 import type { AcpSessionState, TranslatedMessage } from "./types.js"
+import { AcpSessionStatus } from "./types.js"
 
 /**
  * Maps Cline tool types to ACP ToolKind values.
@@ -1019,8 +1020,7 @@ export function translateMessages(messages: ClineMessage[], sessionState: AcpSes
 export function createSessionState(sessionId: string): AcpSessionState {
 	return {
 		sessionId,
-		isProcessing: false,
-		cancelled: false,
+		status: AcpSessionStatus.Idle,
 		pendingToolCalls: new Map(),
 	}
 }
