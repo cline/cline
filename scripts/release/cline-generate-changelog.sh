@@ -155,7 +155,9 @@ fi
 # Build prompt
 # ---------------------------------------------------------------------------
 
-PROMPT="You have been provided with two datasets to help generate a changelog for the next release of this repository.
+PROMPT="You are acting as a technical writer generating a changelog. All the data you need is already in this prompt — do not use any tools, do not read any files, do not fetch any URLs. Simply read the data below and write the changelog.
+
+You have been provided with two datasets to help generate a changelog for the next release of this repository.
 
 ## Merged PRs since last release
 
@@ -186,4 +188,10 @@ Format requirements:
 echo "Generating ${SCOPE} changelog with cline (model: ${MODEL})..." >&2
 echo "" >&2
 
-cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}"
+CHANGELOG=$(cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}" | sed -n '/^## /,$p')
+
+if [ -z "${CHANGELOG}" ]; then
+  echo "(No ${SCOPE}-relevant changes found in this release.)" >&2
+else
+  echo "${CHANGELOG}"
+fi
