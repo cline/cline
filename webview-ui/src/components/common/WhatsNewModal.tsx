@@ -85,8 +85,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="free" />
 						</li>
 						<li className="mb-2">
-							<strong>GLM 5 is now available with free promo!</strong> the latest open-source SOTA model for
-							advanced reasoning, coding, and agentic tasks.{" "}
+							<strong>GLM 5:</strong> SOTA coding capability with lightning fast inference, now available with free
+							promo!{" "}
 							<InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
 						</li>
 						<li className="mb-2">
