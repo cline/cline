@@ -26,6 +26,14 @@ function toProtoFieldName(str) {
 	return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).replace(/-/g, "_")
 }
 
+/**
+ * Normalize secret key names to the same identifier style used when parsing
+ * existing proto fields (camelCase).
+ */
+function normalizeSecretKeyName(str) {
+	return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+}
+
 // Fields that should use int64 instead of int32
 const INT64_FIELDS = new Set(["planModeThinkingBudgetTokens", "actModeThinkingBudgetTokens"])
 
@@ -141,7 +149,7 @@ function parseSecretsKeys(sourceFile) {
 		const key = text.replace(/^['"]|['"]$/g, "")
 		// Skip prefixed keys like "cline:clineAccountId"
 		if (!key.includes(":")) {
-			keys.push(key)
+			keys.push(normalizeSecretKeyName(key))
 		}
 	}
 
@@ -231,24 +239,28 @@ function snakeToCamel(str) {
 }
 
 /**
+ * Parse a message body from a proto file.
+ */
+function parseProtoMessageBody(protoContent, messageName) {
+	const messageRegex = new RegExp(`message\\s+${messageName}\\s*\\{([^}]*(?:\\{[^}]*\\}[^}]*)*)\\}`, "s")
+	const match = protoContent.match(messageRegex)
+	return match?.[1]
+}
+
+/**
  * Parse field numbers from an existing proto message definition
  * Returns a map of camelCase field names to their field numbers
  */
 function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const fieldNumbers = {}
-
-	// Match the message block (handles single-level nesting for now)
-	const messageRegex = new RegExp(`message\\s+${messageName}\\s*\\{([^}]*(?:\\{[^}]*\\}[^}]*)*)\\}`, "s")
-	const match = protoContent.match(messageRegex)
-
-	if (!match) {
+	const messageBody = parseProtoMessageBody(protoContent, messageName)
+	if (!messageBody) {
 		return fieldNumbers
 	}
 
-	const messageBody = match[1]
-
 	// Match field definitions: optional/required/repeated type name = number;
-	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
+	// Includes map fields such as `map<string, string> foo = 1;`
+	const fieldRegex = /(?:optional|required|repeated)?\s*(?:map<[^>]+>|[\w.]+)\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
@@ -262,6 +274,20 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 }
 
 /**
+ * Parse reserved directives from an existing proto message definition.
+ * Example: `reserved 140; // was subagent_terminal_output_line_limit`
+ */
+function parseProtoMessageReservedDirectives(protoContent, messageName) {
+	const messageBody = parseProtoMessageBody(protoContent, messageName)
+	if (!messageBody) {
+		return []
+	}
+
+	const reservedRegex = /^\s*reserved\s+[^;]+;\s*(?:\/\/.*)?$/gm
+	return Array.from(messageBody.matchAll(reservedRegex), (match) => match[0].trim())
+}
+
+/**
  * Load field number mappings from existing proto file
  */
 async function loadFieldNumbersFromProto() {
@@ -269,14 +295,23 @@ async function loadFieldNumbersFromProto() {
 		const protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")
 		const secrets = parseProtoMessageFieldNumbers(protoContent, "Secrets")
 		const settings = parseProtoMessageFieldNumbers(protoContent, "Settings")
+		const secretsReserved = parseProtoMessageReservedDirectives(protoContent, "Secrets")
+		const settingsReserved = parseProtoMessageReservedDirectives(protoContent, "Settings")
 
 		console.log(`  Found ${Object.keys(secrets).length} existing Secrets fields`)
 		console.log(`  Found ${Object.keys(settings).length} existing Settings fields`)
+		console.log(`  Found ${secretsReserved.length} existing Secrets reserved directives`)
+		console.log(`  Found ${settingsReserved.length} existing Settings reserved directives`)
 
-		return { Secrets: secrets, Settings: settings }
+		return {
+			Secrets: secrets,
+			Settings: settings,
+			SecretsReserved: secretsReserved,
+			SettingsReserved: settingsReserved,
+		}
 	} catch {
 		// Proto file doesn't exist, start fresh
-		return { Secrets: {}, Settings: {} }
+		return { Secrets: {}, Settings: {}, SecretsReserved: [], SettingsReserved: [] }
 	}
 }
 
@@ -314,8 +349,15 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 /**
  * Generate proto message definition
  */
-function generateProtoMessage(messageName, fields, fieldNumbers) {
+function generateProtoMessage(messageName, fields, fieldNumbers, reservedDirectives = []) {
 	const lines = [`message ${messageName} {`]
+
+	for (const reservedDirective of reservedDirectives) {
+		lines.push(`  ${reservedDirective}`)
+	}
+	if (reservedDirectives.length > 0) {
+		lines.push("")
+	}
 
 	// Sort fields by field number for consistent output
 	const sortedFields = [...fields].sort((a, b) => fieldNumbers[a.name] - fieldNumbers[b.name])
@@ -335,13 +377,13 @@ function generateProtoMessage(messageName, fields, fieldNumbers) {
 /**
  * Generate Secrets message from SECRETS_KEYS
  */
-function generateSecretsMessage(secretsKeys, fieldNumbers) {
+function generateSecretsMessage(secretsKeys, fieldNumbers, reservedDirectives = []) {
 	const fields = secretsKeys.map((key) => ({
 		name: key,
 		protoType: "string",
 	}))
 
-	return generateProtoMessage("Secrets", fields, fieldNumbers)
+	return generateProtoMessage("Secrets", fields, fieldNumbers, reservedDirectives)
 }
 
 /**
@@ -389,8 +431,13 @@ async function main() {
 	const settingsFieldNumbers = assignFieldNumbers(settingsFields, existingFieldNumbers.Settings, 1)
 
 	// Generate messages
-	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers)
-	const settingsMessage = generateProtoMessage("Settings", settingsFields, settingsFieldNumbers)
+	const secretsMessage = generateSecretsMessage(secretsKeys, secretsFieldNumbers, existingFieldNumbers.SecretsReserved)
+	const settingsMessage = generateProtoMessage(
+		"Settings",
+		settingsFields,
+		settingsFieldNumbers,
+		existingFieldNumbers.SettingsReserved,
+	)
 
 	// Read existing proto file
 	let protoContent = await fs.readFile(STATE_PROTO_PATH, "utf-8")
