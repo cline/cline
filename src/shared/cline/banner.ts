@@ -90,10 +90,10 @@ export const BANNER_DATA: BannerCardData[] = [
 	// Sonnet 4.6 banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
-		id: "claude-sonnet-4-6-free-2026-feb-17",
+		id: "claude-sonnet-4-6-free-limited-2026-feb-17",
 		icon: "sparkles",
 		title: "Try Claude Sonnet 4.6 Free",
-		description: "Claude Sonnet 4.6 is now available at no cost for Cline users.",
+		description: "Free for a limited 2-day window. Offer ends February 18, 2026 at 11:59 PM PST.",
 		actions: [
 			{
 				title: "Try now",
