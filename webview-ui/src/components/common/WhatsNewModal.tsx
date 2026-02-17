@@ -134,13 +134,14 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							<>
 								{/* Hardcoded fallback items shown when remote welcome banners feature flag is off */}
 								<li className="mb-2">
+							    <strong>Claude Sonnet 4.6 is here!</strong> Anthropic's latest model with advanced reasoning and
+							    coding performance. Free for 24 hours for Cline users.{" "}
+							    <InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="free" />
+						    </li>
+                <li className="mb-2">
 							    <strong>GLM 5 is now available with free promo!</strong> the latest open-source SOTA model for
 							    advanced reasoning, coding, and agentic tasks.{" "}
 							    <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
-						    </li>
-						    <li className="mb-2">
-							    <strong>Minimax M2.5 is now available with free promo!</strong> SOTA coding capability with lightning
-							    fast inference. <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
 						    </li>
 						    <li className="mb-2">
 							    <strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to

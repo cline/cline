@@ -7,6 +7,22 @@ import type { OnboardingModel } from "../proto/cline/state"
 export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	{
 		group: "free",
+		id: "anthropic/claude-sonnet-4.6",
+		name: "Anthropic: Claude Sonnet 4.6",
+		badge: "New",
+		score: 97,
+		latency: 3,
+		info: {
+			contextWindow: 200_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+			inputPrice: 0,
+			outputPrice: 0,
+			tiers: [],
+		},
+	},
+	{
+		group: "free",
 		id: "kwaipilot/kat-coder-pro",
 		name: "KwaiKAT: Kat Coder Pro",
 		score: 88,
@@ -39,8 +55,8 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	},
 	{
 		group: "frontier",
-		id: "anthropic/claude-sonnet-4.5",
-		name: "Anthropic: Claude Sonnet 4.5",
+		id: "anthropic/claude-sonnet-4.6",
+		name: "Anthropic: Claude Sonnet 4.6",
 		badge: "Best",
 		score: 97,
 		latency: 3,
