@@ -39,12 +39,6 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 			labels: ["FREE"],
 		},
 		{
-			id: "minimax/minimax-m2.5",
-			name: "MiniMax M2.5",
-			description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
-			labels: ["FREE"],
-		},
-		{
 			id: "z-ai/glm-5",
 			name: "Z-AI GLM5",
 			description: "Z.AI's latest GLM 5 model with strong coding and agent performance",

@@ -87,11 +87,6 @@ export const freeModels = [
 		label: "FREE",
 	},
 	{
-		id: "minimax/minimax-m2.5",
-		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
-		label: "FREE",
-	},
-	{
 		id: "z-ai/glm-5",
 		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
 		label: "FREE",
@@ -307,15 +302,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		if (showReasoningEffort) {
 			return false
 		}
-			return (
-				Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
-				selectedModelIdLower.includes("claude-opus-4.6") ||
-				selectedModelIdLower.includes("claude-haiku-4.5") ||
-				selectedModelIdLower.includes("claude-4.5-haiku") ||
-				selectedModelIdLower.includes("claude-sonnet-4.6") ||
-				selectedModelIdLower.includes("claude-sonnet-4-6") ||
-				selectedModelIdLower.includes("claude-4.6-sonnet") ||
-				selectedModelIdLower.includes("claude-sonnet-4.5") ||
+		return (
+			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelIdLower.includes("claude-opus-4.6") ||
+			selectedModelIdLower.includes("claude-haiku-4.5") ||
+			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.6") ||
+			selectedModelIdLower.includes("claude-sonnet-4-6") ||
+			selectedModelIdLower.includes("claude-4.6-sonnet") ||
+			selectedModelIdLower.includes("claude-sonnet-4.5") ||
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
 			selectedModelIdLower.includes("claude-opus-4") ||
