@@ -1,12 +1,13 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
+import { HostRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline/context"
 import { Logger } from "@/shared/services/Logger"
 
 /*
  * Unique identifier for the current installation.
  */
-let _distinctId: string = ""
+let _distinctId = ""
 
 /**
  * Some environments don't return a value for the machine ID. For these situations we generated
@@ -31,6 +32,8 @@ export async function initializeDistinctId(context: ClineExtensionContext, uuid:
 	}
 
 	setDistinctId(distinctId)
+
+	await HostRegistryInfo.init(distinctId)
 
 	Logger.log("[DistinctId] initialized:", distinctId)
 }

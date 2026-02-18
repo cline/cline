@@ -15,6 +15,7 @@ import {
 	internationalQwenDefaultModelId,
 	liteLlmDefaultModelId,
 	minimaxDefaultModelId,
+	moonshotDefaultModelId,
 	nousResearchDefaultModelId,
 	openAiNativeDefaultModelId,
 	openRouterDefaultModelId,
@@ -110,6 +111,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	xai: xaiDefaultModelId,
 	gemini: geminiDefaultModelId,
 	minimax: minimaxDefaultModelId,
+	moonshot: moonshotDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
 } as const

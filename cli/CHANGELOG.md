@@ -1,8 +1,39 @@
 # cline
 
+## [2.4.1]
+
+### Fixed
+
+- Fix infinite retry loop when write_to_file fails with missing content parameter. Provides progressive guidance to the model, escalating from suggestions to hard stops, with context window awareness to break the loop.
+
+## [2.4.0]
+
+### Added
+
+- Adding Anthropic Sonnet 4.6
+- Allows users to enter custom aws region when selecting bedrock as a provider in CLI
+- Keep reasoning rows visible when low-stakes tool groups start immediately after reasoning.
+- Restore reasoning trace visibility in chat and improve the thinking row UX so streamed reasoning is visible, then collapsible after completion.
+
+### Fixed
+
+- Banners now display immediately when opening the extension instead of requiring user interaction first
+- Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
+
+## [2.2.2]
+
+- Allows users to enter custom aws region when selecting bedrock as a provider
+- Prevent Parent Container Scrolling In Dropdowns
+
+## [2.2.1]
+
+- Added Minimax 2.5 Free Promo
+- Fixed Response chaining for OpenAI's Responses API
+
 ## [2.2.0]
 
 ### Added
+
 - Subagent: replace legacy subagents with the native `use_subagents` tool
 - Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
 - Amazon Bedrock: support parallel tool calling
@@ -13,6 +44,7 @@
 - ZAI/GLM: add GLM-5
 
 ### Fixed
+
 - CLI: handle stdin redirection correctly in CI/headless environments
 - CLI: preserve OAuth callback paths during auth redirects
 - VS Code Web: generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
@@ -24,6 +56,7 @@
 - CI: increase Windows E2E test timeout to reduce flakiness
 
 ### Changed
+
 - Settings/model UX: move "reasoning effort" into model configuration and expose it in settings
 - CLI provider selection: limit provider list to those remotely configured
 - UI: consolidate ViewHeader component/styling across views

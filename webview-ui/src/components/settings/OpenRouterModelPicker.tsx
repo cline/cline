@@ -59,9 +59,9 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
-		id: "google/gemini-3-flash-preview",
-		description: "Intelligent model built for speed and price efficiency",
-		label: "HOT",
+		id: "anthropic/claude-sonnet-4.6",
+		description: "Latest Sonnet release with strong coding and agent performance",
+		label: "NEW",
 	},
 	{
 		id: "anthropic/claude-opus-4.6",
@@ -82,13 +82,13 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "minimax/minimax-m2.1",
-		description: "MiniMax-M2.1 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+		id: "minimax/minimax-m2.5",
+		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
 		label: "FREE",
 	},
 	{
-		id: "moonshotai/kimi-k2.5",
-		description: "Moonshot's SOTA Coding Model",
+		id: "z-ai/glm-5",
+		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
 		label: "FREE",
 	},
 	{
@@ -99,11 +99,6 @@ export const freeModels = [
 	{
 		id: "arcee-ai/trinity-large-preview:free",
 		description: "Arcee AI's advanced large preview model in the Trinity series",
-		label: "FREE",
-	},
-	{
-		id: "stealth/giga-potato",
-		description: "A stealth model for coding(may underperform in quality and have longer latency)",
 		label: "FREE",
 	},
 ]
@@ -312,6 +307,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.6") ||
+			selectedModelIdLower.includes("claude-sonnet-4-6") ||
+			selectedModelIdLower.includes("claude-4.6-sonnet") ||
 			selectedModelIdLower.includes("claude-sonnet-4.5") ||
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
@@ -466,6 +464,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					selectedModelId={selectedModelId}
 				/>
 
+				{/* Context window switcher for Claude Sonnet 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
@@ -524,9 +530,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
+						onClick={() => handleModelChange("anthropic/claude-sonnet-4.6")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.5.
+						anthropic/claude-sonnet-4.6.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
 					entering @preset/your-preset-name

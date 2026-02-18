@@ -266,7 +266,6 @@ const USER_SETTINGS_FIELDS = {
 	},
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	customPrompt: { default: undefined as "compact" | undefined },
-	autoCondenseThreshold: { default: 0.75 as number }, // number from 0 to 1
 	enableParallelToolCalling: { default: true as boolean },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },

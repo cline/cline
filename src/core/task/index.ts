@@ -731,17 +731,6 @@ export class Task {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 			const isUpdatingPreviousPartial =
 				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
-			const isDuplicateCompletedTextSay =
-				partial &&
-				type === "text" &&
-				lastMessage &&
-				lastMessage.type === "say" &&
-				lastMessage.say === "text" &&
-				!lastMessage.partial &&
-				(lastMessage.text ?? "") === (text ?? "")
-			if (isDuplicateCompletedTextSay) {
-				return undefined
-			}
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -2273,7 +2262,7 @@ export class Task {
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
 					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4 Sonnet for its advanced agentic coding capabilities.",
+					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4.5 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
@@ -2400,14 +2389,10 @@ export class Task {
 					}
 				}
 			} else {
-				const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
-					| number
-					| undefined
 				shouldCompact = this.contextManager.shouldCompactContextWindow(
 					this.messageStateHandler.getClineMessages(),
 					this.api,
 					previousApiReqIndex,
-					autoCondenseThreshold,
 				)
 
 				// Edge case: summarize_task tool call completes but user cancels next request before it finishes.
@@ -2540,7 +2525,7 @@ export class Task {
 
 				// if last message is a partial we need to update and save it
 				const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-				if (lastMessage && lastMessage.partial) {
+				if (lastMessage?.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
@@ -2633,6 +2618,28 @@ export class Task {
 
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
+			let didFinalizeReasoningForUi = false
+
+			const finalizePendingReasoningMessage = async (thinking: string): Promise<boolean> => {
+				const pendingReasoningIndex = findLastIndex(
+					this.messageStateHandler.getClineMessages(),
+					(message) => message.type === "say" && message.say === "reasoning" && message.partial === true,
+				)
+
+				if (pendingReasoningIndex === -1) {
+					return false
+				}
+
+				await this.messageStateHandler.updateClineMessage(pendingReasoningIndex, {
+					text: thinking,
+					partial: false,
+				})
+				const completedReasoning = this.messageStateHandler.getClineMessages()[pendingReasoningIndex]
+				if (completedReasoning) {
+					await sendPartialMessageEvent(convertClineMessageToProto(completedReasoning))
+				}
+				return true
+			}
 
 			// Track API call time for session statistics
 			Session.get().startApiCall()
@@ -2664,7 +2671,9 @@ export class Task {
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
 								const thinkingBlock = reasonsHandler.getCurrentReasoning()
-								if (thinkingBlock?.thinking && chunk.reasoning) {
+								// Some providers can interleave reasoning after text has started.
+								// Keep rendering stable by only streaming reasoning UI before the first text chunk.
+								if (thinkingBlock?.thinking && chunk.reasoning && assistantMessage.length === 0) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
@@ -2690,15 +2699,16 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
-							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
 							// If we have reasoning content, finalize it before processing text (only once)
 							const currentReasoning = reasonsHandler.getCurrentReasoning()
-							if (currentReasoning?.thinking && assistantMessage.length === 0) {
-								// Complete the reasoning message (only once)
-								await this.say("reasoning", currentReasoning.thinking, undefined, undefined, false)
+							if (currentReasoning?.thinking && !didFinalizeReasoningForUi) {
+								const finalizedReasoning = await finalizePendingReasoningMessage(currentReasoning.thinking)
+								if (finalizedReasoning) {
+									didFinalizeReasoningForUi = true
+								}
 							}
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature
@@ -2716,13 +2726,12 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
-							// Process the new text content as it streams in without awaiting for full message
-							this.presentAssistantMessage()
 							break
 						}
 					}
 
-					// present content to user - we don't want the stream to break if present fails, so we catch errors here
+					// Present content once per chunk. Calling this from multiple case branches can
+					// race partial updates and duplicate text rows in the chat.
 					await this.presentAssistantMessage().catch((error) =>
 						Logger.debug("[Task] Failed to present message: " + error),
 					)
@@ -2750,6 +2759,17 @@ export class Task {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
+					}
+				}
+
+				if (!this.taskState.abort && !didFinalizeReasoningForUi) {
+					const finalReasoning = reasonsHandler.getCurrentReasoning()
+					if (finalReasoning?.thinking) {
+						const finalizedPendingReasoning = await finalizePendingReasoningMessage(finalReasoning.thinking)
+						if (!finalizedPendingReasoning) {
+							await this.say("reasoning", finalReasoning.thinking, undefined, undefined, false)
+						}
+						didFinalizeReasoningForUi = true
 					}
 				}
 			} catch (error) {
@@ -3223,7 +3243,8 @@ export class Task {
 		// The text appears to "disappear" when tool calls start, even though it's still in the array.
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
-		if (lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
+		const shouldFinalizePartialText = textBlocks.length > 0
+		if (shouldFinalizePartialText && lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === "text") {
 			lastMessage.text = textContent
 			lastMessage.partial = false
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
@@ -3492,8 +3513,7 @@ export class Task {
 		let shouldShowContextWindow = true
 		// For next-gen models, only show context window usage if it exceeds a certain threshold
 		if (isNextGenModel) {
-			const autoCondenseThreshold =
-				(this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as number | undefined) ?? 0.75
+			const autoCondenseThreshold = 0.75
 			const displayThreshold = autoCondenseThreshold - 0.15
 			const currentUsageRatio = lastApiReqTotalTokens / contextWindow
 			shouldShowContextWindow = currentUsageRatio >= displayThreshold
@@ -3507,7 +3527,7 @@ export class Task {
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		if (mode === "plan") {
-			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
+			details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
 		} else {
 			details += "\nACT MODE"
 		}

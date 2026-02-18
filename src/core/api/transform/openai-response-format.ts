@@ -73,7 +73,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
  */
 export function convertToOpenAIResponsesInput(
 	_messages: ClineStorageMessage[],
-	options?: { disablePreviousResponseId?: boolean },
+	options?: { usePreviousResponseId?: boolean },
 ): {
 	input: ResponseInput
 	previousResponseId?: string
@@ -82,7 +82,7 @@ export function convertToOpenAIResponsesInput(
 	// When chaining, only send new items after that assistant turn.
 	let previousResponseId: string | undefined
 	let messages = _messages
-	if (!options?.disablePreviousResponseId) {
+	if (options?.usePreviousResponseId) {
 		for (let i = _messages.length - 1; i >= 0; i--) {
 			const msg = _messages[i]
 			if (msg.role === "assistant" && msg.id) {

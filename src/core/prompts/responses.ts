@@ -4,6 +4,8 @@ import * as path from "path"
 import { Mode } from "@/shared/storage/types"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
+const CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT = 50
+
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
 		`[[NOTE] This file read has been removed to save space in the context window. Refer to the latest file read for the most up to date version of this file.]`,
@@ -45,6 +47,54 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	missingToolParameterError: (paramName: string) =>
 		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
+
+	/**
+	 * Specialized error for write_to_file when the 'content' parameter is missing.
+	 * Provides progressive guidance based on how many times this has happened consecutively,
+	 * and includes token budget awareness to help the model understand output constraints.
+	 */
+	writeToFileMissingContentError: (relPath: string, consecutiveFailures: number, contextUsagePercent?: number): string => {
+		const baseError = `Failed to write to '${relPath}': The 'content' parameter was empty. This typically happens when the file content is too large to generate in a single response, or when output token limits are reached before the content parameter is fully written.`
+
+		const contextWarning =
+			contextUsagePercent !== undefined && contextUsagePercent > CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT
+				? `\n\nWarning: Context window is ${contextUsagePercent}% full. The remaining output budget may be insufficient for large file writes. You MUST use a strategy that produces smaller outputs.`
+				: ""
+
+		if (consecutiveFailures >= 3) {
+			// After 3+ failures, be very directive — stop trying write_to_file entirely
+			return (
+				`${baseError}${contextWarning}\n\n` +
+				`CRITICAL: You have failed to write this file ${consecutiveFailures} times in a row. You MUST change your approach — do NOT retry write_to_file for this file again.\n\n` +
+				`Required action — choose ONE of these strategies:\n` +
+				`1. **Create an empty file first, then use replace_in_file** to add content in small sections (recommended)\n` +
+				`2. **Break the file into multiple smaller files** if architecturally appropriate\n` +
+				`3. **Write a minimal skeleton** using write_to_file (just imports, class/function signatures, no implementations), then use replace_in_file to fill in each section one at a time\n\n` +
+				`Each replace_in_file call should add no more than 50-100 lines of content at a time.`
+			)
+		}
+		if (consecutiveFailures >= 2) {
+			// After 2 failures, strongly suggest alternative approaches
+			return (
+				`${baseError}${contextWarning}\n\n` +
+				`This is your ${consecutiveFailures}${consecutiveFailures === 2 ? "nd" : "rd"} failed attempt. The file content is likely too large to generate in one response. You must use a different strategy:\n\n` +
+				`Recommended approaches:\n` +
+				`1. **Use write_to_file with a minimal skeleton** (just the structure — imports, class/function signatures, no implementations), then use replace_in_file to fill in each section incrementally\n` +
+				`2. **Use replace_in_file with smaller chunks** — if the file already exists, make targeted edits instead of rewriting the entire file\n` +
+				`3. **Break the task into smaller steps** — write one function or section at a time\n\n` +
+				`Do NOT attempt to write the full file content in a single write_to_file call again.`
+			)
+		}
+		// First failure — provide helpful guidance
+		return (
+			`${baseError}${contextWarning}\n\n` +
+			`Suggestions:\n` +
+			`- If the file is large, try breaking down the task into smaller steps. Write a skeleton first, then fill in sections using replace_in_file.\n` +
+			`- If the file already exists, prefer replace_in_file to make targeted edits instead of rewriting the entire file.\n` +
+			`- Ensure the 'content' parameter contains the complete file content before closing the tool tag.\n\n` +
+			toolUseInstructionsReminder
+		)
+	},
 
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,

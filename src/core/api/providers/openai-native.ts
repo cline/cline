@@ -158,9 +158,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const model = this.getModel()
-		const disablePreviousResponseId = !this.shouldUseResponsesWebsocketMode()
-		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages)
-		const { input: fullInput } = convertToOpenAIResponsesInput(messages, { disablePreviousResponseId })
+		const usePreviousResponseId = this.shouldUseResponsesWebsocketMode()
+		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
 		const responseTools = this.mapResponseTools(tools)
 
 		const params = this.buildResponseCreateParams({
@@ -174,11 +173,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const fallbackParams = this.buildResponseCreateParams({
 			modelId: model.id,
 			systemPrompt,
-			input: fullInput,
+			input,
 			tools: responseTools,
 		})
 
-		if (!disablePreviousResponseId) {
+		if (usePreviousResponseId) {
 			try {
 				yield* this.createResponseStreamWebsocket(model.info, params, fallbackParams)
 				return
@@ -619,7 +618,13 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 				const totalTokens = usage.total_tokens || 0
 				Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-				const totalCost = calculateApiCostOpenAI(modelInfo, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				const totalCost = calculateApiCostOpenAI(
+					modelInfo,
+					inputTokens,
+					outputTokens + reasoningTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+				)
 				const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 				yield {
 					type: "usage",

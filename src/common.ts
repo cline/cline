@@ -11,11 +11,10 @@ import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { openAiCodexOAuthManager } from "./integrations/openai-codex/oauth"
 import { ExtensionRegistryInfo } from "./registry"
-import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
-import { getDistinctId, initializeDistinctId } from "./services/logging/distinctId"
+import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ClineTempManager } from "./services/temp"
@@ -44,9 +43,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	const { ClineEndpoint } = await import("./config")
 	await ClineEndpoint.initialize(HostProvider.get().extensionFsPath)
 
-	// Set the distinct ID for logging and telemetry
-	await initializeDistinctId(context)
-
 	try {
 		await StateManager.initialize(context)
 	} catch (error) {
@@ -68,8 +64,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// =============== Webview services ===============
 	const webview = HostProvider.get().createWebviewProvider()
-	// Initialize banner service (TEMPORARILY DISABLED - not fetching banners to prevent API hammering)
-	BannerService.initialize(webview.controller)
 
 	const stateManager = StateManager.get()
 	// Non-blocking announcement check and display
