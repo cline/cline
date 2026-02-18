@@ -10,6 +10,8 @@ interface WhatsNewItemsProps {
 	onNavigateToModelPicker: (initialModelTab: "recommended" | "free", modelId?: string) => void
 }
 
+type InlineModelLinkProps = { pickerTab: "recommended" | "free"; modelId: string; label: string }
+
 export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 	welcomeBanners,
 	onBannerAction,
@@ -17,6 +19,14 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 	inlineCodeStyle,
 	onNavigateToModelPicker,
 }) => {
+	const InlineModelLink: React.FC<InlineModelLinkProps> = ({ pickerTab, modelId, label }) => (
+		<span
+			onClick={() => onNavigateToModelPicker(pickerTab, modelId)}
+			style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
+			{label}
+		</span>
+	)
+
 	const hasWelcomeBanners = welcomeBanners && welcomeBanners.length > 0
 
 	return (
@@ -71,20 +81,16 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 					<li className="mb-2">
 						<strong>Claude Sonnet 4.6 is here!</strong> Anthropic's latest model with advanced reasoning and coding
 						performance. Free for 24 hours for Cline users.{" "}
-						<span
-							onClick={() => onNavigateToModelPicker("free", "anthropic/claude-sonnet-4.6")}
-							style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-							Try now
-						</span>
+						<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="free" />
 					</li>
 					<li className="mb-2">
 						<strong>GLM 5 is now available with free promo!</strong> the latest open-source SOTA model for advanced
 						reasoning, coding, and agentic tasks.{" "}
-						<span
-							onClick={() => onNavigateToModelPicker("free", "z-ai/glm-5")}
-							style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-							Try now
-						</span>
+						<InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
+					</li>
+					<li className="mb-2">
+						<strong>MiniMax M2.5:</strong> SOTA coding capability with lightning fast inference, now available with
+						free promo! <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
 					</li>
 					<li className="mb-2">
 						<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to your

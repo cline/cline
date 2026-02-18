@@ -13,7 +13,7 @@ import type { ChatContent } from "@shared/ChatContent"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
-import type { Settings } from "@shared/storage/state-keys"
+import { SETTINGS_DEFAULTS, type Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
@@ -894,7 +894,9 @@ export class Controller {
 		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 		const localAgentsRulesToggles = this.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
-		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
+		// Use default — the UI to adjust this is disabled and stored values may be corrupted.
+		// See: https://github.com/cline/cline/pull/9348
+		const autoCondenseThreshold = SETTINGS_DEFAULTS.autoCondenseThreshold
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		// Spread to create new array reference - React needs this to detect changes in useEffect dependencies

@@ -157,16 +157,21 @@ export class BannerService {
 	 * Gated by REMOTE_WELCOME_BANNERS feature flag — when off, returns empty
 	 * so the webview falls back to hardcoded welcome items.
 	 */
-	public getWelcomeBanners(): BannerCardData[] {
-		if (!featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_WELCOME_BANNERS)) {
-			return []
+	public getWelcomeBanners(): BannerCardData[] | undefined {
+		const isLocal = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
+		const flagEnabled = isLocal || featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_WELCOME_BANNERS)
+
+		if (!flagEnabled) {
+			return undefined
 		}
+		const bypassDismissals = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
 
 		this.ensureFreshCache()
 
-		const welcomeBanners = this.cachedBanners
-			.filter((b) => b.placement === "welcome")
-			.filter((b) => !this.isBannerDismissed(b.id))
+		const welcomeCandidates = this.cachedBanners.filter((b) => b.placement === "welcome")
+
+		const welcomeBanners = welcomeCandidates
+			.filter((b) => bypassDismissals || !this.isBannerDismissed(b.id))
 			.map((b) => this.toBannerCardData(b))
 			.filter((b): b is BannerCardData => b !== null)
 
@@ -292,10 +297,22 @@ export class BannerService {
 				return []
 			}
 
+			Logger.log(
+				`[BannerService] Raw API response: ${data.data.items.length} items: ${JSON.stringify(
+					data.data.items.map((b) => ({ id: b.id, placement: b.placement, titleMd: b.titleMd?.substring(0, 50) })),
+				)}`,
+			)
+
 			const banners = data.data.items.filter((b) => this.matchesProviderRule(b))
 			this.cachedBanners = banners
 			this.lastFetchTime = Date.now()
 			this.consecutiveFailures = 0
+
+			Logger.log(
+				`[BannerService] After provider filter: ${banners.length} banners: ${JSON.stringify(
+					banners.map((b) => ({ id: b.id, placement: b.placement })),
+				)}`,
+			)
 
 			this.controller.postStateToWebview().catch((error) => {
 				Logger.error("Failed to post state to webview after fetching banners:", error)

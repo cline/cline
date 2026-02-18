@@ -90,15 +90,32 @@ export const BANNER_DATA: BannerCardData[] = [
 	// Sonnet 4.6 banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
-		id: "claude-sonnet-4-6-free-limited-2026-feb-17",
+		id: "claude-sonnet-4-6-2026-feb-18",
 		icon: "sparkles",
-		title: "Try Claude Sonnet 4.6 Free",
-		description: "Free for a limited 24-hour window. Offer ends February 18, 2026 at 12:00 PM PST.",
+		title: "Try Claude Sonnet 4.6",
+		description: "Anthropic's latest model with strong reasoning and coding performance.",
+		actions: [
+			{
+				title: "Use Sonnet 4.6",
+				action: BannerActionType.SetModel,
+				arg: "anthropic/claude-sonnet-4.6",
+				tab: "recommended",
+			},
+		],
+	},
+
+	// Minimax free promo banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "minimax-m2.5-free-2026-feb-18",
+		icon: "zap",
+		title: "Try MiniMax M2.5 Free",
+		description: "SOTA coding capability with lightning fast inference, free in Cline.",
 		actions: [
 			{
 				title: "Try now",
 				action: BannerActionType.SetModel,
-				arg: "anthropic/claude-sonnet-4.6",
+				arg: "minimax/minimax-m2.5",
 				tab: "free",
 			},
 		],

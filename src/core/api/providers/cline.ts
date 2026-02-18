@@ -30,7 +30,7 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	clineApiKey?: string
 }
 
-const CLINE_FREE_MODELS = ["anthropic/claude-sonnet-4.6", "anthropic/claude-4.6-sonnet", "kwaipilot/kat-coder-pro", "z-ai/glm-5"]
+const CLINE_FREE_MODELS = ["minimax/minimax-m2.5", "kwaipilot/kat-coder-pro", "z-ai/glm-5"]
 
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
