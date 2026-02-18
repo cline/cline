@@ -103,7 +103,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 													</a>
 												),
 												code: ({ children }) => <code style={inlineCodeStyle}>{children}</code>,
-												p: ({ children }) => <span>{children}</span>,
+												p: ({ children }) => <p style={{ display: "inline", margin: 0 }}>{children}</p>,
 											}}>
 											{banner.description}
 										</Markdown>
