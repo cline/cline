@@ -69,6 +69,7 @@ import {
 	xaiModels,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { isClineFreeModelException } from "@shared/utils/model-filters"
 import * as reasoningSupport from "@shared/utils/reasoning-support"
 
 export function supportsReasoningEffortForModelId(modelId?: string, _allowShortOpenAiIds = false): boolean {
@@ -818,7 +819,7 @@ export async function syncModeConfigurations(
 
 /**
  * Filters OpenRouter model IDs based on provider-specific rules.
- * For Cline provider: excludes :free models (except Minimax models)
+ * For Cline provider: excludes :free models (except known exception models)
  * For OpenRouter/Vercel: excludes cline/ prefixed models
  * @param modelIds Array of model IDs to filter
  * @param provider The current API provider
@@ -837,8 +838,7 @@ export function filterOpenRouterModelIds(
 			if (allowedFreeIdSet.has(id.toLowerCase())) {
 				return true
 			}
-			// Keep all Minimax and devstral models regardless of :free suffix
-			if (id.toLowerCase().includes("minimax-m2") || id.toLowerCase().includes("arcee-ai/trinity-large")) {
+			if (isClineFreeModelException(id)) {
 				return true
 			}
 			// Filter out other :free models

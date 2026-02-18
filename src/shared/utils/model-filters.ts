@@ -1,8 +1,15 @@
 import type { ApiProvider } from "@shared/api"
 
+const CLINE_FREE_MODEL_EXCEPTIONS = ["minimax-m2", "devstral-2512", "arcee-ai/trinity-large"]
+
+export function isClineFreeModelException(modelId: string): boolean {
+	const modelIdLower = modelId.toLowerCase()
+	return CLINE_FREE_MODEL_EXCEPTIONS.some((token) => modelIdLower.includes(token))
+}
+
 /**
  * Filters OpenRouter model IDs based on provider-specific rules.
- * For Cline provider: excludes :free models (except Minimax and Devstral models)
+ * For Cline provider: excludes :free models (except known exception models)
  * For OpenRouter/Vercel: excludes cline/ prefixed models
  * @param modelIds Array of model IDs to filter
  * @param provider The current API provider
@@ -16,13 +23,12 @@ export function filterOpenRouterModelIds(
 ): string[] {
 	if (provider === "cline") {
 		const allowedFreeIdSet = new Set(allowedFreeModelIds.map((id) => id.toLowerCase()))
-		// For Cline provider: exclude :free models, but keep Minimax and Devstral models
+		// For Cline provider: exclude :free models, but keep known exception models
 		return modelIds.filter((id) => {
 			if (allowedFreeIdSet.has(id.toLowerCase())) {
 				return true
 			}
-			// Keep all Minimax and devstral models regardless of :free suffix
-			if (id.toLowerCase().includes("minimax-m2") || id.toLowerCase().includes("devstral-2512")) {
+			if (isClineFreeModelException(id)) {
 				return true
 			}
 			// Filter out other :free models

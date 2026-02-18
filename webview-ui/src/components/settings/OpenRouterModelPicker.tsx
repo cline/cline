@@ -155,6 +155,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		[clineRecommendedModels],
 	)
 	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const hasFetchedClineRecommendedModelsRef = useRef(false)
 
 	const refreshClineRecommendedModels = useCallback(() => {
 		return ModelsServiceClient.makeUnaryRequest(
@@ -177,6 +178,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 				console.error("Failed to refresh Cline recommended models:", error)
 			})
 	}, [])
+
+	const fetchClineRecommendedModelsOnce = useCallback(() => {
+		if (hasFetchedClineRecommendedModelsRef.current) {
+			return
+		}
+		hasFetchedClineRecommendedModelsRef.current = true
+		void refreshClineRecommendedModels()
+	}, [refreshClineRecommendedModels])
 
 	// If a caller wants to deep-link to the Free tab (or Recommended), honor that.
 	useEffect(() => {
@@ -236,17 +245,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	useMount(() => {
 		refreshOpenRouterModels()
-		refreshClineRecommendedModels()
+		if (modeFields.apiProvider === "cline") {
+			fetchClineRecommendedModelsOnce()
+		}
 	})
 
 	useEffect(() => {
 		if (modeFields.apiProvider !== "cline") {
 			return
 		}
-		if (clineRecommendedModels.length === 0 && clineFreeModels.length === 0) {
-			refreshClineRecommendedModels()
-		}
-	}, [modeFields.apiProvider, clineRecommendedModels.length, clineFreeModels.length, refreshClineRecommendedModels])
+		fetchClineRecommendedModelsOnce()
+	}, [modeFields.apiProvider, fetchClineRecommendedModelsOnce])
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {

@@ -119,6 +119,9 @@ async function fetchAndCacheClineRecommendedModels(): Promise<ClineRecommendedMo
 		}
 	}
 
-	inMemoryCache = { data: result, timestamp: Date.now() }
+	// Avoid pinning empty results in memory for the full TTL after a transient API/cache miss.
+	if (result.recommended.length > 0 || result.free.length > 0) {
+		inMemoryCache = { data: result, timestamp: Date.now() }
+	}
 	return result
 }
