@@ -428,12 +428,20 @@ describe("ContextManager", () => {
 		})
 
 		it("compacts at only 10K tokens when threshold is accidentally set to 0.05", () => {
-			const api = createMockApi(200_000)
-			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 9_000, tokensOut: 1_500 })]
+			const contextWindow = 200_000
+			const accidentalThreshold = 0.05
+			// floor(200000 * 0.05) = 10000 — this is the bug case from PR #9348.
+			// Accidental clicks on the progress bar set threshold to ~5%, triggering
+			// compaction at 10K tokens instead of the intended 150K (0.75 * 200K).
+			const compactionTriggersAt = Math.floor(contextWindow * accidentalThreshold) // 10,000
+			const totalTokens = compactionTriggersAt + 500 // 10,500 — just above the trigger
 
-			// This is the bug case: accidental click sets threshold to 0.05
-			// floor(200000 * 0.05) = 10000, and 10500 >= 10000
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.05)
+			const api = createMockApi(contextWindow)
+			const tokensIn = totalTokens - 1_500
+			const tokensOut = 1_500
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn, tokensOut })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, accidentalThreshold)
 			expect(result).to.equal(true)
 		})
 
