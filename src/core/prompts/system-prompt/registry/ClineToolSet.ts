@@ -121,13 +121,13 @@ export class ClineToolSet {
 			variant: variant.family,
 			id: ClineDefaultTool.USE_SUBAGENTS,
 			name: toolName,
-			description: `Run the configured subagent "${config.name}". ${config.description}`,
+			description: `Use the "${config.name}" subagent: ${config.description}`,
 			contextRequirements: (ctx) => ctx.subagentsEnabled === true && !ctx.isSubagentRun,
 			parameters: [
 				{
 					name: "prompt",
 					required: true,
-					instruction: `Task prompt for the "${config.name}" subagent.`,
+					instruction: "Helpful instruction for the task that the subagent will perform.",
 				},
 			],
 		}))
