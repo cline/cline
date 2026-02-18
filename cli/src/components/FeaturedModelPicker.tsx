@@ -39,7 +39,7 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 				const isSelected = i === selectedIndex
 
 				return (
-					<Box flexDirection="column" key={model.id} marginBottom={1}>
+					<Box flexDirection="column" key={`${model.id}-${model.labels[0] || "default"}`} marginBottom={1}>
 						<Box>
 							<Text color={isSelected ? COLORS.primaryBlue : undefined}>{isSelected ? "❯ " : "  "}</Text>
 							<Text bold color={isSelected ? COLORS.primaryBlue : "white"}>
@@ -81,7 +81,7 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
  * Get the maximum valid index for the featured model picker
  * (includes "Browse all" option if showBrowseAll is true)
  */
-export function getFeaturedModelMaxIndex(showBrowseAll: boolean = true): number {
+export function getFeaturedModelMaxIndex(showBrowseAll = true): number {
 	const featuredModels = getAllFeaturedModels()
 	return showBrowseAll ? featuredModels.length : featuredModels.length - 1
 }
