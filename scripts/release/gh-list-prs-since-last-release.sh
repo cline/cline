@@ -57,6 +57,13 @@ if [ -z "${FROM_TAG}" ]; then
   exit 1
 fi
 
+# Validate the tag/ref exists before using it
+if ! git rev-parse --verify --quiet "${FROM_TAG}^{}" >/dev/null 2>&1 && \
+   ! git rev-parse --verify --quiet "${FROM_TAG}" >/dev/null 2>&1; then
+  echo "Error: '${FROM_TAG}' is not a valid tag or revision in this repository." >&2
+  exit 1
+fi
+
 echo "Generating changelog since ${FROM_TAG}..." >&2
 
 # Get repo owner and name from remote
@@ -69,7 +76,12 @@ QUERY_BODY=$(git log --first-parent --pretty=%s "${FROM_TAG}..${BASE_REF}" |
   grep -Eo '#[0-9]+' |
   tr -d '#' |
   sort -un |
-  awk '{printf "pr%s: pullRequest(number: %s) { number title url } ", $1, $1}')
+  awk '{printf "pr%s: pullRequest(number: %s) { number title url } ", $1, $1}' || true)
+
+if [ -z "${QUERY_BODY}" ]; then
+  echo "No PR references found in merge commits since ${FROM_TAG}." >&2
+  exit 0
+fi
 
 # gh exits 1 when GitHub returns partial results alongside an errors array
 # (e.g. a merge commit subject references an issue number, not a PR).
