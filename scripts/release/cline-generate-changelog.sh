@@ -188,10 +188,22 @@ Format requirements:
 echo "Generating ${SCOPE} changelog with cline (model: ${MODEL})..." >&2
 echo "" >&2
 
-CHANGELOG=$(cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}" | sed -n '/^## /,$p')
+RAW_OUTPUT=$(cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}")
+CHANGELOG=$(echo "${RAW_OUTPUT}" | sed -n '/^## /,$p')
 
 if [ -z "${CHANGELOG}" ]; then
-  echo "(No ${SCOPE}-relevant changes found in this release.)" >&2
+  if [ -z "${RAW_OUTPUT}" ]; then
+    echo "(No output from cline — the task may have timed out or the model may be unavailable.)" >&2
+  else
+    echo "(No ${SCOPE}-relevant changes found in this release.)" >&2
+    if [ "${DEBUG}" -eq 1 ]; then
+      echo "" >&2
+      echo "[debug] Raw cline output (no '## ' section headers found):" >&2
+      echo "${RAW_OUTPUT}" >&2
+    else
+      echo "[hint] Run with --debug to see the raw cline output." >&2
+    fi
+  fi
 else
   echo "${CHANGELOG}"
 fi
