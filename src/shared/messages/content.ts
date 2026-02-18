@@ -98,6 +98,10 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 * Includes token counts, costs.
 	 */
 	metrics?: ClineMessageMetricsInfo
+	/**
+	 * Timestamp of when the message was created
+	 */
+	ts?: number
 }
 
 /**

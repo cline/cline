@@ -2483,6 +2483,7 @@ export class Task {
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
 			content: userContent,
+			ts: Date.now(),
 		})
 
 		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", modelInfo.mode)
@@ -2571,6 +2572,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					ts: Date.now(),
 				})
 
 				telemetryService.captureConversationTurnEvent(
@@ -2941,6 +2943,7 @@ export class Task {
 							},
 							cost: taskMetrics.totalCost,
 						},
+						ts: Date.now(),
 					})
 				}
 			}
@@ -3033,6 +3036,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					ts: Date.now(),
 				})
 
 				let response: ClineAskResponse
