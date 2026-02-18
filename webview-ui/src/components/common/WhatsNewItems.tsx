@@ -79,14 +79,13 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 				<>
 					{/* Hardcoded fallback items shown when remote welcome banners feature flag is off */}
 					<li className="mb-2">
-						<strong>Claude Sonnet 4.6 is here!</strong> Anthropic's latest model with advanced reasoning and coding
-						performance. Free for 24 hours for Cline users.{" "}
-						<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="free" />
+						<strong>Claude Sonnet 4.6 is here!</strong> Advanced reasoning and coding performance. Note: Free
+						promotion ended.{" "}
+						<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="recommended" />
 					</li>
 					<li className="mb-2">
-						<strong>GLM 5 is now available with free promo!</strong> the latest open-source SOTA model for advanced
-						reasoning, coding, and agentic tasks.{" "}
-						<InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
+						<strong>GLM 5:</strong> SOTA coding capability with lightning fast inference, now available with free
+						promo! <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
 					</li>
 					<li className="mb-2">
 						<strong>MiniMax M2.5:</strong> SOTA coding capability with lightning fast inference, now available with

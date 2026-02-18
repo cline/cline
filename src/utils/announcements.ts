@@ -9,6 +9,5 @@ import { ExtensionRegistryInfo } from "@/registry"
  */
 export function getLatestAnnouncementId(): string {
 	const version = ExtensionRegistryInfo.version
-	//return version.split(".").slice(0, 2).join(".")
-	return Date.now().toString()
+	return version.split(".").slice(0, 2).join(".")
 }
