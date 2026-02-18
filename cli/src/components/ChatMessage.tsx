@@ -110,9 +110,116 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 }
 
 /**
- * Render text with inline markdown support
+ * Parse and render full markdown including block-level elements (lists, headings, code blocks)
+ * Returns array of React nodes
+ */
+function renderFullMarkdown(text: string): React.ReactNode[] {
+	const lines = text.split("\n")
+	const nodes: React.ReactNode[] = []
+	let i = 0
+
+	while (i < lines.length) {
+		const line = lines[i]
+
+		// Code blocks (```)
+		if (line.trim().startsWith("```")) {
+			const codeLines: string[] = []
+			i++ // Move past opening ```
+			// Collect lines until we hit the closing ```
+			while (i < lines.length && !lines[i].trim().startsWith("```")) {
+				codeLines.push(lines[i])
+				i++
+			}
+			if (codeLines.length > 0) {
+				nodes.push(
+					<Box flexDirection="column" key={`code-${i}`} marginY={1}>
+						{codeLines.map((codeLine, idx) => (
+							<Text color="cyan" key={`code-line-${i}-${idx}`}>
+								{codeLine || " "}
+							</Text>
+						))}
+					</Box>,
+				)
+			}
+			i++ // Move past closing ```
+			continue
+		}
+
+		// Headings (# ## ### etc.)
+		const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
+		if (headingMatch) {
+			const [, hashes, headingText] = headingMatch
+			const level = hashes.length
+			const color = level <= 2 ? COLORS.primaryBlue : "white"
+			nodes.push(
+				<Box flexDirection="column" key={`heading-${i}`} marginY={level === 1 ? 1 : 0}>
+					<Text bold color={color}>
+						{renderInlineMarkdown(headingText)}
+					</Text>
+				</Box>,
+			)
+			i++
+			continue
+		}
+
+		// Unordered lists (- or *)
+		const unorderedListMatch = line.match(/^(\s*)([-*])\s+(.+)$/)
+		if (unorderedListMatch) {
+			const [, spaces, , content] = unorderedListMatch
+			const indent = spaces.length
+			nodes.push(
+				<Box flexDirection="row" key={`ul-${i}`} paddingLeft={Math.floor(indent / 2)}>
+					<Text color="gray">• </Text>
+					<Text>{renderInlineMarkdown(content)}</Text>
+				</Box>,
+			)
+			i++
+			continue
+		}
+
+		// Ordered lists (1. 2. etc.)
+		const orderedListMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/)
+		if (orderedListMatch) {
+			const [, spaces, number, content] = orderedListMatch
+			const indent = spaces.length
+			nodes.push(
+				<Box flexDirection="row" key={`ol-${i}`} paddingLeft={Math.floor(indent / 2)}>
+					<Text color="gray">{number}. </Text>
+					<Text>{renderInlineMarkdown(content)}</Text>
+				</Box>,
+			)
+			i++
+			continue
+		}
+
+		// Empty lines (preserve spacing)
+		if (line.trim() === "") {
+			nodes.push(<Text key={`empty-${i}`}> </Text>)
+			i++
+			continue
+		}
+
+		// Regular paragraph text with inline markdown
+		nodes.push(<Text key={`text-${i}`}>{renderInlineMarkdown(line)}</Text>)
+		i++
+	}
+
+	return nodes
+}
+
+/**
+ * Render text with full markdown support (inline and block-level elements)
  */
 const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children, color }) => {
+	// Check if text contains block-level markdown (newlines, lists, headings, code blocks)
+	const hasBlockElements = children.includes("\n") || /^(#{1,6}\s|[-*]\s|\d+\.\s|```)/m.test(children)
+
+	if (hasBlockElements) {
+		const nodes = renderFullMarkdown(children)
+		return <Box flexDirection="column">{nodes}</Box>
+	}
+
+	// For simple inline-only text, use the simpler inline renderer
 	const nodes = renderInlineMarkdown(children)
 	return <Text color={color}>{nodes}</Text>
 }
