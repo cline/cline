@@ -12,21 +12,34 @@ export function getClineOnboardingModels(): OnboardingModelGroup {
 	}
 
 	const remoteOverrides = featureFlagsService.getOnboardingOverrides()
-	const models = new Map<string, OnboardingModel>(CLINE_ONBOARDING_MODELS.map((model) => [model.id, model]))
+	const models = [...CLINE_ONBOARDING_MODELS]
 
 	// Apply remote overrides if available
 	if (remoteOverrides) {
 		for (const [id, override] of Object.entries(remoteOverrides) as [string, OnboardingModelOverride][]) {
 			if (override.hidden) {
-				models.delete(id)
+				for (let i = models.length - 1; i >= 0; i--) {
+					if (models[i].id === id) {
+						models.splice(i, 1)
+					}
+				}
 			} else {
-				const baseModel = models.get(id)
-				models.set(id, mergeModelWithOverride(baseModel, override))
+				let found = false
+				for (let i = 0; i < models.length; i++) {
+					if (models[i].id === id) {
+						models[i] = mergeModelWithOverride(models[i], override)
+						found = true
+					}
+				}
+
+				if (!found) {
+					models.push(mergeModelWithOverride(undefined, override))
+				}
 			}
 		}
 	}
 
-	cached = { models: Array.from(models.values()) }
+	cached = { models }
 	return cached
 }
 

@@ -54,14 +54,9 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider organized by tabs
 export const recommendedModels = [
 	{
-		id: "anthropic/claude-sonnet-4.5",
+		id: "anthropic/claude-sonnet-4.6",
 		description: "Best balance of speed, cost, and quality",
 		label: "BEST",
-	},
-	{
-		id: "minimax/minimax-m2.5",
-		description: "Great coding capability and subagent use",
-		label: "HOT",
 	},
 	{
 		id: "anthropic/claude-opus-4.6",
@@ -82,8 +77,13 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "minimax/minimax-m2.5",
-		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+		id: "anthropic/claude-sonnet-4.6",
+		description: "Claude Sonnet 4.6 with strong coding and agent performance, now available free in Cline",
+		label: "FREE",
+	},
+	{
+		id: "z-ai/glm-5",
+		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
 		label: "FREE",
 	},
 	{
@@ -98,7 +98,7 @@ export const freeModels = [
 	},
 ]
 
-const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
+const FREE_CLINE_MODELS = [...freeModels.map((m) => m.id), "anthropic/claude-4.6-sonnet"]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	isPopup,
@@ -302,6 +302,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.6") ||
+			selectedModelIdLower.includes("claude-sonnet-4-6") ||
+			selectedModelIdLower.includes("claude-4.6-sonnet") ||
 			selectedModelIdLower.includes("claude-sonnet-4.5") ||
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
@@ -456,6 +459,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					selectedModelId={selectedModelId}
 				/>
 
+				{/* Context window switcher for Claude Sonnet 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Sonnet 4.5 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
@@ -514,9 +525,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
+						onClick={() => handleModelChange("anthropic/claude-sonnet-4.6")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.5.
+						anthropic/claude-sonnet-4.6.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
 					entering @preset/your-preset-name

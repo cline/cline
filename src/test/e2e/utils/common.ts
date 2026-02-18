@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test"
+import type { Page } from "@playwright/test"
 
 export const openTab = async (_page: Page, tabName: string) => {
 	await _page
@@ -8,36 +8,20 @@ export const openTab = async (_page: Page, tabName: string) => {
 }
 
 export const addSelectedCodeToClineWebview = async (_page: Page) => {
-	const clickActionIfVisible = async (locator: Locator) => {
-		try {
-			await locator.waitFor({ state: "visible", timeout: 5000 })
-			await locator.click({ delay: 100 })
-			return true
-		} catch {
-			return false
-		}
-	}
-
 	await _page.locator("div:nth-child(4) > span > span").first().click()
 	await _page.getByRole("textbox", { name: "The editor is not accessible" }).press("ControlOrMeta+a")
 
 	// Open Code Actions via keyboard for cross-platform reliability
 	await _page.keyboard.press("ControlOrMeta+.")
+
 	// Target the explicit action instead of pressing Enter on the first item.
 	// The first item can vary by platform or diagnostics.
-	const addToClineOption = _page.getByRole("option", { name: /Add to Cline/i }).first()
-	const addToClineMenuItem = _page.getByRole("menuitem", { name: /Add to Cline/i }).first()
-
-	if (await clickActionIfVisible(addToClineOption)) {
-		return
-	}
-
-	if (await clickActionIfVisible(addToClineMenuItem)) {
-		return
-	}
-
-	// Fallback for unexpected code action UIs.
-	await _page.keyboard.press("Enter", { delay: 100 })
+	const addToCline = _page.getByText(/Add to Cline/i)
+	await addToCline.waitFor({ state: "visible" })
+	// For whatever reason, we need to move the mouse to make the context menu item clickable
+	await _page.mouse.move(10, 10)
+	await _page.mouse.move(20, 10)
+	await addToCline.click()
 }
 
 export const toggleNotifications = async (_page: Page) => {

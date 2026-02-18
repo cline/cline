@@ -87,18 +87,18 @@ export interface BannerAction {
  */
 
 export const BANNER_DATA: BannerCardData[] = [
-	// Minimax free promo banner
+	// Sonnet 4.6 banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
-		id: `minimax-m2.5-free-2026-feb-13`,
-		icon: "zap",
-		title: "Try MiniMax M2.5 Free",
-		description: "SOTA open source model with great coding capability and subagent use.",
+		id: "claude-sonnet-4-6-free-limited-2026-feb-17",
+		icon: "sparkles",
+		title: "Try Claude Sonnet 4.6 Free",
+		description: "Free for a limited 24-hour window. Offer ends February 18, 2026 at 12:00 PM PST.",
 		actions: [
 			{
 				title: "Try now",
 				action: BannerActionType.SetModel,
-				arg: "minimax/minimax-m2.5",
+				arg: "anthropic/claude-sonnet-4.6",
 				tab: "free",
 			},
 		],

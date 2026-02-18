@@ -28,6 +28,8 @@ import {
 	groqModels,
 	mistralDefaultModelId,
 	mistralModels,
+	moonshotDefaultModelId,
+	moonshotModels,
 	openAiCodexDefaultModelId,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -72,6 +74,7 @@ const providerModels: Record<string, { models: Record<string, unknown>; defaultI
 	bedrock: { models: bedrockModels, defaultId: bedrockDefaultModelId },
 	deepseek: { models: deepSeekModels, defaultId: deepSeekDefaultModelId },
 	mistral: { models: mistralModels, defaultId: mistralDefaultModelId },
+	moonshot: { models: moonshotModels, defaultId: moonshotDefaultModelId },
 	groq: { models: groqModels, defaultId: groqDefaultModelId },
 	xai: { models: xaiModels, defaultId: xaiDefaultModelId },
 }

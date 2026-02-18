@@ -1,25 +1,26 @@
 ---
 title: "Jupyter Notebooks"
+sidebarTitle: "Jupyter Notebooks"
 description: "AI-assisted editing of Jupyter notebooks with cell-level context awareness"
 ---
 
-# Jupyter Notebooks
-
 Cline provides comprehensive support for Jupyter notebooks (`.ipynb` files), enabling AI-assisted editing with full cell-level context awareness. This feature was developed in collaboration with Amazon to bring AI coding assistance to data science workflows.
 
-## Getting started
+## Getting Started
 
 Jupyter notebook support is a built-in feature of Cline. To use it, you just need to have the Jupyter notebook extension enabled in VS Code. Once you open any `.ipynb` file, you'll see AI-assisted buttons in your notebook interface.
 
-## How to use
+## How to Use
 
 ### Generate Cell
 
-Click the sparkle icon (✨) in the notebook toolbar to generate new cells with AI assistance.
+Click the sparkle icon in the notebook toolbar to generate new cells with AI assistance.
 
-![Generate Cell demo](../assets/jupyter-generate-cell.gif)
+<Frame>
+  <img src="/assets/jupyter-generate-cell.gif" alt="Generating a new Jupyter cell with AI assistance" />
+</Frame>
 
-**How it works:** The AI receives context from surrounding cells, so it understands the variables and imports already in scope. This means you can reference existing DataFrames, functions, and other objects without re-explaining them.
+The AI receives context from surrounding cells, so it understands the variables and imports already in scope. This means you can reference existing DataFrames, functions, and other objects without re-explaining them.
 
 **Example prompt:** "Create a visualization showing the correlation matrix of numeric columns with a heatmap"
 
@@ -35,13 +36,15 @@ This is useful for:
 - Onboarding to a teammate's analysis
 - Understanding complex transformations
 
-**How it works:** Cline extracts the full cell context, including outputs, so explanations can reference actual results like column names, row counts, and computed values.
+Cline extracts the full cell context, including outputs, so explanations can reference actual results like column names, row counts, and computed values.
 
 ### Improve Cell
 
 Click the Improve button in any cell's title bar to enhance existing cells with AI suggestions.
 
-![Explain and Improve Cell demo](../assets/jupyter-explain-improve-cell.gif)
+<Frame>
+  <img src="/assets/jupyter-explain-improve-cell.gif" alt="Explaining and improving a Jupyter cell with AI" />
+</Frame>
 
 Use this to:
 
@@ -50,9 +53,9 @@ Use this to:
 - Refactor for clarity
 - Convert loops to vectorized operations
 
-**How it works:** Cline suggests improvements while preserving the cell's position and metadata in the notebook structure. The AI explains what was changed and why.
+Cline suggests improvements while preserving the cell's position and metadata in the notebook structure. The AI explains what was changed and why.
 
-## How cell context works
+## How Cell Context Works
 
 Unlike traditional file editing, Jupyter notebooks are JSON documents containing arrays of cells. Each cell has its own type, source content, metadata, execution count, and outputs.
 
@@ -66,7 +69,7 @@ When you use a Jupyter command, Cline extracts structured context that includes:
 
 This structured representation allows the AI to understand not just the code, but its context within the notebook and its actual output.
 
-### JSON structure preservation
+### JSON Structure Preservation
 
 Cline is designed to work carefully with the cell JSON structure, aiming to:
 
@@ -77,7 +80,7 @@ Cline is designed to work carefully with the cell JSON structure, aiming to:
 
 The AI is specifically prompted to preserve notebook structure, though you should always review changes to ensure your notebook format remains correct.
 
-## Keyboard shortcuts
+## Keyboard Shortcuts
 
 You can bind any of these commands to keyboard shortcuts for faster access:
 
@@ -85,7 +88,7 @@ You can bind any of these commands to keyboard shortcuts for faster access:
 2. Search for `cline.jupyterGenerateCell`, `cline.jupyterExplainCell`, or `cline.jupyterImproveCell`
 3. Assign your preferred key combinations
 
-## Tips for best results
+## Tips for Best Results
 
 **For Generate Cell:**
 - Be specific about what you want the cell to do
@@ -108,5 +111,5 @@ You can bind any of these commands to keyboard shortcuts for faster access:
 
 ## Related
 
-- [Cline Tools Guide](/exploring-clines-tools/cline-tools-guide) -- Overview of all Cline commands
-- [Model Selection Guide](/core-features/model-selection-guide) -- Choosing the right model for your workflow
+- [All Cline Tools](/tools-reference/all-cline-tools) - Overview of all Cline tools
+- [Model Selection Guide](/core-features/model-selection-guide) - Choosing the right model for your workflow
