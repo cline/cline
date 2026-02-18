@@ -4369,6 +4369,7 @@ export const minimaxModels = {
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
+		temperature: 1,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
 		cacheWritesPrice: 0.0375,
