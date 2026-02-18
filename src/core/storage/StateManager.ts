@@ -59,6 +59,7 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
+	private sessionOverrideCache: Partial<Settings> = {}
 	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
@@ -380,6 +381,21 @@ export class StateManager {
 	}
 
 	/**
+	 * Set a session-scoped override for a settings key.
+	 * Session overrides are in-memory only and are NEVER persisted to disk.
+	 * They take precedence after remote config but before task-specific and global settings.
+	 *
+	 * Use this for CLI flags like --yolo that should apply for the current
+	 * process lifetime only, without modifying the user's saved settings.
+	 */
+	setSessionOverride<K extends keyof Settings>(key: K, value: Settings[K]): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		this.sessionOverrideCache[key] = value
+	}
+
+	/**
 	 * Set method for remote config field - updates cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
@@ -604,7 +620,7 @@ export class StateManager {
 
 	/**
 	 * Get method for global settings keys - reads from in-memory cache
-	 * Precedence: remote config > task settings > global settings
+	 * Precedence: remote config > session override > task settings > global settings
 	 */
 	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
 		if (!this.isInitialized) {
@@ -612,6 +628,9 @@ export class StateManager {
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
 			return this.remoteConfigCache[key] as Settings[K]
+		}
+		if (this.sessionOverrideCache[key] !== undefined) {
+			return this.sessionOverrideCache[key] as Settings[K]
 		}
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
@@ -696,6 +715,7 @@ export class StateManager {
 		this.workspaceStateCache = {} as LocalState
 		this.taskStateCache = {}
 		this.remoteConfigCache = {} as GlobalStateAndSettings
+		this.sessionOverrideCache = {}
 
 		this.isInitialized = false
 	}

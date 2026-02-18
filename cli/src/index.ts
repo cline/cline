@@ -73,24 +73,7 @@ async function disposeTelemetryServices(): Promise<void> {
 	await Promise.allSettled([telemetryService.dispose(), PostHogClientProvider.getInstance().dispose()])
 }
 
-/**
- * Restore yoloModeToggled to its original value from before this CLI session.
- * This ensures the --yolo flag is session-only and doesn't leak into future runs.
- * Must be called before flushPendingState so the restored value gets persisted.
- */
-function restoreYoloState(): void {
-	if (savedYoloModeToggled !== null) {
-		try {
-			StateManager.get().setGlobalState("yoloModeToggled", savedYoloModeToggled)
-			savedYoloModeToggled = null
-		} catch {
-			// StateManager may not be initialized (e.g., early exit before init)
-		}
-	}
-}
-
 async function disposeCliContext(ctx: CliContext): Promise<void> {
-	restoreYoloState()
 	await ctx.controller.stateManager.flushPendingState()
 	await ctx.controller.dispose()
 	await ErrorService.get().dispose()
@@ -203,12 +186,10 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
-	// Override yolo mode only if --yolo flag is explicitly passed.
-	// The original value is saved in initializeCli and restored on exit.
+	// Set yolo mode as a session-scoped override so AutoApprove picks it up,
+	// but it is never persisted to disk (setSessionOverride never touches pendingGlobalState).
 	if (options.yolo) {
-		const state = StateManager.get()
-		savedYoloModeToggled = state.getGlobalSettingsKey("yoloModeToggled") ?? false
-		state.setGlobalState("yoloModeToggled", true)
+		StateManager.get().setSessionOverride("yoloModeToggled", true)
 		telemetryService.captureHostEvent("yolo_flag", "true")
 	}
 
@@ -313,9 +294,6 @@ let activeContext: CliContext | null = null
 let isShuttingDown = false
 // Track if we're in plain text mode (no Ink UI) - set by runTask when piped stdin detected
 let isPlainTextMode = false
-// Track the original yoloModeToggled value from before this CLI session so we can restore it on exit.
-// The --yolo flag should only affect the current invocation, not persist across runs.
-let savedYoloModeToggled: boolean | null = null
 
 /**
  * Wait for stdout to fully drain before exiting.
@@ -357,10 +335,6 @@ function setupSignalHandlers() {
 		printWarning(`${signal} received, shutting down...`)
 
 		try {
-			// Restore yolo state before any cleanup - this is idempotent and safe
-			// even if disposeCliContext also calls it (restoreYoloState checks savedYoloModeToggled !== null)
-			restoreYoloState()
-
 			if (activeContext) {
 				const task = activeContext.controller.task
 				if (task) {
