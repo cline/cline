@@ -154,15 +154,21 @@ export class ContextManager {
 		thresholdPercentage?: number,
 	): boolean {
 		if (previousApiReqIndex >= 0) {
-			const previousRequest = clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+			const previousRequestText = clineMessages[previousApiReqIndex]?.text
+			if (previousRequestText) {
+				try {
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequestText)
+					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
-				const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-				const roundedThreshold = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
-				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
-				return totalTokens >= thresholdTokens
+					const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
+					const roundedThreshold = thresholdPercentage
+						? Math.floor(contextWindow * thresholdPercentage)
+						: maxAllowedSize
+					const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+					return totalTokens >= thresholdTokens
+				} catch {
+					return false
+				}
 			}
 		}
 		return false
@@ -195,10 +201,10 @@ export class ContextManager {
 		}
 
 		if (targetIndex >= 0) {
-			const targetRequest = clineMessages[targetIndex]
-			if (targetRequest && targetRequest.text) {
+			const targetRequestText = clineMessages[targetIndex]?.text
+			if (targetRequestText) {
 				try {
-					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(targetRequest.text)
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(targetRequestText)
 					const tokensUsed = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
 					const { contextWindow } = getContextWindowInfo(api)
@@ -232,10 +238,10 @@ export class ContextManager {
 		if (!useAutoCondense) {
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 			if (previousApiReqIndex >= 0) {
-				const previousRequest = clineMessages[previousApiReqIndex]
-				if (previousRequest && previousRequest.text) {
-					const timestamp = previousRequest.ts
-					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
+				const previousRequestText = clineMessages[previousApiReqIndex]?.text
+				if (previousRequestText) {
+					const timestamp = clineMessages[previousApiReqIndex].ts
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequestText)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 					const { maxAllowedSize } = getContextWindowInfo(api)
 
@@ -846,9 +852,8 @@ export class ContextManager {
 							}
 							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
 							// to do so we need to keep track of which files we've already replaced so we don't replace them again
-							else {
-								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-							}
+
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again
