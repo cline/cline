@@ -46,15 +46,18 @@ DEBUG=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --from-tag)
-      FROM_TAG="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --from-tag requires a value." >&2; usage >&2; exit 2; }
+      FROM_TAG="$2"
       shift 2
       ;;
     --to-tag)
-      TO_TAG="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --to-tag requires a value." >&2; usage >&2; exit 2; }
+      TO_TAG="$2"
       shift 2
       ;;
     --base)
-      BASE_REF="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --base requires a value." >&2; usage >&2; exit 2; }
+      BASE_REF="$2"
       shift 2
       ;;
     --debug)
@@ -92,6 +95,22 @@ if [ -z "${FROM_TAG}" ]; then
   exit 1
 fi
 
+# Validate FROM_TAG
+if ! git rev-parse --verify --quiet "${FROM_TAG}^{}" >/dev/null 2>&1 && \
+   ! git rev-parse --verify --quiet "${FROM_TAG}" >/dev/null 2>&1; then
+  echo "Error: '${FROM_TAG}' is not a valid tag or revision in this repository." >&2
+  exit 1
+fi
+
+# Validate TO_TAG if specified
+if [ -n "${TO_TAG}" ]; then
+  if ! git rev-parse --verify --quiet "${TO_TAG}^{}" >/dev/null 2>&1 && \
+     ! git rev-parse --verify --quiet "${TO_TAG}" >/dev/null 2>&1; then
+    echo "Error: '${TO_TAG}' is not a valid tag or revision in this repository." >&2
+    exit 1
+  fi
+fi
+
 # Get repo owner and name from remote
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 OWNER=${REPO%/*}
@@ -125,35 +144,38 @@ process_window() {
     echo "[debug] ${newer}: PR refs from git: $(printf "%s\n" "${prs}" | wc -l | tr -d ' ')" >&2
   fi
 
-  # Fetch PR metadata (number, title, url, author) in one GraphQL request
+  # Fetch PR metadata (number, title, url, author) in one GraphQL request.
+  # Capture stdout+stderr together to distinguish total failure (no .data) from the
+  # expected partial-error case where GitHub returns exit code 1 alongside a valid
+  # .data payload because some commit subjects reference issue numbers, not PRs.
   local query_body
   query_body=$(printf "%s\n" "${prs}" |
     awk '{printf "pr%s: pullRequest(number: %s) { number title url mergedAt author { login } } ", $1, $1}')
 
   local pr_json
-  pr_json=$(gh api graphql -f query="query { repository(owner: \"${OWNER}\", name: \"${NAME}\") { ${query_body} } }" 2>/dev/null || true)
+  pr_json=$(gh api graphql -f query="query { repository(owner: \"${OWNER}\", name: \"${NAME}\") { ${query_body} } }" 2>&1 || true)
 
-  if [ -z "${pr_json}" ]; then
+  if ! printf '%s' "${pr_json}" | jq -e '.data.repository' >/dev/null 2>&1; then
     echo "- (error fetching PR metadata from GitHub)"
     return 0
   fi
 
   if [ "${DEBUG}" -eq 1 ]; then
     echo "[debug] ${newer}: Unresolved PR refs (from git log subjects):" >&2
-    echo "${pr_json}" | jq -r '.errors[]?.message' 2>/dev/null | sed 's/^/[debug]   - /' >&2 || true
+    printf '%s' "${pr_json}" | jq -r '.errors[]?.message' 2>/dev/null | sed 's/^/[debug]   - /' >&2 || true
   fi
 
   # Convert to a stable list of PR objects, dropping nulls
   local pr_list
-  pr_list=$(echo "${pr_json}" | jq -c '[.data.repository | to_entries | map(.value) | map(select(. != null))[]]')
+  pr_list=$(printf '%s' "${pr_json}" | jq -c '[.data.repository | to_entries | map(.value) | map(select(. != null))[]]')
 
   if [ "${DEBUG}" -eq 1 ]; then
-    echo "[debug] ${newer}: PR objects fetched: $(echo "${pr_list}" | jq 'length')" >&2
+    echo "[debug] ${newer}: PR objects fetched: $(printf '%s' "${pr_list}" | jq 'length')" >&2
   fi
 
   # Filter out PRs with null authors (deleted GitHub accounts) before extracting logins
   local authors
-  authors=$(echo "${pr_list}" | jq -r '[.[].author | select(. != null) | .login] | unique | .[]')
+  authors=$(printf '%s' "${pr_list}" | jq -r '[.[].author | select(. != null) | .login] | unique | .[]')
 
   if [ -z "${authors}" ]; then
     echo "- (no PR authors found)"
@@ -164,50 +186,66 @@ process_window() {
     echo "[debug] ${newer}: Unique authors: $(printf "%s\n" "${authors}" | wc -l | tr -d ' ')" >&2
   fi
 
-  # For each author, fetch their earliest merged PR in this repo via the Search API
+  # For each author, fetch their earliest merged PR in this repo via the Search API.
+  # Note: GraphQL field names cannot contain hyphens, so we sanitize the alias.
+  # The alias is only used to satisfy GraphQL syntax requirements — author logins are
+  # extracted directly from the node payload, so alias collisions (e.g. "foo-bar" and
+  # "foo_bar" both mapping to "afoo_bar") cannot corrupt results.
   local author_query_body
   author_query_body=$(printf "%s\n" "${authors}" |
     awk -v owner="${OWNER}" -v name="${NAME}" '{
       alias=$0
-      gsub(/[^A-Za-z0-9_]/, "_", alias)  # make alias GraphQL-safe (hyphens → underscore; GraphQL names cannot contain hyphens)
-      printf "a%s: search(query: \"repo:%s/%s is:pr is:merged author:%s sort:created-asc\", type: ISSUE, first: 1) { nodes { ... on PullRequest { number url title mergedAt author { login } } } } ", alias, owner, name, $0
+      gsub(/[^A-Za-z0-9_]/, "_", alias)
+      printf "a%s_%d: search(query: \"repo:%s/%s is:pr is:merged author:%s sort:created-asc\", type: ISSUE, first: 1) { nodes { ... on PullRequest { number url title mergedAt author { login } } } } ", alias, NR, owner, name, $0
     }')
 
   local author_json
   author_json=$(gh api graphql -f query="query { ${author_query_body} }" 2>/dev/null || true)
 
-  # Build lookup map: author_login -> earliest_merged_pr_number
+  if [ -z "${author_json}" ]; then
+    echo "- (error fetching author history from GitHub)"
+    return 0
+  fi
+
+  if [ "${DEBUG}" -eq 1 ]; then
+    echo "[debug] ${newer}: Earliest-PR lookup returned entries: $(printf '%s' "${author_json}" | jq '(.data // {}) | to_entries | length')" >&2
+  fi
+
+  # Build lookup map: author_login -> earliest_merged_pr_number.
+  # Extract login directly from each node — no alias-to-login mapping needed,
+  # so alias collisions between sanitized usernames cannot affect results.
   local earliest_by_author
-  earliest_by_author=$(echo "${author_json}" | jq -c '
+  earliest_by_author=$(printf '%s' "${author_json}" | jq -c '
     (.data // {})
     | to_entries
-    | map({ node: (.value.nodes[0] // null) })
-    | map(select(.node != null))
-    | map({key: .node.author.login, value: .node.number})
+    | map(select(.value != null))
+    | map(.value.nodes[0] // null)
+    | map(select(. != null and .author != null))
+    | map({key: .author.login, value: .number})
     | from_entries
   ')
 
   if [ "${DEBUG}" -eq 1 ]; then
-    echo "[debug] ${newer}: Earliest-by-author keys: $(echo "${earliest_by_author}" | jq 'keys | length')" >&2
+    echo "[debug] ${newer}: Earliest-by-author keys: $(printf '%s' "${earliest_by_author}" | jq 'keys | length')" >&2
   fi
 
   # Filter PRs to those that equal the earliest merged PR per author
   local filtered
-  filtered=$(echo "${pr_list}" | jq -c --argjson earliest "${earliest_by_author}" '
+  filtered=$(printf '%s' "${pr_list}" | jq -c --argjson earliest "${earliest_by_author}" '
     .
     | map(select(.author.login as $a | ($earliest[$a] // -1) == .number))
     | sort_by(.number)
   ')
 
   local count
-  count=$(echo "${filtered}" | jq 'length')
+  count=$(printf '%s' "${filtered}" | jq 'length')
 
   if [ "${count}" -eq 0 ]; then
     echo "- (no first-time contributor PRs found)"
     return 0
   fi
 
-  echo "${filtered}" | jq -r '
+  printf '%s' "${filtered}" | jq -r '
     .[]
     | "- #\(.number) \(.title | gsub("[\\r\\n]+"; " ") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")) (@\(.author.login)) (\(.url))"
   '

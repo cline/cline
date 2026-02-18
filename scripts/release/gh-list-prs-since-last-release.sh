@@ -12,11 +12,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/gh-list-prs-since-last-release.sh [--from-tag <tag>] [--base <ref>]
+Usage: scripts/gh-list-prs-since-last-release.sh [--from-tag <tag>] [--base <ref>] [--debug]
 
 Options:
   --from-tag <tag>  Override the autodetected latest vX.Y.Z tag.
   --base <ref>      Base branch to compare against (default: main).
+  --debug           Print debug stats to stderr.
 
 Requires: git, gh (authenticated), jq
 USAGE
@@ -24,16 +25,23 @@ USAGE
 
 BASE_REF="main"
 FROM_TAG=""
+DEBUG=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --from-tag)
-      FROM_TAG="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --from-tag requires a value." >&2; usage >&2; exit 2; }
+      FROM_TAG="$2"
       shift 2
       ;;
     --base)
-      BASE_REF="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --base requires a value." >&2; usage >&2; exit 2; }
+      BASE_REF="$2"
       shift 2
+      ;;
+    --debug)
+      DEBUG=1
+      shift 1
       ;;
     -h|--help)
       usage
@@ -83,10 +91,24 @@ if [ -z "${QUERY_BODY}" ]; then
   exit 0
 fi
 
-# gh exits 1 when GitHub returns partial results alongside an errors array
-# (e.g. a merge commit subject references an issue number, not a PR).
-# The data is still valid — jq's select(.value != null) already drops the nulls.
-gh api graphql \
-  -f query="query { repository(owner: \"${OWNER}\", name: \"${NAME}\") { ${QUERY_BODY} }}" 2>/dev/null |
+# Capture stdout+stderr together so we can distinguish a total failure (no .data)
+# from the expected partial-error case where GitHub returns exit code 1 alongside
+# a valid .data payload because some merge-commit subjects reference issue numbers
+# rather than PRs. The jq select(.value != null) below drops those null entries.
+GH_OUTPUT=$(gh api graphql \
+  -f query="query { repository(owner: \"${OWNER}\", name: \"${NAME}\") { ${QUERY_BODY} }}" 2>&1 || true)
+
+if ! printf '%s' "${GH_OUTPUT}" | jq -e '.data.repository' >/dev/null 2>&1; then
+  echo "Error: GitHub GraphQL request failed:" >&2
+  printf '%s\n' "${GH_OUTPUT}" | head -10 >&2
+  exit 1
+fi
+
+if [ "${DEBUG}" -eq 1 ]; then
+  NULL_COUNT=$(printf '%s' "${GH_OUTPUT}" | jq '[.data.repository | to_entries[] | select(.value == null)] | length')
+  [ "${NULL_COUNT}" -gt 0 ] && echo "[debug] Dropped ${NULL_COUNT} non-PR ref(s) (issues or deleted PRs)" >&2
+fi
+
+printf '%s' "${GH_OUTPUT}" |
   jq -r '.data.repository | to_entries | sort_by(.value.number // 999999) | .[] | select(.value != null) | "- #\(.value.number) \(.value.title | gsub("[\\r\\n]+"; " ") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")) (\(.value.url))"' |
   grep -v '^$' || true

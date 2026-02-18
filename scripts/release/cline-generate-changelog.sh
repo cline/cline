@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/release/cline-generate-changelog.sh --scope <vscode|cli> [--model <model>] [--from-tag <tag>] [--debug]
+Usage: scripts/release/cline-generate-changelog.sh --scope <vscode|cli> [--model <model>] [--from-tag <tag>] [--timeout <seconds>] [--debug]
 
 Options:
   --scope <vscode|cli>  Required. Target product surface:
@@ -34,6 +34,7 @@ Options:
                           cli     Generate entries for cli/CHANGELOG.md (Cline CLI)
   --model <model>       Model to pass to cline (default: claude-opus-4-6).
   --from-tag <tag>      Override the autodetected latest vX.Y.Z tag.
+  --timeout <seconds>   Timeout in seconds for the cline task (default: 120).
   --debug               Print debug stats to stderr.
 
 Requires: git, gh (authenticated), jq, cline (authenticated)
@@ -43,20 +44,29 @@ USAGE
 SCOPE=""
 MODEL="claude-opus-4-6"
 FROM_TAG_ARG=""
+TIMEOUT=120
 DEBUG=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --scope)
-      SCOPE="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --scope requires a value." >&2; usage >&2; exit 2; }
+      SCOPE="$2"
       shift 2
       ;;
     --model)
-      MODEL="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --model requires a value." >&2; usage >&2; exit 2; }
+      MODEL="$2"
       shift 2
       ;;
     --from-tag)
-      FROM_TAG_ARG="${2-}"
+      [ -z "${2-}" ] && { echo "Error: --from-tag requires a value." >&2; usage >&2; exit 2; }
+      FROM_TAG_ARG="$2"
+      shift 2
+      ;;
+    --timeout)
+      [ -z "${2-}" ] && { echo "Error: --timeout requires a value." >&2; usage >&2; exit 2; }
+      TIMEOUT="$2"
       shift 2
       ;;
     --debug)
@@ -87,33 +97,28 @@ if [ "${SCOPE}" != "vscode" ] && [ "${SCOPE}" != "cli" ]; then
   exit 2
 fi
 
-for cmd in gh jq cline; do
+for cmd in git gh jq cline; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
     echo "Error: ${cmd} is required." >&2
     exit 1
   fi
 done
 
-TAG_FLAG=""
-if [ -n "${FROM_TAG_ARG}" ]; then
-  TAG_FLAG="--from-tag ${FROM_TAG_ARG}"
-fi
+# Build argument arrays for sub-scripts to avoid word-splitting on values
+tag_args=()
+[ -n "${FROM_TAG_ARG}" ] && tag_args+=("--from-tag" "${FROM_TAG_ARG}")
 
-DEBUG_FLAG=""
-if [ "${DEBUG}" -eq 1 ]; then
-  DEBUG_FLAG="--debug"
-fi
+debug_args=()
+[ "${DEBUG}" -eq 1 ] && debug_args+=("--debug")
 
 echo "Gathering PR list..." >&2
-# shellcheck disable=SC2086
-if ! PR_LIST=$("${SCRIPT_DIR}/gh-list-prs-since-last-release.sh" ${TAG_FLAG}); then
+if ! PR_LIST=$("${SCRIPT_DIR}/gh-list-prs-since-last-release.sh" "${tag_args[@]}" "${debug_args[@]}"); then
   echo "Error: Failed to gather PR list (see above for details)." >&2
   exit 1
 fi
 
 echo "Gathering first-time contributor PRs..." >&2
-# shellcheck disable=SC2086
-if ! FIRST_TIME_PRS=$("${SCRIPT_DIR}/gh-first-time-contributors.sh" ${TAG_FLAG} ${DEBUG_FLAG}); then
+if ! FIRST_TIME_PRS=$("${SCRIPT_DIR}/gh-first-time-contributors.sh" "${tag_args[@]}" "${debug_args[@]}"); then
   echo "Warning: Could not gather first-time contributor data; continuing without it." >&2
   FIRST_TIME_PRS=""
 fi
@@ -181,6 +186,7 @@ Generate a concise, human-readable changelog suitable for inclusion in ${CHANGEL
 
 Format requirements:
 - Use exactly four sections in this order: Added, Fixed, Changed, New Contributors.
+- Each section header must be exactly: ## Added, ## Fixed, ## Changed, ## New Contributors (two hash characters, a space, then the section name — no other formatting).
 - Each of Added, Fixed, and Changed contains plain-language bullet points. Write from the perspective of a user of the product surface described above — what did they gain, what got fixed, what changed for them.
 - If two or more entries naturally combine into a single more general statement, merge them into one bullet point.
 - The New Contributors section lists each first-time contributor as: - @<login> made their first contribution in #<number> (<url>)
@@ -191,17 +197,17 @@ Format requirements:
 # Invoke cline
 # ---------------------------------------------------------------------------
 
-echo "Generating ${SCOPE} changelog with cline (model: ${MODEL})..." >&2
+echo "Generating ${SCOPE} changelog with cline (model: ${MODEL}, timeout: ${TIMEOUT}s)..." >&2
 echo "" >&2
 
-if ! RAW_OUTPUT=$(cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}"); then
+if ! RAW_OUTPUT=$(cline -a -y --timeout "${TIMEOUT}" -m "${MODEL}" "${PROMPT}"); then
   echo "Error: cline task failed or timed out. Verify your auth with 'cline auth' and try again." >&2
   exit 1
 fi
 
 # Strip any markdown code fences a model may have wrapped the output in,
-# then extract from the first section header to end.
-CHANGELOG=$(echo "${RAW_OUTPUT}" | sed '/^```/d' | sed -n '/^## /,$p')
+# then extract from the first section header (## or ###) to end.
+CHANGELOG=$(printf '%s\n' "${RAW_OUTPUT}" | sed '/^```/d' | sed -n '/^#\{2,\} /,$p')
 
 if [ -z "${CHANGELOG}" ]; then
   if [ -z "${RAW_OUTPUT}" ]; then
@@ -211,11 +217,11 @@ if [ -z "${CHANGELOG}" ]; then
     if [ "${DEBUG}" -eq 1 ]; then
       echo "" >&2
       echo "[debug] Raw cline output (no '## ' section headers found):" >&2
-      echo "${RAW_OUTPUT}" >&2
+      printf '%s\n' "${RAW_OUTPUT}" >&2
     else
       echo "[hint] Run with --debug to see the raw cline output." >&2
     fi
   fi
 else
-  echo "${CHANGELOG}"
+  printf '%s\n' "${CHANGELOG}"
 fi
