@@ -13,7 +13,7 @@ import React from "react"
 
 const DEFAULT_MAX_LINES = 10
 const SLASH_COMMAND_REGEX = /(^|\s)(\/[a-zA-Z0-9_.-]+)/g
-const PASTE_PLACEHOLDER_REGEX = /▸ \d+ lines pasted #\d+/g
+const PASTE_PLACEHOLDER_REGEX = /▸ \d+ lines? pasted #\d+/g
 const PLACEHOLDER_HINT = " (space to expand...)"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -197,9 +197,11 @@ function parseInput(text: string, availableCommands?: string[]): Segment[] {
 
 function renderSegment(segment: Segment, key: number): React.ReactElement {
 	if (segment.type === "placeholder") {
+		// Strip the internal #N ID from the displayed text
+		const displayText = segment.text.replace(/ #\d+$/, "")
 		return (
 			<Text bold key={key} underline>
-				{segment.text}
+				{displayText}
 				{PLACEHOLDER_HINT}
 			</Text>
 		)

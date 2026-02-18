@@ -330,7 +330,7 @@ function parseAskOptions(text: string): string[] {
 
 /** Replace paste placeholders (e.g. `▸ 21 lines pasted #1`) with stored content. */
 function expandPastedTexts(text: string, pastedTexts: Map<number, string>): string {
-	return text.replace(/▸ \d+ lines pasted #(\d+)/g, (match, id) => {
+	return text.replace(/▸ \d+ lines? pasted #(\d+)/g, (match, id) => {
 		return pastedTexts.get(Number.parseInt(id, 10)) ?? match
 	})
 }
@@ -340,7 +340,7 @@ function findPlaceholderAtCursor(
 	text: string,
 	cursorPos: number,
 ): { pasteId: number; start: number; end: number; lineCount: number } | null {
-	const regex = /▸ (\d+) lines pasted #(\d+)/g
+	const regex = /▸ (\d+) lines? pasted #(\d+)/g
 	let match
 	while ((match = regex.exec(text)) !== null) {
 		const start = match.index
@@ -1128,8 +1128,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// Debounce visual update to avoid flicker while chunks stream in
 				if (pasteUpdateTimeoutRef.current) clearTimeout(pasteUpdateTimeoutRef.current)
 				pasteUpdateTimeoutRef.current = setTimeout(() => {
-					const updated = `▸ ${activePasteRef.current.lines} lines pasted #${id}`
-					const newText = textInputRef.current.replace(new RegExp(`▸ \\d+ lines pasted #${id}`), updated)
+					const totalLines = activePasteRef.current.lines + 1
+					const updated = `▸ ${totalLines} ${totalLines === 1 ? "line" : "lines"} pasted #${id}`
+					const newText = textInputRef.current.replace(new RegExp(`▸ \\d+ lines? pasted #${id}`), updated)
 					textInputRef.current = newText
 					setTextInput(newText)
 				}, PASTE_UPDATE_DEBOUNCE_MS)
@@ -1149,12 +1150,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
 			const normalized = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 			const pasteId = ++pasteCounterRef.current
-			const lineCount = normalized.match(/\n/g)?.length || 0
+			const newlineCount = normalized.match(/\n/g)?.length || 0
+			const lineCount = newlineCount + 1
 
-			activePasteRef.current = { id: pasteId, lines: lineCount, lastTime: Date.now() }
+			activePasteRef.current = { id: pasteId, lines: newlineCount, lastTime: Date.now() }
 			pastedTextsRef.current.set(pasteId, normalized)
 
-			const placeholder = `▸ ${lineCount} lines pasted #${pasteId}`
+			const placeholder = `▸ ${lineCount} ${lineCount === 1 ? "line" : "lines"} pasted #${pasteId}`
 			const pos = cursorPosRef.current
 			const newText = textInputRef.current.slice(0, pos) + placeholder + " " + textInputRef.current.slice(pos)
 			textInputRef.current = newText
