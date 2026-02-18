@@ -117,10 +117,13 @@ function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: s
 		return null
 	}
 
+	const firstTag = model.tags?.[0]
+	const normalizedLabel = typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : undefined
+
 	return {
 		id: model.id,
 		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
-		label: model.tags?.[0]?.toUpperCase() || fallbackLabel,
+		label: normalizedLabel || fallbackLabel,
 	}
 }
 
@@ -143,13 +146,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
 		return [...new Set([...freeModelIds, ...FREE_CLINE_MODEL_ALIASES])]
 	}, [clineFreeModels])
-	const [activeTab, setActiveTab] = useState<"recommended" | "free">(() => {
-		if (initialTab) {
-			return initialTab
-		}
-		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
-		return freeClineModelIds.includes(currentModelId) ? "free" : "recommended"
-	})
+	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
 	const recommendedModels = useMemo(
 		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
 		[clineRecommendedModels],
