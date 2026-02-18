@@ -315,9 +315,21 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 2)
 	})
 
-	it("fails initial stream failures without retry", async () => {
+	it("retries initial stream failures before failing", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
+			yield* []
+			throw new Error(
+				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
+			)
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield* []
+			throw new Error(
+				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
+			)
+		})
+		createMessage.onThirdCall().callsFake(async function* () {
 			yield* []
 			throw new Error(
 				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
@@ -338,7 +350,7 @@ describe("SubagentRunner", () => {
 		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "failed")
-		assert.equal(createMessage.callCount, 1)
+		assert.equal(createMessage.callCount, 3)
 	})
 
 	it("fails context window errors", async () => {
