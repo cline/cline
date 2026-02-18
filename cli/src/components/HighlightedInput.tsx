@@ -291,11 +291,15 @@ export const HighlightedInput: React.FC<HighlightedInputProps> = ({
 	const viewport = cursorPos !== undefined ? computeViewport(text, cursorPos, maxLines) : null
 
 	if (!viewport) {
-		return renderHighlightedText(text, cursorPos, availableCommands)
+		return (
+			<Box flexDirection="column" width="100%">
+				{renderHighlightedText(text, cursorPos, availableCommands)}
+			</Box>
+		)
 	}
 
 	return (
-		<Box flexDirection="column">
+		<Box flexDirection="column" width="100%">
 			{viewport.linesAbove > 0 && (
 				<Text color="gray">
 					↑ {viewport.linesAbove} more {viewport.linesAbove === 1 ? "line" : "lines"}
