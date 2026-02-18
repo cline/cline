@@ -106,15 +106,21 @@ fi
 
 echo "Gathering PR list..." >&2
 # shellcheck disable=SC2086
-PR_LIST=$("${SCRIPT_DIR}/gh-list-prs-since-last-release.sh" ${TAG_FLAG} 2>/dev/null)
+if ! PR_LIST=$("${SCRIPT_DIR}/gh-list-prs-since-last-release.sh" ${TAG_FLAG}); then
+  echo "Error: Failed to gather PR list (see above for details)." >&2
+  exit 1
+fi
 
 echo "Gathering first-time contributor PRs..." >&2
 # shellcheck disable=SC2086
-FIRST_TIME_PRS=$("${SCRIPT_DIR}/gh-first-time-contributors.sh" ${TAG_FLAG} ${DEBUG_FLAG} 2>/dev/null)
+if ! FIRST_TIME_PRS=$("${SCRIPT_DIR}/gh-first-time-contributors.sh" ${TAG_FLAG} ${DEBUG_FLAG}); then
+  echo "Warning: Could not gather first-time contributor data; continuing without it." >&2
+  FIRST_TIME_PRS=""
+fi
 
 if [ -z "${PR_LIST}" ]; then
-  echo "Error: No PRs found since last release." >&2
-  exit 1
+  echo "(No PR references found since last release — nothing to generate.)" >&2
+  exit 0
 fi
 
 # ---------------------------------------------------------------------------
@@ -188,8 +194,14 @@ Format requirements:
 echo "Generating ${SCOPE} changelog with cline (model: ${MODEL})..." >&2
 echo "" >&2
 
-RAW_OUTPUT=$(cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}")
-CHANGELOG=$(echo "${RAW_OUTPUT}" | sed -n '/^## /,$p')
+if ! RAW_OUTPUT=$(cline -a -y --timeout 120 -m "${MODEL}" "${PROMPT}"); then
+  echo "Error: cline task failed or timed out. Verify your auth with 'cline auth' and try again." >&2
+  exit 1
+fi
+
+# Strip any markdown code fences a model may have wrapped the output in,
+# then extract from the first section header to end.
+CHANGELOG=$(echo "${RAW_OUTPUT}" | sed '/^```/d' | sed -n '/^## /,$p')
 
 if [ -z "${CHANGELOG}" ]; then
   if [ -z "${RAW_OUTPUT}" ]; then

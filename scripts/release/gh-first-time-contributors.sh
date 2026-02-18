@@ -151,8 +151,9 @@ process_window() {
     echo "[debug] ${newer}: PR objects fetched: $(echo "${pr_list}" | jq 'length')" >&2
   fi
 
+  # Filter out PRs with null authors (deleted GitHub accounts) before extracting logins
   local authors
-  authors=$(echo "${pr_list}" | jq -r '.[].author.login' | sort -u)
+  authors=$(echo "${pr_list}" | jq -r '[.[].author | select(. != null) | .login] | unique | .[]')
 
   if [ -z "${authors}" ]; then
     echo "- (no PR authors found)"
