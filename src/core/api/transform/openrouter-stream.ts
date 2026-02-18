@@ -5,8 +5,8 @@ import {
 	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
+	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
