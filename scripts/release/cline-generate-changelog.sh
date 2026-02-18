@@ -223,12 +223,12 @@ Generate a concise, human-readable changelog suitable for inclusion in ${CHANGEL
 
 Format requirements:
 - Use exactly four sections in this order: Added, Fixed, Changed, New Contributors.
-- Each section header must be exactly: ## Added, ## Fixed, ## Changed, ## New Contributors (two hash characters, a space, then the section name — no other formatting).
+- Each section header must be exactly: ## Added, ## Fixed, ## Changed, ## New Contributors (two hash characters, a space, then the section name — no other formatting). Do NOT use bold (**Added**), underline, or any other formatting for section headers.
 - Each of Added, Fixed, and Changed contains plain-language bullet points. Write from the perspective of a user of the product surface described above — what did they gain, what got fixed, what changed for them.
 - If two or more entries naturally combine into a single more general statement, merge them into one bullet point.
 - The New Contributors section lists each first-time contributor as: - @<login> made their first contribution in #<number> (<url>)
 - Omit any section that has no entries.
-- Output only the changelog — no preamble, no explanation, no markdown code fences."
+- Output only the changelog — no preamble, no explanation, no markdown code fences, no closing summary. Your very first line of output must be a section header (e.g. ## Added). Do not write any text before it."
 
 # ---------------------------------------------------------------------------
 # Invoke cline
@@ -264,14 +264,51 @@ if [ "${CLINE_EXIT}" -ne 0 ]; then
 fi
 
 # Strip any markdown code fences a model may have wrapped the output in,
+# normalize common bold-header variants to the canonical "## Section" form,
 # then extract from the first *known* changelog section header to end.
 #
 # We anchor on the explicit section names (Added / Fixed / Changed / New Contributors)
 # rather than any "## " line to avoid incorrectly anchoring on preamble headings
 # the model may emit before the actual changelog content.
-CHANGELOG=$(printf '%s\n' "${RAW_OUTPUT}" \
-  | sed '/^```/d' \
-  | sed -n '/^## \(Added\|Fixed\|Changed\|New Contributors\)/,$p')
+#
+# The awk pass handles three things:
+#   1. CRLF stripping (tr -d '\r' first — cline may output Windows line endings)
+#   2. Code fence removal
+#   3. Bold header normalization: **Added:** → ## Added
+#      Uses substr/index (string ops) instead of regex because \* is not a
+#      reliable literal-asterisk escape in macOS BSD sed or awk ERE.
+#
+# Use -E (ERE) so that | alternation works on both macOS BSD sed and GNU sed.
+# \| alternation is a GNU-only BRE extension and silently matches nothing on macOS.
+NORMALIZED=$(printf '%s\n' "${RAW_OUTPUT}" \
+  | tr -d '\r' \
+  | awk '
+      /^[`][`][`]/ { next }
+      {
+        if (substr($0,1,2) == "**") {
+          rest = substr($0, 3)
+          n = index(rest, "**")
+          if (n > 0) {
+            section = substr(rest, 1, n-1)
+            gsub(/:$/, "", section)
+            gsub(/[[:space:]]+$/, "", section)
+            if (section == "Added"  || section == "Fixed" ||
+                section == "Changed" || section == "New Contributors") {
+              print "## " section; next
+            }
+          }
+        }
+        print
+      }')
+
+if [ "${DEBUG}" -eq 1 ] && [ -n "${RAW_OUTPUT}" ]; then
+  echo "[debug] Normalized output (after CRLF strip + bold-header normalization):" >&2
+  printf '%s\n' "${NORMALIZED}" >&2
+  echo "" >&2
+fi
+
+CHANGELOG=$(printf '%s\n' "${NORMALIZED}" \
+  | sed -En '/^## (Added|Fixed|Changed|New Contributors)/,$p')
 
 if [ -z "${CHANGELOG}" ]; then
   if [ -z "${RAW_OUTPUT}" ]; then
