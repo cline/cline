@@ -13,10 +13,16 @@ export interface FeaturedModel {
 export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedModel[] } = {
 	recommended: [
 		{
-			id: "anthropic/claude-sonnet-4.6",
-			name: "Claude Sonnet 4.6",
+			id: "anthropic/claude-sonnet-4.5",
+			name: "Claude Sonnet 4.5",
 			description: "Best balance of speed, cost, and quality",
 			labels: ["BEST"],
+		},
+		{
+			id: "anthropic/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
+			description: "Latest Sonnet release with strong coding performance",
+			labels: ["NEW"],
 		},
 		{
 			id: "anthropic/claude-opus-4.6",
