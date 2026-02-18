@@ -110,7 +110,7 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
 	},
 ]
 
-const FREE_CLINE_MODEL_ALIASES = []
+const FREE_CLINE_MODEL_ALIASES: string[] = []
 
 function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: string): FeaturedModelCardEntry | null {
 	if (!model.id) {
