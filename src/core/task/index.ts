@@ -60,7 +60,6 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
-import { SETTINGS_DEFAULTS } from "@shared/storage/state-keys"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import {
@@ -2390,14 +2389,10 @@ export class Task {
 					}
 				}
 			} else {
-				// Use default — the UI to adjust this is disabled and stored values may be corrupted.
-				// See: https://github.com/cline/cline/pull/9348
-				const autoCondenseThreshold = SETTINGS_DEFAULTS.autoCondenseThreshold
 				shouldCompact = this.contextManager.shouldCompactContextWindow(
 					this.messageStateHandler.getClineMessages(),
 					this.api,
 					previousApiReqIndex,
-					autoCondenseThreshold,
 				)
 
 				// Edge case: summarize_task tool call completes but user cancels next request before it finishes.
@@ -2530,7 +2525,7 @@ export class Task {
 
 				// if last message is a partial we need to update and save it
 				const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-				if (lastMessage && lastMessage.partial) {
+				if (lastMessage?.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
@@ -3518,9 +3513,7 @@ export class Task {
 		let shouldShowContextWindow = true
 		// For next-gen models, only show context window usage if it exceeds a certain threshold
 		if (isNextGenModel) {
-			// Use default — the UI to adjust this is disabled and stored values may be corrupted.
-			// See: https://github.com/cline/cline/pull/9348
-			const autoCondenseThreshold = SETTINGS_DEFAULTS.autoCondenseThreshold ?? 0.75
+			const autoCondenseThreshold = 0.75
 			const displayThreshold = autoCondenseThreshold - 0.15
 			const currentUsageRatio = lastApiReqTotalTokens / contextWindow
 			shouldShowContextWindow = currentUsageRatio >= displayThreshold
@@ -3534,7 +3527,7 @@ export class Task {
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		if (mode === "plan") {
-			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
+			details += `\nPLAN MODE\n${formatResponse.planModeInstructions()}`
 		} else {
 			details += "\nACT MODE"
 		}

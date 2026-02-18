@@ -12,7 +12,6 @@ import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
-import { SETTINGS_DEFAULTS } from "@shared/storage/state-keys"
 import type { ClineTool } from "@shared/tools"
 import { ClineDefaultTool } from "@shared/tools"
 import { isNextGenModelFamily } from "@utils/model-utils"
@@ -738,9 +737,7 @@ export class SubagentRunner {
 		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
 		if (useAutoCondense && isNextGenModelFamily(modelId)) {
-			// Use default — the UI to adjust this is disabled and stored values may be corrupted.
-			// See: https://github.com/cline/cline/pull/9348
-			const autoCondenseThreshold = SETTINGS_DEFAULTS.autoCondenseThreshold
+			const autoCondenseThreshold = 0.75
 			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
 			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
 			return previousRequestTotalTokens >= thresholdTokens
