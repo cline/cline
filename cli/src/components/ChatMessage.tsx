@@ -11,6 +11,7 @@ import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type { ClineAskUseMcpServer, ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
+import { lexer, type Token, type Tokens } from "marked"
 import React from "react"
 import { COLORS } from "../constants/colors"
 import { useTerminalSize } from "../hooks/useTerminalSize"
@@ -20,13 +21,10 @@ import { DiffView } from "./DiffView"
 import { SubagentMessage } from "./SubagentMessage"
 
 /**
- * Add "(Tab)" hint after "Act mode" mentions.
+ * Add "(Tab)" hint after "Act mode" mentions in plain text.
  * Case-insensitive, avoids double-adding if already present.
- * Matches just "Act mode" without requiring "to " prefix because markdown
- * processing may split "toggle to **Act mode**" into separate text chunks.
  */
 function addActModeHint(text: string, keyPrefix: string): React.ReactNode[] {
-	// Match "Act mode" in various capitalizations, but not if already followed by (Tab)
 	const actModeRegex = /\bact\s+mode\b(?!\s*\(tab\))/gi
 	const parts = text.split(actModeRegex)
 	const matches = text.match(actModeRegex)
@@ -37,9 +35,7 @@ function addActModeHint(text: string, keyPrefix: string): React.ReactNode[] {
 
 	const nodes: React.ReactNode[] = []
 	parts.forEach((part, i) => {
-		if (part) {
-			nodes.push(part)
-		}
+		if (part) nodes.push(part)
 		if (matches[i]) {
 			nodes.push(
 				<React.Fragment key={`${keyPrefix}-act-mode-${i}`}>
@@ -49,179 +45,137 @@ function addActModeHint(text: string, keyPrefix: string): React.ReactNode[] {
 			)
 		}
 	})
-
 	return nodes
 }
 
-/**
- * Render inline markdown: **bold**, *italic*, `code`
- * Also adds "(Tab)" hints after "Act mode" mentions.
- * Returns array of React nodes with appropriate styling
- */
-function renderInlineMarkdown(text: string): React.ReactNode[] {
-	const nodes: React.ReactNode[] = []
-	let hintCallIndex = 0
-	const addHintedText = (value: string) => addActModeHint(value, `hint-${hintCallIndex++}`)
-	// Match **bold**, *italic*, or `code` - order matters (** before *)
-	const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
-	let lastIndex = 0
-	let match
-
-	while ((match = regex.exec(text)) !== null) {
-		// Add text before match (with Act Mode hint processing)
-		if (match.index > lastIndex) {
-			const beforeText = text.slice(lastIndex, match.index)
-			nodes.push(...addHintedText(beforeText))
-		}
-
-		const fullMatch = match[0]
-		const key = `md-${match.index}`
-
-		if (fullMatch.startsWith("**") && fullMatch.endsWith("**")) {
-			// Bold - also process for Act Mode hints inside bold text
-			const boldContent = fullMatch.slice(2, -2)
-			const hintedContent = addHintedText(boldContent)
-			nodes.push(
-				<Text bold key={key}>
-					{hintedContent}
-				</Text>,
-			)
-		} else if (fullMatch.startsWith("*") && fullMatch.endsWith("*")) {
-			// Italic
-			nodes.push(
-				<Text italic key={key}>
-					{fullMatch.slice(1, -1)}
-				</Text>,
-			)
-		} else if (fullMatch.startsWith("`") && fullMatch.endsWith("`")) {
-			// Inline code
-			nodes.push(<Text key={key}>{fullMatch.slice(1, -1)}</Text>)
-		}
-
-		lastIndex = regex.lastIndex
-	}
-
-	// Add remaining text (with Act Mode hint processing)
-	if (lastIndex < text.length) {
-		nodes.push(...addHintedText(text.slice(lastIndex)))
-	}
-
-	return nodes.length > 0 ? nodes : addHintedText(text)
+/** Recursively render child tokens. */
+function renderChildren(tokens: Token[] | undefined, keyPrefix: string, color?: string): React.ReactNode[] {
+	if (!tokens) return []
+	return tokens.map((t, i) => renderNode(t, `${keyPrefix}-${i}`, color))
 }
 
-/**
- * Parse and render full markdown including block-level elements (lists, headings, code blocks)
- * Returns array of React nodes
- */
-function renderFullMarkdown(text: string): React.ReactNode[] {
-	const lines = text.split("\n")
-	const nodes: React.ReactNode[] = []
-	let i = 0
+/** Render any marked token (block or inline) to Ink components. */
+function renderNode(token: Token, key: string | number, color?: string): React.ReactNode {
+	switch (token.type) {
+		// Block tokens
+		case "heading": {
+			const h = token as Tokens.Heading
+			return (
+				<Box flexDirection="column" key={key} marginY={h.depth === 1 ? 1 : 0}>
+					<Text bold color={color}>
+						{renderChildren(h.tokens, `${key}-h`, color)}
+					</Text>
+				</Box>
+			)
+		}
+		case "paragraph":
+			return (
+				<Text color={color} key={key}>
+					{renderChildren((token as Tokens.Paragraph).tokens, `${key}-p`, color)}
+				</Text>
+			)
+		case "code":
+			return (
+				<Box flexDirection="column" key={key} marginY={1}>
+					{(token as Tokens.Code).text.split("\n").map((line, idx) => (
+						<Text color="cyan" key={`${key}-cl-${idx}`}>
+							{line || " "}
+						</Text>
+					))}
+				</Box>
+			)
+		case "list": {
+			const list = token as Tokens.List
+			return (
+				<Box flexDirection="column" key={key}>
+					{list.items.map((item, idx) => (
+						<Box flexDirection="row" key={`${key}-li-${idx}`}>
+							<Text color="gray">{list.ordered ? `${Number(list.start ?? 1) + idx}. ` : "• "}</Text>
+							<Box flexDirection="column" flexGrow={1}>
+								{renderChildren(item.tokens, `${key}-li-${idx}`, color)}
+							</Box>
+						</Box>
+					))}
+				</Box>
+			)
+		}
+		case "blockquote":
+			return (
+				<Box flexDirection="row" key={key}>
+					<Text color="gray">│ </Text>
+					<Box flexDirection="column">{renderChildren((token as Tokens.Blockquote).tokens, `${key}-bq`, color)}</Box>
+				</Box>
+			)
+		case "hr":
+			return (
+				<Text color={color} key={key}>
+					{"─".repeat(40)}
+				</Text>
+			)
+		case "space":
+			return <Text key={key}> </Text>
 
-	while (i < lines.length) {
-		const line = lines[i]
-
-		// Code blocks (```)
-		if (line.trim().startsWith("```")) {
-			const codeLines: string[] = []
-			i++ // Move past opening ```
-			// Collect lines until we hit the closing ```
-			while (i < lines.length && !lines[i].trim().startsWith("```")) {
-				codeLines.push(lines[i])
-				i++
-			}
-			if (codeLines.length > 0) {
-				nodes.push(
-					<Box flexDirection="column" key={`code-${i}`} marginY={1}>
-						{codeLines.map((codeLine, idx) => (
-							<Text color="cyan" key={`code-line-${i}-${idx}`}>
-								{codeLine || " "}
-							</Text>
-						))}
-					</Box>,
+		// Inline tokens
+		case "strong":
+			return (
+				<Text bold color={color} key={key}>
+					{renderChildren((token as Tokens.Strong).tokens, `${key}-s`, color)}
+				</Text>
+			)
+		case "em":
+			return (
+				<Text color={color} italic key={key}>
+					{renderChildren((token as Tokens.Em).tokens, `${key}-e`, color)}
+				</Text>
+			)
+		case "codespan":
+			return <Text key={key}>{(token as Tokens.Codespan).text}</Text>
+		case "link": {
+			const { text: linkText, href } = token as Tokens.Link
+			return (
+				<Text color={color} key={key}>
+					{linkText && linkText !== href ? `${linkText} (${href})` : href}
+				</Text>
+			)
+		}
+		case "text": {
+			const t = token as Tokens.Text
+			if (t.tokens?.length) {
+				return (
+					<Text color={color} key={key}>
+						{renderChildren(t.tokens, `${key}-t`, color)}
+					</Text>
 				)
 			}
-			i++ // Move past closing ```
-			continue
-		}
-
-		// Headings (# ## ### etc.)
-		const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
-		if (headingMatch) {
-			const [, hashes, headingText] = headingMatch
-			const level = hashes.length
-			const color = level <= 2 ? COLORS.primaryBlue : "white"
-			nodes.push(
-				<Box flexDirection="column" key={`heading-${i}`} marginY={level === 1 ? 1 : 0}>
-					<Text bold color={color}>
-						{renderInlineMarkdown(headingText)}
-					</Text>
-				</Box>,
+			return (
+				<Text color={color} key={key}>
+					{addActModeHint(t.text, `${key}`)}
+				</Text>
 			)
-			i++
-			continue
 		}
 
-		// Unordered lists (- or *)
-		const unorderedListMatch = line.match(/^(\s*)([-*])\s+(.+)$/)
-		if (unorderedListMatch) {
-			const [, spaces, , content] = unorderedListMatch
-			const indent = spaces.length
-			nodes.push(
-				<Box flexDirection="row" key={`ul-${i}`} paddingLeft={Math.floor(indent / 2)}>
-					<Text color="gray">• </Text>
-					<Text>{renderInlineMarkdown(content)}</Text>
-				</Box>,
-			)
-			i++
-			continue
-		}
-
-		// Ordered lists (1. 2. etc.)
-		const orderedListMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/)
-		if (orderedListMatch) {
-			const [, spaces, number, content] = orderedListMatch
-			const indent = spaces.length
-			nodes.push(
-				<Box flexDirection="row" key={`ol-${i}`} paddingLeft={Math.floor(indent / 2)}>
-					<Text color="gray">{number}. </Text>
-					<Text>{renderInlineMarkdown(content)}</Text>
-				</Box>,
-			)
-			i++
-			continue
-		}
-
-		// Empty lines (preserve spacing)
-		if (line.trim() === "") {
-			nodes.push(<Text key={`empty-${i}`}> </Text>)
-			i++
-			continue
-		}
-
-		// Regular paragraph text with inline markdown
-		nodes.push(<Text key={`text-${i}`}>{renderInlineMarkdown(line)}</Text>)
-		i++
+		// Fallback: render raw text for any unhandled token type
+		default:
+			return "raw" in token ? (
+				<Text color={color} key={key}>
+					{(token as { raw: string }).raw}
+				</Text>
+			) : null
 	}
-
-	return nodes
 }
 
 /**
- * Render text with full markdown support (inline and block-level elements)
+ * Render markdown text to Ink components using the `marked` lexer.
  */
 const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children, color }) => {
-	// Check if text contains block-level markdown (newlines, lists, headings, code blocks)
-	const hasBlockElements = children.includes("\n") || /^(#{1,6}\s|[-*]\s|\d+\.\s|```)/m.test(children)
+	const tokens = lexer(children)
 
-	if (hasBlockElements) {
-		const nodes = renderFullMarkdown(children)
-		return <Box flexDirection="column">{nodes}</Box>
+	// Fast path: single paragraph → inline text without wrapping Box
+	if (tokens.length === 1 && tokens[0].type === "paragraph") {
+		return <Text color={color}>{renderChildren((tokens[0] as Tokens.Paragraph).tokens, "p", color)}</Text>
 	}
 
-	// For simple inline-only text, use the simpler inline renderer
-	const nodes = renderInlineMarkdown(children)
-	return <Text color={color}>{nodes}</Text>
+	return <Box flexDirection="column">{renderChildren(tokens, "md", color)}</Box>
 }
 
 interface ChatMessageProps {
