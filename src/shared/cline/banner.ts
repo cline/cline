@@ -104,6 +104,23 @@ export const BANNER_DATA: BannerCardData[] = [
 		],
 	},
 
+	// Minimax free promo banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "minimax-m2.5-free-2026-feb-18",
+		icon: "zap",
+		title: "Try MiniMax M2.5 Free",
+		description: "SOTA coding capability with lightning fast inference, free in Cline.",
+		actions: [
+			{
+				title: "Try now",
+				action: BannerActionType.SetModel,
+				arg: "minimax/minimax-m2.5",
+				tab: "free",
+			},
+		],
+	},
+
 	// ChatGPT integration banner
 	{
 		id: "chatgpt-integration-v1",

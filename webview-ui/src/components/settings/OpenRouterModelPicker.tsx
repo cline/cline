@@ -59,6 +59,11 @@ export const recommendedModels = [
 		label: "BEST",
 	},
 	{
+		id: "minimax/minimax-m2.5",
+		description: "Great coding capability and subagent use",
+		label: "HOT",
+	},
+	{
 		id: "anthropic/claude-opus-4.6",
 		description: "Most intelligent model for agents and coding",
 		label: "NEW",
@@ -76,6 +81,11 @@ export const recommendedModels = [
 ]
 
 export const freeModels = [
+	{
+		id: "minimax/minimax-m2.5",
+		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+		label: "FREE",
+	},
 	{
 		id: "z-ai/glm-5",
 		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",

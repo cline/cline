@@ -89,6 +89,10 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 							promo! <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
 						</li>
 						<li className="mb-2">
+							<strong>MiniMax M2.5:</strong> SOTA coding capability with lightning fast inference, now available
+							with free promo! <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
+						</li>
+						<li className="mb-2">
 							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
 							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
 							<a
