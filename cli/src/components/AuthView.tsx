@@ -23,6 +23,7 @@ import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-confi
 import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
+import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import {
 	FeaturedModelPicker,
@@ -31,10 +32,9 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
+import { CUSTOM_MODEL_ID, getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
-import { CUSTOM_MODEL_ID, getDefaultModelId, getModelList, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { getProviderLabel } from "./ProviderPicker"
-import { SearchableList } from "./SearchableList"
 
 type AuthStep =
 	| "menu"
@@ -52,8 +52,7 @@ type AuthStep =
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
-	| "bedrock_custom_arn"
-	| "bedrock_base_model"
+	| "bedrock_custom"
 
 interface AuthViewProps {
 	controller: any
@@ -176,8 +175,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
-	const [customArn, setCustomArn] = useState("")
-	const [bedrockBaseModelId, setBedrockBaseModelId] = useState("")
 
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -462,9 +459,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		(value: string) => {
 			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
 			if (value === CUSTOM_MODEL_ID && selectedProvider === "bedrock") {
-				setCustomArn("")
-				setBedrockBaseModelId(getDefaultModelId("bedrock"))
-				setStep("bedrock_custom_arn")
+				setStep("bedrock_custom")
 				return
 			}
 
@@ -610,14 +605,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			case "import":
 				setImportSource(null)
 				setStep("menu")
-				break
-			case "bedrock_custom_arn":
-				setCustomArn("")
-				setStep("modelid")
-				break
-			case "bedrock_base_model":
-				setBedrockBaseModelId("")
-				setStep("bedrock_custom_arn")
 				break
 			case "error":
 				setErrorMessage("")
@@ -797,47 +784,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					/>
 				)
 
-			case "bedrock_custom_arn":
+			case "bedrock_custom":
 				return (
-					<Box flexDirection="column">
-						<Text color="white">Custom Model ID</Text>
-						<Text> </Text>
-						<Text color="gray">Enter your Application Inference Profile ARN or custom model ID</Text>
-						<Text> </Text>
-						<TextInput
-							onChange={setCustomArn}
-							onSubmit={(value: string) => {
-								if (value.trim()) {
-									setCustomArn(value)
-									setStep("bedrock_base_model")
-								}
-							}}
-							placeholder="arn:aws:bedrock:region:account:application-inference-profile/..."
-							value={customArn}
-						/>
-						<Text> </Text>
-						<Text color="gray">Enter to continue, Esc to go back</Text>
-					</Box>
-				)
-
-			case "bedrock_base_model":
-				return (
-					<Box flexDirection="column">
-						<Text color="white">Base Inference Model</Text>
-						<Text color="gray">Select the base model your inference profile uses (for capability detection)</Text>
-						<Text> </Text>
-						<SearchableList
-							isActive={step === "bedrock_base_model"}
-							items={getModelList("bedrock").map((id) => ({ id, label: id }))}
-							onSelect={(item) => {
-								setBedrockBaseModelId(item.id)
-								setStep("saving")
-								saveCustomBedrockConfiguration(customArn, item.id)
-							}}
-						/>
-						<Text> </Text>
-						<Text color="gray">Type to search, arrows to navigate, Enter to select, Esc to go back</Text>
-					</Box>
+					<BedrockCustomModelFlow
+						isActive={step === "bedrock_custom"}
+						onCancel={() => setStep("modelid")}
+						onComplete={(arn, baseModelId) => {
+							setStep("saving")
+							saveCustomBedrockConfiguration(arn, baseModelId)
+						}}
+					/>
 				)
 
 			case "import":
@@ -879,8 +835,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		"cline_model",
 		"openai_codex_auth",
 		"bedrock",
-		"bedrock_custom_arn",
-		"bedrock_base_model",
 		"error",
 	].includes(step)
 
