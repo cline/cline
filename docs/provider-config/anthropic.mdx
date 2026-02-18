@@ -16,8 +16,13 @@ description: "Learn how to configure and use Anthropic Claude models with Cline.
 
 Cline supports the following Anthropic Claude models:
 
+#### Claude 4.6 Series
+-   `claude-sonnet-4-6` - Latest Sonnet with extended thinking support
+-   `claude-sonnet-4-6:1m` - 1M context window variant with tiered pricing
+
+
 #### Claude 4.5 Series
--   `claude-sonnet-4-5-20250929` (Recommended) - Latest Sonnet with extended thinking support
+-   `claude-sonnet-4-5-20250929` (Recommended) - Stable default Sonnet with reasoning support
 -   `claude-sonnet-4-5-20250929:1m` - 1M context window variant with tiered pricing
 
 #### Claude 4 Series
@@ -56,8 +61,8 @@ Cline users can leverage this by checking the `Enable Extended Thinking` box bel
 
 **Key Aspects of Extended Thinking:**
 
--   **Supported Models:** This feature is available for select models, including Claude Opus 4, Claude Sonnet 4.5, and Claude Sonnet 3.7.
--   **Summarized Thinking (Claude 4):** For Claude 4 and 4.5 models, the API returns a summary of the full thinking process to balance insight with efficiency and prevent misuse. You are billed for the full thinking tokens, not just the summary.
+-   **Supported Models:** This feature is available for select models, including Claude Opus 4, Claude Sonnet 3.7+.
+-   **Summarized Thinking (Claude 3.7+):** For Claude 3.7+ models, the API returns a summary of the full thinking process to balance insight with efficiency and prevent misuse. You are billed for the full thinking tokens, not just the summary.
 -   **Streaming:** Extended thinking responses, including the `thinking` blocks, can be streamed.
 -   **Tool Use & Prompt Caching:** Extended thinking interacts with tool use (requiring thinking blocks to be passed back) and prompt caching (with specific behaviors around cache invalidation and context).
 

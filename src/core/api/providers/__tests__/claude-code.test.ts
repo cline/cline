@@ -276,6 +276,16 @@ describe("ClaudeCodeHandler", () => {
 			model.info.contextWindow.should.equal(1_000_000)
 		})
 
+		it("should support Sonnet 4.6 1m model id", () => {
+			const handler = new ClaudeCodeHandler({
+				apiModelId: "claude-sonnet-4-6[1m]",
+			})
+
+			const model = handler.getModel()
+			model.id.should.equal("claude-sonnet-4-6[1m]")
+			model.info.contextWindow.should.equal(1_000_000)
+		})
+
 		it("should return default model when not specified", () => {
 			const handler = new ClaudeCodeHandler({})
 

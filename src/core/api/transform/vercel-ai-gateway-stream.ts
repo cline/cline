@@ -4,6 +4,7 @@ import {
 	ModelInfo,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet461mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
@@ -32,6 +33,7 @@ export async function createVercelAIGatewayStream(
 	const isClaude1m =
 		model.id === openRouterClaudeSonnet41mModelId ||
 		model.id === openRouterClaudeSonnet451mModelId ||
+		model.id === openRouterClaudeSonnet461mModelId ||
 		model.id === openRouterClaudeOpus461mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id the API expects
