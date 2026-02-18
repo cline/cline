@@ -1161,7 +1161,11 @@ export class ClineAgent implements acp.Agent {
 
 		if (currentProvider === "cline") {
 			// For Cline provider, check if we have stored auth data
-			return Boolean(stateManager.getSecretKey("clineApiKey") || stateManager.getSecretKey("clineAccountId"))
+			return Boolean(
+				stateManager.getSecretKey("clineApiKey") ||
+					stateManager.getSecretKey("clineAccountId") ||
+					stateManager.getSecretKey("cline:clineAccountId"),
+			)
 		}
 
 		// For OpenAI Codex provider, check OAuth credentials
