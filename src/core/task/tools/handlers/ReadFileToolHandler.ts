@@ -15,6 +15,37 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+const FILE_TRUNCATED_MARKER = "\n\n---\n\n[FILE TRUNCATED:"
+
+/**
+ * Prefix each visible file line with a 1-indexed label (e.g., L42: ...).
+ * In truncated reads, only number the actual file-content section and leave the
+ * truncation notice untouched.
+ */
+export function addLineNumbersToReadFileContent(content: string): string {
+	if (!content) {
+		return content
+	}
+
+	let body = content
+	let truncationSuffix = ""
+
+	const truncationIndex = content.indexOf(FILE_TRUNCATED_MARKER)
+	if (truncationIndex !== -1) {
+		body = content.slice(0, truncationIndex)
+		truncationSuffix = content.slice(truncationIndex)
+	}
+
+	const lines = body.split(/\r?\n/)
+	if (body.endsWith("\n") && lines.length > 0) {
+		// Avoid creating an extra numbered line for trailing newline terminators.
+		lines.pop()
+	}
+
+	const numberedBody = lines.map((line, index) => `L${index + 1}: ${line}`).join("\n")
+	return truncationSuffix ? `${numberedBody}${truncationSuffix}` : numberedBody
+}
+
 export class ReadFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_READ
 
@@ -179,6 +210,11 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
+		}
+
+		// Add stable line labels so line-number reasoning is deterministic in both PLAN and ACT flows.
+		if (!fileContent.imageBlock) {
+			return addLineNumbersToReadFileContent(fileContent.text)
 		}
 
 		return fileContent.text
