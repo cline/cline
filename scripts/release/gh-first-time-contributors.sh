@@ -168,7 +168,7 @@ process_window() {
   author_query_body=$(printf "%s\n" "${authors}" |
     awk -v owner="${OWNER}" -v name="${NAME}" '{
       alias=$0
-      gsub(/[^A-Za-z0-9_\-]/, "_", alias)  # make alias GraphQL-safe
+      gsub(/[^A-Za-z0-9_]/, "_", alias)  # make alias GraphQL-safe (hyphens → underscore; GraphQL names cannot contain hyphens)
       printf "a%s: search(query: \"repo:%s/%s is:pr is:merged author:%s sort:created-asc\", type: ISSUE, first: 1) { nodes { ... on PullRequest { number url title mergedAt author { login } } } } ", alias, owner, name, $0
     }')
 

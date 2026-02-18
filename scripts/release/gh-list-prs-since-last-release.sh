@@ -71,7 +71,10 @@ QUERY_BODY=$(git log --first-parent --pretty=%s "${FROM_TAG}..${BASE_REF}" |
   sort -un |
   awk '{printf "pr%s: pullRequest(number: %s) { number title url } ", $1, $1}')
 
+# gh exits 1 when GitHub returns partial results alongside an errors array
+# (e.g. a merge commit subject references an issue number, not a PR).
+# The data is still valid — jq's select(.value != null) already drops the nulls.
 gh api graphql \
   -f query="query { repository(owner: \"${OWNER}\", name: \"${NAME}\") { ${QUERY_BODY} }}" 2>/dev/null |
   jq -r '.data.repository | to_entries | sort_by(.value.number // 999999) | .[] | select(.value != null) | "- #\(.value.number) \(.value.title | gsub("[\\r\\n]+"; " ") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")) (\(.value.url))"' |
-  grep -v '^$'
+  grep -v '^$' || true
