@@ -126,32 +126,31 @@ export async function* handleAnthropicMessagesApiStreamResponse(
 }
 
 export function convertOpenAIToolsToAnthropicTools(tools?: OpenAITool[]): AnthropicTool[] | undefined {
-	if (!tools || tools.length === 0) {
+	if (!tools?.length) {
 		return undefined
 	}
 
-	const anthropicTools = tools
-		.filter((tool): tool is OpenAITool & { type: "function" } => tool?.type === "function" && !!tool.function?.name)
-		.map((tool) => {
-			const { function: fn } = tool
-			const schemaSource = fn?.parameters && typeof fn.parameters === "object" ? { ...fn.parameters } : {}
-			if (typeof (schemaSource as { type?: unknown }).type !== "string") {
-				;(schemaSource as { type: string }).type = "object"
-			}
-			return {
-				name: fn!.name,
-				description: fn?.description,
-				input_schema: schemaSource as AnthropicTool["input_schema"],
-			}
+	const anthropicTools: AnthropicTool[] = []
+
+	for (const tool of tools) {
+		if (tool?.type !== "function" || !tool.function?.name) {
+			continue
+		}
+
+		const fn = tool.function
+
+		const hasSchemaObject = fn.parameters && typeof fn.parameters === "object"
+		const inputSchema = hasSchemaObject ? { ...fn.parameters } : {}
+		if (typeof (inputSchema as { type?: unknown }).type !== "string") {
+			;(inputSchema as { type: string }).type = "object"
+		}
+
+		anthropicTools.push({
+			name: fn.name,
+			description: fn.description || undefined,
+			input_schema: inputSchema as AnthropicTool["input_schema"],
 		})
-		.filter((tool) => !!tool)
-		.map((tool) => {
-			// Ensure description is undefined rather than empty string to avoid API validation issues
-			return {
-				...tool,
-				description: tool.description || undefined,
-			}
-		})
+	}
 
 	return anthropicTools.length > 0 ? anthropicTools : undefined
 }
