@@ -62,11 +62,11 @@ export class PatchParser {
 	private parseNextAction(): void {
 		const line = this.lines[this.index]
 
-		if (line.startsWith(PATCH_MARKERS.UPDATE)) {
+		if (line?.startsWith(PATCH_MARKERS.UPDATE)) {
 			this.parseUpdate(line.substring(PATCH_MARKERS.UPDATE.length).trim())
-		} else if (line.startsWith(PATCH_MARKERS.DELETE)) {
+		} else if (line?.startsWith(PATCH_MARKERS.DELETE)) {
 			this.parseDelete(line.substring(PATCH_MARKERS.DELETE.length).trim())
-		} else if (line.startsWith(PATCH_MARKERS.ADD)) {
+		} else if (line?.startsWith(PATCH_MARKERS.ADD)) {
 			this.parseAdd(line.substring(PATCH_MARKERS.ADD.length).trim())
 		} else {
 			throw new DiffError(`Unknown line while parsing: ${line}`)
@@ -85,14 +85,14 @@ export class PatchParser {
 
 		this.index++
 		const movePath = this.lines[this.index]?.startsWith(PATCH_MARKERS.MOVE)
-			? this.lines[this.index++].substring(PATCH_MARKERS.MOVE.length).trim()
+			? (this.lines[this.index++] ?? "").substring(PATCH_MARKERS.MOVE.length).trim()
 			: undefined
 
 		if (!(path in this.currentFiles)) {
 			throw new DiffError(`Update File Error: Missing File: ${path}`)
 		}
 
-		const text = this.currentFiles[path]!
+		const text = this.currentFiles[path] ?? ""
 		const action = this.parseUpdateFile(text, path)
 		action.movePath = movePath
 
@@ -114,8 +114,9 @@ export class PatchParser {
 		]
 
 		while (!stopMarkers.some((m) => this.lines[this.index]?.startsWith(m.trim()))) {
-			const defStr = this.lines[this.index]?.startsWith("@@ ") ? this.lines[this.index]!.substring(3) : undefined
-			const sectionStr = this.lines[this.index] === "@@" ? this.lines[this.index] : undefined
+			const currentLine = this.lines[this.index]
+			const defStr = currentLine?.startsWith("@@ ") ? currentLine.substring(3) : undefined
+			const sectionStr = currentLine === "@@" ? currentLine : undefined
 
 			if (defStr !== undefined || sectionStr !== undefined) {
 				this.index++
@@ -127,9 +128,10 @@ export class PatchParser {
 			if (defStr?.trim()) {
 				const canonDefStr = canonicalize(defStr.trim())
 				for (let i = index; i < fileLines.length; i++) {
-					if (canonicalize(fileLines[i]!) === canonDefStr || canonicalize(fileLines[i]!.trim()) === canonDefStr) {
+					const fileLine = fileLines[i]
+					if (fileLine && (canonicalize(fileLine) === canonDefStr || canonicalize(fileLine.trim()) === canonDefStr)) {
 						index = i + 1
-						if (canonicalize(fileLines[i]!.trim()) === canonDefStr && canonicalize(fileLines[i]!) !== canonDefStr) {
+						if (canonicalize(fileLine.trim()) === canonDefStr && canonicalize(fileLine) !== canonDefStr) {
 							this.fuzz++
 						}
 						break
@@ -192,8 +194,11 @@ export class PatchParser {
 
 		const stopMarkers = [PATCH_MARKERS.END, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE, PATCH_MARKERS.ADD]
 
-		while (this.hasMoreLines() && !stopMarkers.some((m) => this.lines[this.index].startsWith(m.trim()))) {
+		while (this.hasMoreLines() && !stopMarkers.some((m) => this.lines[this.index]?.startsWith(m.trim()))) {
 			const line = this.lines[this.index++]
+			if (line === undefined) {
+				break
+			}
 			if (!line.startsWith("+")) {
 				throw new DiffError(`Invalid Add File line (missing '+'): ${line}`)
 			}
@@ -222,31 +227,32 @@ function calculateSimilarity(str1: string, str2: string): number {
  * Calculate Levenshtein distance between two strings
  */
 function levenshteinDistance(str1: string, str2: string): number {
-	const matrix: number[][] = []
+	// Use a flat array indexed as [i * (str1.length + 1) + j] to avoid non-null assertions
+	const cols = str1.length + 1
+	const matrix = new Array<number>((str2.length + 1) * cols)
 
 	for (let i = 0; i <= str2.length; i++) {
-		matrix[i] = [i]
+		matrix[i * cols] = i
 	}
-
 	for (let j = 0; j <= str1.length; j++) {
-		matrix[0]![j] = j
+		matrix[j] = j
 	}
 
 	for (let i = 1; i <= str2.length; i++) {
 		for (let j = 1; j <= str1.length; j++) {
 			if (str2[i - 1] === str1[j - 1]) {
-				matrix[i]![j] = matrix[i - 1]![j - 1]!
+				matrix[i * cols + j] = matrix[(i - 1) * cols + (j - 1)] ?? 0
 			} else {
-				matrix[i]![j] = Math.min(
-					matrix[i - 1]![j - 1]! + 1, // substitution
-					matrix[i]![j - 1]! + 1, // insertion
-					matrix[i - 1]![j]! + 1, // deletion
+				matrix[i * cols + j] = Math.min(
+					(matrix[(i - 1) * cols + (j - 1)] ?? 0) + 1, // substitution
+					(matrix[i * cols + (j - 1)] ?? 0) + 1, // insertion
+					(matrix[(i - 1) * cols + j] ?? 0) + 1, // deletion
 				)
 			}
 		}
 	}
 
-	return matrix[str2.length]![str1.length]!
+	return matrix[str2.length * cols + str1.length] ?? 0
 }
 
 /**
@@ -356,8 +362,8 @@ function peek(lines: string[], initialIndex: number): PeekResult {
 	]
 
 	while (index < lines.length) {
-		const s = lines[index]!
-		if (stopMarkers.some((m) => s.startsWith(m.trim()))) {
+		const s = lines[index]
+		if (!s || stopMarkers.some((m) => s.startsWith(m.trim()))) {
 			break
 		}
 		if (s === "***") {
