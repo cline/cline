@@ -84,8 +84,7 @@ export class CerebrasHandler implements ApiHandler {
 							.map((block) => {
 								if (block.type === "text") {
 									return block.text
-								}
-								if (block.type === "image") {
+								} else if (block.type === "image") {
 									return "[Image content not supported in Cerebras]"
 								}
 								return ""
@@ -196,18 +195,14 @@ export class CerebrasHandler implements ApiHandler {
 				// Rate limit error - will be handled by retry decorator with patient backoff
 				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
-			}
-			if (error?.status === 401) {
+			} else if (error?.status === 401) {
 				throw new Error("Cerebras API authentication failed. Please check your API key.")
-			}
-			if (error?.status === 403) {
+			} else if (error?.status === 403) {
 				throw new Error("Cerebras API access denied. Please check your API key permissions.")
-			}
-			if (error?.status >= 500) {
+			} else if (error?.status >= 500) {
 				// Server errors - retryable
 				throw new Error(`Cerebras API server error (${error.status}): ${error.message || "Unknown server error"}`)
-			}
-			if (error?.status === 400) {
+			} else if (error?.status === 400) {
 				// Client errors - not retryable
 				throw new Error(`Cerebras API bad request: ${error.message || "Invalid request parameters"}`)
 			}
