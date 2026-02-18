@@ -71,22 +71,6 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	},
 	{
 		group: "frontier",
-		id: "anthropic/claude-sonnet-4.6",
-		name: "Anthropic: Claude Sonnet 4.6",
-		badge: "New",
-		score: 97,
-		latency: 3,
-		info: {
-			contextWindow: 200_000,
-			supportsImages: true,
-			supportsPromptCache: true,
-			inputPrice: 3.0,
-			outputPrice: 15.0,
-			tiers: [],
-		},
-	},
-	{
-		group: "frontier",
 		id: "google/gemini-3-pro-preview",
 		name: "Gemini 3.0 Pro",
 		badge: "Preview",
