@@ -86,13 +86,13 @@ export interface AcpAgentOptions {
 // ============================================================
 // Session Types
 // ============================================================
-type SessionID = string
+export type SessionID = string
 
 /**
  * Extended session data stored by Cline for ACP sessions.
  */
 export interface ClineAcpSession {
-	/** Unique session/task ID */
+	/** Unique session ID */
 	sessionId: SessionID
 	/** Working directory for the session */
 	cwd: string
@@ -196,28 +196,6 @@ export interface ClinePermissionOption {
 // ============================================================
 // Message Translation
 // ============================================================
-
-/**
- * Mapping of Cline message types to their ACP session update equivalents.
- */
-export type ClineToAcpUpdateMapping = {
-	/** Text messages from the agent */
-	text: "agent_message_chunk"
-	/** Reasoning/thinking from the agent */
-	reasoning: "agent_thought_chunk"
-	/** Markdown content from the agent */
-	markdown: "agent_message_chunk"
-	/** Tool execution */
-	tool: "tool_call"
-	/** Command execution */
-	command: "tool_call"
-	/** Command output */
-	command_output: "tool_call_update"
-	/** Task completion */
-	completion_result: "end_turn"
-	/** Error messages */
-	error: "tool_call_update" | "error"
-}
 
 /**
  * Result of translating a Cline message to ACP session update(s).

@@ -442,11 +442,11 @@ export class ClineAgent implements acp.Agent {
 	 *
 	 * The prompt flow:
 	 * 1. Extract content from the ACP prompt (text, images, files)
-	 * 2. Set up state broadcasting (subscribe to controller updates)
-	 * 3. Initialize or continue task with Controller
+	 * 2. Set up internal cline state subsription
+	 * 3. Initialize or continue cline task
 	 * 4. Translate ClineMessages to ACP SessionUpdates
 	 * 5. Handle permission requests for tools/commands
-	 * 6. Return when task completes, is cancelled, or needs user input
+	 * 6. Return when cline task completes, is cancelled, or needs user input
 	 */
 	async prompt(params: acp.PromptRequest): Promise<acp.PromptResponse> {
 		const session = this.sessions.get(params.sessionId)

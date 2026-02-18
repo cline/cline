@@ -15,7 +15,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { Logger } from "@/shared/services/Logger.js"
 import { ClineAgent } from "../agent/ClineAgent.js"
-import type { AcpAgentOptions, SessionUpdateType } from "../agent/types.js"
+import { type AcpAgentOptions, controllerSymbol, type SessionUpdateType } from "../agent/types.js"
 
 /**
  * ACP Agent wrapper that bridges stdio connection to ClineAgent.
@@ -49,7 +49,7 @@ export class AcpAgent implements acp.Agent {
 				})
 			} catch (error) {
 				Logger.debug("[AcpAgent] Error requesting permission:", error)
-				return { outcome: "rejected" as unknown as acp.RequestPermissionOutcome }
+				return { outcome: { outcome: "cancelled" } }
 			}
 		})
 	}
@@ -58,9 +58,12 @@ export class AcpAgent implements acp.Agent {
 	 * Get the current active session ID from the ClineAgent.
 	 */
 	private getCurrentSessionId(): string | undefined {
-		// Return the first session ID (ACP typically has one active session)
-		const firstSession = this.clineAgent.sessions.keys().next()
-		return firstSession.done ? undefined : firstSession.value
+		for (const [sessionId, session] of this.clineAgent.sessions) {
+			if (session[controllerSymbol]?.task) {
+				return sessionId
+			}
+		}
+		return undefined
 	}
 
 	/**
