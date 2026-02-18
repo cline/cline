@@ -43,6 +43,7 @@ import { VercelAIGatewayHandler } from "./providers/vercel-ai-gateway"
 import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
+import { ModelsLabHandler } from "./providers/modelslab"
 import { ZAiHandler } from "./providers/zai"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
@@ -213,6 +214,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				fireworksApiKey: options.fireworksApiKey,
 				fireworksModelId: mode === "plan" ? options.planModeFireworksModelId : options.actModeFireworksModelId,
+			})
+		case "modelslab":
+			return new ModelsLabHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				modelsLabApiKey: options.modelsLabApiKey,
+				modelsLabModelId: mode === "plan" ? options.planModeModelsLabModelId : options.actModeModelsLabModelId,
 			})
 		case "together":
 			return new TogetherHandler({
