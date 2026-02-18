@@ -16,7 +16,6 @@ import { getContextWindowInfo } from "@/core/context/context-management/context-
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineError, ClineErrorType } from "@/services/error"
 import { ApiFormat } from "@/shared/proto/cline/models"
-import { SETTINGS_DEFAULTS } from "@/shared/storage"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { isNextGenModelFamily } from "@/utils/model-utils"
 import { TaskState } from "../../TaskState"
@@ -729,9 +728,7 @@ export class SubagentRunner {
 		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
 		if (useAutoCondense && isNextGenModelFamily(modelId)) {
-			// Use default — the UI to adjust this is disabled and stored values may be corrupted.
-			// See: https://github.com/cline/cline/pull/9348
-			const autoCondenseThreshold = SETTINGS_DEFAULTS.autoCondenseThreshold
+			const autoCondenseThreshold = 0.75
 			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
 			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
 			return previousRequestTotalTokens >= thresholdTokens
