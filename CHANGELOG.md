@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.64.0]
+## [3.65.0]
 
 ### Added
 
@@ -10,6 +10,12 @@
 
 - Fix aggressive context compaction caused by accidental clicks on the context window progress bar silently setting a very low auto-condense threshold
 - Fix infinite retry loop when write_to_file fails with missing content parameter.
+- Fixed default claude model
+
+## [3.64.0]
+
+### Added
+- Added sonnet 4.6
 
 
 ## [3.63.0]

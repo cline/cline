@@ -80,8 +80,8 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 					{/* Description */}
 					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						<li className="mb-2">
-							<strong>Claude Sonnet 4.6 is here!</strong> Anthropic's latest model with advanced reasoning and
-							coding performance.{" "}
+							<strong>Claude Sonnet 4.6 is here!</strong> Advanced reasoning and coding performance. Note: Free
+							promotion ended.{" "}
 							<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="recommended" />
 						</li>
 						<li className="mb-2">
