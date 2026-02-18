@@ -62,14 +62,14 @@ export class MinimaxHandler implements ApiHandler {
 		// MiniMax M2 uses Anthropic API format
 		const stream: AnthropicStream<Anthropic.RawMessageStreamEvent> = await client.messages.create({
 			model: model.id,
-			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			max_tokens: model.info.maxTokens || 8192,
-			// "Thinking isn't compatible with temperature, top_p, or top_k modifications"
-			temperature: reasoningOn ? undefined : 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
 			system: [{ text: systemPrompt, type: "text" }],
 			messages,
 			stream: true,
 			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+			// "Thinking isn't compatible with temperature, top_p, or top_k modifications"
+			temperature: reasoningOn ? undefined : 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
 			// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
 			tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 		})
