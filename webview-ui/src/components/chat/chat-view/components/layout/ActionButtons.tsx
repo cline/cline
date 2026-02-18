@@ -109,15 +109,15 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			// Check for the platform-specific modifier key
 			const modifierKey = os === "mac" ? event.metaKey : os === "linux" ? event.altKey : event.ctrlKey
 
-			// Modifier+Enter triggers primary action
-			if (event.key === "Enter" && modifierKey && primaryAction) {
+			// Modifier+Shift+1 triggers primary action
+			if (event.key === "1" && modifierKey && event.shiftKey && primaryAction) {
 				event.preventDefault()
 				event.stopPropagation()
 				handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)
 			}
 
-			// Modifier+Backspace triggers secondary action
-			if (event.key === "Backspace" && modifierKey && secondaryAction) {
+			// Modifier+Shift+2 triggers secondary action
+			if (event.key === "2" && modifierKey && event.shiftKey && secondaryAction) {
 				event.preventDefault()
 				event.stopPropagation()
 				handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)
@@ -204,26 +204,26 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
-					aria-keyshortcuts={`${ariaModifier}+Enter`}
+					aria-keyshortcuts={`${ariaModifier}+Shift+1`}
 					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
 					<span className="w-fit">{primaryText}</span>
 					<span aria-hidden="true" className="shortcut-hint w-fit">
-						({metaKeySymbol}↵)
+						({metaKeySymbol}⇧1)
 					</span>
 				</VSCodeButton>
 			)}
 			{secondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
-					aria-keyshortcuts={`${ariaModifier}+Backspace`}
+					aria-keyshortcuts={`${ariaModifier}+Shift+2`}
 					className={primaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
 					<span className="w-fit">{secondaryText}</span>
 					<span aria-hidden="true" className="shortcut-hint w-fit">
-						({metaKeySymbol}⌫)
+						({metaKeySymbol}⇧2)
 					</span>
 				</VSCodeButton>
 			)}
