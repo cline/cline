@@ -3,12 +3,12 @@ import { describe, it } from "mocha"
 import { DiffViewProvider } from "../DiffViewProvider"
 
 class TestBoundaryDiffViewProvider extends DiffViewProvider {
-	public documentText: string = ""
+	public documentText = ""
 	public truncatedAt: number | undefined
 
 	async openDiffEditor(): Promise<void> {}
-	async scrollEditorToLine(line: number): Promise<void> {}
-	async scrollAnimation(startLine: number, endLine: number): Promise<void> {}
+	async scrollEditorToLine(_line: number): Promise<void> {}
+	async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
 
 	async truncateDocument(lineNumber: number): Promise<void> {
 		this.truncatedAt = lineNumber
@@ -26,7 +26,7 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 		return this.documentText
 	}
 
-	async saveDocument(): Promise<Boolean> {
+	async saveDocument(): Promise<boolean> {
 		return true
 	}
 	async closeAllDiffViews(): Promise<void> {}
@@ -35,7 +35,7 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 	async replaceText(
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
-		currentLine: number | undefined,
+		_currentLine: number | undefined,
 	): Promise<void> {
 		// Minimal implementation for update() to work
 		const lines = this.documentText.split("\n")
@@ -199,7 +199,7 @@ describe("DiffViewProvider Update Throttling", () => {
 	// Only the final line (without trailing newline) is deferred until isFinal=true.
 
 	class ThrottleTestDiffViewProvider extends DiffViewProvider {
-		public documentText: string = ""
+		public documentText = ""
 		public replaceTextCallCount = 0
 
 		async openDiffEditor(): Promise<void> {}
@@ -215,7 +215,7 @@ describe("DiffViewProvider Update Throttling", () => {
 			return this.documentText
 		}
 
-		async saveDocument(): Promise<Boolean> {
+		async saveDocument(): Promise<boolean> {
 			return true
 		}
 		async closeAllDiffViews(): Promise<void> {}
@@ -376,7 +376,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		// Simulate rapid streaming with complete lines (like notebook editing)
 		// Each iteration adds a new line
 		for (let i = 1; i <= 100; i++) {
-			const content = Array.from({ length: i }, (_, j) => `line${j + 1}`).join("\n") + "\n"
+			const content = `${Array.from({ length: i }, (_, j) => `line${j + 1}`).join("\n")}\n`
 			await provider.update(content, false)
 		}
 
@@ -388,12 +388,12 @@ describe("DiffViewProvider Update Throttling", () => {
 		await new Promise((resolve) => setTimeout(resolve, 110))
 
 		// Next update goes through
-		const contentAfterWait = Array.from({ length: 100 }, (_, j) => `line${j + 1}`).join("\n") + "\nfinal line\n"
+		const contentAfterWait = `${Array.from({ length: 100 }, (_, j) => `line${j + 1}`).join("\n")}\nfinal line\n`
 		await provider.update(contentAfterWait, false)
 		assert.strictEqual(provider.replaceTextCallCount, 2, "Update after throttle should go through")
 
 		// Final update always goes through
-		await provider.update(contentAfterWait + "end", true)
+		await provider.update(`${contentAfterWait}end`, true)
 		assert.strictEqual(provider.replaceTextCallCount, 3, "Final update should go through")
 	})
 

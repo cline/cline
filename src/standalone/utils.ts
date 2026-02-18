@@ -37,10 +37,10 @@ async function asyncIteratorToCallbacks<T>(stream: AsyncIterable<T>, callbacks: 
 	try {
 		// Process each item in the stream
 		for await (const response of stream) {
-			callbacks.onResponse && callbacks.onResponse(response)
+			callbacks.onResponse?.(response)
 		}
 		// Stream completed successfully
-		callbacks.onComplete && callbacks.onComplete()
+		callbacks.onComplete?.()
 	} catch (err) {
 		const error = err instanceof Error ? err : new Error(String(err))
 		if (callbacks.onError) {

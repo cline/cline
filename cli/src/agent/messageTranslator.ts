@@ -183,7 +183,7 @@ function translateSayMessage(
 ): TranslatedMessage {
 	const updates: acp.SessionUpdate[] = []
 	let toolCallId: string | undefined
-	const say = message.say!
+	const say = message.say
 
 	switch (say) {
 		case "text":
@@ -233,7 +233,7 @@ function translateSayMessage(
 			if (message.text) {
 				updates.push({
 					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: "\n" + message.text },
+					content: { type: "text", text: `\n${message.text}` },
 				})
 			}
 			break
@@ -396,7 +396,7 @@ function translateAskMessage(
 	options?: TranslateMessageOptions,
 ): TranslatedMessage {
 	const updates: acp.SessionUpdate[] = []
-	const ask = message.ask!
+	const ask = message.ask
 	let requiresPermission = false
 	let permissionRequest: TranslatedMessage["permissionRequest"]
 	let toolCallId: string | undefined
@@ -622,7 +622,7 @@ function translateAskMessage(
 			if (message.text) {
 				updates.push({
 					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: "\n" + message.text },
+					content: { type: "text", text: `\n${message.text}` },
 				})
 			}
 			break

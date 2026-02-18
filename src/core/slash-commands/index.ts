@@ -102,7 +102,7 @@ export async function parseSlashCommands(
 		// slashMatch[2] is the command name
 		const slashPositionInContent = slashMatch.index + slashMatch[1].length
 		const slashPositionInFullText = contentStartIndex + slashPositionInContent
-		const commandText = "/" + slashMatch[2]
+		const commandText = `/${slashMatch[2]}`
 		const commandEndPosition = slashPositionInFullText + commandText.length
 
 		return fullText.substring(0, slashPositionInFullText) + fullText.substring(commandEndPosition)

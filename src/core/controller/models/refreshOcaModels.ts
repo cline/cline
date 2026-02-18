@@ -42,7 +42,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 	const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
 	const baseUrl = request.value || (ocaMode === "internal" ? DEFAULT_INTERNAL_OCA_BASE_URL : DEFAULT_EXTERNAL_OCA_BASE_URL)
 	const modelsUrl = `${baseUrl}/v1/model/info`
-	const headers = await createOcaHeaders(ocaAccessToken!, "models-refresh")
+	const headers = await createOcaHeaders(ocaAccessToken as string, "models-refresh")
 	try {
 		Logger.log(`Making refresh oca model request with customer opc-request-id: ${headers["opc-request-id"]}`)
 		const response = await axios.get(modelsUrl, { headers, ...getAxiosSettings() })
@@ -97,14 +97,14 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			const planModeSelectedModelId =
 				apiConfiguration?.planModeOcaModelId && models[apiConfiguration.planModeOcaModelId]
 					? apiConfiguration.planModeOcaModelId
-					: defaultModelId!
+					: (defaultModelId as string)
 			const actModeSelectedModelId =
 				apiConfiguration?.actModeOcaModelId && models[apiConfiguration.actModeOcaModelId]
 					? apiConfiguration.actModeOcaModelId
-					: defaultModelId!
+					: (defaultModelId as string)
 
-			let planModeOcaReasoningEffort
-			let actModeOcaReasoningEffort
+			let planModeOcaReasoningEffort: string | undefined
+			let actModeOcaReasoningEffort: string | undefined
 			if (
 				models[planModeSelectedModelId].supportsReasoning &&
 				models[planModeSelectedModelId].reasoningEffortOptions.length > 0
@@ -160,7 +160,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			})
 		}
 	} catch (err) {
-		let userMsg
+		let userMsg: string | undefined
 		if (err.response) {
 			// The request was made and the server responded with a status code that falls out of the range of 2xx
 			userMsg = `Did you set up your OCA access (possibly through entitlements)? OCA service returned ${err.response.status} ${err.response.statusText}.`
@@ -173,7 +173,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Error refreshing OCA models. ` + userMsg + ` opc-request-id: ${headers["opc-request-id"]}`,
+			message: `Error refreshing OCA models. ${userMsg} opc-request-id: ${headers["opc-request-id"]}`,
 		})
 		return OcaCompatibleModelInfo.create({ error: userMsg })
 	}

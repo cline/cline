@@ -27,7 +27,7 @@ export async function openFocusChainFile(controller: Controller, request: String
 			.reverse()
 			.find((m) => m.say === "task_progress")
 
-		if (lastProgressMessage && lastProgressMessage.text) {
+		if (lastProgressMessage?.text) {
 			initialFocusChainContent = extractFocusChainListFromText(lastProgressMessage.text) || undefined
 		}
 	}

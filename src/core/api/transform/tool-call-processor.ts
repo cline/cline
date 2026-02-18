@@ -74,12 +74,12 @@ export class ToolCallProcessor {
 	}
 }
 
-export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls: boolean = false) {
+export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls = false) {
 	return tools?.length
 		? {
 				tools,
 				tool_choice: tools ? ("auto" as ChatCompletionToolChoiceOption) : undefined,
-				parallel_tool_calls: enableParallelToolCalls ? true : false,
+				parallel_tool_calls: !!enableParallelToolCalls,
 			}
 		: {
 				tools: undefined,

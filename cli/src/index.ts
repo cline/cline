@@ -697,9 +697,9 @@ async function runAuth(options: {
 	// Quick setup mode - no UI, just save configuration and exit
 	if (hasQuickSetupFlags) {
 		const result = await performQuickAuthSetup(ctx, {
-			provider: options.provider!,
-			apikey: options.apikey!,
-			modelid: options.modelid!,
+			provider: options.provider as string,
+			apikey: options.apikey as string,
+			modelid: options.modelid as string,
 			baseurl: options.baseurl,
 		})
 
@@ -857,7 +857,7 @@ async function checkAnyProviderConfigured(): Promise<boolean> {
 	const config = stateManager.getApiConfiguration() as Record<string, unknown>
 
 	// Check Cline account (stored as "cline:clineAccountId" in secrets, loaded into config)
-	if (config["clineApiKey"] || config["cline:clineAccountId"]) return true
+	if (config.clineApiKey || config["cline:clineAccountId"]) return true
 
 	// Check OpenAI Codex OAuth (stored in SECRETS_KEYS, loaded into config)
 	if (config["openai-codex-oauth-credentials"]) return true

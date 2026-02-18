@@ -52,10 +52,10 @@ describe("getAvailableSlashCommands", () => {
 			// Verify each base command is present
 			for (const baseCmd of BASE_SLASH_COMMANDS) {
 				const found = response.commands.find((cmd) => cmd.name === baseCmd.name)
-				found!.should.not.be.undefined()
-				found!.description.should.equal(baseCmd.description)
-				found!.section.should.equal("default")
-				found!.cliCompatible.should.equal(baseCmd.cliCompatible ?? false)
+				found?.should.not.be.undefined()
+				found?.description.should.equal(baseCmd.description)
+				found?.section.should.equal("default")
+				found?.cliCompatible.should.equal(baseCmd.cliCompatible ?? false)
 			}
 		})
 
@@ -87,12 +87,12 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const myWorkflow = response.commands.find((cmd) => cmd.name === "my-workflow.md")
-			myWorkflow!.should.not.be.undefined()
-			myWorkflow!.section.should.equal("custom")
-			myWorkflow!.cliCompatible.should.equal(true)
+			myWorkflow?.should.not.be.undefined()
+			myWorkflow?.section.should.equal("custom")
+			myWorkflow?.cliCompatible.should.equal(true)
 
 			const anotherWorkflow = response.commands.find((cmd) => cmd.name === "another-workflow.md")
-			anotherWorkflow!.should.not.be.undefined()
+			anotherWorkflow?.should.not.be.undefined()
 		})
 
 		it("should exclude disabled local workflows", async () => {
@@ -104,7 +104,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const enabled = response.commands.find((cmd) => cmd.name === "enabled-workflow.md")
-			enabled!.should.not.be.undefined()
+			enabled?.should.not.be.undefined()
 
 			const disabled = response.commands.find((cmd) => cmd.name === "disabled-workflow.md")
 			;(disabled === undefined).should.be.true()
@@ -118,7 +118,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const workflow = response.commands.find((cmd) => cmd.name === "deep-analysis.md")
-			workflow!.should.not.be.undefined()
+			workflow?.should.not.be.undefined()
 		})
 
 		it("should handle Windows-style paths", async () => {
@@ -129,7 +129,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const workflow = response.commands.find((cmd) => cmd.name === "windows-workflow.md")
-			workflow!.should.not.be.undefined()
+			workflow?.should.not.be.undefined()
 		})
 	})
 
@@ -142,8 +142,8 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const workflow = response.commands.find((cmd) => cmd.name === "global-workflow.md")
-			workflow!.should.not.be.undefined()
-			workflow!.section.should.equal("custom")
+			workflow?.should.not.be.undefined()
+			workflow?.section.should.equal("custom")
 		})
 
 		it("should exclude disabled global workflows", async () => {
@@ -187,7 +187,7 @@ describe("getAvailableSlashCommands", () => {
 
 			// Global should appear since local is disabled
 			const workflow = response.commands.find((cmd) => cmd.name === "shared-workflow.md")
-			workflow!.should.not.be.undefined()
+			workflow?.should.not.be.undefined()
 		})
 	})
 
@@ -200,8 +200,8 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const workflow = response.commands.find((cmd) => cmd.name === "always-on-workflow")
-			workflow!.should.not.be.undefined()
-			workflow!.section.should.equal("custom")
+			workflow?.should.not.be.undefined()
+			workflow?.section.should.equal("custom")
 		})
 
 		it("should include remote workflows enabled by toggle", async () => {
@@ -215,7 +215,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const workflow = response.commands.find((cmd) => cmd.name === "toggle-workflow")
-			workflow!.should.not.be.undefined()
+			workflow?.should.not.be.undefined()
 		})
 
 		it("should exclude remote workflows explicitly disabled by toggle", async () => {
@@ -242,7 +242,7 @@ describe("getAvailableSlashCommands", () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
 
 			const workflow = response.commands.find((cmd) => cmd.name === "default-enabled")
-			workflow!.should.not.be.undefined()
+			workflow?.should.not.be.undefined()
 		})
 	})
 

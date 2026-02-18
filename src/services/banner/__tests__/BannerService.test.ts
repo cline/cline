@@ -564,11 +564,11 @@ describe("BannerService", () => {
 				expect(banners[0].description).to.equal("Has valid actions")
 				expect(banners[0].icon).to.equal("lightbulb")
 				expect(banners[0].actions).to.have.lengthOf(2)
-				expect(banners[0].actions![0].title).to.equal("Link")
-				expect(banners[0].actions![0].action).to.equal("link")
-				expect(banners[0].actions![0].arg).to.equal("https://example.com")
-				expect(banners[0].actions![1].title).to.equal("Settings")
-				expect(banners[0].actions![1].action).to.equal("show-api-settings")
+				expect(banners[0].actions?.[0].title).to.equal("Link")
+				expect(banners[0].actions?.[0].action).to.equal("link")
+				expect(banners[0].actions?.[0].arg).to.equal("https://example.com")
+				expect(banners[0].actions?.[1].title).to.equal("Settings")
+				expect(banners[0].actions?.[1].action).to.equal("show-api-settings")
 			})
 		})
 
@@ -791,7 +791,7 @@ describe("BannerService", () => {
 				expect(mockedPostStateToWebview.called).to.be.true
 				expect(banners).to.have.lengthOf(1)
 				expect(banners[0].actions).to.have.lengthOf(validActionTypes.length)
-				banners[0].actions!.forEach((action, index) => {
+				banners[0].actions?.forEach((action, index) => {
 					expect(action.action).to.equal(validActionTypes[index])
 				})
 			})

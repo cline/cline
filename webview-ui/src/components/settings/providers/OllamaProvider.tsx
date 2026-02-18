@@ -41,7 +41,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					value: apiConfiguration?.ollamaBaseUrl || "",
 				}),
 			)
-			if (response && response.values) {
+			if (response?.values) {
 				setOllamaModels(response.values)
 			}
 		} catch (error) {
@@ -110,7 +110,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
 						onChange={(value) => {
 							// Convert to number, with validation
-							const numValue = parseInt(value, 10)
+							const numValue = Number.parseInt(value, 10)
 							if (!Number.isNaN(numValue) && numValue > 0) {
 								handleFieldChange("requestTimeoutMs", numValue)
 							}

@@ -36,7 +36,7 @@ class ClineEndpoint {
 	private onPremiseConfig: EndpointsFileSchema | null = null
 	private environment: Environment = Environment.production
 	// Track if config came from bundled file (enterprise distribution)
-	private isBundled: boolean = false
+	private isBundled = false
 
 	private constructor() {
 		// Set environment at module load. Use override if provided.
@@ -165,7 +165,9 @@ class ClineEndpoint {
 
 			const config = ClineEndpoint.validateEndpointsSchema(data, bundledPath)
 			// Mark as bundled enterprise distribution
-			ClineEndpoint._instance!.isBundled = true
+			if (ClineEndpoint._instance) {
+				ClineEndpoint._instance.isBundled = true
+			}
 			return config
 		} catch (error) {
 			if (error instanceof ClineConfigurationError) {

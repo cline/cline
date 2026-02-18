@@ -217,7 +217,7 @@ describe("multifile-diff", () => {
 			expect(
 				(HostProvider.window.showMessage as sinon.SinonStub).calledWith({
 					type: ShowMessageType.ERROR,
-					message: "Failed to retrieve diff set: " + errorMessage,
+					message: `Failed to retrieve diff set: ${errorMessage}`,
 				}),
 			).to.be.true
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false

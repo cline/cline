@@ -24,7 +24,7 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 
 		const config: AxiosRequestConfig = {}
 		if (request.apiKey) {
-			config["headers"] = { Authorization: `Bearer ${request.apiKey}` }
+			config.headers = { Authorization: `Bearer ${request.apiKey}` }
 		}
 
 		const response = await axios.get(`${request.baseUrl}/models`, { ...config, ...getAxiosSettings() })

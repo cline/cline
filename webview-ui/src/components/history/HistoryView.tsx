@@ -67,7 +67,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption])
 
 	// Load when filters change
 	useEffect(() => {
@@ -115,7 +115,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}, 1000)
 			}
 		},
-		[showFavoritesOnly, loadTaskHistory],
+		[showFavoritesOnly, loadTaskHistory, showCurrentWorkspaceOnly],
 	)
 
 	// Use the onRelinquishControl hook instead of message event
@@ -157,9 +157,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setSelectedItems((prev) => {
 			if (checked) {
 				return [...prev, itemId]
-			} else {
-				return prev.filter((id) => id !== itemId)
 			}
+			return prev.filter((id) => id !== itemId)
 		})
 	}, [])
 
@@ -200,7 +199,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		const results = searchQuery
 			? fuse
 					.search(searchQuery)
-					?.filter(({ matches }) => matches && matches.length)
+					?.filter(({ matches }) => matches?.length)
 					.map(({ item }) => item)
 			: tasks
 
@@ -221,7 +220,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				case "mostRelevant":
 					// NOTE: you must never sort directly on object since it will cause members to be reordered
 					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
-				case "newest":
 				default:
 					return b.ts - a.ts
 			}
@@ -460,7 +458,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number
@@ -530,7 +528,7 @@ export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassNam
 	}
 
 	return fuseSearchResult
-		.filter(({ matches }) => matches && matches.length)
+		.filter(({ matches }) => matches?.length)
 		.map(({ item, matches }) => {
 			const highlightedItem = { ...item }
 

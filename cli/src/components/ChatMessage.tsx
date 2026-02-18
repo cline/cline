@@ -65,7 +65,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
 	// Match **bold**, *italic*, or `code` - order matters (** before *)
 	const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
 	let lastIndex = 0
-	let match
+	let match: RegExpExecArray | null
 
 	while ((match = regex.exec(text)) !== null) {
 		// Add text before match (with Act Mode hint processing)
@@ -177,7 +177,7 @@ function getToolMainArg(_toolName: string, args: Record<string, unknown>): strin
 
 	// Command - truncate long commands
 	if (typeof args.command === "string") {
-		return args.command.length > 120 ? args.command.substring(0, 117) + "..." : args.command
+		return args.command.length > 120 ? `${args.command.substring(0, 117)}...` : args.command
 	}
 
 	// URL
@@ -221,7 +221,7 @@ const ToolCallText: React.FC<{
  */
 function truncate(text: string, maxLength: number): string {
 	if (text.length <= maxLength) return text
-	return text.substring(0, maxLength - 3) + "..."
+	return `${text.substring(0, maxLength - 3)}...`
 }
 
 /**
@@ -245,7 +245,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 	// User messages (task, user_feedback)
 	// If multi-line, extend background to full width for consistent appearance
 	if (say === "task" || say === "user_feedback") {
-		const content = "> " + (text || "")
+		const content = `> ${text || ""}`
 		const isMultiLine = content.includes("\n") || content.length > terminalWidth
 
 		if (isMultiLine) {
@@ -412,7 +412,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, mode, isStrea
 					: "tool: unknown"
 
 		let argsLines: string[] = []
-		if (parsed?.arguments && parsed.arguments.trim() && parsed.arguments !== "{}") {
+		if (parsed?.arguments?.trim() && parsed.arguments !== "{}") {
 			let formattedArgs = parsed.arguments
 			try {
 				formattedArgs = JSON.stringify(JSON.parse(parsed.arguments), null, 2)

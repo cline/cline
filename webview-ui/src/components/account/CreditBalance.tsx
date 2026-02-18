@@ -24,7 +24,7 @@ export const CreditBalance = ({ balance, fetchCreditBalance, creditUrl, lastFetc
 					className={`mt-1 ${isLoading ? "animate-spin" : ""}`}
 					disabled={isLoading}
 					onClick={fetchCreditBalance}>
-					<span className="codicon codicon-refresh"></span>
+					<span className="codicon codicon-refresh" />
 				</VSCodeButton>
 			</div>
 

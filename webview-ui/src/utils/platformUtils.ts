@@ -26,13 +26,14 @@ export const detectOS = (platform: string) => {
 export const detectMetaKeyChar = (platform: string) => {
 	if (platform.match(platforms.mac)) {
 		return "CMD"
-	} else if (platform.match(platforms.windows)) {
-		return "Win"
-	} else if (platform.match(platforms.linux)) {
-		return "Alt"
-	} else {
-		return "CMD"
 	}
+	if (platform.match(platforms.windows)) {
+		return "Win"
+	}
+	if (platform.match(platforms.linux)) {
+		return "Alt"
+	}
+	return "CMD"
 }
 
 const userAgent = navigator?.userAgent || ""

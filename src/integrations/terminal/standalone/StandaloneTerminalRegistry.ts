@@ -18,7 +18,7 @@ export class StandaloneTerminalRegistry {
 	private terminals: Map<number, TerminalInfo> = new Map()
 
 	/** Next available terminal ID */
-	private nextId: number = 1
+	private nextId = 1
 
 	/**
 	 * Create a new terminal and register it.

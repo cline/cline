@@ -16,10 +16,9 @@ export async function updateMcpTimeout(controller: Controller, request: UpdateMc
 			const convertedMcpServers = convertMcpServersToProtoMcpServers(mcpServers)
 			Logger.log("convertedMcpServers", convertedMcpServers)
 			return McpServers.create({ mcpServers: convertedMcpServers })
-		} else {
-			Logger.error("Server name and timeout are required")
-			throw new Error("Server name and timeout are required")
 		}
+		Logger.error("Server name and timeout are required")
+		throw new Error("Server name and timeout are required")
 	} catch (error) {
 		Logger.error(`Failed to update timeout for server ${request.serverName}:`, error)
 		throw error

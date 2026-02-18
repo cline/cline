@@ -4,8 +4,8 @@ import {
 	ModelInfo,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet461mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
@@ -76,7 +76,7 @@ export async function createVercelAIGatewayStream(
 					msg.content.push(lastTextPart)
 				}
 				// @ts-expect-error-next-line
-				lastTextPart["cache_control"] = { type: "ephemeral" }
+				lastTextPart.cache_control = { type: "ephemeral" }
 			}
 		})
 	}

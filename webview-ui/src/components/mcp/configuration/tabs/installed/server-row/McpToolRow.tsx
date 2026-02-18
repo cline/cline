@@ -47,7 +47,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				onClick={(e) => e.stopPropagation()}
 				style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
 				<div style={{ display: "flex", alignItems: "center", minWidth: 0, flex: "1 1 auto" }}>
-					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }}></span>
+					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }} />
 					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{tool.name}</span>
 				</div>
 				{serverName && autoApprovalSettings.actions.useMcp && (

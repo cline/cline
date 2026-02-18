@@ -76,7 +76,7 @@ const Select: React.FC<{
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	useInput(
-		(input, key) => {
+		(_input, key) => {
 			if (key.upArrow) {
 				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
 			} else if (key.downArrow) {
@@ -250,7 +250,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// Reset provider index when search changes
 	useEffect(() => {
 		setProviderIndex(0)
-	}, [providerSearch])
+	}, [])
 
 	// Set default model when entering model step
 	useEffect(() => {
@@ -273,7 +273,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return
 			}
 
-			if (authState.user && authState.user.email) {
+			if (authState.user?.email) {
 				// Auth succeeded - save configuration and transition to model selection
 				await applyProviderConfig({ providerId: "cline", controller })
 				setSelectedProvider("cline")
@@ -316,7 +316,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			setErrorMessage(error instanceof Error ? error.message : String(error))
 			setStep("error")
 		}
-	}, [])
+	}, [controller])
 
 	// Start Cline auth flow
 	const startClineAuth = useCallback(async () => {
@@ -372,7 +372,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("apikey")
 			}
 		},
-		[startOcaAuth, startOpenAiCodexAuth],
+		[startOpenAiCodexAuth],
 	)
 
 	const handleApiKeySubmit = useCallback(

@@ -28,7 +28,7 @@ export const HicapProvider = ({ showModelOptions, isPopup, currentMode }: HicapP
 		if (apiConfiguration?.hicapApiKey && apiConfiguration?.hicapApiKey.length === 32) {
 			refreshHicapModels()
 		}
-	}, [apiConfiguration?.hicapApiKey])
+	}, [apiConfiguration?.hicapApiKey, refreshHicapModels])
 
 	return (
 		<div>

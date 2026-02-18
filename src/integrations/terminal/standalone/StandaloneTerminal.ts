@@ -80,7 +80,7 @@ export class StandaloneTerminal implements ITerminal {
 	 * @param text The text to send
 	 * @param addNewLine Whether to add a newline (default: true)
 	 */
-	sendText(text: string, addNewLine: boolean = true): void {
+	sendText(text: string, addNewLine = true): void {
 		Logger.log(`[StandaloneTerminal] sendText: ${text}`)
 
 		// If we have an active process, send input to it

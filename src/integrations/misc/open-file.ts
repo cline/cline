@@ -29,7 +29,7 @@ export async function openImage(dataUri: string) {
 	}
 }
 
-export async function openFile(absolutePath: string, preserveFocus: boolean = false, preview: boolean = false) {
+export async function openFile(absolutePath: string, preserveFocus = false, preview = false) {
 	try {
 		await HostProvider.window.showTextDocument({
 			path: absolutePath,

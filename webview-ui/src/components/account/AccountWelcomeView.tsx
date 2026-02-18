@@ -23,7 +23,7 @@ export const AccountWelcomeView = () => {
 				Sign up with Cline
 				{isLoginLoading && (
 					<span className="ml-1 animate-spin">
-						<span className="codicon codicon-refresh"></span>
+						<span className="codicon codicon-refresh" />
 					</span>
 				)}
 			</VSCodeButton>

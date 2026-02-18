@@ -40,7 +40,7 @@ export const BrowserSettingsMenu = () => {
 		})()
 
 		// No need for message event listeners anymore!
-	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled])
+	}, [])
 
 	// Close popover when clicking outside
 	useEffect(() => {
@@ -92,20 +92,19 @@ export const BrowserSettingsMenu = () => {
 	const getIconClass = () => {
 		if (connectionInfo.isRemote) {
 			return "codicon-remote"
-		} else {
-			return connectionInfo.isConnected ? "codicon-vm-running" : "codicon-info"
 		}
+		return connectionInfo.isConnected ? "codicon-vm-running" : "codicon-info"
 	}
 
 	// Determine icon color based on connection state
 	const getIconColor = () => {
 		if (connectionInfo.isRemote) {
 			return connectionInfo.isConnected ? "var(--vscode-charts-blue)" : "var(--vscode-foreground)"
-		} else if (connectionInfo.isConnected) {
-			return "var(--vscode-charts-green)"
-		} else {
-			return "var(--vscode-foreground)"
 		}
+		if (connectionInfo.isConnected) {
+			return "var(--vscode-charts-green)"
+		}
+		return "var(--vscode-foreground)"
 	}
 
 	// Check connection status every second to keep icon in sync using gRPC

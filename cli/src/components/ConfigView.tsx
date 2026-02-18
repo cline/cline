@@ -152,9 +152,9 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	// Build flat list of hooks
 	const hookEntries = useMemo(() => {
 		const entries: { hook: HookInfo; isGlobal: boolean; workspaceName?: string }[] = []
-		globalHooks.forEach((hook) => entries.push({ hook, isGlobal: true }))
+		globalHooks.map((hook) => entries.push({ hook, isGlobal: true }))
 		workspaceHooks.forEach((ws) => {
-			ws.hooks.forEach((hook) => entries.push({ hook, isGlobal: false, workspaceName: ws.workspaceName }))
+			ws.hooks.map((hook) => entries.push({ hook, isGlobal: false, workspaceName: ws.workspaceName }))
 		})
 		return entries.sort((a, b) => a.hook.name.localeCompare(b.hook.name))
 	}, [globalHooks, workspaceHooks])
@@ -162,8 +162,8 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	// Build flat list of skills
 	const skillEntries = useMemo(() => {
 		const entries: { skill: SkillInfo; isGlobal: boolean }[] = []
-		globalSkills.forEach((skill) => entries.push({ skill, isGlobal: true }))
-		localSkills.forEach((skill) => entries.push({ skill, isGlobal: false }))
+		globalSkills.map((skill) => entries.push({ skill, isGlobal: true }))
+		localSkills.map((skill) => entries.push({ skill, isGlobal: false }))
 		return entries.sort((a, b) => a.skill.name.localeCompare(b.skill.name))
 	}, [globalSkills, localSkills])
 
@@ -309,7 +309,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				const currentTabIndex = availableTabs.findIndex((t) => t.key === currentTab)
 				const targetIdx =
 					input >= "1" && input <= "5"
-						? Number.parseInt(input) - 1
+						? Number.parseInt(input, 10) - 1
 						: key.leftArrow
 							? (currentTabIndex - 1 + availableTabs.length) % availableTabs.length
 							: (currentTabIndex + 1) % availableTabs.length

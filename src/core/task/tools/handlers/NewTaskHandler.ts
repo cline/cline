@@ -10,7 +10,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.NEW_TASK
-	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for creating a new task]`
@@ -59,9 +58,8 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 				images,
 				fileContentString,
 			)
-		} else {
-			// If no response, the user clicked the "Create New Task" button
-			return formatResponse.toolResult(`The user has created a new task with the provided context.`)
 		}
+		// If no response, the user clicked the "Create New Task" button
+		return formatResponse.toolResult(`The user has created a new task with the provided context.`)
 	}
 }

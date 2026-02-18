@@ -165,7 +165,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									direction: displayText.includes(":") ? "ltr" : "rtl",
 									textAlign: "left",
 								}}>
-								{displayText.includes(":") ? displayText : cleanPathPrefix(displayText) + "\u200E"}
+								{displayText.includes(":") ? displayText : `${cleanPathPrefix(displayText)}\u200E`}
 							</span>
 						</>
 					)
@@ -217,7 +217,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				onSelect(option.type, mentionValue)
 			}
 		},
-		[onSelect],
+		[onSelect, isOptionSelectable],
 	)
 
 	return (
@@ -252,7 +252,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					flexDirection: "column",
 					maxHeight: "200px",
 					overflowY: "auto",
-				}}>
+				}}
+				tabIndex={0}>
 				{/* Can't use virtuoso since it requires fixed height and menu height is dynamic based on # of items */}
 				{showDelayedLoading && searchQuery && (
 					<div

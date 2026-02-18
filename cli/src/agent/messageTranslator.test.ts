@@ -319,7 +319,9 @@ describe("translateMessage - say messages", () => {
 
 			const toolUpdate = result.updates.find((u) => u.sessionUpdate === "tool_call_update")
 			expect(toolUpdate).toBeDefined()
-			assertValidToolCallUpdate(toolUpdate!)
+			if (toolUpdate) {
+				assertValidToolCallUpdate(toolUpdate)
+			}
 
 			const update = toolUpdate as acp.ToolCallUpdate & { sessionUpdate: "tool_call_update" }
 			expect(update.toolCallId).toBe("active-tool-123")
@@ -369,7 +371,7 @@ describe("translateMessage - say messages", () => {
 			expect(result.updates.length).toBeGreaterThanOrEqual(1)
 			const toolCall = result.updates.find((u) => u.sessionUpdate === "tool_call")
 			expect(toolCall).toBeDefined()
-			assertValidToolCall(toolCall!)
+			if (toolCall) assertValidToolCall(toolCall)
 
 			const call = toolCall as acp.ToolCall & { sessionUpdate: "tool_call" }
 			expect(call.kind).toBe("execute")
@@ -414,7 +416,7 @@ describe("translateMessage - say messages", () => {
 
 			const toolUpdate = result.updates.find((u) => u.sessionUpdate === "tool_call_update")
 			expect(toolUpdate).toBeDefined()
-			assertValidToolCallUpdate(toolUpdate!)
+			assertValidToolCallUpdate(toolUpdate as NonNullable<typeof toolUpdate>)
 
 			const update = toolUpdate as acp.ToolCallUpdate & { sessionUpdate: "tool_call_update" }
 			expect(update.toolCallId).toBe("command-tool-123")
@@ -474,7 +476,7 @@ describe("translateMessage - say messages", () => {
 
 			const toolCall = result.updates.find((u) => u.sessionUpdate === "tool_call")
 			expect(toolCall).toBeDefined()
-			assertValidToolCall(toolCall!)
+			if (toolCall) assertValidToolCall(toolCall)
 
 			const call = toolCall as acp.ToolCall & { sessionUpdate: "tool_call" }
 			expect(call.kind).toBe("read")
@@ -648,7 +650,7 @@ describe("translateMessage - say messages", () => {
 
 			const toolCall = result.updates.find((u) => u.sessionUpdate === "tool_call")
 			expect(toolCall).toBeDefined()
-			assertValidToolCall(toolCall!)
+			if (toolCall) assertValidToolCall(toolCall)
 
 			const call = toolCall as acp.ToolCall & { sessionUpdate: "tool_call" }
 			expect(call.kind).toBe("execute")
@@ -973,7 +975,7 @@ describe("translateMessage - ask messages", () => {
 			// Should create a tool_call
 			const toolCall = result.updates.find((u) => u.sessionUpdate === "tool_call")
 			expect(toolCall).toBeDefined()
-			assertValidToolCall(toolCall!)
+			if (toolCall) assertValidToolCall(toolCall)
 
 			const call = toolCall as acp.ToolCall & { sessionUpdate: "tool_call" }
 			expect(call.kind).toBe("execute")
@@ -983,13 +985,13 @@ describe("translateMessage - ask messages", () => {
 			// Should require permission
 			expect(result.requiresPermission).toBe(true)
 			expect(result.permissionRequest).toBeDefined()
-			expect(result.permissionRequest!.toolCall.toolCallId).toBe(call.toolCallId)
+			expect(result.permissionRequest?.toolCall.toolCallId).toBe(call.toolCallId)
 
 			// Should have standard permission options
-			expect(result.permissionRequest!.options).toHaveLength(3)
-			expect(result.permissionRequest!.options.map((o) => o.kind)).toContain("allow_once")
-			expect(result.permissionRequest!.options.map((o) => o.kind)).toContain("allow_always")
-			expect(result.permissionRequest!.options.map((o) => o.kind)).toContain("reject_once")
+			expect(result.permissionRequest?.options).toHaveLength(3)
+			expect(result.permissionRequest?.options.map((o) => o.kind)).toContain("allow_once")
+			expect(result.permissionRequest?.options.map((o) => o.kind)).toContain("allow_always")
+			expect(result.permissionRequest?.options.map((o) => o.kind)).toContain("reject_once")
 
 			// Should track pending tool call
 			expect(sessionState.pendingToolCalls.has(call.toolCallId)).toBe(true)
@@ -1014,7 +1016,7 @@ describe("translateMessage - ask messages", () => {
 			// Should create a tool_call
 			const toolCall = result.updates.find((u) => u.sessionUpdate === "tool_call")
 			expect(toolCall).toBeDefined()
-			assertValidToolCall(toolCall!)
+			if (toolCall) assertValidToolCall(toolCall)
 
 			const call = toolCall as acp.ToolCall & { sessionUpdate: "tool_call" }
 			expect(call.kind).toBe("edit")
@@ -1087,8 +1089,8 @@ describe("translateMessage - ask messages", () => {
 			expect(result.requiresPermission).toBe(true)
 
 			// Browser actions have restricted options (no "always allow")
-			expect(result.permissionRequest!.options).toHaveLength(2)
-			expect(result.permissionRequest!.options.map((o) => o.kind)).not.toContain("allow_always")
+			expect(result.permissionRequest?.options).toHaveLength(2)
+			expect(result.permissionRequest?.options.map((o) => o.kind)).not.toContain("allow_always")
 		})
 	})
 

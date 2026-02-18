@@ -72,26 +72,24 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 		if (response.ok) {
 			const data: LiteLlmModelInfoResponse = await response.json()
 			return data
-		} else {
-			Logger.error("Failed to fetch LiteLLM model info:", response.statusText)
-			// Try with Authorization header instead
-			const retryResponse = await fetch(url, {
-				method: "GET",
-				headers: {
-					accept: "application/json",
-					Authorization: `Bearer ${apiKey}`,
-					...buildExternalBasicHeaders(),
-				},
-			})
-
-			if (retryResponse.ok) {
-				const data: LiteLlmModelInfoResponse = await retryResponse.json()
-				return data
-			} else {
-				Logger.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
-				throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
-			}
 		}
+		Logger.error("Failed to fetch LiteLLM model info:", response.statusText)
+		// Try with Authorization header instead
+		const retryResponse = await fetch(url, {
+			method: "GET",
+			headers: {
+				accept: "application/json",
+				Authorization: `Bearer ${apiKey}`,
+				...buildExternalBasicHeaders(),
+			},
+		})
+
+		if (retryResponse.ok) {
+			const data: LiteLlmModelInfoResponse = await retryResponse.json()
+			return data
+		}
+		Logger.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
+		throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
 	} catch (error) {
 		Logger.error("Error fetching LiteLLM model info:", error)
 		throw error
@@ -102,7 +100,7 @@ export class LiteLlmHandler implements ApiHandler {
 	private options: LiteLlmHandlerOptions
 	private client: OpenAI | undefined
 	private modelInfoCache: LiteLlmModelInfoResponse | undefined
-	private modelInfoCacheTimestamp: number = 0
+	private modelInfoCacheTimestamp = 0
 	private readonly modelInfoCacheTTL = 5 * 60 * 1000 // 5 minutes
 
 	constructor(options: LiteLlmHandlerOptions) {
@@ -250,10 +248,12 @@ export class LiteLlmHandler implements ApiHandler {
 		}
 
 		// Find the last two user messages to apply caching
-		const userMsgIndices = formattedMessages.reduce(
-			(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-			[] as number[],
-		)
+		const userMsgIndices = formattedMessages.reduce<number[]>((acc, msg, index) => {
+			if (msg.role === "user") {
+				acc.push(index)
+			}
+			return acc
+		}, [])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastUserMsgIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
@@ -274,7 +274,8 @@ export class LiteLlmHandler implements ApiHandler {
 								},
 							] as any,
 						}
-					} else if (Array.isArray(message.content)) {
+					}
+					if (Array.isArray(message.content)) {
 						// Apply cache control to the last content item in the array
 						return {
 							...message,

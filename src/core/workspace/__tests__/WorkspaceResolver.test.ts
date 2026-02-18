@@ -197,7 +197,7 @@ describe("WorkspaceResolver", () => {
 		})
 
 		it("should handle very long paths", () => {
-			const longPath = "a/".repeat(100) + "file.ts"
+			const longPath = `${"a/".repeat(100)}file.ts`
 			const result = resolver.resolveWorkspacePath("/test", longPath, "Component")
 
 			expect(result).to.equal(path.resolve("/test", longPath))

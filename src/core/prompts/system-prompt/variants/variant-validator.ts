@@ -153,7 +153,7 @@ export class VariantValidator {
 		// Check tool overrides reference valid tools
 		if (variant.toolOverrides) {
 			const invalidOverrides = Object.keys(variant.toolOverrides).filter((key) => {
-				const override = variant.toolOverrides![key as keyof typeof variant.toolOverrides]
+				const override = variant.toolOverrides?.[key as keyof typeof variant.toolOverrides]
 				// Skip overrides that explicitly disable a tool - these are valid even without being in tools list
 				if (override?.enabled === false) {
 					return false

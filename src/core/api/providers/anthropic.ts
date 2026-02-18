@@ -97,9 +97,8 @@ export class AnthropicHandler implements ApiHandler {
 								"anthropic-beta": "context-1m-2025-08-07",
 							},
 						}
-					} else {
-						return undefined
 					}
+					return undefined
 				})(),
 			)
 		} else {

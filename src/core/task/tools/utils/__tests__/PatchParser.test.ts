@@ -782,34 +782,34 @@ describe("PatchParser", () => {
 							expect(actualAction, `Action for ${filePath} should exist`).to.exist
 
 							// Check action type
-							expect(actualAction!.type).to.equal(expectedAction.type)
+							expect(actualAction?.type).to.equal(expectedAction.type)
 
 							// Check newFile for ADD operations
 							if (expectedAction.newFile !== undefined) {
-								expect(actualAction!.newFile).to.equal(expectedAction.newFile)
+								expect(actualAction?.newFile).to.equal(expectedAction.newFile)
 							}
 
 							// Check movePath for MOVE operations
 							if (expectedAction.movePath !== undefined) {
-								expect(actualAction!.movePath).to.equal(expectedAction.movePath)
+								expect(actualAction?.movePath).to.equal(expectedAction.movePath)
 							}
 
 							// Check chunks if provided
 							if (expectedAction.chunks !== undefined) {
-								expect(actualAction!.chunks).to.have.lengthOf(expectedAction.chunks.length)
+								expect(actualAction?.chunks).to.have.lengthOf(expectedAction.chunks.length)
 
 								for (let i = 0; i < expectedAction.chunks.length; i++) {
 									const expectedChunk = expectedAction.chunks[i]
-									const actualChunk = actualAction!.chunks[i]
+									const actualChunk = actualAction?.chunks[i]
 
 									if (expectedChunk.origIndex !== undefined) {
-										expect(actualChunk!.origIndex).to.equal(expectedChunk.origIndex)
+										expect(actualChunk?.origIndex).to.equal(expectedChunk.origIndex)
 									}
 									if (expectedChunk.delLines !== undefined) {
-										expect(actualChunk!.delLines).to.deep.equal(expectedChunk.delLines)
+										expect(actualChunk?.delLines).to.deep.equal(expectedChunk.delLines)
 									}
 									if (expectedChunk.insLines !== undefined) {
-										expect(actualChunk!.insLines).to.deep.equal(expectedChunk.insLines)
+										expect(actualChunk?.insLines).to.deep.equal(expectedChunk.insLines)
 									}
 								}
 							}
@@ -857,8 +857,8 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			expect(result.patch.actions["large.ts"]).to.exist
-			expect(result.patch.actions["large.ts"]!.chunks).to.have.lengthOf(1)
-			expect(result.patch.actions["large.ts"]!.chunks[0]!.origIndex).to.equal(501)
+			expect(result.patch.actions["large.ts"]?.chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["large.ts"]?.chunks[0]?.origIndex).to.equal(501)
 		})
 
 		it("should handle unicode characters in content", () => {
@@ -878,7 +878,7 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			expect(result.patch.actions["unicode.ts"]).to.exist
-			expect(result.patch.actions["unicode.ts"]!.chunks[0]!.insLines[0]).to.equal("const text = '你好'")
+			expect(result.patch.actions["unicode.ts"]?.chunks[0]?.insLines[0]).to.equal("const text = '你好'")
 		})
 
 		it("should handle empty lines in context", () => {
@@ -968,14 +968,14 @@ describe("PatchParser", () => {
 
 			// Should have one valid chunk applied
 			expect(result.patch.actions["test.ts"]).to.exist
-			expect(result.patch.actions["test.ts"]!.chunks).to.have.lengthOf(1)
-			expect(result.patch.actions["test.ts"]!.chunks[0]!.origIndex).to.equal(1)
+			expect(result.patch.actions["test.ts"]?.chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["test.ts"]?.chunks[0]?.origIndex).to.equal(1)
 
 			// Should have warnings for skipped chunk
 			expect(result.patch.warnings).to.exist
 			expect(result.patch.warnings).to.have.lengthOf(1)
-			expect(result.patch.warnings![0]!.path).to.equal("test.ts")
-			expect(result.patch.warnings![0]!.message).to.match(/Could not find matching context/)
+			expect(result.patch.warnings?.[0]?.path).to.equal("test.ts")
+			expect(result.patch.warnings?.[0]?.message).to.match(/Could not find matching context/)
 		})
 
 		it("should handle mixed valid and invalid chunks", () => {
@@ -1003,7 +1003,7 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			// Should have 2 valid chunks (1st and 3rd)
-			expect(result.patch.actions["test.ts"]!.chunks).to.have.lengthOf(2)
+			expect(result.patch.actions["test.ts"]?.chunks).to.have.lengthOf(2)
 
 			// Should have 1 warning for skipped chunk
 			expect(result.patch.warnings).to.have.lengthOf(1)

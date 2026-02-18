@@ -38,7 +38,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 						onClick={handleTakeATour}
 						type="button">
 						Take a Tour
-						<span className="codicon codicon-play scale-90"></span>
+						<span className="codicon codicon-play scale-90" />
 					</button>
 				</div>
 			)}

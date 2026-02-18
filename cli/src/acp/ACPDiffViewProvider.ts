@@ -41,10 +41,6 @@ export type SessionIdResolver = () => string | undefined
  * - Proper integration with the client's undo/redo stack
  */
 export class ACPDiffViewProvider extends FileEditProvider {
-	private readonly connection: acp.AgentSideConnection
-	private readonly clientCapabilities: acp.ClientCapabilities | undefined
-	private readonly sessionIdResolver: SessionIdResolver
-
 	/**
 	 * Creates a new ACPDiffViewProvider.
 	 *
@@ -53,9 +49,9 @@ export class ACPDiffViewProvider extends FileEditProvider {
 	 * @param sessionIdResolver - A function that returns the current session ID
 	 */
 	constructor(
-		connection: acp.AgentSideConnection,
-		clientCapabilities: acp.ClientCapabilities | undefined,
-		sessionIdResolver: SessionIdResolver,
+		private readonly connection: acp.AgentSideConnection,
+		private readonly clientCapabilities: acp.ClientCapabilities | undefined,
+		private readonly sessionIdResolver: SessionIdResolver,
 	) {
 		super()
 		this.connection = connection
@@ -116,7 +112,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 			// Try to save any dirty state in the editor first
 			try {
 				await HostProvider.workspace.saveOpenDocumentIfDirty({
-					filePath: this.absolutePath!,
+					filePath: this.absolutePath,
 				})
 			} catch {
 				// Ignore errors - the host may not support this
@@ -128,7 +124,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 
 				const response = await this.connection.readTextFile({
 					sessionId: this.getSessionId(),
-					path: this.absolutePath!,
+					path: this.absolutePath,
 				})
 
 				this.originalContent = response.content
@@ -140,7 +136,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 				// If ACP read fails, fall back to local fs
 				Logger.debug("[ACPDiffViewProvider] ACP read failed, falling back to local fs:", error)
 
-				const fileBuffer = await fs.readFile(this.absolutePath!)
+				const fileBuffer = await fs.readFile(this.absolutePath)
 				this.fileEncoding = await detectEncoding(fileBuffer)
 				this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 			}
@@ -150,7 +146,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 		}
 
 		// Create directories for new files
-		const createdDirs = await createDirectoriesForFile(this.absolutePath!)
+		const createdDirs = await createDirectoriesForFile(this.absolutePath)
 		// Store for potential cleanup - access via the private field workaround
 		;(this as any).createdDirs = createdDirs
 
@@ -161,15 +157,15 @@ export class ACPDiffViewProvider extends FileEditProvider {
 				try {
 					await this.connection.writeTextFile({
 						sessionId: this.getSessionId(),
-						path: this.absolutePath!,
+						path: this.absolutePath,
 						content: "",
 					})
 				} catch {
 					// Fall back to local fs
-					await fs.writeFile(this.absolutePath!, "")
+					await fs.writeFile(this.absolutePath, "")
 				}
 			} else {
-				await fs.writeFile(this.absolutePath!, "")
+				await fs.writeFile(this.absolutePath, "")
 			}
 		}
 
@@ -211,7 +207,7 @@ export class ACPDiffViewProvider extends FileEditProvider {
 	 * content via the ACP connection. Otherwise, it falls back to the
 	 * FileEditProvider's local fs implementation.
 	 */
-	protected override async saveDocument(): Promise<Boolean> {
+	protected override async saveDocument(): Promise<boolean> {
 		// If we can't write files via ACP, fall back to FileEditProvider
 		if (!this.canWriteFile()) {
 			Logger.debug("[ACPDiffViewProvider] Client does not support fs.writeTextFile, falling back to local fs")

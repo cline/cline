@@ -106,15 +106,11 @@ class ACPDiffServiceClient implements DiffServiceClientInterface {
  * Most operations are stubs that will be implemented using ACP extension methods.
  */
 class ACPEnvServiceClient implements EnvServiceClientInterface {
-	private readonly version: string
-
 	constructor(
 		_clientCapabilities: acp.ClientCapabilities | undefined,
 		_sessionIdResolver: SessionIdResolver,
-		version: string = "1.0.0",
-	) {
-		this.version = version
-	}
+		private readonly version = "1.0.0",
+	) {}
 
 	async debugLog(request: proto.cline.StringRequest): Promise<proto.cline.Empty> {
 		Logger.debug(request.value)
@@ -402,7 +398,7 @@ export class ACPHostBridgeClientProvider implements HostBridgeClientProvider {
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
 		cwdResolver: CwdResolver,
-		version: string = "1.0.0",
+		version = "1.0.0",
 	) {
 		this.workspaceClient = new ACPWorkspaceServiceClient(clientCapabilities, sessionIdResolver, cwdResolver)
 		this.envClient = new ACPEnvServiceClient(clientCapabilities, sessionIdResolver, version)

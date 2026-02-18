@@ -74,12 +74,9 @@ interface DifyConversationResponse {
 }
 
 export class DifyHandler implements ApiHandler {
-	private options: DifyHandlerOptions
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
-	private currentTaskId: string | null = null
-	private abortController: AbortController | null = null
 
 	constructor(options: DifyHandlerOptions) {
 		this.options = options
@@ -341,7 +338,7 @@ export class DifyHandler implements ApiHandler {
 								}
 								hasYieldedContent = true
 							}
-						} catch (e) {
+						} catch (_e) {
 							// Not JSON, continue
 							Logger.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}
@@ -429,7 +426,7 @@ export class DifyHandler implements ApiHandler {
 	 * @param user User identifier (defaults to "cline-user")
 	 * @returns Promise with file upload response
 	 */
-	async uploadFile(file: Buffer, filename: string, user: string = "cline-user"): Promise<DifyFileResponse> {
+	async uploadFile(file: Buffer, filename: string, user = "cline-user"): Promise<DifyFileResponse> {
 		const formData = new FormData()
 		formData.append("file", new Blob([new Uint8Array(file)]), filename)
 		formData.append("user", user)
@@ -454,7 +451,7 @@ export class DifyHandler implements ApiHandler {
 	 * @param user User identifier (defaults to "cline-user")
 	 * @returns Promise that resolves when generation is stopped
 	 */
-	async stopGeneration(taskId: string, user: string = "cline-user"): Promise<void> {
+	async stopGeneration(taskId: string, user = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/chat-messages/${taskId}/stop`, {
 			method: "POST",
 			headers: this.jsonHeaders(),
@@ -477,9 +474,9 @@ export class DifyHandler implements ApiHandler {
 	 */
 	async getConversationHistory(
 		conversationId: string,
-		user: string = "cline-user",
+		user = "cline-user",
 		firstId?: string,
-		limit: number = 20,
+		limit = 20,
 	): Promise<DifyHistoryResponse> {
 		const params = new URLSearchParams({ user, limit: limit.toString() })
 		if (firstId) {
@@ -507,10 +504,10 @@ export class DifyHandler implements ApiHandler {
 	 * @returns Promise with conversations list
 	 */
 	async getConversations(
-		user: string = "cline-user",
+		user = "cline-user",
 		lastId?: string,
-		limit: number = 20,
-		sortBy: string = "-updated_at",
+		limit = 20,
+		sortBy = "-updated_at",
 	): Promise<DifyConversationsResponse> {
 		const params = new URLSearchParams({
 			user,
@@ -539,7 +536,7 @@ export class DifyHandler implements ApiHandler {
 	 * @param user User identifier (defaults to "cline-user")
 	 * @returns Promise that resolves when conversation is deleted
 	 */
-	async deleteConversation(conversationId: string, user: string = "cline-user"): Promise<void> {
+	async deleteConversation(conversationId: string, user = "cline-user"): Promise<void> {
 		const response = await fetch(`${this.baseUrl}/conversations/${conversationId}`, {
 			method: "DELETE",
 			headers: this.jsonHeaders(),
@@ -562,9 +559,9 @@ export class DifyHandler implements ApiHandler {
 	 */
 	async renameConversation(
 		conversationId: string,
-		user: string = "cline-user",
+		user = "cline-user",
 		name?: string,
-		autoGenerate: boolean = false,
+		autoGenerate = false,
 	): Promise<DifyConversationResponse> {
 		const body: any = { user, auto_generate: autoGenerate }
 		if (name) {
@@ -597,7 +594,7 @@ export class DifyHandler implements ApiHandler {
 		messageId: string,
 		rating: "like" | "dislike",
 		content?: string,
-		user: string = "cline-user",
+		user = "cline-user",
 	): Promise<void> {
 		const body: any = { rating, user }
 		if (content) {

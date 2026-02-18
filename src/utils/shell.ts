@@ -97,7 +97,8 @@ function getWindowsShellFromVSCode(): string | null {
 		if (profile?.path) {
 			// If there's an explicit PowerShell path, return that
 			return profile.path
-		} else if (profile?.source === "PowerShell") {
+		}
+		if (profile?.source === "PowerShell") {
 			// If the profile is sourced from PowerShell, assume the newest
 			return SHELL_PATHS.POWERSHELL_7
 		}

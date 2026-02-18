@@ -233,7 +233,7 @@ export class StateManager {
 		if (!this.pendingTaskState.has(taskId)) {
 			this.pendingTaskState.set(taskId, new Set())
 		}
-		this.pendingTaskState.get(taskId)!.add(key)
+		this.pendingTaskState.get(taskId)?.add(key)
 		this.scheduleDebouncedPersistence()
 	}
 
@@ -253,7 +253,7 @@ export class StateManager {
 			this.pendingTaskState.set(taskId, new Set())
 		}
 		Object.keys(updates).forEach((key) => {
-			this.pendingTaskState.get(taskId)!.add(key as SettingsKey)
+			this.pendingTaskState.get(taskId)?.add(key as SettingsKey)
 		})
 
 		// Schedule debounced persistence
@@ -520,9 +520,9 @@ export class StateManager {
 						return
 					}
 					const onDisk = await readTaskHistoryFromState()
-					const cached = this.globalStateCache["taskHistory"]
+					const cached = this.globalStateCache.taskHistory
 					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
-						this.globalStateCache["taskHistory"] = onDisk
+						this.globalStateCache.taskHistory = onDisk
 						await this.onSyncExternalChange?.()
 					}
 				} catch (err) {
@@ -534,7 +534,7 @@ export class StateManager {
 				.on("add", () => syncTaskHistoryFromDisk())
 				.on("change", () => syncTaskHistoryFromDisk())
 				.on("unlink", async () => {
-					this.globalStateCache["taskHistory"] = []
+					this.globalStateCache.taskHistory = []
 					await this.onSyncExternalChange?.()
 				})
 				.on("error", (error) => Logger.error("[StateManager] TaskHistory watcher error:", error))
@@ -768,19 +768,15 @@ export class StateManager {
 	 * Private method to batch persist global state keys with Promise.all
 	 */
 	private async persistGlobalStateBatch(keys: Set<GlobalStateAndSettingsKey>): Promise<void> {
-		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					if (key === "taskHistory") {
-						// Route task history persistence to file, not VS Code globalState
-						return writeTaskHistoryToState(this.globalStateCache[key])
-					}
-					return this.context.globalState.update(key, this.globalStateCache[key])
-				}),
-			)
-		} catch (error) {
-			throw error
-		}
+		await Promise.all(
+			Array.from(keys).map((key) => {
+				if (key === "taskHistory") {
+					// Route task history persistence to file, not VS Code globalState
+					return writeTaskHistoryToState(this.globalStateCache[key])
+				}
+				return this.context.globalState.update(key, this.globalStateCache[key])
+			}),
+		)
 	}
 
 	/**
@@ -790,61 +786,49 @@ export class StateManager {
 		if (pendingTaskStates.size === 0) {
 			return
 		}
-		try {
-			// Persist each task's settings
-			await Promise.all(
-				Array.from(pendingTaskStates.entries()).map(([taskId, keys]) => {
-					if (keys.size === 0) {
-						return Promise.resolve()
+		// Persist each task's settings
+		await Promise.all(
+			Array.from(pendingTaskStates.entries()).map(([taskId, keys]) => {
+				if (keys.size === 0) {
+					return Promise.resolve()
+				}
+				const settingsToWrite: Record<string, any> = {}
+				for (const key of keys) {
+					const value = this.taskStateCache[key]
+					if (value !== undefined) {
+						settingsToWrite[key] = value
 					}
-					const settingsToWrite: Record<string, any> = {}
-					for (const key of keys) {
-						const value = this.taskStateCache[key]
-						if (value !== undefined) {
-							settingsToWrite[key] = value
-						}
-					}
-					return writeTaskSettingsToStorage(taskId, settingsToWrite)
-				}),
-			)
-		} catch (error) {
-			throw error
-		}
+				}
+				return writeTaskSettingsToStorage(taskId, settingsToWrite)
+			}),
+		)
 	}
 
 	/**
 	 * Private method to batch persist secrets with Promise.all
 	 */
 	private async persistSecretsBatch(keys: Set<SecretKey>): Promise<void> {
-		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					const value = this.secretsCache[key]
-					if (value) {
-						return this.context.secrets.store(key, value)
-					}
-					return this.context.secrets.delete(key)
-				}),
-			)
-		} catch (error) {
-			throw error
-		}
+		await Promise.all(
+			Array.from(keys).map((key) => {
+				const value = this.secretsCache[key]
+				if (value) {
+					return this.context.secrets.store(key, value)
+				}
+				return this.context.secrets.delete(key)
+			}),
+		)
 	}
 
 	/**
 	 * Private method to batch persist workspace state keys with Promise.all
 	 */
 	private async persistWorkspaceStateBatch(keys: Set<LocalStateKey>): Promise<void> {
-		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					const value = this.workspaceStateCache[key]
-					return this.context.workspaceState.update(key, value)
-				}),
-			)
-		} catch (error) {
-			throw error
-		}
+		await Promise.all(
+			Array.from(keys).map((key) => {
+				const value = this.workspaceStateCache[key]
+				return this.context.workspaceState.update(key, value)
+			}),
+		)
 	}
 
 	/**
@@ -890,7 +874,7 @@ export class StateManager {
 		// Preserve legacy fallback behavior for LiteLLM API key:
 		// if a remoteLiteLlmApiKey is set (via remote config), it should
 		// take precedence over the local liteLlmApiKey.
-		const remoteLiteLlmApiKey = this.secretsCache["remoteLiteLlmApiKey"]
+		const remoteLiteLlmApiKey = this.secretsCache.remoteLiteLlmApiKey
 		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
 			secrets.liteLlmApiKey = remoteLiteLlmApiKey
 		}

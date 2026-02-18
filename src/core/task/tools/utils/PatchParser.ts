@@ -114,7 +114,7 @@ export class PatchParser {
 		]
 
 		while (!stopMarkers.some((m) => this.lines[this.index]?.startsWith(m.trim()))) {
-			const defStr = this.lines[this.index]?.startsWith("@@ ") ? this.lines[this.index]!.substring(3) : undefined
+			const defStr = this.lines[this.index]?.startsWith("@@ ") ? this.lines[this.index]?.substring(3) : undefined
 			const sectionStr = this.lines[this.index] === "@@" ? this.lines[this.index] : undefined
 
 			if (defStr !== undefined || sectionStr !== undefined) {
@@ -127,9 +127,9 @@ export class PatchParser {
 			if (defStr?.trim()) {
 				const canonDefStr = canonicalize(defStr.trim())
 				for (let i = index; i < fileLines.length; i++) {
-					if (canonicalize(fileLines[i]!) === canonDefStr || canonicalize(fileLines[i]!.trim()) === canonDefStr) {
+					if (canonicalize(fileLines[i]!) === canonDefStr || canonicalize(fileLines[i]?.trim()) === canonDefStr) {
 						index = i + 1
-						if (canonicalize(fileLines[i]!.trim()) === canonDefStr && canonicalize(fileLines[i]!) !== canonDefStr) {
+						if (canonicalize(fileLines[i]?.trim()) === canonDefStr && canonicalize(fileLines[i]!) !== canonDefStr) {
 							this.fuzz++
 						}
 						break
@@ -235,18 +235,18 @@ function levenshteinDistance(str1: string, str2: string): number {
 	for (let i = 1; i <= str2.length; i++) {
 		for (let j = 1; j <= str1.length; j++) {
 			if (str2[i - 1] === str1[j - 1]) {
-				matrix[i]![j] = matrix[i - 1]![j - 1]!
+				matrix[i]![j] = matrix[i - 1]?.[j - 1]!
 			} else {
 				matrix[i]![j] = Math.min(
-					matrix[i - 1]![j - 1]! + 1, // substitution
-					matrix[i]![j - 1]! + 1, // insertion
-					matrix[i - 1]![j]! + 1, // deletion
+					matrix[i - 1]?.[j - 1]! + 1, // substitution
+					matrix[i]?.[j - 1]! + 1, // insertion
+					matrix[i - 1]?.[j]! + 1, // deletion
 				)
 			}
 		}
 	}
 
-	return matrix[str2.length]![str1.length]!
+	return matrix[str2.length]?.[str1.length]!
 }
 
 /**

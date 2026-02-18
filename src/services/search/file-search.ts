@@ -16,7 +16,7 @@ export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 export async function executeRipgrepForFiles(
 	workspacePath: string,
-	limit: number = 5000,
+	limit = 5000,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	const rgPath = await getBinaryLocation("rg")
 
@@ -107,7 +107,7 @@ async function getActiveFiles(): Promise<Set<string>> {
 export async function searchWorkspaceFiles(
 	query: string,
 	workspacePath: string,
-	limit: number = 20,
+	limit = 20,
 	selectedType?: "file" | "folder",
 	workspaceName?: string,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
@@ -117,7 +117,7 @@ export async function searchWorkspaceFiles(
 		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
 
 		for (const filePath of activeFilePaths) {
-			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(workspacePath + "/")) {
+			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(`${workspacePath}/`)) {
 				const relativePath = path.relative(workspacePath, filePath)
 				const normalizedPath = relativePath.replace(/\\/g, "/")
 				activeFiles.push({
@@ -146,7 +146,8 @@ export async function searchWorkspaceFiles(
 
 			if (selectedType === "file") {
 				return addWorkspaceName(combinedItems.filter((item) => item.type === "file").slice(0, limit))
-			} else if (selectedType === "folder") {
+			}
+			if (selectedType === "folder") {
 				return addWorkspaceName(combinedItems.filter((item) => item.type === "folder").slice(0, limit))
 			}
 			return addWorkspaceName(combinedItems.slice(0, limit))
@@ -193,9 +194,9 @@ export async function searchWorkspaceFiles(
 export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
 	const countGaps = (positions: Iterable<number>) => {
 		let gaps = 0,
-			prev = -Infinity
+			prev = Number.NEGATIVE_INFINITY
 		for (const pos of positions) {
-			if (prev !== -Infinity && pos - prev > 1) {
+			if (prev !== Number.NEGATIVE_INFINITY && pos - prev > 1) {
 				gaps++
 			}
 			prev = pos
@@ -213,7 +214,7 @@ export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) 
 export async function searchWorkspaceFilesMultiroot(
 	query: string,
 	workspaceManager: WorkspaceRootManager,
-	limit: number = 20,
+	limit = 20,
 	selectedType?: "file" | "folder",
 	workspaceHint?: string,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {

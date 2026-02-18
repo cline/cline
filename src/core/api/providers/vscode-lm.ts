@@ -313,19 +313,26 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 				.replace(/\r/g, "\n")
 
 				// Remove ANSI escape sequences
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching ANSI escape sequences
 				.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "") // Full set of ANSI sequences
 				.replace(/\x9B[0-?]*[ -/]*[@-~]/g, "") // CSI sequences
 
 				// Remove terminal title setting sequences and other OSC sequences
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching OSC sequences
 				.replace(/\x1B\][0-9;]*(?:\x07|\x1B\\)/g, "")
 
 				// Remove control characters
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally removing control characters
 				.replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F]/g, "")
 
 				// Remove VS Code escape sequences
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching DCS/APC/PM sequences
 				.replace(/\x1B[PD].*?\x1B\\/g, "") // DCS sequences
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching APC sequences
 				.replace(/\x1B_.*?\x1B\\/g, "") // APC sequences
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching PM sequences
 				.replace(/\x1B\^.*?\x1B\\/g, "") // PM sequences
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching cursor movement sequences
 				.replace(/\x1B\[[\d;]*[HfABCDEFGJKST]/g, "") // Cursor movement and clear screen
 
 				// Remove Windows paths and service information
@@ -392,7 +399,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
 		// Accumulate the text and count at the end of the stream to reduce token counting overhead.
-		let accumulatedText: string = ""
+		let accumulatedText = ""
 
 		try {
 			// Create the response stream with minimal required options
@@ -498,17 +505,17 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 				// Return original error if it's already an Error instance
 				throw error
-			} else if (typeof error === "object" && error !== null) {
+			}
+			if (typeof error === "object" && error !== null) {
 				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				Logger.error("Cline <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Cline <Language Model API>: Response stream error: ${errorDetails}`)
-			} else {
-				// Fallback for unknown error types
-				const errorMessage = String(error)
-				Logger.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
-				throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 			}
+			// Fallback for unknown error types
+			const errorMessage = String(error)
+			Logger.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
+			throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 		}
 	}
 

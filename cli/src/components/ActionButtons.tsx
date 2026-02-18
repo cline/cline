@@ -194,7 +194,7 @@ const errorTypes = ["api_req_failed", "mistake_limit_reached"]
 /**
  * Get button configuration based on message type and state
  */
-export function getButtonConfig(message: ClineMessage | undefined, isStreaming: boolean = false): ButtonConfig {
+export function getButtonConfig(message: ClineMessage | undefined, isStreaming = false): ButtonConfig {
 	if (!message) {
 		return BUTTON_CONFIGS.default
 	}
@@ -295,6 +295,9 @@ export function getVisibleButtons(config: ButtonConfig) {
  * Does not show cancel-only buttons (ThinkingIndicator handles that with esc)
  */
 export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "act" }) => {
+	// Calculate button widths based on terminal width
+	const { columns: terminalWidth } = useTerminalSize()
+
 	if (!config.enableButtons) {
 		return null
 	}
@@ -304,9 +307,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 	if (!hasPrimary && !hasSecondary) {
 		return null
 	}
-
-	// Calculate button widths based on terminal width
-	const { columns: terminalWidth } = useTerminalSize()
 	const buttonCount = (hasPrimary ? 1 : 0) + (hasSecondary ? 1 : 0)
 	const gapWidth = buttonCount > 1 ? 1 : 0 // 1 char gap between buttons
 	const availableWidth = terminalWidth - 2 - gapWidth // 1 space padding on each side
@@ -330,8 +330,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ config, mode = "ac
 
 	return (
 		<Box flexDirection="row" gap={1} marginLeft={1} width="100%">
-			{hasPrimary && renderButton(config.primaryText!, "1")}
-			{hasSecondary && renderButton(config.secondaryText!, hasPrimary ? "2" : "1")}
+			{hasPrimary && config.primaryText && renderButton(config.primaryText, "1")}
+			{hasSecondary && config.secondaryText && renderButton(config.secondaryText, hasPrimary ? "2" : "1")}
 		</Box>
 	)
 }

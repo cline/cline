@@ -7,7 +7,7 @@ import { Logger } from "@/shared/services/Logger"
 /*
  * Unique identifier for the current installation.
  */
-let _distinctId: string = ""
+let _distinctId = ""
 
 /**
  * Some environments don't return a value for the machine ID. For these situations we generated
@@ -27,7 +27,7 @@ export async function initializeDistinctId(context: ClineExtensionContext, uuid:
 		// Fallback to generating a unique ID and keeping in global storage.
 		Logger.warn("No machine ID found for telemetry, generating UUID")
 		// Add a prefix to the UUID so we can see in the telemetry how many clients are don't have a machine ID.
-		distinctId = "cl-" + uuid()
+		distinctId = `cl-${uuid()}`
 		context.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
 	}
 

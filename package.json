@@ -452,7 +452,7 @@
 			"git add proto/cline/state.proto"
 		],
 		"*": [
-			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+			"biome check --write --staged --no-errors-on-unmatched --diagnostic-level=error --files-ignore-unknown=true"
 		]
 	},
 	"devDependencies": {

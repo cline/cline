@@ -76,17 +76,17 @@ function Demo() {
 				<VSCodeTextField>
 					<section slot="end" style={{ display: "flex", alignItems: "center" }}>
 						<VSCodeButton appearance="icon" aria-label="Match Case">
-							<span className="codicon codicon-case-sensitive"></span>
+							<span className="codicon codicon-case-sensitive" />
 						</VSCodeButton>
 						<VSCodeButton appearance="icon" aria-label="Match Whole Word">
-							<span className="codicon codicon-whole-word"></span>
+							<span className="codicon codicon-whole-word" />
 						</VSCodeButton>
 						<VSCodeButton appearance="icon" aria-label="Use Regular Expression">
-							<span className="codicon codicon-regex"></span>
+							<span className="codicon codicon-regex" />
 						</VSCodeButton>
 					</section>
 				</VSCodeTextField>
-				<span className="codicon codicon-chevron-right" slot="end"></span>
+				<span className="codicon codicon-chevron-right" slot="end" />
 
 				<span className="flex gap-3">
 					<VSCodeProgressRing />

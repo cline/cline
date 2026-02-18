@@ -113,7 +113,6 @@ import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storag
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
-// biome-ignore lint/style/useImportType: JSX requires React as a value (jsx: "react" in tsconfig)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
@@ -486,7 +485,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (taskState.mode && taskState.mode !== mode) {
 			setMode(taskState.mode as Mode)
 		}
-	}, [taskState.mode])
+	}, [taskState.mode, mode])
 
 	const toggleAutoApproveAll = useCallback(() => {
 		const newValue = !autoApproveAll
@@ -499,7 +498,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const stateManager = StateManager.get()
 		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		return (stateManager.getGlobalSettingsKey(providerKey) as string) || ""
-	}, [mode, activePanel])
+	}, [mode])
 
 	// Get model ID based on current mode and provider
 	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
@@ -510,7 +509,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || getProviderDefaultModelId(provider as ApiProvider) || ""
-	}, [mode, provider, activePanel])
+	}, [mode, provider])
 
 	const toggleMode = useCallback(async () => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
@@ -549,7 +548,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (ctrl) {
 			ctrl.postStateToWebview()
 		}
-	}, [ctrl, clearState, storageKey])
+	}, [ctrl, clearState, storageKey, setCursorPos, setTextInput])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
@@ -644,10 +643,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const messages = taskState.clineMessages || []
 
 	// Refresh git diff stats when messages change (after file edits)
-	const lastMsg = messages[messages.length - 1]
+	const _lastMsg = messages[messages.length - 1]
 	useEffect(() => {
 		setGitDiffStats(getGitDiffStats(workspacePath))
-	}, [messages.length, lastMsg?.partial, lastMsg?.ts, workspacePath])
+	}, [workspacePath])
 
 	// Filter messages we want to display
 	const displayMessages = useMemo(() => {
@@ -819,7 +818,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// Controller may be disposed
 			}
 		},
-		[ctrl, pendingAsk, pastedTexts, storageKey],
+		[ctrl, pendingAsk, pastedTexts, storageKey, setCursorPos, setTextInput],
 	)
 
 	// Handle cancel/interrupt
@@ -895,7 +894,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					break
 			}
 		},
-		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask],
+		[sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask, ctrl, setCursorPos, setTextInput],
 	)
 
 	// Handle task submission (new task)
@@ -939,7 +938,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				onError?.()
 			}
 		},
-		[ctrl, onError, pastedTexts, storageKey],
+		[ctrl, onError, pastedTexts, storageKey, setCursorPos, setTextInput],
 	)
 
 	// Auto-submit initial prompt if provided
@@ -998,7 +997,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		autoSubmit()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []) // Only run once on mount
+	}, [controller, initialImages, initialPrompt, onError, taskController, taskId]) // Only run once on mount
 
 	// Search for files when in mention mode
 	useEffect(() => {
@@ -1051,7 +1050,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				clearTimeout(r.searchTimeout)
 			}
 		}
-	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
+	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath, mentionInfo])
 
 	// Handle keyboard input
 	//

@@ -254,7 +254,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 
 		return <Component {...props} />
-	}, [activeTab, handleResetState, settingsInitialModelTab, version])
+	}, [activeTab, handleResetState, settingsInitialModelTab, version, TAB_CONTENT_MAP])
 
 	return (
 		<Tab>

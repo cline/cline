@@ -258,7 +258,7 @@ function parseAIResponse(response: string): {
 		return { normalText: response.trim(), toolCalls: [] }
 	}
 
-	const toolCallStart = match.index!
+	const toolCallStart = match.index ?? 0
 	const normalText = response.slice(0, toolCallStart).trim()
 	const toolCallsText = response.slice(toolCallStart)
 
@@ -389,7 +389,6 @@ export function convertO1ResponseToAnthropicMessage(
 					return "max_tokens"
 				case "tool_calls":
 					return "tool_use"
-				case "content_filter": // Anthropic doesn't have an exact equivalent
 				default:
 					return null
 			}

@@ -52,7 +52,7 @@ export class OcaHandler implements ApiHandler {
 				}
 				opts.headers ??= {}
 				// OCA Headers
-				const ociHeaders = await createOcaHeaders(token, options.taskId!)
+				const ociHeaders = await createOcaHeaders(token, options.taskId ?? "")
 				opts.headers = { ...opts.headers, ...externalHeaders, ...ociHeaders }
 				Logger.log(`Making request with customer opc-request-id: ${opts.headers?.["opc-request-id"]}`)
 				return super.prepareOptions(opts)
@@ -60,7 +60,7 @@ export class OcaHandler implements ApiHandler {
 
 			protected override makeStatusError(
 				status: number | undefined,
-				error: Object | undefined,
+				error: object | undefined,
 				message: string | undefined,
 				headers: any | undefined,
 			): APIError {
@@ -117,7 +117,7 @@ export class OcaHandler implements ApiHandler {
 			throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
 		}
 		const externalHeaders = buildExternalBasicHeaders()
-		const ociHeaders = await createOcaHeaders(token, this.options.taskId!)
+		const ociHeaders = await createOcaHeaders(token, this.options.taskId ?? "")
 		Logger.log(`Making calculate cost request with customer opc-request-id: ${ociHeaders["opc-request-id"]}`)
 		try {
 			const response = await fetch(`${client.baseURL}/spend/calculate`, {
@@ -147,7 +147,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async calculateCost(
-		modelInfo: ModelInfo,
+		_modelInfo: ModelInfo,
 		inputTokens: number,
 		outputTokens: number,
 		_cacheWriteTokens?: number,
@@ -161,7 +161,7 @@ export class OcaHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		if (this.options.ocaModelInfo?.apiFormat == ApiFormat.OPENAI_RESPONSES) {
+		if (this.options.ocaModelInfo?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createMessageResponsesApi(systemPrompt, messages, tools)
 		} else {
 			yield* this.createMessageChatApi(systemPrompt, messages, tools)
@@ -238,7 +238,7 @@ export class OcaHandler implements ApiHandler {
 		}
 
 		if (this.options.ocaModelInfo?.supportsReasoningEffort) {
-			chatCompletionsParams["reasoning_effort"] = this.options.ocaReasoningEffort || ("medium" as any)
+			chatCompletionsParams.reasoning_effort = this.options.ocaReasoningEffort || ("medium" as any)
 		}
 
 		const stream = await client.chat.completions.create(chatCompletionsParams)
@@ -274,7 +274,7 @@ export class OcaHandler implements ApiHandler {
 			// Handle token usage information
 			if (chunk.usage) {
 				const totalCost = await this.calculateCost(
-					this.options.ocaModelInfo!,
+					this.options.ocaModelInfo as NonNullable<typeof this.options.ocaModelInfo>,
 					chunk.usage.prompt_tokens,
 					chunk.usage.completion_tokens,
 				)
@@ -329,14 +329,18 @@ export class OcaHandler implements ApiHandler {
 			tools: responseTools,
 		}
 
-		if (this.options.ocaModelInfo && this.options.ocaModelInfo.supportsReasoning) {
-			responsesParams["reasoning"] = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
+		if (this.options.ocaModelInfo?.supportsReasoning) {
+			responsesParams.reasoning = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
 		}
 
 		// Create the response using Responses API
 		const stream = await client.responses.create(responsesParams)
 
-		yield* handleResponsesApiStreamResponse(stream, this.options.ocaModelInfo!, this.calculateCost.bind(this))
+		yield* handleResponsesApiStreamResponse(
+			stream,
+			this.options.ocaModelInfo as NonNullable<typeof this.options.ocaModelInfo>,
+			this.calculateCost.bind(this),
+		)
 	}
 
 	getModel() {

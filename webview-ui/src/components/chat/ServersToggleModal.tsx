@@ -49,7 +49,7 @@ const ServersToggleModal: React.FC = () => {
 			setArrowPosition(rightPosition)
 			setMenuPosition(buttonRect.top + 1)
 		}
-	}, [isVisible, viewportWidth, viewportHeight])
+	}, [isVisible])
 
 	return (
 		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
@@ -80,7 +80,7 @@ const ServersToggleModal: React.FC = () => {
 									setIsVisible(false)
 									navigateToMcp("configure")
 								}}>
-								<span className="codicon codicon-gear text-[10px]"></span>
+								<span className="codicon codicon-gear text-[10px]" />
 							</VSCodeButton>
 						</div>
 					</div>

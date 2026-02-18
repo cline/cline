@@ -58,8 +58,12 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	// Build flat list of skills with source info (global first, then local, alphabetical within each)
 	const skillEntries = useMemo(() => {
 		const entries: { skill: SkillInfo; isGlobal: boolean }[] = []
-		globalSkills.forEach((skill) => entries.push({ skill, isGlobal: true }))
-		localSkills.forEach((skill) => entries.push({ skill, isGlobal: false }))
+		for (const skill of globalSkills) {
+			entries.push({ skill, isGlobal: true })
+		}
+		for (const skill of localSkills) {
+			entries.push({ skill, isGlobal: false })
+		}
 		return entries.sort((a, b) => {
 			if (a.isGlobal !== b.isGlobal) return a.isGlobal ? -1 : 1
 			return a.skill.name.localeCompare(b.skill.name)
@@ -248,7 +252,7 @@ const SkillRow: React.FC<{ skill: SkillInfo; isSelected: boolean }> = ({ skill, 
 			{skill.description && (
 				<Box marginLeft={4}>
 					<Text color="gray">
-						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
+						{skill.description.length > 60 ? `${skill.description.slice(0, 57)}...` : skill.description}
 					</Text>
 				</Box>
 			)}

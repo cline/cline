@@ -209,7 +209,7 @@ export class SyncQueue {
 	 * @param key File key
 	 * @param remove Whether to remove the item after marking synced (default: false)
 	 */
-	markSynced(taskId: string, key: string, remove: boolean = false): void {
+	markSynced(taskId: string, key: string, remove = false): void {
 		const id = `${taskId}/${key}`
 		if (remove) {
 			delete this.data.items[id]
@@ -322,7 +322,7 @@ export class SyncQueue {
 	 * @param maxAgeMs Maximum age for failed items in milliseconds (default: 7 days)
 	 * @returns Number of items cleaned up
 	 */
-	cleanupFailedItems(maxRetries: number = 5, maxAgeMs: number = SEVEN_DAYS_MS): number {
+	cleanupFailedItems(maxRetries = 5, maxAgeMs: number = SEVEN_DAYS_MS): number {
 		const cutoff = Date.now() - maxAgeMs
 		let count = 0
 		Object.entries(this.data.items).forEach(([key, item]) => {
@@ -344,7 +344,7 @@ export class SyncQueue {
 	 * @param maxSize Maximum number of items to keep (default: 1000)
 	 * @returns Number of items evicted
 	 */
-	enforceMaxSize(maxSize: number = 1000): number {
+	enforceMaxSize(maxSize = 1000): number {
 		const items = Object.entries(this.data.items)
 		if (items.length <= maxSize) {
 			return 0

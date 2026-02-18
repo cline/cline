@@ -65,7 +65,7 @@ async function execRipgrep(args: string[]): Promise<string> {
 		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
 		const rl = readline.createInterface({
 			input: rgProcess.stdout,
-			crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
+			crlfDelay: Number.POSITIVE_INFINITY, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
 		})
 
 		let output = ""
@@ -74,7 +74,7 @@ async function execRipgrep(args: string[]): Promise<string> {
 
 		rl.on("line", (line) => {
 			if (lineCount < maxLines) {
-				output += line + "\n"
+				output += `${line}\n`
 				lineCount++
 			} else {
 				rl.close()
@@ -135,9 +135,9 @@ export async function regexSearchFiles(
 					}
 				} else if (parsed.type === "context" && currentResult) {
 					if (parsed.data.line_number < currentResult.line!) {
-						currentResult.beforeContext!.push(parsed.data.lines.text)
+						currentResult.beforeContext?.push(parsed.data.lines.text)
 					} else {
-						currentResult.afterContext!.push(parsed.data.lines.text)
+						currentResult.afterContext?.push(parsed.data.lines.text)
 					}
 				}
 			} catch (error) {

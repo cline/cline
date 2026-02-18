@@ -74,7 +74,7 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 				throw new Error("Invalid Groq API key format. Groq API keys should start with 'gsk_'")
 			}
 
-			Logger.log("Fetching Groq models with API key:", cleanApiKey.substring(0, 10) + "...")
+			Logger.log("Fetching Groq models with API key:", `${cleanApiKey.substring(0, 10)}...`)
 
 			const response = await axios.get("https://api.groq.com/openai/v1/models", {
 				headers: {

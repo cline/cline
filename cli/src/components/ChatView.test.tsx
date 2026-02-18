@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatView } from "./ChatView"
 
 // Helper to wait for async state updates
-const delay = (ms: number = 60) => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Type for our exit mock function
 type ExitMockFn = ReturnType<typeof vi.fn> & (() => void)
@@ -21,6 +21,7 @@ type ExitMockFn = ReturnType<typeof vi.fn> & (() => void)
 const shutdownMockState = {
 	listeners: [] as Array<() => void>,
 	fire: () => {
+		// biome-ignore lint/suspicious/useIterableCallbackReturn: This is the standard pattern for event emitters in VS Code extensions
 		shutdownMockState.listeners.forEach((listener) => listener())
 	},
 	reset: () => {

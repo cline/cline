@@ -509,7 +509,9 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			<DeleteWorktreeModal
 				branchName={deleteWorktree?.branch || ""}
 				onClose={() => setDeleteWorktree(null)}
-				onConfirm={(deleteBranch) => handleDeleteWorktree(deleteWorktree!.path, deleteBranch, deleteWorktree!.branch)}
+				onConfirm={(deleteBranch) =>
+					handleDeleteWorktree(deleteWorktree?.path || "", deleteBranch, deleteWorktree?.branch || "")
+				}
 				open={!!deleteWorktree}
 				worktreePath={deleteWorktree?.path || ""}
 			/>
@@ -522,7 +524,13 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 						if (e.target === e.currentTarget && !isMerging) {
 							closeMergeModal()
 						}
-					}}>
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Escape" && !isMerging) {
+							closeMergeModal()
+						}
+					}}
+					role="dialog">
 					<div className="bg-[var(--vscode-editor-background)] border border-[var(--vscode-panel-border)] rounded-lg p-5 w-[450px] max-w-[90vw] relative">
 						{/* Close button */}
 						<button
@@ -596,9 +604,10 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 									.
 								</p>
 
-								<label className="flex items-center gap-2 cursor-pointer">
+								<label className="flex items-center gap-2 cursor-pointer" htmlFor="delete-after-merge-checkbox">
 									<VSCodeCheckbox
 										checked={deleteAfterMerge}
+										id="delete-after-merge-checkbox"
 										onChange={(e) => setDeleteAfterMerge((e.target as HTMLInputElement).checked)}
 									/>
 									<span className="text-sm">Delete worktree after successful merge</span>

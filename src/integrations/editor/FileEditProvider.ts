@@ -13,10 +13,6 @@ import { Logger } from "@/shared/services/Logger"
 export class FileEditProvider extends DiffViewProvider {
 	private documentContent?: string
 
-	constructor() {
-		super()
-	}
-
 	override showFile(_absolutePath: string): Promise<void> {
 		// No-op: No visual editor to show the file
 		return Promise.resolve()
@@ -104,7 +100,7 @@ export class FileEditProvider extends DiffViewProvider {
 		return this.getDocumentText()
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.absolutePath || !this.documentContent) {
 			return false
 		}

@@ -4,7 +4,7 @@
  */
 
 import { Box } from "ink"
-import React, { useEffect, useRef } from "react"
+import React, { useCallback, useEffect, useRef } from "react"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
 import { useCompletionSignals } from "../hooks/useStateSubscriber"
 import { originalConsoleLog } from "../utils/console"
@@ -32,22 +32,25 @@ export const TaskJsonView: React.FC<TaskJsonViewProps> = ({ taskId: _taskId, ver
 	const hasOutputtedCompletion = useRef(false)
 
 	// Determine the role for a message
-	const getRole = (message: { type: string; ask?: string; say?: string }, index: number): "user" | "assistant" | "system" => {
-		// User feedback messages
-		if (message.say === "user_feedback" || message.say === "user_feedback_diff") {
-			return "user"
-		}
-		// First text message is the user's task
-		if (message.say === "text" && index === 0) {
-			return "user"
-		}
-		// System messages
-		if (message.say === "api_req_started" || message.say === "api_req_finished") {
-			return "system"
-		}
-		// Default: assistant
-		return "assistant"
-	}
+	const getRole = useCallback(
+		(message: { type: string; ask?: string; say?: string }, index: number): "user" | "assistant" | "system" => {
+			// User feedback messages
+			if (message.say === "user_feedback" || message.say === "user_feedback_diff") {
+				return "user"
+			}
+			// First text message is the user's task
+			if (message.say === "text" && index === 0) {
+				return "user"
+			}
+			// System messages
+			if (message.say === "api_req_started" || message.say === "api_req_finished") {
+				return "system"
+			}
+			// Default: assistant
+			return "assistant"
+		},
+		[],
+	)
 
 	// Output messages as JSON when they arrive
 	useEffect(() => {
@@ -92,7 +95,7 @@ export const TaskJsonView: React.FC<TaskJsonViewProps> = ({ taskId: _taskId, ver
 
 			outputtedMessages.current.add(message.ts)
 		}
-	}, [state.clineMessages, verbose])
+	}, [state.clineMessages, verbose, getRole])
 
 	// Handle task completion
 	useEffect(() => {

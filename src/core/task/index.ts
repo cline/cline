@@ -592,8 +592,7 @@ export class Task {
 			const lastMessage = clineMessages.at(-1)
 			const lastMessageIndex = clineMessages.length - 1
 
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
+			const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -689,6 +688,7 @@ export class Task {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
 		const result = {
+			// biome-ignore lint/style/noNonNullAssertion: The askResponse is guaranteed to be defined at this point due to the pWaitFor check above.
 			response: this.taskState.askResponse!,
 			text: this.taskState.askResponseText,
 			images: this.taskState.askResponseImages,
@@ -729,8 +729,7 @@ export class Task {
 
 		if (partial !== undefined) {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+			const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -2476,7 +2475,7 @@ export class Task {
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				request: `${userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n")}\n\nLoading...`,
 			}),
 		)
 
@@ -2733,7 +2732,7 @@ export class Task {
 					// Present content once per chunk. Calling this from multiple case branches can
 					// race partial updates and duplicate text rows in the chat.
 					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
+						Logger.debug(`[Task] Failed to present message: ${error}`),
 					)
 
 					if (this.taskState.abort) {
@@ -3271,10 +3270,10 @@ export class Task {
 	private formatWorkspaceRootsSection(): string {
 		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
 		const hasWorkspaceManager = !!this.workspaceManager
-		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
+		const roots = hasWorkspaceManager ? this.workspaceManager?.getRoots() : []
 
 		// Only show workspace roots if multi-root is enabled and there are multiple roots
-		if (!multiRootEnabled || roots.length <= 1) {
+		if (!multiRootEnabled || !roots || roots?.length <= 1) {
 			return ""
 		}
 
@@ -3288,7 +3287,7 @@ export class Task {
 		}
 
 		// Add primary workspace information
-		const primary = this.workspaceManager!.getPrimaryRoot()
+		const primary = this.workspaceManager?.getPrimaryRoot()
 		const primaryName = this.getPrimaryWorkspaceName(primary)
 		section += `\n\nPrimary workspace: ${primaryName}`
 

@@ -51,7 +51,7 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	// Auto-expand last message row when task or messages first changed.
 	useEffect(() => {
 		clearExpandedRows()
-	}, [task?.ts, clearExpandedRows])
+	}, [clearExpandedRows])
 
 	return {
 		// State values

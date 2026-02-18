@@ -84,9 +84,8 @@ async function getAllFiles(dir: string, baseDir: string): Promise<string[]> {
 					// Skip .git directory
 					if (entry.name === ".git") return []
 					return getAllFiles(fullPath, baseDir)
-				} else {
-					return [relativePath]
 				}
+				return [relativePath]
 			}),
 		)
 
@@ -183,7 +182,7 @@ export async function copyWorktreeIncludeFiles(
 		const dirName = await isDirectoryPattern(sourceDir, pattern)
 		if (dirName) {
 			// Verify the directory is also gitignored
-			if (gitignoreMatcher.ignores(dirName) || gitignoreMatcher.ignores(dirName + "/")) {
+			if (gitignoreMatcher.ignores(dirName) || gitignoreMatcher.ignores(`${dirName}/`)) {
 				directoryPatterns.push(dirName)
 			}
 		} else {

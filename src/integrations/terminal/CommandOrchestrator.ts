@@ -292,7 +292,7 @@ export async function orchestrateCommandExecution(
 
 		// Write all existing lines to file in a single batch to reduce I/O overhead
 		if (outputLines.length > 0) {
-			largeOutputLogStream.write(outputLines.join("\n") + "\n")
+			largeOutputLogStream.write(`${outputLines.join("\n")}\n`)
 		}
 
 		// Keep first N lines for summary
@@ -342,7 +342,7 @@ export async function orchestrateCommandExecution(
 		if (isWritingToFile) {
 			// Write to file instead of keeping in memory
 			if (largeOutputLogStream) {
-				largeOutputLogStream.write(line + "\n")
+				largeOutputLogStream.write(`${line}\n`)
 			}
 
 			// Update last lines circular buffer for summary

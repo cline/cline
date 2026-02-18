@@ -94,7 +94,7 @@ function convertApplyPatchToToolCalls(input: any): ConvertedTool {
 	// If it's an Add operation, convert to write_to_file
 	if (action === "Add") {
 		// Extract the content after the file line
-		const contentAfterFile = patchContent.substring(fileMatch.index! + fileMatch[0].length)
+		const contentAfterFile = patchContent.substring((fileMatch.index ?? 0) + fileMatch[0].length)
 		return {
 			name: "write_to_file",
 			input: {
@@ -106,7 +106,7 @@ function convertApplyPatchToToolCalls(input: any): ConvertedTool {
 
 	// If it's Update or Delete, convert to replace_in_file
 	if (action === "Update" || action === "Delete") {
-		const diff = convertPatchToDiff(patchContent.substring(fileMatch.index! + fileMatch[0].length))
+		const diff = convertPatchToDiff(patchContent.substring((fileMatch.index ?? 0) + fileMatch[0].length))
 		return {
 			name: "replace_in_file",
 			input: {
@@ -437,7 +437,7 @@ function convertDiffToPatchWithContext(diff: string, finalContent?: string): str
 
 	// Match all SEARCH/REPLACE blocks
 	const blockRegex = /------- SEARCH\s*\n([\s\S]*?)\n=======\s*\n([\s\S]*?)\n\+{7} REPLACE/g
-	let match
+	let match: RegExpExecArray | null
 
 	while ((match = blockRegex.exec(diff)) !== null) {
 		const searchContent = match[1]
@@ -585,9 +585,8 @@ function reconstructWriteToFileResult(block: any, originalToolName: string, orig
 		// If no final_file_content found, create a simple success message
 		if (originalToolName === "write_to_file") {
 			return `[apply_patch for '${filePath}'] Result:\nThe content was successfully saved to ${filePath}.\n\nThe file has been created/updated with the new content.`
-		} else {
-			return `[apply_patch for '${filePath}'] Result:\nThe content was successfully updated in ${filePath}.\n\nThe file has been modified.`
 		}
+		return `[apply_patch for '${filePath}'] Result:\nThe content was successfully updated in ${filePath}.\n\nThe file has been modified.`
 	}
 
 	const finalContent = finalContentMatch[2]

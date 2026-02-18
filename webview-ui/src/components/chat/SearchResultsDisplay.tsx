@@ -109,8 +109,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					WebkitUserSelect: "none",
 					MozUserSelect: "none",
 					msUserSelect: "none",
-				}}
-				tabIndex={0}>
+				}}>
 				<span>/</span>
 				<span
 					style={{
@@ -121,7 +120,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					}}>
 					{path + (filePattern ? `/(${filePattern})` : "")}
 				</span>
-				<div style={{ flexGrow: 1 }}></div>
+				<div style={{ flexGrow: 1 }} />
 				{isExpanded ? (
 					<ChevronDownIcon size={16} style={{ margin: "1px 0" }} />
 				) : (
@@ -162,7 +161,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 									style={{
 										fontSize: "14px",
 										color: "var(--vscode-symbolIcon-folderForeground)",
-									}}></span>
+									}}
+								/>
 								<span
 									style={{
 										fontWeight: "500",

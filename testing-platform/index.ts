@@ -30,7 +30,7 @@ async function tryFixEntry(
 
 	console.warn(`✏️ Updating response for RequestID: ${entry.requestId}`)
 	entry.response.message = actualResponse
-	fs.writeFileSync(specPath, JSON.stringify(spec, null, 2) + "\n")
+	fs.writeFileSync(specPath, `${JSON.stringify(spec, null, 2)}\n`)
 	console.log(`💾 Spec file updated: ${specPath}`)
 
 	const { success } = compareResponse(actualResponse, entry?.response?.message, NON_DETERMINISTIC_FIELDS)

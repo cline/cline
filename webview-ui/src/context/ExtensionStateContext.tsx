@@ -140,7 +140,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const closeMcpView = useCallback(() => {
 		setShowMcp(false)
 		setMcpTab(undefined)
-	}, [setShowMcp, setMcpTab])
+	}, [])
 
 	// Hide functions
 	const hideSettings = useCallback(() => {
@@ -148,25 +148,22 @@ export const ExtensionStateContextProvider: React.FC<{
 		setSettingsTargetSection(undefined)
 		setSettingsInitialModelTab(undefined)
 	}, [])
-	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
-	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
-	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
-	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
+	const hideHistory = useCallback(() => setShowHistory(false), [])
+	const hideAccount = useCallback(() => setShowAccount(false), [])
+	const hideWorktrees = useCallback(() => setShowWorktrees(false), [])
+	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [])
 
 	// Navigation functions
-	const navigateToMcp = useCallback(
-		(tab?: McpViewTab) => {
-			setShowSettings(false)
-			setShowHistory(false)
-			setShowAccount(false)
-			setShowWorktrees(false)
-			if (tab) {
-				setMcpTab(tab)
-			}
-			setShowMcp(true)
-		},
-		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount, setShowWorktrees],
-	)
+	const navigateToMcp = useCallback((tab?: McpViewTab) => {
+		setShowSettings(false)
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowWorktrees(false)
+		if (tab) {
+			setMcpTab(tab)
+		}
+		setShowMcp(true)
+	}, [])
 
 	const navigateToSettings = useCallback(
 		(targetSection?: string) => {
@@ -200,7 +197,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAccount(false)
 		setShowWorktrees(false)
 		setShowHistory(true)
-	}, [setShowSettings, closeMcpView, setShowAccount, setShowWorktrees, setShowHistory])
+	}, [closeMcpView])
 
 	const navigateToAccount = useCallback(() => {
 		setShowSettings(false)
@@ -208,7 +205,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowWorktrees(false)
 		setShowAccount(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowWorktrees, setShowAccount])
+	}, [closeMcpView])
 
 	const navigateToWorktrees = useCallback(() => {
 		setShowSettings(false)
@@ -216,7 +213,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+	}, [closeMcpView])
 
 	const navigateToChat = useCallback(() => {
 		setShowSettings(false)
@@ -224,7 +221,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(false)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+	}, [closeMcpView])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -685,7 +682,15 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [])
+	}, [
+		navigateToAccount,
+		navigateToChat,
+		navigateToHistory,
+		navigateToMcp, // When settings button is clicked, navigate to settings
+		navigateToSettings, // When worktrees button is clicked, navigate to worktrees
+		navigateToWorktrees,
+		showWelcome,
+	])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
@@ -760,6 +765,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshBasetenModels,
 		state?.apiConfiguration?.liteLlmApiKey,
 		refreshLiteLlmModels,
+		openRouterModels,
+		vercelAiGatewayModels,
 	])
 
 	const contextValue: ExtensionStateContextType = {
