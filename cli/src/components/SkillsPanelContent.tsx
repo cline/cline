@@ -7,9 +7,9 @@ import { exec } from "node:child_process"
 import os from "node:os"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import type { Controller } from "@/core/controller"
 import { refreshSkills } from "@/core/controller/file/refreshSkills"
 import { toggleSkill } from "@/core/controller/file/toggleSkill"
-import type { Controller } from "@/core/controller"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -72,20 +72,24 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 		if (!entry) return
 
 		const newEnabled = !entry.skill.enabled
+		const setter = entry.isGlobal ? setGlobalSkills : setLocalSkills
+		const update = (enabled: boolean) =>
+			setter((prev) => prev.map((s) => (s.path === entry.skill.path ? { ...s, enabled } : s)))
 
 		// Optimistic update
-		if (entry.isGlobal) {
-			setGlobalSkills((prev) => prev.map((s) => (s.path === entry.skill.path ? { ...s, enabled: newEnabled } : s)))
-		} else {
-			setLocalSkills((prev) => prev.map((s) => (s.path === entry.skill.path ? { ...s, enabled: newEnabled } : s)))
-		}
+		update(newEnabled)
 
-		await toggleSkill(controller, {
-			metadata: undefined,
-			skillPath: entry.skill.path,
-			isGlobal: entry.isGlobal,
-			enabled: newEnabled,
-		})
+		try {
+			await toggleSkill(controller, {
+				metadata: undefined,
+				skillPath: entry.skill.path,
+				isGlobal: entry.isGlobal,
+				enabled: newEnabled,
+			})
+		} catch {
+			// Revert on failure
+			update(!newEnabled)
+		}
 	}, [controller, skillEntries, selectedIndex])
 
 	// Handle use skill (insert @ mention)
@@ -106,7 +110,12 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 		} else {
 			command = `xdg-open "${SKILLS_MARKETPLACE_URL}"`
 		}
-		exec(command)
+		exec(command, (err) => {
+			if (err) {
+				// Fallback: show URL in terminal if browser open fails
+				console.error(`Visit: ${SKILLS_MARKETPLACE_URL}`)
+			}
+		})
 	}, [])
 
 	// Total items = skills + 1 for marketplace link

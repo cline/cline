@@ -36,7 +36,7 @@ vi.mock("../context/StdinContext", () => ({
 import { SkillsPanelContent } from "./SkillsPanelContent"
 
 // Helper to wait for async state updates
-const delay = (ms: number = 60) => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe("SkillsPanelContent", () => {
 	const mockController = {} as any
@@ -129,7 +129,7 @@ describe("SkillsPanelContent", () => {
 			// Should have called exec with open command
 			expect(mockExec).toHaveBeenCalled()
 			const execCall = mockExec.mock.calls[0][0]
-			expect(execCall).toContain("skills.sh")
+			expect(execCall).toContain("https://skills.sh/")
 		})
 
 		it("should navigate through skills with arrow keys", async () => {
@@ -176,6 +176,26 @@ describe("SkillsPanelContent", () => {
 			await delay()
 
 			expect(mockOnUseSkill).toHaveBeenCalledWith("/path2")
+		})
+
+		it("should revert optimistic toggle on failure", async () => {
+			mockRefreshSkills.mockResolvedValue({
+				globalSkills: [{ name: "test-skill", description: "Test", path: "/test/path/SKILL.md", enabled: true }],
+				localSkills: [],
+			})
+			mockToggleSkill.mockRejectedValueOnce(new Error("toggle failed"))
+
+			const { stdin, lastFrame } = render(<SkillsPanelContent {...defaultProps} />)
+			await delay()
+
+			stdin.write(" ") // Space to toggle
+			await delay(100)
+
+			// toggleSkill was called with enabled: false (toggled from true)
+			expect(mockToggleSkill).toHaveBeenCalledWith(mockController, expect.objectContaining({ enabled: false }))
+			const frame = lastFrame() || ""
+			expect(frame).toContain("● test-skill")
+			expect(frame).not.toContain("○ test-skill")
 		})
 
 		it("should wrap navigation at list boundaries", async () => {
