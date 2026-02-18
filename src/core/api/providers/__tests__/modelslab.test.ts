@@ -4,7 +4,7 @@
  * Run:  npx jest src/core/api/providers/__tests__/modelslab.test.ts
  */
 
-import { ModelsLabHandler } from "../providers/modelslab"
+import { ModelsLabHandler } from "../modelslab"
 import { modelsLabDefaultModelId, modelsLabModels } from "@shared/api"
 
 // ---------------------------------------------------------------------------
