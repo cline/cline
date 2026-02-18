@@ -77,11 +77,6 @@ export const recommendedModels = [
 
 export const freeModels = [
 	{
-		id: "anthropic/claude-sonnet-4.6",
-		description: "Claude Sonnet 4.6 with strong coding and agent performance, now available free in Cline",
-		label: "FREE",
-	},
-	{
 		id: "z-ai/glm-5",
 		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
 		label: "FREE",
@@ -98,7 +93,7 @@ export const freeModels = [
 	},
 ]
 
-const FREE_CLINE_MODELS = [...freeModels.map((m) => m.id), "anthropic/claude-4.6-sonnet"]
+const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	isPopup,

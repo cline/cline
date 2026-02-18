@@ -13,15 +13,15 @@ export interface FeaturedModel {
 export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedModel[] } = {
 	recommended: [
 		{
-			id: "anthropic/claude-opus-4.6",
-			name: "Claude Opus 4.6",
-			description: "State-of-the-art for complex coding",
-			labels: ["BEST"],
-		},
-		{
 			id: "anthropic/claude-sonnet-4.6",
 			name: "Claude Sonnet 4.6",
 			description: "Best balance of speed, cost, and quality",
+			labels: ["BEST"],
+		},
+		{
+			id: "anthropic/claude-opus-4.6",
+			name: "Claude Opus 4.6",
+			description: "State-of-the-art for complex coding",
 			labels: ["NEW"],
 		},
 		{
@@ -32,12 +32,6 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 		},
 	],
 	free: [
-		{
-			id: "anthropic/claude-sonnet-4.6",
-			name: "Claude Sonnet 4.6",
-			description: "Best balance of speed, cost, and quality, now free in Cline",
-			labels: ["FREE"],
-		},
 		{
 			id: "z-ai/glm-5",
 			name: "Z-AI GLM5",

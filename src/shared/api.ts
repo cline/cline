@@ -160,7 +160,7 @@ export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-20250929"
+export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-6"
 export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
@@ -357,15 +357,15 @@ export const anthropicModels = {
 
 // Claude Code
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
-export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-5-20250929"
+export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-6"
 export const claudeCodeModels = {
 	sonnet: {
-		...anthropicModels["claude-sonnet-4-5-20250929"],
+		...anthropicModels["claude-sonnet-4-6"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
 	"sonnet[1m]": {
-		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		...anthropicModels["claude-sonnet-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -449,7 +449,7 @@ export const claudeCodeModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-6"
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-6": {
 		maxTokens: 8192,
@@ -768,7 +768,7 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.6" // will always exist in openRouterModels
 export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`
@@ -783,7 +783,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle, from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+		"Claude Sonnet 4.6 delivers strong coding performance across planning, implementation, and large refactors. It's optimized for agentic software development workflows and remains a practical default for daily code tasks.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
 // Cline custom model - Devstral
