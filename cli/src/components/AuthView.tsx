@@ -646,7 +646,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					<Box flexDirection="column">
 						<Text color="white">Model ID</Text>
 						<Text> </Text>
-						<Text color="gray">e.g., claude-sonnet-4-20250514, gpt-4o</Text>
+						<Text color="gray">e.g., claude-sonnet-4-6, gpt-4o</Text>
 						<Text> </Text>
 						<TextInput onChange={setModelId} onSubmit={handleModelIdSubmit} placeholder="model-id" value={modelId} />
 						<Text> </Text>

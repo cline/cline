@@ -1,7 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { updateSetting } from "@/components/settings/utils/settingsHandlers"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Progress } from "@/components/ui/progress"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
@@ -84,15 +83,8 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		}
 	}, []) // Empty dependency array means this only runs on mount
 
-	const handleContextWindowBarClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-		const rect = event.currentTarget.getBoundingClientRect()
-		const clickX = event.clientX - rect.left
-		const percentage = Math.max(0, Math.min(1, clickX / rect.width))
-		const newThreshold = Math.round(percentage * 100) / 100
-		setConfirmationNeeded(false)
-		setThreshold(newThreshold)
-		updateSetting("autoCondenseThreshold", newThreshold)
-	}, [])
+	// TODO: Implement click-to-set-threshold and keyboard adjustment for auto-condense.
+	// Disabled in https://github.com/cline/cline/pull/9348 — see that PR for the original code.
 
 	const handleCompactClick = useCallback(
 		(e: React.MouseEvent) => {
@@ -137,43 +129,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 
 		return showHover(false)
 	}, [])
-
-	// Keyboard event handlers
-	const handleKeyDown = useCallback(
-		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			if (!useAutoCondense) {
-				return
-			}
-
-			const step = event.shiftKey ? 0.1 : 0.05 // Larger step with Shift
-			let newThreshold = threshold
-
-			switch (event.key) {
-				case "ArrowLeft":
-				case "ArrowDown":
-					event.preventDefault()
-					event.stopPropagation()
-					setIsOpened(true) // Keep tooltip open on interaction
-					newThreshold = Math.max(0, threshold - step)
-					break
-				case "ArrowRight":
-				case "ArrowUp":
-					event.preventDefault()
-					event.stopPropagation()
-					setIsOpened(true) // Keep tooltip open on interaction
-					newThreshold = Math.min(1, threshold + step)
-					break
-				default:
-					return
-			}
-
-			if (newThreshold !== threshold) {
-				setThreshold(newThreshold)
-				updateSetting("autoCondenseThreshold", newThreshold)
-			}
-		},
-		[threshold, useAutoCondense, setIsOpened],
-	)
 
 	const handleFocus = useCallback(() => {
 		setIsOpened(true)
@@ -225,22 +180,15 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 								/>
 							</HoverCardContent>
 							<HoverCardTrigger asChild>
+								{/* TODO: Re-add role="slider", aria-value*, onKeyDown, onClick, and tabIndex
+								    when click-to-set-threshold is implemented. See PR #9348 for context. */}
 								<div
-									aria-label="Auto condense threshold"
-									aria-valuemax={100}
-									aria-valuemin={0}
-									aria-valuenow={Math.round(threshold * 100)}
-									aria-valuetext={`${Math.round(threshold * 100)}% threshold`}
 									className="relative w-full text-foreground context-window-progress brightness-100"
 									onFocus={handleFocus}
-									onKeyDown={handleKeyDown}
-									ref={progressBarRef}
-									role="slider"
-									tabIndex={useAutoCondense ? 0 : -1}>
+									ref={progressBarRef}>
 									<Progress
 										aria-label="Context window usage progress"
 										color="success"
-										onClick={handleContextWindowBarClick}
 										value={tokenData.percentage}
 									/>
 									{useAutoCondense && (

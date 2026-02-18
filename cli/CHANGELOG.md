@@ -1,8 +1,28 @@
 # cline
 
+
+## [2.4.0]
+
+### Changes
+
+- Adding Anthropic Sonnet 4.6 
+
+## [2.3.0]
+
+### Patch Changes
+
+- Allows users to enter custom aws region when selecting bedrock as a provider in CLI
+- Keep reasoning rows visible when low-stakes tool groups start immediately after reasoning.
+- Restore reasoning trace visibility in chat and improve the thinking row UX so streamed reasoning is visible, then collapsible after completion.
+
+### Fixed
+
+- Banners now display immediately when opening the extension instead of requiring user interaction first
+- Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
+
 ## [2.2.2]
 
--  Allows users to enter custom aws region when selecting bedrock as a provider
+- Allows users to enter custom aws region when selecting bedrock as a provider
 - Prevent Parent Container Scrolling In Dropdowns
 
 ## [2.2.1]

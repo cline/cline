@@ -1,6 +1,6 @@
 import * as path from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import type { ApiHandler } from "@core/api"
+import type { ApiHandler, buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
@@ -9,10 +9,16 @@ import type { SystemPromptContext } from "@core/prompts/system-prompt/types"
 import { StreamResponseHandler } from "@core/task/StreamResponseHandler"
 import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock, ClineUserContent } from "@shared/messages"
 import { Logger } from "@shared/services/Logger"
-import { ClineDefaultTool } from "@shared/tools"
+import { ClineDefaultTool, ClineTool } from "@shared/tools"
+import { ContextManager } from "@/core/context/context-management/ContextManager"
+import { checkContextWindowExceededError } from "@/core/context/context-management/context-error-handling"
+import { getContextWindowInfo } from "@/core/context/context-management/context-window-utils"
 import { HostProvider } from "@/hosts/host-provider"
+import { ClineError, ClineErrorType } from "@/services/error"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { SETTINGS_DEFAULTS } from "@/shared/storage"
 import { calculateApiCostAnthropic } from "@/utils/cost"
+import { isNextGenModelFamily } from "@/utils/model-utils"
 import { TaskState } from "../../TaskState"
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { ToolValidator } from "../ToolValidator"
@@ -20,6 +26,8 @@ import type { TaskConfig } from "../types/TaskConfig"
 import { SubagentBuilder } from "./SubagentBuilder"
 
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
+const MAX_INITIAL_STREAM_ATTEMPTS = 3
+const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 250
 
 export type SubagentRunStatus = "completed" | "failed"
 
@@ -261,6 +269,7 @@ export class SubagentRunner {
 		this.abortRequested = false
 		const state = new TaskState()
 		let emptyAssistantResponseRetries = 0
+		let previousRequestTotalTokens: number | undefined
 		const stats: SubagentRunStats = {
 			toolCalls: 0,
 			inputTokens: 0,
@@ -355,6 +364,18 @@ export class SubagentRunner {
 			]
 
 			while (true) {
+				if (
+					previousRequestTotalTokens !== undefined &&
+					this.shouldCompactBeforeNextRequest(previousRequestTotalTokens, api, providerInfo.model.id)
+				) {
+					const didCompact = this.compactConversationForContextWindow(conversation)
+					if (didCompact) {
+						Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
+					}
+					// Prevent repeated compaction attempts off the same token sample.
+					previousRequestTotalTokens = undefined
+				}
+
 				const streamHandler = new StreamResponseHandler()
 				const { toolUseHandler } = streamHandler.getHandlers()
 				let requestInputTokens = 0
@@ -367,7 +388,14 @@ export class SubagentRunner {
 				let assistantTextSignature: string | undefined
 				let requestId: string | undefined
 
-				const stream = api.createMessage(systemPrompt, conversation, nativeTools)
+				const stream = this.createMessageWithInitialChunkRetry(
+					api,
+					systemPrompt,
+					conversation,
+					nativeTools,
+					providerInfo.providerId,
+					providerInfo.model.id,
+				)
 
 				for await (const chunk of stream) {
 					switch (chunk.type) {
@@ -634,6 +662,128 @@ export class SubagentRunner {
 					}
 				},
 			},
+		}
+	}
+
+	private shouldRetryInitialStreamError(error: unknown, providerId: string, modelId: string): boolean {
+		// Mirror main loop behavior: do not auto-retry auth/balance failures.
+		const parsedError = ClineError.transform(error, modelId, providerId)
+		const isAuthError = parsedError.isErrorType(ClineErrorType.Auth)
+		const isBalanceError = parsedError.isErrorType(ClineErrorType.Balance)
+
+		if (isAuthError || isBalanceError) {
+			return false
+		}
+
+		return true
+	}
+
+	private compactConversationForContextWindow(conversation: ClineStorageMessage[]): boolean {
+		const contextManager = new ContextManager()
+		const optimizationResult = this.optimizeConversationForContextWindow(contextManager, conversation)
+		if (optimizationResult.didOptimize && !optimizationResult.needToTruncate) {
+			return true
+		}
+
+		const deletedRange = contextManager.getNextTruncationRange(conversation, undefined, "quarter")
+		if (deletedRange[1] < deletedRange[0]) {
+			return optimizationResult.didOptimize
+		}
+
+		const truncated = contextManager
+			.getTruncatedMessages(conversation, deletedRange)
+			.map((message) => message as ClineStorageMessage)
+		if (truncated.length >= conversation.length) {
+			return optimizationResult.didOptimize
+		}
+
+		conversation.splice(0, conversation.length, ...truncated)
+		return true
+	}
+
+	private optimizeConversationForContextWindow(
+		contextManager: ContextManager,
+		conversation: ClineStorageMessage[],
+	): {
+		didOptimize: boolean
+		needToTruncate: boolean
+	} {
+		const timestamp = Date.now()
+		const optimizationResult = contextManager.attemptFileReadOptimizationInMemory(conversation, undefined, timestamp)
+		if (!optimizationResult.anyContextUpdates) {
+			return { didOptimize: false, needToTruncate: true }
+		}
+
+		const optimizedConversation = optimizationResult.optimizedConversationHistory.map(
+			(message) => message as ClineStorageMessage,
+		)
+		conversation.splice(0, conversation.length, ...optimizedConversation)
+		return { didOptimize: true, needToTruncate: optimizationResult.needToTruncate }
+	}
+
+	private shouldCompactBeforeNextRequest(
+		previousRequestTotalTokens: number,
+		api: ReturnType<typeof buildApiHandler>,
+		modelId: string,
+	): boolean {
+		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
+		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
+		if (useAutoCondense && isNextGenModelFamily(modelId)) {
+			// Use default — the UI to adjust this is disabled and stored values may be corrupted.
+			// See: https://github.com/cline/cline/pull/9348
+			const autoCondenseThreshold = SETTINGS_DEFAULTS.autoCondenseThreshold
+			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
+			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+			return previousRequestTotalTokens >= thresholdTokens
+		}
+
+		return previousRequestTotalTokens >= maxAllowedSize
+	}
+
+	private async *createMessageWithInitialChunkRetry(
+		api: ReturnType<typeof buildApiHandler>,
+		systemPrompt: string,
+		conversation: ClineStorageMessage[],
+		nativeTools: ClineTool[] | undefined,
+		providerId: string,
+		modelId: string,
+	) {
+		for (let attempt = 1; attempt <= MAX_INITIAL_STREAM_ATTEMPTS; attempt += 1) {
+			const stream = api.createMessage(systemPrompt, conversation, nativeTools)
+			const iterator = stream[Symbol.asyncIterator]()
+
+			try {
+				const firstChunk = await iterator.next()
+				if (!firstChunk.done) {
+					yield firstChunk.value
+				}
+
+				yield* iterator
+				return
+			} catch (error) {
+				if (checkContextWindowExceededError(error)) {
+					const didCompact = this.compactConversationForContextWindow(conversation)
+					if (!didCompact || this.shouldAbort() || attempt >= MAX_INITIAL_STREAM_ATTEMPTS) {
+						throw error
+					}
+					Logger.warn(
+						`[SubagentRunner] Context window exceeded on initial stream attempt ${attempt}; compacted conversation and retrying.`,
+					)
+					continue
+				}
+
+				const shouldRetry =
+					!this.shouldAbort() &&
+					attempt < MAX_INITIAL_STREAM_ATTEMPTS &&
+					this.shouldRetryInitialStreamError(error, providerId, modelId)
+				if (!shouldRetry) {
+					throw error
+				}
+
+				const delayMs = INITIAL_STREAM_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)
+				Logger.warn(`[SubagentRunner] Initial stream failed. Retrying attempt ${attempt + 1}.`, error)
+				await delay(delayMs)
+			}
 		}
 	}
 }
