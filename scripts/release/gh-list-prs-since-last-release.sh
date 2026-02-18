@@ -12,11 +12,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/gh-list-prs-since-last-release.sh [--from-tag <tag>] [--base <ref>] [--debug]
+Usage: scripts/gh-list-prs-since-last-release.sh [--from-tag <tag>] [--to-tag <tag>] [--base <ref>] [--debug]
 
 Options:
   --from-tag <tag>  Override the autodetected latest vX.Y.Z tag.
-  --base <ref>      Base branch to compare against (default: main).
+  --to-tag <tag>    Upper bound of the range (overrides --base when specified).
+  --base <ref>      Base branch to compare against (default: main). Ignored when --to-tag is set.
   --debug           Print debug stats to stderr.
 
 Requires: git, gh (authenticated), jq
@@ -25,6 +26,7 @@ USAGE
 
 BASE_REF="main"
 FROM_TAG=""
+TO_TAG=""
 DEBUG=0
 
 while [ $# -gt 0 ]; do
@@ -32,6 +34,11 @@ while [ $# -gt 0 ]; do
     --from-tag)
       [ -z "${2-}" ] && { echo "Error: --from-tag requires a value." >&2; usage >&2; exit 2; }
       FROM_TAG="$2"
+      shift 2
+      ;;
+    --to-tag)
+      [ -z "${2-}" ] && { echo "Error: --to-tag requires a value." >&2; usage >&2; exit 2; }
+      TO_TAG="$2"
       shift 2
       ;;
     --base)
@@ -72,7 +79,18 @@ if ! git rev-parse --verify --quiet "${FROM_TAG}^{}" >/dev/null 2>&1 && \
   exit 1
 fi
 
-echo "Generating changelog since ${FROM_TAG}..." >&2
+# If --to-tag was given, validate it and use it as the upper bound; otherwise use BASE_REF.
+UPPER_BOUND="${BASE_REF}"
+if [ -n "${TO_TAG}" ]; then
+  if ! git rev-parse --verify --quiet "${TO_TAG}^{}" >/dev/null 2>&1 && \
+     ! git rev-parse --verify --quiet "${TO_TAG}" >/dev/null 2>&1; then
+    echo "Error: '${TO_TAG}' is not a valid tag or revision in this repository." >&2
+    exit 1
+  fi
+  UPPER_BOUND="${TO_TAG}"
+fi
+
+echo "Generating changelog from ${FROM_TAG} to ${UPPER_BOUND}..." >&2
 
 # Get repo owner and name from remote
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
@@ -80,7 +98,7 @@ OWNER=${REPO%/*}
 NAME=${REPO#*/}
 
 # Build query body and execute in single request
-QUERY_BODY=$(git log --first-parent --pretty=%s "${FROM_TAG}..${BASE_REF}" |
+QUERY_BODY=$(git log --first-parent --pretty=%s "${FROM_TAG}..${UPPER_BOUND}" |
   grep -Eo '#[0-9]+' |
   tr -d '#' |
   sort -un |

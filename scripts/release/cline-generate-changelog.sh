@@ -7,7 +7,7 @@
 #
 # Use --scope to target either the VSCode extension (CHANGELOG.md) or the CLI (cli/CHANGELOG.md).
 #
-# Model: defaults to claude-opus-4-6; override with --model.
+# Model: defaults to claude-sonnet-4-6; override with --model.
 # Provider: whichever provider is currently selected in your cline configuration will be used.
 #   To change provider, run `cline auth` first.
 #
@@ -26,14 +26,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/release/cline-generate-changelog.sh --scope <vscode|cli> [--model <model>] [--from-tag <tag>] [--timeout <seconds>] [--debug]
+Usage: scripts/release/cline-generate-changelog.sh --scope <vscode|cli> [--model <model>] [--from-tag <tag>] [--to-tag <tag>] [--timeout <seconds>] [--debug]
 
 Options:
   --scope <vscode|cli>  Required. Target product surface:
                           vscode  Generate entries for CHANGELOG.md (VS Code extension)
                           cli     Generate entries for cli/CHANGELOG.md (Cline CLI)
-  --model <model>       Model to pass to cline (default: claude-opus-4-6).
-  --from-tag <tag>      Override the autodetected latest vX.Y.Z tag.
+  --model <model>       Model to pass to cline (default: claude-sonnet-4-6).
+  --from-tag <tag>      Start of the range (default: latest vX.Y.Z tag).
+  --to-tag <tag>        End of the range (default: HEAD of main). Use this to
+                          generate a changelog for a past release window.
   --timeout <seconds>   Timeout in seconds for the cline task (default: 120).
   --debug               Print debug stats to stderr.
 
@@ -42,8 +44,9 @@ USAGE
 }
 
 SCOPE=""
-MODEL="claude-opus-4-6"
+MODEL="claude-sonnet-4-6"
 FROM_TAG_ARG=""
+TO_TAG_ARG=""
 TIMEOUT=120
 DEBUG=0
 
@@ -62,6 +65,11 @@ while [ $# -gt 0 ]; do
     --from-tag)
       [ -z "${2-}" ] && { echo "Error: --from-tag requires a value." >&2; usage >&2; exit 2; }
       FROM_TAG_ARG="$2"
+      shift 2
+      ;;
+    --to-tag)
+      [ -z "${2-}" ] && { echo "Error: --to-tag requires a value." >&2; usage >&2; exit 2; }
+      TO_TAG_ARG="$2"
       shift 2
       ;;
     --timeout)
@@ -108,17 +116,33 @@ done
 tag_args=()
 [ -n "${FROM_TAG_ARG}" ] && tag_args+=("--from-tag" "${FROM_TAG_ARG}")
 
+# --to-tag is passed as --to-tag to the PR lister (upper bound on the git range)
+# and as --base to the first-time contributors script (which uses --base as its
+# single-window upper bound; --to-tag there triggers multi-window iteration instead).
+to_tag_args_pr=()
+to_tag_args_ftc=()
+if [ -n "${TO_TAG_ARG}" ]; then
+  to_tag_args_pr+=("--to-tag" "${TO_TAG_ARG}")
+  to_tag_args_ftc+=("--base" "${TO_TAG_ARG}")
+fi
+
 debug_args=()
 [ "${DEBUG}" -eq 1 ] && debug_args+=("--debug")
 
 echo "Gathering PR list..." >&2
-if ! PR_LIST=$("${SCRIPT_DIR}/gh-list-prs-since-last-release.sh" "${tag_args[@]}" "${debug_args[@]}"); then
+if ! PR_LIST=$("${SCRIPT_DIR}/gh-list-prs-since-last-release.sh" \
+    ${tag_args[@]+"${tag_args[@]}"} \
+    ${to_tag_args_pr[@]+"${to_tag_args_pr[@]}"} \
+    ${debug_args[@]+"${debug_args[@]}"}); then
   echo "Error: Failed to gather PR list (see above for details)." >&2
   exit 1
 fi
 
 echo "Gathering first-time contributor PRs..." >&2
-if ! FIRST_TIME_PRS=$("${SCRIPT_DIR}/gh-first-time-contributors.sh" "${tag_args[@]}" "${debug_args[@]}"); then
+if ! FIRST_TIME_PRS=$("${SCRIPT_DIR}/gh-first-time-contributors.sh" \
+    ${tag_args[@]+"${tag_args[@]}"} \
+    ${to_tag_args_ftc[@]+"${to_tag_args_ftc[@]}"} \
+    ${debug_args[@]+"${debug_args[@]}"}); then
   echo "Warning: Could not gather first-time contributor data; continuing without it." >&2
   FIRST_TIME_PRS=""
 fi
