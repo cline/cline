@@ -14,8 +14,12 @@
 # Output sections (any empty section is omitted):
 #   Added / Fixed / Changed / New Contributors
 #
+# Note: This script uses `git tag --list` to autodetect the latest release tag. In shallow
+# clones (e.g., GitHub Actions with fetch-depth: 1), tags may be missing. Run
+# `git fetch --tags` before invoking this script in CI environments.
+#
 # Requires:
-#   - git
+#   - git (with full tag history — run `git fetch --tags` first if in a shallow clone)
 #   - gh (authenticated)
 #   - jq
 #   - cline (authenticated)
@@ -37,6 +41,7 @@ Options:
   --to-tag <tag>        End of the range (default: HEAD of main). Use this to
                           generate a changelog for a past release window.
   --timeout <seconds>   Timeout in seconds for the cline task (default: 120).
+                          Must be a positive integer.
   --debug               Print debug stats to stderr.
 
 Requires: git, gh (authenticated), jq, cline (authenticated)
@@ -93,6 +98,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Validate --scope
 if [ -z "${SCOPE}" ]; then
   echo "Error: --scope <vscode|cli> is required." >&2
   usage >&2
@@ -101,6 +107,13 @@ fi
 
 if [ "${SCOPE}" != "vscode" ] && [ "${SCOPE}" != "cli" ]; then
   echo "Error: --scope must be 'vscode' or 'cli' (got '${SCOPE}')." >&2
+  usage >&2
+  exit 2
+fi
+
+# Validate --timeout is a positive integer
+if ! printf '%s' "${TIMEOUT}" | grep -Eq '^[1-9][0-9]*$'; then
+  echo "Error: --timeout must be a positive integer (got '${TIMEOUT}')." >&2
   usage >&2
   exit 2
 fi
@@ -219,19 +232,46 @@ Format requirements:
 
 # ---------------------------------------------------------------------------
 # Invoke cline
+#
+# We use `-- "${PROMPT}"` to prevent the prompt being interpreted as a flag
+# in the unlikely event it begins with a hyphen.
+#
+# stderr is captured to a temp file so we can surface it on failure with
+# a clear error message, rather than letting it disappear or conflate with
+# the structured changelog output.
 # ---------------------------------------------------------------------------
+
+CLINE_STDERR_FILE=$(mktemp)
+trap 'rm -f "${CLINE_STDERR_FILE}"' EXIT
 
 echo "Generating ${SCOPE} changelog with cline (model: ${MODEL}, timeout: ${TIMEOUT}s)..." >&2
 echo "" >&2
 
-if ! RAW_OUTPUT=$(cline -a -y --timeout "${TIMEOUT}" -m "${MODEL}" "${PROMPT}"); then
-  echo "Error: cline task failed or timed out. Verify your auth with 'cline auth' and try again." >&2
+CLINE_EXIT=0
+RAW_OUTPUT=$(cline -a -y --timeout "${TIMEOUT}" -m "${MODEL}" -- "${PROMPT}" \
+  2>"${CLINE_STDERR_FILE}") || CLINE_EXIT=$?
+
+if [ "${CLINE_EXIT}" -ne 0 ]; then
+  echo "Error: cline exited with code ${CLINE_EXIT}." >&2
+  if [ -s "${CLINE_STDERR_FILE}" ]; then
+    echo "--- cline stderr ---" >&2
+    cat "${CLINE_STDERR_FILE}" >&2
+    echo "--------------------" >&2
+  fi
+  echo "Possible causes: task timeout, auth expiry, or model unavailable." >&2
+  echo "Run 'cline auth' to verify authentication and try again." >&2
   exit 1
 fi
 
 # Strip any markdown code fences a model may have wrapped the output in,
-# then extract from the first section header (## or ###) to end.
-CHANGELOG=$(printf '%s\n' "${RAW_OUTPUT}" | sed '/^```/d' | sed -n '/^#\{2,\} /,$p')
+# then extract from the first *known* changelog section header to end.
+#
+# We anchor on the explicit section names (Added / Fixed / Changed / New Contributors)
+# rather than any "## " line to avoid incorrectly anchoring on preamble headings
+# the model may emit before the actual changelog content.
+CHANGELOG=$(printf '%s\n' "${RAW_OUTPUT}" \
+  | sed '/^```/d' \
+  | sed -n '/^## \(Added\|Fixed\|Changed\|New Contributors\)/,$p')
 
 if [ -z "${CHANGELOG}" ]; then
   if [ -z "${RAW_OUTPUT}" ]; then
@@ -240,7 +280,7 @@ if [ -z "${CHANGELOG}" ]; then
     echo "(No ${SCOPE}-relevant changes found in this release.)" >&2
     if [ "${DEBUG}" -eq 1 ]; then
       echo "" >&2
-      echo "[debug] Raw cline output (no '## ' section headers found):" >&2
+      echo "[debug] Raw cline output (no known section headers found):" >&2
       printf '%s\n' "${RAW_OUTPUT}" >&2
     else
       echo "[hint] Run with --debug to see the raw cline output." >&2
