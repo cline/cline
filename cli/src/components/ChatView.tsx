@@ -1543,7 +1543,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						paddingLeft={1}
 						paddingRight={1}
 						width="100%">
-						<Box>
+						<Box width="100%">
 							{inputPrompt && <Text color={borderColor}>{inputPrompt} </Text>}
 							<HighlightedInput
 								availableCommands={availableCommands.map((c) => c.name)}
