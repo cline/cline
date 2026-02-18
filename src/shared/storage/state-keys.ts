@@ -339,6 +339,10 @@ const SECRETS_KEYS = [
 	"hicapApiKey",
 	"aihubmixApiKey",
 	"nousResearchApiKey",
+	// ModelsLab
+	modelsLabApiKey?: string
+	actModeModelsLabModelId?: string
+	planModeModelsLabModelId?: string
 	"remoteLiteLlmApiKey",
 	"ocaApiKey",
 	"ocaRefreshToken",
