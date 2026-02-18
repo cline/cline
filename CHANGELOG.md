@@ -1,12 +1,16 @@
 # Changelog
 
-## 3.64.1
+## [3.64.0]
 
-### Patch Changes
+### Added
 
-- 0c691f7: Add /skills slash command to CLI for viewing and managing installed skills
-- 5871fd0: Remove deprecated Cerebras models: llama-3.3-70b and qwen-3-32b
-- a840913: Fix aggressive context compaction caused by accidental clicks on the context window progress bar silently setting a very low auto-condense threshold
+- Add /skills slash command to CLI for viewing and managing installed skills
+
+### Fixed
+
+- Fix aggressive context compaction caused by accidental clicks on the context window progress bar silently setting a very low auto-condense threshold
+- Fix infinite retry loop when write_to_file fails with missing content parameter.
+
 
 ## [3.63.0]
 

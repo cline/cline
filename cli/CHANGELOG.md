@@ -1,28 +1,16 @@
 # cline
 
-## 2.4.1
+## [2.4.1]
 
-### Patch Changes
+### Fixed
 
-- af93e31: Make Claude Sonnet 4.6 the default model across providers and remove temporary free-promo positioning for Sonnet 4.6 in banners, onboarding, featured/free model lists, and Cline free-pricing overrides.
-- 80dfce0: docs: remove stale Claude 5 mention from auto compact model support list
-- 28d60a8: Restore Claude Sonnet 4.5 as the default model across providers and onboarding/recommended UX surfaces while keeping Claude Sonnet 4.6 available as a supported option.
-- 1d8497c: Fix the featured models key in the CLI
-- ca154eb: Add MiniMax M2.5 to the MiniMax provider
-- ae6468b: Reinstate MiniMax M2.5 free promo surfaces across Cline, including free pricing behavior, featured model lists, banner CTA, What's New promo copy, and onboarding free model selection.
-- 36c68a6: Remove the expired MiniMax M2.5 free promo, restore GLM 5 free promo in What's New, and keep Sonnet 4.6 free messaging at 24 hours.
-- eb9f53e: Fix infinite retry loop when write_to_file fails with missing content parameter. Provides progressive guidance to the model, escalating from suggestions to hard stops, with context window awareness to break the loop.
+- Fix infinite retry loop when write_to_file fails with missing content parameter. Provides progressive guidance to the model, escalating from suggestions to hard stops, with context window awareness to break the loop.
 
 ## [2.4.0]
 
-### Changes
+### Added
 
 - Adding Anthropic Sonnet 4.6
-
-## [2.3.0]
-
-### Patch Changes
-
 - Allows users to enter custom aws region when selecting bedrock as a provider in CLI
 - Keep reasoning rows visible when low-stakes tool groups start immediately after reasoning.
 - Restore reasoning trace visibility in chat and improve the thinking row UX so streamed reasoning is visible, then collapsible after completion.
