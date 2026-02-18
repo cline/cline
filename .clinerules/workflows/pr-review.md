@@ -4,12 +4,31 @@ You have access to the `gh` terminal command. I already authenticated it for you
 # GitHub PR Review Process - Detailed Sequence of Steps
 
 ## 1. Gather PR Information
-1. Get the PR title, description, and comments:
+1. Get the PR title, description, comments, **and commits** in one call so you can compare timestamps:
    ```bash
-   gh pr view <PR-number> --json title,body,comments
+   gh pr view <PR-number> --json title,body,comments,commits
    ```
 
-2. Get the full diff of the PR:
+2. Immediately classify comments as **fresh** or **stale** by comparing each comment's `createdAt` against the latest commit's `committedDate`:
+   ```bash
+   gh pr view <PR-number> --json comments,commits | jq '
+     (.commits | map(.committedDate) | max) as $latestCommit |
+     {
+       latestCommit: $latestCommit,
+       staleComments: [
+         .comments[] | select(.createdAt < $latestCommit) |
+         {author: .author.login, createdAt: .createdAt, body: .body}
+       ],
+       freshComments: [
+         .comments[] | select(.createdAt >= $latestCommit) |
+         {author: .author.login, createdAt: .createdAt, body: .body}
+       ]
+     }
+   '
+   ```
+   A **stale comment** is one written before the latest commit — it may or may not still apply to the current code. A **fresh comment** was written after all commits and can generally be taken at face value.
+
+3. Get the full diff of the PR:
    ```bash
    gh pr diff <PR-number>
    ```
@@ -50,6 +69,13 @@ You have access to the `gh` terminal command. I already authenticated it for you
    - Security concerns
    - Test coverage
 
+3. **Vet stale comments against the current diff.** For every comment identified as stale in Step 1, explicitly ask yourself:
+   - Does the concern this comment raises still exist in the current diff?
+   - Did a subsequent commit already address it?
+   - Is the code the commenter was referring to even still present?
+
+   Treat stale comments as hypotheses to verify, not facts. If the issue has been resolved by later commits, note that in your review summary. If it still applies, treat it as an open concern. Do **not** simply repeat a stale comment back as a finding without first confirming it against the current state of the code.
+
 ## 4. Ask for User Confirmation
 1. Before making a decision, ask the user if you should approve the PR, providing your assessment and justification:
    ```xml
@@ -57,6 +83,8 @@ You have access to the `gh` terminal command. I already authenticated it for you
    <question>Based on my review of PR #<PR-number>, I recommend [approving/requesting changes]. Here's my justification:
    
    [Detailed justification with key points about the PR quality, implementation, and any concerns]
+   
+   [If there were stale comments, note whether they were addressed by subsequent commits or still apply]
    
    Would you like me to proceed with this recommendation?</question>
    <options>["Yes, approve the PR", "Yes, request changes", "No, I'd like to discuss further"]</options>
@@ -126,8 +154,24 @@ Let's walk through a real example of reviewing PR #3627 which fixes the thinking
 ## Step 1: Gather PR Information
 
 ```bash
-# Get PR details
-gh pr view 3627 --json title,body,comments
+# Get PR details including commits for staleness check
+gh pr view 3627 --json title,body,comments,commits
+
+# Classify comments as stale or fresh
+gh pr view 3627 --json comments,commits | jq '
+  (.commits | map(.committedDate) | max) as $latestCommit |
+  {
+    latestCommit: $latestCommit,
+    staleComments: [
+      .comments[] | select(.createdAt < $latestCommit) |
+      {author: .author.login, createdAt: .createdAt, body: .body}
+    ],
+    freshComments: [
+      .comments[] | select(.createdAt >= $latestCommit) |
+      {author: .author.login, createdAt: .createdAt, body: .body}
+    ]
+  }
+'
 
 # Get the full diff
 gh pr diff 3627
@@ -166,6 +210,8 @@ From the PR information and code examination, we can see that:
 6. It enhances the slider component to calculate max values based on model-specific percentages
 7. Comprehensive tests were added to verify the calculations
 
+**Stale comment check:** One comment from 19 hours ago said "the slider max is hardcoded to 8192." After checking the diff, a commit from 3 hours ago introduced `thinkingConfig.maxBudget` and updated the slider to use it dynamically — this concern has been addressed. It does not need to be raised again.
+
 ## Step 4: Ask for User Confirmation
 
 ```xml
@@ -178,6 +224,7 @@ From the PR information and code examination, we can see that:
 4. The changes are well-tested with comprehensive unit tests
 5. The implementation is clean and follows the project's coding standards
 6. The PR includes helpful screenshots demonstrating the fix
+7. One earlier comment about hardcoded slider values has been resolved by a subsequent commit
 
 Would you like me to proceed with approving this PR?</question>
 <options>["Yes, approve the PR", "No, I'd like to discuss further", "Let me review it myself first"]</options>
