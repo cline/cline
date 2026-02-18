@@ -48,113 +48,126 @@ function addActModeHint(text: string, keyPrefix: string): React.ReactNode[] {
 	return nodes
 }
 
-/** Recursively render child tokens. */
-function renderChildren(tokens: Token[] | undefined, keyPrefix: string, color?: string): React.ReactNode[] {
-	if (!tokens) return []
-	return tokens.map((t, i) => renderNode(t, `${keyPrefix}-${i}`, color))
+/**
+ * Render an array of marked tokens as Ink React nodes.
+ * This is the entry point for recursive rendering — each token may
+ * contain child tokens (e.g. a paragraph contains inline tokens,
+ * a list contains items, etc.).
+ */
+function renderTokens(tokens: Token[], color?: string): React.ReactNode[] {
+	return tokens.map((token, i) => renderToken(token, i, color))
 }
 
-/** Render any marked token (block or inline) to Ink components. */
-function renderNode(token: Token, key: string | number, color?: string): React.ReactNode {
+/**
+ * Render a single marked token (block or inline) as an Ink React node.
+ * Handles both block-level tokens (heading, paragraph, list, code, etc.)
+ * and inline tokens (strong, em, codespan, link, text).
+ */
+function renderToken(token: Token, key: number, color?: string): React.ReactNode {
 	switch (token.type) {
-		// Block tokens
+		// --- Block tokens ---
+
 		case "heading": {
-			const h = token as Tokens.Heading
+			const { depth, tokens } = token as Tokens.Heading
 			return (
-				<Box flexDirection="column" key={key} marginY={h.depth === 1 ? 1 : 0}>
+				<Box key={key} marginY={depth === 1 ? 1 : 0}>
 					<Text bold color={color}>
-						{renderChildren(h.tokens, `${key}-h`, color)}
+						{renderTokens(tokens, color)}
 					</Text>
 				</Box>
 			)
 		}
+
 		case "paragraph":
 			return (
 				<Text color={color} key={key}>
-					{renderChildren((token as Tokens.Paragraph).tokens, `${key}-p`, color)}
+					{renderTokens((token as Tokens.Paragraph).tokens, color)}
 				</Text>
 			)
+
 		case "code":
 			return (
 				<Box flexDirection="column" key={key} marginY={1}>
-					{(token as Tokens.Code).text.split("\n").map((line, idx) => (
-						<Text color="cyan" key={`${key}-cl-${idx}`}>
+					{(token as Tokens.Code).text.split("\n").map((line, i) => (
+						<Text color="cyan" key={i}>
 							{line || " "}
 						</Text>
 					))}
 				</Box>
 			)
+
 		case "list": {
-			const list = token as Tokens.List
+			const { ordered, start, items } = token as Tokens.List
 			return (
 				<Box flexDirection="column" key={key}>
-					{list.items.map((item, idx) => (
-						<Box flexDirection="row" key={`${key}-li-${idx}`}>
-							<Text color="gray">{list.ordered ? `${Number(list.start ?? 1) + idx}. ` : "• "}</Text>
+					{items.map((item, i) => (
+						<Box flexDirection="row" key={i}>
+							<Text color="gray">{ordered ? `${Number(start ?? 1) + i}. ` : "• "}</Text>
 							<Box flexDirection="column" flexGrow={1}>
-								{renderChildren(item.tokens, `${key}-li-${idx}`, color)}
+								{renderTokens(item.tokens, color)}
 							</Box>
 						</Box>
 					))}
 				</Box>
 			)
 		}
+
 		case "blockquote":
 			return (
 				<Box flexDirection="row" key={key}>
 					<Text color="gray">│ </Text>
-					<Box flexDirection="column">{renderChildren((token as Tokens.Blockquote).tokens, `${key}-bq`, color)}</Box>
+					<Box flexDirection="column">{renderTokens((token as Tokens.Blockquote).tokens, color)}</Box>
 				</Box>
 			)
-		case "hr":
-			return (
-				<Text color={color} key={key}>
-					{"─".repeat(40)}
-				</Text>
-			)
+
 		case "space":
 			return <Text key={key}> </Text>
 
-		// Inline tokens
+		// --- Inline tokens ---
+
 		case "strong":
 			return (
 				<Text bold color={color} key={key}>
-					{renderChildren((token as Tokens.Strong).tokens, `${key}-s`, color)}
+					{renderTokens((token as Tokens.Strong).tokens, color)}
 				</Text>
 			)
+
 		case "em":
 			return (
 				<Text color={color} italic key={key}>
-					{renderChildren((token as Tokens.Em).tokens, `${key}-e`, color)}
+					{renderTokens((token as Tokens.Em).tokens, color)}
 				</Text>
 			)
+
 		case "codespan":
 			return <Text key={key}>{(token as Tokens.Codespan).text}</Text>
+
 		case "link": {
-			const { text: linkText, href } = token as Tokens.Link
+			const { text, href } = token as Tokens.Link
 			return (
 				<Text color={color} key={key}>
-					{linkText && linkText !== href ? `${linkText} (${href})` : href}
+					{text && text !== href ? `${text} (${href})` : href}
 				</Text>
 			)
 		}
+
 		case "text": {
-			const t = token as Tokens.Text
-			if (t.tokens?.length) {
+			const { text, tokens } = token as Tokens.Text
+			if (tokens?.length) {
 				return (
 					<Text color={color} key={key}>
-						{renderChildren(t.tokens, `${key}-t`, color)}
+						{renderTokens(tokens, color)}
 					</Text>
 				)
 			}
 			return (
 				<Text color={color} key={key}>
-					{addActModeHint(t.text, `${key}`)}
+					{addActModeHint(text, `${key}`)}
 				</Text>
 			)
 		}
 
-		// Fallback: render raw text for any unhandled token type
+		// Fallback for any unhandled token type
 		default:
 			return "raw" in token ? (
 				<Text color={color} key={key}>
@@ -165,17 +178,19 @@ function renderNode(token: Token, key: string | number, color?: string): React.R
 }
 
 /**
- * Render markdown text to Ink components using the `marked` lexer.
+ * Render a markdown string as Ink components.
+ * Uses marked's lexer to parse markdown into tokens, then renders
+ * each token to the appropriate Ink component.
  */
 const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children, color }) => {
 	const tokens = lexer(children)
 
-	// Fast path: single paragraph → inline text without wrapping Box
+	// Single paragraph → render inline without wrapping Box
 	if (tokens.length === 1 && tokens[0].type === "paragraph") {
-		return <Text color={color}>{renderChildren((tokens[0] as Tokens.Paragraph).tokens, "p", color)}</Text>
+		return <Text color={color}>{renderTokens((tokens[0] as Tokens.Paragraph).tokens, color)}</Text>
 	}
 
-	return <Box flexDirection="column">{renderChildren(tokens, "md", color)}</Box>
+	return <Box flexDirection="column">{renderTokens(tokens, color)}</Box>
 }
 
 interface ChatMessageProps {
