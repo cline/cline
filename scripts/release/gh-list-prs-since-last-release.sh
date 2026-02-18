@@ -66,6 +66,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Validate required dependencies
+for cmd in git gh jq; do
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    echo "Error: ${cmd} is required." >&2
+    exit 1
+  fi
+done
+
 # Auto-detect tag if not specified
 if [ -z "${FROM_TAG}" ]; then
   FROM_TAG=$(git tag --list 'v[0-9]*' --sort=-version:refname | head -1)

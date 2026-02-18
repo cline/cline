@@ -88,6 +88,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required." >&2
+  exit 1
+fi
 if ! command -v gh >/dev/null 2>&1; then
   echo "Error: gh is required." >&2
   exit 1
