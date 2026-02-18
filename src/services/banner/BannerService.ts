@@ -407,20 +407,7 @@ export class BannerService {
 	}
 
 	private getBannerActions(banner: Banner): BannerAction[] {
-		if (banner.actions && banner.actions.length > 0) {
-			return banner.actions
-		}
-
-		try {
-			const rules: BannerRules = JSON.parse(banner.rulesJson || "{}")
-			return rules?.actions ?? []
-		} catch (error) {
-			Logger.log(
-				`[BannerService] Error parsing actions from rulesJson for banner ${banner.id}: ` +
-					`${error instanceof Error ? error.message : String(error)}`,
-			)
-			return []
-		}
+		return banner.actions ?? []
 	}
 
 	private toBannerCardData(banner: Banner): BannerCardData | null {
