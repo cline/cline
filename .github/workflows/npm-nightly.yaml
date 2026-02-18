@@ -19,20 +19,6 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
-  verify-secrets:
-    name: Verify OTEL secrets are inherited
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check OTEL env vars
-        run: |
-          echo "OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:+set}"
-          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:+set}"
-          echo "OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:+set}"
-        env:
-          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
-          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-
   publish-npm-nightly:
     needs: test
     name: Publish Cline CLI (Nightly) to NPM
@@ -105,6 +91,17 @@ jobs:
 
           echo "Using version ${{ steps.version.outputs.version }} for build"
           cat cli/package.json | grep '"version"'
+
+      - name: Verify OTEL secrets are present
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          echo "OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:+set}"
+          echo "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:+set}"
+          echo "OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:+set}"
+        env:
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
       - name: Build and package CLI
         if: steps.check_commits.outputs.skip != 'true'
