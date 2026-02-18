@@ -37,7 +37,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
-	const waitingForBannersRef = useRef(false)
 	const bannerWaitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	// Quick launch worktree modal
@@ -76,11 +75,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// which are fetched asynchronously and may not be available on the first state push.
 	// The modal opens immediately if banners arrive, or after a 3s timeout as fallback.
 	useEffect(() => {
-		if (showAnnouncement && !hasShownWhatsNewModal && !waitingForBannersRef.current) {
-			waitingForBannersRef.current = true
+		if (showAnnouncement && !hasShownWhatsNewModal && !bannerWaitTimeoutRef.current) {
 			bannerWaitTimeoutRef.current = setTimeout(() => {
 				bannerWaitTimeoutRef.current = null
-				waitingForBannersRef.current = false
 				setShowWhatsNewModal(true)
 				setHasShownWhatsNewModal(true)
 			}, 3000)
@@ -95,12 +92,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	// Open modal early if welcome banners arrive before the timeout
 	useEffect(() => {
-		if (waitingForBannersRef.current && welcomeBanners && welcomeBanners.length > 0) {
+		if (bannerWaitTimeoutRef.current && welcomeBanners && welcomeBanners.length > 0) {
 			if (bannerWaitTimeoutRef.current) {
 				clearTimeout(bannerWaitTimeoutRef.current)
 				bannerWaitTimeoutRef.current = null
 			}
-			waitingForBannersRef.current = false
 			setShowWhatsNewModal(true)
 			setHasShownWhatsNewModal(true)
 		}
