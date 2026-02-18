@@ -139,6 +139,7 @@ export class AgentConfigLoader {
 
 	private readonly homeDir: string
 	private readonly directoryPath: string
+	private readonly initialLoadPromise: Promise<void>
 	private watcher?: FSWatcher
 	private cachedConfigs = new Map<string, AgentBaseConfig>()
 	private cachedAgentToolNames = new Map<string, string>()
@@ -148,8 +149,11 @@ export class AgentConfigLoader {
 	private constructor(homeDir = os.homedir()) {
 		this.homeDir = homeDir
 		this.directoryPath = getAgentsConfigPath(homeDir)
-		this.load()
-			.catch((error) => Logger.error("[AgentConfigLoader] Failed to load initial agent configs", error))
+		this.initialLoadPromise = this.load()
+			.then(() => undefined)
+			.catch((error) => {
+				Logger.error("[AgentConfigLoader] Failed to load initial agent configs", error)
+			})
 			.finally(() =>
 				this.watch().catch((error) => Logger.error("[AgentConfigLoader] Failed to start watching agent configs", error)),
 			)
@@ -176,6 +180,10 @@ export class AgentConfigLoader {
 
 	public getConfigPath(): string {
 		return this.directoryPath
+	}
+
+	public async ready(): Promise<void> {
+		await this.initialLoadPromise
 	}
 
 	public getCachedConfig(subagentName?: string): AgentBaseConfig | undefined {

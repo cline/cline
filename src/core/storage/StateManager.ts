@@ -141,7 +141,7 @@ export class StateManager {
 
 			StateManager.instance.isInitialized = true
 
-			AgentConfigLoader.getInstance()
+			await AgentConfigLoader.getInstance().ready()
 		} catch (error) {
 			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error
