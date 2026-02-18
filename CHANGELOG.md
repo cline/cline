@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.65.0]
+
+### Added
+
+- Add /skills slash command to CLI for viewing and managing installed skills
+
+### Fixed
+
+- Fix aggressive context compaction caused by accidental clicks on the context window progress bar silently setting a very low auto-condense threshold
+- Fix infinite retry loop when write_to_file fails with missing content parameter.
+- Fixed default claude model
+
+## [3.64.0]
+
+### Added
+- Added sonnet 4.6
+
+
 ## [3.63.0]
 
 ### Added
@@ -13,6 +31,7 @@
 ## [3.62.0]
 
 ### Fixed
+
 - Banners now display immediately when opening the extension instead of requiring user interaction first
 - Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
 
@@ -27,11 +46,12 @@
 ## [3.59.0]
 
 - Added Minimax 2.5 Free Promo
-- Fixed Response chaining for OpenAI's Responses API 
+- Fixed Response chaining for OpenAI's Responses API
 
 ## [3.58.0]
 
 ### Added
+
 - Subagent: replace legacy subagents with the native `use_subagents` tool
 - Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
 - Amazon Bedrock: support parallel tool calling
@@ -42,6 +62,7 @@
 - ZAI/GLM: add GLM-5
 
 ### Fixed
+
 - CLI: handle stdin redirection correctly in CI/headless environments
 - CLI: preserve OAuth callback paths during auth redirects
 - VS Code Web: generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
@@ -53,6 +74,7 @@
 - CI: increase Windows E2E test timeout to reduce flakiness
 
 ### Changed
+
 - Settings/model UX: move "reasoning effort" into model configuration and expose it in settings
 - CLI provider selection: limit provider list to those remotely configured
 - UI: consolidate ViewHeader component/styling across views
@@ -70,7 +92,7 @@
 ### Added
 
 - Cline CLI 2.0 now available. Install with `npm install -g cline`
-- Anthopic Opus 4.6 
+- Anthopic Opus 4.6
 - Minimax-2.1 and Kimi-k2.5 now available for free for a limited time promo
 - Codex-5.3 through ChatGPT subscription
 
@@ -90,23 +112,23 @@
 
 ### Added
 
-- __CLI authentication:__ Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
-- __New model:__ Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
-- __Prompt variant:__ Added Trinity Large prompt variant for improved tool-calling support
-- __OpenTelemetry:__ Added support for custom headers on metrics and logs endpoints
-- __Social links:__ Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+- **CLI authentication:** Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- **New model:** Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- **Prompt variant:** Added Trinity Large prompt variant for improved tool-calling support
+- **OpenTelemetry:** Added support for custom headers on metrics and logs endpoints
+- **Social links:** Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
 
 ### Fixed
 
-- __LiteLLM:__ Fixed thinking configuration not appearing for reasoning-capable models
-- __OpenTelemetry:__ Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
-- __CLI auth:__ Fixed `cline auth` displaying incorrect provider information after configuration
+- **LiteLLM:** Fixed thinking configuration not appearing for reasoning-capable models
+- **OpenTelemetry:** Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
+- **CLI auth:** Fixed `cline auth` displaying incorrect provider information after configuration
 
 ### Changed
 
-- __Hooks:__ Hook scripts now run from the workspace repository root instead of filesystem root
-- __Default settings:__ Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
-- __Settings UI:__ Refreshed feature settings section with collapsible design
+- **Hooks:** Hook scripts now run from the workspace repository root instead of filesystem root
+- **Default settings:** Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- **Settings UI:** Refreshed feature settings section with collapsible design
 
 ## [3.55.0]
 
