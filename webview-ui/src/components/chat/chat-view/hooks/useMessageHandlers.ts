@@ -266,10 +266,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					} finally {
 						cancelInFlightRef.current = false
+						// Clear any pending state that might interfere with resume
+						setSendingDisabled(false)
+						setEnableButtons(true)
 					}
-					// Clear any pending state that might interfere with resume
-					setSendingDisabled(false)
-					setEnableButtons(true)
 					break
 				}
 
