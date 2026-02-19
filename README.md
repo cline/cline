@@ -139,7 +139,7 @@ For example, when working with a local web server, you can use 'Restore Workspac
 
 ## Contributing
 
-To Learn!
+To contribute to the project, start with our [Contributing Guide](CONTRIBUTING.md) to learn the basics. You can also join our [Discord](https://discord.gg/cline) to chat with other contributors in the `#contributors` channel. If you're looking for full-time work, check out our open positions on our [careers page](https://cline.bot/join-us)!
 
 ## Enterprise
 
