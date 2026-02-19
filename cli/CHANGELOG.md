@@ -1,5 +1,11 @@
 # cline
 
+## 2.4.2
+
+### Patch Changes
+
+- 6ed3944: VSCode uses shared files for global, workspace and secret state.
+
 ## [2.4.1]
 
 ### Fixed
