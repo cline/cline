@@ -307,7 +307,7 @@ export class OcaHandler implements ApiHandler {
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
-		const inputMessages = convertToOpenAIResponsesInput(messages, { disablePreviousResponseId: true }).input
+		const inputMessages = convertToOpenAIResponsesInput(messages, { usePreviousResponseId: false }).input
 		// Convert messages to Responses API input format
 		const input: OpenAI.Responses.ResponseInputItem[] = [{ role: "system", content: systemPrompt }, ...inputMessages]
 

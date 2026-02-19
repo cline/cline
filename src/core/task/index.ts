@@ -2648,6 +2648,13 @@ export class Task {
 
 			try {
 				for await (const chunk of stream) {
+					if (
+						!this.taskState.taskFirstTokenTimeMs &&
+						(chunk.type === "text" || chunk.type === "reasoning" || chunk.type === "tool_calls")
+					) {
+						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
+					}
+
 					switch (chunk.type) {
 						case "usage":
 							this.streamHandler.setRequestId(chunk.id)

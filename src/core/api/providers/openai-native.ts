@@ -8,8 +8,12 @@ import {
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { WebSocket as UndiciWebSocket } from "undici"
+import type {
+	ChatCompletionFunctionTool,
+	ChatCompletionReasoningEffort,
+	ChatCompletionTool,
+} from "openai/resources/chat/completions"
+import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from "undici"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
@@ -28,7 +32,6 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	apiModelId?: string
-	store?: boolean
 	openAiNativeUseResponsesWebsocket?: boolean
 }
 
@@ -78,7 +81,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		// Responses API requires tool format to be set to OPENAI_RESPONSES with native tools calling enabled
-		if (this.getModel()?.info?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
+		const apiFormat = this.getModel()?.info?.apiFormat
+		if (apiFormat === ApiFormat.OPENAI_RESPONSES || apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE) {
 			if (!tools?.length) {
 				throw new Error("Native Tool Call must be enabled in your setting for OpenAI Responses API")
 			}
@@ -158,7 +162,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const model = this.getModel()
-		const usePreviousResponseId = this.shouldUseResponsesWebsocketMode()
+		const usePreviousResponseId = model.info.apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
 		const responseTools = this.mapResponseTools(tools)
 
@@ -192,12 +196,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	private mapResponseTools(tools: ChatCompletionTool[]): OpenAI.Responses.Tool[] {
 		return tools
-			?.filter((tool) => tool?.type === "function")
-			.map((tool: any) => ({
+			?.filter((tool): tool is ChatCompletionFunctionTool => tool?.type === "function")
+			.map((tool) => ({
 				type: "function" as const,
 				name: tool.function.name,
 				description: tool.function.description,
-				parameters: tool.function.parameters,
+				parameters: tool.function.parameters ?? null,
 				strict: tool.function.strict ?? true,
 			}))
 	}
@@ -224,7 +228,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			input: args.input,
 			stream: true,
 			tools: args.tools,
-			store: this.options.store ?? false,
+			store: args.previousResponseId ? false : true, // Do not use store when websocket mode is enabled.
 			...(args.previousResponseId ? { previous_response_id: args.previousResponseId } : {}),
 			...(reasoning ? { reasoning } : {}),
 		}
@@ -259,20 +263,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 	}
 
-	private shouldUseResponsesWebsocketMode(): boolean {
-		if (typeof this.options.openAiNativeUseResponsesWebsocket === "boolean") {
-			return this.options.openAiNativeUseResponsesWebsocket
-		}
-		if (this.getModel().id.includes("codex")) {
-			return true
-		}
-		return process?.env?.IS_DEV?.toLowerCase() === "true"
-	}
-
 	private shouldRetryWebsocketWithFullContext(error: unknown, hadPreviousResponseId: boolean): boolean {
 		const errorCode =
-			typeof error === "object" && error && "code" in error && typeof (error as any).code === "string"
-				? (error as any).code
+			typeof error === "object" && error && "code" in error && typeof (error as { code: unknown }).code === "string"
+				? (error as { code: string }).code
 				: undefined
 
 		if (hadPreviousResponseId && errorCode === "previous_response_not_found") {
@@ -362,7 +356,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			next?.()
 		}
 
-		const handleMessage = (evt: any) => {
+		const handleMessage = (evt: UndiciMessageEvent) => {
 			try {
 				let raw = ""
 				if (typeof evt.data === "string") {
