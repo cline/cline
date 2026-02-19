@@ -54,9 +54,9 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider organized by tabs
 export const recommendedModels = [
 	{
-		id: "anthropic/claude-sonnet-4.5",
-		description: "Best balance of speed, cost, and quality",
-		label: "BEST",
+		id: "google/gemini-3.1-pro-preview",
+		description: "Latest Gemini release with 1m ctx window and strong coding performance",
+		label: "NEW",
 	},
 	{
 		id: "anthropic/claude-sonnet-4.6",
@@ -66,17 +66,12 @@ export const recommendedModels = [
 	{
 		id: "anthropic/claude-opus-4.6",
 		description: "Most intelligent model for agents and coding",
-		label: "NEW",
+		label: "BEST",
 	},
 	{
 		id: "openai/gpt-5.2-codex",
 		description: "OpenAI's latest with strong coding abilities",
 		label: "HOT",
-	},
-	{
-		id: "google/gemini-3-pro-preview",
-		description: "1M context window for large codebases",
-		label: "1M CTX",
 	},
 ]
 
