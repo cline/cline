@@ -686,26 +686,57 @@ const quickStory = (
 	parameters: { docs: { description: { story: description } } },
 })
 
-export const CommandExecution: Story = quickStory(
-	"Command Execution",
+export const CommandPending: Story = quickStory(
+	"Command Pending",
 	"command",
 	"npm install",
-	"Shows command execution request with Run Command/Reject buttons.",
+	"Shows a command waiting for user approval with Run Command/Reject buttons.",
 )
 
-export const CommandOutput: Story = {
+export const CommandRunning: Story = {
 	decorators: [
 		createStoryDecorator({
 			clineMessages: [
-				createAskMessage("command", "npm install"),
-				createAskMessage("command_output", "Installing packages... This may take a few minutes."),
+				createMessage(5, "say", "task", "Install dependencies"),
+				createMessage(4.7, "say", "text", "I'll install the packages for you."),
+				createMessage(
+					4.5,
+					"say",
+					"command",
+					`npm install\nOutput:\nResolving dependencies...\nInstalling packages...`,
+				),
 			],
 		}),
 	],
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows command output with Proceed While Running button during command execution.",
+				story: "Shows a command currently running with output streaming. Status shows 'Running'.",
+			},
+		},
+	},
+}
+
+export const CommandSuccess: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Install dependencies"),
+				createMessage(4.7, "say", "text", "I'll install the packages for you."),
+				createMessage(
+					4.5,
+					"say",
+					"command",
+					`npm install\nOutput:\nadded 245 packages in 3.2s\n\n142 packages are looking for funding\n  run \`npm fund\` for details`,
+					{ commandCompleted: true },
+				),
+			],
+		}),
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "Shows a completed command with Success status and checkmark.",
 			},
 		},
 	},
