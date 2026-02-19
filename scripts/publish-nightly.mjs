@@ -334,11 +334,14 @@ class NightlyPublisher {
 
 		log.info("Packaging extension")
 
+		// The extension is bundled and node_modules is ignored by .vscodeignore.
+		// Skip npm dependency tree validation to avoid optional workspace false-positives.
 		const args = [
 			"package",
 			"--pre-release",
 			"--no-update-package-json",
 			"--no-git-tag-version",
+			"--no-dependencies",
 			"--allow-package-secrets",
 			"sendgrid",
 			"--out",
