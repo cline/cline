@@ -227,32 +227,29 @@ function calculateSimilarity(str1: string, str2: string): number {
  * Calculate Levenshtein distance between two strings
  */
 function levenshteinDistance(str1: string, str2: string): number {
-	// Use a flat array indexed as [i * (str1.length + 1) + j] to avoid non-null assertions
+	const rows = str2.length + 1
 	const cols = str1.length + 1
-	const matrix = new Array<number>((str2.length + 1) * cols)
+	const matrix = new Array<number>(rows * cols).fill(0) // avoid undefined access with flat array
 
-	for (let i = 0; i <= str2.length; i++) {
-		matrix[i * cols] = i
+	const at = (r: number, c: number): number => matrix[r * cols + c] ?? 0
+	const set = (r: number, c: number, v: number) => {
+		matrix[r * cols + c] = v
 	}
-	for (let j = 0; j <= str1.length; j++) {
-		matrix[j] = j
-	}
+
+	for (let i = 0; i <= str2.length; i++) set(i, 0, i)
+	for (let j = 0; j <= str1.length; j++) set(0, j, j)
 
 	for (let i = 1; i <= str2.length; i++) {
 		for (let j = 1; j <= str1.length; j++) {
 			if (str2[i - 1] === str1[j - 1]) {
-				matrix[i * cols + j] = matrix[(i - 1) * cols + (j - 1)] ?? 0
+				set(i, j, at(i - 1, j - 1))
 			} else {
-				matrix[i * cols + j] = Math.min(
-					(matrix[(i - 1) * cols + (j - 1)] ?? 0) + 1, // substitution
-					(matrix[i * cols + (j - 1)] ?? 0) + 1, // insertion
-					(matrix[(i - 1) * cols + j] ?? 0) + 1, // deletion
-				)
+				set(i, j, 1 + Math.min(at(i - 1, j - 1), at(i, j - 1), at(i - 1, j)))
 			}
 		}
 	}
 
-	return matrix[str2.length * cols + str1.length] ?? 0
+	return at(str2.length, str1.length)
 }
 
 /**
