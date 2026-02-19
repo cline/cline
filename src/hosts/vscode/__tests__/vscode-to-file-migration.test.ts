@@ -342,18 +342,9 @@ describe("vscode-to-file-migration", () => {
 		it("should NOT write sentinel if migration throws", async () => {
 			const mockCtx = createMockVSCodeContext()
 
-			// Make secrets.get throw for ALL keys to trigger a fatal error path
-			// Actually the migration catches individual secret errors. Let's make
-			// globalState iteration fail by corrupting the storage.
-			const origSet = storageContext.globalState.update.bind(storageContext.globalState)
-			let callCount = 0
-			sandbox.stub(storageContext.globalState, "update").callsFake((key: string, value: any) => {
-				callCount++
-				if (callCount > 2) {
-					throw new Error("Simulated disk write error")
-				}
-				origSet(key, value)
-				return Promise.resolve()
+			// Stub setBatch to throw an error
+			sandbox.stub(storageContext.globalState, "setBatch").callsFake(() => {
+				throw new Error("Simulated disk write error")
 			})
 
 			mockCtx._globalStateStore.set("mode", "act")
