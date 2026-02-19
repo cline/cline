@@ -150,6 +150,7 @@ import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
 import { providerModels } from "./ModelPicker"
 import { SettingsPanelContent } from "./SettingsPanelContent"
+import { SkillsPanelContent } from "./SkillsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 
@@ -412,6 +413,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		| { type: "settings"; initialMode?: "model-picker" | "featured-models"; initialModelKey?: "actModelId" | "planModelId" }
 		| { type: "history" }
 		| { type: "help" }
+		| { type: "skills" }
 		| null
 	>(null)
 
@@ -1156,6 +1158,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setSlashMenuDismissed(true)
 						return
 					}
+					if (cmd.name === "skills") {
+						setActivePanel({ type: "skills" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
 					if (cmd.name === "clear") {
 						clearViewAndResetTask()
 						setSelectedSlashIndex(0)
@@ -1544,6 +1554,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 				{/* Help panel */}
 				{activePanel?.type === "help" && <HelpPanelContent onClose={() => setActivePanel(null)} />}
+
+				{/* Skills panel */}
+				{activePanel?.type === "skills" && ctrl && (
+					<SkillsPanelContent
+						controller={ctrl}
+						onClose={() => setActivePanel(null)}
+						onUseSkill={(skillPath) => {
+							setActivePanel(null)
+							setTextInput(`@${skillPath} `)
+							setCursorPos(skillPath.length + 2)
+						}}
+					/>
+				)}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}
 				{showSlashMenu && !activePanel && (

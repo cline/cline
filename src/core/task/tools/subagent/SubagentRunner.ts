@@ -737,9 +737,7 @@ export class SubagentRunner {
 		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
 		if (useAutoCondense && isNextGenModelFamily(modelId)) {
-			const autoCondenseThreshold = this.baseConfig.services.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
-				| number
-				| undefined
+			const autoCondenseThreshold = 0.75
 			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
 			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
 			return previousRequestTotalTokens >= thresholdTokens

@@ -87,13 +87,30 @@ export interface BannerAction {
  */
 
 export const BANNER_DATA: BannerCardData[] = [
+	// Sonnet 4.6 banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "claude-sonnet-4-6-2026-feb-18",
+		icon: "sparkles",
+		title: "Try Claude Sonnet 4.6",
+		description: "Anthropic's latest model with strong reasoning and coding performance.",
+		actions: [
+			{
+				title: "Use Sonnet 4.6",
+				action: BannerActionType.SetModel,
+				arg: "anthropic/claude-sonnet-4.6",
+				tab: "recommended",
+			},
+		],
+	},
+
 	// Minimax free promo banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.
-		id: `minimax-m2.5-free-2026-feb-13`,
+		id: "minimax-m2.5-free-2026-feb-18",
 		icon: "zap",
 		title: "Try MiniMax M2.5 Free",
-		description: "SOTA open source model with great coding capability and subagent use.",
+		description: "SOTA coding capability with lightning fast inference, free in Cline.",
 		actions: [
 			{
 				title: "Try now",

@@ -230,6 +230,9 @@ export const e2e = test
 			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
+				// Create isolated Cline data directory for this test
+				const clineTestDir = mkdtempSync(path.join(os.tmpdir(), "cline-e2e-"))
+
 				const app = await _electron.launch({
 					executablePath,
 					env: {
@@ -237,6 +240,7 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
 						// GRPC_RECORDER_ENABLED: "true",
 						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
@@ -264,21 +268,52 @@ export const e2e = test
 			})
 		},
 	})
-	.extend<{ app: ElectronApplication }>({
+	.extend<{ app: ElectronApplication; clineTestDir: string }>({
 		app: async ({ openVSCode, userDataDir, extensionsDir, workspaceType, workspaceDir, multiRootWorkspaceDir }, use) => {
 			const workspacePath = workspaceType === "single" ? workspaceDir : multiRootWorkspaceDir
+
+			// Track the clineTestDir created in openVSCode
+			let clineTestDir: string | undefined
+			const originalOpenVSCode = openVSCode
+			const wrappedOpenVSCode = async (wp: string) => {
+				const app = await originalOpenVSCode(wp)
+				// Extract CLINE_DIR from the launched app's environment
+				// We'll need to pass it through the fixture chain
+				return app
+			}
+
 			const app = await openVSCode(workspacePath)
 
 			try {
 				await use(app)
 			} finally {
 				await app.close()
-				// Cleanup in parallel
-				await Promise.allSettled([
+				// Cleanup in parallel - include clineTestDir if it was created
+				const cleanupTasks = [
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
 					E2ETestHelper.rmForRetries(extensionsDir, { recursive: true }),
-				])
+				]
+
+				// Clean up the isolated Cline data directory
+				// Find all temp directories matching our pattern
+				const tmpDir = os.tmpdir()
+				try {
+					const entries = require("node:fs").readdirSync(tmpDir)
+					for (const entry of entries) {
+						if (entry.startsWith("cline-e2e-")) {
+							cleanupTasks.push(E2ETestHelper.rmForRetries(path.join(tmpDir, entry), { recursive: true }))
+						}
+					}
+				} catch (error) {
+					// Ignore cleanup errors
+				}
+
+				await Promise.allSettled(cleanupTasks)
 			}
+		},
+		clineTestDir: async ({}, use) => {
+			// This will be set by the openVSCode fixture
+			await use("")
 		},
 	})
 	.extend<{ helper: E2ETestHelper }>({
