@@ -468,9 +468,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	await StateManager.initialize(storageContext)
 	await ErrorService.initialize()
 
-	// Configure the shared Logging class to use HostProvider's output channel
-	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg))
-
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
 

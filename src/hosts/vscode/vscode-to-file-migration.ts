@@ -22,8 +22,14 @@
  *   if the user rolls back to an older extension version that doesn't know about
  *   file-backed stores, the old code path still works.
  *
- * - taskHistory is NOT migrated here — it already has its own file-based storage
- *   at ~/.cline/data/tasks/taskHistory.json that all platforms share.
+ * - taskHistory is NOT migrated here. It uses its own file-based storage
+ *   at {globalStorageFsPath}/state/taskHistory.json. Note that for VSCode,
+ *   globalStorageFsPath is still the VSCode-managed path (not ~/.cline/data/),
+ *   so task history is NOT yet shared across clients.
+ *
+ *   TODO: Migrate taskHistory.json and task data files ({globalStorageFsPath}/tasks/)
+ *   to ~/.cline/data/ so that tasks created in VSCode are visible in CLI/JetBrains
+ *   and vice versa. See also: checkpoints at {globalStorageFsPath}/checkpoints/.
  */
 
 import type * as vscode from "vscode"
