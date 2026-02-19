@@ -106,7 +106,7 @@ async function parseServicesWithFiles(protoDir, protoFiles) {
 	return services
 }
 
-function upperFirst(s) {
+function _upperFirst(s) {
 	return s.length ? s[0].toUpperCase() + s.slice(1) : s
 }
 
@@ -273,8 +273,8 @@ async function generateServiceClientsPy(outDir, services) {
         :return: iterator of ${aliasPb2}.${respTypeName}
         """
         return self._stub.${m.name}(req)`
-				} else {
-					return `
+				}
+				return `
     def ${m.name}(self, req):
         """
         Unary RPC.
@@ -282,7 +282,6 @@ async function generateServiceClientsPy(outDir, services) {
         :return: ${aliasPb2}.${respTypeName}
         """
         return self._stub.${m.name}(req)`
-				}
 			})
 			.join("\n")
 

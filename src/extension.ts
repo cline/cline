@@ -191,7 +191,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.log("[Cline Dev] Dev mode activated & dev commands registered")
 			})
 			.catch((error) => {
-				Logger.log("[Cline Dev] Failed to register dev commands: " + error)
+				Logger.log(`[Cline Dev] Failed to register dev commands: ${error}`)
 			})
 	}
 
@@ -745,6 +745,6 @@ async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<vo
 
 		Logger.info("[VS Code Storage Migrations] Completed")
 	} catch (error) {
-		Logger.warn("[VS Code Storage Migrations] Failed" + (error instanceof Error ? `: ${error.message}` : ""))
+		Logger.warn(`[VS Code Storage Migrations] Failed${error instanceof Error ? `: ${error.message}` : ""}`)
 	}
 }

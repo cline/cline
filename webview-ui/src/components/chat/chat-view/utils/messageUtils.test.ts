@@ -76,10 +76,7 @@ describe("groupLowStakesTools", () => {
 	})
 
 	it("keeps reasoning visible when low-stakes tool group starts immediately after", () => {
-		const grouped = groupLowStakesTools([
-			createReasoningMessage(1, "Planning next read"),
-			createToolMessage(2, "readFile"),
-		])
+		const grouped = groupLowStakesTools([createReasoningMessage(1, "Planning next read"), createToolMessage(2, "readFile")])
 
 		expect(grouped).toHaveLength(2)
 		expect(grouped[0]).toMatchObject({ type: "say", say: "reasoning", text: "Planning next read" })

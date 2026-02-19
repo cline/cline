@@ -10,26 +10,26 @@ const prefix = name === "claude-dev" ? "cline" : name
  * In production, all commands are registered under "cline" for consistency.
  */
 const ClineCommands = {
-	PlusButton: prefix + ".plusButtonClicked",
-	McpButton: prefix + ".mcpButtonClicked",
-	SettingsButton: prefix + ".settingsButtonClicked",
-	HistoryButton: prefix + ".historyButtonClicked",
-	AccountButton: prefix + ".accountButtonClicked",
-	WorktreesButton: prefix + ".worktreesButtonClicked",
-	TerminalOutput: prefix + ".addTerminalOutputToChat",
-	AddToChat: prefix + ".addToChat",
-	FixWithCline: prefix + ".fixWithCline",
-	ExplainCode: prefix + ".explainCode",
-	ImproveCode: prefix + ".improveCode",
-	FocusChatInput: prefix + ".focusChatInput",
-	Walkthrough: prefix + ".openWalkthrough",
-	GenerateCommit: prefix + ".generateGitCommitMessage",
-	AbortCommit: prefix + ".abortGitCommitMessage",
-	ReconstructTaskHistory: prefix + ".reconstructTaskHistory",
+	PlusButton: `${prefix}.plusButtonClicked`,
+	McpButton: `${prefix}.mcpButtonClicked`,
+	SettingsButton: `${prefix}.settingsButtonClicked`,
+	HistoryButton: `${prefix}.historyButtonClicked`,
+	AccountButton: `${prefix}.accountButtonClicked`,
+	WorktreesButton: `${prefix}.worktreesButtonClicked`,
+	TerminalOutput: `${prefix}.addTerminalOutputToChat`,
+	AddToChat: `${prefix}.addToChat`,
+	FixWithCline: `${prefix}.fixWithCline`,
+	ExplainCode: `${prefix}.explainCode`,
+	ImproveCode: `${prefix}.improveCode`,
+	FocusChatInput: `${prefix}.focusChatInput`,
+	Walkthrough: `${prefix}.openWalkthrough`,
+	GenerateCommit: `${prefix}.generateGitCommitMessage`,
+	AbortCommit: `${prefix}.abortGitCommitMessage`,
+	ReconstructTaskHistory: `${prefix}.reconstructTaskHistory`,
 	// Jupyter Notebook commands
-	JupyterGenerateCell: prefix + ".jupyterGenerateCell",
-	JupyterExplainCell: prefix + ".jupyterExplainCell",
-	JupyterImproveCell: prefix + ".jupyterImproveCell",
+	JupyterGenerateCell: `${prefix}.jupyterGenerateCell`,
+	JupyterExplainCell: `${prefix}.jupyterExplainCell`,
+	JupyterImproveCell: `${prefix}.jupyterImproveCell`,
 }
 
 /**
@@ -37,7 +37,7 @@ const ClineCommands = {
  * These should match the name + view IDs defined in package.json.
  */
 const ClineViewIds = {
-	Sidebar: name + ".SidebarProvider",
+	Sidebar: `${name}.SidebarProvider`,
 }
 
 /**
@@ -45,7 +45,7 @@ const ClineViewIds = {
  * registered for the current host.
  */
 export const ExtensionRegistryInfo = {
-	id: publisher + "." + name,
+	id: `${publisher}.${name}`,
 	name,
 	version,
 	publisher,

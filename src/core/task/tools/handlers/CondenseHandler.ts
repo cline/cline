@@ -13,8 +13,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.CONDENSE
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}
@@ -54,28 +52,27 @@ export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
 				images,
 				fileContentString,
 			)
-		} else {
-			// If no response, the user accepted the condensed version
-			const apiConversationHistory = config.messageState.getApiConversationHistory()
-			const lastMessage = apiConversationHistory[apiConversationHistory.length - 1]
-			const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
-			const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
-
-			// clear the context history at this point in time
-			config.taskState.conversationHistoryDeletedRange = config.services.contextManager.getNextTruncationRange(
-				apiConversationHistory,
-				config.taskState.conversationHistoryDeletedRange,
-				keepStrategy,
-			)
-			await config.messageState.saveClineMessagesAndUpdateHistory()
-			await config.services.contextManager.triggerApplyStandardContextTruncationNoticeChange(
-				Date.now(),
-				await ensureTaskDirectoryExists(config.taskId),
-				apiConversationHistory,
-			)
-
-			return formatResponse.toolResult(formatResponse.condense())
 		}
+		// If no response, the user accepted the condensed version
+		const apiConversationHistory = config.messageState.getApiConversationHistory()
+		const lastMessage = apiConversationHistory[apiConversationHistory.length - 1]
+		const summaryAlreadyAppended = lastMessage && lastMessage.role === "assistant"
+		const keepStrategy = summaryAlreadyAppended ? "lastTwo" : "none"
+
+		// clear the context history at this point in time
+		config.taskState.conversationHistoryDeletedRange = config.services.contextManager.getNextTruncationRange(
+			apiConversationHistory,
+			config.taskState.conversationHistoryDeletedRange,
+			keepStrategy,
+		)
+		await config.messageState.saveClineMessagesAndUpdateHistory()
+		await config.services.contextManager.triggerApplyStandardContextTruncationNoticeChange(
+			Date.now(),
+			await ensureTaskDirectoryExists(config.taskId),
+			apiConversationHistory,
+		)
+
+		return formatResponse.toolResult(formatResponse.condense())
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {

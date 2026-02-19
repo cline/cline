@@ -73,7 +73,7 @@ export class GrpcRecorder implements IRecorder {
 	 *
 	 * @param request - The incoming gRPC request.
 	 */
-	public recordRequest(request: GrpcRequest, synthetic: boolean = false): void {
+	public recordRequest(request: GrpcRequest, synthetic = false): void {
 		if (this.shouldFilter(request)) {
 			return
 		}

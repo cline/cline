@@ -15,7 +15,7 @@ import { Controller } from ".."
 export async function refreshRequestyModels(controller: Controller, _: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
-			return parseFloat(price) * 1_000_000
+			return Number.parseFloat(price) * 1_000_000
 		}
 		return undefined
 	}

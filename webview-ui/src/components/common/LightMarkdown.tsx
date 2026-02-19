@@ -62,11 +62,10 @@ function parseInlineEmphasis(text: string, nextKey: () => string): React.ReactNo
 				i = endIdx + 2
 				segmentStart = i
 				continue
-			} else {
-				// unmatched bold opener - treat the first '*' as literal and continue
-				i = starIdx + 1
-				continue
 			}
+			// unmatched bold opener - treat the first '*' as literal and continue
+			i = starIdx + 1
+			continue
 		}
 
 		// Italic start (*)
@@ -138,18 +137,17 @@ function parseTextToNodes(text: string, compact: boolean): React.ReactNode {
 			}
 		}
 		return <>{flat}</>
-	} else {
-		// Block-level lines; keys applied at line level
-		return (
-			<React.Fragment>
-				{lines.map((line) => (
-					<span key={nextKey()} style={{ display: "block" }}>
-						{parseInlineEmphasis(line, nextKey)}
-					</span>
-				))}
-			</React.Fragment>
-		)
 	}
+	// Block-level lines; keys applied at line level
+	return (
+		<React.Fragment>
+			{lines.map((line) => (
+				<span key={nextKey()} style={{ display: "block" }}>
+					{parseInlineEmphasis(line, nextKey)}
+				</span>
+			))}
+		</React.Fragment>
+	)
 }
 
 const LightMarkdown: React.FC<LightMarkdownProps> = ({ text, compact = false }) => {

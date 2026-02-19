@@ -18,11 +18,11 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Use debounced input for proper state management
-	const [baseUrlValue, setBaseUrlValue] = useDebouncedInput(apiConfiguration?.difyBaseUrl || "", (value) =>
+	const [_baseUrlValue, _setBaseUrlValue] = useDebouncedInput(apiConfiguration?.difyBaseUrl || "", (value) =>
 		handleFieldChange("difyBaseUrl", value),
 	)
 
-	const [apiKeyValue, setApiKeyValue] = useDebouncedInput(apiConfiguration?.difyApiKey || "", (value) =>
+	const [_apiKeyValue, _setApiKeyValue] = useDebouncedInput(apiConfiguration?.difyApiKey || "", (value) =>
 		handleFieldChange("difyApiKey", value),
 	)
 

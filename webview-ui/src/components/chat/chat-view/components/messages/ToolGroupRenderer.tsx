@@ -213,7 +213,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 											"[direction:ltr]": !!info.displayText,
 										},
 									)}>
-									{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
+									{`${info.displayText || cleanPathPrefix(info.path)}\u200E`}
 								</span>
 							</Button>
 							{/* Expanded content for folders/search/definitions - file lists only */}
@@ -273,7 +273,7 @@ function parseToolSafe(text: string | undefined): ClineSayTool {
 function getToolDisplayInfo(tool: ClineSayTool) {
 	const icon = getIconByToolName(tool.tool)
 	const filePath = tool.path || ""
-	const folderPath = filePath + "/"
+	const folderPath = `${filePath}/`
 
 	switch (tool.tool) {
 		case "readFile":
@@ -361,5 +361,5 @@ function getToolGroupSummary(messages: ClineMessage[]): string {
 		parts.push(`performed ${counts.search} search${counts.search > 1 ? "es" : ""}`)
 	}
 
-	return parts.length === 0 ? "Context" : "Cline" + action + parts.join(", ")
+	return parts.length === 0 ? "Context" : `Cline${action}${parts.join(", ")}`
 }

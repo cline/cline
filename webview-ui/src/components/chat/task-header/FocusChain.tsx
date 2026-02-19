@@ -217,7 +217,6 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 						handleToggle()
 					}
 				}}
-				tabIndex={0}
 				title={CLICK_TO_EDIT_TITLE}>
 				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
 				{isExpanded && (

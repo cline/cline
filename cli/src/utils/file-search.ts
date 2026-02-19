@@ -183,9 +183,9 @@ export async function listWorkspaceFiles(workspacePath: string, limit = 5000): P
 
 function countGaps(positions: Iterable<number>): number {
 	let gaps = 0
-	let prev = -Infinity
+	let prev = Number.NEGATIVE_INFINITY
 	for (const pos of positions) {
-		if (prev !== -Infinity && pos - prev > 1) {
+		if (prev !== Number.NEGATIVE_INFINITY && pos - prev > 1) {
 			gaps++
 		}
 		prev = pos
@@ -255,5 +255,5 @@ export function insertMention(text: string, atIndex: number, filePath: string): 
 	// Ensure path starts with / for proper mention format
 	const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
 	const mention = normalizedPath.includes(" ") ? `@"${normalizedPath}"` : `@${normalizedPath}`
-	return text.slice(0, atIndex) + mention + " " + text.slice(end).trimStart()
+	return `${text.slice(0, atIndex) + mention} ${text.slice(end).trimStart()}`
 }

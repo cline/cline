@@ -220,7 +220,7 @@ Output your explanation comments now using the @@@ format:`
 					// Check for LINE header (single line number)
 					if (trimmedLine.startsWith("@@@ LINE:")) {
 						const lineStr = trimmedLine.substring("@@@ LINE:".length).trim()
-						const lineNum = parseInt(lineStr, 10)
+						const lineNum = Number.parseInt(lineStr, 10)
 						if (!Number.isNaN(lineNum) && currentFile) {
 							currentStartLine = lineNum
 							currentEndLine = lineNum
@@ -246,7 +246,7 @@ Output your explanation comments now using the @@@ format:`
 
 					// If we're in a comment, stream the text
 					if (inComment) {
-						onCommentChunk(line + "\n")
+						onCommentChunk(`${line}\n`)
 					}
 				}
 

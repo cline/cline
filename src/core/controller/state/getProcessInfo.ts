@@ -8,7 +8,7 @@ import { Controller } from ".."
  * @param request Empty request
  * @returns ProcessInfo with process details
  */
-export async function getProcessInfo(controller: Controller, request: EmptyRequest): Promise<ProcessInfo> {
+export async function getProcessInfo(controller: Controller, _request: EmptyRequest): Promise<ProcessInfo> {
 	// Get the current state to access the version (same source as webview)
 	const state = await controller.getStateToPostToWebview()
 

@@ -118,14 +118,14 @@ export class ClineIgnoreController {
 			const trimmedLine = line.trim()
 
 			if (!trimmedLine.startsWith("!include ")) {
-				combinedContent += "\n" + line
+				combinedContent += `\n${line}`
 				continue
 			}
 
 			// Process !include directive
 			const includedContent = await this.readIncludedFile(trimmedLine)
 			if (includedContent) {
-				combinedContent += "\n" + includedContent
+				combinedContent += `\n${includedContent}`
 			}
 		}
 

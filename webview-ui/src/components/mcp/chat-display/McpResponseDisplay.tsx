@@ -130,7 +130,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		)
 
 		return cleanup
-	}, [responseText, mcpDisplayMode, isExpanded])
+	}, [responseText, mcpDisplayMode, isExpanded, urlMatches.length])
 
 	// Helper function to render a display segment
 	const renderSegment = (segment: DisplaySegment): JSX.Element => {

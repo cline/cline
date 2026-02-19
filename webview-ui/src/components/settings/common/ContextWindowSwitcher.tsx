@@ -24,7 +24,8 @@ export const ContextWindowSwitcher = ({
 				alternate: base1mModelId,
 				linkText: "Switch to 1M context window model",
 			}
-		} else if (selectedModelId === base1mModelId) {
+		}
+		if (selectedModelId === base1mModelId) {
 			return {
 				current: base1mModelId,
 				alternate: base200kModelId,

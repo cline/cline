@@ -167,11 +167,11 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				log(`Authenticating token: ${authToken}`)
-				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
+				const user = ClineApiServerMock.globalSharedServer?.API_USER.getUserByToken(authToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
-				ClineApiServerMock.globalSharedServer!.setCurrentUser(user)
+				ClineApiServerMock.globalSharedServer?.setCurrentUser(user)
 			}
 
 			log("=== MOCK SERVER REQUEST ===")
@@ -312,8 +312,8 @@ export class ClineApiServerMock {
 
 						// Return format matching ClineAuthProvider expectations
 						return sendApiResponse({
-							accessToken: code + "_access",
-							refreshToken: code + "_refresh",
+							accessToken: `${code}_access`,
+							refreshToken: `${code}_refresh`,
 							tokenType: "Bearer",
 							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(), // 1 hour from now
 							userInfo: {
@@ -346,7 +346,7 @@ export class ClineApiServerMock {
 
 						// Return format matching ClineAuthProvider expectations
 						return sendApiResponse({
-							accessToken: originalToken + "_access_refreshed",
+							accessToken: `${originalToken}_access_refreshed`,
 							refreshToken: refreshToken, // Keep same refresh token
 							tokenType: "Bearer",
 							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(), // 1 hour from now
@@ -454,31 +454,30 @@ export class ClineApiServerMock {
 
 							sendChunk()
 							return
-						} else {
-							const response = {
-								id: generationId,
-								object: "chat.completion",
-								created: Math.floor(Date.now() / 1000),
-								model,
-								choices: [
-									{
-										index: 0,
-										message: {
-											role: "assistant",
-											content: "Hello! I'm a mock Cline API response.",
-										},
-										finish_reason: "stop",
-									},
-								],
-								usage: {
-									prompt_tokens: 140,
-									completion_tokens: responseText.length,
-									total_tokens: 140 + responseText.length,
-									cost: (140 + responseText.length) * 0.00015,
-								},
-							}
-							return sendJson(response)
 						}
+						const response = {
+							id: generationId,
+							object: "chat.completion",
+							created: Math.floor(Date.now() / 1000),
+							model,
+							choices: [
+								{
+									index: 0,
+									message: {
+										role: "assistant",
+										content: "Hello! I'm a mock Cline API response.",
+									},
+									finish_reason: "stop",
+								},
+							],
+							usage: {
+								prompt_tokens: 140,
+								completion_tokens: responseText.length,
+								total_tokens: 140 + responseText.length,
+								cost: (140 + responseText.length) * 0.00015,
+							},
+						}
+						return sendJson(response)
 					}
 
 					// Generation details endpoint

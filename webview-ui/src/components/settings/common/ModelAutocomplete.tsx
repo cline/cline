@@ -128,7 +128,7 @@ export const ModelAutocomplete = ({
 		if (dropdownListRef.current) {
 			dropdownListRef.current.scrollTop = 0
 		}
-	}, [searchTerm])
+	}, [])
 
 	// Scroll selected item into view
 	useEffect(() => {

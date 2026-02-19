@@ -116,11 +116,7 @@ async function handleStreamingRequest(
 	request: GrpcRequest,
 ): Promise<void> {
 	// Create a response stream function
-	const responseStream: StreamingResponseHandler<any> = async (
-		response: any,
-		isLast: boolean = false,
-		sequenceNumber?: number,
-	) => {
+	const responseStream: StreamingResponseHandler<any> = async (response: any, isLast = false, sequenceNumber?: number) => {
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {

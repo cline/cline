@@ -165,28 +165,28 @@ export class FocusChainManager {
 			`
 
 				// If there are no user changes, proceed with reminders based on list progress
-			} else {
-				let progressBasedMessageStub = ""
-				// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
-				if (completedItems === 0 && totalItems > 0) {
-					progressBasedMessageStub =
-						"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
-				} else if (percentComplete >= 25 && percentComplete < 50) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
-				} else if (percentComplete >= 50 && percentComplete < 75) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete. Proceed with the task.`
-				} else if (percentComplete >= 75) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete! Focus on finishing the remaining items.`
-				}
-				// Every item on the list has been completed. Hooray!
-				else if (completedItems === totalItems && totalItems > 0) {
-					progressBasedMessageStub = FocusChainPrompts.completed
-						.replace("{{totalItems}}", totalItems.toString())
-						.replace("{{currentFocusChainChecklist}}", this.taskState.currentFocusChainChecklist)
-				}
+			}
+			let progressBasedMessageStub = ""
+			// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
+			if (completedItems === 0 && totalItems > 0) {
+				progressBasedMessageStub =
+					"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
+			} else if (percentComplete >= 25 && percentComplete < 50) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
+			} else if (percentComplete >= 50 && percentComplete < 75) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete. Proceed with the task.`
+			} else if (percentComplete >= 75) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete! Focus on finishing the remaining items.`
+			}
+			// Every item on the list has been completed. Hooray!
+			else if (completedItems === totalItems && totalItems > 0) {
+				progressBasedMessageStub = FocusChainPrompts.completed
+					.replace("{{totalItems}}", totalItems.toString())
+					.replace("{{currentFocusChainChecklist}}", this.taskState.currentFocusChainChecklist)
+			}
 
-				// Return with progress-based stub
-				return `\n
+			// Return with progress-based stub
+			return `\n
 				${introUpdateRequired}\n
 				${listCurrentProgress}\n
 				${this.taskState.currentFocusChainChecklist}\n
@@ -194,25 +194,22 @@ export class FocusChainManager {
 				${FocusChainPrompts.reminder}\n
 				${progressBasedMessageStub}\n
 				`
-			}
 		}
 		// When switching from Plan to Act, request that a new list be generated
-		else if (this.taskState.didRespondToPlanAskBySwitchingMode) {
+		if (this.taskState.didRespondToPlanAskBySwitchingMode) {
 			return `${FocusChainPrompts.initial}`
 		}
 
 		// When in plan mode, lists are optional. TODO - May want to improve this soft prompt approach in a future version
-		else if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
+		if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
 			return FocusChainPrompts.planModeReminder
-		} else {
-			// Check if we're early in the task
-			const isEarlyInTask = this.taskState.apiRequestCount < 10
-			if (isEarlyInTask) {
-				return FocusChainPrompts.recommended
-			} else {
-				return FocusChainPrompts.apiRequestCount.replace("{{apiRequestCount}}", this.taskState.apiRequestCount.toString())
-			}
 		}
+		// Check if we're early in the task
+		const isEarlyInTask = this.taskState.apiRequestCount < 10
+		if (isEarlyInTask) {
+			return FocusChainPrompts.recommended
+		}
+		return FocusChainPrompts.apiRequestCount.replace("{{apiRequestCount}}", this.taskState.apiRequestCount.toString())
 	}
 
 	/**
@@ -273,12 +270,12 @@ export class FocusChainManager {
 	public async updateFCListFromToolResponse(taskProgress: string | undefined) {
 		try {
 			// Reset the counter if task_progress was provided
-			if (taskProgress && taskProgress.trim()) {
+			if (taskProgress?.trim()) {
 				this.taskState.apiRequestsSinceLastTodoUpdate = 0
 			}
 
 			// If model provides task_progress update, write it to the markdown file
-			if (taskProgress && taskProgress.trim()) {
+			if (taskProgress?.trim()) {
 				const previousList = this.taskState.currentFocusChainChecklist
 				this.taskState.currentFocusChainChecklist = taskProgress.trim()
 				Logger.debug(

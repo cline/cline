@@ -120,7 +120,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 
 			// Quick number selection for checkpoints
 			if (stage === "checkpoint") {
-				const num = parseInt(input, 10)
+				const num = Number.parseInt(input, 10)
 				if (!Number.isNaN(num) && num >= 1 && num <= checkpoints.length) {
 					setSelectedCheckpoint(num - 1)
 					setStage("restoreType")

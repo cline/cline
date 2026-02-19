@@ -79,26 +79,26 @@ describe("AwsBedrockHandler", () => {
 			const originalTestVar = process.env.TEST_VAR
 			const originalAnotherVar = process.env.ANOTHER_VAR
 
-			await AwsBedrockHandler["withTempEnv"](
+			await AwsBedrockHandler.withTempEnv(
 				() => {
 					process.env.TEST_VAR = "modified"
 					delete process.env.ANOTHER_VAR
 				},
 				async () => {
 					// Verify environment is modified
-					process.env.TEST_VAR!.should.equal("modified")
+					process.env.TEST_VAR?.should.equal("modified")
 					should.not.exist(process.env.ANOTHER_VAR)
 					return "test"
 				},
 			)
 
 			// Verify environment is restored
-			process.env.TEST_VAR!.should.equal(originalTestVar)
-			process.env.ANOTHER_VAR!.should.equal(originalAnotherVar)
+			process.env.TEST_VAR?.should.equal(originalTestVar)
+			process.env.ANOTHER_VAR?.should.equal(originalAnotherVar)
 		})
 
 		it("should handle undefined environment variables", async () => {
-			await AwsBedrockHandler["withTempEnv"](
+			await AwsBedrockHandler.withTempEnv(
 				() => {
 					delete process.env.UNDEFINED_VAR
 				},
@@ -117,7 +117,7 @@ describe("AwsBedrockHandler", () => {
 			process.env.TEST_VAR = "original"
 
 			try {
-				await AwsBedrockHandler["withTempEnv"](
+				await AwsBedrockHandler.withTempEnv(
 					() => {
 						process.env.TEST_VAR = "modified"
 					},
@@ -131,7 +131,7 @@ describe("AwsBedrockHandler", () => {
 			}
 
 			// Verify environment is restored even after error
-			process.env.TEST_VAR!.should.equal("original")
+			process.env.TEST_VAR?.should.equal("original")
 		})
 
 		it("should handle multiple environment variable changes", async () => {
@@ -145,7 +145,7 @@ describe("AwsBedrockHandler", () => {
 			const originalVar2 = process.env.VAR2
 			const originalVar3 = process.env.VAR3
 
-			await AwsBedrockHandler["withTempEnv"](
+			await AwsBedrockHandler.withTempEnv(
 				() => {
 					process.env.VAR1 = "modified1"
 					process.env.VAR2 = "modified2"
@@ -153,53 +153,53 @@ describe("AwsBedrockHandler", () => {
 				},
 				async () => {
 					// Verify environment is modified
-					process.env.VAR1!.should.equal("modified1")
-					process.env.VAR2!.should.equal("modified2")
+					process.env.VAR1?.should.equal("modified1")
+					process.env.VAR2?.should.equal("modified2")
 					should.not.exist(process.env.VAR3)
 					return "test"
 				},
 			)
 
 			// Verify environment is restored
-			process.env.VAR1!.should.equal(originalVar1)
-			process.env.VAR2!.should.equal(originalVar2)
-			process.env.VAR3!.should.equal(originalVar3)
+			process.env.VAR1?.should.equal(originalVar1)
+			process.env.VAR2?.should.equal(originalVar2)
+			process.env.VAR3?.should.equal(originalVar3)
 		})
 
 		it("should work with AWS_PROFILE", async () => {
-			process.env["AWS_PROFILE"] = "test-profile"
+			process.env.AWS_PROFILE = "test-profile"
 
-			const preAWSProfile = process.env["AWS_PROFILE"]
+			const preAWSProfile = process.env.AWS_PROFILE
 
-			await AwsBedrockHandler["withTempEnv"](
+			await AwsBedrockHandler.withTempEnv(
 				() => {
-					delete process.env["AWS_PROFILE"]
+					delete process.env.AWS_PROFILE
 				},
 				async () => {
-					should.not.exist(process.env["AWS_PROFILE"])
+					should.not.exist(process.env.AWS_PROFILE)
 					return "test"
 				},
 			)
 
-			process.env["AWS_PROFILE"]!.should.equal(preAWSProfile)
+			process.env.AWS_PROFILE?.should.equal(preAWSProfile)
 		})
 
 		it("should work with AWS_BEARER_TOKEN_BEDROCK", async () => {
-			process.env["AWS_BEARER_TOKEN_BEDROCK"] = "test-key"
+			process.env.AWS_BEARER_TOKEN_BEDROCK = "test-key"
 
-			const preAWSProfile = process.env["AWS_BEARER_TOKEN_BEDROCK"]
+			const preAWSProfile = process.env.AWS_BEARER_TOKEN_BEDROCK
 
-			await AwsBedrockHandler["withTempEnv"](
+			await AwsBedrockHandler.withTempEnv(
 				() => {
-					delete process.env["AWS_BEARER_TOKEN_BEDROCK"]
+					delete process.env.AWS_BEARER_TOKEN_BEDROCK
 				},
 				async () => {
-					should.not.exist(process.env["AWS_BEARER_TOKEN_BEDROCK"])
+					should.not.exist(process.env.AWS_BEARER_TOKEN_BEDROCK)
 					return "test"
 				},
 			)
 
-			process.env["AWS_BEARER_TOKEN_BEDROCK"]!.should.equal(preAWSProfile)
+			process.env.AWS_BEARER_TOKEN_BEDROCK?.should.equal(preAWSProfile)
 		})
 	})
 
@@ -273,14 +273,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify thinking steps are yielded before the final answer
 				results.should.have.length(4)
@@ -311,14 +311,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify that thinking tags are treated as regular text
 				results.should.have.length(1)
@@ -347,14 +347,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify only text is returned when reasoning array is empty
 				results.should.have.length(1)
@@ -397,14 +397,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify interleaved thinking and text
 				results.should.have.length(4)
@@ -434,14 +434,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify text chunks are yielded correctly
 				results.should.have.length(2)
@@ -464,14 +464,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify Japanese content is handled correctly
 				results.should.have.length(1)
@@ -494,14 +494,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify text chunks are yielded correctly
 				results.should.have.length(2)
@@ -523,14 +523,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify error was handled
 				results.should.have.length(1)
@@ -548,14 +548,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify error was handled
 				results.should.have.length(1)
@@ -587,14 +587,14 @@ describe("AwsBedrockHandler", () => {
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
 				// Replace getBedrockClient with our mock
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
 				// Restore original method
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				// Verify usage tracking
 				results.should.have.length(2)
@@ -637,13 +637,13 @@ describe("AwsBedrockHandler", () => {
 				const mockClient = new MockBedrockClient(mockChunks)
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				results.should.have.length(2)
 				results[0].type.should.equal("tool_calls")
@@ -689,13 +689,13 @@ describe("AwsBedrockHandler", () => {
 				const mockClient = new MockBedrockClient(mockChunks)
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				results.should.have.length(2)
 				results[0].tool_call.function.id.should.equal("tool-1")
@@ -726,13 +726,13 @@ describe("AwsBedrockHandler", () => {
 				const mockClient = new MockBedrockClient(mockChunks)
 				const command = new ConverseStreamCommand({ modelId: "test-model", messages: [] })
 
-				const originalGetBedrockClient = handler["getBedrockClient"]
-				handler["getBedrockClient"] = async () => mockClient as any
+				const originalGetBedrockClient = handler.getBedrockClient
+				handler.getBedrockClient = async () => mockClient as any
 
-				const generator = handler["executeConverseStream"](command, mockModelInfo)
+				const generator = handler.executeConverseStream(command, mockModelInfo)
 				const results = await collectGeneratorResults(generator)
 
-				handler["getBedrockClient"] = originalGetBedrockClient
+				handler.getBedrockClient = originalGetBedrockClient
 
 				results.should.have.length(2)
 				results[0].type.should.equal("text")
@@ -745,7 +745,7 @@ describe("AwsBedrockHandler", () => {
 	describe("tool config mapping", () => {
 		it("should map Anthropic tools to Bedrock toolConfig", () => {
 			const handler = new AwsBedrockHandler(mockOptions)
-			const toolConfig = handler["mapClineToolsToBedrockToolConfig"]([
+			const toolConfig = handler.mapClineToolsToBedrockToolConfig([
 				{
 					name: "read_file",
 					description: "Read a file",
@@ -771,16 +771,14 @@ describe("AwsBedrockHandler", () => {
 
 		it("should return undefined when tools is undefined or empty", () => {
 			const handler = new AwsBedrockHandler(mockOptions)
-			should.not.exist(handler["mapClineToolsToBedrockToolConfig"](undefined))
-			should.not.exist(handler["mapClineToolsToBedrockToolConfig"]([]))
+			should.not.exist(handler.mapClineToolsToBedrockToolConfig(undefined))
+			should.not.exist(handler.mapClineToolsToBedrockToolConfig([]))
 		})
 
 		it("should silently drop tools without input_schema", () => {
 			const handler = new AwsBedrockHandler(mockOptions)
 			// A tool missing input_schema doesn't match the AnthropicTool type guard
-			const toolConfig = handler["mapClineToolsToBedrockToolConfig"]([
-				{ name: "bad_tool", description: "No schema" } as any,
-			])
+			const toolConfig = handler.mapClineToolsToBedrockToolConfig([{ name: "bad_tool", description: "No schema" } as any])
 			// All tools filtered out → undefined
 			should.not.exist(toolConfig)
 		})
@@ -813,7 +811,7 @@ describe("AwsBedrockHandler", () => {
 				},
 			]
 
-			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const formatted = handler.formatMessagesForConverseAPI(messages)
 			const toolUseBlock = formatted[0].content?.[0]?.toolUse
 			const toolResultBlock = formatted[1].content?.[0]?.toolResult
 			toolUseBlock?.should.not.be.undefined()
@@ -841,7 +839,7 @@ describe("AwsBedrockHandler", () => {
 				},
 			]
 
-			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const formatted = handler.formatMessagesForConverseAPI(messages)
 			const toolResult = formatted[0].content?.[0]?.toolResult
 			toolResult?.toolUseId?.should.equal("tool-2")
 			toolResult?.content?.should.have.length(2)
@@ -865,7 +863,7 @@ describe("AwsBedrockHandler", () => {
 				},
 			]
 
-			const formatted = handler["formatMessagesForConverseAPI"](messages)
+			const formatted = handler.formatMessagesForConverseAPI(messages)
 			const toolResult = formatted[0].content?.[0]?.toolResult
 			toolResult?.status?.should.equal("error")
 			toolResult?.content?.[0]?.text?.should.equal("something went wrong")
@@ -1083,8 +1081,8 @@ describe("AwsBedrockHandler", () => {
 
 			// Capture the command passed to executeConverseStream
 			let capturedCommand: any = null
-			const originalExecuteConverseStream = handler["executeConverseStream"].bind(handler)
-			handler["executeConverseStream"] = async function* (command: any, modelInfo: any) {
+			const _originalExecuteConverseStream = handler.executeConverseStream.bind(handler)
+			handler.executeConverseStream = async function* (command: any, _modelInfo: any) {
 				capturedCommand = command
 				// Yield nothing — we just want to capture the command
 			}
@@ -1102,7 +1100,7 @@ describe("AwsBedrockHandler", () => {
 			]
 
 			// Consume the generator to trigger createAnthropicMessage
-			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), false, tools)
+			const gen = handler.createAnthropicMessage("system prompt", [], "test-model", handler.getModel(), false, tools)
 			for await (const _ of gen) {
 				// drain
 			}
@@ -1145,7 +1143,7 @@ describe("AwsBedrockHandler", () => {
 				},
 			]
 
-			const formatted = handler["formatMessagesForConverseAPI"](conversation)
+			const formatted = handler.formatMessagesForConverseAPI(conversation)
 
 			// Turn 1: text + toolUse
 			formatted[0].content?.should.have.length(2)

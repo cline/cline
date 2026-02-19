@@ -259,7 +259,7 @@ function parseVersion(version: string): ParsedVersion {
 		return {
 			base: nightlyMatch[1].split(".").map(Number),
 			isNightly: true,
-			timestamp: parseInt(nightlyMatch[2], 10),
+			timestamp: Number.parseInt(nightlyMatch[2], 10),
 		}
 	}
 	return {

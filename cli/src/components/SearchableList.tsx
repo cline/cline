@@ -63,7 +63,7 @@ export function SearchableList<T extends SearchableListItem>({
 	// Reset index when search changes
 	useEffect(() => {
 		setIndex(0)
-	}, [search])
+	}, [])
 
 	useInput(
 		(input, key) => {

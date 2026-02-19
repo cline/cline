@@ -29,7 +29,7 @@ export function getAsVar(varName: string): string {
 
 export function hexToRGB(hexColor: string): { r: number; g: number; b: number } {
 	const hex = hexColor.replace(/^#/, "").slice(0, 6)
-	const [r, g, b] = [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16))
+	const [r, g, b] = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16))
 	return { r, g, b }
 }
 

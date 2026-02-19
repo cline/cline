@@ -149,7 +149,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 		if (dropdownListRef.current) {
 			dropdownListRef.current.scrollTop = 0
 		}
-	}, [searchTerm])
+	}, [])
 
 	useEffect(() => {
 		if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
@@ -167,14 +167,14 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 		if (showReasoningEffort) {
 			return false
 		}
-			return (
-				selectedModelIdLower.includes("claude-opus-4.6") ||
-				selectedModelIdLower.includes("claude-haiku-4.5") ||
-				selectedModelIdLower.includes("claude-4.5-haiku") ||
-				selectedModelIdLower.includes("claude-sonnet-4.6") ||
-				selectedModelIdLower.includes("claude-sonnet-4-6") ||
-				selectedModelIdLower.includes("claude-4.6-sonnet") ||
-				selectedModelIdLower.includes("claude-sonnet-4.5") ||
+		return (
+			selectedModelIdLower.includes("claude-opus-4.6") ||
+			selectedModelIdLower.includes("claude-haiku-4.5") ||
+			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.6") ||
+			selectedModelIdLower.includes("claude-sonnet-4-6") ||
+			selectedModelIdLower.includes("claude-4.6-sonnet") ||
+			selectedModelIdLower.includes("claude-sonnet-4.5") ||
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
 			selectedModelIdLower.includes("claude-opus-4") ||

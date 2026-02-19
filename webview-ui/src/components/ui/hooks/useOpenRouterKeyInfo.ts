@@ -86,7 +86,7 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 		}
 
 		const now = Date.now()
-		const cacheAge = moduleLastFetchTime ? now - moduleLastFetchTime : Infinity
+		const cacheAge = moduleLastFetchTime ? now - moduleLastFetchTime : Number.POSITIVE_INFINITY
 		const isCacheStale = cacheAge >= CACHE_DURATION_MS
 		const hasCache = !!moduleCachedData
 
@@ -142,7 +142,7 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 		return () => {
 			controller.abort()
 		}
-	}, [apiKey]) // Re-run effect only when apiKey changes
+	}, [apiKey, data]) // Re-run effect only when apiKey changes
 
 	return { data, isLoading, error }
 }

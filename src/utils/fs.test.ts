@@ -6,7 +6,7 @@ import "should"
 import { createDirectoriesForFile, fileExistsAtPath, isDirectory, readDirectory } from "./fs"
 
 describe("Filesystem Utilities", () => {
-	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
+	const tmpDir = path.join(os.tmpdir(), `cline-test-${Math.random().toString(36).slice(2)}`)
 
 	// Clean up after tests
 	after(async () => {

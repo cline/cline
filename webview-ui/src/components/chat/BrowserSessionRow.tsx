@@ -305,7 +305,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	)
 
 	useEffect(() => {
-		if (actionHeight === 0 || actionHeight === Infinity) {
+		if (actionHeight === 0 || actionHeight === Number.POSITIVE_INFINITY) {
 			return
 		}
 		if (actionHeight > maxActionHeight) {
@@ -357,7 +357,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{isBrowsing && !isLastMessageResume ? (
 					<ProgressIndicator />
 				) : (
-					<span className="codicon codicon-inspect" style={browserIconStyle}></span>
+					<span className="codicon codicon-inspect" style={browserIconStyle} />
 				)}
 				<span style={approveTextStyle}>
 					{isAutoApproved ? "Cline is using the browser:" : "Cline wants to use the browser:"}
@@ -417,8 +417,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<BrowserCursor
 							style={{
 								position: "absolute",
-								top: `${(parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`,
-								left: `${(parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`,
+								top: `${(Number.parseInt(mousePosition.split(",")[1], 10) / browserSettings.viewport.height) * 100}%`,
+								left: `${(Number.parseInt(mousePosition.split(",")[0], 10) / browserSettings.viewport.width) * 100}%`,
 								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>
@@ -479,7 +479,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// Height change effect
 	useEffect(() => {
 		const isInitialRender = prevHeightRef.current === 0
-		if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+		if (isLast && height !== 0 && height !== Number.POSITIVE_INFINITY && height !== prevHeightRef.current) {
 			if (!isInitialRender) {
 				onHeightChange(height > prevHeightRef.current)
 			}
@@ -511,7 +511,7 @@ const BrowserSessionRowContent = memo(
 				setMaxActionHeight(0)
 			}
 			onToggleExpand(message.ts)
-		}, [onToggleExpand, message.ts, setMaxActionHeight])
+		}, [onToggleExpand, message.ts, setMaxActionHeight, message.say])
 
 		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 			return (

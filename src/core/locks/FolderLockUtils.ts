@@ -110,12 +110,11 @@ export async function acquireFolderLock(options: FolderLockOptions): Promise<Fol
 		if (conflictingLock === null) {
 			// Lock was successfully acquired
 			return { acquired: true }
-		} else {
-			// Lock already exists, return the conflicting lock
-			return {
-				acquired: false,
-				conflictingLock,
-			}
+		}
+		// Lock already exists, return the conflicting lock
+		return {
+			acquired: false,
+			conflictingLock,
 		}
 	} catch (error) {
 		Logger.error("Failed to acquire folder lock:", error)

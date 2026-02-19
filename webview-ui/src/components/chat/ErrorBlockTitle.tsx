@@ -22,7 +22,7 @@ export const ErrorBlockTitle = ({
 }: ErrorBlockTitleProps): [React.ReactElement, React.ReactElement] => {
 	const getIconSpan = (iconName: string, colorClass: string) => (
 		<div className="w-4 h-4 flex items-center justify-center">
-			<span className={`codicon codicon-${iconName} text-base -mb-0.5 ${colorClass}`}></span>
+			<span className={`codicon codicon-${iconName} text-base -mb-0.5 ${colorClass}`} />
 		</div>
 	)
 

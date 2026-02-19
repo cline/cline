@@ -147,8 +147,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 */
 	public recordCounter(
 		name: string,
-		value: number,
-		attributes?: TelemetryProperties,
+		_value: number,
+		_attributes?: TelemetryProperties,
 		_description?: string,
 		required = false,
 	): void {

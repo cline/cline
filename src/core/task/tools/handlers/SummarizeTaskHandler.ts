@@ -201,7 +201,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 
 			// Use the continuationPrompt to format the tool result, appending file contents
 			if (fileContents) {
-				const fileMentionString = loadedFilePaths.map((path) => `'${path}'`).join(", ") + " (see below for file content)"
+				const fileMentionString = `${loadedFilePaths.map((path) => `'${path}'`).join(", ")} (see below for file content)`
 				fileContents =
 					`\n\nThe following files were automatically read based on the files listed in the Required Files section: ${fileMentionString}. These are the latest versions of these files - you should reference them directly and not re-read them:` +
 					fileContents

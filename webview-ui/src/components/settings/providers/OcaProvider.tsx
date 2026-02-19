@@ -202,9 +202,8 @@ function useOcaModels({
 				if (!retry) {
 					await login() // prompt login
 					return tryRefresh(true) // retry once
-				} else {
-					setHasError(true)
 				}
+				setHasError(true)
 				return false
 			} finally {
 				setLoading(false)

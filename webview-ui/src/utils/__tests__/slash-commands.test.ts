@@ -208,14 +208,14 @@ describe("slash-commands", () => {
 			const text = "/mcp:server:prompt"
 			const match = text.match(slashCommandRegex)
 			expect(match).not.toBeNull()
-			expect(match![2]).toBe("/mcp:server:prompt")
+			expect(match?.[2]).toBe("/mcp:server:prompt")
 		})
 
 		it("should match MCP command in middle of text", () => {
 			const text = "Please run /mcp:server:prompt now"
 			const match = text.match(slashCommandRegex)
 			expect(match).not.toBeNull()
-			expect(match![2]).toBe("/mcp:server:prompt")
+			expect(match?.[2]).toBe("/mcp:server:prompt")
 		})
 
 		it("should not match MCP-like pattern in URL", () => {
