@@ -7,9 +7,11 @@ import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from
 import { v7 as uuidv7 } from "uuid"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import { featureFlagsService } from "@/services/feature-flags"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
@@ -107,9 +109,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 		if (!accessToken) {
 			throw new Error("Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.")
 		}
-
-		const usePreviousResponseId = model.info.apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
-		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
+		const useWebsocketMode = this.useWebsocketMode(model.info.apiFormat)
+		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId: useWebsocketMode })
+		const usePreviousResponseId = useWebsocketMode && !!previousResponseId
 
 		// Build request body
 		const requestBody = this.buildRequestBody(model, input, systemPrompt, tools, previousResponseId)
@@ -138,6 +140,13 @@ export class OpenAiCodexHandler implements ApiHandler {
 				throw error
 			}
 		}
+	}
+
+	private useWebsocketMode(apiFormat?: ApiFormat): boolean {
+		if (featureFlagsService.getBooleanFlagEnabled(FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE)) {
+			return apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
+		}
+		return false
 	}
 
 	private buildRequestBody(

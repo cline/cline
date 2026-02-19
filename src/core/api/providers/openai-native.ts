@@ -15,9 +15,11 @@ import type {
 } from "openai/resources/chat/completions"
 import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from "undici"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import { featureFlagsService } from "@/services/feature-flags"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -167,7 +169,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		tools: ChatCompletionTool[],
 	): ApiStream {
 		const model = this.getModel()
-		const usePreviousResponseId = model.info.apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
+		const usePreviousResponseId = this.useWebsocketMode(model.info.apiFormat)
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
 		const responseTools = this.mapResponseTools(tools)
 		this.abortController = new AbortController()
@@ -187,7 +189,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			tools: responseTools,
 		})
 
-		if (usePreviousResponseId) {
+		if (usePreviousResponseId && previousResponseId) {
 			try {
 				yield* this.createResponseStreamWebsocket(model.info, params, fallbackParams)
 				return
@@ -198,6 +200,13 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 
 		yield* this.createResponseStreamHttp(model.info, params)
+	}
+
+	private useWebsocketMode(apiFormat?: ApiFormat): boolean {
+		if (featureFlagsService.getBooleanFlagEnabled(FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE)) {
+			return apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
+		}
+		return false
 	}
 
 	private mapResponseTools(tools: ChatCompletionTool[]): OpenAI.Responses.Tool[] {
