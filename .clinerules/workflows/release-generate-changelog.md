@@ -1,10 +1,14 @@
-You are in the `cline/` repo.  Your goal is to generate high quality release notes/changelog entries for either the VSCode extension or the CLI between two release tags in git.
+You are in the `cline/` repo. Your goal is to generate a high-quality, **apply-ready** changelog block for either the VSCode extension or the CLI between two refs.
 
 You have access to `git`, `gh`, and `jq`. Assume `gh` is already authenticated.
 
+You may also use:
+
+- `node scripts/release/changelog-inventory.mjs` (preferred inventory pipeline)
+
 <detailed_sequence_of_steps>
 
-# Release Changelog Generation Workflow (Robust)
+# Release Changelog Generation Workflow (Apply-Ready)
 
 ## Inputs you must ask the user for
 Ask the user to choose one of these **four** options (preferred), then collect any missing values:
@@ -27,6 +31,15 @@ If the user doesn’t pick one of the four directly, fall back to collecting the
 
 If any are missing, ask a follow-up question.
 
+## Output Target Selection
+
+After inputs are resolved:
+
+- if `scope=vscode`, target file is `CHANGELOG.md`
+- if `scope=cli`, target file is `cli/CHANGELOG.md`
+
+You must produce output that is paste-ready for the chosen target file.
+
 ## 0) Preflight
 
 1. Ensure tags exist (handle shallow clones):
@@ -43,6 +56,20 @@ If any are missing, ask a follow-up question.
    git rev-parse --verify --quiet <from>^{} && git rev-parse --verify --quiet <to>^{}
    ```
 
+3. Resolve effective bounds:
+
+- `from=latest` => latest `vX.Y.Z` tag
+- `to=now` => `main`
+
+4. Resolve release version for output header:
+
+- If the user gives an explicit target version, use it.
+- Otherwise infer from `to` (if tag-like), else ask user.
+
+Required final header for both scopes:
+
+`## [<version>]`
+
 ## 1) Collect PR number candidates from git history
 
 Use first-parent merge commits:
@@ -55,6 +82,27 @@ git log --first-parent --pretty=%s <from>..<to> |
 ```
 
 Save these numbers (newline-separated) as `ALL_PR_NUMBERS`.
+
+## 1.5) Preferred inventory command (recommended)
+
+Prefer this one-shot inventory command to reduce manual assembly and improve determinism:
+
+```bash
+node scripts/release/changelog-inventory.mjs \
+  --scope <vscode|cli> \
+  --from <from> \
+  --to <to> \
+  --output-dir /Users/evekillaby/dev/tmp/.cline-artifacts/release-generate-changelog
+```
+
+This generates:
+
+- `pr-inventory.json`
+- `scope-classification.json`
+- `candidate-bullets.md`
+- `final-changelog.md`
+
+If this script is unavailable, continue with manual commands below.
 
 ## 2) Fetch PR metadata from GitHub (robust to partial errors)
 
@@ -69,6 +117,38 @@ Output format for merged PR list (one per line):
 
 `- #<number> <title> (<url>)`
 
+## 2.5) Deterministic scope classification + coverage accounting (required)
+
+For each PR in range, classify as one of:
+
+- `vscode`
+- `cli`
+- `both`
+- `exclude`
+
+Deterministic rules:
+
+1. Classify by changed files first:
+   - only `cli/**` => `cli`
+   - mix of `cli/**` and non-`cli/**` => `both`
+   - no `cli/**` => `vscode`
+2. Exclusion override:
+   - if all changed files are internal-only paths (e.g. `.github/**`, `scripts/**`, `docs/**`, `evals/**`, tests-only, release-eng-only) classify as `exclude` with explicit reason
+3. If uncertain, default to include and explain rationale.
+
+Coverage table is mandatory before synthesis:
+
+- every merged PR in range must appear exactly once
+- status = `included` or `excluded`
+- if excluded, include reason
+
+Hard failure rule: do not generate final changelog until all PRs are classified.
+
+Scope inclusion filter:
+
+- `scope=vscode` includes `vscode` + `both`
+- `scope=cli` includes `cli` + `both`
+
 ## 3) First-time contributors (optional, best-effort)
 
 If you can, produce a list of first-time contributor PRs. If this fails, continue without it.
@@ -77,12 +157,21 @@ Preferred output format:
 
 `- #<number> <title> (@<author>) (<url>)`
 
+## 3.5) External contributor attribution (required)
+
+For included PRs authored by non-`cline` org members, append inline attribution in changelog bullets:
+
+`(Thanks @<username>!)`
+
+If org membership lookup fails, continue and note attribution confidence in artifacts.
+
 ## 4) Generate changelog text
 
 Create a prompt that contains:
 
 - the merged PR list
 - first-time contributor list (or “(none)”)
+- coverage table with inclusion/exclusion reasons
 - scope-specific instructions
 
 Scope-specific guidance:
@@ -97,18 +186,32 @@ Scope-specific guidance:
 
 Required output format:
 
+- First line must be: `## [<version>]`
 - Sections in order: `## Added`, `## Fixed`, `## Changed`, `## New Contributors`
 - Omit any empty sections
-- No preamble, no code fences; first line must be a section header
+- No preamble, no code fences, no analysis, no trailing notes
+- This section schema is the same for both targets (`CHANGELOG.md` and `cli/CHANGELOG.md`)
+
+Final chat envelope:
+
+1. concise summary (2–5 bullets)
+2. exclusions summary
+3. single paste-ready changelog block only
 
 ## 5) Verification
 
 After generating output:
 
-1. Ensure output begins with `## Added` / `## Fixed` / `## Changed` / `## New Contributors`.
-2. Ensure there are no code fences.
-3. Ensure New Contributors bullets follow:
+1. Ensure output begins with `## [<version>]`.
+2. Ensure sections (if present) are in exact order: `## Added`, `## Fixed`, `## Changed`, `## New Contributors`.
+3. Ensure there are no code fences.
+4. Ensure no empty sections are present.
+5. Ensure New Contributors bullets follow:
    `- @<login> made their first contribution in #<number> (<url>)`
+6. Ensure every included PR is represented in at least one bullet or explicitly acknowledged in exclusions.
+7. Ensure target is correct:
+   - `scope=vscode` => content intended for `CHANGELOG.md`
+   - `scope=cli` => content intended for `cli/CHANGELOG.md`
 
 </detailed_sequence_of_steps>
 
