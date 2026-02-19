@@ -12,7 +12,6 @@ import {
 	newRuleToolResponse,
 	newTaskToolResponse,
 	reportBugToolResponse,
-	subagentToolResponse,
 } from "../prompts/commands"
 import { StateManager } from "../storage/StateManager"
 
@@ -50,16 +49,7 @@ export async function parseSlashCommands(
 	providerInfo?: ApiProviderInfo,
 	mcpPromptFetcher?: McpPromptFetcher,
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
-	const SUPPORTED_DEFAULT_COMMANDS = [
-		"newtask",
-		"smol",
-		"compact",
-		"newrule",
-		"reportbug",
-		"deep-planning",
-		"subagent",
-		"explain-changes",
-	]
+	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug", "deep-planning", "explain-changes"]
 
 	// Determine if the current provider/model/setting actually uses native tool calling
 	const willUseNativeTools = isNativeToolCallingConfig(providerInfo!, enableNativeToolCalls || false)
@@ -71,7 +61,6 @@ export async function parseSlashCommands(
 		newrule: newRuleToolResponse(),
 		reportbug: reportBugToolResponse(),
 		"deep-planning": deepPlanningToolResponse(focusChainSettings, providerInfo, willUseNativeTools),
-		subagent: subagentToolResponse(),
 		"explain-changes": explainChangesToolResponse(),
 	}
 
@@ -175,10 +164,9 @@ export async function parseSlashCommands(
 							telemetryService.captureSlashCommandUsed(ulid, commandName, "mcp_prompt")
 
 							return { processedText, needsClinerulesFileCheck: false }
-						} else {
-							// Prompt not found - log for debugging and fall through to workflow checking
-							Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
 						}
+						// Prompt not found - log for debugging and fall through to workflow checking
+						Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
 					} catch (error) {
 						Logger.error(`Error fetching MCP prompt ${commandName}: ${error}`)
 					}

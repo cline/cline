@@ -7,14 +7,31 @@ import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
+import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
-import { Logger } from "@/shared/services/Logger"
 import type { ToolResponse } from "../../index"
+import { showNotificationForApproval } from "../../utils"
 import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+const TASK_PREVIEW_MAX_CHARS = 8000
+
+function getInitialTaskPreview(config: TaskConfig): string | undefined {
+	const firstTaskMessage = config.messageState
+		.getClineMessages()
+		.find((message) => message.say === "task")
+		?.text?.trim()
+	if (!firstTaskMessage) {
+		return undefined
+	}
+	if (firstTaskMessage.length <= TASK_PREVIEW_MAX_CHARS) {
+		return firstTaskMessage
+	}
+	return `${firstTaskMessage.slice(0, TASK_PREVIEW_MAX_CHARS)}\n...[truncated]`
+}
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ATTEMPT
@@ -45,6 +62,30 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		// Double-check completion: reject attempt_completion calls that haven't been re-verified
+		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionPending) {
+			config.taskState.doubleCheckCompletionPending = true
+			// Remove the partial completion_result message that was shown during streaming
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
+
+			const taskPreview = getInitialTaskPreview(config)
+			const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
+
+			return formatResponse.toolError(
+				"Before completing, re-verify your work against the original task requirements. Check that:\n" +
+					"1. All requested changes have been made\n" +
+					"2. No steps were skipped or partially completed\n" +
+					"3. Edge cases and error handling are addressed\n" +
+					"4. The solution matches what was asked for, not just what was convenient\n" +
+					"5. Output files contain exactly what was specified--no extra columns, fields, debug output, or commentary\n" +
+					"6. If the task specifies numerical thresholds or accuracy targets, verify your result meets the criteria. If close but not passing, iterate rather than declaring completion" +
+					taskSection +
+					"\n\nIf everything checks out, call attempt_completion again with your final result.",
+			)
+		}
+		// Reset so the next attempt_completion pair triggers double-check again
+		config.taskState.doubleCheckCompletionPending = false
 
 		// Run PreToolUse hook before execution
 		try {
@@ -122,14 +163,31 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 			}
 
-			// complete command message - need to ask for approval
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
-			if (!didApprove) {
-				return formatResponse.toolDenied()
+			// Check if command should be auto-approved
+			// attempt_completion commands don't have requires_approval param, so we treat them as safe commands
+			const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(ClineDefaultTool.BASH)
+			const autoApproveSafe = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
+
+			if (autoApproveSafe) {
+				// Auto-approve flow - show command as 'say' instead of 'ask'
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
+				await config.callbacks.say("command", command, undefined, undefined, false)
+			} else {
+				// Manual approval flow - need to ask for approval
+				showNotificationForApproval(
+					`Cline wants to execute a command: ${command}`,
+					config.autoApprovalSettings.enableNotifications,
+				)
+
+				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+				if (!didApprove) {
+					return formatResponse.toolDenied()
+				}
 			}
 
-			// User approved, execute the command
+			// Execute the command
 			const [userRejected, execCommandResult] = await config.callbacks.executeCommandTool(command!, undefined) // no timeout for attempt_completion command
+
 			if (userRejected) {
 				config.taskState.didRejectTool = true
 				return execCommandResult

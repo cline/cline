@@ -7,17 +7,21 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import { getProviderModelIdKey, isSettingsKey, ProviderToApiKeyMap } from "@shared/storage"
+import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
+import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
+import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
@@ -25,6 +29,7 @@ import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
+import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
 import {
@@ -34,7 +39,8 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
-import { hasModelPicker, ModelPicker } from "./ModelPicker"
+import { CUSTOM_MODEL_ID, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -51,11 +57,23 @@ type SettingsTab = "api" | "auto-approve" | "features" | "other" | "account"
 interface ListItem {
 	key: string
 	label: string
-	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action"
+	type: "checkbox" | "readonly" | "editable" | "separator" | "header" | "spacer" | "action" | "cycle"
 	value: string | boolean
 	description?: string
 	isSubItem?: boolean
 	parentKey?: string
+}
+
+function normalizeReasoningEffort(value: unknown): OpenaiReasoningEffort {
+	if (isOpenaiReasoningEffort(value)) {
+		return value
+	}
+	return "low"
+}
+
+function nextReasoningEffort(current: OpenaiReasoningEffort): OpenaiReasoningEffort {
+	const idx = OPENAI_REASONING_EFFORT_OPTIONS.indexOf(current)
+	return OPENAI_REASONING_EFFORT_OPTIONS[(idx + 1) % OPENAI_REASONING_EFFORT_OPTIONS.length]
 }
 
 const TABS: PanelTab[] = [
@@ -68,6 +86,12 @@ const TABS: PanelTab[] = [
 
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
+	subagents: {
+		stateKey: "subagentsEnabled",
+		default: false,
+		label: "Subagents",
+		description: "Let Cline run focused subagents in parallel to explore the codebase for you",
+	},
 	autoCondense: {
 		stateKey: "useAutoCondense",
 		default: false,
@@ -97,6 +121,12 @@ const FEATURE_SETTINGS = {
 		default: false,
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
+	},
+	doubleCheckCompletion: {
+		stateKey: "doubleCheckCompletionEnabled",
+		default: false,
+		label: "Double-check completion",
+		description: "Reject first completion attempt and require re-verification",
 	},
 } as const
 
@@ -136,10 +166,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
+	const [isShowingOcaEmployeeCheck, setIsShowingOcaEmployeeCheck] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
 	const [apiKeyValue, setApiKeyValue] = useState("")
 	const [editValue, setEditValue] = useState("")
+
+	// Bedrock custom ARN flow state
+	const [isBedrockCustomFlow, setIsBedrockCustomFlow] = useState(false)
 
 	// Settings state - single object for feature toggles
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
@@ -164,6 +198,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [planThinkingEnabled, setPlanThinkingEnabled] = useState<boolean>(
 		() => (stateManager.getGlobalSettingsKey("planModeThinkingBudgetTokens") ?? 0) > 0,
+	)
+	const [actReasoningEffort, setActReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort")),
+	)
+	const [planReasoningEffort, setPlanReasoningEffort] = useState<OpenaiReasoningEffort>(() =>
+		normalizeReasoningEffort(stateManager.getGlobalSettingsKey("planModeReasoningEffort")),
 	)
 
 	// Auto-approve settings (complex nested object)
@@ -203,6 +243,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// OCA auth hook
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
+		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		await refreshOcaModels(controller!, StringRequest.create({ value: "" }))
 		setProvider("oca")
 		refreshModelIds()
 	}, [controller, refreshModelIds])
@@ -395,9 +437,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	// Build items list based on current tab
 	const items: ListItem[] = useMemo(() => {
-		// OpenAI Native, Codex, and GPT models don't support thinking budget (they use reasoning effort)
-		const isGptModel = actModelId?.toLowerCase().includes("gpt") || planModelId?.toLowerCase().includes("gpt")
-		const showThinkingOption = provider !== "openai-native" && provider !== "openai-codex" && !isGptModel
+		// Some providers/models expose reasoning effort instead of thinking budget controls.
+		const providerUsesReasoningEffort = provider === "openai-native" || provider === "openai-codex"
+		const showActReasoningEffort = supportsReasoningEffortForModel(actModelId || "")
+		const showPlanReasoningEffort = supportsReasoningEffortForModel(planModelId || "")
+		const showActThinkingOption = !providerUsesReasoningEffort && !showActReasoningEffort
+		const showPlanThinkingOption = !providerUsesReasoningEffort && !showPlanReasoningEffort
 
 		switch (currentTab) {
 			case "api":
@@ -421,13 +466,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showActThinkingOption
 									? [
 											{
 												key: "actThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: actThinkingEnabled,
+											},
+										]
+									: []),
+								...(showActReasoningEffort
+									? [
+											{
+												key: "actReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: actReasoningEffort,
 											},
 										]
 									: []),
@@ -438,13 +493,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: planModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showPlanThinkingOption
 									? [
 											{
 												key: "planThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: planThinkingEnabled,
+											},
+										]
+									: []),
+								...(showPlanReasoningEffort
+									? [
+											{
+												key: "planReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: planReasoningEffort,
 											},
 										]
 									: []),
@@ -457,13 +522,23 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 									type: "editable" as const,
 									value: actModelId || "not set",
 								},
-								...(showThinkingOption
+								...(showActThinkingOption
 									? [
 											{
 												key: "actThinkingEnabled",
 												label: "Enable thinking",
 												type: "checkbox" as const,
 												value: actThinkingEnabled,
+											},
+										]
+									: []),
+								...(showActReasoningEffort
+									? [
+											{
+												key: "actReasoningEffort",
+												label: "Reasoning effort",
+												type: "cycle" as const,
+												value: actReasoningEffort,
 											},
 										]
 									: []),
@@ -629,6 +704,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		separateModels,
 		actThinkingEnabled,
 		planThinkingEnabled,
+		actReasoningEffort,
+		planReasoningEffort,
 		autoApproveSettings,
 		features,
 		preferredLanguage,
@@ -662,6 +739,33 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 	}, [items.length, selectedIndex])
 
+	const rebuildTaskApi = useCallback(() => {
+		if (!controller?.task) {
+			return
+		}
+		const currentMode = stateManager.getGlobalSettingsKey("mode")
+		const apiConfig = stateManager.getApiConfiguration()
+		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+	}, [controller, stateManager])
+
+	const setReasoningEffortForMode = useCallback(
+		(mode: "act" | "plan", effort: OpenaiReasoningEffort) => {
+			if (mode === "act") {
+				setActReasoningEffort(effort)
+				stateManager.setGlobalState("actModeReasoningEffort", effort)
+				if (!separateModels) {
+					setPlanReasoningEffort(effort)
+					stateManager.setGlobalState("planModeReasoningEffort", effort)
+				}
+			} else {
+				setPlanReasoningEffort(effort)
+				stateManager.setGlobalState("planModeReasoningEffort", effort)
+			}
+			rebuildTaskApi()
+		},
+		[separateModels, rebuildTaskApi, stateManager],
+	)
+
 	// Handle toggle/edit for selected item
 	const handleAction = useCallback(() => {
 		const item = items[selectedIndex]
@@ -681,6 +785,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (item.key === "viewAccount") {
 				handleTabChange("account")
 				return
+			}
+			return
+		}
+
+		if (item.type === "cycle") {
+			const targetMode = item.key === "actReasoningEffort" ? "act" : item.key === "planReasoningEffort" ? "plan" : undefined
+			if (targetMode) {
+				const currentEffort = targetMode === "act" ? actReasoningEffort : planReasoningEffort
+				setReasoningEffortForMode(targetMode, nextReasoningEffort(currentEffort))
 			}
 			return
 		}
@@ -742,7 +855,16 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					const actModel = stateManager.getGlobalSettingsKey(actKey)
 					if (planKey) stateManager.setGlobalState(planKey, actModel)
 				}
+				const actThinkingBudget = stateManager.getGlobalSettingsKey("actModeThinkingBudgetTokens") ?? 0
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", actThinkingBudget)
+				setPlanThinkingEnabled(actThinkingBudget > 0)
+
+				const actEffort = normalizeReasoningEffort(stateManager.getGlobalSettingsKey("actModeReasoningEffort"))
+				stateManager.setGlobalState("planModeReasoningEffort", actEffort)
+				setPlanReasoningEffort(actEffort)
 			}
+
+			rebuildTaskApi()
 			return
 		}
 
@@ -750,23 +872,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		if (item.key === "actThinkingEnabled") {
 			setActThinkingEnabled(newValue)
 			stateManager.setGlobalState("actModeThinkingBudgetTokens", newValue ? 1024 : 0)
-			// Rebuild API handler to apply thinking budget change
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+			if (!separateModels) {
+				setPlanThinkingEnabled(newValue)
+				stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			}
+			// Rebuild API handler to apply thinking budget change
+			rebuildTaskApi()
 			return
 		}
 		if (item.key === "planThinkingEnabled") {
 			setPlanThinkingEnabled(newValue)
 			stateManager.setGlobalState("planModeThinkingBudgetTokens", newValue ? 1024 : 0)
 			// Rebuild API handler to apply thinking budget change
-			if (controller?.task) {
-				const currentMode = stateManager.getGlobalSettingsKey("mode")
-				const apiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
-			}
+			rebuildTaskApi()
 			return
 		}
 
@@ -823,12 +941,63 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		handleClineLogin,
 		handleClineLogout,
 		accountOrganizations,
+		separateModels,
+		actReasoningEffort,
+		planReasoningEffort,
+		rebuildTaskApi,
+		setReasoningEffortForMode,
 	])
+
+	// Handle completion of the Bedrock custom ARN flow (ARN + base model selected)
+	const handleBedrockCustomFlowComplete = useCallback(
+		async (arn: string, baseModelId: string) => {
+			if (!pickingModelKey) return
+			const apiConfig = stateManager.getApiConfiguration()
+
+			// Build a minimal BedrockConfig from current state for applyBedrockConfig
+			const bedrockConfig: BedrockConfig = {
+				awsRegion: apiConfig.awsRegion ?? "us-east-1",
+				awsAuthentication: apiConfig.awsUseProfile ? "profile" : "credentials",
+				awsUseCrossRegionInference: Boolean(apiConfig.awsUseCrossRegionInference),
+			}
+
+			await applyBedrockConfig({
+				bedrockConfig,
+				modelId: arn,
+				customModelBaseId: baseModelId,
+				controller,
+			})
+
+			// Flush pending state to ensure everything is persisted
+			await stateManager.flushPendingState()
+
+			// Rebuild API handler if there's an active task
+			rebuildTaskApi()
+
+			refreshModelIds()
+			setIsBedrockCustomFlow(false)
+			setPickingModelKey(null)
+
+			// If opened from /models command, close the entire settings panel
+			if (initialMode) {
+				onClose()
+			}
+		},
+		[pickingModelKey, stateManager, controller, rebuildTaskApi, refreshModelIds, initialMode, onClose],
+	)
 
 	// Handle model selection from picker
 	const handleModelSelect = useCallback(
 		async (modelId: string) => {
 			if (!pickingModelKey) return
+
+			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
+			if (modelId === CUSTOM_MODEL_ID && provider === "bedrock") {
+				setIsPickingModel(false)
+				setIsBedrockCustomFlow(true)
+				return
+			}
+
 			const apiConfig = stateManager.getApiConfiguration()
 			const actProvider = apiConfig.actModeApiProvider
 			const planProvider = apiConfig.planModeApiProvider || actProvider
@@ -889,7 +1058,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				onClose()
 			}
 		},
-		[pickingModelKey, separateModels, stateManager, controller, refreshModelIds, initialMode, onClose],
+		[pickingModelKey, separateModels, stateManager, controller, provider, refreshModelIds, initialMode, onClose],
 	)
 
 	// Handle language selection from picker
@@ -965,8 +1134,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					setProvider("oca")
 					refreshModelIds()
 				} else {
-					// Not logged in - trigger OAuth
-					startOcaAuth()
+					// Not logged in - show employee check before auth
+					setIsShowingOcaEmployeeCheck(true)
 				}
 				return
 			}
@@ -1213,6 +1382,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Bedrock custom flow - input handled by BedrockCustomModelFlow component
+			if (isBedrockCustomFlow) {
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -1257,7 +1431,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock },
+		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isShowingOcaEmployeeCheck },
 	)
 
 	// Render content
@@ -1433,6 +1607,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (isShowingOcaEmployeeCheck) {
+			return (
+				<OcaEmployeeCheck
+					isActive={isShowingOcaEmployeeCheck}
+					onCancel={() => setIsShowingOcaEmployeeCheck(false)}
+					onSignIn={() => {
+						setIsShowingOcaEmployeeCheck(false)
+						startOcaAuth()
+					}}
+				/>
+			)
+		}
+
 		if (isWaitingForOcaAuth) {
 			return (
 				<Box flexDirection="column">
@@ -1449,6 +1636,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						<Text color="gray">Esc to cancel</Text>
 					</Box>
 				</Box>
+			)
+		}
+
+		// Bedrock custom model flow (ARN input + base model selection)
+		if (isBedrockCustomFlow) {
+			return (
+				<BedrockCustomModelFlow
+					isActive={isBedrockCustomFlow}
+					onCancel={() => {
+						setIsBedrockCustomFlow(false)
+						setIsPickingModel(true)
+					}}
+					onComplete={handleBedrockCustomFlowComplete}
+				/>
 			)
 		}
 
@@ -1569,6 +1770,21 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						)
 					}
 
+					if (item.type === "cycle") {
+						return (
+							<Text key={item.key}>
+								<Text bold color={isSelected ? COLORS.primaryBlue : undefined}>
+									{isSelected ? "❯" : " "}{" "}
+								</Text>
+								<Text color={isSelected ? COLORS.primaryBlue : "white"}>{item.label}: </Text>
+								<Text color={COLORS.primaryBlue}>
+									{typeof item.value === "string" ? item.value : String(item.value)}
+								</Text>
+								{isSelected && <Text color="gray"> (Tab to cycle)</Text>}
+							</Text>
+						)
+					}
+
 					// Readonly or editable field
 					return (
 						<Text key={item.key}>
@@ -1599,7 +1815,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isPickingOrganization ||
 		isWaitingForClineAuth ||
+		isShowingOcaEmployeeCheck ||
 		isWaitingForOcaAuth ||
+		isBedrockCustomFlow ||
 		isEditing
 
 	return (

@@ -1,7 +1,7 @@
 import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
-import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
+import { getSkillsDirectoriesForScan } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
 import { fileExistsAtPath, isDirectory } from "@/utils/fs"
 import { Controller } from ".."
@@ -88,34 +88,36 @@ async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
  * Refreshes all skill toggles (discovers skills and their enabled state)
  */
 export async function refreshSkills(controller: Controller): Promise<RefreshedSkills> {
-	const globalSkillsDir = await ensureSkillsDirectoryExists()
-
 	// Get workspace paths for local skills
 	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
 	const primaryWorkspace = workspacePaths.paths[0]
 
-	// Scan global skills
-	const globalSkills = await scanSkillsDirectory(globalSkillsDir)
+	const globalSkills: SkillInfo[] = []
+	const localSkills: SkillInfo[] = []
+
+	if (primaryWorkspace) {
+		const scanDirs = getSkillsDirectoriesForScan(primaryWorkspace)
+		for (const dir of scanDirs) {
+			const skills = await scanSkillsDirectory(dir.path)
+			if (dir.source === "global") {
+				globalSkills.push(...skills)
+			} else {
+				localSkills.push(...skills)
+			}
+		}
+	} else {
+		const scanDirs = getSkillsDirectoriesForScan("")
+		for (const dir of scanDirs) {
+			if (dir.source !== "global") continue
+			const skills = await scanSkillsDirectory(dir.path)
+			globalSkills.push(...skills)
+		}
+	}
 
 	// Get global toggles and apply them
 	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}
 	for (const skill of globalSkills) {
 		skill.enabled = globalToggles[skill.path] !== false
-	}
-
-	// Scan local skills from all possible directories
-	const localSkills: SkillInfo[] = []
-	if (primaryWorkspace) {
-		const localDirs = [
-			path.join(primaryWorkspace, ".clinerules", "skills"),
-			path.join(primaryWorkspace, ".cline", "skills"),
-			path.join(primaryWorkspace, ".claude", "skills"),
-		]
-
-		for (const dir of localDirs) {
-			const skills = await scanSkillsDirectory(dir)
-			localSkills.push(...skills)
-		}
 	}
 
 	// Get local toggles and apply them

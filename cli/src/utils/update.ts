@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process"
 import { realpathSync } from "node:fs"
 import { exit } from "node:process"
+import { ClineEndpoint } from "@/config"
 import { fetch } from "@/shared/net"
 import { printInfo, printWarning } from "./display"
 
@@ -107,7 +108,7 @@ async function getLatestVersion(currentVersion: string): Promise<string | null> 
  * process to install if a newer version is available.
  *
  * Supports npm, pnpm, yarn, and bun global installs.
- * Skipped for npx, local dev, and unknown installations.
+ * Skipped for npx, local dev, unknown installations, and bundled enterprise packages.
  * Can be disabled with CLINE_NO_AUTO_UPDATE=1 environment variable.
  */
 export function autoUpdateOnStartup(currentVersion: string): void {
@@ -118,6 +119,11 @@ export function autoUpdateOnStartup(currentVersion: string): void {
 
 	// Skip if auto-update is disabled via env var
 	if (process.env.CLINE_NO_AUTO_UPDATE === "1") {
+		return
+	}
+
+	// Skip if using bundled enterprise config (single source of truth)
+	if (ClineEndpoint.isBundledConfig()) {
 		return
 	}
 
@@ -253,7 +259,7 @@ function parseVersion(version: string): ParsedVersion {
 		return {
 			base: nightlyMatch[1].split(".").map(Number),
 			isNightly: true,
-			timestamp: parseInt(nightlyMatch[2], 10),
+			timestamp: Number.parseInt(nightlyMatch[2], 10),
 		}
 	}
 	return {

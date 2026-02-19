@@ -30,7 +30,7 @@ function toProtoFieldName(str) {
 const INT64_FIELDS = new Set(["planModeThinkingBudgetTokens", "actModeThinkingBudgetTokens"])
 
 // Fields that should use double instead of int32
-const DOUBLE_FIELDS = new Set(["autoCondenseThreshold"])
+const DOUBLE_FIELDS = new Set()
 
 /**
  * Infer proto type from TypeScript type expression
@@ -254,7 +254,7 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 
 	for (const fieldMatch of matches) {
 		const snakeName = fieldMatch[1]
-		const fieldNum = parseInt(fieldMatch[2], 10)
+		const fieldNum = Number.parseInt(fieldMatch[2], 10)
 		const camelName = snakeToCamel(snakeName)
 		fieldNumbers[camelName] = fieldNum
 	}
@@ -354,11 +354,10 @@ function replaceMessage(protoContent, messageName, newMessageContent) {
 
 	if (messageRegex.test(protoContent)) {
 		return protoContent.replace(messageRegex, newMessageContent)
-	} else {
-		// Message doesn't exist, append before the first message or at end
-		console.warn(`Warning: ${messageName} message not found in proto file, appending`)
-		return protoContent + "\n\n" + newMessageContent
 	}
+	// Message doesn't exist, append before the first message or at end
+	console.warn(`Warning: ${messageName} message not found in proto file, appending`)
+	return protoContent + "\n\n" + newMessageContent
 }
 
 async function main() {

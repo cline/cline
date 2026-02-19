@@ -1,6 +1,28 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ClineMessage } from "@shared/ExtensionMessage"
 import { expect } from "chai"
 import { ContextManager } from "../ContextManager"
+
+// Minimal mock for ApiHandler — only getModel().info.contextWindow is used by shouldCompactContextWindow
+function createMockApi(contextWindow: number) {
+	return {
+		getModel: () => ({ id: "test-model", info: { contextWindow } }),
+	} as any
+}
+
+function createApiReqMessage(tokens: {
+	tokensIn?: number
+	tokensOut?: number
+	cacheWrites?: number
+	cacheReads?: number
+}): ClineMessage {
+	return {
+		ts: Date.now(),
+		type: "say",
+		say: "api_req_started",
+		text: JSON.stringify(tokens),
+	}
+}
 
 describe("ContextManager", () => {
 	function createMessages(count: number): Anthropic.Messages.MessageParam[] {
@@ -379,6 +401,95 @@ describe("ContextManager", () => {
 			expect(content).to.have.lengthOf(1)
 			expect(content[0].type).to.equal("text")
 			expect((content[0] as Anthropic.Messages.TextBlockParam).text).to.equal("Additional user text")
+		})
+	})
+
+	describe("shouldCompactContextWindow", () => {
+		let contextManager: ContextManager
+
+		beforeEach(() => {
+			contextManager = new ContextManager()
+		})
+
+		it("does not compact at 33K tokens with default 0.75 threshold on 200K context", () => {
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 30_000, tokensOut: 3_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			expect(result).to.equal(false)
+		})
+
+		it("compacts when tokens exceed 0.75 threshold on 200K context", () => {
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 140_000, tokensOut: 15_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			expect(result).to.equal(true)
+		})
+
+		it("compacts at only 10K tokens when threshold is accidentally set to 0.05", () => {
+			const contextWindow = 200_000
+			const accidentalThreshold = 0.05
+			// floor(200000 * 0.05) = 10000 — this is the bug case from PR #9348.
+			// Accidental clicks on the progress bar set threshold to ~5%, triggering
+			// compaction at 10K tokens instead of the intended 150K (0.75 * 200K).
+			const compactionTriggersAt = Math.floor(contextWindow * accidentalThreshold) // 10,000
+			const totalTokens = compactionTriggersAt + 500 // 10,500 — just above the trigger
+
+			const api = createMockApi(contextWindow)
+			const tokensIn = totalTokens - 1_500
+			const tokensOut = 1_500
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn, tokensOut })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, accidentalThreshold)
+			expect(result).to.equal(true)
+		})
+
+		it("falls back to maxAllowedSize when threshold is undefined", () => {
+			const api = createMockApi(200_000)
+			// 155K tokens — above 0.75 threshold (150K) but below maxAllowedSize (160K)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 150_000, tokensOut: 5_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, undefined)
+			// undefined → uses maxAllowedSize (160K), so 155K < 160K → false
+			expect(result).to.equal(false)
+		})
+
+		it("falls back to maxAllowedSize when threshold is 0", () => {
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 150_000, tokensOut: 5_000 })]
+
+			// 0 is falsy, so ternary falls back to maxAllowedSize (160K)
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0)
+			expect(result).to.equal(false)
+		})
+
+		it("includes cacheWrites and cacheReads in total token count", () => {
+			const api = createMockApi(200_000)
+			// Low direct tokens but high cache reads push total over threshold
+			const clineMessages: ClineMessage[] = [
+				createApiReqMessage({ tokensIn: 5_000, tokensOut: 500, cacheWrites: 0, cacheReads: 150_000 }),
+			]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			expect(result).to.equal(true)
+		})
+
+		it("returns false when previousApiReqIndex is negative", () => {
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 200_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, -1, 0.75)
+			expect(result).to.equal(false)
+		})
+
+		it("threshold is capped at maxAllowedSize even when percentage is very high", () => {
+			const api = createMockApi(200_000)
+			// threshold of 1.0 → floor(200000 * 1.0) = 200000, but min(200000, 160000) = 160000
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 165_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 1.0)
+			expect(result).to.equal(true)
 		})
 	})
 })

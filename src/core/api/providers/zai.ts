@@ -60,17 +60,17 @@ export class ZAiHandler implements ApiHandler {
 	getModel(): { id: mainlandZAiModelId | internationalZAiModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (this.useChinaApi()) {
+			const id = modelId && modelId in mainlandZAiModels ? (modelId as mainlandZAiModelId) : mainlandZAiDefaultModelId
 			return {
-				id: (modelId as mainlandZAiModelId) ?? mainlandZAiDefaultModelId,
-				info: mainlandZAiModels[modelId as mainlandZAiModelId] ?? mainlandZAiModels[mainlandZAiDefaultModelId],
+				id,
+				info: mainlandZAiModels[id],
 			}
-		} else {
-			return {
-				id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
-				info:
-					internationalZAiModels[modelId as internationalZAiModelId] ??
-					internationalZAiModels[internationalZAiDefaultModelId],
-			}
+		}
+		const id =
+			modelId && modelId in internationalZAiModels ? (modelId as internationalZAiModelId) : internationalZAiDefaultModelId
+		return {
+			id,
+			info: internationalZAiModels[id],
 		}
 	}
 

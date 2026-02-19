@@ -38,28 +38,29 @@ export class TaskState {
 	// Tool execution flags
 	didRejectTool = false
 	didAlreadyUseTool = false
-	didEditFile: boolean = false
-	lastToolName: string = "" // Track last tool used for consecutive call detection
+	didEditFile = false
+	lastToolName = "" // Track last tool used for consecutive call detection
 
 	// Error tracking
-	consecutiveMistakeCount: number = 0
+	consecutiveMistakeCount = 0
+	doubleCheckCompletionPending = false
 	didAutomaticallyRetryFailedApiRequest = false
 	checkpointManagerErrorMessage?: string
 
 	// Retry tracking for auto-retry feature
-	autoRetryAttempts: number = 0
+	autoRetryAttempts = 0
 
 	// Task Initialization
 	isInitialized = false
 
 	// Focus Chain / Todo List Management
-	apiRequestCount: number = 0
-	apiRequestsSinceLastTodoUpdate: number = 0
+	apiRequestCount = 0
+	apiRequestsSinceLastTodoUpdate = 0
 	currentFocusChainChecklist: string | null = null
-	todoListWasUpdatedByUser: boolean = false
+	todoListWasUpdatedByUser = false
 
 	// Task Abort / Cancellation
-	abort: boolean = false
+	abort = false
 	didFinishAbortingStream = false
 	abandoned = false
 
@@ -67,6 +68,6 @@ export class TaskState {
 	activeHookExecution?: HookExecution
 
 	// Auto-context summarization
-	currentlySummarizing: boolean = false
+	currentlySummarizing = false
 	lastAutoCompactTriggerIndex?: number
 }

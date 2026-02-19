@@ -5,6 +5,7 @@ import {
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
@@ -25,6 +26,7 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 	apiModelId?: string
+	store?: boolean
 }
 
 export class OpenAiNativeHandler implements ApiHandler {
@@ -44,8 +46,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 				this.client = createOpenAIClient({
 					apiKey: this.options.openAiNativeApiKey,
 				})
-			} catch (error: any) {
-				throw new Error(`Error creating OpenAI client: ${error.message}`)
+			} catch (error) {
+				throw new Error(`Error creating OpenAI client: ${error instanceof Error ? error.message : String(error)}`)
 			}
 		}
 		return this.client
@@ -105,11 +107,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 
 		const systemRole = model.info.systemRole ?? "system"
-		const includeReasoning = this.options.thinkingBudgetTokens && model.info.supportsReasoningEffort
+		const includeReasoning = model.info.supportsReasoningEffort
 		const includeTools = model.info.supportsTools ?? true
-		const reasoningEffort = includeReasoning
-			? (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
-			: undefined
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const reasoningEffort =
+			includeReasoning && requestedEffort !== "none" ? (requestedEffort as ChatCompletionReasoningEffort) : undefined
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
@@ -154,7 +156,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const model = this.getModel()
 
 		// Convert messages to Responses API input format
-		const input = convertToOpenAIResponsesInput(messages)
+		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages)
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools
@@ -167,32 +169,41 @@ export class OpenAiNativeHandler implements ApiHandler {
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
 			}))
 
-		Logger.debug("OpenAI Responses Input: " + JSON.stringify(input))
-
-		// const lastAssistantMessage = [...messages].reverse().find((msg) => msg.role === "assistant" && msg.id)
-		// const previous_response_id = lastAssistantMessage?.id
+		Logger.debug(`OpenAI Responses Input: ${JSON.stringify(input)}`)
 
 		// Create the response using Responses API
+		const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
+		const reasoning: { effort: ChatCompletionReasoningEffort; summary: "auto" } | undefined =
+			requestedEffort === "none"
+				? undefined
+				: {
+						effort: requestedEffort,
+						summary: "auto",
+					}
+
 		const stream = await client.responses.create({
 			model: model.id,
 			instructions: systemPrompt,
 			input,
 			stream: true,
 			tools: responseTools,
-			// previous_response_id,
-			// store: true,
-			reasoning: { effort: "medium", summary: "auto" },
+			store: this.options.store ?? false,
+			...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+			...(reasoning ? { reasoning } : {}),
 			// include: ["reasoning.encrypted_content"],
 		})
 
+		const functionCallByItemId = new Map<string, { call_id?: string; name?: string; id?: string }>()
+
 		// Process the response stream
 		for await (const chunk of stream) {
-			Logger.debug("OpenAI Responses Chunk: " + JSON.stringify(chunk))
+			Logger.debug(`OpenAI Responses Chunk: ${JSON.stringify(chunk)}`)
 
 			// Handle different event types from Responses API
 			if (chunk.type === "response.output_item.added") {
 				const item = chunk.item
 				if (item.type === "function_call" && item.id) {
+					functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
 					yield {
 						type: "tool_calls",
 						id: item.id,
@@ -218,6 +229,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (chunk.type === "response.output_item.done") {
 				const item = chunk.item
 				if (item.type === "function_call") {
+					if (item.id) {
+						functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
+					}
 					yield {
 						type: "tool_calls",
 						id: item.id || item.call_id,
@@ -283,12 +297,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 				}
 			}
 			if (chunk.type === "response.function_call_arguments.delta") {
+				const pendingCall = functionCallByItemId.get(chunk.item_id)
+				const callId = pendingCall?.call_id
+				const functionName = pendingCall?.name
+				const functionId = pendingCall?.id || chunk.item_id
+
 				yield {
 					type: "tool_calls",
 					tool_call: {
+						call_id: callId,
 						function: {
-							id: chunk.item_id,
-							name: chunk.item_id,
+							id: functionId,
+							name: functionName,
 							arguments: chunk.delta,
 						},
 					},
@@ -297,11 +317,16 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (chunk.type === "response.function_call_arguments.done") {
 				// Handle completed function call
 				if (chunk.item_id && chunk.name && chunk.arguments) {
+					const pendingCall = functionCallByItemId.get(chunk.item_id)
+					const callId = pendingCall?.call_id
+					const functionId = pendingCall?.id || chunk.item_id
+
 					yield {
 						type: "tool_calls",
 						tool_call: {
+							call_id: callId,
 							function: {
-								id: chunk.item_id,
+								id: functionId,
 								name: chunk.name,
 								arguments: chunk.arguments,
 							},
@@ -315,7 +340,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 				chunk.response?.status === "incomplete" &&
 				chunk.response?.incomplete_details?.reason === "max_output_tokens"
 			) {
-				Logger.log("Ran out of tokens")
 				if (chunk.response?.output_text?.length > 0) {
 					Logger.log("Partial output:", chunk.response.output_text)
 				} else {
@@ -328,11 +352,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const usage = chunk.response.usage
 				const inputTokens = usage.input_tokens || 0
 				const outputTokens = usage.output_tokens || 0
-				const cacheReadTokens = usage.output_tokens_details?.reasoning_tokens || 0
-				const cacheWriteTokens = usage.input_tokens_details?.cached_tokens || 0
+				const cacheReadTokens = usage.input_tokens_details?.cached_tokens || 0
+				const cacheWriteTokens = 0
+				const reasoningTokens = usage.output_tokens_details?.reasoning_tokens || 0
 				const totalTokens = usage.total_tokens || 0
 				Logger.log(`Total tokens from Responses API usage: ${totalTokens}`)
-				const totalCost = calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+				const totalCost = calculateApiCostOpenAI(
+					model.info,
+					inputTokens,
+					outputTokens + reasoningTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+				)
 				const nonCachedInputTokens = Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
 				yield {
 					type: "usage",
@@ -340,6 +371,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					outputTokens: outputTokens,
 					cacheWriteTokens: cacheWriteTokens,
 					cacheReadTokens: cacheReadTokens,
+					thoughtsTokenCount: reasoningTokens,
 					totalCost: totalCost,
 					id: chunk.response.id,
 				}

@@ -100,11 +100,10 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
-	private shellIntegrationTimeout: number = 4000
-	private terminalReuseEnabled: boolean = true
-	private terminalOutputLineLimit: number = 500
-	private subagentTerminalOutputLineLimit: number = 2000
-	private defaultTerminalProfile: string = "default"
+	private shellIntegrationTimeout = 4000
+	private terminalReuseEnabled = true
+	private terminalOutputLineLimit = 500
+	private defaultTerminalProfile = "default"
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -364,16 +363,8 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.terminalOutputLineLimit = limit
 	}
 
-	setSubagentTerminalOutputLineLimit(limit: number): void {
-		this.subagentTerminalOutputLineLimit = limit
-	}
-
-	public processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string {
-		const limit = isSubagentCommand
-			? overrideLimit !== undefined
-				? overrideLimit
-				: this.subagentTerminalOutputLineLimit
-			: this.terminalOutputLineLimit
+	public processOutput(outputLines: string[], overrideLimit?: number): string {
+		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
@@ -425,7 +416,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 	 * @param force If true, closes even busy terminals (with warning)
 	 * @returns Number of terminals closed
 	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force: boolean = false): number {
+	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
 		const terminalsToClose = this.filterTerminals(filterFn)
 		let closedCount = 0
 

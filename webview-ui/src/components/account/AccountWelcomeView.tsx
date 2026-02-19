@@ -11,7 +11,7 @@ export const AccountWelcomeView = () => {
 	const { isLoginLoading, handleSignIn } = useClineSignIn()
 
 	return (
-		<div className="flex flex-col items-center pr-3 gap-2.5">
+		<div className="flex flex-col items-center gap-2.5">
 			<ClineLogoVariable className="size-16 mb-4" environment={environment} />
 
 			<p>
@@ -23,7 +23,7 @@ export const AccountWelcomeView = () => {
 				Sign up with Cline
 				{isLoginLoading && (
 					<span className="ml-1 animate-spin">
-						<span className="codicon codicon-refresh"></span>
+						<span className="codicon codicon-refresh" />
 					</span>
 				)}
 			</VSCodeButton>

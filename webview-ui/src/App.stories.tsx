@@ -240,7 +240,6 @@ const mockStreamingMessages: ClineMessage[] = [
 const createMockState = (overrides: any = {}) => ({
 	...useExtensionState(),
 	useAutoCondense: true,
-	autoCondenseThreshold: 0.5,
 	version: "0.0.1-stories",
 	welcomeViewCompleted: true,
 	showWelcome: false,

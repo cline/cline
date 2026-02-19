@@ -2,9 +2,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useEffect, useRef } from "react"
-import { ClineCompactIcon } from "@/assets/ClineCompactIcon"
 import { Button } from "@/components/ui/button"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
@@ -168,40 +166,10 @@ export const CommandOutputRow = memo(
 		const showCancelButton =
 			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
-		// Check if this is a Cline subagent command (only on VSCode platform, not JetBrains/standalone)
-		const isSubagentCommand = PLATFORM_CONFIG.type === PlatformType.VSCODE && command.trim().startsWith("cline ")
-		let subagentPrompt: string | undefined
-
-		if (isSubagentCommand) {
-			// Parse the cline command to extract prompt
-			// Format: cline "prompt"
-			const clineCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?/
-			const match = command.match(clineCommandRegex)
-
-			if (match) {
-				subagentPrompt = match[1]
-			}
-		}
-
-		// Customize icon and title for subagent commands
-		const displayIcon = isSubagentCommand ? (
-			<span className="text-foreground mb-[-1.5px]">
-				<ClineCompactIcon />
-			</span>
-		) : (
-			icon
-		)
-
-		const displayTitle = isSubagentCommand ? (
-			<span className="text-foreground font-bold">Cline wants to use a subagent:</span>
-		) : (
-			title
-		)
-
 		const commandHeader = (
 			<div className="flex items-center gap-2.5 mb-3">
-				{displayIcon}
-				{displayTitle}
+				{icon}
+				{title}
 			</div>
 		)
 
@@ -253,19 +221,9 @@ export const CommandOutputRow = memo(
 						</div>
 					)}
 
-					{isSubagentCommand && subagentPrompt && (
-						<div className="p-2.5 border-b border-editor-group-border">
-							<div className="mb-0">
-								<strong>Prompt:</strong> <span className="ph-no-capture font-editor">{subagentPrompt}</span>
-							</div>
-						</div>
-					)}
-
-					{!isSubagentCommand && (
-						<div className="bg-code opacity-60 text-sm">
-							<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-						</div>
-					)}
+					<div className="bg-code opacity-60 text-sm">
+						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+					</div>
 
 					{output.length > 0 && (
 						<CommandOutputContent
@@ -278,7 +236,7 @@ export const CommandOutputRow = memo(
 				</div>
 				{requestsApproval && (
 					<div className="flex items-center gap-2.5 p-2 text-[12px] text-editor-warning-foreground">
-						<i className="codicon codicon-warning"></i>
+						<i className="codicon codicon-warning" />
 						<span>The model has determined this command requires explicit approval.</span>
 					</div>
 				)}

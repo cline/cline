@@ -4,6 +4,7 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import type { CommandExecutionOptions } from "@integrations/terminal"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
@@ -11,8 +12,7 @@ import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import * as vscode from "vscode"
-import { isGPT5ModelFamily, modelDoesntSupportWebp } from "@/utils/model-utils"
+import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
@@ -39,6 +39,7 @@ import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
+import { UseSubagentsToolHandler } from "./tools/handlers/SubagentToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
@@ -51,6 +52,15 @@ import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { createUIHelpers } from "./tools/types/UIHelpers"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
+
+export function canonicalizeAttemptCompletionParams(block: ToolUse): boolean {
+	if (block.name === ClineDefaultTool.ATTEMPT && !block.params?.result && typeof block.params?.response === "string") {
+		block.params.result = block.params.response
+		return true
+	}
+
+	return false
+}
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -70,7 +80,6 @@ export class ToolExecutor {
 
 	constructor(
 		// Core Services & Managers
-		private context: vscode.ExtensionContext,
 		private taskState: TaskState,
 		private messageStateHandler: MessageStateHandler,
 		private api: ApiHandler,
@@ -116,7 +125,12 @@ export class ToolExecutor {
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
-		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
+		private executeCommandTool: (
+			command: string,
+			timeoutSeconds: number | undefined,
+			options?: CommandExecutionOptions,
+		) => Promise<[boolean, any]>,
+		private cancelRunningCommandTool: () => Promise<boolean>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
@@ -144,12 +158,13 @@ export class ToolExecutor {
 		const config: TaskConfig = {
 			taskId: this.taskId,
 			ulid: this.ulid,
-			context: this.context,
 			mode: this.stateManager.getGlobalSettingsKey("mode"),
 			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			doubleCheckCompletionEnabled: this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled"),
 			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
+			isSubagentExecution: false,
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
@@ -180,6 +195,7 @@ export class ToolExecutor {
 				cancelTask: this.cancelTask,
 				updateTaskHistory: async (_: any) => [],
 				executeCommandTool: this.executeCommandTool,
+				cancelRunningCommandTool: this.cancelRunningCommandTool,
 				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
 				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
 				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
@@ -237,6 +253,7 @@ export class ToolExecutor {
 		this.coordinator.register(new ReportBugHandler())
 		this.coordinator.register(new ApplyPatchHandler(validator))
 		this.coordinator.register(new GenerateExplanationToolHandler())
+		this.coordinator.register(new UseSubagentsToolHandler())
 	}
 
 	/**
@@ -307,11 +324,15 @@ export class ToolExecutor {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 * 2. The current model/provider supports native tool calling and handles parallel tools well
 	 */
 	private isParallelToolCallingEnabled(): boolean {
-		const modelId = this.api.getModel().id
-		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
+		const model = this.api.getModel()
+		const apiConfig = this.stateManager.getApiConfiguration()
+		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
 	}
 
 	/**
@@ -345,6 +366,7 @@ export class ToolExecutor {
 		if (!this.coordinator.has(block.name)) {
 			return false // Tool not handled by coordinator
 		}
+		canonicalizeAttemptCompletionParams(block)
 
 		const config = this.asToolConfig()
 

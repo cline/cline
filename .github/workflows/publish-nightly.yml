@@ -38,22 +38,6 @@ jobs:
               with:
                   node-version: "lts/*"
 
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
-
             - name: Install root dependencies
               run: npm ci --include=optional
 

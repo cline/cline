@@ -80,12 +80,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			}
 			setIsProcessing(true)
 
-			// Special handling for cancel action
-			if (action === "cancel") {
+			void messageHandlers.executeButtonAction(action, text, images, files).catch(() => {
+				// Reset processing state on errors to avoid getting stuck.
 				setIsProcessing(false)
-			}
-
-			messageHandlers.executeButtonAction(action, text, images, files)
+			})
 		},
 		[messageHandlers, isProcessing],
 	)
@@ -96,7 +94,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			if (event.key === "Escape") {
 				event.preventDefault()
 				event.stopPropagation()
-				messageHandlers.executeButtonAction("cancel")
+				handleActionClick("cancel")
 				return
 			}
 

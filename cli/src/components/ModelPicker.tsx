@@ -6,6 +6,7 @@
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React, { useEffect, useMemo, useState } from "react"
+import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
 import {
 	type ApiProvider,
@@ -64,10 +65,14 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@/shared/api"
+import { StringRequest } from "@/shared/proto/cline/common"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
 import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
 import { SearchableList, SearchableListItem } from "./SearchableList"
+
+// Special ID used to indicate the user wants to enter a custom model ID / ARN
+export const CUSTOM_MODEL_ID = "__custom__"
 
 // Map providers to their static model lists and defaults
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
@@ -105,7 +110,7 @@ export function hasStaticModels(provider: string): boolean {
 }
 
 export function hasModelPicker(provider: string): boolean {
-	return hasStaticModels(provider) || usesOpenRouterModels(provider)
+	return hasStaticModels(provider) || usesOpenRouterModels(provider) || provider === "oca"
 }
 
 export function getDefaultModelId(provider: string): string {
@@ -132,7 +137,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 	const [isLoading, setIsLoading] = useState(false)
 	const [asyncModels, setAsyncModels] = useState<string[]>([])
 
-	// Fetch OpenRouter models when needed using shared core function
+	// Fetch async models (OpenRouter or OCA) when needed
 	useEffect(() => {
 		if (usesOpenRouterModels(provider)) {
 			setIsLoading(true)
@@ -145,22 +150,45 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 				.finally(() => {
 					setIsLoading(false)
 				})
+		} else if (provider === "oca") {
+			setIsLoading(true)
+			refreshOcaModels(controller, StringRequest.create({ value: "" }))
+				.then((result) => {
+					if (result.models) {
+						const modelIds = Object.keys(result.models).sort((a, b) => a.localeCompare(b))
+						setAsyncModels(modelIds)
+					}
+				})
+				.finally(() => {
+					setIsLoading(false)
+				})
 		}
 	}, [provider, controller])
 
 	const modelList = useMemo(() => {
-		if (usesOpenRouterModels(provider)) {
+		if (usesOpenRouterModels(provider) || provider === "oca") {
 			return asyncModels
 		}
 		return getModelList(provider)
 	}, [provider, asyncModels])
 
+	// Providers that support custom model IDs (e.g., Bedrock Application Inference Profiles)
+	const supportsCustomModel = provider === "bedrock"
+
 	const items: SearchableListItem[] = useMemo(() => {
-		return modelList.map((modelId) => ({
+		const list = modelList.map((modelId) => ({
 			id: modelId,
 			label: modelId,
 		}))
-	}, [modelList])
+		// Add "Custom" option at the end for providers that support it
+		if (supportsCustomModel) {
+			list.push({
+				id: CUSTOM_MODEL_ID,
+				label: "Custom (ARN / Inference Profile)",
+			})
+		}
+		return list
+	}, [modelList, supportsCustomModel])
 
 	// For providers without a model picker, render nothing
 	if (!hasModelPicker(provider)) {
@@ -180,7 +208,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 	}
 
 	// If async fetch returned no models, render nothing
-	if (usesOpenRouterModels(provider) && modelList.length === 0) {
+	if ((usesOpenRouterModels(provider) || provider === "oca") && modelList.length === 0) {
 		return null
 	}
 

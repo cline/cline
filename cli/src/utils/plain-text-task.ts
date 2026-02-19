@@ -17,6 +17,7 @@ import type { Controller } from "@/core/controller"
 import { getRequestRegistry } from "@/core/controller/grpc-handler"
 import { subscribeToState } from "@/core/controller/state/subscribeToState"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
+import { emitTaskStartedMessage } from "./task-start-output"
 
 export interface PlainTextTaskOptions {
 	controller: Controller
@@ -25,7 +26,7 @@ export interface PlainTextTaskOptions {
 	imageDataUrls?: string[]
 	verbose?: boolean
 	jsonOutput?: boolean
-	/** Timeout in seconds (default: 600 = 10 minutes) */
+	/** Timeout in seconds (only applied when explicitly provided) */
 	timeoutSeconds?: number
 	/** Task ID to resume an existing task */
 	taskId?: string
@@ -52,6 +53,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	})
 
 	let hasError = false
+	let hasEmittedTaskStarted = false
 	// Track which messages have been processed (by timestamp)
 	const processedMessages = new Map<number, string>()
 
@@ -61,6 +63,20 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	// before we sent our new prompt. This timestamp marks the cutoff - only completion
 	// results AFTER this time should trigger task completion.
 	const completionCutoffTs = Date.now()
+
+	const emitTaskStarted = () => {
+		if (hasEmittedTaskStarted) {
+			return
+		}
+
+		const taskId = controller.task?.taskId
+		if (!taskId) {
+			return
+		}
+
+		emitTaskStartedMessage(taskId, Boolean(jsonOutput))
+		hasEmittedTaskStarted = true
+	}
 
 	// Helper to process a message and track completion state
 	const processMessage = (message: ClineMessage) => {
@@ -119,6 +135,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		if (options.taskId) {
 			// Load the existing task
 			await showTaskWithId(controller, StringRequest.create({ value: options.taskId }))
+			emitTaskStarted()
 
 			// If a prompt was provided, send it as a message to the resumed task
 			if (prompt && controller.task) {
@@ -131,14 +148,19 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		} else if (prompt) {
 			// Start a new task with the prompt
 			await controller.initTask(prompt, imageDataUrls)
+			emitTaskStarted()
 		} else {
 			throw new Error("Either taskId or prompt must be provided")
 		}
 
-		// Normal mode: wait for task completion
-		const timeoutMs = (options.timeoutSeconds ?? 600) * 1000 // default 10 minutes
-		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
-		await Promise.race([completionPromise, timeoutPromise])
+		// Wait for task completion, with optional timeout only when explicitly configured
+		if (options.timeoutSeconds) {
+			const timeoutMs = options.timeoutSeconds * 1000
+			const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+			await Promise.race([completionPromise, timeoutPromise])
+		} else {
+			await completionPromise
+		}
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : String(error)
 		if (jsonOutput) {

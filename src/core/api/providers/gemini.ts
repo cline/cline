@@ -27,9 +27,22 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	geminiApiKey?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
-	thinkingLevel?: string
+	reasoningEffort?: string
 	apiModelId?: string
 	ulid?: string
+}
+
+function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel {
+	switch (effort) {
+		case "low":
+		case "medium":
+			return ThinkingLevel.LOW
+		case "high":
+		case "xhigh":
+			return ThinkingLevel.HIGH
+		default:
+			return ThinkingLevel.LOW
+	}
 }
 
 /**
@@ -124,7 +137,7 @@ export class GeminiHandler implements ApiHandler {
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
-		// Configure thinking budget if supported
+		// Configure thinking budget/level if supported
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
@@ -132,13 +145,10 @@ export class GeminiHandler implements ApiHandler {
 		// and only level is used to control thinking behavior.
 		// Only set thinkingLevel for models that support it
 		let thinkingLevel: ThinkingLevel | undefined
+		const rawReasoningEffort = (this.options.reasoningEffort || "").toLowerCase()
+		const normalizedReasoningEffort = !rawReasoningEffort || rawReasoningEffort === "none" ? "low" : rawReasoningEffort
 		if (info.thinkingConfig?.supportsThinkingLevel) {
-			const level = this.options.thinkingLevel || info.thinkingConfig.geminiThinkingLevel
-			if (level === "high") {
-				thinkingLevel = ThinkingLevel.HIGH
-			} else if (level === "low") {
-				thinkingLevel = ThinkingLevel.LOW
-			}
+			thinkingLevel = mapReasoningEffortToGeminiThinkingLevel(normalizedReasoningEffort)
 		}
 
 		// Set up base generation config
@@ -480,7 +490,8 @@ export class GeminiHandler implements ApiHandler {
 		const totalChars = content.reduce((total, block) => {
 			if (typeof block === "string") {
 				return total + block.length
-			} else if (block && typeof block === "object") {
+			}
+			if (block && typeof block === "object") {
 				// Safely stringify the object
 				try {
 					const jsonStr = JSON.stringify(block)
@@ -502,7 +513,7 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		const unit = retryAfter.at(-1)
-		const value = parseInt(retryAfter, 10)
+		const value = Number.parseInt(retryAfter, 10)
 
 		if (Number.isNaN(value)) {
 			return 0
@@ -510,9 +521,11 @@ export class GeminiHandler implements ApiHandler {
 
 		if (unit === "s") {
 			return value
-		} else if (unit === "m") {
+		}
+		if (unit === "m") {
 			return value * 60 // Convert minutes to seconds
-		} else if (unit === "h") {
+		}
+		if (unit === "h") {
 			return value * 60 * 60 // Convert hours to seconds
 		}
 
