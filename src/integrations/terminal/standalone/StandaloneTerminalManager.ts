@@ -260,9 +260,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * Set the timeout for waiting for shell integration.
 	 * @param timeout Timeout in milliseconds
 	 */
-	setShellIntegrationTimeout(timeout: number): void {
-		this.shellIntegrationTimeout = timeout
-	}
+	setShellIntegrationTimeout(_timeout: number): void {}
 
 	/**
 	 * Enable or disable terminal reuse.

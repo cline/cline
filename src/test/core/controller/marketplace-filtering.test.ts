@@ -373,6 +373,10 @@ describe("Controller Marketplace Filtering", () => {
 			const catalog = await controller.refreshMcpMarketplace(false)
 
 			const item = catalog?.items[0]
+			if (!item) {
+				throw new Error("Expected marketplace item to exist after filtering")
+			}
+
 			item.mcpId.should.equal("github.com/test/database")
 			item.name.should.equal("Database")
 			item.author.should.equal("Test")

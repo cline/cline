@@ -326,7 +326,7 @@ export class McpHub {
 				const hasAllowlist = remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0
 				if (hasAllowlist) {
 					const allowedIds = remoteConfig.allowedMCPServers?.map((server: { id: string }) => server.id)
-					if (!allowedIds.includes(name)) {
+					if (!allowedIds?.includes(name)) {
 						return
 					}
 				}

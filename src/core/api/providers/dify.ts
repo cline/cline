@@ -77,11 +77,12 @@ export class DifyHandler implements ApiHandler {
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
+	private options: DifyHandlerOptions
 
 	constructor(options: DifyHandlerOptions) {
 		this.options = options
-		this.apiKey = options.difyApiKey || ""
-		this.baseUrl = options.difyBaseUrl || ""
+		this.apiKey = this.options.difyApiKey || ""
+		this.baseUrl = this.options.difyBaseUrl || ""
 
 		Logger.log("[DIFY DEBUG] Constructor called with:", {
 			hasApiKey: !!this.apiKey,
@@ -634,7 +635,6 @@ export class DifyHandler implements ApiHandler {
 	 */
 	resetConversation(): void {
 		this.conversationId = null
-		this.currentTaskId = null
 	}
 
 	private jsonHeaders() {

@@ -404,7 +404,7 @@ export class ACPHostBridgeClientProvider implements HostBridgeClientProvider {
 	) {
 		this.workspaceClient = new ACPWorkspaceServiceClient(clientCapabilities, sessionIdResolver, cwdResolver)
 		this.envClient = new ACPEnvServiceClient(clientCapabilities, sessionIdResolver, version)
-		this.windowClient = new ACPWindowServiceClient(clientCapabilities, sessionIdResolver)
+		this.windowClient = new ACPWindowServiceClient()
 		this.diffClient = new ACPDiffServiceClient()
 	}
 }

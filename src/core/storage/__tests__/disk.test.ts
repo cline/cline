@@ -539,7 +539,7 @@ describe("disk - atomic writes", () => {
 
 			// Create a slow rename by stubbing fs.rename to delay
 			// This simulates the critical window where temp file is written but rename hasn't occurred
-			let renameResolve: () => void
+			let renameResolve: () => void = () => {}
 			const renamePromise = new Promise<void>((resolve) => {
 				renameResolve = resolve
 			})

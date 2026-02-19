@@ -81,7 +81,7 @@ export class OpenTelemetryClientProvider {
 	}
 
 	private createMeterProvider(resource: Resource): MeterProvider {
-		const exporters = this.config?.metricsExporter?.split(",").map((type) => type.trim())
+		const exporters = this.config?.metricsExporter?.split(",").map((type) => type.trim()) || []
 		const readers: any[] = []
 		const interval = this.config?.metricExportInterval || 60000
 		const timeout = Math.min(Math.floor(interval * 0.8), 30000)
@@ -139,7 +139,7 @@ export class OpenTelemetryClientProvider {
 	}
 
 	private createLoggerProvider(resource: Resource): LoggerProvider {
-		const exporters = this.config?.logsExporter?.split(",").map((type) => type.trim())
+		const exporters = this.config?.logsExporter?.split(",").map((type) => type.trim()) || []
 		const loggerProvider = new LoggerProvider({ resource })
 
 		Logger.log(`[OTEL] Creating LoggerProvider with exporters: ${exporters.join(", ")}`)
