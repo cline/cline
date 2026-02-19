@@ -35,9 +35,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	scrollBehavior,
 }) => {
 	const { platform } = useExtensionState()
-	const [os, metaKeyChar] = useMetaKeyDetection(platform)
+	const [, metaKeyChar] = useMetaKeyDetection(platform)
 	const metaKeySymbol = metaKeyChar === "CMD" ? "⌘" : metaKeyChar
-	const ariaModifier = os === "mac" ? "Meta" : os === "linux" ? "Alt" : "Control"
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const [isProcessing, setIsProcessing] = useState(false)
 
@@ -106,25 +105,21 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				return
 			}
 
-			// Check for the platform-specific modifier key
-			const modifierKey = os === "mac" ? event.metaKey : os === "linux" ? event.altKey : event.ctrlKey
-
-			// Modifier+Shift+1 triggers primary action
-			if (event.key === "1" && modifierKey && event.shiftKey && primaryAction) {
+			// Meta+Shift+1 triggers primary action (aligned with plan/act toggle which uses Meta)
+			if (event.key === "1" && event.metaKey && event.shiftKey && primaryAction) {
 				event.preventDefault()
 				event.stopPropagation()
 				handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)
 			}
 
-			// Modifier+Shift+2 triggers secondary action
-			if (event.key === "2" && modifierKey && event.shiftKey && secondaryAction) {
+			// Meta+Shift+2 triggers secondary action
+			if (event.key === "2" && event.metaKey && event.shiftKey && secondaryAction) {
 				event.preventDefault()
 				event.stopPropagation()
 				handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)
 			}
 		},
 		[
-			os,
 			messageHandlers,
 			hasButtons,
 			canInteract,
@@ -204,7 +199,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
-					aria-keyshortcuts={`${ariaModifier}+Shift+1`}
+					aria-keyshortcuts="Meta+Shift+1"
 					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
@@ -217,7 +212,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{secondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
-					aria-keyshortcuts={`${ariaModifier}+Shift+2`}
+					aria-keyshortcuts="Meta+Shift+2"
 					className={primaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
