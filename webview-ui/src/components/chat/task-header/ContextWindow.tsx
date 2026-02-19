@@ -4,7 +4,6 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Progress } from "@/components/ui/progress"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
-import { AutoCondenseMarker } from "./AutoCondenseMarker"
 import CompactTaskButton from "./buttons/CompactTaskButton"
 import { ContextWindowSummary } from "./ContextWindowSummary"
 
@@ -21,7 +20,6 @@ interface ContextWindowProgressProps extends ContextWindowInfoProps {
 	useAutoCondense: boolean
 	lastApiReqTotalTokens?: number
 	contextWindow?: number
-	autoCondenseThreshold?: number
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
@@ -57,7 +55,6 @@ ConfirmationDialog.displayName = "ConfirmationDialog"
 const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	contextWindow = 0,
 	lastApiReqTotalTokens = 0,
-	autoCondenseThreshold = 0.75,
 	onSendMessage,
 	useAutoCondense,
 	tokensIn,
@@ -66,25 +63,8 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	cacheReads,
 }) => {
 	const [isOpened, setIsOpened] = useState(false)
-	const [threshold, setThreshold] = useState(useAutoCondense ? autoCondenseThreshold : 0)
 	const [confirmationNeeded, setConfirmationNeeded] = useState(false)
 	const progressBarRef = useRef<HTMLDivElement>(null)
-	const [shouldAnimateMarker, setShouldAnimateMarker] = useState(false)
-
-	// Trigger marker animation when component first mounts (TaskHeader expands)
-	useEffect(() => {
-		if (useAutoCondense && threshold > 0) {
-			setShouldAnimateMarker(true)
-			// Reset animation flag after animation completes
-			const timer = setTimeout(() => {
-				setShouldAnimateMarker(false)
-			}, 1400) // Slightly longer than animation duration (1200ms + buffer)
-			return () => clearTimeout(timer)
-		}
-	}, []) // Empty dependency array means this only runs on mount
-
-	// TODO: Implement click-to-set-threshold and keyboard adjustment for auto-condense.
-	// Disabled in https://github.com/cline/cline/pull/9348 — see that PR for the original code.
 
 	const handleCompactClick = useCallback(
 		(e: React.MouseEvent) => {
@@ -138,7 +118,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
 			const target = event.target as Element
-			const isInsideProgressBar = progressBarRef.current && progressBarRef.current.contains(target as Node)
+			const isInsideProgressBar = progressBarRef.current?.contains(target as Node)
 
 			// Check if click is inside any tooltip content by looking for our custom class
 			const isInsideTooltipContent = target.closest(".context-window-tooltip-content") !== null
@@ -169,7 +149,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 						<HoverCard>
 							<HoverCardContent className="bg-menu rounded-xs shadow-sm">
 								<ContextWindowSummary
-									autoCompactThreshold={useAutoCondense ? threshold : undefined}
 									cacheReads={cacheReads}
 									cacheWrites={cacheWrites}
 									contextWindow={tokenData.max}
@@ -191,14 +170,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 										color="success"
 										value={tokenData.percentage}
 									/>
-									{useAutoCondense && (
-										<AutoCondenseMarker
-											isContextWindowHoverOpen={isOpened}
-											shouldAnimate={shouldAnimateMarker}
-											threshold={threshold}
-											usage={tokenData.percentage}
-										/>
-									)}
 									{isOpened}
 								</div>
 							</HoverCardTrigger>

@@ -23,6 +23,22 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	},
 	{
 		group: "free",
+		id: "minimax/minimax-m2.5",
+		name: "MiniMax: MiniMax M2.5",
+		score: 90,
+		latency: 2,
+		badge: "New",
+		info: {
+			contextWindow: 192_000,
+			supportsImages: false,
+			supportsPromptCache: true,
+			inputPrice: 0,
+			outputPrice: 0,
+			tiers: [],
+		},
+	},
+	{
+		group: "free",
 		id: "arcee-ai/trinity-large-preview:free",
 		name: "Arcee AI: Trinity Large Preview",
 		score: 88,
@@ -39,8 +55,8 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	},
 	{
 		group: "frontier",
-		id: "anthropic/claude-sonnet-4.6",
-		name: "Anthropic: Claude Sonnet 4.6",
+		id: "anthropic/claude-sonnet-4.5",
+		name: "Anthropic: Claude Sonnet 4.5",
 		badge: "Best",
 		score: 97,
 		latency: 3,

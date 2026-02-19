@@ -54,9 +54,14 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider organized by tabs
 export const recommendedModels = [
 	{
-		id: "anthropic/claude-sonnet-4.6",
+		id: "anthropic/claude-sonnet-4.5",
 		description: "Best balance of speed, cost, and quality",
 		label: "BEST",
+	},
+	{
+		id: "anthropic/claude-sonnet-4.6",
+		description: "Latest Sonnet release with strong coding and agent performance",
+		label: "NEW",
 	},
 	{
 		id: "anthropic/claude-opus-4.6",
@@ -76,6 +81,11 @@ export const recommendedModels = [
 ]
 
 export const freeModels = [
+	{
+		id: "minimax/minimax-m2.5",
+		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+		label: "FREE",
+	},
 	{
 		id: "z-ai/glm-5",
 		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
