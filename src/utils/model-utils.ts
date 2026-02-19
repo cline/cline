@@ -85,6 +85,11 @@ export function isGPT5ModelFamily(id: string): boolean {
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
 }
 
+export function isGptOssModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-oss") || modelId.includes("gpt_oss")
+}
+
 export function isGPT51Model(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gpt-5.1") || modelId.includes("gpt-5-1")
@@ -164,6 +169,7 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId) ||
+		isGptOssModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
