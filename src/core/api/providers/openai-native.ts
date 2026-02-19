@@ -40,6 +40,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	private client: OpenAI | undefined
 	private responsesWs: UndiciWebSocket | undefined
 	private websocketRequestInFlight = false
+	private abortController?: AbortController
 
 	constructor(options: OpenAiNativeHandlerOptions) {
 		this.options = options
@@ -100,13 +101,17 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const toolCallProcessor = new ToolCallProcessor()
+		this.abortController = new AbortController()
 
 		// Handle o1 models separately as they don't support streaming
 		if (model.info.supportsStreaming === false) {
-			const response = await client.chat.completions.create({
-				model: model.id,
-				messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
-			})
+			const response = await client.chat.completions.create(
+				{
+					model: model.id,
+					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+				},
+				{ signal: this.abortController?.signal },
+			)
 			yield {
 				type: "text",
 				text: response.choices[0]?.message.content || "",
@@ -165,6 +170,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		const usePreviousResponseId = model.info.apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
 		const responseTools = this.mapResponseTools(tools)
+		this.abortController = new AbortController()
 
 		const params = this.buildResponseCreateParams({
 			modelId: model.id,
@@ -228,7 +234,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			input: args.input,
 			stream: true,
 			tools: args.tools,
-			store: args.previousResponseId ? false : true, // Do not use store when websocket mode is enabled.
+			store: !args.previousResponseId, // Do not use store when websocket mode is enabled.
 			...(args.previousResponseId ? { previous_response_id: args.previousResponseId } : {}),
 			...(reasoning ? { reasoning } : {}),
 		}
@@ -240,7 +246,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	): ApiStream {
 		const client = this.ensureClient()
 		Logger.debug(`OpenAI Responses Input (HTTP): ${JSON.stringify(params.input)}`)
-		const stream = await client.responses.create(params)
+		const stream = await client.responses.create(params, { signal: this.abortController?.signal })
 		yield* this.processResponsesEvents(stream, modelInfo)
 	}
 
@@ -636,6 +642,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	abort(): void {
 		this.closeResponsesWebsocket()
+		this.abortController?.abort()
+		this.abortController = undefined
 	}
 
 	getModel(): { id: OpenAiNativeModelId; info: OpenAiCompatibleModelInfo } {
