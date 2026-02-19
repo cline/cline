@@ -102,6 +102,8 @@ export async function exportVSCodeStorageToSharedFiles(
 	try {
 		// ─── 1. Migrate global state + secrets (if needed) ─────────────
 		if (needGlobalMigration) {
+			// Batch global state keys
+			const globalStateBatch: Record<string, any> = {}
 			for (const key of GlobalStateAndSettingKeys) {
 				if (SKIP_GLOBAL_STATE_KEYS.has(key)) {
 					continue
@@ -118,10 +120,18 @@ export async function exportVSCodeStorageToSharedFiles(
 					continue
 				}
 
-				storage.globalState.update(key, vscodeValue)
+				globalStateBatch[key] = vscodeValue
 				result.globalStateCount++
 			}
 
+			// Add sentinel to batch
+			globalStateBatch[MIGRATION_VERSION_KEY] = CURRENT_MIGRATION_VERSION
+
+			// Write all global state in one operation
+			storage.globalState.setBatch(globalStateBatch)
+
+			// Batch secrets
+			const secretsBatch: Record<string, string> = {}
 			for (const key of SecretKeys) {
 				try {
 					const vscodeValue = await vscodeContext.secrets.get(key)
@@ -135,19 +145,21 @@ export async function exportVSCodeStorageToSharedFiles(
 						continue
 					}
 
-					storage.secrets.set(key, vscodeValue)
+					secretsBatch[key] = vscodeValue
 					result.secretsCount++
 				} catch (error) {
 					Logger.error(`[Migration] Failed to read secret '${key}' from VSCode:`, error)
 				}
 			}
 
-			// Write global sentinel
-			storage.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
+			// Write all secrets in one operation
+			storage.secrets.setBatch(secretsBatch)
 		}
 
 		// ─── 2. Migrate workspace state (if needed) ────────────────────
 		if (needWorkspaceMigration) {
+			// Batch workspace state keys
+			const workspaceStateBatch: Record<string, any> = {}
 			for (const key of LocalStateKeys) {
 				const vscodeValue = vscodeContext.workspaceState.get(key)
 				if (vscodeValue === undefined) {
@@ -160,12 +172,15 @@ export async function exportVSCodeStorageToSharedFiles(
 					continue
 				}
 
-				storage.workspaceState.set(key, vscodeValue)
+				workspaceStateBatch[key] = vscodeValue
 				result.workspaceStateCount++
 			}
 
-			// Write workspace sentinel
-			storage.workspaceState.set(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
+			// Add sentinel to batch
+			workspaceStateBatch[MIGRATION_VERSION_KEY] = CURRENT_MIGRATION_VERSION
+
+			// Write all workspace state in one operation
+			storage.workspaceState.setBatch(workspaceStateBatch)
 		}
 
 		result.migrated = true

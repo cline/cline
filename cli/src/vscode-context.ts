@@ -53,15 +53,23 @@ class MementoAdapter implements ClineMemento {
 	}
 
 	update(key: string, value: any): Thenable<void> {
-		if (key in this.overrides) {
-			return Promise.resolve()
-		}
-		this.store.update(key, value)
-		return Promise.resolve()
+		return this.setBatch({ [key]: value })
 	}
 
 	keys(): readonly string[] {
 		return this.store.keys()
+	}
+
+	setBatch(entries: Record<string, any>): Thenable<void> {
+		// Filter out overridden keys and delegate to underlying store
+		const filteredEntries: Record<string, any> = {}
+		for (const [key, value] of Object.entries(entries)) {
+			if (!(key in this.overrides)) {
+				filteredEntries[key] = value
+			}
+		}
+		this.store.setBatch(filteredEntries)
+		return Promise.resolve()
 	}
 
 	setKeysForSync(_keys: readonly string[]): void {

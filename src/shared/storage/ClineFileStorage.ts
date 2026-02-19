@@ -35,17 +35,12 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 	}
 
 	protected _set(key: string, value: T | undefined): void {
-		if (value === undefined) {
-			delete this.data[key]
-		} else {
-			this.data[key] = value
-		}
-		this.writeToDisk()
+		// Use setBatch for consistency - all writes go through one path
+		this.setBatch({ [key]: value })
 	}
 
 	protected _delete(key: string): void {
-		delete this.data[key]
-		this.writeToDisk()
+		this.setBatch({ [key]: undefined })
 	}
 
 	/**
@@ -53,7 +48,7 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 	 * More efficient than calling set() for each key individually,
 	 * since it only writes to disk once.
 	 */
-	public setBatch(entries: Record<string, T | undefined>): void {
+	public setBatch(entries: Record<string, T | undefined>): Thenable<void> {
 		const changedKeys: string[] = []
 		for (const [key, value] of Object.entries(entries)) {
 			if (value === undefined) {
@@ -72,6 +67,7 @@ export class ClineFileStorage<T = any> extends ClineSyncStorage<T> {
 				this.fireChange(key)
 			}
 		}
+		return Promise.resolve()
 	}
 
 	protected _keys(): readonly string[] {

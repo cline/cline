@@ -19,6 +19,11 @@ export interface ClineMemento {
 	get<T>(key: string, defaultValue: T): T
 	update(key: string, value: any): Thenable<void>
 	keys(): readonly string[]
+	/**
+	 * Set multiple keys in a single operation.
+	 * More efficient than calling update() for each key individually.
+	 */
+	setBatch(entries: Record<string, any>): Thenable<void>
 }
 
 /**
