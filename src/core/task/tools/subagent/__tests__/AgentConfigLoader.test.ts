@@ -24,6 +24,7 @@ describe("AgentConfigLoader", () => {
 name: code-reviewer
 description: Reviews code for quality and best practices
 tools: read_file, list_files, search_files
+skills: api-conventions, error-handling-patterns
 modelId: sonnet
 ---
 
@@ -35,6 +36,7 @@ You are a code reviewer.`
 		assert.equal(parsed.description, "Reviews code for quality and best practices")
 		assert.equal(parsed.modelId, "sonnet")
 		assert.deepEqual(parsed.tools, [ClineDefaultTool.FILE_READ, ClineDefaultTool.LIST_FILES, ClineDefaultTool.SEARCH])
+		assert.deepEqual(parsed.skills, ["api-conventions", "error-handling-patterns"])
 		assert.equal(parsed.systemPrompt, "You are a code reviewer.")
 	})
 
@@ -52,6 +54,7 @@ Prompt body`
 
 		const parsed = parseAgentConfigFromYaml(content)
 		assert.deepEqual(parsed.tools, [ClineDefaultTool.FILE_READ, ClineDefaultTool.LIST_FILES])
+		assert.equal(parsed.skills, undefined)
 	})
 
 	it("throws for unknown tools", () => {
@@ -65,6 +68,25 @@ modelId: sonnet
 Prompt body`
 
 		assert.throws(() => parseAgentConfigFromYaml(content), /Unknown tool/)
+	})
+
+	it("supports skills as a yaml list and optional modelId", () => {
+		const content = `---
+name: api-developer
+description: Implement API endpoints following team conventions
+tools: read_file, execute_command
+skills:
+  - api-conventions
+  - error-handling-patterns
+---
+
+Implement API endpoints.`
+
+		const parsed = parseAgentConfigFromYaml(content)
+		assert.equal(parsed.name, "api-developer")
+		assert.equal(parsed.modelId, undefined)
+		assert.deepEqual(parsed.tools, [ClineDefaultTool.FILE_READ, ClineDefaultTool.BASH])
+		assert.deepEqual(parsed.skills, ["api-conventions", "error-handling-patterns"])
 	})
 
 	it("returns an empty config map when the agents directory does not exist", async () => {

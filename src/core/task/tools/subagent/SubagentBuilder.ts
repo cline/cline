@@ -66,6 +66,10 @@ export class SubagentBuilder {
 		return this.allowedTools
 	}
 
+	getConfiguredSkills(): string[] | undefined {
+		return this.agentConfig.skills
+	}
+
 	buildSystemPrompt(generatedSystemPrompt: string): string {
 		const configuredSystemPrompt = this.agentConfig?.systemPrompt?.trim()
 		const systemPrompt = configuredSystemPrompt || generatedSystemPrompt

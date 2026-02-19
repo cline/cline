@@ -411,6 +411,59 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 1)
 	})
 
+	it("filters subagent skills to configured AgentConfig skill names", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_complete_skills_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const discoveredSkills = [
+			{
+				name: "api-conventions",
+				description: "API conventions",
+				path: "/tmp/.codex/skills/api-conventions/SKILL.md",
+				source: "project",
+			},
+			{
+				name: "error-handling-patterns",
+				description: "Error handling patterns",
+				path: "/tmp/.codex/skills/error-handling-patterns/SKILL.md",
+				source: "project",
+			},
+		] as const
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.deepEqual(
+				(context.skills || []).map((skill) => skill.name),
+				["api-conventions"],
+			)
+			promptRegistry.nativeTools = [{ name: "attempt_completion" } as any]
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "attempt_completion" }] as any)
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["api-conventions", "missing-skill"])
+		sinon.stub(skills, "discoverSkills").resolves(discoveredSkills as any)
+		sinon.stub(skills, "getAvailableSkills").returns(discoveredSkills as any)
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(true))
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.equal(createMessage.callCount, 1)
+	})
+
 	it("includes workspace metadata only in the initial user message", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
