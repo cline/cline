@@ -1,8 +1,19 @@
 import "should"
 import { openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import sinon from "sinon"
 import { VercelAIGatewayHandler } from "../vercel-ai-gateway"
 
 describe("VercelAIGatewayHandler", () => {
+	afterEach(() => {
+		sinon.restore()
+	})
+
+	const createAsyncIterable = (data: any[] = []) => ({
+		[Symbol.asyncIterator]: async function* () {
+			yield* data
+		},
+	})
+
 	describe("getModel", () => {
 		it("should return configured model and info when both are provided", () => {
 			const customModelInfo = {
@@ -36,6 +47,48 @@ describe("VercelAIGatewayHandler", () => {
 
 			result.id.should.equal(openRouterDefaultModelId)
 			result.info.should.deepEqual(openRouterDefaultModelInfo)
+		})
+	})
+
+	describe("createMessage", () => {
+		it("should handle usage-only chunks when delta is missing", async () => {
+			const handler = new VercelAIGatewayHandler({
+				vercelAiGatewayApiKey: "test-api-key",
+			})
+			const fakeClient = {
+				chat: {
+					completions: {
+						create: sinon.stub().resolves(
+							createAsyncIterable([
+								{
+									choices: [{}],
+									usage: {
+										prompt_tokens: 11,
+										completion_tokens: 7,
+									},
+								},
+							]),
+						),
+					},
+				},
+			}
+			sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+			const chunks: any[] = []
+			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+				chunks.push(chunk)
+			}
+
+			chunks.should.deepEqual([
+				{
+					type: "usage",
+					cacheWriteTokens: 0,
+					cacheReadTokens: 0,
+					inputTokens: 11,
+					outputTokens: 7,
+					totalCost: 0,
+				},
+			])
 		})
 	})
 })
