@@ -82,9 +82,8 @@ export class ClineAccountService {
 		}
 		if (response.statusText === "No Content") {
 			return {} as T // Return empty object if no content
-		} else {
-			return response.data.data as T
 		}
+		return response.data.data as T
 	}
 
 	/**

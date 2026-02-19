@@ -173,7 +173,13 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				setIsLoading(false)
 			}
 		},
-		[isLoading, uid, fetchUserCredit, loadCachedData],
+		[
+			isLoading,
+			uid,
+			fetchUserCredit,
+			loadCachedData, // Cache the updated data
+			cacheCurrentData,
+		],
 	)
 
 	const handleOrganizationChange = useCallback(
@@ -238,7 +244,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 			initialFetchCompleteRef.current = true
 		}
 		initialFetch()
-	}, [])
+	}, [dropdownValue, fetchCreditBalance])
 
 	useEffect(() => {
 		// Handle organization changes with 500ms debounce

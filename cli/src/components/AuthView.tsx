@@ -323,7 +323,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			setErrorMessage(error instanceof Error ? error.message : String(error))
 			setStep("error")
 		}
-	}, [])
+	}, [controller])
 
 	// Start Cline auth flow
 	const startClineAuth = useCallback(async () => {
@@ -379,7 +379,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setStep("apikey")
 			}
 		},
-		[startOcaAuth, startOpenAiCodexAuth],
+		[startOpenAiCodexAuth],
 	)
 
 	const handleApiKeySubmit = useCallback(

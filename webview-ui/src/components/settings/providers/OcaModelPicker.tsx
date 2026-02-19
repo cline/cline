@@ -104,11 +104,10 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 	}, [apiConfiguration, currentMode])
 
 	const selectedReasoningEffort = useMemo(() => {
-		if (currentMode == "plan") {
+		if (currentMode === "plan") {
 			return apiConfiguration?.planModeOcaReasoningEffort
-		} else {
-			return apiConfiguration?.actModeOcaReasoningEffort
 		}
+		return apiConfiguration?.actModeOcaReasoningEffort
 	}, [apiConfiguration, currentMode])
 
 	const reasoningEffortOptions = selectedModelInfo ? (selectedModelInfo as OcaModelInfo).reasoningEffortOptions : []

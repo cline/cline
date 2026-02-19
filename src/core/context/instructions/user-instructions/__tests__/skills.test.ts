@@ -430,10 +430,10 @@ Then do this.`)
 			const content = await getSkillContent("my-skill", availableSkills)
 
 			expect(content).to.not.be.null
-			expect(content!.name).to.equal("my-skill")
-			expect(content!.instructions).to.include("These are the detailed instructions")
-			expect(content!.instructions).to.include("Step 1")
-			expect(content!.instructions).to.include("Step 2")
+			expect(content?.name).to.equal("my-skill")
+			expect(content?.instructions).to.include("These are the detailed instructions")
+			expect(content?.instructions).to.include("Step 1")
+			expect(content?.instructions).to.include("Step 2")
 		})
 
 		it("should return null for non-existent skill", async () => {
@@ -464,7 +464,7 @@ description: Test
 			const availableSkills = getAvailableSkills(allSkills)
 			const content = await getSkillContent("my-skill", availableSkills)
 
-			expect(content!.instructions).to.equal("Instructions with whitespace")
+			expect(content?.instructions).to.equal("Instructions with whitespace")
 		})
 	})
 })

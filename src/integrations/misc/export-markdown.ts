@@ -25,13 +25,13 @@ export function formatContentBlockToMarkdown(block: Anthropic.ContentBlockParam)
 		case "tool_result":
 			if (typeof block.content === "string") {
 				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content}`
-			} else if (Array.isArray(block.content)) {
+			}
+			if (Array.isArray(block.content)) {
 				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content
 					.map((contentBlock) => formatContentBlockToMarkdown(contentBlock))
 					.join("\n")}`
-			} else {
-				return `[Tool${block.is_error ? " (Error)" : ""}]`
 			}
+			return `[Tool${block.is_error ? " (Error)" : ""}]`
 		default:
 			return "[Unexpected content type]"
 	}

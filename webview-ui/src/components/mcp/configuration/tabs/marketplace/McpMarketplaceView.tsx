@@ -59,21 +59,7 @@ const McpMarketplaceView = () => {
 			})
 	}, [items, searchQuery, selectedCategory, sortBy])
 
-	useEffect(() => {
-		// Fetch marketplace catalog on initial load
-		fetchMarketplace()
-	}, [])
-
-	useEffect(() => {
-		// Update loading state when catalog arrives
-		if (mcpMarketplaceCatalog?.items) {
-			setIsLoading(false)
-			setIsRefreshing(false)
-			setError(null)
-		}
-	}, [mcpMarketplaceCatalog])
-
-	const fetchMarketplace = (forceRefresh: boolean = false) => {
+	const fetchMarketplace = (forceRefresh = false) => {
 		if (forceRefresh) {
 			setIsRefreshing(true)
 		} else {
@@ -94,6 +80,21 @@ const McpMarketplaceView = () => {
 				})
 		}
 	}
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only load on mount once
+	useEffect(() => {
+		// Fetch marketplace catalog on initial load
+		fetchMarketplace()
+	}, [])
+
+	useEffect(() => {
+		// Update loading state when catalog arrives
+		if (mcpMarketplaceCatalog?.items) {
+			setIsLoading(false)
+			setIsRefreshing(false)
+			setError(null)
+		}
+	}, [mcpMarketplaceCatalog])
 
 	if (isLoading || isRefreshing) {
 		return (

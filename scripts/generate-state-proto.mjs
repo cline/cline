@@ -357,7 +357,7 @@ function replaceMessage(protoContent, messageName, newMessageContent) {
 	}
 	// Message doesn't exist, append before the first message or at end
 	console.warn(`Warning: ${messageName} message not found in proto file, appending`)
-	return protoContent + "\n\n" + newMessageContent
+	return `${protoContent}\n\n${newMessageContent}`
 }
 
 async function main() {

@@ -108,7 +108,7 @@ const findCurrentApiReq = (messages: ClineMessage[]): { index: number; hasCost: 
 }
 
 // Find the most recent completed api_req before the given index
-const findPrevCompletedApiReq = (messages: ClineMessage[], beforeIdx: number): number => {
+const _findPrevCompletedApiReq = (messages: ClineMessage[], beforeIdx: number): number => {
 	for (let i = beforeIdx - 1; i >= 0; i--) {
 		const msg = messages[i]
 		if (msg.say === "api_req_started" && msg.text) {
@@ -144,7 +144,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
 	const hasReasoning = !!reasoningContent
-	const hasCompletionResult = clineMessages.some(
+	const _hasCompletionResult = clineMessages.some(
 		(msg) => msg.ask === "completion_result" || msg.say === "completion_result" || msg.ask === "plan_mode_respond",
 	)
 
@@ -153,13 +153,13 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
 	// Once response content starts (any text/tool/command), collapse into a compact
 	// "🧠 Thinking" row that can be expanded to show the reasoning only.
-	const showStreamingThinking = useMemo(
+	const _showStreamingThinking = useMemo(
 		() => hasReasoning && !hasError && !cost && !responseStarted,
 		[hasReasoning, hasError, cost, responseStarted],
 	)
 
 	// Check if this api_req will be absorbed into a tool group (reasoning will disappear)
-	const willBeAbsorbed = useMemo(() => {
+	const _willBeAbsorbed = useMemo(() => {
 		return isApiReqAbsorbable(message.ts, clineMessages)
 	}, [message.ts, clineMessages])
 

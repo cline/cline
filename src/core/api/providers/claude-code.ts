@@ -70,8 +70,8 @@ export class ClaudeCodeHandler implements ApiHandler {
 				if (message.stop_reason !== null) {
 					const content = "text" in message.content[0] ? message.content[0] : undefined
 
-					const isError = content && content.text.startsWith(`API Error`)
-					if (isError) {
+					const isError = content?.text.startsWith(`API Error`)
+					if (content && isError) {
 						// Error messages are formatted as: `API Error: <<status code>> <<json>>`
 						const errorMessageStart = content.text.indexOf("{")
 						const errorMessage = content.text.slice(errorMessageStart)

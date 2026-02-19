@@ -9,7 +9,6 @@ export async function getTelemetrySettings(_: EmptyRequest): Promise<GetTelemetr
 
 	if (vscode.env.isTelemetryEnabled) {
 		return { isEnabled: Setting.ENABLED, errorLevel }
-	} else {
-		return { isEnabled: Setting.DISABLED, errorLevel }
 	}
+	return { isEnabled: Setting.DISABLED, errorLevel }
 }

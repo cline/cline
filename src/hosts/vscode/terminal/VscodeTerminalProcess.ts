@@ -48,7 +48,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		const returnCurrentTerminalContents = async () => {
 			try {
 				const terminalSnapshot = await getLatestTerminalOutput()
-				if (terminalSnapshot && terminalSnapshot.trim()) {
+				if (terminalSnapshot?.trim()) {
 					const fallbackMessage = `The command's output could not be captured due to some technical issue, however it has been executed successfully. Here's the current terminal's content to help you get the command's output:\n\n${terminalSnapshot}`
 					this.emit("line", fallbackMessage)
 				}
@@ -57,7 +57,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 		}
 
-		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
+		if (terminal.shellIntegration?.executeCommand) {
 			// Track that we're using shell integration
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -109,7 +109,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					}
 					// Place output back after removing vscode sequences
 					if (outputBetweenSequences) {
-						data = outputBetweenSequences + "\n" + data
+						data = `${outputBetweenSequences}\n${data}`
 					}
 					// remove ansi
 					data = stripAnsi(data)
@@ -217,7 +217,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				await returnCurrentTerminalContents()
 				// Check if fallback worked
 				const terminalSnapshot = await getLatestTerminalOutput()
-				if (terminalSnapshot && terminalSnapshot.trim()) {
+				if (terminalSnapshot?.trim()) {
 					telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
 				} else {
 					telemetryService.captureTerminalExecution(false, "vscode", "none")
@@ -248,7 +248,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			await returnCurrentTerminalContents()
 			// Check if clipboard fallback worked
 			const terminalSnapshot = await getLatestTerminalOutput()
-			if (terminalSnapshot && terminalSnapshot.trim()) {
+			if (terminalSnapshot?.trim()) {
 				telemetryService.captureTerminalExecution(true, "vscode", "clipboard")
 			} else {
 				telemetryService.captureTerminalExecution(false, "vscode", "none")

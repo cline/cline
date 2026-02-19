@@ -118,7 +118,7 @@ export class MistralHandler implements ApiHandler {
 					}
 				}
 			} else if (delta?.content) {
-				let content: string = ""
+				let content = ""
 				if (typeof delta.content === "string") {
 					content = delta.content
 				} else if (Array.isArray(delta.content)) {

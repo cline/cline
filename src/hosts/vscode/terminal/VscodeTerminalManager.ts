@@ -123,7 +123,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 		try {
 			const stateChangeDisposable = vscode.window.onDidChangeTerminalState((terminal) => {
 				const terminalInfo = this.findTerminalInfoByTerminal(terminal)
-				if (terminalInfo && terminalInfo.pendingCwdChange && terminalInfo.cwdResolved) {
+				if (terminalInfo?.pendingCwdChange && terminalInfo.cwdResolved) {
 					// Check if CWD has been updated to match the expected path
 					if (this.isCwdMatchingExpected(terminalInfo)) {
 						const resolver = terminalInfo.cwdResolved.resolve
@@ -222,7 +222,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 				.finally(() => {
 					Logger.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
 					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
-					if (existingProcess && existingProcess.waitForShellIntegration) {
+					if (existingProcess?.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
 						existingProcess.run(vscodeTerminalInfo.terminal, command)
 					}

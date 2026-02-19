@@ -40,7 +40,7 @@ interface HistoryViewProps {
 /**
  * Format separator
  */
-function formatSeparator(char: string = "─", width: number = 80): string {
+function formatSeparator(char = "─", width = 80): string {
 	return char.repeat(Math.max(width, 10))
 }
 
@@ -142,7 +142,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 	return (
 		<Box flexDirection="column">
 			<Text bold color="white">
-				{"📜 Task History (" + totalCount + " total)"}
+				{`📜 Task History (${totalCount} total)`}
 			</Text>
 			<Text color="gray">Use ↑↓/j/k to navigate, Enter to select</Text>
 
@@ -161,7 +161,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 				<Text>No task history available.</Text>
 			) : (
 				<Box flexDirection="column">
-					{showUpIndicator && <Text color="gray">{"  ↑ " + startIndex + " more above"}</Text>}
+					{showUpIndicator && <Text color="gray">{`  ↑ ${startIndex} more above`}</Text>}
 					{visibleTasks.map((task, index) => {
 						const actualIndex = startIndex + index
 						const isSelected = actualIndex === selectedIndex
@@ -197,7 +197,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 							</Box>
 						)
 					})}
-					{showDownIndicator && <Text color="gray">{"  ↓ " + (pageItems.length - endIndex) + " more below"}</Text>}
+					{showDownIndicator && <Text color="gray">{`  ↓ ${pageItems.length - endIndex} more below`}</Text>}
 				</Box>
 			)}
 

@@ -112,49 +112,48 @@ function getMessageIcon(message: ClineMessage): string {
 			default:
 				return "❔"
 		}
-	} else {
-		switch (message.say) {
-			case "task":
-				return "📋"
-			case "error":
-				return "❌"
-			case "text":
-				return "💬"
-			case "reasoning":
-				return "🧠"
-			case "completion_result":
-				return "✅"
-			case "user_feedback":
-				return "👤"
-			case "command":
-			case "command_output":
-				return "⚙️ "
-			case "tool":
-				return "🔧"
-			case "browser_action":
-			case "browser_action_launch":
-			case "browser_action_result":
-				return "🌐"
-			case "mcp_server_request_started":
-			case "mcp_server_response":
-				return "🔌"
-			case "api_req_started":
-			case "api_req_finished":
-				return "🔄"
-			case "checkpoint_created":
-				return "💾"
-			case "info":
-				return "ℹ️ "
-			default:
-				return "  "
-		}
+	}
+	switch (message.say) {
+		case "task":
+			return "📋"
+		case "error":
+			return "❌"
+		case "text":
+			return "💬"
+		case "reasoning":
+			return "🧠"
+		case "completion_result":
+			return "✅"
+		case "user_feedback":
+			return "👤"
+		case "command":
+		case "command_output":
+			return "⚙️ "
+		case "tool":
+			return "🔧"
+		case "browser_action":
+		case "browser_action_launch":
+		case "browser_action_result":
+			return "🌐"
+		case "mcp_server_request_started":
+		case "mcp_server_response":
+			return "🔌"
+		case "api_req_started":
+		case "api_req_finished":
+			return "🔄"
+		case "checkpoint_created":
+			return "💾"
+		case "info":
+			return "ℹ️ "
+		default:
+			return "  "
 	}
 }
 
 /**
  * Format a ClineMessage for terminal display
  */
-export function formatMessage(message: ClineMessage, verbose: boolean = false): string {
+export function formatMessage(message: ClineMessage, verbose = false): string {
 	const icon = getMessageIcon(message)
 	const timestamp = formatTimestamp(message.ts)
 	const lines: string[] = []
@@ -244,7 +243,7 @@ function formatSayMessage(message: ClineMessage, prefix: string, verbose: boolea
 
 		case "command_output":
 			const output = message.text || ""
-			const truncated = output.length > 500 ? output.substring(0, 500) + "..." : output
+			const truncated = output.length > 500 ? `${output.substring(0, 500)}...` : output
 			return `${prefix} ${style.dim("Output:")} ${truncated}`
 
 		case "tool":
@@ -289,7 +288,7 @@ function formatSayMessage(message: ClineMessage, prefix: string, verbose: boolea
 /**
  * Display a horizontal separator
  */
-export function separator(char: string = "─", width: number = 60): string {
+export function separator(char = "─", width = 60): string {
 	return style.dim(char.repeat(width))
 }
 
@@ -309,7 +308,7 @@ export function taskHeader(taskId: string, task?: string): string {
 /**
  * Format the current state for display
  */
-export function formatState(state: ExtensionState, verbose: boolean = false): string {
+export function formatState(state: ExtensionState, verbose = false): string {
 	const lines: string[] = []
 
 	if (state.currentTaskItem) {
@@ -320,7 +319,7 @@ export function formatState(state: ExtensionState, verbose: boolean = false): st
 	if (state.clineMessages && state.clineMessages.length > 0) {
 		const messagesToShow = verbose
 			? state.clineMessages
-			: state.clineMessages.filter((m) => {
+			: state.clineMessages.filter((_m) => {
 					// Filter out noisy messages in non-verbose mode
 					// if (m.say === "api_req_started" || m.say === "api_req_finished") return false
 					return true
@@ -344,7 +343,7 @@ export class Spinner {
 	private frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 	private frameIndex = 0
 	private interval: NodeJS.Timeout | null = null
-	private message: string = ""
+	private message = ""
 
 	start(message: string) {
 		this.message = message
@@ -367,7 +366,7 @@ export class Spinner {
 		if (finalMessage) {
 			process.stdout.write(`\r${style.success("✓")} ${finalMessage}\n`)
 		} else {
-			process.stdout.write("\r" + " ".repeat(this.message.length + 4) + "\r")
+			process.stdout.write(`\r${" ".repeat(this.message.length + 4)}\r`)
 		}
 	}
 
@@ -392,7 +391,7 @@ export function clearLine() {
 /**
  * Move cursor up n lines
  */
-export function cursorUp(n: number = 1) {
+export function cursorUp(n = 1) {
 	process.stdout.write(`\x1b[${n}A`)
 }
 
@@ -444,7 +443,7 @@ export async function promptUser(question: string): Promise<string> {
 	})
 
 	return new Promise((resolve) => {
-		rl.question(style.info(question) + " ", (answer: string) => {
+		rl.question(`${style.info(question)} `, (answer: string) => {
 			rl.close()
 			resolve(answer.trim())
 		})
@@ -466,7 +465,7 @@ export async function promptConfirmation(question: string): Promise<boolean> {
 export function setTerminalTitle(title: string): void {
 	if (process.stdout.isTTY) {
 		const maxLength = 80
-		const truncated = title.length > maxLength ? title.slice(0, maxLength) + "..." : title
+		const truncated = title.length > maxLength ? `${title.slice(0, maxLength)}...` : title
 		process.stdout.write(`\x1b]0;${truncated}\x07`)
 	}
 }

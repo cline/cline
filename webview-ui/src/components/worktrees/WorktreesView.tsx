@@ -506,13 +506,17 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 			<CreateWorktreeModal onClose={() => setShowCreateForm(false)} onSuccess={loadWorktrees} open={showCreateForm} />
 
 			{/* Delete Worktree Modal */}
-			<DeleteWorktreeModal
-				branchName={deleteWorktree?.branch || ""}
-				onClose={() => setDeleteWorktree(null)}
-				onConfirm={(deleteBranch) => handleDeleteWorktree(deleteWorktree!.path, deleteBranch, deleteWorktree!.branch)}
-				open={!!deleteWorktree}
-				worktreePath={deleteWorktree?.path || ""}
-			/>
+			{deleteWorktree?.path && (
+				<DeleteWorktreeModal
+					branchName={deleteWorktree?.branch || ""}
+					onClose={() => setDeleteWorktree(null)}
+					onConfirm={(deleteBranch) =>
+						handleDeleteWorktree(deleteWorktree.path, deleteBranch, deleteWorktree?.branch || "")
+					}
+					open={!!deleteWorktree}
+					worktreePath={deleteWorktree?.path || ""}
+				/>
+			)}
 
 			{/* Merge Worktree Modal */}
 			{mergeWorktree && (

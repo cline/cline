@@ -68,8 +68,8 @@ When you are ready to create the implementation task, you must call the new_task
 \`\`\`
 
 The context parameter should include all five sections as described above.`
-	} else {
-		return `
+	}
+	return `
 **new_task Tool Definition:**
 
 When you are ready to create the implementation task, you must call the new_task tool with the following structure:
@@ -81,7 +81,6 @@ When you are ready to create the implementation task, you must call the new_task
 \`\`\`
 
 The context parameter should include all five sections as described above.`
-	}
 }
 
 // Export types for external use

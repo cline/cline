@@ -91,7 +91,7 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 				)
 
 				// Process non-tool messages
-				let content: string = ""
+				let content = ""
 				if (nonToolMessages.length > 0) {
 					content = nonToolMessages
 						.map((part) => {

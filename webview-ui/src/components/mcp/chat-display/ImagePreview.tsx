@@ -31,9 +31,6 @@ class ImagePreview extends React.Component<
 		}
 	}
 
-	// Track aspect ratio for proper display
-	private aspectRatio: number = 1
-
 	componentDidMount() {
 		// Set up a timeout to handle cases where the image never loads or errors
 		this.timeoutId = setTimeout(() => {
@@ -85,8 +82,6 @@ class ImagePreview extends React.Component<
 		// For SVG files, we don't need to calculate aspect ratio as they're vector-based
 		if (isSvg) {
 			console.log(`SVG image detected, skipping aspect ratio calculation: ${url}`)
-			// Default aspect ratio for SVGs
-			this.aspectRatio = 1
 			this.handleImageLoad()
 			return
 		}
@@ -96,11 +91,6 @@ class ImagePreview extends React.Component<
 
 		testImg.onload = () => {
 			console.log(`Test image loaded successfully: ${url}`)
-
-			// Calculate aspect ratio for proper display
-			if (testImg.width > 0 && testImg.height > 0) {
-				this.aspectRatio = testImg.width / testImg.height
-			}
 
 			this.handleImageLoad()
 		}

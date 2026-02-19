@@ -79,7 +79,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 		})
 
 		let reasoning: string | null = null
-		let didOutputUsage: boolean = false
+		let didOutputUsage = false
 		let finalUsage: any = null
 
 		const toolCallProcessor = new ToolCallProcessor()

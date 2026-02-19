@@ -51,7 +51,7 @@ export class PostHogClientProvider {
 		if (!event || event?.event !== "$exception") {
 			return event
 		}
-		const exceptionList = event.properties?.["$exception_list"]
+		const exceptionList = event.properties?.$exception_list
 		if (!exceptionList?.length) {
 			return null
 		}

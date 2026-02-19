@@ -61,20 +61,22 @@
 				"noUselessElse": "info"
 			},
 			"suspicious": {
+				"noNonNullAssertedOptionalChain": "warn",
+				"noFocusedTests": "error",
 				"noDoubleEquals": "warn",
 				"noImplicitAnyLet": "info",
 				"noThenProperty": "off",
 				"noAsyncPromiseExecutor": "info",
 				"noImportAssign": "off",
-				"noExplicitAny": "info",
+				"noExplicitAny": "off",
 				"noControlCharactersInRegex": "warn",
 				"noShadowRestrictedNames": "off",
-				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "info",
+				"noArrayIndexKey": "off",
+				"noAssignInExpressions": "off",
 				"useIterableCallbackReturn": "info"
 			},
 			"complexity": {
-				"noUselessConstructor": "info",
+				"noUselessConstructor": "off",
 				"useOptionalChain": "info",
 				"noBannedTypes": "warn",
 				"useLiteralKeys": "info",

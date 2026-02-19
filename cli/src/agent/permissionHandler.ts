@@ -116,7 +116,7 @@ export function getPermissionOptionsForAskType(askType: ClineAsk): acp.Permissio
  * @param askType - The original ClineAsk type that triggered the permission request
  * @returns The translated result for Cline's handleWebviewAskResponse
  */
-export function handlePermissionResponse(response: acp.RequestPermissionResponse, askType: ClineAsk): PermissionHandlerResult {
+export function handlePermissionResponse(response: acp.RequestPermissionResponse, _askType: ClineAsk): PermissionHandlerResult {
 	// Check if cancelled
 	if (response.outcome.outcome === "cancelled") {
 		return {

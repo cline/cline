@@ -6,7 +6,7 @@ const TerminalOutputLineLimitSlider: React.FC = () => {
 	const { terminalOutputLineLimit } = useExtensionState()
 
 	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const value = parseInt(event.target.value, 10)
+		const value = Number.parseInt(event.target.value, 10)
 		updateSetting("terminalOutputLineLimit", value)
 	}
 

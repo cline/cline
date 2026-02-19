@@ -22,7 +22,7 @@ export abstract class DiffViewProvider {
 	private preDiagnostics: FileDiagnostics[] = []
 	protected relPath?: string
 	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
+	protected fileEncoding = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
 
@@ -158,7 +158,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>
 
 	/**
 	 * Closes all open diff views.

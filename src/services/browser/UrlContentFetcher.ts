@@ -1,6 +1,6 @@
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
 import * as cheerio from "cheerio"
-// @ts-ignore
+// @ts-expect-error
 import { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
 import * as vscode from "vscode"

@@ -125,9 +125,9 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 				return `    ${methodName}(request: ${requestType}): Promise<${responseType}> {
       return this.makeRequest((client) => client.${methodName}(request))
     }`
-			} else {
-				// Generate streaming method
-				return `  ${methodName}(
+			}
+			// Generate streaming method
+			return `  ${methodName}(
 		request: ${requestType},
 		callbacks: StreamingCallbacks<${responseType}>,
 	): () => void {
@@ -150,7 +150,6 @@ function generateExternalClientSetup(serviceName, serviceDefinition) {
 			abortController.abort()
 		}
 	}\n`
-			}
 		})
 		.join("\n")
 
@@ -222,9 +221,8 @@ function generateVscodeClientImplementation(serviceName, serviceDefinition) {
 			const isStreamingResponse = methodDef.responseStream
 			if (!isStreamingResponse) {
 				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName})`
-			} else {
-				return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
 			}
+			return `${name}ServiceRegistry.registerMethod("${methodName}", ${methodName}, { isStreaming: true })`
 		})
 		.join("\n")
 

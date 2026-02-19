@@ -16,8 +16,8 @@ function isExecutable(filePath: string): boolean {
 
 export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
-	private startTime: number = 0
-	private outputFile: string = ""
+	private startTime = 0
+	private outputFile = ""
 
 	constructor() {}
 
@@ -45,7 +45,7 @@ export class AudioRecordingService {
 				fs.unlinkSync(this.outputFile)
 				Logger.info("Temporary audio file cleaned up")
 			} catch (error) {
-				Logger.warn("Failed to cleanup temporary audio file: " + (error instanceof Error ? error.message : String(error)))
+				Logger.warn(`Failed to cleanup temporary audio file: ${error instanceof Error ? error.message : String(error)}`)
 			} finally {
 				this.outputFile = ""
 			}
@@ -154,7 +154,7 @@ export class AudioRecordingService {
 		} catch (error) {
 			await this.performCleanup()
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			Logger.error("Failed to start audio recording: " + errorMessage)
+			Logger.error(`Failed to start audio recording: ${errorMessage}`)
 			return { success: false, error: `Failed to start recording: ${errorMessage}` }
 		}
 	}
@@ -189,7 +189,7 @@ export class AudioRecordingService {
 			return { success: true, audioBase64 }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			Logger.error("Failed to stop audio recording: " + errorMessage)
+			Logger.error(`Failed to stop audio recording: ${errorMessage}`)
 
 			// Ensure cleanup happens even on error
 			await this.performCleanup()
@@ -213,7 +213,7 @@ export class AudioRecordingService {
 			return { success: true }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
-			Logger.error("Failed to cancel audio recording: " + errorMessage)
+			Logger.error(`Failed to cancel audio recording: ${errorMessage}`)
 
 			// Ensure cleanup happens even on error
 			await this.performCleanup()
@@ -274,7 +274,7 @@ export class AudioRecordingService {
 	cleanup(): void {
 		// Use async cleanup but don't await since this is often called in sync contexts
 		this.performCleanup().catch((error) => {
-			Logger.error("Error during cleanup: " + (error instanceof Error ? error.message : String(error)))
+			Logger.error(`Error during cleanup: ${error instanceof Error ? error.message : String(error)}`)
 		})
 	}
 }

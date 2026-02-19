@@ -29,7 +29,7 @@ export const ModelDescriptionMarkdown = memo(({ markdown, key, isPopup }: ModelD
 			// Check if content is truncated by comparing scrollHeight with clientHeight
 			setIsTruncated(element.scrollHeight > element.clientHeight)
 		}
-	}, [reactContent, isExpanded])
+	}, [isExpanded])
 
 	return (
 		<div className="inline-block mb-2 description line-clamp-3" key={key}>

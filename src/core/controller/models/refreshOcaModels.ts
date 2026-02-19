@@ -173,7 +173,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Error refreshing OCA models. ` + userMsg + ` opc-request-id: ${headers["opc-request-id"]}`,
+			message: `Error refreshing OCA models. ${userMsg} opc-request-id: ${headers["opc-request-id"]}`,
 		})
 		return OcaCompatibleModelInfo.create({ error: userMsg })
 	}

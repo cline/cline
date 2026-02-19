@@ -113,7 +113,7 @@ export class ClineBlobStorage extends ClineStorage {
 			return undefined
 		}
 		try {
-			return await this.adapter!.read(key)
+			return await this.adapter?.read(key)
 		} catch {
 			// Silently return undefined on read errors
 			return undefined
@@ -125,11 +125,7 @@ export class ClineBlobStorage extends ClineStorage {
 			// Silently fail if not configured - this is expected behavior
 			return
 		}
-		try {
-			await this.adapter!.write(key, value)
-		} catch (error) {
-			throw error
-		}
+		await this.adapter?.write(key, value)
 	}
 
 	protected async _delete(key: string): Promise<void> {
@@ -137,11 +133,7 @@ export class ClineBlobStorage extends ClineStorage {
 			// Silently fail if not configured - this is expected behavior
 			return
 		}
-		try {
-			await this.adapter!.remove(key)
-		} catch (error) {
-			throw error
-		}
+		await this.adapter?.remove(key)
 	}
 }
 

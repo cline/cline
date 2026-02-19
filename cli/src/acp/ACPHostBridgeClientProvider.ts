@@ -111,7 +111,7 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
 	constructor(
 		_clientCapabilities: acp.ClientCapabilities | undefined,
 		_sessionIdResolver: SessionIdResolver,
-		version: string = "1.0.0",
+		version = "1.0.0",
 	) {
 		this.version = version
 	}
@@ -402,7 +402,7 @@ export class ACPHostBridgeClientProvider implements HostBridgeClientProvider {
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
 		cwdResolver: CwdResolver,
-		version: string = "1.0.0",
+		version = "1.0.0",
 	) {
 		this.workspaceClient = new ACPWorkspaceServiceClient(clientCapabilities, sessionIdResolver, cwdResolver)
 		this.envClient = new ACPEnvServiceClient(clientCapabilities, sessionIdResolver, version)

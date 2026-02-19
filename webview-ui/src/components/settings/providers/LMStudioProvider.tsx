@@ -71,7 +71,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	useEffect(() => {
 		requestLmStudioModels()
-	}, [])
+	}, [requestLmStudioModels])
 
 	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
 	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()

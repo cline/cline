@@ -63,7 +63,7 @@ export class GitOperations {
 			const git = simpleGit(path.dirname(gitPath))
 			const worktree = await git.getConfig("core.worktree")
 			if (worktree.value !== cwd) {
-				throw new Error("Checkpoints can only be used in the original workspace: " + worktree.value)
+				throw new Error(`Checkpoints can only be used in the original workspace: ${worktree.value}`)
 			}
 			Logger.warn(`Using existing shadow git at ${gitPath}`)
 
@@ -141,7 +141,7 @@ export class GitOperations {
 	 */
 	public async renameNestedGitRepos(disable: boolean) {
 		// Find all .git directories that are not at the root level
-		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
+		const gitPaths = await globby(`**/.git${disable ? "" : GIT_DISABLED_SUFFIX}`, {
 			cwd: this.cwd,
 			onlyDirectories: true,
 			ignore: [".git"], // Ignore root level .git

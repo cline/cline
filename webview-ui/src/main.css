@@ -207,13 +207,13 @@ vscode-dropdown::part(listbox) {
 /* Fix tooltip arrow lag - disable animations on tooltips */
 [data-slot="tooltip-content"],
 [data-slot="tooltip-content"] * {
-	animation: none !important;
-	transition: none !important;
+	animation: none;
+	transition: none;
 }
 
 /* Fix popover arrow lag - disable animations on popovers */
 [data-slot="popover-content"],
 [data-slot="popover-content"] * {
-	animation: none !important;
-	transition: none !important;
+	animation: none;
+	transition: none;
 }

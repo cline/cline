@@ -16,9 +16,9 @@ export interface WorkspaceContext {
 
 export class WorkspaceRootManager {
 	private roots: WorkspaceRoot[] = []
-	private primaryIndex: number = 0
+	private primaryIndex = 0
 
-	constructor(roots: WorkspaceRoot[] = [], primaryIndex: number = 0) {
+	constructor(roots: WorkspaceRoot[] = [], primaryIndex = 0) {
 		this.roots = roots
 		this.primaryIndex = Math.min(primaryIndex, Math.max(0, roots.length - 1))
 	}

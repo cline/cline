@@ -234,7 +234,7 @@ const remarkHighlightActMode = () => {
 					if (toIndex !== -1 && actModeIndex !== -1) {
 						// Add "to" as regular text
 						const toPart = matchText.substring(toIndex, actModeIndex).trim()
-						children.push({ type: "text", value: toPart + " " })
+						children.push({ type: "text", value: `${toPart} ` })
 
 						// Add "Act Mode" as bold with keyboard shortcut
 						const actModePart = matchText.substring(actModeIndex)
@@ -244,7 +244,7 @@ const remarkHighlightActMode = () => {
 						})
 					} else {
 						// Fallback if we can't parse it correctly
-						children.push({ type: "text", value: matchText + " " })
+						children.push({ type: "text", value: `${matchText} ` })
 						children.push({
 							type: "strong",
 							children: [{ type: "text", value: `(⌘⇧A)` }],
