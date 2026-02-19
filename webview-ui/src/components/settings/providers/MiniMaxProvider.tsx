@@ -81,9 +81,11 @@ export const MinimaxProvider = ({ showModelOptions, isPopup, currentMode }: Mini
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					{selectedModelInfo?.supportsReasoning && (
+						<ThinkingBudgetSlider currentMode={currentMode} showEnableToggle={false} />
+					)}
 
-					{selectedModelInfo?.supportsReasoning && <ThinkingBudgetSlider currentMode={currentMode} />}
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>
