@@ -15,7 +15,7 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 		{
 			id: "google/gemini-3.1-pro-preview",
 			name: "Gemini 3.1 Pro Preview",
-			description: "Latest Gemini release with 1 million ctx window and strong coding performance",
+			description: "Latest Gemini release with 1m ctx window and strong coding performance",
 			labels: ["NEW"],
 		},
 		{

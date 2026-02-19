@@ -55,7 +55,7 @@ export interface OpenRouterModelPickerProps {
 export const recommendedModels = [
 	{
 		id: "google/gemini-3.1-pro-preview",
-		description: "Latest Gemini release with 1 million ctx window and strong coding performance",
+		description: "Latest Gemini release with 1m ctx window and strong coding performance",
 		label: "NEW",
 	},
 	{
