@@ -37,13 +37,7 @@ export async function* handleAnthropicMessagesApiStreamResponse(
 						yield {
 							type: "reasoning",
 							reasoning: chunk.content_block.thinking || "",
-						}
-						if (chunk.content_block.thinking && chunk.content_block.signature) {
-							yield {
-								type: "reasoning",
-								reasoning: chunk.content_block.thinking,
-								signature: chunk.content_block.signature,
-							}
+							signature: chunk.content_block.signature,
 						}
 						break
 					case "redacted_thinking":
