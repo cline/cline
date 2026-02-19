@@ -91,7 +91,6 @@ export interface ExtensionState {
 	focusChainSettings: FocusChainSettings
 	dictationSettings: DictationSettings
 	customPrompt?: string
-	autoCondenseThreshold?: number
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
@@ -112,6 +111,7 @@ export interface ExtensionState {
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
 	banners?: BannerCardData[]
+	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
 }
 
