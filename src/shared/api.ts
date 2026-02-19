@@ -4458,6 +4458,7 @@ export const minimaxModels = {
 		contextWindow: 192_000,
 		supportsImages: false,
 		supportsPromptCache: true,
+		supportsReasoning: true,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
 		cacheWritesPrice: 0.0375,
