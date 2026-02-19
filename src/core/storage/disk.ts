@@ -261,14 +261,13 @@ export async function getSavedClineMessages(taskId: string): Promise<ClineMessag
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.uiMessages)
 	if (await fileExistsAtPath(filePath)) {
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
-	} else {
-		// check old location
-		const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
-		if (await fileExistsAtPath(oldPath)) {
-			const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
-			await fs.unlink(oldPath) // remove old file
-			return data
-		}
+	}
+	// check old location
+	const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
+	if (await fileExistsAtPath(oldPath)) {
+		const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+		await fs.unlink(oldPath) // remove old file
+		return data
 	}
 	return []
 }

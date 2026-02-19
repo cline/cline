@@ -56,6 +56,8 @@ Run a new task with a prompt.
 
 **-y**, **\--yolo** :   Enable yolo/yes mode (auto-approve all actions, output in plain mode, exit process automatically when task complete)
 
+**-t**, **\--timeout** *seconds* :   Optional timeout in seconds. Only applied when explicitly provided.
+
 **-m**, **\--model** *model* :   Model to use for the task
 
 **-i**, **\--images** *paths...* :   Image file paths to include with the task
@@ -143,6 +145,8 @@ When running **cline** with just a prompt (no subcommand), these options are ava
 **-p**, **\--plan** :   Run in plan mode
 
 **-y**, **\--yolo** :   Enable yolo mode (auto-approve all actions). Also forces plain text output mode.
+
+**-t**, **\--timeout** *seconds* :   Optional timeout in seconds. Only applied when explicitly provided.
 
 **-m**, **\--model** *model* :   Model to use for the task
 

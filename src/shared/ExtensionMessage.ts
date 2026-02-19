@@ -111,6 +111,7 @@ export interface ExtensionState {
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
 	banners?: BannerCardData[]
+	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
 }
 
