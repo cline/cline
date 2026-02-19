@@ -48,15 +48,21 @@ function normalizeRecommendedModelsResponse(raw: unknown): ClineRecommendedModel
 	}
 
 	const data = raw as Record<string, unknown>
-	if (!Array.isArray(data.recommended) || !Array.isArray(data.free)) {
+	if (
+		(data.recommended !== undefined && !Array.isArray(data.recommended)) ||
+		(data.free !== undefined && !Array.isArray(data.free))
+	) {
 		return null
 	}
 
-	const recommended = data.recommended
+	const recommendedRaw = Array.isArray(data.recommended) ? data.recommended : []
+	const freeRaw = Array.isArray(data.free) ? data.free : []
+
+	const recommended = recommendedRaw
 		.map((model) => normalizeRecommendedModel(model))
 		.filter((model): model is ClineRecommendedModelData => model !== null)
 
-	const free = data.free
+	const free = freeRaw
 		.map((model) => normalizeRecommendedModel(model))
 		.filter((model): model is ClineRecommendedModelData => model !== null)
 

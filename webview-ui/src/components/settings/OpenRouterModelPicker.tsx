@@ -2,6 +2,7 @@ import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
+import { normalizeModelIdForComparison } from "@shared/utils/model-filters"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -110,7 +111,7 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
 	},
 ]
 
-const FREE_CLINE_MODEL_ALIASES: string[] = []
+const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
 
 function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: string): FeaturedModelCardEntry | null {
 	if (!model.id) {
@@ -144,45 +145,79 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	const freeClineModelIds = useMemo(() => {
 		const freeModelIds =
 			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
-		return [...new Set([...freeModelIds, ...FREE_CLINE_MODEL_ALIASES])]
+		return [...new Set(freeModelIds)]
 	}, [clineFreeModels])
+	const freeClineModelIdSet = useMemo(
+		() => new Set(freeClineModelIds.map((modelId) => normalizeModelIdForComparison(modelId))),
+		[freeClineModelIds],
+	)
 	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
 	const recommendedModels = useMemo(
 		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
 		[clineRecommendedModels],
 	)
 	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
-	const hasFetchedClineRecommendedModelsRef = useRef(false)
+	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
+	const isFetchingClineRecommendedModelsRef = useRef(false)
+	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
 
-	const refreshClineRecommendedModels = useCallback(() => {
-		return ModelsServiceClient.makeUnaryRequest(
-			"refreshClineRecommendedModelsRpc",
-			EmptyRequest.create({}),
-			EmptyRequest.toJSON,
-			ClineRecommendedModelsResponse.fromJSON,
-		)
-			.then((response: ClineRecommendedModelsResponse) => {
-				const recommended = (response.recommended ?? [])
-					.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
-					.filter((model): model is FeaturedModelCardEntry => model !== null)
-				const free = (response.free ?? [])
-					.map((model) => toFeaturedModelCardEntry(model, "FREE"))
-					.filter((model): model is FeaturedModelCardEntry => model !== null)
-				setClineRecommendedModels(recommended)
-				setClineFreeModels(free)
-			})
-			.catch((error: Error) => {
-				console.error("Failed to refresh Cline recommended models:", error)
-			})
+	const refreshClineRecommendedModels = useCallback(async (): Promise<boolean> => {
+		try {
+			const response = await ModelsServiceClient.makeUnaryRequest(
+				"refreshClineRecommendedModelsRpc",
+				EmptyRequest.create({}),
+				EmptyRequest.toJSON,
+				ClineRecommendedModelsResponse.fromJSON,
+			)
+			const recommended = (response.recommended ?? [])
+				.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
+				.filter((model): model is FeaturedModelCardEntry => model !== null)
+			const free = (response.free ?? [])
+				.map((model) => toFeaturedModelCardEntry(model, "FREE"))
+				.filter((model): model is FeaturedModelCardEntry => model !== null)
+			setClineRecommendedModels(recommended)
+			setClineFreeModels(free)
+			return true
+		} catch (error) {
+			console.error("Failed to refresh Cline recommended models:", error)
+			return false
+		}
 	}, [])
 
-	const fetchClineRecommendedModelsOnce = useCallback(() => {
-		if (hasFetchedClineRecommendedModelsRef.current) {
+	const clearClineRecommendedModelsRetryTimeout = useCallback(() => {
+		if (clineRecommendedModelsRetryTimeoutRef.current !== null) {
+			window.clearTimeout(clineRecommendedModelsRetryTimeoutRef.current)
+			clineRecommendedModelsRetryTimeoutRef.current = null
+		}
+	}, [])
+
+	const fetchClineRecommendedModels = useCallback(async () => {
+		if (hasSuccessfulClineRecommendedModelsFetchRef.current || isFetchingClineRecommendedModelsRef.current) {
 			return
 		}
-		hasFetchedClineRecommendedModelsRef.current = true
-		void refreshClineRecommendedModels()
-	}, [refreshClineRecommendedModels])
+		isFetchingClineRecommendedModelsRef.current = true
+		const succeeded = await refreshClineRecommendedModels()
+		isFetchingClineRecommendedModelsRef.current = false
+
+		if (succeeded) {
+			hasSuccessfulClineRecommendedModelsFetchRef.current = true
+			clearClineRecommendedModelsRetryTimeout()
+			return
+		}
+
+		if (clineRecommendedModelsRetryTimeoutRef.current === null) {
+			clineRecommendedModelsRetryTimeoutRef.current = window.setTimeout(() => {
+				clineRecommendedModelsRetryTimeoutRef.current = null
+				void fetchClineRecommendedModels()
+			}, CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS)
+		}
+	}, [clearClineRecommendedModelsRetryTimeout, refreshClineRecommendedModels])
+
+	useEffect(() => {
+		return () => {
+			clearClineRecommendedModelsRetryTimeout()
+		}
+	}, [clearClineRecommendedModelsRetryTimeout])
 
 	// If a caller wants to deep-link to the Free tab (or Recommended), honor that.
 	useEffect(() => {
@@ -196,8 +231,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			return
 		}
 		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
-		setActiveTab(freeClineModelIds.includes(currentModelId) ? "free" : "recommended")
-	}, [modeFields.openRouterModelId, freeClineModelIds, initialTab])
+		setActiveTab(freeClineModelIdSet.has(normalizeModelIdForComparison(currentModelId)) ? "free" : "recommended")
+	}, [modeFields.openRouterModelId, freeClineModelIdSet, initialTab])
 
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -225,7 +260,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
 		const isCline = selected.selectedProvider === "cline"
 		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		if (isCline && freeClineModelIds.includes(selected.selectedModelId)) {
+		if (isCline && freeClineModelIdSet.has(normalizeModelIdForComparison(selected.selectedModelId))) {
 			return {
 				...selected,
 				selectedModelInfo: {
@@ -238,12 +273,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			}
 		}
 		return selected
-	}, [apiConfiguration, currentMode, freeClineModelIds])
+	}, [apiConfiguration, currentMode, freeClineModelIdSet])
 
 	useMount(() => {
 		refreshOpenRouterModels()
 		if (modeFields.apiProvider === "cline") {
-			fetchClineRecommendedModelsOnce()
+			void fetchClineRecommendedModels()
 		}
 	})
 
@@ -251,8 +286,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		if (modeFields.apiProvider !== "cline") {
 			return
 		}
-		fetchClineRecommendedModelsOnce()
-	}, [modeFields.apiProvider, fetchClineRecommendedModelsOnce])
+		void fetchClineRecommendedModels()
+	}, [modeFields.apiProvider, fetchClineRecommendedModels])
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {

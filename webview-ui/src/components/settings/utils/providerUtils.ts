@@ -69,7 +69,6 @@ import {
 	xaiModels,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { isClineFreeModelException } from "@shared/utils/model-filters"
 import * as reasoningSupport from "@shared/utils/reasoning-support"
 
 export function supportsReasoningEffortForModelId(modelId?: string, _allowShortOpenAiIds = false): boolean {
@@ -817,38 +816,7 @@ export async function syncModeConfigurations(
 	await handleFieldsChange(updates)
 }
 
-/**
- * Filters OpenRouter model IDs based on provider-specific rules.
- * For Cline provider: excludes :free models (except known exception models)
- * For OpenRouter/Vercel: excludes cline/ prefixed models
- * @param modelIds Array of model IDs to filter
- * @param provider The current API provider
- * @param allowedFreeModelIds Optional list of Cline free model IDs to keep visible
- * @returns Filtered array of model IDs
- */
-export function filterOpenRouterModelIds(
-	modelIds: string[],
-	provider: ApiProvider,
-	allowedFreeModelIds: string[] = [],
-): string[] {
-	if (provider === "cline") {
-		const allowedFreeIdSet = new Set(allowedFreeModelIds.map((id) => id.toLowerCase()))
-		// For Cline provider: exclude :free models, but keep known special cases and explicitly allowed free IDs
-		return modelIds.filter((id) => {
-			if (allowedFreeIdSet.has(id.toLowerCase())) {
-				return true
-			}
-			if (isClineFreeModelException(id)) {
-				return true
-			}
-			// Filter out other :free models
-			return !id.includes(":free")
-		})
-	}
-
-	// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
-	return modelIds.filter((id) => !id.startsWith("cline/"))
-}
+export { filterOpenRouterModelIds } from "@shared/utils/model-filters"
 
 // Helper to get provider-specific configuration info and empty state guidance
 export const getProviderInfo = (

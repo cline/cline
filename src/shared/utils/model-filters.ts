@@ -1,10 +1,22 @@
 import type { ApiProvider } from "@shared/api"
 
+const MODEL_ID_CANONICAL_ALIASES: Record<string, string> = {
+	"anthropic/claude-4.6-sonnet": "anthropic/claude-sonnet-4.6",
+	"anthropic/claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
+	"anthropic/claude-4.5-sonnet": "anthropic/claude-sonnet-4.5",
+	"anthropic/claude-sonnet-4-5": "anthropic/claude-sonnet-4.5",
+}
+
+export function normalizeModelIdForComparison(modelId: string): string {
+	const normalized = modelId.trim().toLowerCase()
+	return MODEL_ID_CANONICAL_ALIASES[normalized] ?? normalized
+}
+
 const CLINE_FREE_MODEL_EXCEPTIONS = ["minimax-m2", "devstral-2512", "arcee-ai/trinity-large"]
 
 export function isClineFreeModelException(modelId: string): boolean {
-	const modelIdLower = modelId.toLowerCase()
-	return CLINE_FREE_MODEL_EXCEPTIONS.some((token) => modelIdLower.includes(token))
+	const normalizedModelId = normalizeModelIdForComparison(modelId)
+	return CLINE_FREE_MODEL_EXCEPTIONS.some((token) => normalizedModelId.includes(token))
 }
 
 /**
@@ -22,17 +34,18 @@ export function filterOpenRouterModelIds(
 	allowedFreeModelIds: string[] = [],
 ): string[] {
 	if (provider === "cline") {
-		const allowedFreeIdSet = new Set(allowedFreeModelIds.map((id) => id.toLowerCase()))
+		const allowedFreeIdSet = new Set(allowedFreeModelIds.map((id) => normalizeModelIdForComparison(id)))
 		// For Cline provider: exclude :free models, but keep known exception models
 		return modelIds.filter((id) => {
-			if (allowedFreeIdSet.has(id.toLowerCase())) {
+			const normalizedModelId = normalizeModelIdForComparison(id)
+			if (allowedFreeIdSet.has(normalizedModelId)) {
 				return true
 			}
-			if (isClineFreeModelException(id)) {
+			if (isClineFreeModelException(normalizedModelId)) {
 				return true
 			}
 			// Filter out other :free models
-			return !id.includes(":free")
+			return !normalizedModelId.includes(":free")
 		})
 	}
 
