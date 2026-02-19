@@ -33,7 +33,7 @@ const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewH
 					</span>
 				)}
 			</div>
-			<Button onClick={onDone} size="header">
+			<Button size="header" onClick={onDone}>
 				Done
 			</Button>
 		</div>

@@ -21,7 +21,9 @@ describe("ClineEndpoint configuration", () => {
 
 		// Stub os.homedir to return our temp directory
 		originalHomedir = os.homedir
-		sandbox.stub(os, "homedir").returns(tempDir)
+		sandbox
+			.stub(os, "homedir")
+			.returns(tempDir)
 
 		// Reset the singleton state using internal method
 		;(ClineEndpoint as any)._instance = null
