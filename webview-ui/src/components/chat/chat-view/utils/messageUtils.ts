@@ -63,11 +63,17 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "resume_task":
 			case "resume_completed_task":
 				return false
+			case "use_subagents":
+				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
+					return false
+				}
+				break
 		}
 		switch (message.say) {
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 			case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
+			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
@@ -93,6 +99,11 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				break
 			case "mcp_server_request_started":
 				return false
+			case "use_subagents":
+				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
+					return false
+				}
+				break
 		}
 		return true
 	})
@@ -725,6 +736,7 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 
 	const flushPending = () => {
 		pendingApiReq.forEach((m) => result.push(m))
+		pendingReasoning.forEach((m) => result.push(m))
 		pendingApiReq = []
 		pendingReasoning = []
 	}
@@ -746,10 +758,6 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			toolGroup.push(...pendingApiReq)
 			pendingApiReq = []
 		}
-		if (pendingReasoning.length > 0) {
-			toolGroup.push(...pendingReasoning)
-			pendingReasoning = []
-		}
 	}
 
 	for (let i = 0; i < groupedMessages.length; i++) {
@@ -769,6 +777,11 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 
 		// Low-stakes tool - absorb pending and add to group
 		if (isLowStakesTool(message)) {
+			// Keep reasoning visible as its own row when it happens before a tool group.
+			// If we absorb it into the group, ToolGroupRenderer hides it entirely.
+			if (!hasTools && pendingReasoning.length > 0) {
+				flushPending()
+			}
 			absorbPending()
 			hasTools = true
 			toolGroup.push(message)
@@ -809,8 +822,13 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			continue
 		}
 
-		// Text - render separately, keep pending for potential future tools
+		// Text - once a tool group is active, ignore additional text so it
+		// doesn't continue mutating the text row rendered above the group.
 		if (messageType === "text") {
+			if (hasTools) {
+				continue
+			}
+			flushPending()
 			result.push(message)
 			continue
 		}

@@ -67,10 +67,9 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	async initialize(): Promise<void> {
-		// Get the base callback URL and construct full redirect URL
-		const baseCallbackUrl = await HostProvider.get().getCallbackUrl()
+		// Get the full callback URL with the MCP server-specific path
 		const callbackPath = getMcpServerCallbackPath(this.serverName, this.serverUrl)
-		this._redirectUrl = `${baseCallbackUrl}${callbackPath}`
+		this._redirectUrl = await HostProvider.get().getCallbackUrl(callbackPath)
 	}
 
 	get redirectUrl(): string {
@@ -86,7 +85,6 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			client_name: "Cline",
 			client_uri: "https://cline.bot",
 			software_id: "cline",
-			scope: "openid",
 		}
 	}
 
@@ -138,9 +136,8 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 				if (serverData.tokens.refresh_token) {
 					Logger.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
 					return serverData.tokens
-				} else {
-					return undefined
 				}
+				return undefined
 			}
 		}
 

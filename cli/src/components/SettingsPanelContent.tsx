@@ -11,16 +11,15 @@ import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiRe
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
-// biome-ignore lint/correctness/noUnusedImports: React is required for JSX transformation (tsconfig jsx: react)
-// biome-ignore lint/style/useImportType: React must be imported as a value for JSX transformation
-import * as React from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
+import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
-import { AuthService, type ClineAccountOrganization } from "@/services/auth/AuthService"
+import { AuthService, ClineAccountOrganization } from "@/services/auth/AuthService"
+import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
@@ -30,6 +29,7 @@ import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig, applySapAiCoreConfig, clearSapAiCoreConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
+import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import { Checkbox } from "./Checkbox"
 import {
@@ -39,7 +39,8 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { LanguagePicker } from "./LanguagePicker"
-import { hasModelPicker, ModelPicker } from "./ModelPicker"
+import { CUSTOM_MODEL_ID, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
 import { OrganizationPicker } from "./OrganizationPicker"
 import { Panel, type PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
@@ -86,6 +87,12 @@ const TABS: PanelTab[] = [
 
 // Settings configuration for simple boolean toggles
 const FEATURE_SETTINGS = {
+	subagents: {
+		stateKey: "subagentsEnabled",
+		default: false,
+		label: "Subagents",
+		description: "Let Cline run focused subagents in parallel to explore the codebase for you",
+	},
 	autoCondense: {
 		stateKey: "useAutoCondense",
 		default: false,
@@ -162,10 +169,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isConfiguringSapAiCore, setIsConfiguringSapAiCore] = useState(false)
 	const [pendingSapAiCoreConfig, setPendingSapAiCoreConfig] = useState<SapAiCoreConfig | null>(null)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
+	const [isShowingOcaEmployeeCheck, setIsShowingOcaEmployeeCheck] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
 	const [pendingProvider, setPendingProvider] = useState<string | null>(null)
 	const [apiKeyValue, setApiKeyValue] = useState("")
 	const [editValue, setEditValue] = useState("")
+
+	// Bedrock custom ARN flow state
+	const [isBedrockCustomFlow, setIsBedrockCustomFlow] = useState(false)
 
 	// Settings state - single object for feature toggles
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
@@ -235,6 +246,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// OCA auth hook
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
+		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		await refreshOcaModels(controller!, StringRequest.create({ value: "" }))
 		setProvider("oca")
 		refreshModelIds()
 	}, [controller, refreshModelIds])
@@ -938,6 +951,44 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		setReasoningEffortForMode,
 	])
 
+	// Handle completion of the Bedrock custom ARN flow (ARN + base model selected)
+	const handleBedrockCustomFlowComplete = useCallback(
+		async (arn: string, baseModelId: string) => {
+			if (!pickingModelKey) return
+			const apiConfig = stateManager.getApiConfiguration()
+
+			// Build a minimal BedrockConfig from current state for applyBedrockConfig
+			const bedrockConfig: BedrockConfig = {
+				awsRegion: apiConfig.awsRegion ?? "us-east-1",
+				awsAuthentication: apiConfig.awsUseProfile ? "profile" : "credentials",
+				awsUseCrossRegionInference: Boolean(apiConfig.awsUseCrossRegionInference),
+			}
+
+			await applyBedrockConfig({
+				bedrockConfig,
+				modelId: arn,
+				customModelBaseId: baseModelId,
+				controller,
+			})
+
+			// Flush pending state to ensure everything is persisted
+			await stateManager.flushPendingState()
+
+			// Rebuild API handler if there's an active task
+			rebuildTaskApi()
+
+			refreshModelIds()
+			setIsBedrockCustomFlow(false)
+			setPickingModelKey(null)
+
+			// If opened from /models command, close the entire settings panel
+			if (initialMode) {
+				onClose()
+			}
+		},
+		[pickingModelKey, stateManager, controller, rebuildTaskApi, refreshModelIds, initialMode, onClose],
+	)
+
 	// Handle model selection from picker
 	// For SAP AI Core in deployment mode, deploymentId is passed from ModelPicker
 	const handleModelSelect = useCallback(
@@ -957,6 +1008,13 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				refreshModelIds()
 				setIsPickingModel(false)
 				setPickingModelKey(null)
+				return
+			}
+
+			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
+			if (modelId === CUSTOM_MODEL_ID && provider === "bedrock") {
+				setIsPickingModel(false)
+				setIsBedrockCustomFlow(true)
 				return
 			}
 
@@ -1036,6 +1094,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			separateModels,
 			stateManager,
 			controller,
+			provider,
 			refreshModelIds,
 			initialMode,
 			onClose,
@@ -1121,8 +1180,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					setProvider("oca")
 					refreshModelIds()
 				} else {
-					// Not logged in - trigger OAuth
-					startOcaAuth()
+					// Not logged in - show employee check before auth
+					setIsShowingOcaEmployeeCheck(true)
 				}
 				return
 			}
@@ -1398,6 +1457,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Bedrock custom flow - input handled by BedrockCustomModelFlow component
+			if (isBedrockCustomFlow) {
+				return
+			}
+
 			if (isEditing) {
 				if (key.escape) {
 					setIsEditing(false)
@@ -1442,7 +1506,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isConfiguringSapAiCore },
+		{
+			isActive:
+				isRawModeSupported &&
+				!isEnteringApiKey &&
+				!isConfiguringBedrock &&
+				!isShowingOcaEmployeeCheck &&
+				!isConfiguringSapAiCore,
+		},
 	)
 
 	// Render content
@@ -1654,6 +1725,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			)
 		}
 
+		if (isShowingOcaEmployeeCheck) {
+			return (
+				<OcaEmployeeCheck
+					isActive={isShowingOcaEmployeeCheck}
+					onCancel={() => setIsShowingOcaEmployeeCheck(false)}
+					onSignIn={() => {
+						setIsShowingOcaEmployeeCheck(false)
+						startOcaAuth()
+					}}
+				/>
+			)
+		}
+
 		if (isWaitingForOcaAuth) {
 			return (
 				<Box flexDirection="column">
@@ -1670,6 +1754,20 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						<Text color="gray">Esc to cancel</Text>
 					</Box>
 				</Box>
+			)
+		}
+
+		// Bedrock custom model flow (ARN input + base model selection)
+		if (isBedrockCustomFlow) {
+			return (
+				<BedrockCustomModelFlow
+					isActive={isBedrockCustomFlow}
+					onCancel={() => {
+						setIsBedrockCustomFlow(false)
+						setIsPickingModel(true)
+					}}
+					onComplete={handleBedrockCustomFlowComplete}
+				/>
 			)
 		}
 
@@ -1836,7 +1934,9 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		!!codexAuthError ||
 		isPickingOrganization ||
 		isWaitingForClineAuth ||
+		isShowingOcaEmployeeCheck ||
 		isWaitingForOcaAuth ||
+		isBedrockCustomFlow ||
 		isEditing
 
 	return (

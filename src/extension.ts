@@ -19,6 +19,7 @@ import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { createStorageContext } from "@/shared/storage/storage-context"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
 import { addToCline } from "./core/controller/commands/addToCline"
@@ -28,7 +29,6 @@ import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
-import { StateManager } from "./core/storage/StateManager"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	cleanupOldApiKey,
@@ -48,11 +48,12 @@ import {
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
+import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
-import { SharedUriHandler } from "./services/uri/SharedUriHandler"
+import { SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
 
@@ -66,17 +67,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
 
-	// 2. Register services and perform common initialization
-	// IMPORTANT: Must be done after host provider is setup
-	const webview = (await initialize(context)) as VscodeWebviewProvider
+	// 2. Clean up legacy data patterns within VSCode's native storage.
+	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
+	// Must run BEFORE the file export so we copy clean state.
+	await cleanupLegacyVSCodeStorage(context)
 
-	// 3. Register services and commands specific to VS Code
+	// 3. One-time export of VSCode's native storage to shared file-backed stores.
+	// After this, all platforms (VSCode, CLI, JetBrains) read from ~/.cline/data/.
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	const storageContext = createStorageContext({ workspacePath })
+	await exportVSCodeStorageToSharedFiles(context, storageContext)
+
+	// 4. Register services and perform common initialization
+	// IMPORTANT: Must be done after host provider is setup and migrations are complete
+	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
+
+	// 5. Register services and commands specific to VS Code
 	// Initialize test mode and add disposables to context
 	const testModeWatchers = await initializeTestMode(webview)
 	context.subscriptions.push(...testModeWatchers)
-
-	// Perform storage migrations that does not block extension activation
-	performStorageMigrations(context)
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
@@ -151,7 +160,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
-		const success = await SharedUriHandler.handleUri(url)
+		const isTaskUri = getUriPath(url) === TASK_URI_PATH
+
+		if (isTaskUri) {
+			await openClineSidebarForTaskUri()
+		}
+
+		let success = await SharedUriHandler.handleUri(url)
+
+		// Task deeplinks can race with first-time sidebar initialization.
+		if (!success && isTaskUri) {
+			await openClineSidebarForTaskUri()
+			success = await SharedUriHandler.handleUri(url)
+		}
+
 		if (!success) {
 			Logger.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
@@ -501,25 +523,24 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	context.subscriptions.push(
-		context.secrets.onDidChange(async (event) => {
-			if (event.key === "cline:clineAccountId") {
-				// Check if the secret was removed (logout) or added/updated (login)
-				const secretValue = await context.secrets.get(event.key)
-				const activeWebview = WebviewProvider.getVisibleInstance()
-				const controller = activeWebview?.controller
+	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
+		if (event.key === "cline:clineAccountId") {
+			const secretValue = storageContext.secrets.get<string>(event.key)
+			const activeWebview = WebviewProvider.getVisibleInstance()
+			const controller = activeWebview?.controller
 
-				const authService = AuthService.getInstance(controller)
-				if (secretValue) {
-					// Secret was added or updated - restore auth info (login from another window)
-					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
-				} else {
-					// Secret was removed - handle logout for all windows
-					authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
-				}
+			const authService = AuthService.getInstance(controller)
+			if (secretValue) {
+				// Secret was added or updated - restore auth info (login from another window)
+				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+			} else {
+				// Secret was removed - handle logout for all windows
+				authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
 			}
-		}),
-	)
+		}
+	})
+	context.subscriptions.push({ dispose: unsubSecrets })
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
@@ -581,19 +602,20 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => {
+	const getCallbackUrl = async (path: string) => {
+		const scheme = vscode.env.uriScheme || "vscode"
+		const callbackUri = vscode.Uri.parse(`${scheme}://${context.extension.id}${path}`)
+
 		if (vscode.env.uiKind === vscode.UIKind.Web) {
-			// In VS Code Web (code serve-web), vscode:// URIs redirect to the desktop app
-			// instead of staying in the browser. Use an HTTP-based callback server instead,
-			// which the browser can navigate to directly after auth completes.
-			const { AuthHandler } = await import("@/hosts/external/AuthHandler")
-			const authHandler = AuthHandler.getInstance()
-			authHandler.setEnabled(true)
-			return authHandler.getCallbackUrl()
+			// In VS Code Web (Codespaces, code serve-web), vscode:// URIs redirect to the
+			// desktop app instead of staying in the browser. Use asExternalUri to convert
+			// to a web-reachable HTTPS URL that routes back to the extension's URI handler.
+			const externalUri = await vscode.env.asExternalUri(callbackUri)
+			return externalUri.toString(true)
 		}
+
 		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
-		const baseUri = vscode.Uri.parse(`${vscode.env.uriScheme || "vscode"}://${context.extension.id}`)
-		return baseUri.toString(true)
+		return callbackUri.toString(true)
 	}
 	HostProvider.initialize(
 		createWebview,
@@ -607,6 +629,31 @@ function setupHostProvider(context: ExtensionContext) {
 		context.extensionUri.fsPath,
 		context.globalStorageUri.fsPath,
 	)
+}
+
+function getUriPath(url: string): string | undefined {
+	try {
+		return new URL(url).pathname
+	} catch {
+		return undefined
+	}
+}
+
+async function openClineSidebarForTaskUri(): Promise<void> {
+	const sidebarWaitTimeoutMs = 3000
+	const sidebarWaitIntervalMs = 50
+
+	await vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
+
+	const startedAt = Date.now()
+	while (Date.now() - startedAt < sidebarWaitTimeoutMs) {
+		if (WebviewProvider.getVisibleInstance()) {
+			return
+		}
+		await new Promise((resolve) => setTimeout(resolve, sidebarWaitIntervalMs))
+	}
+
+	Logger.warn("Task URI handling timed out waiting for Cline sidebar visibility")
 }
 
 async function getBinaryLocation(name: string): Promise<string> {
@@ -667,11 +714,11 @@ if (IS_DEV) {
 }
 
 // VSCode-specific storage migrations
-async function performStorageMigrations(context: ExtensionContext): Promise<void> {
+async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<void> {
 	try {
-		cleanupOldApiKey()
+		await cleanupOldApiKey(context)
 		// Migrate is not done if the new storage does not have the lastShownAnnouncementId flag
-		const hasMigrated = StateManager.get().getGlobalStateKey("lastShownAnnouncementId")
+		const hasMigrated = context.globalState.get("lastShownAnnouncementId")
 		if (hasMigrated !== undefined) {
 			return
 		}

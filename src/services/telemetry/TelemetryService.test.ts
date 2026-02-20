@@ -32,7 +32,15 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		displayName: "Test User",
 		email: "test@example.com",
 		createdAt: new Date().toISOString(),
-		organizations: [],
+		organizations: [
+			{
+				active: true,
+				memberId: "member-456",
+				name: "Test Org",
+				organizationId: "org-123",
+				roles: ["admin"],
+			},
+		],
 	}
 	const MOCK_METADATA: TelemetryMetadata = {
 		extension_version: "1.2.3",
@@ -51,6 +59,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Spy on the provider's log method to verify metadata
 			const logSpy = sinon.spy(noOpProvider, "log")
 			const identifyUserSpy = sinon.spy(noOpProvider, "identifyUser")
+			const recordCounterSpy = sinon.spy(noOpProvider, "recordCounter")
 
 			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
 
@@ -83,6 +92,16 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.deepStrictEqual(userInfo, MOCK_USER_INFO, "User info should match")
 			assert.deepStrictEqual(metadata, MOCK_METADATA, "Identify user should include only the expected metadata properties")
 
+			// Test org attributes are included in standard attributes (metrics)
+			telemetryService.captureToolUsage("task-456", "write_to_file", "gpt-4", "openai", false, true)
+
+			assert.ok(recordCounterSpy.called, "recordCounter should be called for tool usage")
+			const recordCounterArgs = recordCounterSpy.firstCall.args
+			const recordCounterAttributes = recordCounterArgs[2] as Record<string, unknown>
+			assert.strictEqual(recordCounterAttributes.organization_id, "org-123")
+			assert.strictEqual(recordCounterAttributes.organization_name, "Test Org")
+			assert.strictEqual(recordCounterAttributes.member_id, "member-456")
+
 			// Test direct provider calls don't include metadata
 			noOpProvider.log("direct_event", { custom: "data" })
 			assert.ok(logSpy.calledWith("direct_event", { custom: "data" }), "Direct provider log should not add metadata")
@@ -90,6 +109,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Restore spies
 			logSpy.restore()
 			identifyUserSpy.restore()
+			recordCounterSpy.restore()
 
 			await noOpProvider.dispose()
 		})

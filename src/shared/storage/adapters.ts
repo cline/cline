@@ -23,19 +23,15 @@ function createAdapter(client: AwsClient, endpoint: string, bucket: string): Sto
 		},
 
 		async write(path: string, value: string): Promise<void> {
-			try {
-				const response = await client.fetch(`${base}/${path}`, {
-					method: "PUT",
-					body: value,
-					headers: {
-						"Content-Type": "text/plain",
-					},
-				})
-				if (!response.ok) {
-					throw new Error(`Failed to write ${path}: ${response.status}`)
-				}
-			} catch (error) {
-				Logger.error("Error in write:", error)
+			const response = await client.fetch(`${base}/${path}`, {
+				method: "PUT",
+				body: value,
+				headers: {
+					"Content-Type": "text/plain",
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`Failed to write ${path}: ${response.status}`)
 			}
 		},
 

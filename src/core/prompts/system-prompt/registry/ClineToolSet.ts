@@ -111,6 +111,7 @@ export class ClineToolSet {
 		switch (providerId) {
 			case "minimax":
 			case "anthropic":
+			case "bedrock":
 				return toolSpecInputSchema
 			case "gemini":
 				return toolSpecFunctionDeclarations

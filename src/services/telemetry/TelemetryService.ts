@@ -115,6 +115,11 @@ export class TelemetryService {
 	])
 
 	private userId?: string
+	private activeOrg: {
+		organization_id: string
+		organization_name: string
+		member_id: string
+	} | null = null
 	private taskTurnCounts = new Map<string, number>()
 	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
@@ -463,6 +468,7 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
+			...this.activeOrg,
 			...(extra ?? {}),
 		}
 	}
@@ -618,6 +624,16 @@ export class TelemetryService {
 		}
 
 		this.userId = userInfo.id
+		const activeOrg = userInfo.organizations?.find((org) => org.active)
+		if (activeOrg) {
+			this.activeOrg = {
+				organization_id: activeOrg.organizationId,
+				organization_name: activeOrg.name,
+				member_id: activeOrg.memberId,
+			}
+		} else {
+			this.activeOrg = null
+		}
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
@@ -805,8 +821,8 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		ulid: string,
-		provider: string = "unknown",
-		model: string = "unknown",
+		provider = "unknown",
+		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
 		tokenUsage: {

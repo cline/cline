@@ -13,6 +13,7 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			vscode: path.resolve(__dirname, "src/vscode-shim.ts"),
 			// Match tsconfig paths - baseUrl is parent directory
 			"@": path.resolve(__dirname, "../src"),
 			"@api": path.resolve(__dirname, "../src/core/api"),

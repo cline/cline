@@ -167,11 +167,14 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 		if (showReasoningEffort) {
 			return false
 		}
-		return (
-			selectedModelIdLower.includes("claude-opus-4.6") ||
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
+			return (
+				selectedModelIdLower.includes("claude-opus-4.6") ||
+				selectedModelIdLower.includes("claude-haiku-4.5") ||
+				selectedModelIdLower.includes("claude-4.5-haiku") ||
+				selectedModelIdLower.includes("claude-sonnet-4.6") ||
+				selectedModelIdLower.includes("claude-sonnet-4-6") ||
+				selectedModelIdLower.includes("claude-4.6-sonnet") ||
+				selectedModelIdLower.includes("claude-sonnet-4.5") ||
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
 			selectedModelIdLower.includes("claude-opus-4") ||
@@ -211,6 +214,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						role="combobox"
 						style={{
 							width: "100%",
 							zIndex: VERCEL_MODEL_PICKER_Z_INDEX,
@@ -236,7 +240,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<DropdownList ref={dropdownListRef}>
+						<DropdownList ref={dropdownListRef} role="listbox">
 							{modelSearchResults.length > 0 ? (
 								modelSearchResults.map((item, index) => (
 									<DropdownItem
@@ -247,7 +251,8 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 											setIsDropdownVisible(false)
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
-										ref={(el) => (itemRefs.current[index] = el)}>
+										ref={(el) => (itemRefs.current[index] = el)}
+										role="option">
 										<span dangerouslySetInnerHTML={{ __html: item.html }} />
 									</DropdownItem>
 								))

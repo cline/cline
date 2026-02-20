@@ -102,6 +102,13 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) === true
 	}
 
+	/**
+	 * Get a cached flag payload (or default) without triggering a network call.
+	 */
+	public getFlagPayload(flagName: FeatureFlag): FeatureFlagPayload | undefined {
+		return this.cache.get(flagName) ?? FeatureFlagDefaultValue[flagName]
+	}
+
 	public getWebtoolsEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.WEBTOOLS)
 	}

@@ -128,22 +128,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			)
 		}
 
-		// Update subagent terminal output line limit
-		if (request.subagentTerminalOutputLineLimit !== undefined) {
-			controller.stateManager.setGlobalState(
-				"subagentTerminalOutputLineLimit",
-				Number(request.subagentTerminalOutputLineLimit),
-			)
-		}
-
-		// Update subagent terminal output line limit
-		if (request.subagentTerminalOutputLineLimit !== undefined) {
-			controller.stateManager.setGlobalState(
-				"subagentTerminalOutputLineLimit",
-				Number(request.subagentTerminalOutputLineLimit),
-			)
-		}
-
 		// Update max consecutive mistakes
 		if (request.maxConsecutiveMistakes !== undefined) {
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
@@ -172,6 +156,18 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update worktrees setting
 		if (request.worktreesEnabled !== undefined) {
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
+		}
+
+		// Update subagents setting
+		if (request.subagentsEnabled !== undefined) {
+			const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
+			const isEnabled = !!request.subagentsEnabled
+			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
+
+			// Capture telemetry when setting changes
+			if (wasEnabled !== isEnabled) {
+				telemetryService.captureSubagentToggle(isEnabled)
+			}
 		}
 
 		if (request.dictationSettings !== undefined) {
@@ -305,32 +301,8 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
 		}
 
-		if (request.autoCondenseThreshold !== undefined) {
-			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold)) // Clamp to 0-1 range
-			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
-		}
-
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
-		}
-
-		if (request.subagentsEnabled !== undefined) {
-			const currentSettings = controller.stateManager.getGlobalSettingsKey("subagentsEnabled")
-			const wasEnabled = currentSettings ?? false
-			const isEnabled = !!request.subagentsEnabled
-
-			// Platform validation: Only allow enabling subagents on macOS and Linux
-			if (isEnabled && process.platform !== "darwin" && process.platform !== "linux") {
-				throw new Error("CLI subagents are only supported on macOS and Linux platforms")
-			}
-
-			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
-
-			// Capture telemetry when setting changes
-			if (wasEnabled !== isEnabled) {
-				telemetryService.captureSubagentToggle(isEnabled)
-			}
-			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
 		if (request.nativeToolCallEnabled !== undefined) {

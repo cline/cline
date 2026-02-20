@@ -9,14 +9,15 @@ import { Controller } from ".."
  */
 export async function requestyAuthClicked(_: Controller, req: StringRequest): Promise<Empty> {
 	const customBaseUrl = req.value || undefined
-	const callbackUrl = await HostProvider.get().getCallbackUrl()
+	const callbackUrl = await HostProvider.get().getCallbackUrl("/requesty")
 	const baseUrl = toRequestyServiceUrl(customBaseUrl, "app")
 
 	if (!baseUrl) {
 		throw new Error("Invalid Requesty base URL")
 	}
 
-	const authUrl = new URL(`oauth/authorize?callback_url=${callbackUrl}/requesty`, baseUrl)
+	const authUrl = new URL("oauth/authorize", baseUrl)
+	authUrl.searchParams.set("callback_url", callbackUrl)
 
 	await openExternal(authUrl.toString())
 

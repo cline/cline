@@ -1,16 +1,10 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { EmptyRequest } from "@shared/proto/index.cline"
-import { AlertCircleIcon } from "lucide-react"
-import { memo, type ReactNode, useCallback, useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { memo, type ReactNode, useCallback } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
-import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
 import SettingsSlider from "../SettingsSlider"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -41,6 +35,13 @@ interface FeatureToggle {
 }
 
 const agentFeatures: FeatureToggle[] = [
+	{
+		id: "subagents",
+		label: "Subagents",
+		description: "Let Cline run focused subagents in parallel to explore the codebase for you.",
+		stateKey: "subagentsEnabled",
+		settingKey: "subagentsEnabled",
+	},
 	{
 		id: "native-tool-call",
 		label: "Native Tool Call",
@@ -199,43 +200,16 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
+		subagentsEnabled,
 		clineWebToolsEnabled,
 		worktreesEnabled,
 		focusChainSettings,
 		remoteConfigSettings,
-		subagentsEnabled,
-		subagentTerminalOutputLineLimit,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
 	} = useExtensionState()
-
-	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
-
-	// Poll for CLI installation status while the component is mounted
-	useEffect(() => {
-		const checkInstallation = async () => {
-			try {
-				const result = await StateServiceClient.checkCliInstallation(EmptyRequest.create())
-				setIsClineCliInstalled(result.value)
-			} catch (error) {
-				console.error("Failed to check CLI installation:", error)
-			}
-		}
-
-		checkInstallation()
-		const pollInterval = setInterval(checkInstallation, 1500)
-		return () => clearInterval(pollInterval)
-	}, [])
-
-	const handleInstallCli = useCallback(async () => {
-		try {
-			await StateServiceClient.installClineCli(EmptyRequest.create())
-		} catch (error) {
-			console.error("Failed to initiate CLI installation:", error)
-		}
-	}, [])
 
 	const handleFocusChainIntervalChange = useCallback(
 		(value: number) => {
@@ -244,7 +218,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		[focusChainSettings],
 	)
 
-	const showSubagents = isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
 	// State lookup for mapped features
@@ -254,6 +227,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		nativeToolCallSetting,
 		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
+		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
 		enableParallelToolCalling,
@@ -336,45 +310,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						<div
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="experimental-features">
-							{/* Subagents - Only show on macOS and Linux */}
-							{showSubagents && (
-								<>
-									<FeatureRow
-										checked={subagentsEnabled}
-										description="Delegate tasks to specialized sub-agents (experimental)"
-										disabled={!isClineCliInstalled}
-										label="Subagents"
-										onChange={(checked) => updateSetting("subagentsEnabled", checked)}
-									/>
-									<div className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded">
-										<p className="text-xs mb-2 flex items-start text-input-warning-foreground">
-											<span>
-												<AlertCircleIcon className="inline-flex !size-1 mr-1" />
-												Cline CLI is required for subagents. Install it with
-												<code className="px-1">npm install -g cline</code>, then run
-												<code className="px-1">cline auth</code>
-												to authenticate with Cline or configure an API provider.
-											</span>
-										</p>
-										{!isClineCliInstalled && (
-											<Button className="w-full" onClick={handleInstallCli} variant="secondary">
-												Install Now
-											</Button>
-										)}
-									</div>
-									{subagentsEnabled && (
-										<SettingsSlider
-											description="Maximum number of lines to include in output from CLI subagents. Truncates middle to save tokens."
-											label="Output Limit (100-5000)"
-											max={5000}
-											min={100}
-											onChange={(value) => updateSetting("subagentTerminalOutputLineLimit", value)}
-											step={100}
-											value={subagentTerminalOutputLineLimit ?? 2000}
-										/>
-									)}
-								</>
-							)}
 							{experimentalFeatures.map((feature) => (
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
