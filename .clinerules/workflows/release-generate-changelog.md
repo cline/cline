@@ -72,7 +72,12 @@ Required final header for both scopes:
 
 ## 1) Collect PR number candidates from git history
 
-Use first-parent merge commits:
+Use a union of:
+
+1. first-parent merge commit subjects
+2. commit-to-PR association lookups for commits in the same range (`/commits/<sha>/pulls`)
+
+First-parent subject extraction:
 
 ```bash
 git log --first-parent --pretty=%s <from>..<to> |
@@ -81,7 +86,7 @@ git log --first-parent --pretty=%s <from>..<to> |
   sort -un
 ```
 
-Save these numbers (newline-separated) as `ALL_PR_NUMBERS`.
+Save the union (newline-separated) as `ALL_PR_NUMBERS`.
 
 ## 1.5) Preferred inventory command (recommended)
 
@@ -92,8 +97,17 @@ node scripts/release/changelog-inventory.mjs \
   --scope <vscode|cli> \
   --from <from> \
   --to <to> \
+  --version <x.y.z> \
   --apply \
   --output-dir /Users/evekillaby/dev/tmp/.cline-artifacts/release-generate-changelog
+```
+
+If `--to` is not semver-like (for example `main`), `--version` is required.
+
+If you need best-effort behavior when some PR file lists cannot be fully loaded, add:
+
+```bash
+--allow-incomplete-classification
 ```
 
 This generates:
@@ -133,6 +147,7 @@ For each PR in range, classify as one of:
 - `cli`
 - `both`
 - `exclude`
+- `unknown` (only when file coverage is incomplete)
 
 Deterministic rules:
 
@@ -142,15 +157,16 @@ Deterministic rules:
    - no `cli/**` => `vscode`
 2. Exclusion override:
    - if all changed files are internal-only paths (e.g. `.github/**`, `scripts/**`, `docs/**`, `evals/**`, tests-only, release-eng-only) classify as `exclude` with explicit reason
-3. If uncertain, default to include and explain rationale.
+3. If PR file list is incomplete (e.g., pagination fetch failure), classify as `unknown`.
+4. If uncertain and file list is complete, default to include and explain rationale.
 
 Coverage table is mandatory before synthesis:
 
 - every merged PR in range must appear exactly once
-- status = `included` or `excluded`
+- status = `included`, `excluded`, or `unclassified`
 - if excluded, include reason
 
-Hard failure rule: do not generate final changelog until all PRs are classified.
+Hard failure rule: do not generate final changelog until all PRs are classified (`unknown`/`unclassified` must be empty), unless explicit best-effort override is used.
 
 Scope inclusion filter:
 
@@ -171,7 +187,13 @@ For included PRs authored by non-`cline` org members, append inline attribution 
 
 `(Thanks @<username>!)`
 
-If org membership lookup fails, continue and note attribution confidence in artifacts.
+Use tri-state attribution confidence:
+
+- `internal`
+- `external`
+- `unknown`
+
+If membership lookup fails, do not emit false-positive thanks; continue and note attribution confidence in artifacts (`scope-classification.json`).
 
 ## 4) Generate changelog text
 

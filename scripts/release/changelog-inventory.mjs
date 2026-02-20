@@ -31,7 +31,8 @@ Usage:
     [--to <now|tag|ref>] \\
     --output-dir <abs-or-rel-path> \\
     [--version <x.y.z>] [--batch-size <n>] [--repo-owner <owner>] [--repo-name <name>] \\
-    [--pr-numbers <comma-separated>] [--apply] [--target-file <path>]
+    [--pr-numbers <comma-separated>] [--apply] [--target-file <path>] \\
+    [--allow-incomplete-classification]
 
 Writes artifacts:
   - pr-inventory.json
@@ -42,6 +43,10 @@ Writes artifacts:
 With --apply:
   - inserts the generated changelog section into the target changelog file
   - leaves changes uncommitted for human review
+
+Notes:
+  - if --to is not semver-like (for example "main"), --version is required
+  - incomplete PR file lists fail classification unless --allow-incomplete-classification is set
 `)
 }
 
@@ -71,6 +76,14 @@ function runGh(args) {
 	return run("gh", args)
 }
 
+function parseJson(text, fallback = null) {
+	try {
+		return JSON.parse(text)
+	} catch {
+		return fallback
+	}
+}
+
 function ensureDir(dir) {
 	fs.mkdirSync(dir, { recursive: true })
 }
@@ -88,9 +101,7 @@ function normalizeTitle(title) {
 
 function humanizeTitle(title) {
 	let t = normalizeTitle(title)
-	// Remove conventional commit prefix, e.g. "feat(cli): " or "fix: "
 	t = t.replace(/^[a-z]+(?:\([^)]+\))?!?:\s*/i, "")
-	// Normalize sentence casing lightly
 	if (t.length > 0) {
 		t = t.charAt(0).toUpperCase() + t.slice(1)
 	}
@@ -124,12 +135,15 @@ function isInternalOnlyPath(p) {
 		v.startsWith("tests/") ||
 		v.startsWith("test/") ||
 		v.startsWith(".changeset/") ||
-		v.startsWith(".clinerules/workflows/") ||
-		v.endsWith(".md")
+		v.startsWith(".clinerules/workflows/")
 	)
 }
 
 function classifyScope(pr) {
+	if (pr.filesIncomplete) {
+		return { scope: "unknown", reason: "incomplete-file-list" }
+	}
+
 	const paths = pr.files ?? []
 	if (!paths.length) {
 		return { scope: "exclude", reason: "no-file-data" }
@@ -150,6 +164,7 @@ function classifyScope(pr) {
 
 function shouldInclude(scope, classifiedScope) {
 	if (classifiedScope === "exclude") return false
+	if (classifiedScope === "unknown") return false
 	if (scope === "vscode") return classifiedScope === "vscode" || classifiedScope === "both"
 	return classifiedScope === "cli" || classifiedScope === "both"
 }
@@ -176,18 +191,10 @@ function fetchRepoOwnerName(args) {
 
 function fetchGraphql(query) {
 	const res = runGh(["api", "graphql", "-f", `query=${query}`])
-	if (!res.ok) {
-		// Try to parse stdout anyway, gh can error with partial responses.
-		if (!res.stdout?.trim()) {
-			throw new Error(`gh api graphql failed: ${res.stderr || res.stdout}`)
-		}
+	if (!res.ok && !res.stdout?.trim()) {
+		throw new Error(`gh api graphql failed: ${res.stderr || res.stdout}`)
 	}
-	let parsed
-	try {
-		parsed = JSON.parse(res.stdout)
-	} catch {
-		throw new Error(`Failed to parse GraphQL stdout as JSON. stderr=${res.stderr}`)
-	}
+	const parsed = parseJson(res.stdout)
 	if (!parsed?.data) {
 		throw new Error("GraphQL response missing .data")
 	}
@@ -228,13 +235,88 @@ function verifyRefExists(ref) {
 	return res.stdout.trim()
 }
 
-function candidatePrNumbers(fromRef, toRef) {
-	const logRes = runGit(["log", "--first-parent", "--pretty=%s", `${fromRef}..${toRef}`])
+function firstParentCommits(fromRef, toRef) {
+	const logRes = runGit(["log", "--first-parent", "--pretty=%H%x09%s", `${fromRef}..${toRef}`])
 	if (!logRes.ok) {
 		throw new Error(`git log failed: ${logRes.stderr || logRes.stdout}`)
 	}
-	const matches = [...logRes.stdout.matchAll(/#(\d+)/g)].map((m) => Number(m[1]))
-	return [...new Set(matches)].sort((a, b) => a - b)
+	return logRes.stdout
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.map((line) => {
+			const [sha, ...rest] = line.split("\t")
+			return { sha, subject: rest.join("\t") }
+		})
+}
+
+function fetchAssociatedPrNumbersForCommits(owner, name, commitShas) {
+	const numbers = new Set()
+	let errors = 0
+
+	for (const sha of commitShas) {
+		const res = runGh(["api", "-H", "Accept: application/vnd.github+json", `repos/${owner}/${name}/commits/${sha}/pulls`])
+		if (!res.ok) {
+			errors++
+			continue
+		}
+		const arr = parseJson(res.stdout, [])
+		if (!Array.isArray(arr)) continue
+		for (const pr of arr) {
+			if (typeof pr?.number === "number") {
+				numbers.add(pr.number)
+			}
+		}
+	}
+
+	return { numbers: [...numbers].sort((a, b) => a - b), errors }
+}
+
+function discoverPrNumbers(owner, name, fromRef, toRef) {
+	const commits = firstParentCommits(fromRef, toRef)
+	const bySubject = new Set()
+	for (const c of commits) {
+		for (const m of c.subject.matchAll(/#(\d+)/g)) {
+			bySubject.add(Number(m[1]))
+		}
+	}
+
+	const associated = fetchAssociatedPrNumbersForCommits(
+		owner,
+		name,
+		commits.map((c) => c.sha),
+	)
+
+	const merged = new Set([...bySubject, ...associated.numbers])
+	return {
+		prNumbers: [...merged].sort((a, b) => a - b),
+		discovery: {
+			firstParentCommitCount: commits.length,
+			fromSubjectCount: bySubject.size,
+			fromAssociatedCommitCount: associated.numbers.length,
+			associatedLookupErrors: associated.errors,
+		},
+	}
+}
+
+function fetchAllPrFiles(owner, name, prNumber, initialNodes, initialPageInfo) {
+	const files = [...(initialNodes ?? []).map((n) => n.path).filter(Boolean)]
+	let hasNextPage = Boolean(initialPageInfo?.hasNextPage)
+	let endCursor = initialPageInfo?.endCursor ?? null
+
+	while (hasNextPage && endCursor) {
+		const query = `query { repository(owner: ${graphqlString(owner)}, name: ${graphqlString(name)}) { pr: pullRequest(number: ${prNumber}) { files(first: 100, after: ${graphqlString(endCursor)}) { nodes { path } pageInfo { hasNextPage endCursor } } } } }`
+		const parsed = fetchGraphql(query)
+		const page = parsed?.data?.repository?.pr?.files
+		const nodes = page?.nodes ?? []
+		for (const node of nodes) {
+			if (node?.path) files.push(node.path)
+		}
+		hasNextPage = Boolean(page?.pageInfo?.hasNextPage)
+		endCursor = page?.pageInfo?.endCursor ?? null
+	}
+
+	return files
 }
 
 function fetchPrMetadata(owner, name, prNumbers, batchSize = 80) {
@@ -250,10 +332,26 @@ function fetchPrMetadata(owner, name, prNumbers, batchSize = 80) {
 		const query = `query { repository(owner: ${graphqlString(owner)}, name: ${graphqlString(name)}) { ${body} } }`
 		const parsed = fetchGraphql(query)
 		const repoObj = parsed.data.repository || {}
+
 		for (const value of Object.values(repoObj)) {
 			if (!value) continue
-			const files = value.files?.nodes?.map((n) => n.path) ?? []
-			const hasMoreFiles = Boolean(value.files?.pageInfo?.hasNextPage)
+
+			const initialNodes = value.files?.nodes ?? []
+			const initialPageInfo = value.files?.pageInfo
+			let files = []
+			let filesIncomplete = false
+
+			try {
+				files = fetchAllPrFiles(owner, name, value.number, initialNodes, initialPageInfo)
+			} catch {
+				files = initialNodes.map((n) => n.path)
+				filesIncomplete = true
+			}
+
+			if (initialPageInfo?.hasNextPage && files.length === initialNodes.length) {
+				filesIncomplete = true
+			}
+
 			out.push({
 				number: value.number,
 				title: normalizeTitle(value.title),
@@ -262,39 +360,100 @@ function fetchPrMetadata(owner, name, prNumbers, batchSize = 80) {
 				author: value.author?.login ?? null,
 				labels: (value.labels?.nodes ?? []).map((n) => n.name),
 				files,
-				hasMoreFiles,
+				hasMoreFiles: Boolean(initialPageInfo?.hasNextPage),
+				filesIncomplete,
 			})
 		}
 	}
+
 	return out.sort((a, b) => a.number - b.number)
 }
 
-function membershipIsInternal(login) {
-	if (!login) return false
-	const res = runGh(["api", `orgs/cline/memberships/${login}`])
-	if (!res.ok) return false
-	return true
+function fetchOrgMembers(org) {
+	const logins = new Set()
+	let page = 1
+
+	while (true) {
+		const res = runGh(["api", `orgs/${org}/members?per_page=100&page=${page}`])
+		if (!res.ok) {
+			throw new Error(`Failed to fetch org members page ${page}: ${res.stderr || res.stdout}`)
+		}
+		const arr = parseJson(res.stdout, [])
+		if (!Array.isArray(arr) || arr.length === 0) {
+			break
+		}
+		for (const user of arr) {
+			if (user?.login) logins.add(user.login)
+		}
+		if (arr.length < 100) break
+		page++
+	}
+
+	return logins
 }
 
-function fetchEarliestPrByAuthor(owner, name, authors) {
+function fetchMembershipStatusForAuthors(authors, org = "cline") {
+	const byAuthor = Object.fromEntries(authors.map((a) => [a, "unknown"]))
+
+	if (!authors.length) {
+		return { byAuthor, confidence: "not-needed", error: null }
+	}
+
+	try {
+		const members = fetchOrgMembers(org)
+		for (const author of authors) {
+			byAuthor[author] = members.has(author) ? "internal" : "external"
+		}
+		return { byAuthor, confidence: "complete", error: null }
+	} catch (error) {
+		return { byAuthor, confidence: "unknown", error: error?.message || String(error) }
+	}
+}
+
+function aliasForAuthor(author, index) {
+	const safe = String(author)
+		.replace(/[^A-Za-z0-9_]/g, "_")
+		.replace(/^([^A-Za-z_])/, "_$1")
+	return `a${index}_${safe}`
+}
+
+function fetchEarliestPrByAuthor(owner, name, authors, batchSize = 40) {
 	const map = {}
-	for (const author of authors) {
-		const query = `query { search(query: ${graphqlString(`repo:${owner}/${name} is:pr is:merged author:${author} sort:created-asc`)}, type: ISSUE, first: 1) { nodes { ... on PullRequest { number author { login } } } } }`
+	const failedAuthors = []
+
+	for (let i = 0; i < authors.length; i += batchSize) {
+		const batch = authors.slice(i, i + batchSize)
+		const aliasToAuthor = {}
+		const fields = batch
+			.map((author, idx) => {
+				const alias = aliasForAuthor(author, i + idx)
+				aliasToAuthor[alias] = author
+				const q = `repo:${owner}/${name} is:pr is:merged author:${author} sort:created-asc`
+				return `${alias}: search(query: ${graphqlString(q)}, type: ISSUE, first: 1) { nodes { ... on PullRequest { number author { login } } } }`
+			})
+			.join(" ")
+
+		const query = `query { ${fields} }`
 		try {
 			const parsed = fetchGraphql(query)
-			const node = parsed?.data?.search?.nodes?.[0]
-			if (node?.author?.login && typeof node.number === "number") {
-				map[node.author.login] = node.number
+			const data = parsed?.data ?? {}
+			for (const [alias, author] of Object.entries(aliasToAuthor)) {
+				const node = data?.[alias]?.nodes?.[0]
+				if (node?.author?.login && typeof node.number === "number") {
+					map[node.author.login] = node.number
+				} else {
+					failedAuthors.push(author)
+				}
 			}
 		} catch {
-			// best-effort
+			failedAuthors.push(...batch)
 		}
 	}
-	return map
+
+	return { map, failedAuthors: [...new Set(failedAuthors)] }
 }
 
 function detectSectionHeadingLevel(changelogText) {
-	// Prefer the first explicit Added/Fixed/Changed heading if present.
 	const lines = changelogText.split(/\r?\n/)
 	for (const line of lines) {
 		const trimmed = line.trim()
@@ -305,7 +464,6 @@ function detectSectionHeadingLevel(changelogText) {
 			return "##"
 		}
 	}
-	// Default to ### to match current changelog style in this repo.
 	return "###"
 }
 
@@ -387,6 +545,7 @@ function main() {
 	const outputDir = path.resolve(String(args["output-dir"]))
 	ensureDir(outputDir)
 	const apply = Boolean(args.apply)
+	const allowIncompleteClassification = Boolean(args["allow-incomplete-classification"])
 	const targetFile = args["target-file"]
 		? path.resolve(String(args["target-file"]))
 		: path.resolve(scope === "cli" ? "cli/CHANGELOG.md" : "CHANGELOG.md")
@@ -423,12 +582,14 @@ function main() {
 
 	const { owner, name } = fetchRepoOwnerName(args)
 
-	const prNums = usingGitRange ? candidatePrNumbers(fromRef, toRef) : explicitPrNumbers
+	const discoveryResult = usingGitRange ? discoverPrNumbers(owner, name, fromRef, toRef) : null
+	const prNums = usingGitRange ? discoveryResult.prNumbers : explicitPrNumbers
 	const prs = fetchPrMetadata(owner, name, prNums, Number(args["batch-size"] || 80))
 
 	const classification = prs.map((pr) => {
 		const c = classifyScope(pr)
 		const included = shouldInclude(scope, c.scope)
+		const status = c.scope === "unknown" ? "unclassified" : included ? "included" : "excluded"
 		return {
 			number: pr.number,
 			title: pr.title,
@@ -437,24 +598,35 @@ function main() {
 			labels: pr.labels,
 			files: pr.files,
 			hasMoreFiles: pr.hasMoreFiles,
+			filesIncomplete: Boolean(pr.filesIncomplete),
 			classifiedScope: c.scope,
 			classificationReason: c.reason,
-			status: included ? "included" : "excluded",
-			exclusionReason: included ? null : c.reason,
+			status,
+			exclusionReason: status === "included" ? null : c.reason,
 		}
 	})
+
+	const unclassified = classification.filter((p) => p.status === "unclassified")
+	if (unclassified.length && !allowIncompleteClassification) {
+		throw new Error(
+			`Unclassified PRs due to incomplete file data: ${unclassified.map((p) => `#${p.number}`).join(", ")}. Re-run with --allow-incomplete-classification to proceed best-effort.`,
+		)
+	}
 
 	const included = classification.filter((p) => p.status === "included")
 
 	const authorSet = [...new Set(included.map((p) => p.author).filter(Boolean))]
-	const internalLookup = Object.fromEntries(authorSet.map((a) => [a, membershipIsInternal(a)]))
+	const membership = fetchMembershipStatusForAuthors(authorSet, "cline")
 
 	for (const row of classification) {
-		const a = row.author
-		row.externalContributor = a ? internalLookup[a] === false : false
+		const login = row.author
+		const membershipStatus = login ? (membership.byAuthor[login] ?? "unknown") : "unknown"
+		row.membershipStatus = membershipStatus
+		row.externalContributor = membershipStatus === "external"
 	}
 
-	const earliestByAuthor = fetchEarliestPrByAuthor(owner, name, authorSet)
+	const earliestByAuthorResult = fetchEarliestPrByAuthor(owner, name, authorSet)
+	const earliestByAuthor = earliestByAuthorResult.map
 	const firstTime = included
 		.filter((p) => p.author && earliestByAuthor[p.author] === p.number)
 		.sort((a, b) => a.number - b.number)
@@ -463,8 +635,8 @@ function main() {
 	if (!version && toRef && looksLikeSemverTagOrVersion(toRef)) {
 		version = toSemverNoV(toRef)
 	}
-	if (!version && gitAvailable()) {
-		version = toSemverNoV(resolveLatestTag())
+	if (!version && toRef && !looksLikeSemverTagOrVersion(toRef)) {
+		throw new Error("Unable to infer version from --to. Provide --version explicitly when --to is not semver-like.")
 	}
 	if (!version) {
 		throw new Error("Unable to infer version. Provide --version explicitly.")
@@ -477,7 +649,7 @@ function main() {
 	const grouped = { Added: [], Fixed: [], Changed: [] }
 	for (const pr of included) {
 		const section = sectionForTitle(pr.title)
-		const thanks = pr.externalContributor && pr.author ? ` (Thanks @${pr.author}!)` : ""
+		const thanks = pr.membershipStatus === "external" && pr.author ? ` (Thanks @${pr.author}!)` : ""
 		grouped[section].push(`- ${humanizeTitle(pr.title)}${thanks}`)
 	}
 
@@ -502,13 +674,22 @@ function main() {
 		toSha,
 		repository: `${owner}/${name}`,
 		candidatePrNumbers: prNums,
+		prNumberDiscovery: discoveryResult?.discovery ?? { mode: "explicit-pr-numbers" },
 		prs,
 	}
 
 	const scopeClassification = {
 		scope,
 		includedCount: included.length,
-		excludedCount: classification.length - included.length,
+		excludedCount: classification.filter((p) => p.status === "excluded").length,
+		unclassifiedCount: unclassified.length,
+		classificationComplete: unclassified.length === 0,
+		allowIncompleteClassification,
+		attributionConfidence: {
+			membershipLookup: membership.confidence,
+			membershipLookupError: membership.error,
+			earliestPrLookupFailedAuthors: earliestByAuthorResult.failedAuthors,
+		},
 		classification,
 	}
 
@@ -556,7 +737,9 @@ function main() {
 	}
 	console.log("---")
 	console.log(`scope=${scope} range=${fromRef}..${toRef} version=${version}`)
-	console.log(`prs=${classification.length} included=${included.length} excluded=${classification.length - included.length}`)
+	console.log(
+		`prs=${classification.length} included=${included.length} excluded=${classification.filter((p) => p.status === "excluded").length} unclassified=${unclassified.length}`,
+	)
 }
 
 try {
