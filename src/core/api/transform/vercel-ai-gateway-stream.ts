@@ -100,7 +100,7 @@ export async function createVercelAIGatewayStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
-	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+	if (model.id.startsWith("google/gemini-3")) {
 		// Recommended value from google
 		temperature = 1.0
 	}
