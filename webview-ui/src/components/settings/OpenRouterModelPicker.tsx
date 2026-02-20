@@ -280,9 +280,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	useMount(() => {
 		refreshOpenRouterModels()
-		if (modeFields.apiProvider === "cline") {
-			void fetchClineRecommendedModels()
-		}
 	})
 
 	useEffect(() => {
