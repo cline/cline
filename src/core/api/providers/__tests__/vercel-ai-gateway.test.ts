@@ -11,22 +11,22 @@ describe("VercelAIGatewayHandler", () => {
 			}
 
 			const handler = new VercelAIGatewayHandler({
-				openRouterModelId: "google/gemini-3-pro-preview",
+				openRouterModelId: "google/gemini-3.1-pro-preview",
 				openRouterModelInfo: customModelInfo,
 			})
 
 			const result = handler.getModel()
-			result.id.should.equal("google/gemini-3-pro-preview")
+			result.id.should.equal("google/gemini-3.1-pro-preview")
 			result.info.should.deepEqual(customModelInfo)
 		})
 
 		it("should preserve configured model ID when model info is missing", () => {
 			const handler = new VercelAIGatewayHandler({
-				openRouterModelId: "google/gemini-3-pro-preview",
+				openRouterModelId: "google/gemini-3.1-pro-preview",
 			})
 
 			const result = handler.getModel()
-			result.id.should.equal("google/gemini-3-pro-preview")
+			result.id.should.equal("google/gemini-3.1-pro-preview")
 			result.info.should.deepEqual(openRouterDefaultModelInfo)
 		})
 

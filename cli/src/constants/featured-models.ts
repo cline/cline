@@ -13,16 +13,22 @@ export interface FeaturedModel {
 export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedModel[] } = {
 	recommended: [
 		{
-			id: "anthropic/claude-sonnet-4.5",
-			name: "Claude Sonnet 4.5",
-			description: "Best balance of speed, cost, and quality",
-			labels: ["BEST"],
+			id: "google/gemini-3.1-pro-preview",
+			name: "Gemini 3.1 Pro Preview",
+			description: "Latest Gemini release with 1m ctx window and strong coding performance",
+			labels: ["NEW"],
+		},
+		{
+			id: "anthropic/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
+			description: "Latest Sonnet release with strong coding and agent performance",
+			labels: ["NEW"],
 		},
 		{
 			id: "anthropic/claude-opus-4.6",
 			name: "Claude Opus 4.6",
-			description: "State-of-the-art for complex coding",
-			labels: ["NEW"],
+			description: "Most intelligent model for agents and coding",
+			labels: ["BEST"],
 		},
 		{
 			id: "openai/gpt-5.2-codex",

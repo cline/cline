@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.65.0",
+	"version": "3.66.0",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
 		".",
@@ -444,7 +444,11 @@
 		"docs:rename-file": "cd docs && npm run rename",
 		"report-issue": "node scripts/report-issue.js",
 		"storybook": "cd webview-ui && npm run storybook",
-		"cli:unlink": "cd cli && npm run unlink"
+		"cli:unlink": "cd cli && npm run unlink",
+		"eval:smoke:build": "npm run cli:build && npm run cli:link",
+		"eval:smoke:run": "npx tsx evals/smoke-tests/run-smoke-tests.ts",
+		"eval:smoke": "npm run eval:smoke:build && npm run eval:smoke:run",
+		"eval:smoke:ci": "npm run eval:smoke:build && npm run eval:smoke:run -- --trials 1 --parallel"
 	},
 	"lint-staged": {
 		"src/shared/storage/state-keys.ts": [
@@ -536,8 +540,8 @@
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.37.0",
 		"@playwright/test": "^1.55.1",
-		"@sap-ai-sdk/ai-api": "^2.1.0",
-		"@sap-ai-sdk/orchestration": "^2.1.0",
+		"@sap-ai-sdk/ai-api": "^2.7.0",
+		"@sap-ai-sdk/orchestration": "^2.7.0",
 		"@sap-cloud-sdk/connectivity": "^4.2.0",
 		"@streamparser/json": "^0.0.22",
 		"@tailwindcss/vite": "^4.1.14",

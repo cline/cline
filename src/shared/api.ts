@@ -890,6 +890,21 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "gemini-3-pro-preview"
 export const vertexModels = {
+	"gemini-3.1-pro-preview": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		temperature: 1.0,
+		supportsReasoning: true,
+		thinkingConfig: {
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+	},
 	"gemini-3-pro-preview": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -1335,9 +1350,9 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-3-pro-preview"
+export const geminiDefaultModelId: GeminiModelId = "gemini-3.1-pro-preview"
 export const geminiModels = {
-	"gemini-3-pro-preview": {
+	"gemini-3.1-pro-preview": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
@@ -1348,6 +1363,33 @@ export const geminiModels = {
 		thinkingConfig: {
 			// If you don't specify a thinking level, Gemini will use the model's default
 			// dynamic thinking level, "high", for Gemini 3 Pro Preview.
+			geminiThinkingLevel: "high",
+			supportsThinkingLevel: true,
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 2.0,
+				outputPrice: 12.0,
+				cacheReadsPrice: 0.2,
+			},
+			{
+				contextWindow: Number.POSITIVE_INFINITY,
+				inputPrice: 4.0,
+				outputPrice: 18.0,
+				cacheReadsPrice: 0.4,
+			},
+		],
+	},
+	"gemini-3-pro-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 4.0,
+		outputPrice: 18.0,
+		cacheReadsPrice: 0.4,
+		thinkingConfig: {
 			geminiThinkingLevel: "high",
 			supportsThinkingLevel: true,
 		},

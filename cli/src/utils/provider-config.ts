@@ -80,15 +80,18 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 export interface ApplyBedrockConfigOptions {
 	bedrockConfig: BedrockConfig
 	modelId?: string
+	customModelBaseId?: string // Base model ID for custom ARN/Inference Profile (for capability detection)
 	controller?: Controller
 }
 
 /**
  * Apply Bedrock provider configuration to state
  * Handles AWS-specific fields (authentication, region, credentials)
+ * When customModelBaseId is provided, sets the custom model flags so the system
+ * knows to use the ARN as the model ID and the base model for capability detection.
  */
 export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Promise<void> {
-	const { bedrockConfig, modelId, controller } = options
+	const { bedrockConfig, modelId, customModelBaseId, controller } = options
 	const stateManager = StateManager.get()
 
 	const config: Record<string, unknown> = {
@@ -106,6 +109,18 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 		const planModelKey = getProviderModelIdKey("bedrock" as ApiProvider, "plan")
 		if (actModelKey) config[actModelKey] = finalModelId
 		if (planModelKey) config[planModelKey] = finalModelId
+	}
+
+	// Handle custom model (Application Inference Profile ARN)
+	if (customModelBaseId) {
+		config.actModeAwsBedrockCustomSelected = true
+		config.planModeAwsBedrockCustomSelected = true
+		config.actModeAwsBedrockCustomModelBaseId = customModelBaseId
+		config.planModeAwsBedrockCustomModelBaseId = customModelBaseId
+	} else {
+		// Ensure custom flags are cleared when using a standard model
+		config.actModeAwsBedrockCustomSelected = false
+		config.planModeAwsBedrockCustomSelected = false
 	}
 
 	// Add optional AWS credentials

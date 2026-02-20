@@ -1,22 +1,20 @@
 /**
  * VSCode context stub for CLI mode
- * Provides mock implementations of VSCode extension context
+ * Provides mock implementations of VSCode extension context.
  */
 
-import { mkdirSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import os from "os"
 import path from "path"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineExtensionContext } from "@/shared/cline"
-import { ClineFileStorage } from "@/shared/storage"
+import type { ClineMemento } from "@/shared/storage/ClineStorage"
+import { createStorageContext, type StorageContext } from "@/shared/storage/storage-context"
 import { EnvironmentVariableCollection, ExtensionKind, ExtensionMode, readJson, URI } from "./vscode-shim"
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-
-const SETTINGS_SUBFOLDER = "data"
 
 /**
  * CLI-specific state overrides.
@@ -35,33 +33,43 @@ const CLI_STATE_OVERRIDES: Record<string, any> = {
 }
 
 /**
- * File-based Memento store with optional key overrides.
- * Implements VSCode's Memento interface using SyncJsonFileStorage.
+ * Memento adapter that wraps a ClineFileStorage with optional key overrides.
+ * Used for globalState where CLI needs to inject hardcoded overrides.
  */
-class MementoStore extends ClineFileStorage {
-	private overrides: Record<string, any>
+class MementoAdapter implements ClineMemento {
+	constructor(
+		private readonly store: ClineMemento,
+		private readonly overrides: Record<string, any> = {},
+	) {}
 
-	constructor(filePath: string, overrides: Record<string, any> = {}) {
-		super(filePath, "MementoStore")
-		this.overrides = overrides
-	}
-
-	// VSCode Memento interface - override base class get() with overload support
-	override get<T>(key: string): T | undefined
-	override get<T>(key: string, defaultValue: T): T
-	override get<T>(key: string, defaultValue?: T): T | undefined {
+	get<T>(key: string): T | undefined
+	get<T>(key: string, defaultValue: T): T
+	get<T>(key: string, defaultValue?: T): T | undefined {
 		if (key in this.overrides) {
 			return this.overrides[key] as T
 		}
-		const value = super.get<T>(key)
+		const value = this.store.get<T>(key)
 		return value !== undefined ? value : defaultValue
 	}
 
-	override async update(key: string, value: any): Promise<void> {
-		if (key in this.overrides) {
-			return
+	update(key: string, value: any): Thenable<void> {
+		return this.setBatch({ [key]: value })
+	}
+
+	keys(): readonly string[] {
+		return this.store.keys()
+	}
+
+	setBatch(entries: Record<string, any>): Thenable<void> {
+		// Filter out overridden keys and delegate to underlying store
+		const filteredEntries: Record<string, any> = {}
+		for (const [key, value] of Object.entries(entries)) {
+			if (!(key in this.overrides)) {
+				filteredEntries[key] = value
+			}
 		}
-		this.set(key, value)
+		this.store.setBatch(filteredEntries)
+		return Promise.resolve()
 	}
 
 	setKeysForSync(_keys: readonly string[]): void {
@@ -69,81 +77,45 @@ class MementoStore extends ClineFileStorage {
 	}
 }
 
-/**
- * File-based secret storage implementing VSCode's SecretStorage interface.
- * Uses sync storage internally but exposes async API for VSCode compatibility.
- */
-class SecretStore {
-	private storage: ClineFileStorage<string>
-	private onDidChangeEmitter = {
-		event: () => ({ dispose: () => {} }),
-		fire: (_e: any) => {},
-		dispose: () => {},
-	}
-
-	onDidChange = this.onDidChangeEmitter.event
-
-	constructor(filePath: string) {
-		this.storage = new ClineFileStorage<string>(filePath, "SecretStore")
-	}
-
-	get(key: string): Promise<string | undefined> {
-		return Promise.resolve(this.storage.get(key))
-	}
-
-	store(key: string, value: string): Promise<void> {
-		this.storage.set(key, value)
-		return Promise.resolve()
-	}
-
-	delete(key: string): Promise<void> {
-		this.storage.delete(key)
-		return Promise.resolve()
-	}
-}
-
 export interface CliContextConfig {
 	clineDir?: string
-	/** The workspace directory being worked in (for hashing into storage path) */
+	/** The workspace directory being worked in (used to compute workspace storage hash) */
 	workspaceDir?: string
-}
-
-/**
- * Create a short hash of a string for use in directory names
- */
-function hashString(str: string): string {
-	let hash = 0
-	for (let i = 0; i < str.length; i++) {
-		const char = str.charCodeAt(i)
-		hash = (hash << 5) - hash + char
-		hash = hash & hash // Convert to 32bit integer
-	}
-	return Math.abs(hash).toString(16).substring(0, 8)
 }
 
 export interface CliContextResult {
 	extensionContext: ClineExtensionContext
+	storageContext: StorageContext
 	DATA_DIR: string
 	EXTENSION_DIR: string
 	WORKSPACE_STORAGE_DIR: string
 }
 
 /**
- * Initialize the VSCode-like context for CLI mode
+ * Initialize the VSCode-like context for CLI mode.
+ *
+ * Creates a shared StorageContext (the single source of truth for all storage)
+ * and wraps it in a ClineExtensionContext shell for legacy APIs that still
+ * expect the VSCode ExtensionContext shape.
  */
 export function initializeCliContext(config: CliContextConfig = {}): CliContextResult {
 	const CLINE_DIR = config.clineDir || process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
 
-	// Workspace storage should always be under ~/.cline/data/workspaces/<hash>/
-	// where hash is derived from the workspace path to keep workspaces isolated
-	const workspacePath = config.workspaceDir || process.cwd()
-	const workspaceHash = hashString(workspacePath)
-	const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspaces", workspaceHash)
+	// Create the shared StorageContext — this owns all ClineFileStorage instances.
+	// CLI, JetBrains, and VSCode all share this same file-backed implementation.
+	let storageContext = createStorageContext({
+		clineDir: CLINE_DIR,
+		workspacePath: config.workspaceDir || process.cwd(),
+		workspaceStorageDir: process.env.WORKSPACE_STORAGE_DIR || undefined,
+	})
+	storageContext = {
+		...storageContext,
+		// Storage — delegates to storageContext stores (with CLI overrides for globalState)
+		globalState: new MementoAdapter(storageContext.globalState, CLI_STATE_OVERRIDES),
+	}
 
-	// Ensure directories exist
-	mkdirSync(DATA_DIR, { recursive: true })
-	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
+	const DATA_DIR = storageContext.dataDir
+	const WORKSPACE_STORAGE_DIR = storageContext.workspaceStoragePath
 
 	// For CLI, extension dir is the package root (one level up from dist/)
 	const EXTENSION_DIR = path.resolve(__dirname, "..")
@@ -160,38 +132,30 @@ export function initializeCliContext(config: CliContextConfig = {}): CliContextR
 		extensionKind: ExtensionKind.UI,
 	}
 
+	// Build the ClineExtensionContext shell. All storage delegates to storageContext —
+	// there are NO separate ClineFileStorage instances here.
 	const extensionContext: ClineExtensionContext = {
 		extension: extension,
 		extensionMode: EXTENSION_MODE,
 
-		// Set up KV stores (globalState has CLI-specific overrides)
-		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json"), CLI_STATE_OVERRIDES),
-		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
-
-		// Set up URIs
+		// URIs / paths
 		storageUri: URI.file(WORKSPACE_STORAGE_DIR),
 		storagePath: WORKSPACE_STORAGE_DIR,
 		globalStorageUri: URI.file(DATA_DIR),
 		globalStoragePath: DATA_DIR,
-
-		// Logs
 		logUri: URI.file(DATA_DIR),
 		logPath: DATA_DIR,
-
 		extensionUri: URI.file(EXTENSION_DIR),
 		extensionPath: EXTENSION_DIR,
 		asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
 
 		subscriptions: [],
-
 		environmentVariableCollection: new EnvironmentVariableCollection() as any,
-
-		// Workspace state
-		workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
 	}
 
 	return {
 		extensionContext,
+		storageContext,
 		DATA_DIR,
 		EXTENSION_DIR,
 		WORKSPACE_STORAGE_DIR,
