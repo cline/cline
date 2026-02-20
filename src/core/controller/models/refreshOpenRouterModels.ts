@@ -7,8 +7,11 @@ import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
+	CLAUDE_OPUS_1M_TIERS,
 	CLAUDE_SONNET_1M_TIERS,
+	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet461mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
@@ -142,6 +145,8 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 				}
 
 				switch (rawModel.id) {
+					case "anthropic/claude-sonnet-4.6":
+					case "anthropic/claude-4.6-sonnet":
 					case "anthropic/claude-sonnet-4.5":
 					case "anthropic/claude-4.5-sonnet":
 					case "anthropic/claude-sonnet-4":
@@ -162,6 +167,12 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
+						break
+					case "anthropic/claude-opus-4.6":
+						modelInfo.contextWindow = 200_000 // restrict to 200k, 1m variant created below
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 6.25
+						modelInfo.cacheReadsPrice = 0.5
 						break
 					case "anthropic/claude-opus-4.5":
 						modelInfo.supportsPromptCache = true
@@ -255,15 +266,37 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 
 				models[rawModel.id] = modelInfo
 
-				// add custom :1m model variant
-				if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
+				// add custom :1m model variant for sonnet
+				if (
+					rawModel.id === "anthropic/claude-sonnet-4" ||
+					rawModel.id === "anthropic/claude-sonnet-4.5" ||
+					rawModel.id === "anthropic/claude-4.5-sonnet" ||
+					rawModel.id === "anthropic/claude-sonnet-4.6" ||
+					rawModel.id === "anthropic/claude-4.6-sonnet"
+				) {
 					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
 					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
 					// sonnet 4
-					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+					if (rawModel.id === "anthropic/claude-sonnet-4") {
+						models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+					}
 					// sonnet 4.5
-					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+					if (rawModel.id === "anthropic/claude-sonnet-4.5" || rawModel.id === "anthropic/claude-4.5-sonnet") {
+						models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+					}
+					// sonnet 4.6
+					if (rawModel.id === "anthropic/claude-sonnet-4.6" || rawModel.id === "anthropic/claude-4.6-sonnet") {
+						models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo
+					}
+				}
+
+				// add custom :1m model variant for opus 4.6
+				if (rawModel.id === "anthropic/claude-opus-4.6") {
+					const claudeOpus1mModelInfo = cloneDeep(modelInfo)
+					claudeOpus1mModelInfo.contextWindow = 1_000_000
+					claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
+					models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo
 				}
 			}
 			// Save models and cache them in memory

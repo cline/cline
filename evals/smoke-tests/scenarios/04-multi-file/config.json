@@ -1,0 +1,20 @@
+{
+	"name": "Create multiple files",
+	"description": "Tests tool chaining with multiple file operations",
+	"prompt": "Create a simple project with two files: index.html with a basic HTML structure, and style.css with a simple body style that sets the font family to Arial",
+	"expectedFiles": [
+		"index.html",
+		"style.css"
+	],
+	"expectedContent": [
+		{
+			"file": "index.html",
+			"contains": "html"
+		},
+		{
+			"file": "style.css",
+			"contains": "Arial"
+		}
+	],
+	"timeout": 180
+}

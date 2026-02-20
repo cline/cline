@@ -1,9 +1,9 @@
 ---
 title: "Z AI (Zhipu AI)"
-description: "Learn how to configure and use Z AI's GLM-4.5 models with Cline. Experience advanced hybrid reasoning, agentic capabilities, and open-source excellence with regional optimization."
+description: "Learn how to configure and use Z AI's GLM models with Cline. Experience advanced hybrid reasoning, agentic capabilities, and open-source excellence with regional optimization."
 ---
 
-Z AI (formerly Zhipu AI) offers the groundbreaking GLM-4.5 series, featuring hybrid reasoning capabilities and agentic AI design. Released in July 2025, these models excel in unified reasoning, coding, and intelligent agent applications while maintaining open-source accessibility under MIT license.
+Z AI (formerly Zhipu AI) offers the GLM model series, featuring hybrid reasoning capabilities and agentic AI design. These models excel in unified reasoning, coding, and intelligent agent applications while maintaining open-source accessibility under MIT license.
 
 **Website:** [https://z.ai/model-api](https://z.ai/model-api) (International) | [https://open.bigmodel.cn/](https://open.bigmodel.cn/) (China)
 
@@ -23,21 +23,28 @@ Z AI (formerly Zhipu AI) offers the groundbreaking GLM-4.5 series, featuring hyb
 
 ### Supported Models
 
-Z AI provides different model catalogs based on your selected region:
+Z AI provides different model catalogs based on your selected region. Both regions share the same model lineup:
+
+#### GLM-5 (Latest)
+-   `glm-5` (Default) - Latest flagship model with 200K context window and prompt caching ($1.00/$3.20 per 1M tokens)
+
+#### GLM-4.7
+-   `glm-4.7` - High-performance model with 200K context and prompt caching ($0.60/$2.20 per 1M tokens)
+
+#### GLM-4.6
+-   `glm-4.6` - Advanced model with 200K context and prompt caching ($0.60/$2.20 per 1M tokens)
 
 #### GLM-4.5 Series
--   **GLM-4.5** - Flagship model with 355B total parameters, 32B active parameters
--   **GLM-4.5-Air** - Compact model with 106B total parameters, 12B active parameters
-
-#### GLM-4.5 Hybrid Reasoning Models
--   **GLM-4.5 (Thinking Mode)** - Advanced reasoning with step-by-step analysis
--   **GLM-4.5-Air (Thinking Mode)** - Efficient reasoning for mainstream hardware
+-   `glm-4.5` - Flagship model with 131K context, prompt caching, and hybrid reasoning
+-   `glm-4.5-air` - Compact, cost-effective model with 128K context and prompt caching
 
 All models feature:
--   **128,000 token context window** for extensive document processing
+-   **Prompt caching support** for reduced costs on repeated queries
 -   **Mixture of Experts (MoE) architecture** for optimal performance
 -   **Agent-native design** integrating reasoning, coding, and tool usage
 -   **Open-source availability** under MIT license
+
+**Note:** Pricing differs between International and China regions. China region pricing is approximately 50% lower.
 
 ### Configuration in Cline
 

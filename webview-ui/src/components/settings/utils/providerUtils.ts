@@ -69,6 +69,11 @@ import {
 	xaiModels,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import * as reasoningSupport from "@shared/utils/reasoning-support"
+
+export function supportsReasoningEffortForModelId(modelId?: string, _allowShortOpenAiIds = false): boolean {
+	return reasoningSupport.supportsReasoningEffortForModel(modelId)
+}
 
 /**
  * Returns the static model list for a provider.

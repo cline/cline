@@ -18,12 +18,12 @@ describe("Controller Marketplace Filtering", () => {
 	let stateManagerStub: sinon.SinonStub
 	let mockStateManager: any
 	let axiosGetStub: sinon.SinonStub
-	let hostProviderInitialized: boolean = false
+	let hostProviderInitialized = false
 
 	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
 	before(async () => {
 		if (!ClineEndpoint.isInitialized()) {
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize("/test/extension")
 		}
 	})
 
@@ -84,12 +84,18 @@ describe("Controller Marketplace Filtering", () => {
 		},
 	]
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		// Initialize HostProvider if not already done
 		if (!HostProvider.isInitialized()) {
 			const mockHostBridge: any = {
 				workspaceClient: {},
-				envClient: {},
+				envClient: {
+					getHostVersion: sinon.stub().resolves({
+						clineVersion: "1.0.0",
+						platform: "darwin",
+						clineType: "vscode",
+					}),
+				},
 				windowClient: {},
 				diffClient: {},
 			}
@@ -101,13 +107,16 @@ describe("Controller Marketplace Filtering", () => {
 				() => null as any, // createTerminalManager
 				mockHostBridge,
 				() => {}, // logToChannel
-				async () => "http://localhost", // getCallbackUrl
+				async (path: string) => `http://localhost${path}`, // getCallbackUrl
 				async () => "", // getBinaryLocation
 				"/test/extension", // extensionFsPath
 				"/test/storage", // globalStorageFsPath
 			)
 			hostProviderInitialized = true
 		}
+
+		// Initialize HostRegistryInfo before creating Controller
+		await require("@/registry").HostRegistryInfo.init()
 
 		// Mock VSCode context
 		mockContext = {

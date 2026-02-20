@@ -17,10 +17,6 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 {{${SystemPromptSection.ACT_VS_PLAN}}}
 ====
 
-{{${SystemPromptSection.CLI_SUBAGENTS}}}
-
-====
-
 {{${SystemPromptSection.CAPABILITIES}}}
 
 ====

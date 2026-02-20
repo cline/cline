@@ -137,10 +137,9 @@ export class OcaHandler implements ApiHandler {
 			if (response.ok) {
 				const data: { cost: number } = await response.json()
 				return data.cost
-			} else {
-				Logger.error("Error calculating spend:", response.statusText)
-				return undefined
 			}
+			Logger.error("Error calculating spend:", response.statusText)
+			return undefined
 		} catch (error) {
 			Logger.error("Error calculating spend:", error)
 			return undefined
@@ -308,12 +307,9 @@ export class OcaHandler implements ApiHandler {
 
 	async *createMessageResponsesApi(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
-
+		const inputMessages = convertToOpenAIResponsesInput(messages).input
 		// Convert messages to Responses API input format
-		const input: OpenAI.Responses.ResponseInputItem[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAIResponsesInput(messages),
-		]
+		const input: OpenAI.Responses.ResponseInputItem[] = [{ role: "system", content: systemPrompt }, ...inputMessages]
 
 		// Convert ChatCompletion tools to Responses API format if provided
 		const responseTools = tools

@@ -43,7 +43,7 @@
 			"a11y": "info",
 			"style": {
 				"useNodejsImportProtocol": "off",
-				"useImportType": "info",
+				"useImportType": "off",
 				"useBlockStatements": "off",
 				"useNamingConvention": "off",
 				"useThrowOnlyError": "info",

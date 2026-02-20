@@ -4,7 +4,6 @@
  */
 
 import { URI } from "vscode-uri"
-import { ClineMemento, ClineSecretStore } from "../storage"
 
 enum ExtensionMode {
 	/**
@@ -41,39 +40,6 @@ export interface ClineExtensionContext {
 	}[]
 
 	/**
-	 * A memento object that stores state in the context
-	 * of the currently opened {@link workspace.workspaceFolders workspace}.
-	 */
-	readonly workspaceState: ClineMemento
-
-	/**
-	 * A memento object that stores state independent
-	 * of the current opened {@link workspace.workspaceFolders workspace}.
-	 */
-	readonly globalState: ClineMemento & {
-		/**
-		 * Set the keys whose values should be synchronized across devices when synchronizing user-data
-		 * like configuration, extensions, and mementos.
-		 *
-		 * Note that this function defines the whole set of keys whose values are synchronized:
-		 *  - calling it with an empty array stops synchronization for this memento
-		 *  - calling it with a non-empty array replaces all keys whose values are synchronized
-		 *
-		 * For any given set of keys this function needs to be called only once but there is no harm in
-		 * repeatedly calling it.
-		 *
-		 * @param keys The set of keys whose values are synced.
-		 */
-		setKeysForSync(keys: readonly string[]): void
-	}
-
-	/**
-	 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
-	 * current opened {@link workspace.workspaceFolders workspace}.
-	 */
-	readonly secrets: ClineSecretStore
-
-	/**
 	 * The uri of the directory containing the extension.
 	 */
 	readonly extensionUri: URI
@@ -107,8 +73,8 @@ export interface ClineExtensionContext {
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 * The value is `undefined` when no workspace nor folder has been opened.
 	 *
-	 * Use {@linkcode ExtensionContext.workspaceState workspaceState} or
-	 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode StateManager.workspaceState} or
+	 * {@linkcode StateManager.globalState} to store key value data.
 	 *
 	 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
 	 *  an uri.
@@ -120,8 +86,8 @@ export interface ClineExtensionContext {
 	 * can store private state. The directory might not exist on disk and creation is
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 *
-	 * Use {@linkcode ExtensionContext.workspaceState workspaceState} or
-	 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode StateManager.workspaceState} or
+	 * {@linkcode StateManager.globalState} to store key value data.
 	 *
 	 * @deprecated Use {@link ExtensionContext.storageUri storageUri} instead.
 	 */
@@ -132,7 +98,7 @@ export interface ClineExtensionContext {
 	 * The directory might not exist on disk and creation is
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 *
-	 * Use {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode StateManager.globalState} to store key value data.
 	 *
 	 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
 	 *  an uri.
@@ -144,7 +110,7 @@ export interface ClineExtensionContext {
 	 * The directory might not exist on disk and creation is
 	 * up to the extension. However, the parent directory is guaranteed to be existent.
 	 *
-	 * Use {@linkcode ExtensionContext.globalState globalState} to store key value data.
+	 * Use {@linkcode StateManager.globalState} to store key value data.
 	 *
 	 * @deprecated Use {@link ExtensionContext.globalStorageUri globalStorageUri} instead.
 	 */
