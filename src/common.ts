@@ -1,4 +1,3 @@
-import type * as vscode from "vscode"
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -24,8 +23,6 @@ import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
-
-type SlimExtensionContext = Omit<vscode.ExtensionContext, "globalState" | "secrets" | "workspaceState">
 
 /**
  * Performs intialization for Cline that is common to all platforms.
