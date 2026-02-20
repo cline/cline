@@ -1,4 +1,6 @@
-You are in the `cline/` repo. Your goal is to generate and **apply** a high-quality changelog update for either the VSCode extension or the CLI between two refs, leaving file changes uncommitted for human review.
+You are in the `cline/` repo. Your goal is to generate and **apply** high-quality changelog updates for both the VSCode extension and the CLI in one run, leaving file changes uncommitted for human review.
+
+This is a **Cline workflow**. Execute required steps yourself using tools; do not ask the release commander to manually run shell commands.
 
 You have access to `git`, `gh`, and `jq`. Assume `gh` is already authenticated.
 
@@ -8,37 +10,38 @@ You may also use:
 
 <detailed_sequence_of_steps>
 
-# Release Changelog Generation Workflow (Apply-Ready)
+# Release Changelog Generation Workflow (LLM-Prose Apply)
 
 ## Inputs you must ask the user for
-Ask the user to choose one of these **four** options (preferred), then collect any missing values:
+Default to **single-action mode** and only ask for missing release version details when needed.
 
-1. `scope=vscode, from=latest, to=now`
-2. `scope=cli, from=latest, to=now`
-3. `scope=vscode, from=<tag>, to=<tag/ref>`
-4. `scope=cli, from=<tag>, to=<tag/ref>`
+Preferred defaults:
 
-Where:
+- `from=latest` (latest `vX.Y.Z` tag)
+- `to=now` (maps to `main`)
+- apply both scopes in one run
 
-- `from=latest` means “use the latest `vX.Y.Z` tag in the repo”.
-- `to=now` means “use `main`”.
+Collect as little as possible:
 
-If the user doesn’t pick one of the four directly, fall back to collecting these fields explicitly:
+1. Release version to write in changelog headers:
+   - normally ask for one `version` used for both files, or
+   - optional split versions: `vscode-version` and `cli-version`
+2. Optional range overrides only if user requests them:
+   - `from=<tag|ref>`
+   - `to=<tag|ref>`
 
-1. **Scope**: `vscode` or `cli`
-2. **From tag/ref**: e.g. `v3.54.0` (exclusive lower bound). Use the latest `vX.Y.Z` tag if they say “latest”.
-3. **To ref** (optional): default `main` (inclusive upper bound). Use `main` if they say “now”.
+If user does not provide range, do **not** ask follow-ups; use defaults (`latest..main`).
 
-If any are missing, ask a follow-up question.
+Do not ask the user to provide execution details (batch size, output dir, etc.) unless explicitly requested.
 
 ## Output Target Selection
 
-After inputs are resolved:
+In default one-action mode, update both files in one invocation:
 
-- if `scope=vscode`, target file is `CHANGELOG.md`
-- if `scope=cli`, target file is `cli/CHANGELOG.md`
+- `CHANGELOG.md` (VSCode extension)
+- `cli/CHANGELOG.md` (CLI)
 
-You must update the chosen target file directly (uncommitted), preserving existing content and formatting conventions.
+Leave both updates uncommitted for human review.
 
 ## 0) Preflight
 
@@ -66,7 +69,7 @@ You must update the chosen target file directly (uncommitted), preserving existi
 - If the user gives an explicit target version, use it.
 - Otherwise infer from `to` (if tag-like), else ask user.
 
-Required final header for both scopes:
+Required final header for both outputs:
 
 `## [<version>]`
 
@@ -88,21 +91,22 @@ git log --first-parent --pretty=%s <from>..<to> |
 
 Save the union (newline-separated) as `ALL_PR_NUMBERS`.
 
-## 1.5) Preferred inventory command (recommended)
+## 1.5) Preferred execution path (internal)
 
-Prefer this one-shot inventory command to reduce manual assembly and improve determinism:
+Use the inventory pipeline internally in one action to prepare artifacts for both scopes:
 
 ```bash
 node scripts/release/changelog-inventory.mjs \
-  --scope <vscode|cli> \
-  --from <from> \
-  --to <to> \
-  --version <x.y.z> \
-  --apply \
+  --both \
+  --from latest \
+  --to now \
   --output-dir /Users/evekillaby/dev/tmp/.cline-artifacts/release-generate-changelog
 ```
 
-If `--to` is not semver-like (for example `main`), `--version` is required.
+Notes:
+
+- `--from latest` and `--to now` are defaults; they may be omitted.
+- This script is inventory/classification only; release version is resolved in the LLM synthesis/apply step.
 
 If you need best-effort behavior when some PR file lists cannot be fully loaded, add:
 
@@ -115,14 +119,11 @@ This generates:
 - `pr-inventory.json`
 - `scope-classification.json`
 - `candidate-bullets.md`
-- `final-changelog.md`
+- `merged-pr-lines.md`
 
-And with `--apply`, it updates:
+Important: this script does **not** update changelog files. It only produces artifacts.
 
-- `CHANGELOG.md` when `scope=vscode`
-- `cli/CHANGELOG.md` when `scope=cli`
-
-without committing.
+In this workflow, you should run this internally; do not instruct the release commander to execute it manually.
 
 If this script is unavailable, continue with manual commands below.
 
@@ -172,6 +173,10 @@ Scope inclusion filter:
 
 - `scope=vscode` includes `vscode` + `both`
 - `scope=cli` includes `cli` + `both`
+
+In one-action mode, run both filters and generate/apply one release block per target file.
+
+In one-action mode, run both filters to generate artifacts for each scope, then use those artifacts to synthesize and apply one release block per target file.
 
 ## 3) First-time contributors (optional, best-effort)
 
@@ -223,6 +228,12 @@ Required output format:
 - This section schema is the same for both targets (`CHANGELOG.md` and `cli/CHANGELOG.md`)
 - Final user-facing bullets must be human-readable only: no PR numbers and no PR links
 
+Authoring source of truth:
+
+- Use `pr-inventory.json`, `scope-classification.json`, `candidate-bullets.md`, and `merged-pr-lines.md` as structured inputs.
+- Treat `candidate-bullets.md` as reference material only (deterministic title transforms), not final prose.
+- Final changelog prose must be authored by the LLM in this workflow, then applied to the changelog files.
+
 Final chat envelope:
 
 1. concise summary (2–5 bullets)
@@ -241,11 +252,11 @@ After generating output and applying to file:
 5. Ensure New Contributors bullets follow:
    `- @<login> made their first contribution.`
 6. Ensure every included PR is represented in at least one bullet or explicitly acknowledged in exclusions.
-7. Ensure target is correct:
-   - `scope=vscode` => content intended for `CHANGELOG.md`
-   - `scope=cli` => content intended for `cli/CHANGELOG.md`
+7. Ensure targets are correct:
+   - VSCode content is applied to `CHANGELOG.md`
+   - CLI content is applied to `cli/CHANGELOG.md`
 8. Ensure existing changelog history is preserved and only the new release block is inserted at the top release position.
-9. If there are zero included PRs for the selected scope/range, do not modify the target changelog file; report a no-op.
+9. If there are zero included PRs for a scope, do not modify that scope's changelog file; report a scope-specific no-op.
 
 </detailed_sequence_of_steps>
 

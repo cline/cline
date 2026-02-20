@@ -3,6 +3,10 @@
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+const SCRIPT_PATH = fileURLToPath(import.meta.url)
+const DEFAULT_OUTPUT_DIR = "/Users/evekillaby/dev/tmp/.cline-artifacts/release-generate-changelog"
 
 function parseArgs(argv) {
 	const args = {}
@@ -29,23 +33,24 @@ Usage:
     --scope <vscode|cli> \\
     [--from <latest|tag|ref>] \\
     [--to <now|tag|ref>] \\
-    --output-dir <abs-or-rel-path> \\
-    [--version <x.y.z>] [--batch-size <n>] [--repo-owner <owner>] [--repo-name <name>] \\
-    [--pr-numbers <comma-separated>] [--apply] [--target-file <path>] \\
+    [--output-dir <abs-or-rel-path>] \\
+    [--batch-size <n>] [--repo-owner <owner>] [--repo-name <name>] \\
+    [--pr-numbers <comma-separated>] \\
     [--allow-incomplete-classification]
+
+Single-action release commander mode (prepares BOTH scopes):
+  node scripts/release/changelog-inventory.mjs \\
+    --both \\
+    [--from <latest|tag|ref>] [--to <now|tag|ref>] [--output-dir <abs-or-rel-path>]
 
 Writes artifacts:
   - pr-inventory.json
   - scope-classification.json
   - candidate-bullets.md
-  - final-changelog.md
-
-With --apply:
-  - inserts the generated changelog section into the target changelog file
-  - leaves changes uncommitted for human review
+  - merged-pr-lines.md
 
 Notes:
-  - if --to is not semver-like (for example "main"), --version is required
+  - defaults: --from latest, --to now, --output-dir ${DEFAULT_OUTPUT_DIR}
   - incomplete PR file lists fail classification unless --allow-incomplete-classification is set
 `)
 }
@@ -472,70 +477,57 @@ function fetchEarliestMergedPrByAuthor(owner, name, authors) {
 	return { map, failedAuthors: [...new Set(failedAuthors)] }
 }
 
-function detectSectionHeadingLevel(changelogText) {
-	const lines = changelogText.split(/\r?\n/)
-	for (const line of lines) {
-		const trimmed = line.trim()
-		if (/^###\s+(Added|Fixed|Changed|New Contributors)\b/i.test(trimmed)) {
-			return "###"
-		}
-		if (/^##\s+(Added|Fixed|Changed|New Contributors)\b/i.test(trimmed)) {
-			return "##"
-		}
-	}
-	return "###"
-}
-
-function buildChangelogBlock({ version, sectionHeading, grouped, firstTime }) {
-	const lines = [`## [${version}]`, ""]
-	for (const sectionName of ["Added", "Fixed", "Changed"]) {
-		if (grouped[sectionName].length) {
-			lines.push(`${sectionHeading} ${sectionName}`, "")
-			lines.push(...grouped[sectionName], "")
-		}
-	}
-	if (firstTime.length) {
-		lines.push(`${sectionHeading} New Contributors`, "")
-		for (const pr of firstTime) {
-			lines.push(`- @${pr.author} made their first contribution.`)
-		}
-		lines.push("")
-	}
-	return lines.join("\n").trimEnd() + "\n"
-}
-
-function insertAtTopOfChangelog(existingText, entryBlock) {
-	const lines = existingText.split(/\r?\n/)
-	const firstVersionIndex = lines.findIndex((line) => /^##\s+\[?\d+\.\d+\.\d+\]?\s*$/.test(line.trim()))
-	if (firstVersionIndex === -1) {
-		throw new Error("Could not find first version heading in target changelog")
-	}
-
-	const before = lines.slice(0, firstVersionIndex).join("\n").replace(/\s*$/, "")
-	const after = lines.slice(firstVersionIndex).join("\n").replace(/^\s*/, "")
-	return `${before}\n\n${entryBlock.trimEnd()}\n\n${after}\n`
-}
-
-function changelogAlreadyHasVersion(existingText, version) {
-	const escaped = String(version).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-	const re = new RegExp(`^##\\s+(?:\\[${escaped}\\]|${escaped})\\s*$`, "m")
-	return re.test(existingText)
-}
-
-function applyChangelogUpdate(targetPath, entryBlock, version) {
-	const existing = fs.readFileSync(targetPath, "utf8")
-	if (changelogAlreadyHasVersion(existing, version)) {
-		throw new Error(`Target changelog already contains version ${version}`)
-	}
-	const updated = insertAtTopOfChangelog(existing, entryBlock)
-	fs.writeFileSync(targetPath, updated, "utf8")
-}
-
 function main() {
 	const args = parseArgs(process.argv.slice(2))
-	if (args.help || args.h || !args.scope || !args["output-dir"]) {
+	if (args.help || args.h) {
 		usage()
-		process.exit(args.help || args.h ? 0 : 1)
+		process.exit(0)
+	}
+
+	if (args["apply-both"]) {
+		console.error("WARNING: --apply-both is deprecated and now behaves like --both (inventory-only, no file updates).")
+		args.both = true
+	}
+
+	if (args.both) {
+		const outputDir = path.resolve(String(args["output-dir"] || DEFAULT_OUTPUT_DIR))
+		ensureDir(outputDir)
+
+		const from = String(args.from || "latest")
+		const to = String(args.to || "now")
+
+		const sharedArgs = ["--from", from, "--to", to]
+		if (args["batch-size"]) sharedArgs.push("--batch-size", String(args["batch-size"]))
+		if (args["repo-owner"]) sharedArgs.push("--repo-owner", String(args["repo-owner"]))
+		if (args["repo-name"]) sharedArgs.push("--repo-name", String(args["repo-name"]))
+		if (args["pr-numbers"]) sharedArgs.push("--pr-numbers", String(args["pr-numbers"]))
+		if (args["allow-incomplete-classification"]) sharedArgs.push("--allow-incomplete-classification")
+
+		const scopedRuns = [{ scope: "vscode" }, { scope: "cli" }]
+
+		for (const scopedRun of scopedRuns) {
+			const scopeOutputDir = path.join(outputDir, scopedRun.scope)
+			ensureDir(scopeOutputDir)
+			const cmdArgs = [SCRIPT_PATH, "--scope", scopedRun.scope, "--output-dir", scopeOutputDir, ...sharedArgs]
+
+			const res = run(process.execPath, cmdArgs)
+			if (!res.ok) {
+				throw new Error(`both-mode failed for scope=${scopedRun.scope}: ${res.stderr || res.stdout || "unknown error"}`)
+			}
+			if (res.stdout?.trim()) {
+				console.log(res.stdout.trim())
+			}
+		}
+
+		console.log("---")
+		console.log("both-mode completed for scopes=vscode,cli")
+		console.log(`range=${from}..${to}`)
+		return
+	}
+
+	if (!args.scope) {
+		usage()
+		process.exit(1)
 	}
 
 	const scope = String(args.scope)
@@ -543,13 +535,14 @@ function main() {
 		throw new Error(`Invalid --scope: ${scope}`)
 	}
 
-	const outputDir = path.resolve(String(args["output-dir"]))
+	const outputDir = path.resolve(String(args["output-dir"] || DEFAULT_OUTPUT_DIR))
 	ensureDir(outputDir)
-	const apply = Boolean(args.apply)
+	if (args.apply || args["target-file"]) {
+		throw new Error(
+			"--apply and --target-file were removed. This script now produces inventory/classification artifacts only.",
+		)
+	}
 	const allowIncompleteClassification = Boolean(args["allow-incomplete-classification"])
-	const targetFile = args["target-file"]
-		? path.resolve(String(args["target-file"]))
-		: path.resolve(scope === "cli" ? "cli/CHANGELOG.md" : "CHANGELOG.md")
 
 	const prNumbersArg = args["pr-numbers"]
 	const explicitPrNumbers = prNumbersArg
@@ -564,12 +557,8 @@ function main() {
 		: []
 
 	const usingGitRange = explicitPrNumbers.length === 0
-	if (usingGitRange && (!args.from || !args.to)) {
-		throw new Error("Provide --from/--to, or provide --pr-numbers to bypass git range discovery")
-	}
-
-	const fromRef = args.from ? resolveRef(String(args.from)) : null
-	const toRef = args.to ? resolveRef(String(args.to)) : null
+	const fromRef = usingGitRange ? resolveRef(String(args.from || "latest")) : null
+	const toRef = usingGitRange ? resolveRef(String(args.to || "now")) : null
 	let fromSha = null
 	let toSha = null
 
@@ -632,20 +621,6 @@ function main() {
 		.filter((p) => p.author && earliestByAuthor[p.author] === p.number)
 		.sort((a, b) => a.number - b.number)
 
-	let version = args.version ? String(args.version) : undefined
-	if (!version && toRef && looksLikeSemverTagOrVersion(toRef)) {
-		version = toSemverNoV(toRef)
-	}
-	if (!version && toRef && !looksLikeSemverTagOrVersion(toRef)) {
-		throw new Error("Unable to infer version from --to. Provide --version explicitly when --to is not semver-like.")
-	}
-	if (!version) {
-		throw new Error("Unable to infer version. Provide --version explicitly.")
-	}
-
-	const targetExistingText = fs.readFileSync(targetFile, "utf8")
-	const sectionHeading = detectSectionHeadingLevel(targetExistingText)
-
 	const grouped = { Added: [], Fixed: [], Changed: [] }
 	for (const pr of included) {
 		const section = sectionForTitle(pr.title)
@@ -653,24 +628,13 @@ function main() {
 		grouped[section].push(`- ${humanizeTitle(pr.title)}${thanks}`)
 	}
 
-	const hasChangelogContent =
-		grouped.Added.length > 0 || grouped.Fixed.length > 0 || grouped.Changed.length > 0 || firstTime.length > 0
-
-	const finalChangelog = hasChangelogContent
-		? buildChangelogBlock({
-				version,
-				sectionHeading,
-				grouped,
-				firstTime,
-			})
-		: ""
-
 	const prInventory = {
 		scope,
 		from: fromRef,
 		to: toRef,
 		fromSha,
 		toSha,
+		versionHint: looksLikeSemverTagOrVersion(toRef) ? toSemverNoV(toRef) : null,
 		repository: `${owner}/${name}`,
 		candidatePrNumbers: prNums,
 		prNumberDiscovery: discoveryResult?.discovery ?? { mode: "explicit-pr-numbers" },
@@ -695,6 +659,9 @@ function main() {
 	const candidateBullets = [
 		"# Candidate Bullets",
 		"",
+		"These are deterministic candidate bullets from PR titles for editor reference only.",
+		"Final release prose should be generated by the release workflow prompt and then applied to changelog files.",
+		"",
 		`Scope: ${scope}`,
 		`Range: ${fromRef && toRef ? `${fromRef}..${toRef}` : "(from explicit PR numbers)"}`,
 		"",
@@ -712,30 +679,19 @@ function main() {
 		"",
 	]
 
+	const mergedPrLines = ["# Merged PR Lines", "", ...prs.map((pr) => `- #${pr.number} ${pr.title} (${pr.url})`)]
+
 	writeJson(path.join(outputDir, "pr-inventory.json"), prInventory)
 	writeJson(path.join(outputDir, "scope-classification.json"), scopeClassification)
 	fs.writeFileSync(path.join(outputDir, "candidate-bullets.md"), candidateBullets.join("\n"), "utf8")
-	fs.writeFileSync(
-		path.join(outputDir, "final-changelog.md"),
-		hasChangelogContent ? finalChangelog : "(no included changes for this scope/range)\n",
-		"utf8",
-	)
-
-	if (apply && hasChangelogContent) {
-		applyChangelogUpdate(targetFile, finalChangelog, version)
-	}
+	fs.writeFileSync(path.join(outputDir, "merged-pr-lines.md"), mergedPrLines.join("\n") + "\n", "utf8")
 
 	console.log(`Wrote: ${path.join(outputDir, "pr-inventory.json")}`)
 	console.log(`Wrote: ${path.join(outputDir, "scope-classification.json")}`)
 	console.log(`Wrote: ${path.join(outputDir, "candidate-bullets.md")}`)
-	console.log(`Wrote: ${path.join(outputDir, "final-changelog.md")}`)
-	if (apply && hasChangelogContent) {
-		console.log(`Updated: ${targetFile}`)
-	} else if (apply) {
-		console.log(`Skipped update (no included changes): ${targetFile}`)
-	}
+	console.log(`Wrote: ${path.join(outputDir, "merged-pr-lines.md")}`)
 	console.log("---")
-	console.log(`scope=${scope} range=${fromRef}..${toRef} version=${version}`)
+	console.log(`scope=${scope} range=${fromRef}..${toRef}`)
 	console.log(
 		`prs=${classification.length} included=${included.length} excluded=${classification.filter((p) => p.status === "excluded").length} unclassified=${unclassified.length}`,
 	)
