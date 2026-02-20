@@ -323,25 +323,25 @@ jq -r '.data.repository
 # Approach (from eve_release-eng-changelog scripts):
 #  1) Fetch PR metadata for the window (including author.login)
 #  2) Collect unique author logins (skip null authors)
-#  3) For each author, query their earliest merged PR via GraphQL Search (sort:created-asc, first:1)
+#  3) For each author, query merged PRs via GraphQL Search and compute earliest by `mergedAt`
 #  4) Keep PRs where PR.number == earliest_by_author[author]
 
 # 1) Given a JSON array of PRs for the window (each has number,title,url,author.login), collect authors
 jq -r '[.[].author | select(. != null) | .login] | unique | .[]'
 
-# 2) Build a GraphQL query that finds each author’s earliest merged PR (aliases must be GraphQL-safe)
-#    NOTE: This uses GraphQL Search (type: ISSUE) but narrows to PR nodes.
+# 2) Build GraphQL query pages per author (aliases must be GraphQL-safe) and choose the PR with the minimum `mergedAt`
+#    NOTE: This uses GraphQL Search (type: ISSUE) but narrows to PR nodes; do not rely on created-date sorting.
 AUTHORS=$(cat authors.txt)  # one login per line
 AUTHOR_QUERY_BODY=$(printf "%s\n" "$AUTHORS" |
   awk -v owner="${OWNER}" -v name="${NAME}" '{
     alias=$0
     gsub(/[^A-Za-z0-9_]/, "_", alias)  # GraphQL aliases cannot contain hyphens
-    printf "a%s: search(query: \"repo:%s/%s is:pr is:merged author:%s sort:created-asc\", type: ISSUE, first: 1) { nodes { ... on PullRequest { number url title mergedAt author { login } } } } ", alias, owner, name, $0
+    printf "a%s: search(query: \"repo:%s/%s is:pr is:merged author:%s\", type: ISSUE, first: 100) { nodes { ... on PullRequest { number url title mergedAt author { login } } } pageInfo { hasNextPage endCursor } } ", alias, owner, name, $0
   }')
 
 AUTHOR_JSON=$(gh api graphql -f query="query { ${AUTHOR_QUERY_BODY} }" 2>/dev/null || true)
 
-# 3) Convert search results into a lookup map: author_login -> earliest_merged_pr_number
+# 3) Convert paged search results into a lookup map: author_login -> earliest_merged_pr_number (min mergedAt)
 EARLIEST_BY_AUTHOR=$(echo "$AUTHOR_JSON" | jq -c '
   (.data // {})
   | to_entries

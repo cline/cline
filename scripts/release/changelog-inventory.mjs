@@ -146,7 +146,7 @@ function classifyScope(pr) {
 
 	const paths = pr.files ?? []
 	if (!paths.length) {
-		return { scope: "exclude", reason: "no-file-data" }
+		return { scope: "unknown", reason: "no-file-data" }
 	}
 
 	const internalOnly = paths.every(isInternalOnlyPath)
@@ -335,6 +335,7 @@ function fetchPrMetadata(owner, name, prNumbers, batchSize = 80) {
 
 		for (const value of Object.values(repoObj)) {
 			if (!value) continue
+			if (!value.mergedAt) continue
 
 			const initialNodes = value.files?.nodes ?? []
 			const initialPageInfo = value.files?.pageInfo
@@ -417,36 +418,54 @@ function aliasForAuthor(author, index) {
 	return `a${index}_${safe}`
 }
 
-function fetchEarliestPrByAuthor(owner, name, authors, batchSize = 40) {
+function fetchEarliestMergedPrByAuthor(owner, name, authors) {
 	const map = {}
 	const failedAuthors = []
 
-	for (let i = 0; i < authors.length; i += batchSize) {
-		const batch = authors.slice(i, i + batchSize)
-		const aliasToAuthor = {}
-		const fields = batch
-			.map((author, idx) => {
-				const alias = aliasForAuthor(author, i + idx)
-				aliasToAuthor[alias] = author
-				const q = `repo:${owner}/${name} is:pr is:merged author:${author} sort:created-asc`
-				return `${alias}: search(query: ${graphqlString(q)}, type: ISSUE, first: 1) { nodes { ... on PullRequest { number author { login } } } }`
-			})
-			.join(" ")
-
-		const query = `query { ${fields} }`
+	for (const author of authors) {
 		try {
-			const parsed = fetchGraphql(query)
-			const data = parsed?.data ?? {}
-			for (const [alias, author] of Object.entries(aliasToAuthor)) {
-				const node = data?.[alias]?.nodes?.[0]
-				if (node?.author?.login && typeof node.number === "number") {
-					map[node.author.login] = node.number
-				} else {
-					failedAuthors.push(author)
+			let earliest = null
+			let hasNextPage = true
+			let cursor = null
+
+			while (hasNextPage) {
+				const alias = aliasForAuthor(author, 0)
+				const q = `repo:${owner}/${name} is:pr is:merged author:${author}`
+				const afterArg = cursor ? `, after: ${graphqlString(cursor)}` : ""
+				const query = `query { ${alias}: search(query: ${graphqlString(q)}, type: ISSUE, first: 100${afterArg}) { nodes { ... on PullRequest { number mergedAt author { login } } } pageInfo { hasNextPage endCursor } } }`
+				const parsed = fetchGraphql(query)
+				const page = parsed?.data?.[alias]
+				const nodes = page?.nodes ?? []
+
+				for (const node of nodes) {
+					if (!node?.author?.login || typeof node.number !== "number" || !node.mergedAt) continue
+					if (
+						!earliest ||
+						node.mergedAt < earliest.mergedAt ||
+						(node.mergedAt === earliest.mergedAt && node.number < earliest.number)
+					) {
+						earliest = {
+							author: node.author.login,
+							number: node.number,
+							mergedAt: node.mergedAt,
+						}
+					}
+				}
+
+				hasNextPage = Boolean(page?.pageInfo?.hasNextPage)
+				cursor = page?.pageInfo?.endCursor ?? null
+				if (hasNextPage && !cursor) {
+					throw new Error("Missing cursor for paginated search results")
 				}
 			}
+
+			if (earliest?.author && typeof earliest.number === "number") {
+				map[earliest.author] = earliest.number
+			} else {
+				failedAuthors.push(author)
+			}
 		} catch {
-			failedAuthors.push(...batch)
+			failedAuthors.push(author)
 		}
 	}
 
@@ -467,26 +486,8 @@ function detectSectionHeadingLevel(changelogText) {
 	return "###"
 }
 
-function detectVersionHeadingStyle(changelogText) {
-	const lines = changelogText.split(/\r?\n/)
-	for (const line of lines) {
-		const trimmed = line.trim()
-		if (/^##\s+\[\d+\.\d+\.\d+\]\s*$/.test(trimmed)) {
-			return "bracketed"
-		}
-		if (/^##\s+\d+\.\d+\.\d+\s*$/.test(trimmed)) {
-			return "plain"
-		}
-	}
-	return "bracketed"
-}
-
-function buildVersionHeading(version, versionHeadingStyle) {
-	return versionHeadingStyle === "plain" ? `## ${version}` : `## [${version}]`
-}
-
-function buildChangelogBlock({ version, versionHeadingStyle, sectionHeading, grouped, firstTime }) {
-	const lines = [buildVersionHeading(version, versionHeadingStyle), ""]
+function buildChangelogBlock({ version, sectionHeading, grouped, firstTime }) {
+	const lines = [`## [${version}]`, ""]
 	for (const sectionName of ["Added", "Fixed", "Changed"]) {
 		if (grouped[sectionName].length) {
 			lines.push(`${sectionHeading} ${sectionName}`, "")
@@ -625,7 +626,7 @@ function main() {
 		row.externalContributor = membershipStatus === "external"
 	}
 
-	const earliestByAuthorResult = fetchEarliestPrByAuthor(owner, name, authorSet)
+	const earliestByAuthorResult = fetchEarliestMergedPrByAuthor(owner, name, authorSet)
 	const earliestByAuthor = earliestByAuthorResult.map
 	const firstTime = included
 		.filter((p) => p.author && earliestByAuthor[p.author] === p.number)
@@ -644,7 +645,6 @@ function main() {
 
 	const targetExistingText = fs.readFileSync(targetFile, "utf8")
 	const sectionHeading = detectSectionHeadingLevel(targetExistingText)
-	const versionHeadingStyle = detectVersionHeadingStyle(targetExistingText)
 
 	const grouped = { Added: [], Fixed: [], Changed: [] }
 	for (const pr of included) {
@@ -659,7 +659,6 @@ function main() {
 	const finalChangelog = hasChangelogContent
 		? buildChangelogBlock({
 				version,
-				versionHeadingStyle,
 				sectionHeading,
 				grouped,
 				firstTime,
