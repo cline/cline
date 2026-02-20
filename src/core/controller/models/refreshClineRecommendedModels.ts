@@ -114,7 +114,7 @@ async function fetchAndCacheClineRecommendedModels(): Promise<ClineRecommendedMo
 				.catch(() => false)
 			if (fileExists) {
 				const fileContents = await fs.readFile(clineRecommendedModelsFilePath, "utf8")
-				const parsed = normalizeRecommendedModelsResponse(JSON.parse(fileContents))
+				const parsed = JSON.parse(fileContents)
 				if (parsed) {
 					result = parsed
 					Logger.log("Loaded Cline recommended models from cache")
