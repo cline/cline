@@ -15,7 +15,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { Logger } from "@/shared/services/Logger.js"
 import { ClineAgent } from "../agent/ClineAgent.js"
-import { type AcpAgentOptions, controllerSymbol, type SessionUpdateType } from "../agent/types.js"
+import { type AcpAgentOptions, type SessionUpdateType } from "../agent/types.js"
 
 /**
  * ACP Agent wrapper that bridges stdio connection to ClineAgent.
@@ -43,7 +43,7 @@ export class AcpAgent implements acp.Agent {
 			try {
 				Logger.debug("[AcpAgent] Forwarding permission request to connection")
 				return await this.connection.requestPermission({
-					sessionId: this.getCurrentSessionId() ?? "",
+					sessionId: request.sessionId,
 					toolCall: request.toolCall,
 					options: request.options,
 				})
@@ -52,18 +52,6 @@ export class AcpAgent implements acp.Agent {
 				return { outcome: { outcome: "cancelled" } }
 			}
 		})
-	}
-
-	/**
-	 * Get the current active session ID from the ClineAgent.
-	 */
-	private getCurrentSessionId(): string | undefined {
-		for (const [sessionId, session] of this.clineAgent.sessions) {
-			if (session[controllerSymbol]?.task) {
-				return sessionId
-			}
-		}
-		return undefined
 	}
 
 	/**

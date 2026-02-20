@@ -66,7 +66,7 @@ import { translateMessage } from "./messageTranslator.js"
 import { handlePermissionResponse } from "./permissionHandler.js"
 import type { ClineAcpSession, ClineAgentOptions, PermissionHandler } from "./public-types.js"
 import { AcpSessionStatus } from "./public-types.js"
-import { type AcpSessionState, controllerSymbol } from "./types.js"
+import { type AcpSessionState } from "./types.js"
 
 // Map providers to their static model lists and defaults (copied from ModelPicker.tsx)
 const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
@@ -90,10 +90,6 @@ function getModelList(provider: string): string[] {
 	return Object.keys(providerModels[provider].models)
 }
 
-function getSessionController(session?: ClineAcpSession): Controller | undefined {
-	return session?.[controllerSymbol]
-}
-
 /**
  * Cline's implementation of the ACP Agent interface.
  *
@@ -112,7 +108,11 @@ export class ClineAgent implements acp.Agent {
 	private readonly options: ClineAgentOptions
 	private readonly ctx: CliContextResult
 
+	/** Map of active sessions by session ID */
 	public readonly sessions: Map<string, ClineAcpSession> = new Map()
+
+	/** WeakMap to associate ClineAcpSession with its Controller without exposing it to consumers */
+	readonly #sessionControllers = new WeakMap<ClineAcpSession, Controller>()
 
 	/** Runtime state for active sessions */
 	private readonly sessionStates: Map<string, AcpSessionState> = new Map()
@@ -297,8 +297,9 @@ export class ClineAgent implements acp.Agent {
 			mcpServers: params.mcpServers ?? [],
 			createdAt: Date.now(),
 			lastActivityAt: Date.now(),
-			[controllerSymbol]: controller,
 		}
+
+		this.#sessionControllers.set(session, controller)
 
 		this.sessions.set(sessionId, session)
 
@@ -460,7 +461,7 @@ export class ClineAgent implements acp.Agent {
 			throw new Error(`Session ${params.sessionId} is already processing a prompt`)
 		}
 
-		const controller = getSessionController(session)
+		const controller = this.#sessionControllers.get(session)
 		if (!controller) {
 			throw new Error("Controller not initialized for session. This is a bug in the ACP agent setup.")
 		}
@@ -654,7 +655,13 @@ export class ClineAgent implements acp.Agent {
 		permissionRequest: Omit<acp.RequestPermissionRequest, "sessionId">,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId)
-		const controller = getSessionController(session)
+
+		if (!session) {
+			Logger.debug("[ClineAgent] No session found for permission request")
+			return
+		}
+
+		const controller = this.#sessionControllers.get(session)
 
 		if (!controller?.task) {
 			Logger.debug("[ClineAgent] No active task for permission request")
@@ -888,6 +895,10 @@ export class ClineAgent implements acp.Agent {
 	 */
 	async cancel(params: acp.CancelNotification): Promise<void> {
 		const session = this.sessions.get(params.sessionId)
+		if (!session) {
+			Logger.debug("[ClineAgent] cancel called for non-existent session:", params.sessionId)
+			return
+		}
 		const sessionState = this.sessionStates.get(params.sessionId)
 
 		Logger.debug("[ClineAgent] cancel called:", {
@@ -899,7 +910,7 @@ export class ClineAgent implements acp.Agent {
 			sessionState.status = AcpSessionStatus.Cancelled
 
 			// If we have an active controller task, cancel it
-			const controller = getSessionController(session)
+			const controller = this.#sessionControllers.get(session)
 			if (controller?.task) {
 				try {
 					await controller.cancelTask()
@@ -940,7 +951,7 @@ export class ClineAgent implements acp.Agent {
 		session.lastActivityAt = Date.now()
 
 		// Update Controller mode if active
-		const controller = getSessionController(session)
+		const controller = this.#sessionControllers.get(session)
 		if (controller) {
 			controller.stateManager.setGlobalState("mode", session.mode)
 
@@ -1091,7 +1102,7 @@ export class ClineAgent implements acp.Agent {
 
 	async shutdown(): Promise<void> {
 		for (const [sessionId, session] of this.sessions) {
-			const controller = getSessionController(session)
+			const controller = this.#sessionControllers.get(session)
 			await controller?.task?.abortTask()
 			await controller?.stateManager.flushPendingState()
 			await controller?.dispose()

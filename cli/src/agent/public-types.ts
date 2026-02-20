@@ -9,8 +9,6 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk"
-import type { Controller } from "@/core/controller"
-import { controllerSymbol } from "./types"
 
 // ============================================================
 // Session Update Type Utilities
@@ -110,7 +108,6 @@ export interface ClineAcpSession {
 	planModeModelId?: string
 	/** Model ID override for act mode (format: "provider/modelId") */
 	actModeModelId?: string
-	[controllerSymbol]?: Controller // Internal field
 }
 
 /**

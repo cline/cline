@@ -66,6 +66,3 @@ export type {
 } from "./public-types.js"
 
 export { AcpSessionStatus } from "./public-types.js"
-
-// Internal-only types that reference core modules (e.g. Controller) go here.
-export const controllerSymbol = Symbol("ClineController")
