@@ -1,4 +1,4 @@
-You are in the `cline/` repo. Your goal is to generate a high-quality, **apply-ready** changelog block for either the VSCode extension or the CLI between two refs.
+You are in the `cline/` repo. Your goal is to generate and **apply** a high-quality changelog update for either the VSCode extension or the CLI between two refs, leaving file changes uncommitted for human review.
 
 You have access to `git`, `gh`, and `jq`. Assume `gh` is already authenticated.
 
@@ -38,7 +38,7 @@ After inputs are resolved:
 - if `scope=vscode`, target file is `CHANGELOG.md`
 - if `scope=cli`, target file is `cli/CHANGELOG.md`
 
-You must produce output that is paste-ready for the chosen target file.
+You must update the chosen target file directly (uncommitted), preserving existing content and formatting conventions.
 
 ## 0) Preflight
 
@@ -92,6 +92,7 @@ node scripts/release/changelog-inventory.mjs \
   --scope <vscode|cli> \
   --from <from> \
   --to <to> \
+  --apply \
   --output-dir /Users/evekillaby/dev/tmp/.cline-artifacts/release-generate-changelog
 ```
 
@@ -101,6 +102,13 @@ This generates:
 - `scope-classification.json`
 - `candidate-bullets.md`
 - `final-changelog.md`
+
+And with `--apply`, it updates:
+
+- `CHANGELOG.md` when `scope=vscode`
+- `cli/CHANGELOG.md` when `scope=cli`
+
+without committing.
 
 If this script is unavailable, continue with manual commands below.
 
@@ -113,7 +121,7 @@ Key rule: **Never mix stderr into stdout JSON.** GitHub/gh may emit error messag
 3. Treat the response as valid if `jq -e '.data.repository'` succeeds.
 4. Drop null PRs with `select(.value != null)`.
 
-Output format for merged PR list (one per line):
+Output format for merged PR list (one per line, inventory only):
 
 `- #<number> <title> (<url>)`
 
@@ -187,31 +195,35 @@ Scope-specific guidance:
 Required output format:
 
 - First line must be: `## [<version>]`
-- Sections in order: `## Added`, `## Fixed`, `## Changed`, `## New Contributors`
+- Sections in order: `Added`, `Fixed`, `Changed`, `New Contributors` using the target file’s existing heading depth (`##` or `###`)
 - Omit any empty sections
 - No preamble, no code fences, no analysis, no trailing notes
 - This section schema is the same for both targets (`CHANGELOG.md` and `cli/CHANGELOG.md`)
+- Final user-facing bullets must be human-readable only: no PR numbers and no PR links
 
 Final chat envelope:
 
 1. concise summary (2–5 bullets)
 2. exclusions summary
-3. single paste-ready changelog block only
+3. confirmation of updated file path(s)
+4. short `git diff -- <target>` instruction for human review
 
 ## 5) Verification
 
-After generating output:
+After generating output and applying to file:
 
 1. Ensure output begins with `## [<version>]`.
-2. Ensure sections (if present) are in exact order: `## Added`, `## Fixed`, `## Changed`, `## New Contributors`.
+2. Ensure sections (if present) are in exact order: `Added`, `Fixed`, `Changed`, `New Contributors`, with target-consistent heading level.
 3. Ensure there are no code fences.
 4. Ensure no empty sections are present.
 5. Ensure New Contributors bullets follow:
-   `- @<login> made their first contribution in #<number> (<url>)`
+   `- @<login> made their first contribution.`
 6. Ensure every included PR is represented in at least one bullet or explicitly acknowledged in exclusions.
 7. Ensure target is correct:
    - `scope=vscode` => content intended for `CHANGELOG.md`
    - `scope=cli` => content intended for `cli/CHANGELOG.md`
+8. Ensure existing changelog history is preserved and only the new release block is inserted at the top release position.
+9. If there are zero included PRs for the selected scope/range, do not modify the target changelog file; report a no-op.
 
 </detailed_sequence_of_steps>
 

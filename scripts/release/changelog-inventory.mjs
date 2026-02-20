@@ -31,13 +31,17 @@ Usage:
     [--to <now|tag|ref>] \\
     --output-dir <abs-or-rel-path> \\
     [--version <x.y.z>] [--batch-size <n>] [--repo-owner <owner>] [--repo-name <name>] \\
-    [--pr-numbers <comma-separated>]
+    [--pr-numbers <comma-separated>] [--apply] [--target-file <path>]
 
 Writes artifacts:
   - pr-inventory.json
   - scope-classification.json
   - candidate-bullets.md
   - final-changelog.md
+
+With --apply:
+  - inserts the generated changelog section into the target changelog file
+  - leaves changes uncommitted for human review
 `)
 }
 
@@ -80,6 +84,17 @@ function normalizeTitle(title) {
 		.replace(/[\r\n]+/g, " ")
 		.replace(/\s+/g, " ")
 		.trim()
+}
+
+function humanizeTitle(title) {
+	let t = normalizeTitle(title)
+	// Remove conventional commit prefix, e.g. "feat(cli): " or "fix: "
+	t = t.replace(/^[a-z]+(?:\([^)]+\))?!?:\s*/i, "")
+	// Normalize sentence casing lightly
+	if (t.length > 0) {
+		t = t.charAt(0).toUpperCase() + t.slice(1)
+	}
+	return t
 }
 
 function toSemverNoV(value) {
@@ -278,6 +293,85 @@ function fetchEarliestPrByAuthor(owner, name, authors) {
 	return map
 }
 
+function detectSectionHeadingLevel(changelogText) {
+	// Prefer the first explicit Added/Fixed/Changed heading if present.
+	const lines = changelogText.split(/\r?\n/)
+	for (const line of lines) {
+		const trimmed = line.trim()
+		if (/^###\s+(Added|Fixed|Changed|New Contributors)\b/i.test(trimmed)) {
+			return "###"
+		}
+		if (/^##\s+(Added|Fixed|Changed|New Contributors)\b/i.test(trimmed)) {
+			return "##"
+		}
+	}
+	// Default to ### to match current changelog style in this repo.
+	return "###"
+}
+
+function detectVersionHeadingStyle(changelogText) {
+	const lines = changelogText.split(/\r?\n/)
+	for (const line of lines) {
+		const trimmed = line.trim()
+		if (/^##\s+\[\d+\.\d+\.\d+\]\s*$/.test(trimmed)) {
+			return "bracketed"
+		}
+		if (/^##\s+\d+\.\d+\.\d+\s*$/.test(trimmed)) {
+			return "plain"
+		}
+	}
+	return "bracketed"
+}
+
+function buildVersionHeading(version, versionHeadingStyle) {
+	return versionHeadingStyle === "plain" ? `## ${version}` : `## [${version}]`
+}
+
+function buildChangelogBlock({ version, versionHeadingStyle, sectionHeading, grouped, firstTime }) {
+	const lines = [buildVersionHeading(version, versionHeadingStyle), ""]
+	for (const sectionName of ["Added", "Fixed", "Changed"]) {
+		if (grouped[sectionName].length) {
+			lines.push(`${sectionHeading} ${sectionName}`, "")
+			lines.push(...grouped[sectionName], "")
+		}
+	}
+	if (firstTime.length) {
+		lines.push(`${sectionHeading} New Contributors`, "")
+		for (const pr of firstTime) {
+			lines.push(`- @${pr.author} made their first contribution.`)
+		}
+		lines.push("")
+	}
+	return lines.join("\n").trimEnd() + "\n"
+}
+
+function insertAtTopOfChangelog(existingText, entryBlock) {
+	const lines = existingText.split(/\r?\n/)
+	const firstVersionIndex = lines.findIndex((line) => /^##\s+\[?\d+\.\d+\.\d+\]?\s*$/.test(line.trim()))
+	if (firstVersionIndex === -1) {
+		throw new Error("Could not find first version heading in target changelog")
+	}
+
+	const before = lines.slice(0, firstVersionIndex).join("\n").replace(/\s*$/, "")
+	const after = lines.slice(firstVersionIndex).join("\n").replace(/^\s*/, "")
+	return `${before}\n\n${entryBlock.trimEnd()}\n\n${after}\n`
+}
+
+function changelogAlreadyHasVersion(existingText, version) {
+	const escaped = String(version).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+	const re = new RegExp(`^##\\s+(?:\\[${escaped}\\]|${escaped})\\s*$`, "m")
+	return re.test(existingText)
+}
+
+function applyChangelogUpdate(targetPath, entryBlock, version) {
+	const existing = fs.readFileSync(targetPath, "utf8")
+	if (changelogAlreadyHasVersion(existing, version)) {
+		throw new Error(`Target changelog already contains version ${version}`)
+	}
+	const updated = insertAtTopOfChangelog(existing, entryBlock)
+	fs.writeFileSync(targetPath, updated, "utf8")
+}
+
 function main() {
 	const args = parseArgs(process.argv.slice(2))
 	if (args.help || args.h || !args.scope || !args["output-dir"]) {
@@ -292,12 +386,21 @@ function main() {
 
 	const outputDir = path.resolve(String(args["output-dir"]))
 	ensureDir(outputDir)
+	const apply = Boolean(args.apply)
+	const targetFile = args["target-file"]
+		? path.resolve(String(args["target-file"]))
+		: path.resolve(scope === "cli" ? "cli/CHANGELOG.md" : "CHANGELOG.md")
 
 	const prNumbersArg = args["pr-numbers"]
 	const explicitPrNumbers = prNumbersArg
-		? [...new Set(String(prNumbersArg).split(/[\s,]+/).map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0))].sort(
-				(a, b) => a - b,
-		  )
+		? [
+				...new Set(
+					String(prNumbersArg)
+						.split(/[\s,]+/)
+						.map((s) => Number(s.trim()))
+						.filter((n) => Number.isFinite(n) && n > 0),
+				),
+			].sort((a, b) => a - b)
 		: []
 
 	const usingGitRange = explicitPrNumbers.length === 0
@@ -305,8 +408,8 @@ function main() {
 		throw new Error("Provide --from/--to, or provide --pr-numbers to bypass git range discovery")
 	}
 
-	let fromRef = args.from ? resolveRef(String(args.from)) : null
-	let toRef = args.to ? resolveRef(String(args.to)) : null
+	const fromRef = args.from ? resolveRef(String(args.from)) : null
+	const toRef = args.to ? resolveRef(String(args.to)) : null
 	let fromSha = null
 	let toSha = null
 
@@ -367,27 +470,29 @@ function main() {
 		throw new Error("Unable to infer version. Provide --version explicitly.")
 	}
 
+	const targetExistingText = fs.readFileSync(targetFile, "utf8")
+	const sectionHeading = detectSectionHeadingLevel(targetExistingText)
+	const versionHeadingStyle = detectVersionHeadingStyle(targetExistingText)
+
 	const grouped = { Added: [], Fixed: [], Changed: [] }
 	for (const pr of included) {
 		const section = sectionForTitle(pr.title)
 		const thanks = pr.externalContributor && pr.author ? ` (Thanks @${pr.author}!)` : ""
-		grouped[section].push(`- ${pr.title} (#${pr.number}) (${pr.url})${thanks}`)
+		grouped[section].push(`- ${humanizeTitle(pr.title)}${thanks}`)
 	}
 
-	const finalLines = [`## [${version}]`, ""]
-	for (const sectionName of ["Added", "Fixed", "Changed"]) {
-		if (grouped[sectionName].length) {
-			finalLines.push(`## ${sectionName}`, "")
-			finalLines.push(...grouped[sectionName], "")
-		}
-	}
-	if (firstTime.length) {
-		finalLines.push("## New Contributors", "")
-		for (const pr of firstTime) {
-			finalLines.push(`- @${pr.author} made their first contribution in #${pr.number} (${pr.url})`)
-		}
-		finalLines.push("")
-	}
+	const hasChangelogContent =
+		grouped.Added.length > 0 || grouped.Fixed.length > 0 || grouped.Changed.length > 0 || firstTime.length > 0
+
+	const finalChangelog = hasChangelogContent
+		? buildChangelogBlock({
+				version,
+				versionHeadingStyle,
+				sectionHeading,
+				grouped,
+				firstTime,
+			})
+		: ""
 
 	const prInventory = {
 		scope,
@@ -430,12 +535,25 @@ function main() {
 	writeJson(path.join(outputDir, "pr-inventory.json"), prInventory)
 	writeJson(path.join(outputDir, "scope-classification.json"), scopeClassification)
 	fs.writeFileSync(path.join(outputDir, "candidate-bullets.md"), candidateBullets.join("\n"), "utf8")
-	fs.writeFileSync(path.join(outputDir, "final-changelog.md"), finalLines.join("\n").trimEnd() + "\n", "utf8")
+	fs.writeFileSync(
+		path.join(outputDir, "final-changelog.md"),
+		hasChangelogContent ? finalChangelog : "(no included changes for this scope/range)\n",
+		"utf8",
+	)
+
+	if (apply && hasChangelogContent) {
+		applyChangelogUpdate(targetFile, finalChangelog, version)
+	}
 
 	console.log(`Wrote: ${path.join(outputDir, "pr-inventory.json")}`)
 	console.log(`Wrote: ${path.join(outputDir, "scope-classification.json")}`)
 	console.log(`Wrote: ${path.join(outputDir, "candidate-bullets.md")}`)
 	console.log(`Wrote: ${path.join(outputDir, "final-changelog.md")}`)
+	if (apply && hasChangelogContent) {
+		console.log(`Updated: ${targetFile}`)
+	} else if (apply) {
+		console.log(`Skipped update (no included changes): ${targetFile}`)
+	}
 	console.log("---")
 	console.log(`scope=${scope} range=${fromRef}..${toRef} version=${version}`)
 	console.log(`prs=${classification.length} included=${included.length} excluded=${classification.length - included.length}`)
