@@ -256,7 +256,7 @@ export class OcaHandler implements ApiHandler {
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0
-		const maxTokens: number | undefined = this.options.ocaModelInfo?.contextWindow
+		const maxTokens: number | undefined = this.options.ocaModelInfo?.maxTokens
 
 		if (isOminiModel && reasoningOn) {
 			temperature = undefined // Thinking mode doesn't support temperature
@@ -424,7 +424,7 @@ export class OcaHandler implements ApiHandler {
 		const reasoningOn = this.options.ocaModelInfo?.supportsReasoning && budgetTokens !== 0
 
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0
-		const maxTokens: number = this.options.ocaModelInfo?.maxTokens ?? 8192
+		const maxTokens: number | undefined = this.options.ocaModelInfo?.maxTokens || 8192
 
 		if (reasoningOn) {
 			temperature = 0
