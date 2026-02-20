@@ -269,7 +269,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										isVisible={featureVisibility[feature.stateKey] ?? true}
 										key={feature.id}
 										label={feature.label}
-										onChange={(checked) => updateSetting(feature.settingKey, checked)}
+										onChange={(checked) =>
+											feature.nestedKey === "enabled"
+												? handleFeatureChange(feature, checked)
+												: updateSetting(feature.settingKey, checked)
+										}
 									/>
 									{feature.id === "focus-chain" && featureState[feature.stateKey] && (
 										<SettingsSlider
