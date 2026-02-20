@@ -2,7 +2,6 @@ import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
-import { normalizeModelIdForComparison } from "@shared/utils/model-filters"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -113,6 +112,10 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
 
 const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
 
+function normalizeModelId(modelId: string): string {
+	return modelId.trim().toLowerCase()
+}
+
 function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: string): FeaturedModelCardEntry | null {
 	if (!model.id) {
 		return null
@@ -148,7 +151,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		return [...new Set(freeModelIds)]
 	}, [clineFreeModels])
 	const freeClineModelIdSet = useMemo(
-		() => new Set(freeClineModelIds.map((modelId) => normalizeModelIdForComparison(modelId))),
+		() => new Set(freeClineModelIds.map((modelId) => normalizeModelId(modelId))),
 		[freeClineModelIds],
 	)
 	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
@@ -231,7 +234,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 			return
 		}
 		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
-		setActiveTab(freeClineModelIdSet.has(normalizeModelIdForComparison(currentModelId)) ? "free" : "recommended")
+		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
 	}, [modeFields.openRouterModelId, freeClineModelIdSet, initialTab])
 
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -260,7 +263,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
 		const isCline = selected.selectedProvider === "cline"
 		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		if (isCline && freeClineModelIdSet.has(normalizeModelIdForComparison(selected.selectedModelId))) {
+		if (isCline && freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
 			return {
 				...selected,
 				selectedModelInfo: {
