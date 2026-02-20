@@ -11,6 +11,24 @@ const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<Cline
 export type PartialMessageCallback = (message: ClineMessage) => void
 const callbackSubscriptions = new Set<PartialMessageCallback>()
 
+const partialMessageStreamSendTimeoutMs = (() => {
+	const raw = process.env.CLINE_PARTIAL_MESSAGE_SEND_TIMEOUT_MS
+	if (raw === undefined) {
+		return 1000
+	}
+	const parsed = Number.parseInt(raw, 10)
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1000
+})()
+
+const partialMessageSlowSendWarnMs = (() => {
+	const raw = process.env.CLINE_PARTIAL_MESSAGE_SLOW_WARN_MS
+	if (raw === undefined) {
+		return 250
+	}
+	const parsed = Number.parseInt(raw, 10)
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : 250
+})()
+
 /**
  * Subscribe to partial message events
  * @param controller The controller instance
@@ -55,19 +73,37 @@ export function registerPartialMessageCallback(callback: PartialMessageCallback)
  * @param partialMessage The ClineMessage to send
  */
 export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
-	// Send to gRPC stream subscribers
-	const streamPromises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
-		try {
-			await responseStream(
-				partialMessage,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending partial message event:", error)
-			// Remove the subscription if there was an error
+	// Send to gRPC stream subscribers without blocking model stream consumption.
+	// A slow or stuck subscriber should not pause chunk polling.
+	for (const responseStream of Array.from(activePartialMessageSubscriptions)) {
+		const sendStartedAt = Date.now()
+		let didTimeout = false
+		const timeoutHandle = setTimeout(() => {
+			didTimeout = true
 			activePartialMessageSubscriptions.delete(responseStream)
-		}
-	})
+			Logger.debug(
+				`[PartialMessage] subscriber send timed out after ${partialMessageStreamSendTimeoutMs}ms and was removed`,
+			)
+		}, partialMessageStreamSendTimeoutMs)
+
+		void responseStream(
+			partialMessage,
+			false, // Not the last message
+		)
+			.then(() => {
+				const elapsedMs = Date.now() - sendStartedAt
+				if (!didTimeout && elapsedMs > partialMessageSlowSendWarnMs) {
+					Logger.debug(`[PartialMessage] slow subscriber send elapsedMs=${elapsedMs}`)
+				}
+			})
+			.catch((error) => {
+				Logger.error("Error sending partial message event:", error)
+				activePartialMessageSubscriptions.delete(responseStream)
+			})
+			.finally(() => {
+				clearTimeout(timeoutHandle)
+			})
+	}
 
 	// Send to callback subscribers (synchronous)
 	for (const callback of callbackSubscriptions) {
@@ -78,5 +114,5 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 		}
 	}
 
-	await Promise.all(streamPromises)
+	return
 }

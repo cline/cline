@@ -2834,15 +2834,36 @@ export class Task {
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
 			// (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
 			if (!didReceiveUsageChunk) {
-				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
-					if (apiStreamUsage) {
+				void this.api
+					.getApiStreamUsage?.()
+					.then(async (apiStreamUsage) => {
+						if (!apiStreamUsage) {
+							return
+						}
+
 						taskMetrics.inputTokens += apiStreamUsage.inputTokens
 						taskMetrics.outputTokens += apiStreamUsage.outputTokens
 						taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
 						taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
 						taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
-					}
-				})
+
+						// Backfill usage for providers that return usage only via post-stream generation endpoints.
+						await updateApiReqMsg({
+							messageStateHandler: this.messageStateHandler,
+							lastApiReqIndex,
+							inputTokens: taskMetrics.inputTokens,
+							outputTokens: taskMetrics.outputTokens,
+							cacheWriteTokens: taskMetrics.cacheWriteTokens,
+							cacheReadTokens: taskMetrics.cacheReadTokens,
+							api: this.api,
+							totalCost: taskMetrics.totalCost,
+						})
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						await this.postStateToWebview()
+					})
+					.catch((error) => {
+						Logger.debug(`[Task] getApiStreamUsage background backfill failed: ${error}`)
+					})
 			}
 
 			// Update the api_req_started message with final usage and cost details
