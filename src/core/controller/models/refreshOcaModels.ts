@@ -74,8 +74,10 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					apiFormat = ApiFormat.ANTHROPIC_CHAT
 				}
 
+				modelInfo.max_output_tokens
+
 				models[modelId] = OcaModelInfo.create({
-					maxTokens: model.litellm_params?.max_tokens || -1,
+					maxTokens: modelInfo.max_output_tokens || -1,
 					contextWindow: modelInfo.context_window,
 					supportsImages: modelInfo.supports_vision || false,
 					supportsPromptCache: modelInfo.supports_caching || false,

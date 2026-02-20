@@ -435,7 +435,7 @@ export class OcaHandler implements ApiHandler {
 
 		const stream = await client.messages.create({
 			model: modelId,
-			max_tokens: 8192, // TOOD: change this to the correct value from API. Right now that doesn't work
+			max_tokens: maxTokens,
 			temperature: reasoningOn ? undefined : 0,
 			system: [
 				{
