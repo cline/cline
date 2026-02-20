@@ -102,6 +102,8 @@ export function isGLMModelFamily(id: string): boolean {
 		modelId.includes("glm-4.7") ||
 		modelId.includes("glm-4.6") ||
 		modelId.includes("glm-4.5") ||
+		modelId.includes("glm-4.7") ||
+		modelId.includes("zai-glm") || // Cerebras pattern (e.g., zai-glm-4.7)
 		modelId.includes("z-ai/glm") ||
 		modelId.includes("zai-org/glm")
 	)
@@ -168,7 +170,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||
 		isDeepSeek32ModelFamily(modelId) ||
-		isDeepSeekNativeModelFamily(modelId)
+		isDeepSeekNativeModelFamily(modelId) ||
+		isGLMModelFamily(modelId)
 	)
 }
 
