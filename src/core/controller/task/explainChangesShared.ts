@@ -220,7 +220,7 @@ Output your explanation comments now using the @@@ format:`
 					// Check for LINE header (single line number)
 					if (trimmedLine.startsWith("@@@ LINE:")) {
 						const lineStr = trimmedLine.substring("@@@ LINE:".length).trim()
-						const lineNum = parseInt(lineStr, 10)
+						const lineNum = Number.parseInt(lineStr, 10)
 						if (!Number.isNaN(lineNum) && currentFile) {
 							currentStartLine = lineNum
 							currentEndLine = lineNum
@@ -307,8 +307,8 @@ async function handleCommentReply(
 		planModeThinkingBudgetTokens: 0,
 	}
 
-	// Find the relevant file
-	const file = changedFiles.find((f) => f.absolutePath === filePath)
+	// Find the relevant file - check both absolutePath and relativePath for robustness
+	const file = changedFiles.find((f) => f.absolutePath === filePath || f.relativePath === filePath)
 	if (!file) {
 		onChunk("Error: Could not find the file context")
 		return
