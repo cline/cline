@@ -300,7 +300,6 @@ export class OcaHandler implements ApiHandler {
 			temperature,
 			stream: true,
 			max_completion_tokens: maxTokens,
-			max_tokens: maxTokens,
 			stream_options: { include_usage: true },
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 			...(this.options.taskId && {
