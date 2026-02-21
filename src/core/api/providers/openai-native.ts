@@ -41,6 +41,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	private options: OpenAiNativeHandlerOptions
 	private client: OpenAI | undefined
 	private responsesWs: UndiciWebSocket | undefined
+	private responsesWsReadyPromise: Promise<UndiciWebSocket> | undefined
 	private websocketRequestInFlight = false
 	private abortController?: AbortController
 
@@ -170,6 +171,12 @@ export class OpenAiNativeHandler implements ApiHandler {
 	): ApiStream {
 		const model = this.getModel()
 		const usePreviousResponseId = this.useWebsocketMode(model.info.apiFormat)
+
+		// Warm websocket connection early in websocket mode so the first response.create avoids handshake latency.
+		if (usePreviousResponseId) {
+			this.preconnectResponsesWebsocket()
+		}
+
 		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId })
 		const responseTools = this.mapResponseTools(tools)
 		this.abortController = new AbortController()
@@ -200,6 +207,13 @@ export class OpenAiNativeHandler implements ApiHandler {
 		}
 
 		yield* this.createResponseStreamHttp(model.info, params)
+	}
+
+	private preconnectResponsesWebsocket(): void {
+		void this.ensureResponsesWebsocket().catch((error) => {
+			Logger.debug("OpenAI websocket preconnect failed:", error)
+			this.closeResponsesWebsocket()
+		})
 	}
 
 	private useWebsocketMode(apiFormat?: ApiFormat): boolean {
@@ -298,6 +312,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 			return this.responsesWs
 		}
 
+		if (this.responsesWsReadyPromise) {
+			return this.responsesWsReadyPromise
+		}
+
 		this.closeResponsesWebsocket()
 
 		if (!this.options.openAiNativeApiKey) {
@@ -312,7 +330,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 			},
 		})
 
-		await new Promise<void>((resolve, reject) => {
+		this.responsesWs = ws
+		const readyPromise = new Promise<UndiciWebSocket>((resolve, reject) => {
 			const cleanup = () => {
 				ws.removeEventListener("open", handleOpen)
 				ws.removeEventListener("error", handleError)
@@ -320,7 +339,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			const handleOpen = () => {
 				cleanup()
-				resolve()
+				resolve(ws)
 			}
 			const handleError = () => {
 				cleanup()
@@ -335,11 +354,24 @@ export class OpenAiNativeHandler implements ApiHandler {
 			ws.addEventListener("close", handleClose)
 		})
 
-		this.responsesWs = ws
-		return ws
+		this.responsesWsReadyPromise = readyPromise
+
+		try {
+			return await readyPromise
+		} catch (error) {
+			if (this.responsesWs === ws) {
+				this.responsesWs = undefined
+			}
+			throw error
+		} finally {
+			if (this.responsesWsReadyPromise === readyPromise) {
+				this.responsesWsReadyPromise = undefined
+			}
+		}
 	}
 
 	private closeResponsesWebsocket() {
+		this.responsesWsReadyPromise = undefined
 		if (this.responsesWs) {
 			try {
 				this.responsesWs.close()
