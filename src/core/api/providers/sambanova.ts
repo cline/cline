@@ -52,7 +52,7 @@ export class SambanovaHandler implements ApiHandler {
 
 		const modelId = model.id.toLowerCase()
 
-		if (modelId.includes("deepseek") || modelId.includes("qwen") || modelId.includes("qwq")) {
+		if (modelId.includes("deepseek") || modelId.includes("qwen3")) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
