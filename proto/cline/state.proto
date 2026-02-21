@@ -104,15 +104,13 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 46;
+  optional string openai_codex_oauth_credentials = 47;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
-  reserved 146; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
-
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -251,7 +249,6 @@ message Settings {
   optional string default_terminal_profile = 137;
   optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
-  optional int32 subagent_terminal_output_line_limit = 140;
   optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
@@ -261,7 +258,6 @@ message Settings {
   optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
-  optional double auto_condense_threshold = 151;
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
@@ -282,8 +278,8 @@ message Settings {
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
-  map<string, string> open_ai_headers = 175;
   optional bool double_check_completion_enabled = 176;
+  map<string, string> open_ai_headers = 177;
 }
 
 message DictationSettings {
@@ -415,7 +411,6 @@ message UpdateSettingsRequest {
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional DictationSettings dictation_settings = 23;
-  optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;

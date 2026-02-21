@@ -8,12 +8,11 @@ import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
 import { ErrorService } from "@/services/error/ErrorService"
 import { telemetryService } from "@/services/telemetry"
@@ -425,7 +424,7 @@ interface InitOptions {
  */
 async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const workspacePath = options.cwd || process.cwd()
-	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
+	const { extensionContext, storageContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
 		clineDir: options.config,
 		workspaceDir: workspacePath,
 	})
@@ -466,12 +465,8 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		DATA_DIR,
 	)
 
-	await StateManager.initialize(extensionContext as any)
-
+	await StateManager.initialize(storageContext)
 	await ErrorService.initialize()
-
-	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
-	openAiCodexOAuthManager.initialize(extensionContext)
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
@@ -754,7 +749,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
-	.option("-t, --timeout <seconds>", "Timeout in seconds for yes/yolo mode (default: 600)")
+	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
@@ -983,7 +978,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
-	.option("-t, --timeout <seconds>", "Timeout in seconds for yolo mode (default: 600)")
+	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")

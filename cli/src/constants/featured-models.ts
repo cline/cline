@@ -13,8 +13,8 @@ export interface FeaturedModel {
 export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedModel[] } = {
 	recommended: [
 		{
-			id: "anthropic/claude-sonnet-4.6",
-			name: "Claude Sonnet 4.6",
+			id: "anthropic/claude-sonnet-4.5",
+			name: "Claude Sonnet 4.5",
 			description: "Best balance of speed, cost, and quality",
 			labels: ["BEST"],
 		},
@@ -32,6 +32,12 @@ export const FEATURED_MODELS: { recommended: FeaturedModel[]; free: FeaturedMode
 		},
 	],
 	free: [
+		{
+			id: "minimax/minimax-m2.5",
+			name: "MiniMax M2.5",
+			description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
+			labels: ["FREE"],
+		},
 		{
 			id: "z-ai/glm-5",
 			name: "Z-AI GLM5",

@@ -1,4 +1,4 @@
-import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
+import type { Banner, BannerAction, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { BannerActionType, type BannerCardData } from "@shared/cline/banner"
 import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
@@ -140,6 +140,45 @@ export class BannerService {
 	}
 
 	public getActiveBanners(): BannerCardData[] {
+		this.ensureFreshCache()
+
+		const activeBanners = this.cachedBanners
+			.filter((b) => b.placement !== "welcome")
+			.filter((b) => !this.isBannerDismissed(b.id))
+			.map((b) => this.toBannerCardData(b))
+			.filter((b): b is BannerCardData => b !== null)
+
+		return activeBanners
+	}
+
+	/**
+	 * Returns welcome banners (placement === "welcome") for the What's New modal.
+	 * These are version-targeted banners fetched from the backend.
+	 * Gated by REMOTE_WELCOME_BANNERS feature flag — when off, returns empty
+	 * so the webview falls back to hardcoded welcome items.
+	 */
+	public getWelcomeBanners(): BannerCardData[] | undefined {
+		const isLocal = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
+		const flagEnabled = isLocal || featureFlagsService.getBooleanFlagEnabled(FeatureFlag.REMOTE_WELCOME_BANNERS)
+
+		if (!flagEnabled) {
+			return undefined
+		}
+		const bypassDismissals = process.env.IS_DEV === "true" || process.env.CLINE_ENVIRONMENT === "local"
+
+		this.ensureFreshCache()
+
+		const welcomeCandidates = this.cachedBanners.filter((b) => b.placement === "welcome")
+
+		const welcomeBanners = welcomeCandidates
+			.filter((b) => bypassDismissals || !this.isBannerDismissed(b.id))
+			.map((b) => this.toBannerCardData(b))
+			.filter((b): b is BannerCardData => b !== null)
+
+		return welcomeBanners
+	}
+
+	private ensureFreshCache(): void {
 		const now = Date.now()
 		const shouldFetch =
 			now >= this.backoffUntil &&
@@ -148,17 +187,11 @@ export class BannerService {
 			!this.authFetchPending
 
 		if (shouldFetch) {
-			Logger.log("[BannerService] Cache expired, fetching new banners")
 			this.fetchPromise = this.doFetch()
 			this.fetchPromise.finally(() => {
 				this.fetchPromise = null
 			})
 		}
-
-		return this.cachedBanners
-			.filter((b) => !this.isBannerDismissed(b.id))
-			.map((b) => this.toBannerCardData(b))
-			.filter((b): b is BannerCardData => b !== null)
 	}
 
 	public clearCache(): void {
@@ -264,10 +297,22 @@ export class BannerService {
 				return []
 			}
 
+			Logger.log(
+				`[BannerService] Raw API response: ${data.data.items.length} items: ${JSON.stringify(
+					data.data.items.map((b) => ({ id: b.id, placement: b.placement, titleMd: b.titleMd?.substring(0, 50) })),
+				)}`,
+			)
+
 			const banners = data.data.items.filter((b) => this.matchesProviderRule(b))
 			this.cachedBanners = banners
 			this.lastFetchTime = Date.now()
 			this.consecutiveFailures = 0
+
+			Logger.log(
+				`[BannerService] After provider filter: ${banners.length} banners: ${JSON.stringify(
+					banners.map((b) => ({ id: b.id, placement: b.placement })),
+				)}`,
+			)
 
 			this.controller.postStateToWebview().catch((error) => {
 				Logger.error("Failed to post state to webview after fetching banners:", error)
@@ -339,9 +384,14 @@ export class BannerService {
 	}
 
 	private getIdeType(): string {
-		const ide = this.hostInfo.ide
+		const ide = this.hostInfo.ide?.toLowerCase() ?? ""
 		for (const [key, value] of Object.entries(IDE_MAP)) {
 			if (ide.includes(key)) return value
+		}
+
+		const platform = this.hostInfo.platform?.toLowerCase() ?? ""
+		if (platform.includes("visual studio") || platform.includes("vscode")) {
+			return "vscode"
 		}
 		return "unknown"
 	}
@@ -373,8 +423,12 @@ export class BannerService {
 		}
 	}
 
+	private getBannerActions(banner: Banner): BannerAction[] {
+		return banner.actions ?? []
+	}
+
 	private toBannerCardData(banner: Banner): BannerCardData | null {
-		const actions = banner.actions || []
+		const actions = this.getBannerActions(banner)
 
 		// Validate all actions have valid types
 		for (const action of actions) {

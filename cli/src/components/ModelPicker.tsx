@@ -71,6 +71,9 @@ import { COLORS } from "../constants/colors"
 import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
 import { SearchableList, SearchableListItem } from "./SearchableList"
 
+// Special ID used to indicate the user wants to enter a custom model ID / ARN
+export const CUSTOM_MODEL_ID = "__custom__"
+
 // Map providers to their static model lists and defaults
 export const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
 	anthropic: { models: anthropicModels, defaultId: anthropicDefaultModelId },
@@ -169,12 +172,23 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 		return getModelList(provider)
 	}, [provider, asyncModels])
 
+	// Providers that support custom model IDs (e.g., Bedrock Application Inference Profiles)
+	const supportsCustomModel = provider === "bedrock"
+
 	const items: SearchableListItem[] = useMemo(() => {
-		return modelList.map((modelId) => ({
+		const list = modelList.map((modelId) => ({
 			id: modelId,
 			label: modelId,
 		}))
-	}, [modelList])
+		// Add "Custom" option at the end for providers that support it
+		if (supportsCustomModel) {
+			list.push({
+				id: CUSTOM_MODEL_ID,
+				label: "Custom (ARN / Inference Profile)",
+			})
+		}
+		return list
+	}, [modelList, supportsCustomModel])
 
 	// For providers without a model picker, render nothing
 	if (!hasModelPicker(provider)) {
