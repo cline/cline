@@ -3522,15 +3522,6 @@ export const sambanovaModels = {
 		inputPrice: 3.0,
 		outputPrice: 4.5,
 	},
-	"DeepSeek-V3.2": {
-		maxTokens: 7168,
-		contextWindow: 8192,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 1.0,
-		inputPrice: 3.0,
-		outputPrice: 4.5,
-	},
 	"Llama-4-Maverick-17B-128E-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 131072,
@@ -3584,15 +3575,6 @@ export const sambanovaModels = {
 		temperature: 0.6,
 		inputPrice: 0.4,
 		outputPrice: 0.8,
-	},
-	"gpt-oss-120b": {
-		maxTokens: 131072,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 1.0,
-		inputPrice: 0.22,
-		outputPrice: 0.59,
 	},
 } as const satisfies Record<string, ModelInfo>
 
