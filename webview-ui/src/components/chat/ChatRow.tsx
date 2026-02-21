@@ -541,8 +541,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to view the top level files in this directory:"
-										: "Cline viewed the top level files in this directory:"}
+										? "Clink wants to view the top level files in this directory:"
+										: "Clink viewed the top level files in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -563,8 +563,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to recursively view all files in this directory:"
-										: "Cline recursively viewed all files in this directory:"}
+										? "Clink wants to recursively view all files in this directory:"
+										: "Clink recursively viewed all files in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -585,8 +585,8 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
 									{message.type === "ask"
-										? "Cline wants to view source code definition names used in this directory:"
-										: "Cline viewed source code definition names used in this directory:"}
+										? "Clink wants to view source code definition names used in this directory:"
+										: "Clink viewed source code definition names used in this directory:"}
 								</span>
 							</div>
 							<CodeAccordian
@@ -605,7 +605,7 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span className="font-bold">
-									Cline wants to search this directory for <code className="break-all">{tool.regex}</code>:
+									Clink wants to search this directory for <code className="break-all">{tool.regex}</code>:
 								</span>
 							</div>
 							<SearchResultsDisplay
@@ -622,7 +622,7 @@ export const ChatRowContent = memo(
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<FoldVerticalIcon className="size-2" />
-								<span className="font-bold">Cline is condensing the conversation:</span>
+								<span className="font-bold">Clink is condensing the conversation:</span>
 							</div>
 							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
 								<div

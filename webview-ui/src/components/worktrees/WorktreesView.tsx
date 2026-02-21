@@ -574,7 +574,7 @@ Please help me resolve these merge conflicts, then complete the merge, and delet
 
 								<div className="flex flex-col gap-2">
 									<VSCodeButton onClick={handleAskClineToResolve} style={{ width: "100%" }}>
-										Ask Cline to Resolve
+										Ask Clink to Resolve
 									</VSCodeButton>
 									<VSCodeButton appearance="secondary" onClick={closeMergeModal} style={{ width: "100%" }}>
 										I'll Resolve Manually
