@@ -3561,7 +3561,7 @@ export const sambanovaModels = {
 	"MiniMax-M2.5": {
 		maxTokens: 16384,
 		contextWindow: 163840,
-		supportsImages: true,
+		supportsImages: false,
 		supportsPromptCache: false,
 		temperature: 1.0,
 		inputPrice: 0.3,
