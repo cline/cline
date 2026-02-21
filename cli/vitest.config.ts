@@ -6,6 +6,9 @@ export default defineConfig({
 		globals: true,
 		environment: "node",
 		include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
+		env: {
+			FORCE_COLOR: "3",
+		},
 		coverage: {
 			reporter: ["text", "json", "html"],
 			exclude: ["node_modules/", "dist/"],
