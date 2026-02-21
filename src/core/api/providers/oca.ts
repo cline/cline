@@ -98,7 +98,7 @@ export class OcaHandler implements ApiHandler {
 		})
 	}
 
-	protected initializaAnthropicClient(options: OcaHandlerOptions): Anthropic {
+	protected initializeAnthropicClient(options: OcaHandlerOptions): Anthropic {
 		const externalHeaders = buildExternalBasicHeaders()
 		return new (class OCIAnthropic extends Anthropic {
 			protected override async prepareOptions(opts: any): Promise<void> {
@@ -170,7 +170,7 @@ export class OcaHandler implements ApiHandler {
 				throw new Error("Oracle Code Assist (OCA) model is not selected")
 			}
 			try {
-				this.anthropicClient = this.initializaAnthropicClient(this.options)
+				this.anthropicClient = this.initializeAnthropicClient(this.options)
 			} catch (error) {
 				throw new Error(`Error creating Oracle Code Assist (OCA) client: ${error.message}`)
 			}
@@ -436,7 +436,7 @@ export class OcaHandler implements ApiHandler {
 		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: maxTokens,
-			temperature: reasoningOn ? undefined : 0,
+			temperature: reasoningOn ? undefined : temperature,
 			system: [
 				{
 					text: systemPrompt,
