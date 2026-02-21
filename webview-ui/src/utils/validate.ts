@@ -95,6 +95,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "modelslab":
+				if (!apiConfiguration.modelsLabApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "together":
 				if (!apiConfiguration.togetherApiKey || !togetherModelId) {
 					return "You must provide a valid API key or choose a different provider."

@@ -36,6 +36,7 @@ import { MistralProvider } from "./providers/MistralProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
 import { NousResearchProvider } from "./providers/NousresearchProvider"
+import { ModelsLabProvider } from "./providers/ModelsLabProvider"
 import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
@@ -509,6 +510,10 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "nousResearch" && (
 				<NousResearchProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "modelslab" && (
+				<ModelsLabProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}

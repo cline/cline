@@ -165,21 +165,8 @@
       "label": "NousResearch"
     },
     {
-      "providerName": "modelslab",
-      "providerId": "modelslab",
-      "apiKeyLabel": "API Key",
-      "apiKeyEnvVar": "MODELSLAB_API_KEY",
-      "defaultModelId": "llama-3.1-8b-uncensored",
-      "models": [
-        {
-          "modelId": "llama-3.1-8b-uncensored",
-          "modelName": "Llama 3.1 8B Uncensored"
-        },
-        {
-          "modelId": "llama-3.1-70b-uncensored",
-          "modelName": "Llama 3.1 70B Uncensored"
-        }
-      ]
+      "value": "modelslab",
+      "label": "ModelsLab"
     }
   ]
 }

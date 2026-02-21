@@ -326,6 +326,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "modelslab":
+			return ProtoApiProvider.MODELSLAB
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -416,6 +418,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.MODELSLAB:
+			return "modelslab"
 		default:
 			return "anthropic"
 	}
@@ -502,6 +506,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
 		nousResearchApiKey: config.nousResearchApiKey,
+		modelsLabApiKey: config.modelsLabApiKey,
 		clineApiKey: config.clineApiKey,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
@@ -549,6 +554,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
+		planModeModelsLabModelId: config.planModeModelsLabModelId,
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 
@@ -591,6 +597,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
+		actModeModelsLabModelId: config.actModeModelsLabModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 	}
@@ -683,6 +690,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		modelsLabApiKey: protoConfig.modelsLabApiKey,
 		clineApiKey: protoConfig.clineApiKey,
 
 		// Plan mode configurations
@@ -727,6 +735,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
+		planModeModelsLabModelId: protoConfig.planModeModelsLabModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 
@@ -770,6 +779,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
+		actModeModelsLabModelId: protoConfig.actModeModelsLabModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 	}
