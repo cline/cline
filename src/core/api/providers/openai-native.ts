@@ -110,7 +110,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			const response = await client.chat.completions.create(
 				{
 					model: model.id,
-					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages, "openai-native")],
 				},
 				{ signal: this.abortController?.signal },
 			)
@@ -131,7 +131,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
-			messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+			messages: [{ role: systemRole, content: systemPrompt }, ...convertToOpenAiMessages(messages, "openai-native")],
 			stream: true,
 			stream_options: { include_usage: true },
 			reasoning_effort: reasoningEffort,
