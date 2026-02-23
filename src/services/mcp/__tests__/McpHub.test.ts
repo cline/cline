@@ -39,7 +39,7 @@ describe("McpHub OAuth", () => {
 
 		// Mock HostProvider
 		setVscodeHostProviderMock({
-			getCallbackUri: async () => "vscode://saoudrizwan.claude-dev",
+			getCallbackUrl: async (path: string) => `vscode://saoudrizwan.claude-dev${path}`,
 		})
 
 		// Mock TelemetryService

@@ -33,7 +33,7 @@ describe("McpOAuthManager", () => {
 
 		// Mock HostProvider for redirect URL
 		setVscodeHostProviderMock({
-			getCallbackUri: async () => "vscode://saoudrizwan.claude-dev",
+			getCallbackUrl: async (path: string) => `vscode://saoudrizwan.claude-dev${path}`,
 		})
 
 		// Mock openExternal to prevent actual browser opens
