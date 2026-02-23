@@ -175,6 +175,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Bedrock custom ARN flow state
 	const [isBedrockCustomFlow, setIsBedrockCustomFlow] = useState(false)
 
+	// Auto-condense token limit state (number | undefined)
+	const [autoCondenseTokenLimit, setAutoCondenseTokenLimit] = useState<number | undefined>(() =>
+		stateManager.getGlobalSettingsKey("autoCondenseTokenLimit"),
+	)
+
 	// Settings state - single object for feature toggles
 	const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(() => {
 		const initial: Record<string, boolean> = {}
@@ -636,14 +641,31 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return result
 			}
 
-			case "features":
-				return Object.entries(FEATURE_SETTINGS).map(([key, config]) => ({
+			case "features": {
+				const featureItems: ListItem[] = Object.entries(FEATURE_SETTINGS).map(([key, config]) => ({
 					key,
 					label: config.label,
 					type: "checkbox" as const,
 					value: features[key as FeatureKey],
 					description: config.description,
 				}))
+				// When auto-condense is enabled, insert the compaction threshold editable field after it
+				const autoCondenseIdx = featureItems.findIndex((item) => item.key === "autoCondense")
+				if (autoCondenseIdx !== -1 && features.autoCondense) {
+					const limitDisplay = autoCondenseTokenLimit
+						? `${Math.round(autoCondenseTokenLimit / 1000)}K tokens`
+						: "Default"
+					featureItems.splice(autoCondenseIdx + 1, 0, {
+						key: "autoCondenseTokenLimit",
+						label: "Compaction threshold (experimental)",
+						type: "editable" as const,
+						value: limitDisplay,
+						description: "Compact when conversation exceeds this many tokens (e.g. 300000). Empty for model default.",
+						isSubItem: true,
+					})
+				}
+				return featureItems
+			}
 
 			case "other":
 				return [
@@ -708,6 +730,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planReasoningEffort,
 		autoApproveSettings,
 		features,
+		autoCondenseTokenLimit,
 		preferredLanguage,
 		telemetry,
 		isAccountLoading,
@@ -1234,6 +1257,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setPreferredLanguage(editValue)
 				stateManager.setGlobalState("preferredLanguage", editValue)
 				break
+			case "autoCondenseTokenLimit": {
+				// Parse the entered value as a number; empty or non-numeric input clears the limit
+				const numValue = Number.parseInt(editValue.replace(/[^0-9]/g, ""), 10)
+				const newLimit = !isNaN(numValue) && numValue > 0 ? numValue : undefined
+				setAutoCondenseTokenLimit(newLimit)
+				stateManager.setGlobalState("autoCondenseTokenLimit", newLimit)
+				break
+			}
 		}
 		setIsEditing(false)
 	}, [items, selectedIndex, editValue, separateModels, stateManager])
