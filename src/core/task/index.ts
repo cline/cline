@@ -1882,7 +1882,11 @@ export class Task {
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.taskId),
 			this.stateManager.getGlobalSettingsKey("useAutoCondense") && isNextGenModelFamily(this.api.getModel().id),
-			this.stateManager.getGlobalSettingsKey("autoCondenseTokenLimit"),
+			(() => {
+				const apiConfig = this.stateManager.getApiConfiguration()
+				const mode = this.stateManager.getGlobalSettingsKey("mode")
+				return mode === "plan" ? apiConfig.planModeAutoCondenseTokenLimit : apiConfig.actModeAutoCondenseTokenLimit
+			})(),
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -2369,7 +2373,11 @@ export class Task {
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
 		let shouldCompact = false
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
-		const autoCondenseTokenLimit = this.stateManager.getGlobalSettingsKey("autoCondenseTokenLimit")
+		const autoCondenseTokenLimit = (() => {
+			const apiConfig = this.stateManager.getApiConfiguration()
+			const mode = this.stateManager.getGlobalSettingsKey("mode")
+			return mode === "plan" ? apiConfig.planModeAutoCondenseTokenLimit : apiConfig.actModeAutoCondenseTokenLimit
+		})()
 
 		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
 			// When we initially trigger context cleanup, we increase the context window size, so we need state `currentlySummarizing`

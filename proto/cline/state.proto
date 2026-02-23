@@ -104,7 +104,7 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 49;
+  optional string openai_codex_oauth_credentials = 51;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -279,8 +279,9 @@ message Settings {
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
   optional bool double_check_completion_enabled = 176;
-  optional int32 auto_condense_token_limit = 178;
-  map<string, string> open_ai_headers = 179;
+  optional int32 plan_mode_auto_condense_token_limit = 180;
+  optional int32 act_mode_auto_condense_token_limit = 181;
+  map<string, string> open_ai_headers = 182;
 }
 
 message DictationSettings {
@@ -427,7 +428,6 @@ message UpdateSettingsRequest {
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
   optional bool double_check_completion_enabled = 41;
-  optional int32 auto_condense_token_limit = 42;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

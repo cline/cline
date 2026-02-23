@@ -593,6 +593,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		planModeAutoCondenseTokenLimit: config.planModeAutoCondenseTokenLimit,
+		actModeAutoCondenseTokenLimit: config.actModeAutoCondenseTokenLimit,
 	}
 }
 
@@ -772,5 +774,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		planModeAutoCondenseTokenLimit: protoConfig.planModeAutoCondenseTokenLimit,
+		actModeAutoCondenseTokenLimit: protoConfig.actModeAutoCondenseTokenLimit,
 	}
 }

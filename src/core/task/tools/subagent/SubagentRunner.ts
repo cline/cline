@@ -735,7 +735,11 @@ export class SubagentRunner {
 		modelId: string,
 	): boolean {
 		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
-		const autoCondenseTokenLimit = this.baseConfig.services.stateManager.getGlobalSettingsKey("autoCondenseTokenLimit")
+		const autoCondenseTokenLimit = (() => {
+			const apiConfig = this.baseConfig.services.stateManager.getApiConfiguration()
+			const mode = this.baseConfig.services.stateManager.getGlobalSettingsKey("mode")
+			return mode === "plan" ? apiConfig.planModeAutoCondenseTokenLimit : apiConfig.actModeAutoCondenseTokenLimit
+		})()
 		if (useAutoCondense && isNextGenModelFamily(modelId)) {
 			const thresholdTokens = getEffectiveCompactionThreshold(api, autoCondenseTokenLimit)
 			return previousRequestTotalTokens >= thresholdTokens

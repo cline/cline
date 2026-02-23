@@ -175,9 +175,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Bedrock custom ARN flow state
 	const [isBedrockCustomFlow, setIsBedrockCustomFlow] = useState(false)
 
-	// Auto-condense token limit state (number | undefined)
-	const [autoCondenseTokenLimit, setAutoCondenseTokenLimit] = useState<number | undefined>(() =>
-		stateManager.getGlobalSettingsKey("autoCondenseTokenLimit"),
+	// Auto-condense token limit state per mode (number | undefined)
+	const [actCondenseLimit, setActCondenseLimit] = useState<number | undefined>(() =>
+		stateManager.getGlobalSettingsKey("actModeAutoCondenseTokenLimit"),
+	)
+	const [planCondenseLimit, setPlanCondenseLimit] = useState<number | undefined>(() =>
+		stateManager.getGlobalSettingsKey("planModeAutoCondenseTokenLimit"),
 	)
 
 	// Settings state - single object for feature toggles
@@ -649,20 +652,31 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 					value: features[key as FeatureKey],
 					description: config.description,
 				}))
-				// When auto-condense is enabled, insert the compaction threshold editable field after it
+				// When auto-condense is enabled, insert the compaction threshold editable fields after it
 				const autoCondenseIdx = featureItems.findIndex((item) => item.key === "autoCondense")
 				if (autoCondenseIdx !== -1 && features.autoCondense) {
-					const limitDisplay = autoCondenseTokenLimit
-						? `${Math.round(autoCondenseTokenLimit / 1000)}K tokens`
-						: "Default"
+					const actLimitDisplay = actCondenseLimit ? `${Math.round(actCondenseLimit / 1000)}K tokens` : "Default"
+					const planLimitDisplay = planCondenseLimit ? `${Math.round(planCondenseLimit / 1000)}K tokens` : "Default"
+					// Insert act mode threshold (always shown)
 					featureItems.splice(autoCondenseIdx + 1, 0, {
-						key: "autoCondenseTokenLimit",
-						label: "Compaction threshold (experimental)",
+						key: "actModeAutoCondenseTokenLimit",
+						label: separateModels ? "Compaction threshold (act)" : "Compaction threshold (experimental)",
 						type: "editable" as const,
-						value: limitDisplay,
+						value: actLimitDisplay,
 						description: "Compact when conversation exceeds this many tokens (e.g. 300000). Empty for model default.",
 						isSubItem: true,
 					})
+					// Insert plan mode threshold (only when using separate models)
+					if (separateModels) {
+						featureItems.splice(autoCondenseIdx + 2, 0, {
+							key: "planModeAutoCondenseTokenLimit",
+							label: "Compaction threshold (plan)",
+							type: "editable" as const,
+							value: planLimitDisplay,
+							description: "Compact when plan mode conversation exceeds this many tokens. Empty for model default.",
+							isSubItem: true,
+						})
+					}
 				}
 				return featureItems
 			}
@@ -730,7 +744,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		planReasoningEffort,
 		autoApproveSettings,
 		features,
-		autoCondenseTokenLimit,
+		actCondenseLimit,
+		planCondenseLimit,
 		preferredLanguage,
 		telemetry,
 		isAccountLoading,
@@ -1257,12 +1272,25 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setPreferredLanguage(editValue)
 				stateManager.setGlobalState("preferredLanguage", editValue)
 				break
-			case "autoCondenseTokenLimit": {
-				// Parse the entered value as a number; empty or non-numeric input clears the limit
+			case "actModeAutoCondenseTokenLimit": {
+				// Parse the entered value as a number; empty or non-numeric clears the limit
 				const numValue = Number.parseInt(editValue.replace(/[^0-9]/g, ""), 10)
 				const newLimit = !isNaN(numValue) && numValue > 0 ? numValue : undefined
-				setAutoCondenseTokenLimit(newLimit)
-				stateManager.setGlobalState("autoCondenseTokenLimit", newLimit)
+				setActCondenseLimit(newLimit)
+				stateManager.setGlobalState("actModeAutoCondenseTokenLimit", newLimit)
+				// When not using separate models, also sync plan mode
+				if (!separateModels) {
+					setPlanCondenseLimit(newLimit)
+					stateManager.setGlobalState("planModeAutoCondenseTokenLimit", newLimit)
+				}
+				break
+			}
+			case "planModeAutoCondenseTokenLimit": {
+				// Parse the entered value as a number; empty or non-numeric clears the limit
+				const numValue2 = Number.parseInt(editValue.replace(/[^0-9]/g, ""), 10)
+				const newLimit2 = !isNaN(numValue2) && numValue2 > 0 ? numValue2 : undefined
+				setPlanCondenseLimit(newLimit2)
+				stateManager.setGlobalState("planModeAutoCondenseTokenLimit", newLimit2)
 				break
 			}
 		}

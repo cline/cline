@@ -634,6 +634,7 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 137;
   optional string plan_mode_nous_research_model_id = 138;
   optional string gemini_plan_mode_thinking_level = 139;
+  optional int32 plan_mode_auto_condense_token_limit = 140;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -676,4 +677,5 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 237;
   optional string act_mode_nous_research_model_id = 238;
   optional string gemini_act_mode_thinking_level = 239;
+  optional int32 act_mode_auto_condense_token_limit = 240;
 }

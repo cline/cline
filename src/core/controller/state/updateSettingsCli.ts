@@ -48,7 +48,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				telemetrySetting,
 				yoloModeToggled,
 				useAutoCondense,
-				autoCondenseTokenLimit,
 				clineWebToolsEnabled,
 				worktreesEnabled,
 				subagentsEnabled,
@@ -149,13 +148,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					)
 				}
 				controller.stateManager.setGlobalState("useAutoCondense", useAutoCondense)
-			}
-
-			// Update custom context compaction token limit.
-			// A value of 0 means "clear the custom limit" (restore default model-based behavior).
-			if (autoCondenseTokenLimit !== undefined) {
-				const value = autoCondenseTokenLimit > 0 ? autoCondenseTokenLimit : undefined
-				controller.stateManager.setGlobalState("autoCondenseTokenLimit", value)
 			}
 
 			// Update Cline web tools setting (requires telemetry)
