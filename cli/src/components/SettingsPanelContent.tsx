@@ -24,8 +24,8 @@ import { openExternal } from "@/utils/env"
 import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
-import { type FeaturedModel, getAllFeaturedModels, getFeaturedModelsForCline } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
+import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
@@ -162,7 +162,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(initialMode === "featured-models")
 	const [featuredModelIndex, setFeaturedModelIndex] = useState(0)
-	const [featuredModels, setFeaturedModels] = useState<FeaturedModel[]>(() => getAllFeaturedModels())
+	const featuredModels = useClineFeaturedModels()
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
@@ -241,29 +241,6 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Refresh trigger to force re-reading model IDs from state
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
-
-	// Load Cline featured models via backend path (feature-flag gated).
-	useEffect(() => {
-		if (!controller) {
-			return
-		}
-
-		let cancelled = false
-		void (async () => {
-			try {
-				const models = await getFeaturedModelsForCline(controller)
-				if (!cancelled) {
-					setFeaturedModels([...models.recommended, ...models.free])
-				}
-			} catch {
-				// Keep local fallback models on error
-			}
-		})()
-
-		return () => {
-			cancelled = true
-		}
-	}, [controller])
 
 	// OCA auth hook
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -1317,7 +1294,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Featured model picker mode (Cline provider)
 			if (isPickingFeaturedModel) {
-				const maxIndex = getFeaturedModelMaxIndex(true, featuredModels)
+				const maxIndex = getFeaturedModelMaxIndex(featuredModels)
 
 				if (key.escape) {
 					setIsPickingFeaturedModel(false)

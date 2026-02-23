@@ -7,14 +7,14 @@
 import { Box, Text } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
-import { type FeaturedModel, getAllFeaturedModels } from "../constants/featured-models"
+import type { FeaturedModel } from "../constants/featured-models"
 
 interface FeaturedModelPickerProps {
 	selectedIndex: number
 	title?: string
 	showBrowseAll?: boolean
 	helpText?: string
-	featuredModels?: FeaturedModel[]
+	featuredModels: FeaturedModel[]
 }
 
 export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
@@ -24,7 +24,7 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 	helpText = "Arrows to navigate, Enter to select",
 	featuredModels,
 }) => {
-	const models = featuredModels ?? getAllFeaturedModels()
+	const models = featuredModels
 
 	return (
 		<Box flexDirection="column">
@@ -83,24 +83,21 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
  * Get the maximum valid index for the featured model picker
  * (includes "Browse all" option if showBrowseAll is true)
  */
-export function getFeaturedModelMaxIndex(showBrowseAll = true, featuredModels: FeaturedModel[] = getAllFeaturedModels()): number {
+export function getFeaturedModelMaxIndex(featuredModels: FeaturedModel[], showBrowseAll = true): number {
 	return showBrowseAll ? featuredModels.length : featuredModels.length - 1
 }
 
 /**
  * Check if the selected index is the "Browse all" option
  */
-export function isBrowseAllSelected(selectedIndex: number, featuredModels: FeaturedModel[] = getAllFeaturedModels()): boolean {
+export function isBrowseAllSelected(selectedIndex: number, featuredModels: FeaturedModel[]): boolean {
 	return selectedIndex === featuredModels.length
 }
 
 /**
  * Get the featured model at the given index, or null if "Browse all" is selected
  */
-export function getFeaturedModelAtIndex(
-	index: number,
-	featuredModels: FeaturedModel[] = getAllFeaturedModels(),
-): FeaturedModel | null {
+export function getFeaturedModelAtIndex(index: number, featuredModels: FeaturedModel[]): FeaturedModel | null {
 	if (index >= 0 && index < featuredModels.length) {
 		return featuredModels[index]
 	}

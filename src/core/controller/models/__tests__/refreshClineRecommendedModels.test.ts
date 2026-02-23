@@ -5,7 +5,6 @@ import fs from "fs/promises"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
-import type { Controller } from "@/core/controller"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
@@ -14,7 +13,6 @@ import { refreshClineRecommendedModels, resetClineRecommendedModelsCacheForTests
 
 describe("refreshClineRecommendedModels", () => {
 	let sandbox: sinon.SinonSandbox
-	const controllerStub = {} as Controller
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -32,7 +30,7 @@ describe("refreshClineRecommendedModels", () => {
 		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").returns(false)
 		const axiosGetStub = sandbox.stub(axios, "get")
 
-		const result = await refreshClineRecommendedModels(controllerStub)
+		const result = await refreshClineRecommendedModels()
 
 		expect(result).to.deep.equal(CLINE_RECOMMENDED_MODELS_FALLBACK)
 		expect(axiosGetStub.called).to.equal(false)
@@ -57,7 +55,7 @@ describe("refreshClineRecommendedModels", () => {
 			},
 		})
 
-		const result = await refreshClineRecommendedModels(controllerStub)
+		const result = await refreshClineRecommendedModels()
 
 		expect(axiosGetStub.calledOnce).to.equal(true)
 		expect(result).to.deep.equal({
@@ -99,8 +97,8 @@ describe("refreshClineRecommendedModels", () => {
 			},
 		})
 
-		const firstResult = await refreshClineRecommendedModels(controllerStub)
-		const secondResult = await refreshClineRecommendedModels(controllerStub)
+		const firstResult = await refreshClineRecommendedModels()
+		const secondResult = await refreshClineRecommendedModels()
 
 		expect(axiosGetStub.calledOnce).to.equal(true)
 		expect(firstResult).to.not.deep.equal(CLINE_RECOMMENDED_MODELS_FALLBACK)

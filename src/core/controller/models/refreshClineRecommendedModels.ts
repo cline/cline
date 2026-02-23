@@ -8,7 +8,6 @@ import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-mo
 import { getAxiosSettings } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
-import type { Controller } from ".."
 
 export interface ClineRecommendedModelData {
 	id: string
@@ -27,15 +26,8 @@ const RECOMMENDED_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
 let pendingRefresh: Promise<ClineRecommendedModelsData> | null = null
 let inMemoryCache: { data: ClineRecommendedModelsData; timestamp: number } | null = null
 
-function cloneRecommendedModelsData(data: ClineRecommendedModelsData): ClineRecommendedModelsData {
-	return {
-		recommended: data.recommended.map((model) => ({ ...model, tags: [...model.tags] })),
-		free: data.free.map((model) => ({ ...model, tags: [...model.tags] })),
-	}
-}
-
 function getHardcodedRecommendedModels(): ClineRecommendedModelsData {
-	return cloneRecommendedModelsData(CLINE_RECOMMENDED_MODELS_FALLBACK)
+	return CLINE_RECOMMENDED_MODELS_FALLBACK
 }
 
 function useUpstreamRecommendedModels(): boolean {
@@ -87,7 +79,7 @@ function normalizeRecommendedModelsResponse(raw: unknown): ClineRecommendedModel
 	return { recommended, free }
 }
 
-export async function refreshClineRecommendedModels(_controller: Controller): Promise<ClineRecommendedModelsData> {
+export async function refreshClineRecommendedModels(): Promise<ClineRecommendedModelsData> {
 	if (!useUpstreamRecommendedModels()) {
 		return getHardcodedRecommendedModels()
 	}
