@@ -38,7 +38,6 @@ import {
 } from "@shared/api"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
-import { ProviderToApiKeyMap } from "@shared/storage"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
@@ -58,6 +57,7 @@ import { openExternal } from "@/utils/env"
 import { ACPDiffViewProvider } from "../acp/ACPDiffViewProvider.js"
 import { ACPHostBridgeClientProvider } from "../acp/ACPHostBridgeClientProvider.js"
 import { AcpTerminalManager } from "../acp/AcpTerminalManager.js"
+import { isAuthConfigured } from "../index.js"
 import { fetchOpenRouterModels, usesOpenRouterModels } from "../utils/openrouter-models"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ClineSessionEmitter } from "./ClineSessionEmitter.js"
@@ -265,7 +265,7 @@ export class ClineAgent implements acp.Agent {
 	 */
 	async newSession(params: acp.NewSessionRequest): Promise<acp.NewSessionResponse> {
 		// Check if authentication is required
-		const isAuthenticated = await this.isAuthConfigured()
+		const isAuthenticated = await isAuthConfigured()
 		if (!isAuthenticated) {
 			throw RequestError.authRequired()
 		}
@@ -1144,43 +1144,6 @@ export class ClineAgent implements acp.Agent {
 		} catch (error) {
 			Logger.debug("[ClineAgent] Error sending available commands:", error)
 		}
-	}
-
-	/**
-	 * Check if the user has authentication configured.
-	 * Returns true if they have either:
-	 * - Cline provider with stored auth data
-	 * - OpenAI Codex provider with OAuth credentials
-	 * - BYO provider with an API key configured
-	 */
-	private async isAuthConfigured(): Promise<boolean> {
-		const stateManager = StateManager.get()
-		const mode = stateManager.getGlobalSettingsKey("mode") as string
-		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const currentProvider = (stateManager.getGlobalSettingsKey(providerKey) as string) || "cline"
-
-		if (currentProvider === "cline") {
-			// For Cline provider, check if we have stored auth data
-			return Boolean(
-				stateManager.getSecretKey("clineApiKey") ||
-					stateManager.getSecretKey("clineAccountId") ||
-					stateManager.getSecretKey("cline:clineAccountId"),
-			)
-		}
-
-		// For OpenAI Codex provider, check OAuth credentials
-		if (currentProvider === "openai-codex") {
-			return await openAiCodexOAuthManager.isAuthenticated()
-		}
-
-		// For BYO providers, check if the API key is configured
-		const keyField = ProviderToApiKeyMap[currentProvider as keyof typeof ProviderToApiKeyMap]
-		if (!keyField) {
-			return false
-		}
-
-		const fields = Array.isArray(keyField) ? keyField : [keyField]
-		return fields.some((key) => stateManager.getSecretKey(key))
 	}
 
 	/**

@@ -797,7 +797,7 @@ devCommand
  * If `welcomeViewCompleted` is undefined (first run), checks if ANY provider has credentials
  * and sets the flag accordingly.
  */
-async function isAuthConfigured(): Promise<boolean> {
+export async function isAuthConfigured(): Promise<boolean> {
 	const stateManager = StateManager.get()
 
 	// Check welcomeViewCompleted first - this is the single source of truth
