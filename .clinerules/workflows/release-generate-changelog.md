@@ -53,6 +53,17 @@ Expected result from Skill A:
 - deterministic per-PR classification (`vscode|cli|both|exclude`)
 - coverage accounting with status (`included|excluded|unclassified`)
 - explicit inclusion/exclusion rationale per PR
+- enriched per-PR semantic metadata derived from PR description + code changes, including:
+  - `changeIntentSummary` (1-2 sentence user-facing summary)
+  - `intent` (`added|fixed|changed|internal|unclear`)
+  - `userImpact` (`high|medium|low`)
+  - `evidence` (key changed files and optional diff cues)
+
+Metadata completeness gate:
+
+- Skill A must retrieve `title` and `body` for each candidate PR whenever available.
+- If missing metadata rate (`title` or `body`) exceeds 10% of candidate PRs, Skill A must retry via fallback REST PR fetch before proceeding.
+- If missing metadata remains above threshold after fallback, continue with explicit uncertainty reporting in the output contract.
 
 Unclassified handling rule:
 
@@ -80,6 +91,8 @@ Expected result from Skill B:
 - no-op on a scope when no includable PRs exist
 - preserved changelog history
 - explicit post-write list of unclassified PRs excluded from auto-generated bullets
+- evidence-backed synthesis that uses `changeIntentSummary`, PR descriptions, and changed-file signals rather than coarse umbrella bullets
+- coverage mapping that accounts for every included PR (represented in bullet clusters or explicitly called out in summary)
 
 ## 4) Required conventions for generated changelog content
 
@@ -90,6 +103,11 @@ For each target file:
 - omit empty sections
 - no code fences, no analysis prose
 - bullets are user-facing, concise, and scope-appropriate
+
+Detail density rule:
+
+- Bullet count should scale with included PR volume for each target.
+- For high-volume windows (>= 100 included PRs in a target scope), avoid collapsing into a handful of umbrella bullets; produce theme-grouped detail suitable for human release notes.
 
 Attribution rule:
 
@@ -111,9 +129,13 @@ Verify and report:
    - no empty sections
 5. Coverage validity:
    - every included PR represented or explicitly accounted for
+   - explicit per-target coverage mapping exists (PR -> bullet cluster or exclusion rationale)
 6. Unclassified visibility:
    - unclassified PRs are listed explicitly with reasons they were not auto-included
    - summary makes clear user may manually add selected unclassified PRs
+7. Confidence visibility:
+   - report metadata completeness (title/body coverage)
+   - report synthesis confidence and low-confidence clusters requiring optional human review
 
 ## 6) Final response format
 

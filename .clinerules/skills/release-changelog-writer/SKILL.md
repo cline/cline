@@ -25,9 +25,9 @@ Optional:
 
 1. Read and anchor each target file’s existing style and section conventions.
 2. Build scoped entry sets from inventory (`vscode+both` for extension, `cli+both` for CLI).
-3. Synthesize user-facing prose (not raw PR title dumps).
+3. Synthesize user-facing prose from semantic PR understanding (description + code-change evidence), not raw title dumping.
 4. Apply updates safely at top release position, preserving existing history.
-5. Verify structure, coverage mapping, and no-op behavior.
+5. Verify structure, coverage mapping, confidence signals, and no-op behavior.
 
 ## Style Anchoring Requirements
 
@@ -75,6 +75,26 @@ If a target has zero includable PRs, do not modify that file and report explicit
    - `Changed` for behavior/UX updates
 4. Do not include PR numbers or links in final bullets.
 
+## Semantic Synthesis Rules (required)
+
+Use inventory semantic fields (`intent`, `userImpact`, `changeIntentSummary`, `evidence`, `semanticConfidence`) as primary input.
+
+1. Cluster included PRs by user-facing theme (for example: model/provider support, auth, tool reliability, UX/settings, platform compatibility).
+2. Build bullets from cluster intent + evidence, not from mechanical title concatenation.
+3. Prefer specificity over vague umbrella summaries when metadata confidence is sufficient.
+4. For low-confidence PRs, avoid over-claiming; keep wording conservative and surface confidence note in summary output.
+
+### Detail-density guardrail
+
+Avoid over-compression. Minimum bullet guidance by included PR count per target:
+
+- 1-10 PRs: typically 3-8 bullets
+- 11-40 PRs: typically 6-14 bullets
+- 41-100 PRs: typically 10-20 bullets
+- >100 PRs: typically 14-28 bullets
+
+These are guardrails, not rigid limits. If writing fewer bullets, explain why in verification summary.
+
 ## External Contributor Attribution
 
 When included PR author status is `external`, append:
@@ -106,6 +126,7 @@ Before returning success, verify:
 2. Section order is valid.
 3. No empty sections were inserted.
 4. Every included PR is represented in generated bullets or explicitly called out in summary accounting.
+   - maintain an internal mapping: `pr_number -> bullet_cluster_id | excluded_reason`
 5. Files report as:
    - `updated` when content inserted
    - `no-op` when no includable PRs
@@ -113,6 +134,9 @@ Before returning success, verify:
    - explicitly list unclassified PRs excluded from auto-generated bullets
    - include reason per unclassified PR (for example `incomplete-file-list`, `missing-pr`, `no-files`)
    - add guidance that user can choose manual inclusion in a follow-up edit
+7. Confidence visibility:
+   - report low-confidence cluster count
+   - report metadata completeness uncertainty carried from inventory
 
 ## Output Contract
 
@@ -126,3 +150,6 @@ Return concise machine- and human-readable summary:
 6. quick review commands:
    - `git --no-pager diff -- CHANGELOG.md`
    - `git --no-pager diff -- cli/CHANGELOG.md`
+7. synthesis quality notes:
+   - bullet density vs included PR volume (per target)
+   - low-confidence clusters requiring optional human review
