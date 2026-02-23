@@ -143,15 +143,19 @@ echo '{"cancel":false}'
 
 <Steps>
   <Step title="Create the hook file">
-    Save the script above as `~/Documents/Cline/Hooks/file-logger` (macOS/Linux) or create it through the Hooks UI.
+    Save the script above as `~/Documents/Cline/Hooks/file-logger` or create it through the Hooks UI.
   </Step>
   <Step title="Make it executable">
-    Run `chmod +x ~/Documents/Cline/Hooks/file-logger` in your terminal.
+    On macOS/Linux, run `chmod +x ~/Documents/Cline/Hooks/file-logger`.
   </Step>
-  <Step title="Enable it">
+  <Step title="Enable it (macOS/Linux only)">
     In Cline's Hooks tab, find "file-logger" under PreToolUse hooks and toggle it on.
   </Step>
 </Steps>
+
+<Note>
+On Windows, hooks are executed with PowerShell and run whenever the hook file exists.
+</Note>
 
 ### Test It
 
@@ -444,14 +448,15 @@ cline config set hooks-enabled=true
 ```
 
 <Note>
-CLI hooks are only supported on macOS and Linux.
+Windows hooks require PowerShell (`powershell.exe`) available on your PATH.
 </Note>
 
 ## Troubleshooting
 
 **Hook not running?**
-- Check that the file is executable (`chmod +x hookname`)
-- Verify the hook is enabled (toggle is on in the Hooks tab)
+- On macOS/Linux, check that the file is executable (`chmod +x hookname`)
+- On Windows, ensure PowerShell is available (`powershell -NoProfile -Command "$PSVersionTable.PSVersion"`)
+- On macOS/Linux, verify the hook is enabled (toggle is on in the Hooks tab)
 - Check that Hooks are enabled globally in Settings
 
 **Hook output not parsed?**

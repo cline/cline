@@ -33,9 +33,9 @@ describe("hooks-utils", () => {
 				})
 			})
 
-			it("should return false", () => {
+			it("should return true", () => {
 				const result = getHooksEnabledSafe()
-				result.should.be.false()
+				result.should.be.true()
 			})
 		})
 
