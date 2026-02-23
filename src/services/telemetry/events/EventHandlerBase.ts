@@ -16,12 +16,7 @@ export abstract class EventHandlerBase {
 	 * @param properties Event properties
 	 * @param required Whether this is a required event that bypasses user preferences
 	 */
-	protected static capture(
-		service: TelemetryService,
-		event: string,
-		properties?: TelemetryObject,
-		required: boolean = false,
-	): void {
+	protected static capture(service: TelemetryService, event: string, properties?: TelemetryObject, required = false): void {
 		if (required) {
 			service.captureRequired(event, properties)
 		} else {

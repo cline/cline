@@ -164,7 +164,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	}
 
 	const hasInfo = useMemo(() => {
-		return selectedModelInfo && selectedModelInfo.description
+		return selectedModelInfo?.description
 	}, [selectedModelInfo])
 
 	useEffect(() => {
@@ -172,7 +172,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 		if (dropdownListRef.current) {
 			dropdownListRef.current.scrollTop = 0
 		}
-	}, [searchTerm])
+	}, [])
 
 	useEffect(() => {
 		if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {

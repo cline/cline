@@ -175,9 +175,8 @@ export class QwenCodeHandler implements ApiHandler {
 				client.apiKey = this.credentials.access_token
 				client.baseURL = this.getBaseUrl(this.credentials)
 				return await apiCall()
-			} else {
-				throw error
 			}
+			throw error
 		}
 	}
 

@@ -829,7 +829,7 @@ export class ClineAgent implements acp.Agent {
 
 				await this.emitSessionUpdate(sessionId, {
 					sessionUpdate,
-					content: { type: "text", text: needsNewline ? "\n" + textDelta : textDelta },
+					content: { type: "text", text: needsNewline ? `\n${textDelta}` : textDelta },
 				})
 			}
 
@@ -1082,7 +1082,7 @@ export class ClineAgent implements acp.Agent {
 
 		// Use the permission handler callback pattern
 		return new Promise<acp.RequestPermissionResponse>((resolve) => {
-			this.permissionHandler!({ toolCall, options }, resolve)
+			this.permissionHandler?.({ toolCall, options }, resolve)
 		})
 	}
 

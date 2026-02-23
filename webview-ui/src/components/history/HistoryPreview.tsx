@@ -118,7 +118,8 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						style={{
 							marginRight: "4px",
 							transform: "scale(0.9)",
-						}}></span>
+						}}
+					/>
 					<span
 						style={{
 							fontWeight: 500,

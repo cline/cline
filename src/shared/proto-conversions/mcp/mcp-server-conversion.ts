@@ -1,10 +1,10 @@
 import {
+	McpServerStatus,
 	McpPrompt as ProtoMcpPrompt,
 	McpPromptArgument as ProtoMcpPromptArgument,
 	McpResource as ProtoMcpResource,
 	McpResourceTemplate as ProtoMcpResourceTemplate,
 	McpServer as ProtoMcpServer,
-	McpServerStatus,
 	McpTool as ProtoMcpTool,
 } from "@shared/proto/cline/mcp"
 import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
@@ -114,7 +114,6 @@ function convertProtoStatusToMcp(status: McpServerStatus): McpServer["status"] {
 			return "connected"
 		case McpServerStatus.MCP_SERVER_STATUS_CONNECTING:
 			return "connecting"
-		case McpServerStatus.MCP_SERVER_STATUS_DISCONNECTED:
 		default: // Includes UNSPECIFIED if it were present, maps to disconnected
 			return "disconnected"
 	}

@@ -25,7 +25,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 
 	/** The currently streaming comment thread */
 	private streamingThread: vscode.CommentThread | null = null
-	private streamingContent: string = ""
+	private streamingContent = ""
 
 	constructor() {
 		super()
@@ -134,7 +134,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		endLine: number,
 		relativePath?: string,
 		fileContent?: string,
-		revealComment: boolean = false,
+		revealComment = false,
 	): void {
 		// Use virtual diff URI if relativePath and fileContent are provided
 		let uri: vscode.Uri
@@ -275,7 +275,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	clearCommentsForFile(filePath: string): void {
 		const keysToRemove: string[] = []
 		for (const [key, thread] of this.threads.entries()) {
-			if (key.startsWith(filePath + ":")) {
+			if (key.startsWith(`${filePath}:`)) {
 				this.threadFilePaths.delete(thread)
 				thread.dispose()
 				keysToRemove.push(key)

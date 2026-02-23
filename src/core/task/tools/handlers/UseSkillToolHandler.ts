@@ -11,8 +11,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.USE_SKILL
 
-	constructor() {}
-
 	getDescription(block: ToolUse): string {
 		const skillName = block.params.skill_name
 		return skillName ? `[${block.name} for "${skillName}"]` : `[${block.name}]`

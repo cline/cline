@@ -1083,8 +1083,7 @@ describe("AwsBedrockHandler", () => {
 
 			// Capture the command passed to executeConverseStream
 			let capturedCommand: any = null
-			const originalExecuteConverseStream = handler["executeConverseStream"].bind(handler)
-			handler["executeConverseStream"] = async function* (command: any, modelInfo: any) {
+			handler["executeConverseStream"] = async function* (command: any, _modelInfo: any) {
 				capturedCommand = command
 				// Yield nothing — we just want to capture the command
 			}

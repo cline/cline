@@ -24,7 +24,7 @@ function createMockStream(lines: string[] = ["test-command", "line1", "line2", "
 	return {
 		async *[Symbol.asyncIterator]() {
 			for (const line of lines) {
-				yield line + "\n"
+				yield `${line}\n`
 			}
 		},
 	}

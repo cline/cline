@@ -302,7 +302,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 			Logger.error("[MultiRootCheckpointManager] Failed to present multifile diff:", errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to present diff: " + errorMessage,
+				message: `Failed to present diff: ${errorMessage}`,
 			})
 		}
 	}

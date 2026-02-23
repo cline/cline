@@ -22,7 +22,7 @@ export interface VisibleWindow<T> {
  * Centers the selected item in the visible window when possible.
  * Returns the visible items and the start index for selection tracking.
  */
-export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible: number = 5): VisibleWindow<T> {
+export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible = 5): VisibleWindow<T> {
 	if (items.length <= maxVisible) {
 		return { items, startIndex: 0 }
 	}

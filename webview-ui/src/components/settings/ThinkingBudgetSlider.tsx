@@ -89,10 +89,10 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 		if (newIsEnabled !== isEnabled) {
 			setIsEnabled(newIsEnabled)
 		}
-	}, [modeFields.thinkingBudgetTokens])
+	}, [modeFields.thinkingBudgetTokens, isEnabled, localValue])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-		const value = parseInt(event.target.value, 10)
+		const value = Number.parseInt(event.target.value, 10)
 		const clampedValue = Math.max(value, ANTHROPIC_MIN_THINKING_BUDGET)
 		setLocalValue(clampedValue)
 	}, [])

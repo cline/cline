@@ -10,7 +10,7 @@
 export async function waitFor<T>(
 	condition: () => T | undefined | null,
 	timeoutMs: number,
-	pollIntervalMs: number = 100,
+	pollIntervalMs = 100,
 ): Promise<T | undefined> {
 	// Check immediately first
 	const immediate = condition()

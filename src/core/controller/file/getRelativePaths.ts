@@ -33,7 +33,7 @@ async function getRelativePath(uriString: string): Promise<string> {
 		throw new Error(`Dropped file ${relativePath} is outside the workspace.`)
 	}
 
-	let result = "/" + relativePath.replace(/\\/g, "/")
+	let result = `/${relativePath.replace(/\\/g, "/")}`
 	if (await isDirectory(filePath)) {
 		result += "/"
 	}

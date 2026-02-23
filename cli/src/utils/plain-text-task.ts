@@ -87,7 +87,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 
 		// JSON mode: stream all messages to stdout (existing behavior)
 		if (jsonOutput) {
-			process.stdout.write(JSON.stringify(message) + "\n")
+			process.stdout.write(`${JSON.stringify(message)}\n`)
 		} else {
 			handleMessageForPipeMode(message, verbose || false)
 		}
@@ -119,7 +119,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			} catch (error) {
 				if (jsonOutput) {
 					process.stdout.write(
-						JSON.stringify({ type: "error", message: error instanceof Error ? error.message : String(error) }) + "\n",
+						`${JSON.stringify({ type: "error", message: error instanceof Error ? error.message : String(error) })}\n`,
 					)
 				} else {
 					process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`)
@@ -164,7 +164,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : String(error)
 		if (jsonOutput) {
-			process.stdout.write(JSON.stringify({ type: "error", message: errMsg }) + "\n")
+			process.stdout.write(`${JSON.stringify({ type: "error", message: errMsg })}\n`)
 		} else {
 			process.stderr.write(`Error: ${errMsg}\n`)
 		}
@@ -180,7 +180,7 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			.sort(([aTs], [bTs]) => aTs - bTs)
 			.map(([_, msg]) => msg)
 			.at(-1)
-		process.stdout.write(msg + "\n")
+		process.stdout.write(`${msg}\n`)
 	}
 
 	return !hasError

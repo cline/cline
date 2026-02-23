@@ -115,7 +115,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	 * @param isAttemptCompletionMessage - Whether this checkpoint is for an attempt completion message
 	 * @param completionMessageTs - Optional timestamp of the completion message to update with checkpoint hash
 	 */
-	async saveCheckpoint(isAttemptCompletionMessage: boolean = false, completionMessageTs?: number): Promise<void> {
+	async saveCheckpoint(isAttemptCompletionMessage = false, completionMessageTs?: number): Promise<void> {
 		try {
 			// If checkpoints are disabled or previously encountered a timeout error, return early
 			if (
@@ -305,7 +305,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore checkpoint: " + errorMessage,
+								message: `Failed to restore checkpoint: ${errorMessage}`,
 							})
 							didWorkspaceRestoreFail = true
 						}
@@ -320,7 +320,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore offset checkpoint: " + errorMessage,
+								message: `Failed to restore offset checkpoint: ${errorMessage}`,
 							})
 							didWorkspaceRestoreFail = true
 						}
@@ -339,7 +339,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore checkpoint: " + errorMessage,
+								message: `Failed to restore checkpoint: ${errorMessage}`,
 							})
 							didWorkspaceRestoreFail = true
 						}
@@ -531,7 +531,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			Logger.error(`[TaskCheckpointManager] Failed to present multifile diff for task ${this.task.taskId}:`, errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to retrieve diff set: " + errorMessage,
+				message: `Failed to retrieve diff set: ${errorMessage}`,
 			})
 			relinquishButton()
 		}

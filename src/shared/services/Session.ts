@@ -43,8 +43,8 @@ export class Session {
 	private sessionId: string
 	private sessionStartTime: number
 	private toolCalls: ToolCallRecord[] = []
-	private apiTimeMs: number = 0
-	private toolTimeMs: number = 0
+	private apiTimeMs = 0
+	private toolTimeMs = 0
 
 	// Track in-flight operations
 	private currentApiCallStart: number | null = null
@@ -52,7 +52,7 @@ export class Session {
 
 	// Resource tracking
 	private initialCpuUsage: NodeJS.CpuUsage
-	private peakMemoryBytes: number = 0
+	private peakMemoryBytes = 0
 
 	private constructor() {
 		this.sessionId = nanoid(10)

@@ -55,7 +55,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		return lines.length
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditorId) {
 			return false
 		}
@@ -68,9 +68,8 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 				// consider it a real error.
 				Logger.log("Diff not found:", this.activeDiffEditorId)
 				return false
-			} else {
-				throw err
 			}
+			throw err
 		}
 	}
 

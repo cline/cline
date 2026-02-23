@@ -98,7 +98,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 	// Reset selection when search changes
 	useEffect(() => {
 		setSelectedIndex(0)
-	}, [searchQuery])
+	}, [])
 
 	const handleSelect = useCallback(
 		async (item: TaskHistoryItem) => {

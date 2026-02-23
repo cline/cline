@@ -312,7 +312,8 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 											fontSize: "12px",
 											color: "var(--vscode-descriptionForeground)",
 											margin: 0,
-										}}></p>
+										}}
+									/>
 								</div>
 							)}
 							{/* Chrome Executable Path section now follows remote-specific settings */}

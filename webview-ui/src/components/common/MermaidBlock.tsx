@@ -87,7 +87,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 	// 1) Whenever `code` changes, mark that we need to re-render a new chart
 	useEffect(() => {
 		setIsLoading(true)
-	}, [code])
+	}, [])
 
 	// 2) Debounce the actual parse/render
 	useDebounceEffect(
@@ -157,7 +157,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 			{isLoading && <LoadingMessage>Generating mermaid diagram...</LoadingMessage>}
 			<ButtonContainer>
 				<StyledVSCodeButton aria-label="Copy Code" onClick={handleCopyCode} title="Copy Code">
-					<span className="codicon codicon-copy"></span>
+					<span className="codicon codicon-copy" />
 				</StyledVSCodeButton>
 			</ButtonContainer>
 			<SvgContainer $isLoading={isLoading} onClick={handleClick} ref={containerRef} />

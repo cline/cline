@@ -157,7 +157,7 @@ export class OcaAuthProvider {
 			}
 		}
 		OcaAuthProvider.pkceStateMap.set(state, { code_verifier, nonce, createdAt: Date.now(), redirect_uri: callbackUrl })
-		const base = idcs_url.replace(/\/$/, "") + "/oauth2/v1/authorize"
+		const base = `${idcs_url.replace(/\/$/, "")}/oauth2/v1/authorize`
 		const url = new URL(base)
 		url.searchParams.set("client_id", client_id)
 		url.searchParams.set("response_type", "code")

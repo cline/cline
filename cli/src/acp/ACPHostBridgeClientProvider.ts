@@ -111,7 +111,7 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
 	constructor(
 		_clientCapabilities: acp.ClientCapabilities | undefined,
 		_sessionIdResolver: SessionIdResolver,
-		version: string = "1.0.0",
+		version = "1.0.0",
 	) {
 		this.version = version
 	}
@@ -191,8 +191,6 @@ class ACPEnvServiceClient implements EnvServiceClientInterface {
  * Most operations are stubs that will be implemented using ACP extension methods.
  */
 class ACPWindowServiceClient implements WindowServiceClientInterface {
-	constructor(_clientCapabilities: acp.ClientCapabilities | undefined, _sessionIdResolver: SessionIdResolver) {}
-
 	async showTextDocument(request: proto.host.ShowTextDocumentRequest): Promise<proto.host.TextEditorInfo> {
 		// Next phase: Send ACP extension request to open document in the editor.
 		// This would tell the ACP client to open the specified file.
@@ -402,11 +400,11 @@ export class ACPHostBridgeClientProvider implements HostBridgeClientProvider {
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
 		cwdResolver: CwdResolver,
-		version: string = "1.0.0",
+		version = "1.0.0",
 	) {
 		this.workspaceClient = new ACPWorkspaceServiceClient(clientCapabilities, sessionIdResolver, cwdResolver)
 		this.envClient = new ACPEnvServiceClient(clientCapabilities, sessionIdResolver, version)
-		this.windowClient = new ACPWindowServiceClient(clientCapabilities, sessionIdResolver)
+		this.windowClient = new ACPWindowServiceClient()
 		this.diffClient = new ACPDiffServiceClient()
 	}
 }

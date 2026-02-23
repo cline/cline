@@ -20,6 +20,20 @@ export function useAutoApproveActions() {
 		[autoApprovalSettings],
 	)
 
+	// Update notifications setting
+	const updateNotifications = useCallback(
+		async (action: ActionMetadata, checked: boolean) => {
+			if (action.id === "enableNotifications") {
+				await updateAutoApproveSettings({
+					...autoApprovalSettings,
+					version: (autoApprovalSettings.version ?? 1) + 1,
+					enableNotifications: checked,
+				})
+			}
+		},
+		[autoApprovalSettings],
+	)
+
 	// Update action state
 	const updateAction = useCallback(
 		async (action: ActionMetadata, value: boolean) => {
@@ -50,21 +64,7 @@ export function useAutoApproveActions() {
 				actions: newActions,
 			})
 		},
-		[autoApprovalSettings],
-	)
-
-	// Update notifications setting
-	const updateNotifications = useCallback(
-		async (action: ActionMetadata, checked: boolean) => {
-			if (action.id === "enableNotifications") {
-				await updateAutoApproveSettings({
-					...autoApprovalSettings,
-					version: (autoApprovalSettings.version ?? 1) + 1,
-					enableNotifications: checked,
-				})
-			}
-		},
-		[autoApprovalSettings],
+		[autoApprovalSettings, updateNotifications],
 	)
 
 	return {

@@ -229,7 +229,7 @@ async function main() {
 	}
 
 	// Print summary
-	console.log("\n" + "=".repeat(50))
+	console.log(`\n${"=".repeat(50)}`)
 	console.log("📊 Summary:")
 	console.log("=".repeat(50))
 

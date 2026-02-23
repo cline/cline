@@ -95,14 +95,14 @@ export class SqliteLockManager {
 
 			try {
 				const timestampStr = fs.readFileSync(lockFile, "utf8").trim()
-				const timestamp = parseInt(timestampStr, 10)
+				const timestamp = Number.parseInt(timestampStr, 10)
 
-				if (isNaN(timestamp) || Date.now() - timestamp > this.STALE_LOCK_TIMEOUT) {
+				if (Number.isNaN(timestamp) || Date.now() - timestamp > this.STALE_LOCK_TIMEOUT) {
 					// Stale lock, remove it
 					unlinkSync(lockFile)
 					Logger.warn(`Removed stale database lock file: ${lockFile}`)
 				}
-			} catch (readError) {
+			} catch (_readError) {
 				// If we can't read the timestamp, assume it's stale
 				unlinkSync(lockFile)
 				Logger.warn(`Removed unreadable database lock file: ${lockFile}`)
@@ -257,14 +257,13 @@ export class SqliteLockManager {
 
 		if (insertedCount > 0) {
 			return null // lock acquired
-		} else {
-			const existingLock = await this.getFolderLockByTarget(lockTarget)
-			if (existingLock && existingLock.held_by === heldBy) {
-				return null // existing lock is held by the same task
-			}
-			// existing lock held by other task, return the conflicting lock
-			return await this.getFolderLockByTarget(lockTarget)
 		}
+		const existingLock = await this.getFolderLockByTarget(lockTarget)
+		if (existingLock && existingLock.held_by === heldBy) {
+			return null // existing lock is held by the same task
+		}
+		// existing lock held by other task, return the conflicting lock
+		return await this.getFolderLockByTarget(lockTarget)
 	}
 
 	/**

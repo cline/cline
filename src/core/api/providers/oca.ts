@@ -217,7 +217,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	async calculateCost(
-		modelInfo: ModelInfo,
+		_modelInfo: ModelInfo,
 		inputTokens: number,
 		outputTokens: number,
 		_cacheWriteTokens?: number,
@@ -231,7 +231,7 @@ export class OcaHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
-		if (this.options.ocaModelInfo?.apiFormat == ApiFormat.OPENAI_RESPONSES) {
+		if (this.options.ocaModelInfo?.apiFormat === ApiFormat.OPENAI_RESPONSES) {
 			yield* this.createMessageResponsesApi(systemPrompt, messages, tools)
 		} else if (this.options.ocaModelInfo?.apiFormat == ApiFormat.ANTHROPIC_CHAT) {
 			yield* this.createMessageMessagesApi(systemPrompt, messages, tools)
@@ -310,7 +310,7 @@ export class OcaHandler implements ApiHandler {
 		}
 
 		if (this.options.ocaModelInfo?.supportsReasoningEffort) {
-			chatCompletionsParams["reasoning_effort"] = this.options.ocaReasoningEffort || ("medium" as any)
+			chatCompletionsParams.reasoning_effort = this.options.ocaReasoningEffort || ("medium" as any)
 		}
 
 		const stream = await client.chat.completions.create(chatCompletionsParams)

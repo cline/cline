@@ -353,7 +353,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					}
 
 					return output
-				} catch (parseError) {
+				} catch (_parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					// Scan from the end to find the last complete JSON object
 					// This handles cases where hooks output debug info before the actual JSON response
@@ -380,7 +380,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 						}
 
 						if (startCollecting) {
-							jsonCandidate = line + "\n" + jsonCandidate
+							jsonCandidate = `${line}\n${jsonCandidate}`
 						}
 
 						// If we've closed all braces, we have a complete JSON object
@@ -506,10 +506,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 				return HookOutput.create({
 					cancel: false,
 				})
-			} else {
-				// Hook failed with non-zero exit - include hook name in error
-				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
+			// Hook failed with non-zero exit - include hook name in error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		} catch (error) {
 			const durationMs = performance.now() - startTime
 

@@ -314,7 +314,7 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 		if (!groupedByIndex.has(index)) {
 			groupedByIndex.set(index, [])
 		}
-		groupedByIndex.get(index)!.push(detail)
+		groupedByIndex.get(index)?.push(detail)
 	}
 
 	// Consolidate each group
@@ -410,7 +410,6 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 					return "max_tokens"
 				case "tool_calls":
 					return "tool_use"
-				case "content_filter": // Anthropic doesn't have an exact equivalent
 				default:
 					return null
 			}

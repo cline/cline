@@ -86,7 +86,7 @@ export class OllamaHandler implements ApiHandler {
 
 			try {
 				for await (const chunk of stream) {
-					Logger.debug("[OllamaHandler] Message Chunk" + JSON.stringify(chunk))
+					Logger.debug(`[OllamaHandler] Message Chunk${JSON.stringify(chunk)}`)
 
 					const delta = chunk.message
 

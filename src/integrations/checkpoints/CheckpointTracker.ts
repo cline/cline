@@ -210,7 +210,7 @@ class CheckpointTracker {
 	 * - Stage or commit files
 	 */
 	public async commit(): Promise<string | undefined> {
-		let lockAcquired: boolean = false
+		let lockAcquired = false
 
 		try {
 			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", true)
@@ -245,7 +245,7 @@ class CheckpointTracker {
 				Logger.error("Failed to add at least one file(s) to checkpoints shadow git")
 			}
 
-			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
+			const commitMessage = `checkpoint-${this.cwdHash}-${this.taskId}`
 
 			Logger.info(`Creating checkpoint commit with message: ${commitMessage}`)
 			const result = await git.commit(commitMessage, {
@@ -334,7 +334,7 @@ class CheckpointTracker {
 	 * - Reset to target commit
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
-		let lockAcquired: boolean = false
+		let lockAcquired = false
 
 		try {
 			Logger.info(`Resetting to checkpoint: ${commitHash}`)

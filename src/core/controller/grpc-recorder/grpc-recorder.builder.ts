@@ -13,7 +13,7 @@ import { testHooks } from "@/core/controller/grpc-recorder/test-hooks"
  */
 export class GrpcRecorderBuilder {
 	private fileHandler: LogFileHandler | null = null
-	private enabled: boolean = true
+	private enabled = true
 	private filters: GrpcRequestFilter[] = []
 	private hooks: GrpcPostRecordHook[] = []
 
