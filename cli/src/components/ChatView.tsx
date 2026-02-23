@@ -1172,7 +1172,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setSlashMenuDismissed(true)
 						return
 					}
-					if (cmd.name === "exit" || cmd.name === "q") {
+					if (cmd.name === "exit") {
 						handleExit()
 						return
 					}
