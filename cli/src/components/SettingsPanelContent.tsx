@@ -24,6 +24,7 @@ import { openExternal } from "@/utils/env"
 import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
+import { type FeaturedModel, getAllFeaturedModels, getFeaturedModelsForCline } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -161,6 +162,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(initialMode === "featured-models")
 	const [featuredModelIndex, setFeaturedModelIndex] = useState(0)
+	const [featuredModels, setFeaturedModels] = useState<FeaturedModel[]>(() => getAllFeaturedModels())
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
@@ -239,6 +241,29 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	// Refresh trigger to force re-reading model IDs from state
 	const [modelRefreshKey, setModelRefreshKey] = useState(0)
 	const refreshModelIds = useCallback(() => setModelRefreshKey((k) => k + 1), [])
+
+	// Load Cline featured models via backend path (feature-flag gated).
+	useEffect(() => {
+		if (!controller) {
+			return
+		}
+
+		let cancelled = false
+		void (async () => {
+			try {
+				const models = await getFeaturedModelsForCline(controller)
+				if (!cancelled) {
+					setFeaturedModels([...models.recommended, ...models.free])
+				}
+			} catch {
+				// Keep local fallback models on error
+			}
+		})()
+
+		return () => {
+			cancelled = true
+		}
+	}, [controller])
 
 	// OCA auth hook
 	const handleOcaAuthSuccess = useCallback(async () => {
@@ -1292,7 +1317,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Featured model picker mode (Cline provider)
 			if (isPickingFeaturedModel) {
-				const maxIndex = getFeaturedModelMaxIndex()
+				const maxIndex = getFeaturedModelMaxIndex(true, featuredModels)
 
 				if (key.escape) {
 					setIsPickingFeaturedModel(false)
@@ -1306,12 +1331,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				} else if (key.downArrow) {
 					setFeaturedModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
 				} else if (key.return) {
-					if (isBrowseAllSelected(featuredModelIndex)) {
+					if (isBrowseAllSelected(featuredModelIndex, featuredModels)) {
 						// Switch to full ModelPicker
 						setIsPickingFeaturedModel(false)
 						setIsPickingModel(true)
 					} else {
-						const selectedModel = getFeaturedModelAtIndex(featuredModelIndex)
+						const selectedModel = getFeaturedModelAtIndex(featuredModelIndex, featuredModels)
 						if (selectedModel && pickingModelKey) {
 							handleModelSelect(selectedModel.id)
 							setIsPickingFeaturedModel(false)
@@ -1522,6 +1547,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
 				<FeaturedModelPicker
+					featuredModels={featuredModels}
 					helpText="Arrows to navigate, Enter to select, Esc to cancel"
 					selectedIndex={featuredModelIndex}
 					title={`Select: ${label}`}

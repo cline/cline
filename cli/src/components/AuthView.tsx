@@ -14,6 +14,7 @@ import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/ap
 import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
+import { type FeaturedModel, getAllFeaturedModels, getFeaturedModelsForCline } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
@@ -172,6 +173,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [providerSearch, setProviderSearch] = useState("")
 	const [providerIndex, setProviderIndex] = useState(0)
 	const [clineModelIndex, setClineModelIndex] = useState(0)
+	const [featuredModels, setFeaturedModels] = useState<FeaturedModel[]>(() => getAllFeaturedModels())
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
@@ -252,6 +254,25 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	useEffect(() => {
 		setImportSources(detectImportSources())
 	}, [])
+
+	// Load Cline featured models via backend path (feature-flag gated).
+	useEffect(() => {
+		let cancelled = false
+		void (async () => {
+			try {
+				const models = await getFeaturedModelsForCline(controller)
+				if (!cancelled) {
+					setFeaturedModels([...models.recommended, ...models.free])
+				}
+			} catch {
+				// Keep local fallback models on error
+			}
+		})()
+
+		return () => {
+			cancelled = true
+		}
+	}, [controller])
 
 	// Reset provider index when search changes
 	// biome-ignore lint/correctness/useExhaustiveDependencies: we want to reset here
@@ -767,7 +788,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					<Box flexDirection="column">
 						<Text color="white">Choose a model</Text>
 						<Text> </Text>
-						<FeaturedModelPicker selectedIndex={clineModelIndex} />
+						<FeaturedModelPicker featuredModels={featuredModels} selectedIndex={clineModelIndex} />
 					</Box>
 				)
 			}
@@ -869,17 +890,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setProviderSearch((prev) => prev + input)
 				}
 			} else if (step === "cline_model") {
-				const maxIndex = getFeaturedModelMaxIndex()
+				const maxIndex = getFeaturedModelMaxIndex(true, featuredModels)
 
 				if (key.upArrow) {
 					setClineModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
 				} else if (key.downArrow) {
 					setClineModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
 				} else if (key.return) {
-					if (isBrowseAllSelected(clineModelIndex)) {
+					if (isBrowseAllSelected(clineModelIndex, featuredModels)) {
 						setStep("modelid")
 					} else {
-						const selectedModel = getFeaturedModelAtIndex(clineModelIndex)
+						const selectedModel = getFeaturedModelAtIndex(clineModelIndex, featuredModels)
 						if (selectedModel) {
 							handleClineModelSelect(selectedModel.id)
 						}

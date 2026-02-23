@@ -3,7 +3,10 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { ClineEnv } from "@/config"
+import { featureFlagsService } from "@/services/feature-flags"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { getAxiosSettings } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
@@ -23,6 +26,21 @@ const RECOMMENDED_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
 
 let pendingRefresh: Promise<ClineRecommendedModelsData> | null = null
 let inMemoryCache: { data: ClineRecommendedModelsData; timestamp: number } | null = null
+
+function cloneRecommendedModelsData(data: ClineRecommendedModelsData): ClineRecommendedModelsData {
+	return {
+		recommended: data.recommended.map((model) => ({ ...model, tags: [...model.tags] })),
+		free: data.free.map((model) => ({ ...model, tags: [...model.tags] })),
+	}
+}
+
+function getHardcodedRecommendedModels(): ClineRecommendedModelsData {
+	return cloneRecommendedModelsData(CLINE_RECOMMENDED_MODELS_FALLBACK)
+}
+
+function useUpstreamRecommendedModels(): boolean {
+	return featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM)
+}
 
 function normalizeRecommendedModel(raw: unknown): ClineRecommendedModelData | null {
 	if (!raw || typeof raw !== "object") {
@@ -70,6 +88,10 @@ function normalizeRecommendedModelsResponse(raw: unknown): ClineRecommendedModel
 }
 
 export async function refreshClineRecommendedModels(_controller: Controller): Promise<ClineRecommendedModelsData> {
+	if (!useUpstreamRecommendedModels()) {
+		return getHardcodedRecommendedModels()
+	}
+
 	if (inMemoryCache && Date.now() - inMemoryCache.timestamp <= RECOMMENDED_MODELS_CACHE_TTL_MS) {
 		return inMemoryCache.data
 	}
@@ -87,6 +109,11 @@ export async function refreshClineRecommendedModels(_controller: Controller): Pr
 	})()
 
 	return pendingRefresh
+}
+
+export function resetClineRecommendedModelsCacheForTests(): void {
+	pendingRefresh = null
+	inMemoryCache = null
 }
 
 async function fetchAndCacheClineRecommendedModels(): Promise<ClineRecommendedModelsData> {

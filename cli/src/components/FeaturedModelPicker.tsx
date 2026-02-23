@@ -14,6 +14,7 @@ interface FeaturedModelPickerProps {
 	title?: string
 	showBrowseAll?: boolean
 	helpText?: string
+	featuredModels?: FeaturedModel[]
 }
 
 export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
@@ -21,8 +22,9 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 	title,
 	showBrowseAll = true,
 	helpText = "Arrows to navigate, Enter to select",
+	featuredModels,
 }) => {
-	const featuredModels = getAllFeaturedModels()
+	const models = featuredModels ?? getAllFeaturedModels()
 
 	return (
 		<Box flexDirection="column">
@@ -35,7 +37,7 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 				</Text>
 			)}
 
-			{featuredModels.map((model, i) => {
+			{models.map((model, i) => {
 				const isSelected = i === selectedIndex
 
 				return (
@@ -64,8 +66,8 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
 
 			{showBrowseAll && (
 				<Box>
-					<Text color={selectedIndex === featuredModels.length ? COLORS.primaryBlue : "white"}>
-						{selectedIndex === featuredModels.length ? "❯ " : "  "}
+					<Text color={selectedIndex === models.length ? COLORS.primaryBlue : "white"}>
+						{selectedIndex === models.length ? "❯ " : "  "}
 						Browse all models...
 					</Text>
 				</Box>
@@ -81,24 +83,24 @@ export const FeaturedModelPicker: React.FC<FeaturedModelPickerProps> = ({
  * Get the maximum valid index for the featured model picker
  * (includes "Browse all" option if showBrowseAll is true)
  */
-export function getFeaturedModelMaxIndex(showBrowseAll = true): number {
-	const featuredModels = getAllFeaturedModels()
+export function getFeaturedModelMaxIndex(showBrowseAll = true, featuredModels: FeaturedModel[] = getAllFeaturedModels()): number {
 	return showBrowseAll ? featuredModels.length : featuredModels.length - 1
 }
 
 /**
  * Check if the selected index is the "Browse all" option
  */
-export function isBrowseAllSelected(selectedIndex: number): boolean {
-	const featuredModels = getAllFeaturedModels()
+export function isBrowseAllSelected(selectedIndex: number, featuredModels: FeaturedModel[] = getAllFeaturedModels()): boolean {
 	return selectedIndex === featuredModels.length
 }
 
 /**
  * Get the featured model at the given index, or null if "Browse all" is selected
  */
-export function getFeaturedModelAtIndex(index: number): FeaturedModel | null {
-	const featuredModels = getAllFeaturedModels()
+export function getFeaturedModelAtIndex(
+	index: number,
+	featuredModels: FeaturedModel[] = getAllFeaturedModels(),
+): FeaturedModel | null {
 	if (index >= 0 && index < featuredModels.length) {
 		return featuredModels[index]
 	}
