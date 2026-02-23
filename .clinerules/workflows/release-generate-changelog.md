@@ -54,7 +54,11 @@ Expected result from Skill A:
 - coverage accounting with status (`included|excluded|unclassified`)
 - explicit inclusion/exclusion rationale per PR
 
-Hard rule: do not continue to writing unless unclassified count is zero, unless user explicitly approves best-effort mode.
+Unclassified handling rule:
+
+- Continue to writing even when `unclassified > 0`.
+- Do not auto-include unclassified PRs in generated changelog bullets.
+- Require explicit reporting of each unclassified PR (number, title, reason) so the user can decide whether to add it manually.
 
 ## 3) Synthesize and apply release entries (Skill B)
 
@@ -75,6 +79,7 @@ Expected result from Skill B:
 - style-consistent inserted release blocks in both target files (when scope has includable PRs)
 - no-op on a scope when no includable PRs exist
 - preserved changelog history
+- explicit post-write list of unclassified PRs excluded from auto-generated bullets
 
 ## 4) Required conventions for generated changelog content
 
@@ -106,6 +111,9 @@ Verify and report:
    - no empty sections
 5. Coverage validity:
    - every included PR represented or explicitly accounted for
+6. Unclassified visibility:
+   - unclassified PRs are listed explicitly with reasons they were not auto-included
+   - summary makes clear user may manually add selected unclassified PRs
 
 ## 6) Final response format
 
@@ -114,6 +122,8 @@ End with a concise summary containing:
 - chosen mode + tag range
 - counts by classification status
 - files changed vs no-op
+- unclassified PR list (number + reason + short title), if any
+- explicit note that unclassified PRs were intentionally excluded from auto-generated entries pending user decision
 - suggested review commands:
   - `git --no-pager diff -- CHANGELOG.md`
   - `git --no-pager diff -- cli/CHANGELOG.md`

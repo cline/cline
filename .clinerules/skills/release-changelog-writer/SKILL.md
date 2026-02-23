@@ -61,6 +61,7 @@ Using inventory classifications:
 - Extension target includes PRs classified `vscode` and `both`
 - CLI target includes PRs classified `cli` and `both`
 - Excluded PRs never become changelog bullets
+- Unclassified PRs never become auto-generated changelog bullets
 
 If a target has zero includable PRs, do not modify that file and report explicit no-op.
 
@@ -108,6 +109,10 @@ Before returning success, verify:
 5. Files report as:
    - `updated` when content inserted
    - `no-op` when no includable PRs
+6. Unclassified PR visibility:
+   - explicitly list unclassified PRs excluded from auto-generated bullets
+   - include reason per unclassified PR (for example `incomplete-file-list`, `missing-pr`, `no-files`)
+   - add guidance that user can choose manual inclusion in a follow-up edit
 
 ## Output Contract
 
@@ -117,6 +122,7 @@ Return concise machine- and human-readable summary:
 2. per-target status (`updated|no-op`)
 3. included/excluded counts per target
 4. unresolved attribution or coverage uncertainties
-5. quick review commands:
+5. unclassified PR list with reasons, and explicit note they were intentionally excluded pending user decision
+6. quick review commands:
    - `git --no-pager diff -- CHANGELOG.md`
    - `git --no-pager diff -- cli/CHANGELOG.md`

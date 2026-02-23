@@ -145,7 +145,8 @@ Return structured inventory suitable for downstream writer skill. Include:
 ## Failure / Halt Conditions
 
 - If refs are invalid, fail with explicit corrective message.
-- If `unclassified > 0`, halt by default and ask for explicit best-effort override before proceeding.
+- Do not halt solely because `unclassified > 0`; continue and pass forward explicit unclassified accounting.
+- Treat unclassified PRs as excluded from automatic changelog synthesis until the user decides on manual inclusion.
 
 ## Communication Requirements
 
@@ -154,3 +155,4 @@ Before handing off to writer skill, provide:
 1. Range summary (`fromTag..toRef`, mode)
 2. Coverage counts (included/excluded/unclassified)
 3. Explicit list of excluded and unclassified PRs with reasons
+4. Explicit note that unclassified PRs were intentionally not auto-included and may be manually added by user decision
