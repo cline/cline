@@ -6,6 +6,7 @@ import { apply_patch_variants } from "./apply_patch"
 import { ask_followup_question_variants } from "./ask_followup_question"
 import { attempt_completion_variants } from "./attempt_completion"
 import { browser_action_variants } from "./browser_action"
+import { change_directory_variants } from "./change_directory"
 import { execute_command_variants } from "./execute_command"
 import { focus_chain_variants } from "./focus_chain"
 import { generate_explanation_variants } from "./generate_explanation"
@@ -55,6 +56,7 @@ export function registerClineToolSets(): void {
 		...web_search_variants,
 		...write_to_file_variants,
 		...apply_patch_variants,
+		...change_directory_variants,
 	]
 
 	// Register each variant

@@ -410,7 +410,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	// Panel state
 	const [activePanel, setActivePanel] = useState<
-		| { type: "settings"; initialMode?: "model-picker" | "featured-models"; initialModelKey?: "actModelId" | "planModelId" }
+		| {
+				type: "settings"
+				initialMode?: "model-picker" | "featured-models"
+				initialModelKey?: "actModelId" | "planModelId"
+		  }
 		| { type: "history" }
 		| { type: "help" }
 		| { type: "skills" }
@@ -574,7 +578,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 	}, [slashInfo.slashIndex])
 
-	const workspacePath = useMemo(() => {
+	const initialWorkspacePath = useMemo(() => {
 		try {
 			const root = ctrl?.getWorkspaceManagerSync?.()?.getPrimaryRoot?.()
 			if (root?.path) {
@@ -585,6 +589,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 		return process.cwd()
 	}, [ctrl])
+
+	// Track the current working directory - updated when change_directory tool is used
+	const [currentCwd, setCurrentCwd] = useState<string>(initialWorkspacePath)
+
+	// Sync currentCwd when initialWorkspacePath changes (e.g. task switch)
+	useEffect(() => {
+		setCurrentCwd(initialWorkspacePath)
+	}, [initialWorkspacePath])
+
+	const workspacePath = currentCwd
 
 	// Get git branch on mount
 	useEffect(() => {
@@ -642,6 +656,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [])
 
 	const messages = taskState.clineMessages || []
+
+	// Watch for CWD changes from the change_directory tool.
+	// Task.changeCwd() updates task.cwd and then calls postStateToWebview(), which triggers
+	// a TaskContext state update and re-renders ChatView. At that point ctrl.task?.cwd has
+	// the new value — we just read it directly. This is clean and handles approval/denial
+	// correctly: if the user rejects the tool, changeCwd() is never called, so task.cwd
+	// stays unchanged and this effect is a no-op.
+	useEffect(() => {
+		const taskCwd = ctrl?.task?.cwd
+		if (taskCwd && taskCwd !== currentCwd) {
+			setCurrentCwd(taskCwd)
+		}
+	}, [taskState, ctrl?.task?.cwd])
 
 	// Refresh git diff stats when messages change (after file edits)
 	const lastMsg = messages[messages.length - 1]

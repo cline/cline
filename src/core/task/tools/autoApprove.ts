@@ -11,9 +11,12 @@ export class AutoApprove {
 	// NOTE: This assumes that the task has a fixed set of workspace roots(which is currently true).
 	private workspacePathsCache: { paths: string[] } | null = null
 	private isMultiRootScenarioCache: boolean | null = null
+	// Optional getter for the current task CWD (used after change_directory tool runs)
+	private cwdGetter?: () => string
 
-	constructor(stateManager: StateManager) {
+	constructor(stateManager: StateManager, cwdGetter?: () => string) {
 		this.stateManager = stateManager
+		this.cwdGetter = cwdGetter
 	}
 
 	/**
@@ -59,6 +62,7 @@ export class AutoApprove {
 				case ClineDefaultTool.WEB_SEARCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
+				case ClineDefaultTool.CHANGE_DIRECTORY:
 					return true
 			}
 		}
@@ -81,6 +85,7 @@ export class AutoApprove {
 				case ClineDefaultTool.WEB_SEARCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
+				case ClineDefaultTool.CHANGE_DIRECTORY:
 					return true
 			}
 		}
@@ -112,6 +117,8 @@ export class AutoApprove {
 			case ClineDefaultTool.MCP_ACCESS:
 			case ClineDefaultTool.MCP_USE:
 				return autoApprovalSettings.actions.useMcp
+			case ClineDefaultTool.CHANGE_DIRECTORY:
+				return autoApprovalSettings.actions.changeDirectory ?? false
 		}
 		return false
 	}
@@ -139,8 +146,9 @@ export class AutoApprove {
 				// Multi-root: check if file is in ANY workspace
 				isLocalRead = await isLocatedInWorkspace(autoApproveActionpath)
 			} else {
-				// Single-root: use existing logic
-				const cwd = await getCwd(getDesktopDir())
+				// Single-root: use the task's current CWD if available (supports change_directory),
+				// otherwise fall back to the host workspace path.
+				const cwd = this.cwdGetter ? this.cwdGetter() : await getCwd(getDesktopDir())
 				// When called with a string cwd, resolveWorkspacePath returns a string
 				const absolutePath = resolveWorkspacePath(
 					cwd,

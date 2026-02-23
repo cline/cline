@@ -65,6 +65,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.USE_SKILL,
 		ClineDefaultTool.USE_SUBAGENTS,
+		ClineDefaultTool.CHANGE_DIRECTORY,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GPT_5,

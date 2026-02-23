@@ -120,8 +120,14 @@ export class ToolExecutor {
 			userContent: ClineContent[],
 			context: "initial_task" | "resume" | "feedback",
 		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
+
+		// Optional callback for changing CWD (CLI-only)
+		private changeCwdCallback?: (newCwd: string) => Promise<void>,
 	) {
-		this.autoApprover = new AutoApprove(this.stateManager)
+		// Pass a CWD getter so AutoApprove always uses the current task CWD for path locality checks.
+		// This is critical for the change_directory tool: after a CWD change, files in the old
+		// directory should require permission, and files in the new directory should not.
+		this.autoApprover = new AutoApprove(this.stateManager, () => this.cwd)
 
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
@@ -183,6 +189,7 @@ export class ToolExecutor {
 				setActiveHookExecution: this.setActiveHookExecution,
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
+				changeCwd: this.changeCwdCallback,
 				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
 			},
 			coordinator: this.coordinator,
@@ -209,6 +216,15 @@ export class ToolExecutor {
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
 		await this.execute(block)
+	}
+
+	/**
+	 * Update the current working directory.
+	 * Called by Task.changeCwd() after a change_directory tool execution.
+	 * This ensures AutoApprove uses the new CWD for path locality checks.
+	 */
+	public setCwd(newCwd: string): void {
+		this.cwd = newCwd
 	}
 
 	/**
