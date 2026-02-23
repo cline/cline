@@ -18,3 +18,4 @@ export const OCI_HEADER_OPC_REQUEST_ID = "opc-request-id"
 
 export const CHAT_COMPLETIONS_API = "CHAT_COMPLETIONS"
 export const RESPONSES_API = "RESPONSES"
+export const MESSAGES_API = "MESSAGES"
