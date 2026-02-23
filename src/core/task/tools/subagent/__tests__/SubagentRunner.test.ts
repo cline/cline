@@ -7,6 +7,7 @@ import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { TaskState } from "../../../TaskState"
 import { SubagentBuilder } from "../SubagentBuilder"
@@ -469,6 +470,127 @@ describe("SubagentRunner", () => {
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("filters available skills to configured skills when subagent skills are configured", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skills_filtered_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["allowed-skill"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["allowed-skill"])
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([
+			{ name: "allowed-skill", description: "Allowed", path: "/skills/allowed/SKILL.md", source: "project" },
+			{ name: "other-skill", description: "Other", path: "/skills/other/SKILL.md", source: "project" },
+		])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("uses all available skills when subagent skills are not configured", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skills_unconfigured_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["alpha-skill", "beta-skill"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(undefined)
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([
+			{ name: "alpha-skill", description: "Alpha", path: "/skills/alpha/SKILL.md", source: "project" },
+			{ name: "beta-skill", description: "Beta", path: "/skills/beta/SKILL.md", source: "project" },
+		])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("logs a warning when a configured skill is not available", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skills_missing_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const warnStub = sinon.stub(Logger, "warn")
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["present-skill"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["present-skill", "missing-skill"])
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon
+			.stub(skills, "getAvailableSkills")
+			.returns([{ name: "present-skill", description: "Present", path: "/skills/present/SKILL.md", source: "project" }])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
+		sinon.assert.calledWith(warnStub, "[SubagentRunner] Configured skill 'missing-skill' not found for subagent run.")
 	})
 
 	it("includes workspace metadata only in the initial user message", async () => {
