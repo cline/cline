@@ -86,6 +86,12 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "q",
+		description: "Alternative to Ctrl+C",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "skills",
 		description: "View and manage installed skills",
 		section: "default",
