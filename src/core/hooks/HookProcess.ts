@@ -7,6 +7,32 @@ import { escapeShellPath } from "./shell-escape"
 // Maximum total output size (stdout + stderr combined)
 const MAX_HOOK_OUTPUT_SIZE = 1024 * 1024 // 1MB
 
+interface HookLaunchConfig {
+	command: string
+	args: string[]
+	shell: boolean
+	detached: boolean
+}
+
+function getHookLaunchConfig(scriptPath: string): HookLaunchConfig {
+	if (process.platform === "win32") {
+		return {
+			command: "powershell.exe",
+			args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
+			shell: false,
+			detached: false,
+		}
+	}
+
+	const escapedScriptPath = escapeShellPath(scriptPath)
+	return {
+		command: escapedScriptPath,
+		args: [],
+		shell: true,
+		detached: true,
+	}
+}
+
 /**
  * HookProcess manages the execution of a hook script with streaming output capabilities.
  * Similar to StandaloneTerminalProcess but specialized for hook execution.
@@ -100,16 +126,15 @@ export class HookProcess extends EventEmitter {
 					this.abortSignal.addEventListener("abort", abortHandler, { once: true })
 				}
 
-				// Spawn the hook process through shell on all platforms
-				// This is the git-style approach: the shell interprets the shebang line
-				// and executes the appropriate interpreter (bash, node, python, etc.)
-				// On Unix: detached=true creates a process group, allowing us to kill all children
-				const escapedScriptPath = escapeShellPath(this.scriptPath)
-				this.childProcess = spawn(escapedScriptPath, [], {
+				// Windows executes hooks with PowerShell directly.
+				// Unix executes hook files through the shell for shebang support.
+				const launchConfig = getHookLaunchConfig(this.scriptPath)
+				this.childProcess = spawn(launchConfig.command, launchConfig.args, {
 					stdio: ["pipe", "pipe", "pipe"],
-					shell: true, // Use shell on all platforms for shebang interpretation
-					detached: process.platform !== "win32", // Create process group on Unix
+					shell: launchConfig.shell,
+					detached: launchConfig.detached,
 					cwd: this.cwd, // Execute from the determined workspace root
+					windowsHide: true,
 				})
 
 				let didEmitEmptyLine = false
