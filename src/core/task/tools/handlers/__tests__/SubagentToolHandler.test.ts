@@ -5,6 +5,7 @@ import { ClineDefaultTool } from "@shared/tools"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { TaskState } from "../../../TaskState"
+import { AgentConfigLoader } from "../../subagent/AgentConfigLoader"
 import { SubagentRunner } from "../../subagent/SubagentRunner"
 import type { TaskConfig } from "../../types/TaskConfig"
 import { createUIHelpers } from "../../types/UIHelpers"
@@ -379,5 +380,63 @@ describe("SubagentToolHandler", () => {
 		assert.ok((result as string).includes("Succeeded: 1"))
 		assert.ok((result as string).includes("Failed: 1"))
 		assert.ok((result as string).includes("boom"))
+	})
+
+	it("runs configured subagent tools using the prompt parameter", async () => {
+		const { config } = createConfig({ autoApproveSafe: true, autoApproveAll: true })
+		const handler = new UseSubagentsToolHandler()
+		const dynamicToolName = "use_subagent_code_reviewer"
+		sinon.stub(AgentConfigLoader, "getInstance").returns({
+			resolveSubagentNameForTool: (toolName: string) => (toolName === dynamicToolName ? "code-reviewer" : undefined),
+			getCachedConfig: () => undefined,
+		} as unknown as AgentConfigLoader)
+
+		const runStub = sinon.stub(SubagentRunner.prototype, "run").resolves({
+			status: "completed",
+			result: "dynamic done",
+			stats: {
+				toolCalls: 1,
+				inputTokens: 2,
+				outputTokens: 3,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				totalCost: 0.1,
+				contextTokens: 100,
+				contextWindow: 200000,
+				contextUsagePercentage: 0.05,
+			},
+		})
+
+		const result = await handler.execute(config, {
+			type: "tool_use",
+			name: dynamicToolName as ClineDefaultTool,
+			params: { prompt: "review this PR" },
+			partial: false,
+		})
+
+		assert.match(String(result), /dynamic done/)
+		sinon.assert.calledOnce(runStub)
+		assert.equal(runStub.firstCall.args[0], "review this PR")
+	})
+
+	it("requires prompt for configured subagent tools", async () => {
+		const { config, callbacks, taskState } = createConfig()
+		const handler = new UseSubagentsToolHandler()
+		const dynamicToolName = "use_subagent_code_reviewer"
+		sinon.stub(AgentConfigLoader, "getInstance").returns({
+			resolveSubagentNameForTool: (toolName: string) => (toolName === dynamicToolName ? "code-reviewer" : undefined),
+			getCachedConfig: () => undefined,
+		} as unknown as AgentConfigLoader)
+
+		const result = await handler.execute(config, {
+			type: "tool_use",
+			name: dynamicToolName as ClineDefaultTool,
+			params: {},
+			partial: false,
+		})
+
+		assert.equal(result, "missing")
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+		sinon.assert.calledWithExactly(callbacks.sayAndCreateMissingParamError, ClineDefaultTool.USE_SUBAGENTS, "prompt")
 	})
 })
