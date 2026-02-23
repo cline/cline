@@ -44,7 +44,7 @@ export function parseYamlFrontmatter(markdown: string): FrontmatterParseResult {
 
 	const [, yamlContent, body] = match
 	try {
-		const data = (yaml.load(yamlContent) as Record<string, unknown>) || {}
+		const data = (yaml.load(yamlContent, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown>) || {}
 		return { data, body, hadFrontmatter: true }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
