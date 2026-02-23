@@ -766,12 +766,80 @@ export const BrowserActionLaunch = quickStory(
 	"Launch browser to test the website at http://localhost:3000",
 	"Shows browser action approval with Approve/Reject buttons for browser launch.",
 )
-export const McpServerUsage = quickStory(
-	"MCP Server",
-	"use_mcp_server",
-	JSON.stringify({ tool: "get_weather", location: "New York" }),
-	"Shows MCP server usage approval with Approve/Reject buttons for external tool usage.",
-)
+export const McpToolPending: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Get weather information"),
+				createMessage(4.7, "say", "text", "I'll check the weather for you."),
+				createAskMessage(
+					"use_mcp_server",
+					JSON.stringify({
+						type: "use_mcp_tool",
+						serverName: "weather-api",
+						toolName: "get_weather",
+						arguments: JSON.stringify({ location: "New York", units: "celsius" }, null, 2),
+					}),
+				),
+			],
+		}),
+	],
+	parameters: { docs: { description: { story: "Shows MCP tool waiting for user approval." } } },
+}
+
+export const McpToolRunning: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Get weather information"),
+				createMessage(4.7, "say", "text", "I'll check the weather for you."),
+				createMessage(
+					4.5,
+					"say",
+					"use_mcp_server",
+					JSON.stringify({
+						type: "use_mcp_tool",
+						serverName: "weather-api",
+						toolName: "get_weather",
+						arguments: JSON.stringify({ location: "New York", units: "celsius" }, null, 2),
+					}),
+				),
+				createMessage(4.4, "say", "mcp_server_request_started", "Calling weather API..."),
+			],
+		}),
+	],
+	parameters: { docs: { description: { story: "Shows MCP tool in running state." } } },
+}
+
+export const McpToolSuccess: Story = {
+	decorators: [
+		createStoryDecorator({
+			clineMessages: [
+				createMessage(5, "say", "task", "Get weather information"),
+				createMessage(4.7, "say", "text", "I'll check the weather for you."),
+				createMessage(
+					4.5,
+					"say",
+					"use_mcp_server",
+					JSON.stringify({
+						type: "use_mcp_tool",
+						serverName: "weather-api",
+						toolName: "get_weather",
+						arguments: JSON.stringify({ location: "New York", units: "celsius" }, null, 2),
+					}),
+				),
+				createMessage(
+					4.4,
+					"say",
+					"mcp_server_response",
+					"Current weather in New York: 72°F (22°C), Partly Cloudy\nHumidity: 45%\nWind: 8 mph NW",
+				),
+				createMessage(4.3, "say", "text", "The weather in New York is currently 72°F with partly cloudy skies."),
+			],
+		}),
+	],
+	parameters: { docs: { description: { story: "Shows MCP tool completed successfully." } } },
+}
 export const Followup = quickStory(
 	"Follow-up",
 	"followup",

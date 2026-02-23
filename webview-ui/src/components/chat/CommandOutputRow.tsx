@@ -1,13 +1,19 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import { memo, useEffect, useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ACTION_METADATA } from "@/components/chat/auto-approve-menu/constants"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { cn } from "@/lib/utils"
-import { FileServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
 
+/**
+ * Displays the command output content with optional log file link
+ */
 export const CommandOutputContent = memo(
 	({
 		output,
@@ -88,163 +94,235 @@ export const CommandOutputContent = memo(
 
 CommandOutputContent.displayName = "CommandOutputContent"
 
-export const CommandOutputRow = memo(
-	({
-		message,
-		isCommandExecuting = false,
-		isCommandPending = false,
-		isCommandCompleted = false,
-		isBackgroundExec = false,
-		onCancelCommand,
-		isOutputFullyExpanded,
-		setIsOutputFullyExpanded,
-	}: {
-		message: ClineMessage
-		isCommandExecuting?: boolean
-		isCommandPending?: boolean
-		isCommandCompleted?: boolean
-		isBackgroundExec?: boolean
-		onCancelCommand?: () => void
-		isOutputFullyExpanded: boolean
-		setIsOutputFullyExpanded: (expanded: boolean) => void
-	}) => {
-		const [isOutputExpanded, setIsOutputExpanded] = useState(false)
+interface CommandOutputRowProps {
+	message: ClineMessage
+	isCommandExecuting?: boolean
+	isCommandPending?: boolean
+	isCommandCompleted?: boolean
+	isBackgroundExec?: boolean
+	onCancelCommand?: () => void
+	isOutputFullyExpanded: boolean
+	setIsOutputFullyExpanded: (expanded: boolean) => void
+}
 
-		const splitMessage = (text: string) => {
-			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-			if (outputIndex === -1) {
-				return { command: text, output: "" }
-			}
-			return {
-				command: text.slice(0, outputIndex).trim(),
-				output: text
-					.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
-					.trim()
-					.split("")
-					.map((char) => {
-						switch (char) {
-							case "\t":
-								return "→   "
-							case "\b":
-								return "⌫"
-							case "\f":
-								return "⏏"
-							case "\v":
-								return "⇳"
-							default:
-								return char
-						}
-					})
-					.join(""),
-			}
+/**
+ * Displays a CLI command card with:
+ * - Header with terminal icon
+ * - Command text
+ * - Collapsible output section
+ * - Footer with auto-approve dropdown and action buttons
+ */
+export const CommandOutputRow = ({
+	message,
+	isCommandExecuting = false,
+	isCommandPending = false,
+	isCommandCompleted = false,
+	isBackgroundExec = false,
+	onCancelCommand,
+	isOutputFullyExpanded,
+	setIsOutputFullyExpanded,
+}: CommandOutputRowProps) => {
+	const { isChecked, updateAction } = useAutoApproveActions()
+	const [isOutputExpanded, setIsOutputExpanded] = useState(false)
+
+	// Find the executeSafeCommands action from metadata for the auto-approve dropdown
+	const safeCommandsAction = ACTION_METADATA.find((a) => a.id === "executeSafeCommands")
+
+	// If command is pending, it wasn't auto-approved, so show "Ask Everytime"
+	// Otherwise show the current global setting
+	const autoApprove = isCommandPending
+		? false
+		: safeCommandsAction
+			? isChecked(safeCommandsAction)
+			: false
+
+	// Parse the message text to extract command and output
+	const splitMessage = (text: string) => {
+		const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+		if (outputIndex === -1) {
+			return { command: text, output: "" }
 		}
-
-		const { command: rawCommand, output } = splitMessage(message.text || "")
-		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
-		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
-		const showCancelButton =
-			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
-
-		const getStatusDisplay = () => {
-			if (isCommandExecuting) {
-				return { text: "Running", color: "text-description", showCheck: false }
-			}
-			if (isCommandPending) {
-				return { text: "Pending", color: "text-editor-warning-foreground", showCheck: false }
-			}
-			if (isCommandCompleted || (output.length > 0 && !isCommandExecuting && !isCommandPending)) {
-				return { text: "Success", color: "text-success", showCheck: true }
-			}
-			return { text: "Skipped", color: "text-description", showCheck: false }
+		return {
+			command: text.slice(0, outputIndex).trim(),
+			output: text
+				.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
+				.trim()
+				.split("")
+				.map((char) => {
+					switch (char) {
+						case "\t":
+							return "→   "
+						case "\b":
+							return "⌫"
+						case "\f":
+							return "⏏"
+						case "\v":
+							return "⇳"
+						default:
+							return char
+					}
+				})
+				.join(""),
 		}
+	}
 
-		const status = getStatusDisplay()
+	const { command: rawCommand, output } = splitMessage(message.text || "")
+	const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
+	const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
+	const showCancelButton =
+		(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
-		return (
-			<div className="rounded-sm border border-editor-group-border overflow-hidden">
-				{/* Header */}
-				<div className="flex items-center gap-2 px-3 py-2 border-b border-editor-group-border/50">
-					<i className="codicon codicon-terminal text-description" />
-					<span className="text-sm text-foreground">Run CLI Command</span>
-				</div>
+	// Determine status display based on command state
+	const getStatusDisplay = () => {
+		if (isCommandExecuting) {
+			return { text: "Running", color: "text-description", showCheck: false }
+		}
+		if (isCommandPending) {
+			return { text: "Pending", color: "text-editor-warning-foreground", showCheck: false }
+		}
+		if (isCommandCompleted || (output.length > 0 && !isCommandExecuting && !isCommandPending)) {
+			return { text: "Success", color: "text-success", showCheck: true }
+		}
+		return { text: "Skipped", color: "text-description", showCheck: false }
+	}
 
-				{/* Command text */}
-				<div className="px-3 pt-3 pb-1.5 bg-code">
-					<pre className="font-mono text-sm whitespace-pre-wrap break-words m-0 text-link">{command}</pre>
-				</div>
+	const status = getStatusDisplay()
 
-				{/* Command Output accordion */}
-				{output.length > 0 && (
-					<div>
-						<button
-							className={cn("flex items-center gap-1.5 w-full px-3 text-left", {
-								"py-2": !isOutputExpanded,
-								"pt-2 pb-1": isOutputExpanded,
+	return (
+		<div className="rounded-sm border border-editor-group-border overflow-hidden">
+			{/* Header */}
+			<div className="flex items-center gap-2 px-3 py-2 border-b border-editor-group-border/50">
+				<i className="codicon codicon-terminal text-description" />
+				<span className="text-sm text-foreground">Run CLI Command</span>
+			</div>
+
+			{/* Command text */}
+			<div className="px-3 pt-3 pb-1.5 bg-code">
+				<pre className="font-mono text-sm whitespace-pre-wrap break-words m-0 text-link">{command}</pre>
+			</div>
+
+			{/* Command Output accordion */}
+			{output.length > 0 && (
+				<div>
+					<button
+						className={cn("flex items-center gap-1.5 w-full px-3 text-left", {
+							"py-2": !isOutputExpanded,
+							"pt-2 pb-1": isOutputExpanded,
+						})}
+						onClick={() => setIsOutputExpanded(!isOutputExpanded)}
+						type="button">
+						<ChevronRight
+							className={cn("text-description transition-transform", {
+								"rotate-90": isOutputExpanded,
 							})}
-							onClick={() => setIsOutputExpanded(!isOutputExpanded)}
-							type="button">
-							<ChevronRight
-								className={cn("text-description transition-transform", {
-									"rotate-90": isOutputExpanded,
-								})}
-								size={14}
+							size={14}
+						/>
+						<span className="text-description text-sm">Command Output</span>
+					</button>
+					{isOutputExpanded && (
+						<div>
+							<CommandOutputContent
+								isContainerExpanded={true}
+								isOutputFullyExpanded={isOutputFullyExpanded}
+								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
+								output={output}
 							/>
-							<span className="text-description text-sm">Command Output</span>
-						</button>
-						{isOutputExpanded && (
-							<div>
-								<CommandOutputContent
-									isContainerExpanded={true}
-									isOutputFullyExpanded={isOutputFullyExpanded}
-									onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
-									output={output}
-								/>
-							</div>
-						)}
-					</div>
-				)}
+						</div>
+					)}
+				</div>
+			)}
 
-				{/* Footer bar */}
-				<div className="flex items-center justify-between px-3 py-2 border-t border-editor-group-border/50">
-					<div className="flex items-center gap-2">
-						<button
-							className="flex items-center gap-1 text-sm text-foreground hover:text-description transition-colors"
-							type="button">
-							<span>Ask Everytime</span>
-							<ChevronDown className="text-description" size={14} />
-						</button>
-						{showCancelButton && (
-							<Button
+			{/* Footer bar with auto-approve dropdown and action buttons */}
+			<div className="flex items-center justify-between px-3 h-10 mt-2 bg-toolbar-hover/65">
+				{/* Left side: Auto-approve dropdown */}
+				<div className="flex items-center gap-2">
+					<Select
+						value={autoApprove ? "auto" : "ask"}
+						onValueChange={(value) => {
+							if (!safeCommandsAction) return
+							updateAction(safeCommandsAction, value === "auto")
+						}}>
+						<SelectTrigger
+							className="h-7 border-0 bg-transparent px-0 shadow-none text-sm text-foreground hover:text-description [&_svg]:opacity-100 [&_svg]:text-description"
+							showIcon={true}>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem className="text-sm" value="ask">
+								Ask Everytime
+							</SelectItem>
+							<SelectItem className="text-sm" value="auto">
+								Auto-approve
+							</SelectItem>
+						</SelectContent>
+					</Select>
+					{requestsApproval && !isCommandPending && (
+						<span className="text-xs text-editor-warning-foreground flex items-center gap-1.5">
+							<i className="codicon codicon-warning text-[11px]" />
+							Requires approval
+						</span>
+					)}
+				</div>
+
+				{/* Right side: Action buttons or status */}
+				<div className="flex items-center gap-2">
+					{/* Pending state: Cancel/Run buttons */}
+					{isCommandPending && (
+						<>
+							<button
+								className="text-sm text-foreground hover:text-description transition-colors"
 								onClick={(e) => {
 									e.stopPropagation()
-									if (isBackgroundExec) {
-										onCancelCommand?.()
-									} else {
-										alert(
-											"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-										)
-									}
+									TaskServiceClient.askResponse(
+										AskResponseRequest.create({ responseType: "noButtonClicked" }),
+									)
 								}}
-								size="sm"
-								variant="secondary">
-								{isBackgroundExec ? "cancel" : "stop"}
-							</Button>
-						)}
-						{requestsApproval && (
-							<span className="text-xs text-editor-warning-foreground flex items-center gap-1.5">
-								<i className="codicon codicon-warning text-[11px]" />
-								Requires approval
-							</span>
-						)}
-					</div>
-					<div className="flex items-center gap-1.5">
-						{status.showCheck && <i className="codicon codicon-check text-sm text-success" />}
-						<span className={cn("text-sm", status.color)}>{status.text}</span>
-					</div>
+								type="button">
+								Cancel
+							</button>
+							<button
+								className="px-2.5 py-1 text-sm bg-button-background text-button-foreground rounded-sm hover:bg-button-hover-background transition-colors"
+								onClick={(e) => {
+									e.stopPropagation()
+									TaskServiceClient.askResponse(
+										AskResponseRequest.create({ responseType: "yesButtonClicked" }),
+									)
+								}}
+								type="button">
+								Run
+							</button>
+						</>
+					)}
+
+					{/* Executing state: Spinner + optional Cancel */}
+					{isCommandExecuting && (
+						<>
+							<i className="codicon codicon-loading codicon-modifier-spin text-sm text-description" />
+							{showCancelButton ? (
+								<button
+									className="text-sm text-foreground hover:text-description transition-colors"
+									onClick={(e) => {
+										e.stopPropagation()
+										onCancelCommand?.()
+									}}
+									type="button">
+									Cancel
+								</button>
+							) : (
+								<span className="text-sm text-description">Cancel</span>
+							)}
+						</>
+					)}
+
+					{/* Completed state: Status indicator */}
+					{!isCommandPending && !isCommandExecuting && (
+						<div className="flex items-center gap-1.5">
+							{status.showCheck && <i className="codicon codicon-check text-sm text-success" />}
+							<span className={cn("text-sm", status.color)}>{status.text}</span>
+						</div>
+					)}
 				</div>
 			</div>
-		)
-	},
-)
-
-CommandOutputRow.displayName = "CommandOutputRow"
+		</div>
+	)
+}
