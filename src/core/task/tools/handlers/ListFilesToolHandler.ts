@@ -28,6 +28,9 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 		// Get config access for services
 		const config = uiHelpers.getConfig()
+		if (config.isSubagentExecution) {
+			return
+		}
 
 		// Create and show partial UI message
 		const recursiveRaw = block.params.recursive
@@ -87,7 +90,9 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Check clineignore access
 		const accessValidation = this.validator.checkClineIgnorePath(relDirPath!)
 		if (!accessValidation.ok) {
-			await config.callbacks.say("clineignore_error", relDirPath)
+			if (!config.isSubagentExecution) {
+				await config.callbacks.say("clineignore_error", relDirPath)
+			}
 			return formatResponse.toolError(formatResponse.clineIgnoreError(relDirPath!))
 		}
 
@@ -106,10 +111,14 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
-		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relDirPath)) {
+		const shouldAutoApprove =
+			config.isSubagentExecution || (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relDirPath))
+		if (shouldAutoApprove) {
 			// Auto-approval flow
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			if (!config.isSubagentExecution) {
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
+				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			}
 
 			// Capture telemetry
 			telemetryService.captureToolUsage(
@@ -144,18 +153,17 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					true,
-					workspaceContext,
-					block.isNativeToolCall,
-				)
 			}
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		}
 
 		// Run PreToolUse hook after approval but before execution

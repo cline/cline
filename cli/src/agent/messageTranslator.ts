@@ -312,6 +312,10 @@ function translateSayMessage(
 			// API request finished - no specific update needed
 			break
 
+		case "subagent_usage":
+			// Hidden aggregate metrics event used for task-level accounting.
+			break
+
 		case "task":
 			// Task started - don't echo the user's prompt back to them
 			// The ACP client already knows what they typed

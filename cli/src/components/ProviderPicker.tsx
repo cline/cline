@@ -5,11 +5,11 @@
 import React, { useMemo } from "react"
 import { StateManager } from "@/core/storage/StateManager"
 import type { ApiConfiguration } from "@/shared/api"
-import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "../utils/providers"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import { getProviderLabel, useValidProviders } from "../utils/providers"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Re-export for backwards compatibility
-export { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder }
+export { getProviderLabel }
 
 /**
  * Check if a provider is configured (has required credentials/settings)
@@ -125,17 +125,16 @@ interface ProviderPickerProps {
 export const ProviderPicker: React.FC<ProviderPickerProps> = ({ onSelect, isActive = true }) => {
 	// Get API configuration to check which providers are configured
 	const apiConfig = StateManager.get().getApiConfiguration()
+	const sorted = useValidProviders()
 
 	// Use providers.json order, filtered to exclude CLI-incompatible providers
 	const items: SearchableListItem[] = useMemo(() => {
-		const sorted = getProviderOrder().filter((p: string) => !CLI_EXCLUDED_PROVIDERS.has(p))
-
 		return sorted.map((providerId: string) => ({
 			id: providerId,
 			label: getProviderLabel(providerId),
 			suffix: isProviderConfigured(providerId, apiConfig) ? "(Configured)" : undefined,
 		}))
-	}, [apiConfig])
+	}, [apiConfig, sorted])
 
 	return <SearchableList isActive={isActive} items={items} onSelect={(item) => onSelect(item.id)} />
 }

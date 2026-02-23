@@ -13,6 +13,7 @@ import {
 import { Box, Text, useApp, useInput } from "ink"
 import React, { useMemo, useState } from "react"
 import { useStdinContext } from "../context/StdinContext"
+import { fuzzyFilter } from "../utils/fuzzy-search"
 import {
 	BooleanSelect,
 	buildConfigEntries,
@@ -21,6 +22,8 @@ import {
 	HookInfo,
 	HookRow,
 	MAX_VISIBLE,
+	ObjectEditorPanel,
+	ObjectEditorState,
 	parseValue,
 	SEPARATOR,
 	SectionHeader,
@@ -105,12 +108,21 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	const [isEditing, setIsEditing] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [editValue, setEditValue] = useState("")
+	const [searchQuery, setSearchQuery] = useState("")
+	const [objectEditor, setObjectEditor] = useState<ObjectEditorState | null>(null)
 
 	// Build entries for settings tab
 	const configEntries = useMemo(
 		() => [...buildConfigEntries(globalState, "global"), ...buildConfigEntries(workspaceState, "workspace")],
 		[globalState, workspaceState],
 	)
+
+	const filteredConfigEntries = useMemo(() => {
+		if (!searchQuery.trim()) {
+			return configEntries
+		}
+		return fuzzyFilter(configEntries, searchQuery, (entry) => `${entry.key} ${String(entry.value ?? "")}`)
+	}, [configEntries, searchQuery])
 
 	// Build entries for rules tab
 	const ruleEntries = useMemo(() => {
@@ -159,7 +171,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	const currentListLength = useMemo(() => {
 		switch (currentTab) {
 			case "settings":
-				return configEntries.length
+				return filteredConfigEntries.length
 			case "rules":
 				return ruleEntries.length
 			case "workflows":
@@ -171,7 +183,14 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			default:
 				return 0
 		}
-	}, [currentTab, configEntries.length, ruleEntries.length, workflowEntries.length, hookEntries.length, skillEntries.length])
+	}, [
+		currentTab,
+		filteredConfigEntries.length,
+		ruleEntries.length,
+		workflowEntries.length,
+		hookEntries.length,
+		skillEntries.length,
+	])
 
 	// Get available tabs
 	const availableTabs = useMemo(() => {
@@ -191,10 +210,11 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 		setCurrentTab(newTab)
 		setSelectedIndex(0)
 		setIsEditing(false)
+		setObjectEditor(null)
 	}
 
 	// Settings tab handlers
-	const selectedConfigEntry = configEntries[selectedIndex]
+	const selectedConfigEntry = filteredConfigEntries[selectedIndex]
 
 	const handleSettingsSave = (value: string | boolean) => {
 		if (!selectedConfigEntry) {
@@ -208,6 +228,43 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			onUpdateWorkspace(selectedConfigEntry.key as LocalStateKey, parsed as never)
 		}
 		setIsEditing(false)
+	}
+
+	const getObjectAtPath = (root: Record<string, unknown>, path: string[]): Record<string, unknown> => {
+		let current: unknown = root
+		for (const segment of path) {
+			if (!current || typeof current !== "object") {
+				return {}
+			}
+			current = (current as Record<string, unknown>)[segment]
+		}
+		return current && typeof current === "object" ? (current as Record<string, unknown>) : {}
+	}
+
+	const setObjectValueAtPath = (
+		root: Record<string, unknown>,
+		path: string[],
+		key: string,
+		value: unknown,
+	): Record<string, unknown> => {
+		if (path.length === 0) {
+			return { ...root, [key]: value }
+		}
+		const [head, ...rest] = path
+		const child = root[head]
+		const childObj = child && typeof child === "object" ? (child as Record<string, unknown>) : {}
+		return {
+			...root,
+			[head]: setObjectValueAtPath(childObj, rest, key, value),
+		}
+	}
+
+	const persistObjectEditor = (nextObject: Record<string, unknown>, source: "global" | "workspace", key: string) => {
+		if (source === "global" && onUpdateGlobal) {
+			onUpdateGlobal(key as GlobalStateAndSettingsKey, nextObject as never)
+		} else if (source === "workspace" && onUpdateWorkspace) {
+			onUpdateWorkspace(key as LocalStateKey, nextObject as never)
+		}
 	}
 
 	const handleSettingsReset = () => {
@@ -240,15 +297,22 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	// Input handling
 	useInput(
 		(input, key) => {
-			if (input.toLowerCase() === "q" || key.escape) {
+			if (objectEditor) {
+				return
+			}
+
+			if (key.escape) {
 				exit()
 			}
 
-			// Tab navigation with Tab key or number keys
-			if (key.tab || (input >= "1" && input <= "5")) {
-				const targetIdx = key.tab
-					? (availableTabs.findIndex((t) => t.key === currentTab) + 1) % availableTabs.length
-					: parseInt(input) - 1
+			if (key.leftArrow || key.rightArrow || (input >= "1" && input <= "5")) {
+				const currentTabIndex = availableTabs.findIndex((t) => t.key === currentTab)
+				const targetIdx =
+					input >= "1" && input <= "5"
+						? Number.parseInt(input) - 1
+						: key.leftArrow
+							? (currentTabIndex - 1 + availableTabs.length) % availableTabs.length
+							: (currentTabIndex + 1) % availableTabs.length
 				if (targetIdx >= 0 && targetIdx < availableTabs.length) {
 					handleTabChange(availableTabs[targetIdx].key)
 				}
@@ -256,21 +320,45 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			}
 
 			// List navigation (arrow keys and vim-style j/k)
-			if (key.upArrow || input === "k") {
+			if (key.upArrow) {
 				setSelectedIndex((i) => (i > 0 ? i - 1 : currentListLength - 1))
-			} else if (key.downArrow || input === "j") {
+			} else if (key.downArrow) {
 				setSelectedIndex((i) => (i < currentListLength - 1 ? i + 1 : 0))
 			}
 
 			// Tab-specific actions
 			if (currentTab === "settings") {
-				if ((key.return || input === "e") && selectedConfigEntry?.isEditable) {
+				if ((key.return || key.tab) && selectedConfigEntry?.isEditable) {
+					if (selectedConfigEntry.type === "boolean") {
+						handleSettingsSave(!selectedConfigEntry.value)
+						return
+					}
+					if (selectedConfigEntry.type === "object") {
+						const value =
+							selectedConfigEntry.value && typeof selectedConfigEntry.value === "object"
+								? (selectedConfigEntry.value as Record<string, unknown>)
+								: {}
+						setObjectEditor({
+							source: selectedConfigEntry.source,
+							key: selectedConfigEntry.key,
+							path: [],
+							value,
+							selectedIndex: 0,
+							isEditingValue: false,
+							editValue: "",
+						})
+						return
+					}
 					setEditValue(selectedConfigEntry.value !== undefined ? String(selectedConfigEntry.value) : "")
 					setIsEditing(true)
-				} else if (input === "r") {
+				} else if (key.ctrl && input.toLowerCase() === "r") {
 					handleSettingsReset()
+				} else if (key.backspace || key.delete) {
+					setSearchQuery((prev) => prev.slice(0, -1))
+				} else if (input && !key.ctrl && !key.meta && !key.escape && !key.upArrow && !key.downArrow) {
+					setSearchQuery((prev) => prev + input)
 				}
-			} else if (key.return || input === " ") {
+			} else if (key.return || key.tab || input === " ") {
 				// Toggle for rules/workflows/hooks/skills
 				handleToggle()
 			}
@@ -338,13 +426,31 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 		)
 	}
 
+	if (objectEditor && currentTab === "settings") {
+		return (
+			<ObjectEditorPanel
+				getObjectAtPath={getObjectAtPath}
+				onClose={() => setObjectEditor(null)}
+				onPersist={(nextObject) => persistObjectEditor(nextObject, objectEditor.source, objectEditor.key)}
+				setObjectValueAtPath={setObjectValueAtPath}
+				setState={setObjectEditor}
+				state={objectEditor}
+			/>
+		)
+	}
+
 	// Render tab content
 	const renderTabContent = () => {
 		switch (currentTab) {
 			case "settings": {
-				const visibleEntries = configEntries.slice(startIndex, startIndex + MAX_VISIBLE)
+				const visibleEntries = filteredConfigEntries.slice(startIndex, startIndex + MAX_VISIBLE)
 				return (
 					<React.Fragment>
+						<Box>
+							<Text>Search: </Text>
+							<Text color="white">{searchQuery}</Text>
+							<Text inverse> </Text>
+						</Box>
 						<Box>
 							<Text>Data directory: </Text>
 							<Text color="blue" underline>
@@ -507,12 +613,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
 	// Help text based on current tab
 	const getHelpText = () => {
-		const base = "↑/↓/j/k Navigate • Tab/1-5 Switch tabs • q/Esc Exit"
+		const base = "↑/↓ Navigate • ←/→ tabs • 1-5 tabs • Esc Exit"
 		if (currentTab === "settings") {
-			return `${base} • Enter/e Edit • r Reset`
+			return `${base} • Type to search • Enter/Tab Edit (booleans toggle) • Backspace clear search • Ctrl+R Reset`
 		}
 		const openFolder = onOpenFolder ? " • o Open folder" : ""
-		return `${base} • Enter/Space Toggle${openFolder}`
+		return `${base} • Enter/Tab/Space Toggle${openFolder}`
 	}
 
 	return (

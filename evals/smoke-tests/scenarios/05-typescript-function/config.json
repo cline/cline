@@ -1,0 +1,19 @@
+{
+	"name": "Write TypeScript function",
+	"description": "Tests code generation with correct syntax",
+	"prompt": "Create a file called utils.ts that exports a function called 'capitalize' that takes a string and returns it with the first letter capitalized",
+	"expectedFiles": [
+		"utils.ts"
+	],
+	"expectedContent": [
+		{
+			"file": "utils.ts",
+			"contains": "export"
+		},
+		{
+			"file": "utils.ts",
+			"contains": "capitalize"
+		}
+	],
+	"timeout": 180
+}

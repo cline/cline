@@ -1,0 +1,69 @@
+---
+title: "Google Gemini"
+description: "Learn how to configure and use Google Gemini models with Cline. Access Gemini 3, 2.5, and 2.0 series models with large context windows and multimodal capabilities."
+---
+
+Google Gemini is Google's family of multimodal AI models, offering some of the largest context windows available and strong performance across coding, reasoning, and document analysis tasks.
+
+**Website:** [https://ai.google.dev/](https://ai.google.dev/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [Google AI Studio](https://aistudio.google.com/). Sign in with your Google account.
+2.  **Get API Key:** Navigate to [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+3.  **Create a Key:** Click "Create API Key" and select or create a Google Cloud project.
+4.  **Copy the Key:** Copy the API key immediately and store it securely.
+
+### Supported Models
+
+Cline supports the following Google Gemini models:
+
+#### Gemini 3 Series (Latest)
+-   `gemini-3.1-pro-preview` (Default) - Latest pro model with 1M context, thinking support, and tiered pricing ($2.00-$4.00/M input)
+-   `gemini-3-flash-preview` - Fast model with 1M context and thinking level support ($0.30-$0.50/M input)
+
+#### Gemini 2.5 Series
+-   `gemini-2.5-pro` - High-performance model with 1M context and thinking budget ($1.25-$2.50/M input)
+-   `gemini-2.5-flash` - Fast and affordable with 1M context and thinking support ($0.30/M input)
+-   `gemini-2.5-flash-lite-preview-06-17` - Ultra-affordable lite variant ($0.10/M input)
+
+#### Gemini 2.0 Series
+-   `gemini-2.0-flash-001` - Fast model with 1M context and prompt caching ($0.10/M input)
+-   `gemini-2.0-flash-lite-preview-02-05` - Lite variant (free during preview)
+-   `gemini-2.0-pro-exp-02-05` - Pro experimental with 2M context (free during preview)
+-   `gemini-2.0-flash-thinking-exp-01-21` - Thinking experimental with 1M context (free)
+-   `gemini-2.0-flash-thinking-exp-1219` - Earlier thinking experimental (free)
+-   `gemini-2.0-flash-exp` - Flash experimental with 1M context (free)
+
+#### Gemini 1.5 Series (Legacy)
+-   `gemini-1.5-flash-002` - Fast model with tiered pricing and prompt caching
+-   `gemini-1.5-flash-exp-0827` - Flash experimental (free)
+-   `gemini-1.5-flash-8b-exp-0827` - Compact 8B flash (free)
+-   `gemini-1.5-pro-002` - Pro model with 2M context
+-   `gemini-1.5-pro-exp-0827` - Pro experimental (free)
+-   `gemini-exp-1206` - Experimental with 2M context (free)
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Google Gemini" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Google AI API key into the "Gemini API Key" field.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+### Thinking / Reasoning Support
+
+Gemini 3 and 2.5 models support thinking/reasoning capabilities:
+
+-   **Gemini 3 Pro/Flash:** Support thinking levels (`low`, `high`) that control reasoning depth
+-   **Gemini 2.5 Pro/Flash:** Support thinking budgets that cap the number of thinking tokens
+
+Enable extended thinking in Cline settings to leverage these capabilities for complex coding and reasoning tasks.
+
+### Tips and Notes
+
+-   **Large Context Windows:** Gemini models offer up to 2M token context windows, making them excellent for large codebases and document analysis.
+-   **Prompt Caching:** Gemini 2.5+ and select 2.0 models support prompt caching for reduced costs on repeated queries.
+-   **Image Support:** All Gemini models support image inputs for multimodal tasks.
+-   **Tiered Pricing:** Some models have tiered pricing based on context usage (e.g., lower prices under 200K tokens).
+-   **Free Experimental Models:** Many experimental models are available at no cost during their preview period.
+-   **Pricing:** Refer to the [Google AI pricing page](https://ai.google.dev/gemini-api/docs/models/gemini) for the latest information.

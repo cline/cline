@@ -3,10 +3,7 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-
-const isAdminOrOwner = (activeOrg: UserOrganization): boolean => {
-	return activeOrg.roles.findIndex((role) => role === "admin" || role === "owner") > -1
-}
+import { isAdminOrOwner } from "./helpers"
 
 export function RemoteConfigToggle({ activeOrganization }: { activeOrganization: UserOrganization | null }) {
 	const { optOutOfRemoteConfig } = useExtensionState()

@@ -37,7 +37,6 @@ export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENER
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
-		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.TODO,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.RULES,
@@ -124,7 +123,6 @@ export const createAdvancedVariant = (family: ModelFamily) =>
 			SystemPromptSection.MCP,
 			SystemPromptSection.EDITING_FILES,
 			SystemPromptSection.ACT_VS_PLAN,
-			SystemPromptSection.CLI_SUBAGENTS,
 			SystemPromptSection.TODO,
 			SystemPromptSection.CAPABILITIES,
 			SystemPromptSection.FEEDBACK,
@@ -151,4 +149,5 @@ export const createAdvancedVariant = (family: ModelFamily) =>
 			ClineDefaultTool.PLAN_MODE,
 			ClineDefaultTool.MCP_DOCS,
 			ClineDefaultTool.TODO,
+			ClineDefaultTool.USE_SUBAGENTS,
 		)

@@ -88,6 +88,10 @@ directory
 \f[B]\-\-thinking\f[R] : Enable extended thinking (1024 token budget)
 .PP
 \f[B]\-\-json\f[R] : Output messages as JSON instead of styled text
+.PP
+\f[B]\-T\f[R], \f[B]\-\-taskId\f[R] \f[I]id\f[R] : Resume an existing
+task by ID.
+The prompt argument becomes an optional follow\-up message.
 .SS history (alias: h)
 List task history with pagination.
 .PP
@@ -121,13 +125,13 @@ authentication wizard, or use quick setup flags.
 Options:
 .PP
 \f[B]\-p\f[R], \f[B]\-\-provider\f[R] \f[I]id\f[R] : Provider ID for
-quick setup (e.g., openai\-native, anthropic, openrouter)
+quick setup (e.g., openai\-native, anthropic, openrouter, moonshot)
 .PP
 \f[B]\-k\f[R], \f[B]\-\-apikey\f[R] \f[I]key\f[R] : API key for the
 provider
 .PP
 \f[B]\-m\f[R], \f[B]\-\-modelid\f[R] \f[I]id\f[R] : Model ID to
-configure (e.g., gpt\-4o, claude\-sonnet\-4\-5\-20250929)
+configure (e.g., gpt\-4o, claude\-sonnet\-4\-5\-20250929, kimi\-k2.5)
 .PP
 \f[B]\-b\f[R], \f[B]\-\-baseurl\f[R] \f[I]url\f[R] : Base URL (optional,
 for OpenAI\-compatible providers)
@@ -179,6 +183,10 @@ the task
 .PP
 \f[B]\-\-json\f[R] : Output messages as JSON instead of styled text.
 Forces plain text mode.
+.PP
+\f[B]\-T\f[R], \f[B]\-\-taskId\f[R] \f[I]id\f[R] : Resume an existing
+task by ID instead of starting a new one.
+The prompt becomes an optional follow\-up message.
 .SH JSON OUTPUT FORMAT
 When using \f[B]\-\-json\f[R], each message is output as a JSON object
 with these fields:
@@ -234,6 +242,9 @@ cline \-m claude\-sonnet\-4\-5\-20250929 \(dqRefactor this function\(dq
 
 \f[I]# Quick auth setup with model\f[R]
 cline auth \-p anthropic \-k sk\-ant\-xxxxx \-m claude\-sonnet\-4\-5\-20250929
+
+\f[I]# Quick auth setup for Moonshot\f[R]
+cline auth \-p moonshot \-k sk\-xxxxx \-m kimi\-k2.5
 .EE
 .SS Including Images
 .IP
@@ -274,6 +285,21 @@ cline history
 \f[I]# Show more tasks with pagination\f[R]
 cline history \-n 20 \-p 2
 .EE
+.SS Resuming Tasks
+.IP
+.EX
+\f[I]# Resume a task by ID (get IDs from cline history)\f[R]
+cline \-T abc123def
+
+\f[I]# Resume a task with a follow\-up message\f[R]
+cline \-T abc123def \(dqNow add unit tests for the changes\(dq
+
+\f[I]# Resume in plan mode to review before continuing\f[R]
+cline \-T abc123def \-p \(dqWhat\(aqs left to do?\(dq
+
+\f[I]# Resume with yolo mode for automated continuation\f[R]
+cline \-T abc123def \-y \(dqContinue with the implementation\(dq
+.EE
 .SS Authentication
 .IP
 .EX
@@ -285,6 +311,9 @@ cline auth \-p anthropic \-k sk\-ant\-api\-xxxxx
 
 \f[I]# Quick setup for OpenAI\f[R]
 cline auth \-p openai\-native \-k sk\-xxxxx \-m gpt\-4o
+
+\f[I]# Quick setup for Moonshot\f[R]
+cline auth \-p moonshot \-k sk\-xxxxx \-m kimi\-k2.5
 
 \f[I]# OpenAI\-compatible provider with custom base URL\f[R]
 cline auth \-p openai \-k your\-api\-key \-b https://api.example.com/v1
@@ -348,20 +377,19 @@ export CLINE_COMMAND_PERMISSIONS=\(aq{\(dqallow\(dq: [\(dqnpm *\(dq, \(dqgit *\(
 \f[I]# Allow file operations with redirects\f[R]
 export CLINE_COMMAND_PERMISSIONS=\(aq{\(dqallow\(dq: [\(dqcat *\(dq, \(dqecho *\(dq], \(dqallowRedirects\(dq: true}\(aq
 .EE
-.SH FILES
-\f[B]\(ti/.cline/data/\f[R] : Default configuration directory
-containing:
+.SH CONFIGURATION FILES
+.IP
+.EX
+\(ti/.cline/
+├── data/                    # Default configuration directory
+│   ├── globalState.json     # Global settings and state
+│   ├── secrets.json         # API keys and secrets (stored securely)
+│   ├── workspace/           # Workspace\-specific state
+│   └── tasks/               # Task history and conversation data
+└── log/                     # Log files for debugging
+.EE
 .PP
-\f[B]globalState.json\f[R] : Global settings and state
-.PP
-\f[B]secrets.json\f[R] : API keys and secrets (stored securely)
-.PP
-\f[B]workspace/\f[R] : Workspace\-specific state
-.PP
-\f[B]tasks/\f[R] : Task history and conversation data
-.PP
-\f[B]\(ti/.cline/log/\f[R] : Log files for debugging.
-View with \f[CR]cline dev log\f[R].
+View logs with \f[CR]cline dev log\f[R].
 .SH BUGS
 Report bugs at: \c
 .UR https://github.com/cline/cline/issues

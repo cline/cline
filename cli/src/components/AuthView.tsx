@@ -6,21 +6,24 @@
 import { Box, Text, useApp, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { StateManager } from "@/core/storage/StateManager"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { AuthService } from "@/services/auth/AuthService"
-import { liteLlmDefaultModelId, openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { openAiCodexDefaultModelId, openRouterDefaultModelId } from "@/shared/api"
+import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
-import { getAllFeaturedModels } from "../constants/featured-models"
 import { useStdinContext } from "../context/StdinContext"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
+import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
+import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import {
 	FeaturedModelPicker,
@@ -29,8 +32,9 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
-import { CLI_EXCLUDED_PROVIDERS, getProviderLabel, getProviderOrder } from "./ProviderPicker"
+import { CUSTOM_MODEL_ID, getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
+import { getProviderLabel } from "./ProviderPicker"
 
 type AuthStep =
 	| "menu"
@@ -42,14 +46,13 @@ type AuthStep =
 	| "success"
 	| "error"
 	| "cline_auth"
+	| "oca_employee_check"
 	| "oca_auth"
 	| "cline_model"
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
-
-// Featured models loaded from shared constants
-const featuredModels = getAllFeaturedModels()
+	| "bedrock_custom"
 
 interface AuthViewProps {
 	controller: any
@@ -75,7 +78,7 @@ const Select: React.FC<{
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	useInput(
-		(input, key) => {
+		(_, key) => {
 			if (key.upArrow) {
 				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
 			} else if (key.downArrow) {
@@ -141,7 +144,11 @@ const TextInput: React.FC<{
 
 	return (
 		<Box>
-			<Text color="white">{displayValue || placeholder || ""}</Text>
+			{!displayValue && placeholder ? (
+				<Text color="gray">e.g. {placeholder}</Text>
+			) : (
+				<Text color="white">{displayValue || ""}</Text>
+			)}
 			<Text inverse> </Text>
 		</Box>
 	)
@@ -149,6 +156,9 @@ const TextInput: React.FC<{
 
 export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onError, onNavigateToWelcome }) => {
 	const { exit } = useApp()
+
+	const providers = useValidProviders()
+
 	const [step, setStep] = useState<AuthStep>("menu")
 	const [selectedProvider, setSelectedProvider] = useState<string>(
 		StateManager.get().getApiConfiguration().actModeApiProvider ||
@@ -159,7 +169,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [modelId, setModelId] = useState("")
 	const [baseUrl, setBaseUrl] = useState("")
 	const [errorMessage, setErrorMessage] = useState("")
-	const [authStatus, setAuthStatus] = useState<string>("")
 	const [providerSearch, setProviderSearch] = useState("")
 	const [providerIndex, setProviderIndex] = useState(0)
 	const [clineModelIndex, setClineModelIndex] = useState(0)
@@ -170,11 +179,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	// OCA auth hook - enabled when step is oca_auth
 	const handleOcaAuthSuccess = useCallback(async () => {
 		await applyProviderConfig({ providerId: "oca", controller })
+		// Fetch OCA models from the API - this sets actModeOcaModelId/planModeOcaModelId in state
+		await refreshOcaModels(controller, StringRequest.create({ value: "" }))
 		const stateManager = StateManager.get()
 		stateManager.setGlobalState("welcomeViewCompleted", true)
 		await stateManager.flushPendingState()
 		setSelectedProvider("oca")
-		setModelId(liteLlmDefaultModelId)
+		const actModelId = stateManager.getGlobalSettingsKey("actModeOcaModelId") || ""
+		setModelId(actModelId)
 		setStep("success")
 	}, [controller])
 
@@ -189,11 +201,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		onSuccess: handleOcaAuthSuccess,
 		onError: handleOcaAuthError,
 	})
-
-	// Use providers.json order, filtered to exclude CLI-incompatible providers
-	const sortedProviders = useMemo(() => {
-		return getProviderOrder().filter((p) => !CLI_EXCLUDED_PROVIDERS.has(p))
-	}, [])
 
 	// Main menu items - conditionally include import options
 	const mainMenuItems: SelectItem[] = useMemo(() => {
@@ -220,15 +227,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const providerItems: SelectItem[] = useMemo(() => {
 		const search = providerSearch.toLowerCase()
 		const filtered = providerSearch
-			? sortedProviders.filter(
-					(p) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search),
-				)
-			: sortedProviders
+			? providers.filter((p) => p.toLowerCase().includes(search) || getProviderLabel(p).toLowerCase().includes(search))
+			: providers
 		return filtered.map((p: string) => ({
 			label: getProviderLabel(p),
 			value: p,
 		}))
-	}, [sortedProviders, providerSearch])
+	}, [providers, providerSearch])
 
 	// Use shared scrollable list hook for provider windowing
 	const TOTAL_PROVIDER_ROWS = 8
@@ -249,6 +254,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	}, [])
 
 	// Reset provider index when search changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: we want to reset here
 	useEffect(() => {
 		setProviderIndex(0)
 	}, [providerSearch])
@@ -274,7 +280,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return
 			}
 
-			if (authState.user && authState.user.email) {
+			if (authState.user?.email) {
 				// Auth succeeded - save configuration and transition to model selection
 				await applyProviderConfig({ providerId: "cline", controller })
 				setSelectedProvider("cline")
@@ -323,7 +329,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const startClineAuth = useCallback(async () => {
 		try {
 			setStep("cline_auth")
-			setAuthStatus("Starting authentication...")
 			await AuthService.getInstance(controller).createAuthRequest()
 		} catch (error) {
 			setErrorMessage(error instanceof Error ? error.message : String(error))
@@ -333,7 +338,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const startOcaAuth = useCallback(() => {
 		setStep("oca_auth")
-		setAuthStatus("Starting authentication...")
 		initiateOcaAuth()
 	}, [initiateOcaAuth])
 
@@ -364,7 +368,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		(value: string) => {
 			setSelectedProvider(value)
 			if (value === "oca") {
-				startOcaAuth()
+				// Show employee check screen before starting auth
+				setStep("oca_employee_check")
 			} else if (value === "openai-codex") {
 				setStep("openai_codex_auth")
 				startOpenAiCodexAuth()
@@ -389,6 +394,33 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 			setStep("modelid")
 		},
 		[selectedProvider],
+	)
+
+	// Save custom Bedrock ARN configuration with base model for capability detection
+	const saveCustomBedrockConfiguration = useCallback(
+		async (arn: string, baseModelId: string) => {
+			try {
+				if (!bedrockConfig) {
+					throw new Error("Bedrock configuration is missing")
+				}
+				await applyBedrockConfig({
+					bedrockConfig,
+					modelId: arn,
+					customModelBaseId: baseModelId,
+					controller,
+				})
+
+				const stateManager = StateManager.get()
+				stateManager.setGlobalState("welcomeViewCompleted", true)
+				await stateManager.flushPendingState()
+
+				setStep("success")
+			} catch (error) {
+				setErrorMessage(error instanceof Error ? error.message : String(error))
+				setStep("error")
+			}
+		},
+		[bedrockConfig, controller],
 	)
 
 	const saveConfiguration = useCallback(
@@ -425,6 +457,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const handleModelIdSubmit = useCallback(
 		(value: string) => {
+			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
+			if (value === CUSTOM_MODEL_ID && selectedProvider === "bedrock") {
+				setStep("bedrock_custom")
+				return
+			}
+
 			if (value.trim()) {
 				setModelId(value)
 			}
@@ -532,6 +570,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				// Go back to cline_model if we came from there (Cline provider)
 				if (selectedProvider === "cline") {
 					setStep("cline_model")
+				} else if (selectedProvider === "bedrock") {
+					// Bedrock skips the API key step — go back to Bedrock setup
+					setStep("bedrock")
 				} else {
 					setStep("apikey")
 				}
@@ -540,8 +581,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setBaseUrl("")
 				setStep("modelid")
 				break
-			case "oca_auth":
+			case "oca_employee_check":
 				setStep("provider")
+				break
+			case "oca_auth":
+				setStep("oca_employee_check")
 				break
 			case "cline_auth":
 				setStep("menu")
@@ -645,7 +689,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					<Box flexDirection="column">
 						<Text color="white">Model ID</Text>
 						<Text> </Text>
-						<Text color="gray">e.g., claude-sonnet-4-20250514, gpt-4o</Text>
+						<Text color="gray">e.g., claude-sonnet-4-6, gpt-4o</Text>
 						<Text> </Text>
 						<TextInput onChange={setModelId} onSubmit={handleModelIdSubmit} placeholder="model-id" value={modelId} />
 						<Text> </Text>
@@ -680,6 +724,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						<Text color="white"> Saving configuration...</Text>
 					</Box>
 				)
+
+			case "oca_employee_check":
+				return <OcaEmployeeCheck isActive={step === "oca_employee_check"} onCancel={goBack} onSignIn={startOcaAuth} />
 
 			case "oca_auth":
 			case "cline_auth":
@@ -737,6 +784,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					/>
 				)
 
+			case "bedrock_custom":
+				return (
+					<BedrockCustomModelFlow
+						isActive={step === "bedrock_custom"}
+						onCancel={() => setStep("modelid")}
+						onComplete={(arn, baseModelId) => {
+							setStep("saving")
+							saveCustomBedrockConfiguration(arn, baseModelId)
+						}}
+					/>
+				)
+
 			case "import":
 				if (!importSource) {
 					return null
@@ -766,6 +825,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [menuIndex, setMenuIndex] = useState(0)
 
 	// Steps that allow going back with escape (apikey handled by ApiKeyInput component)
+	// OcaEmployeeCheck handles its own escape key, so oca_employee_check is not in this list
 	const canGoBack = [
 		"provider",
 		"modelid",
@@ -864,7 +924,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 										{index === menuIndex ? "❯ " : "  "}
 										{item.label}
 									</Text>
-									{item.value === "cline_auth" && <Text color="yellow"> (try Kimi K2.5 free!)</Text>}
+									{item.value === "cline_auth" && <Text color="yellow"> (try Opus 4.6!)</Text>}
 								</Text>
 							</Box>
 						))}

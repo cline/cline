@@ -12,11 +12,7 @@
 
 import type * as acp from "@agentclientprotocol/sdk"
 import type { TerminalHandle } from "@agentclientprotocol/sdk"
-import {
-	DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT,
-	DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT,
-	PROCESS_HOT_TIMEOUT_NORMAL,
-} from "@integrations/terminal/constants"
+import { DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT, PROCESS_HOT_TIMEOUT_NORMAL } from "@integrations/terminal/constants"
 import type {
 	ITerminal,
 	ITerminalManager,
@@ -142,12 +138,12 @@ export interface ManagedTerminal {
  * Wraps ACP terminal operations and emits events compatible with ITerminalProcess.
  */
 class AcpTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
-	isHot: boolean = false
-	waitForShellIntegration: boolean = false
+	isHot = false
+	waitForShellIntegration = false
 
-	private _unretrievedOutput: string = ""
-	private _continued: boolean = false
-	private _completed: boolean = false
+	private _unretrievedOutput = ""
+	private _continued = false
+	private _completed = false
 	private _hotTimeout: NodeJS.Timeout | null = null
 	private _exitWaitTimeout: NodeJS.Timeout | null = null
 	private readonly manager: AcpTerminalManager
@@ -397,7 +393,7 @@ export class AcpTerminalManager implements ITerminalManager {
 	private readonly numericIdToStringId: Map<number, string> = new Map()
 
 	/** Next numeric ID to assign */
-	private nextNumericId: number = 1
+	private nextNumericId = 1
 
 	/** Active processes indexed by numeric terminal ID */
 	private readonly processes: Map<number, AcpTerminalProcess> = new Map()
@@ -406,9 +402,8 @@ export class AcpTerminalManager implements ITerminalManager {
 	private readonly terminalInfos: Map<number, TerminalInfo> = new Map()
 
 	// Configuration options for ITerminalManager
-	private terminalReuseEnabled: boolean = true
+	private terminalReuseEnabled = true
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
-	private subagentTerminalOutputLineLimit: number = DEFAULT_SUBAGENT_TERMINAL_OUTPUT_LINE_LIMIT
 
 	/**
 	 * Creates a new AcpTerminalManager.
@@ -668,14 +663,6 @@ export class AcpTerminalManager implements ITerminalManager {
 	}
 
 	/**
-	 * Set the maximum number of output lines for subagent commands.
-	 * @param limit Maximum number of lines
-	 */
-	setSubagentTerminalOutputLineLimit(limit: number): void {
-		this.subagentTerminalOutputLineLimit = limit
-	}
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */
@@ -687,15 +674,10 @@ export class AcpTerminalManager implements ITerminalManager {
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override
-	 * @param isSubagentCommand Whether this is a subagent command
 	 * @returns Processed output string
 	 */
-	processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string {
-		const limit = isSubagentCommand
-			? overrideLimit !== undefined
-				? overrideLimit
-				: this.subagentTerminalOutputLineLimit
-			: this.terminalOutputLineLimit
+	processOutput(outputLines: string[], overrideLimit?: number): string {
+		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
 
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)

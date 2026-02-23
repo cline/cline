@@ -9,9 +9,8 @@ import { useInterval } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { cn } from "@/lib/utils"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { getClineEnvironmentClassname } from "@/utils/environmentColors"
+import ViewHeader from "../common/ViewHeader"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { updateSetting } from "../settings/utils/settingsHandlers"
 import { AccountWelcomeView } from "./AccountWelcomeView"
@@ -45,30 +44,22 @@ const ClineEnvOptions = ["Production", "Staging", "Local"] as const
 
 const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: AccountViewProps) => {
 	const { environment } = useExtensionState()
-	const titleColor = getClineEnvironmentClassname(environment)
 
 	return (
-		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
-			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className={cn("text-(--vscode-foreground) m-0", titleColor)}>
-					Account {environment !== "production" ? ` - ${environment} environment` : ""}
-				</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-			</div>
-			<div className="grow overflow-hidden pr-[8px] flex flex-col">
-				<div className="h-full mb-1.5">
-					{clineUser?.uid ? (
-						<ClineAccountView
-							activeOrganization={activeOrganization}
-							clineEnv={environment === "local" ? "Local" : environment === "staging" ? "Staging" : "Production"}
-							clineUser={clineUser}
-							key={clineUser.uid}
-							userOrganizations={organizations}
-						/>
-					) : (
-						<AccountWelcomeView />
-					)}
-				</div>
+		<div className="fixed inset-0 flex flex-col overflow-hidden">
+			<ViewHeader environment={environment} onDone={onDone} showEnvironmentSuffix title="Account" />
+			<div className="grow flex flex-col px-5 overflow-y-auto">
+				{clineUser?.uid ? (
+					<ClineAccountView
+						activeOrganization={activeOrganization}
+						clineEnv={environment === "local" ? "Local" : environment === "staging" ? "Staging" : "Production"}
+						clineUser={clineUser}
+						key={clineUser.uid}
+						userOrganizations={organizations}
+					/>
+				) : (
+					<AccountWelcomeView />
+				)}
 			</div>
 		</div>
 	)
@@ -312,7 +303,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 	return (
 		<div className="h-full flex flex-col">
-			<div className="flex flex-col pr-3 h-full">
+			<div className="flex flex-col h-full">
 				<div className="flex flex-col w-full gap-1 mb-6">
 					<div className="flex items-center flex-wrap gap-y-4">
 						{/* {user.photoUrl ? (

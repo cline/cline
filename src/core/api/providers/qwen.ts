@@ -66,17 +66,19 @@ export class QwenHandler implements ApiHandler {
 		const modelId = this.options.apiModelId
 		// Branch based on API line to let poor typescript know what to do
 		if (this.useChinaApi()) {
+			const id = modelId && modelId in mainlandQwenModels ? (modelId as MainlandQwenModelId) : mainlandQwenDefaultModelId
 			return {
-				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
-				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],
+				id,
+				info: mainlandQwenModels[id],
 			}
-		} else {
-			return {
-				id: (modelId as InternationalQwenModelId) ?? internationalQwenDefaultModelId,
-				info:
-					internationalQwenModels[modelId as InternationalQwenModelId] ??
-					internationalQwenModels[internationalQwenDefaultModelId],
-			}
+		}
+		const id =
+			modelId && modelId in internationalQwenModels
+				? (modelId as InternationalQwenModelId)
+				: internationalQwenDefaultModelId
+		return {
+			id,
+			info: internationalQwenModels[id],
 		}
 	}
 

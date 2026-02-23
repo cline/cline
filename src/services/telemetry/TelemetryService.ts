@@ -1,5 +1,6 @@
 import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
+import { ApiFormat, apiFormatToJSON } from "@shared/proto/cline/models"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
@@ -115,6 +116,11 @@ export class TelemetryService {
 	])
 
 	private userId?: string
+	private activeOrg: {
+		organization_id: string
+		organization_name: string
+		member_id: string
+	} | null = null
 	private taskTurnCounts = new Map<string, number>()
 	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
@@ -463,6 +469,7 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
+			...this.activeOrg,
 			...(extra ?? {}),
 		}
 	}
@@ -535,7 +542,9 @@ export class TelemetryService {
 	}
 
 	public captureExtensionActivated() {
-		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+		})
 	}
 
 	public captureExtensionStorageError(errorMessage: string, eventName: string) {
@@ -616,6 +625,16 @@ export class TelemetryService {
 		}
 
 		this.userId = userInfo.id
+		const activeOrg = userInfo.organizations?.find((org) => org.active)
+		if (activeOrg) {
+			this.activeOrg = {
+				organization_id: activeOrg.organizationId,
+				organization_name: activeOrg.name,
+				member_id: activeOrg.memberId,
+			}
+		} else {
+			this.activeOrg = null
+		}
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
@@ -784,11 +803,53 @@ export class TelemetryService {
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
 	 * @param ulid Unique identifier for the task
 	 */
-	public captureTaskCompleted(ulid: string) {
+	public captureTaskCompleted(
+		ulid: string,
+		args?: {
+			provider?: string
+			modelId?: string
+			apiFormat?: ApiFormat
+			timeToFirstTokenMs?: number
+			durationMs?: number
+			mode: Mode
+		},
+	) {
+		const apiFormatName = args?.apiFormat !== undefined ? apiFormatToJSON(args.apiFormat) : undefined
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: { ulid },
+			properties: {
+				ulid,
+				provider: args?.provider,
+				modelId: args?.modelId,
+				apiFormat: args?.apiFormat,
+				apiFormatName,
+				timeToFirstTokenMs: args?.timeToFirstTokenMs,
+				durationMs: args?.durationMs,
+				mode: args?.mode,
+			},
 		})
+
+		if (Number.isFinite(args?.timeToFirstTokenMs)) {
+			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, (args?.timeToFirstTokenMs ?? 0) / 1000, {
+				ulid,
+				provider: args?.provider,
+				model: args?.modelId,
+				apiFormat: apiFormatName,
+				mode: args?.mode,
+			})
+		}
+
+		if (Number.isFinite(args?.durationMs)) {
+			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, (args?.durationMs ?? 0) / 1000, {
+				ulid,
+				provider: args?.provider,
+				model: args?.modelId,
+				apiFormat: apiFormatName,
+				scope: "task",
+				mode: args?.mode,
+			})
+		}
+
 		this.resetTaskAggregates(ulid)
 	}
 
@@ -803,8 +864,8 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		ulid: string,
-		provider: string = "unknown",
-		model: string = "unknown",
+		provider = "unknown",
+		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
 		tokenUsage: {
