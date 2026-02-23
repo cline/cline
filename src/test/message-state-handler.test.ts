@@ -1,5 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
+import should from "should"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { ClineMessage } from "../shared/ExtensionMessage"
@@ -210,9 +211,9 @@ describe("MessageStateHandler Mutex Protection", () => {
 
 		// Perform concurrent additions
 		await Promise.all([
-			handler.addToApiConversationHistory({ role: "user", content: "msg1" }),
-			handler.addToApiConversationHistory({ role: "assistant", content: "response1" }),
-			handler.addToApiConversationHistory({ role: "user", content: "msg2" }),
+			handler.addToApiConversationHistory({ role: "user", content: "msg1", ts: Date.now() }),
+			handler.addToApiConversationHistory({ role: "assistant", content: "response1", ts: Date.now() }),
+			handler.addToApiConversationHistory({ role: "user", content: "msg2", ts: Date.now() }),
 		])
 
 		const history = handler.getApiConversationHistory()
@@ -249,12 +250,12 @@ describe("MessageStateHandler Mutex Protection", () => {
 		const handler = createTestHandler()
 
 		// Set initial history
-		handler.setApiConversationHistory([{ role: "user", content: "old" }])
+		handler.setApiConversationHistory([{ role: "user", content: "old", ts: Date.now() }])
 
 		// Overwrite with new history
 		const newHistory = [
-			{ role: "user" as const, content: "new1" },
-			{ role: "assistant" as const, content: "new2" },
+			{ role: "user" as const, content: "new1", ts: Date.now() },
+			{ role: "assistant" as const, content: "new2", ts: Date.now() },
 		]
 		await handler.overwriteApiConversationHistory(newHistory)
 

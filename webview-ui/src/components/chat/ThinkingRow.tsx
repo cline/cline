@@ -44,7 +44,7 @@ export const ThinkingRow = memo(
 				scrollRef.current.scrollTop = scrollRef.current.scrollHeight
 			}
 			checkScrollable()
-		}, [isVisible, checkScrollable])
+		}, [reasoningContent, isVisible, checkScrollable])
 
 		if (!isVisible) {
 			return null

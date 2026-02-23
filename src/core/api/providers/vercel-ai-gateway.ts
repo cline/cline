@@ -84,7 +84,12 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for models that don't support it (e.g., devstral, grok-4)
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				if (
+					delta &&
+					"reasoning" in delta &&
+					delta.reasoning &&
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -93,6 +98,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 				// Reasoning details that can be passed back in API requests to preserve reasoning traces
 				if (
+					delta &&
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-expect-error-next-line

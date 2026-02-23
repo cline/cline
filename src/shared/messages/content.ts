@@ -98,6 +98,10 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 * Includes token counts, costs.
 	 */
 	metrics?: ClineMessageMetricsInfo
+	/**
+	 * Timestamp of when the message was created
+	 */
+	ts?: number
 }
 
 /**
@@ -143,7 +147,6 @@ export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
 	}
 
 	// Removes Cline-specific fields & the signature field that's added for Gemini.
-	// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
 	const { reasoning_details, call_id, summary, ...rest } = block as any
 
 	// Remove signature from non-thinking blocks that were added for Gemini

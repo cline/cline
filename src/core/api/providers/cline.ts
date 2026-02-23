@@ -168,7 +168,12 @@ export class ClineHandler implements ApiHandler {
 
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				if (
+					delta &&
+					"reasoning" in delta &&
+					delta.reasoning &&
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -183,6 +188,7 @@ export class ClineHandler implements ApiHandler {
 				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
 				*/
 				if (
+					delta &&
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-expect-error-next-line

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.66.0]
+
+### Added
+
+- Gemini-3.1 Pro Preview
+
+
 ## [3.65.0]
 
 ### Added

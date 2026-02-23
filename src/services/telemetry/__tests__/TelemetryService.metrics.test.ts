@@ -1,15 +1,21 @@
+import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
 	readonly name = "FakeProvider"
+	public logs: Array<{ event: string; properties?: TelemetryProperties }> = []
 	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public gauges = new Map<string, Map<string, { value: number; attributes: TelemetryProperties; description?: string }>>()
 
-	log(): void {}
-	logRequired(): void {}
+	log(event: string, properties?: TelemetryProperties): void {
+		this.logs.push({ event, properties })
+	}
+	logRequired(event: string, properties?: TelemetryProperties): void {
+		this.logs.push({ event, properties })
+	}
 	identifyUser(): void {}
 	isEnabled(): boolean {
 		return true
@@ -190,5 +196,43 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+	})
+
+	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskCompleted("task-4", {
+			provider: "openai-native",
+			modelId: "gpt-5",
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
+			timeToFirstTokenMs: 350,
+			durationMs: 2100,
+			mode: "act",
+		})
+
+		const completionEvent = provider.logs.find((entry) => entry.event === "task.completed")
+		assert.ok(completionEvent)
+		assert.ok(completionEvent?.properties)
+		assert.strictEqual(completionEvent?.properties?.ulid, "task-4")
+		assert.strictEqual(completionEvent?.properties?.provider, "openai-native")
+		assert.strictEqual(completionEvent?.properties?.modelId, "gpt-5")
+		assert.strictEqual(completionEvent?.properties?.apiFormat, ApiFormat.OPENAI_RESPONSES)
+		assert.strictEqual(completionEvent?.properties?.apiFormatName, "OPENAI_RESPONSES")
+		assert.strictEqual(completionEvent?.properties?.timeToFirstTokenMs, 350)
+		assert.strictEqual(completionEvent?.properties?.durationMs, 2100)
+
+		const ttftMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.TTFT_SECONDS)
+		assert.ok(ttftMetric)
+		assert.strictEqual(ttftMetric?.value, 0.35)
+		assert.strictEqual(ttftMetric?.attributes.ulid, "task-4")
+		assert.strictEqual(ttftMetric?.attributes.provider, "openai-native")
+		assert.strictEqual(ttftMetric?.attributes.model, "gpt-5")
+		assert.strictEqual(ttftMetric?.attributes.apiFormat, "OPENAI_RESPONSES")
+
+		const durationMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.DURATION_SECONDS)
+		assert.ok(durationMetric)
+		assert.strictEqual(durationMetric?.value, 2.1)
+		assert.strictEqual(durationMetric?.attributes.scope, "task")
 	})
 })

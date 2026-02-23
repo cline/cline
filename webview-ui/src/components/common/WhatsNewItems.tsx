@@ -79,17 +79,16 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 				<>
 					{/* Hardcoded fallback items shown when remote welcome banners feature flag is off */}
 					<li className="mb-2">
-						<strong>Claude Sonnet 4.6 is here!</strong> Advanced reasoning and coding performance. Note: Free
-						promotion ended.{" "}
+						<strong>Claude Sonnet 4.6 is here!</strong> Advanced reasoning and coding performance.{" "}
 						<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="recommended" />
 					</li>
 					<li className="mb-2">
-						<strong>GLM 5:</strong> SOTA coding capability with lightning fast inference, now available with free
-						promo! <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
-					</li>
+						<strong>Gemini 3.1 Pro:</strong> Google's latest SOTA model across most reasoning, coding, and stem use
+						cases <InlineModelLink label="Try now" modelId="google/gemini-3.1-pro-preview" pickerTab="recommended" />
+					</li>{" "}
 					<li className="mb-2">
-						<strong>MiniMax M2.5:</strong> SOTA coding capability with lightning fast inference, now available with
-						free promo! <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
+						<strong>MiniMax M2.5 & Z.ai GLM 5:</strong> available in Cline with free promo, ends Friday Feb 20{" "}
+						<InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
 					</li>
 					<li className="mb-2">
 						<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to your
@@ -100,16 +99,6 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 							style={{ color: "var(--vscode-textLink-foreground)" }}
 							target="_blank">
 							{" "}
-							Learn more
-						</a>
-					</li>
-					<li className="mb-2">
-						<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
-						<a
-							href="https://docs.cline.bot/features/subagents"
-							rel="noopener noreferrer"
-							style={{ color: "var(--vscode-textLink-foreground)" }}
-							target="_blank">
 							Learn more
 						</a>
 					</li>
