@@ -88,6 +88,10 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 						{"  "}
 						<Text color="white">/clear</Text> - Start a fresh task
 					</Text>
+					<Text>
+						{"  "}
+						<Text color="white">/q</Text> - Quit Cline
+					</Text>
 				</Box>
 
 				<Text>

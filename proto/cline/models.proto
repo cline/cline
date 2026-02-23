@@ -19,6 +19,8 @@ service ModelsService {
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
   rpc refreshOpenRouterModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns recommended and free Cline models
+  rpc refreshClineRecommendedModelsRpc(EmptyRequest) returns (ClineRecommendedModelsResponse);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
@@ -111,6 +113,18 @@ message OpenRouterModelInfo {
 // Shared response message for model information
 message OpenRouterCompatibleModelInfo {
   map<string, OpenRouterModelInfo> models = 1;
+}
+
+message ClineRecommendedModel {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string tags = 4;
+}
+
+message ClineRecommendedModelsResponse {
+  repeated ClineRecommendedModel recommended = 1;
+  repeated ClineRecommendedModel free = 2;
 }
 
 // Request for fetching OpenAI models
