@@ -42,18 +42,6 @@ export const CLINE_RECOMMENDED_MODELS_FALLBACK: ClineRecommendedModelsData = {
 	],
 	free: [
 		{
-			id: "minimax/minimax-m2.5",
-			name: "MiniMax M2.5",
-			description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
-			tags: ["FREE"],
-		},
-		{
-			id: "z-ai/glm-5",
-			name: "Z.AI GLM 5",
-			description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
-			tags: ["FREE"],
-		},
-		{
 			id: "kwaipilot/kat-coder-pro",
 			name: "KwaiKAT Kat Coder Pro",
 			description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
