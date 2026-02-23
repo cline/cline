@@ -13,7 +13,7 @@ import { ClineDefaultTool, ClineTool } from "@shared/tools"
 import { ContextManager } from "@/core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@/core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@/core/context/context-management/context-window-utils"
-import { HostProvider } from "@/hosts/host-provider"
+import { HostRegistryInfo } from "@/registry"
 import { ClineError, ClineErrorType } from "@/services/error"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
@@ -329,9 +329,22 @@ export class SubagentRunner {
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				!!this.baseConfig.services.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 
-			const host = await HostProvider.env.getHostVersion({})
+			const host = HostRegistryInfo.get()
 			const discoveredSkills = await discoverSkills(this.baseConfig.cwd)
-			const skills = getAvailableSkills(discoveredSkills)
+			const availableSkills = getAvailableSkills(discoveredSkills)
+			const configuredSkillNames = this.agent.getConfiguredSkills()
+			const skills =
+				configuredSkillNames !== undefined
+					? configuredSkillNames
+							.map((skillName) => {
+								const skill = availableSkills.find((candidate) => candidate.name === skillName)
+								if (!skill) {
+									Logger.warn(`[SubagentRunner] Configured skill '${skillName}' not found for subagent run.`)
+								}
+								return skill
+							})
+							.filter((skill): skill is (typeof availableSkills)[number] => Boolean(skill))
+					: availableSkills
 
 			const context: SystemPromptContext = {
 				providerInfo,
