@@ -72,7 +72,7 @@ describe("Tool Call Parsing", () => {
 
 		it("should transform OpenAI Responses API tool IDs (fc_ prefix)", () => {
 			// OpenAI Responses API uses fc_ prefix with 53 char length
-			const responsesApiId = `fc_${"x".repeat(50)}`
+			const responsesApiId = "fc_" + "x".repeat(50)
 			const messages: ClineStorageMessage[] = [
 				{
 					role: "assistant",
@@ -127,7 +127,7 @@ describe("Tool Call Parsing", () => {
 
 			// Get the transformed tool_call id from assistant message
 			const assistantMsg = result[0] as OpenAI.Chat.ChatCompletionAssistantMessageParam
-			const transformedId = assistantMsg.tool_calls?.[0].id
+			const transformedId = assistantMsg.tool_calls![0].id
 
 			// The tool result should have the same transformed id
 			const toolMsg = result[1] as OpenAI.Chat.ChatCompletionToolMessageParam
@@ -247,7 +247,7 @@ describe("Tool Call Parsing", () => {
 			result.id.should.equal("chatcmpl-123")
 			result.role.should.equal("assistant")
 			result.model.should.equal("gpt-4o")
-			result.stop_reason?.should.equal("end_turn")
+			result.stop_reason!.should.equal("end_turn")
 			result.usage.input_tokens.should.equal(10)
 			result.usage.output_tokens.should.equal(5)
 
@@ -288,7 +288,7 @@ describe("Tool Call Parsing", () => {
 
 			const result = convertToAnthropicMessage(completion)
 
-			result.stop_reason?.should.equal("tool_use")
+			result.stop_reason!.should.equal("tool_use")
 
 			const content = result.content as any[]
 			content.should.have.length(2) // text block + tool_use block

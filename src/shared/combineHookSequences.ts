@@ -116,7 +116,7 @@ function combineHookWithOutputs(
 			// Append output if not empty
 			const output = messages[i].text || ""
 			if (output.length > 0) {
-				combinedText += `\n${output}`
+				combinedText += "\n" + output
 			}
 		}
 		i++
@@ -254,7 +254,7 @@ function buildPreToolUseMap(processedMessages: ClineMessage[], originalMessages:
 			if (!map.has(toolTimestamp)) {
 				map.set(toolTimestamp, [])
 			}
-			map.get(toolTimestamp)?.push(msg)
+			map.get(toolTimestamp)!.push(msg)
 		}
 		// Otherwise, hook is already in correct chronological position - don't move it
 	}

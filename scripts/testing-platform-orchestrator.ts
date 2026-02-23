@@ -204,8 +204,8 @@ async function main() {
 	const inputPath = args._[0]
 	const count = Number(args.count)
 	showServerLogs = Boolean(args["server-logs"])
-	fix = Boolean(args.fix)
-	coverage = Boolean(args.coverage)
+	fix = Boolean(args["fix"])
+	coverage = Boolean(args["coverage"])
 
 	if (!inputPath) {
 		console.error(

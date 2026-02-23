@@ -62,7 +62,7 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 
 		// Search commits by hash or message, limiting to 10 results
 		const { stdout } = await execAsync(
-			`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short --grep="${query}" --regexp-ignore-case`,
+			`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--grep="${query}" --regexp-ignore-case`,
 			{ cwd },
 		)
 
@@ -70,7 +70,7 @@ export async function searchCommits(query: string, cwd: string): Promise<GitComm
 		if (!output.trim() && /^[a-f0-9]+$/i.test(query)) {
 			// If no results from grep search and query looks like a hash, try searching by hash
 			const { stdout: hashStdout } = await execAsync(
-				`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short --author-date-order ${query}`,
+				`git log -n 10 --format="%H%n%h%n%s%n%an%n%ad" --date=short ` + `--author-date-order ${query}`,
 				{ cwd },
 			).catch(() => ({ stdout: "" }))
 
@@ -142,7 +142,7 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 			"\nFull Changes:",
 		].join("\n")
 
-		const output = `${summary}\n\n${diff.trim()}`
+		const output = summary + "\n\n" + diff.trim()
 		return truncateOutput(output)
 	} catch (error) {
 		Logger.error("Error getting commit info:", error)
@@ -187,35 +187,39 @@ export async function getWorkingState(cwd: string): Promise<string> {
 }
 
 export async function getGitDiff(cwd: string, stagedOnly = false): Promise<string> {
-	const isInstalled = await checkGitInstalled()
-	if (!isInstalled) {
-		throw new Error("Git is not installed")
-	}
+	try {
+		const isInstalled = await checkGitInstalled()
+		if (!isInstalled) {
+			throw new Error("Git is not installed")
+		}
 
-	const isRepo = await checkGitRepo(cwd)
-	if (!isRepo) {
-		throw new Error("Not a git repository")
-	}
+		const isRepo = await checkGitRepo(cwd)
+		if (!isRepo) {
+			throw new Error("Not a git repository")
+		}
 
-	let diff = ""
-	let command = "git --no-pager diff --staged --diff-filter=d"
-	if (await checkGitRepoHasCommits(cwd)) {
-		// Only run git diff if there are commits
-		const { stdout: staged } = await execAsync(command, { cwd })
-		diff = staged.trim()
-	}
+		let diff = ""
+		let command = "git --no-pager diff --staged --diff-filter=d"
+		if (await checkGitRepoHasCommits(cwd)) {
+			// Only run git diff if there are commits
+			const { stdout: staged } = await execAsync(command, { cwd })
+			diff = staged.trim()
+		}
 
-	if (!stagedOnly && !diff) {
-		command = "git --no-pager diff HEAD --diff-filter=d"
-		const { stdout: unstaged } = await execAsync(command, { cwd })
-		diff = unstaged.trim()
-	}
+		if (!stagedOnly && !diff) {
+			command = "git --no-pager diff HEAD --diff-filter=d"
+			const { stdout: unstaged } = await execAsync(command, { cwd })
+			diff = unstaged.trim()
+		}
 
-	if (!diff) {
-		throw new Error("No changes in workspace for commit message")
-	}
+		if (!diff) {
+			throw new Error("No changes in workspace for commit message")
+		}
 
-	return truncateOutput(`'${command}' Output:\n\n${diff}`.trim())
+		return truncateOutput(`'${command}' Output:\n\n${diff}`.trim())
+	} catch (error) {
+		throw error
+	}
 }
 
 export async function getGitRemoteUrls(cwd: string): Promise<string[]> {

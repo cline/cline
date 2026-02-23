@@ -50,10 +50,10 @@ export async function openMention(mention?: string): Promise<void> {
 export async function getFileMentionFromPath(filePath: string) {
 	const cwd = await getCwd()
 	if (!cwd) {
-		return `@/${filePath}`
+		return "@/" + filePath
 	}
 	const relativePath = path.relative(cwd, filePath)
-	return `@/${relativePath}`
+	return "@/" + relativePath
 }
 
 export async function parseMentions(
@@ -195,7 +195,7 @@ export async function parseMentions(
 							await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
 						}
 					}
-					telemetryService.captureMentionUsed(mentionType, result.content?.length)
+					telemetryService.captureMentionUsed(mentionType, result.content!.length)
 				} else {
 					// Found in multiple workspaces - include all candidates with workspace name
 					for (const result of successfulResults) {

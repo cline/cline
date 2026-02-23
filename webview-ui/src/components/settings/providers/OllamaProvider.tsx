@@ -41,7 +41,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					value: apiConfiguration?.ollamaBaseUrl || "",
 				}),
 			)
-			if (response?.values) {
+			if (response && response.values) {
 				setOllamaModels(response.values)
 			}
 		} catch (error) {

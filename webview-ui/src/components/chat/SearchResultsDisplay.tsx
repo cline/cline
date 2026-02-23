@@ -109,7 +109,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					WebkitUserSelect: "none",
 					MozUserSelect: "none",
 					msUserSelect: "none",
-				}}>
+				}}
+				tabIndex={0}>
 				<span>/</span>
 				<span
 					style={{

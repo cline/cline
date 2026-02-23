@@ -83,7 +83,7 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 			requestAnimationFrame(() => {
 				isProgrammaticScrollRef.current = false
 			})
-		}, [isExpanded, isStreaming])
+		}, [file.lines.length, isExpanded, isStreaming])
 
 		const handleScroll = () => {
 			const container = scrollContainerRef.current

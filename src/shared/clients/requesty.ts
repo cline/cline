@@ -14,7 +14,7 @@ export const toRequestyServiceUrl = (baseUrl?: string, service: URLType = "route
 
 	try {
 		return new URL(url)
-	} catch (_e) {
+	} catch (e) {
 		return undefined
 	}
 }

@@ -31,7 +31,7 @@ describe("Hook Management", () => {
 	let globalHooksDir: string
 	let workspaceHooksDir: string
 	let mockController: Controller
-	let _stateManagerStub: sinon.SinonStub
+	let stateManagerStub: sinon.SinonStub
 	let getWorkspacePathsStub: sinon.SinonStub
 
 	beforeEach(async () => {
@@ -54,7 +54,7 @@ describe("Hook Management", () => {
 		} as any
 
 		// Mock StateManager to return test workspace
-		_stateManagerStub = sinon.stub(StateManager, "get").returns({
+		stateManagerStub = sinon.stub(StateManager, "get").returns({
 			getGlobalStateKey: (key: string) => {
 				if (key === "workspaceRoots") {
 					return [{ path: path.join(tempDir, "workspace") }]
@@ -76,7 +76,7 @@ describe("Hook Management", () => {
 		// Clean up temporary directory
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (_error) {
+		} catch (error) {
 			// Ignore cleanup errors
 		}
 
@@ -110,8 +110,8 @@ describe("Hook Management", () => {
 
 			// Verify response contains updated hooks state
 			response.should.have.property("hooksToggles")
-			response.hooksToggles?.globalHooks.should.have.length(1)
-			response.hooksToggles?.globalHooks[0].name.should.equal("TaskStart")
+			response.hooksToggles!.globalHooks.should.have.length(1)
+			response.hooksToggles!.globalHooks[0].name.should.equal("TaskStart")
 		})
 
 		it("should create hook with non-executable permissions (644)", async function () {
@@ -240,7 +240,7 @@ describe("Hook Management", () => {
 
 			// Verify response contains updated hooks state
 			response.should.have.property("hooksToggles")
-			response.hooksToggles?.globalHooks.should.have.length(0)
+			response.hooksToggles!.globalHooks.should.have.length(0)
 		})
 
 		it("should throw error if hook doesn't exist", async function () {
@@ -360,8 +360,8 @@ describe("Hook Management", () => {
 			const response = await toggleHook(mockController, request, globalHooksDir)
 
 			response.should.have.property("hooksToggles")
-			response.hooksToggles?.globalHooks.should.have.length(1)
-			response.hooksToggles?.globalHooks[0].enabled.should.equal(true)
+			response.hooksToggles!.globalHooks.should.have.length(1)
+			response.hooksToggles!.globalHooks[0].enabled.should.equal(true)
 		})
 	})
 
@@ -408,8 +408,8 @@ describe("Hook Management", () => {
 			const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
 			const taskCancel = result.globalHooks.find((h) => h.name === "TaskCancel")
 
-			taskStart?.enabled.should.equal(true)
-			taskCancel?.enabled.should.equal(false)
+			taskStart!.enabled.should.equal(true)
+			taskCancel!.enabled.should.equal(false)
 		})
 
 		it("should return empty list when no hooks exist", async function () {
@@ -477,7 +477,7 @@ describe("Hook Management", () => {
 			try {
 				await deleteHook(mockController, request, globalHooksDir)
 				// Should throw an error
-			} catch (_error) {
+			} catch (error) {
 				// Expected - permission denied
 			} finally {
 				// Restore permissions for cleanup

@@ -92,7 +92,7 @@ export const TaskJsonView: React.FC<TaskJsonViewProps> = ({ taskId: _taskId, ver
 
 			outputtedMessages.current.add(message.ts)
 		}
-	}, [state.clineMessages, verbose, getRole])
+	}, [state.clineMessages, verbose])
 
 	// Handle task completion
 	useEffect(() => {

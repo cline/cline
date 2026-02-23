@@ -74,10 +74,10 @@ interface DifyConversationResponse {
 }
 
 export class DifyHandler implements ApiHandler {
+	private options: DifyHandlerOptions
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
-	private options: DifyHandlerOptions
 
 	constructor(options: DifyHandlerOptions) {
 		this.options = options
@@ -339,7 +339,7 @@ export class DifyHandler implements ApiHandler {
 								}
 								hasYieldedContent = true
 							}
-						} catch (_e) {
+						} catch (e) {
 							// Not JSON, continue
 							Logger.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}

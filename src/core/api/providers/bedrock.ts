@@ -264,7 +264,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				if (useProfile) {
 					AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
 				} else {
-					delete process.env.AWS_PROFILE
+					delete process.env["AWS_PROFILE"]
 					AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
 					AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
 					AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
@@ -537,7 +537,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 
-			combinedContent += message.role === "user" ? `User: ${content}\n` : `Assistant: ${content}\n`
+			combinedContent += message.role === "user" ? "User: " + content + "\n" : "Assistant: " + content + "\n"
 		}
 
 		// Format according to DeepSeek R1's expected prompt format
@@ -604,178 +604,182 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Common implementation for both Anthropic and Nova models
 	 */
 	private async *executeConverseStream(command: ConverseStreamCommand, modelInfo: ModelInfo): ApiStream {
-		const client = await this.getBedrockClient()
-		const response = await client.send(command)
+		try {
+			const client = await this.getBedrockClient()
+			const response = await client.send(command)
 
-		if (response.stream) {
-			// Buffer content by contentBlockIndex to handle multi-block responses correctly
-			const contentBuffers: Record<number, string> = {}
-			const blockTypes = new Map<number, "reasoning" | "text">()
-			const activeToolCalls: Map<number, { toolUseId: string; name: string }> = new Map()
+			if (response.stream) {
+				// Buffer content by contentBlockIndex to handle multi-block responses correctly
+				const contentBuffers: Record<number, string> = {}
+				const blockTypes = new Map<number, "reasoning" | "text">()
+				const activeToolCalls: Map<number, { toolUseId: string; name: string }> = new Map()
 
-			for await (const chunk of response.stream) {
-				// Debug logging to see actual response structure
-				// Logger.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
+				for await (const chunk of response.stream) {
+					// Debug logging to see actual response structure
+					// Logger.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
 
-				// Handle thinking response in additionalModelResponseFields (LangChain format)
-				const metadata = chunk.metadata as ExtendedMetadata | undefined
-				if (metadata?.additionalModelResponseFields?.thinkingResponse) {
-					const thinkingResponse = metadata.additionalModelResponseFields.thinkingResponse
-					if (thinkingResponse.reasoning && Array.isArray(thinkingResponse.reasoning)) {
-						for (const reasoningBlock of thinkingResponse.reasoning) {
-							if (reasoningBlock.type === "text" && reasoningBlock.text) {
-								yield {
-									type: "reasoning",
-									reasoning: reasoningBlock.text,
+					// Handle thinking response in additionalModelResponseFields (LangChain format)
+					const metadata = chunk.metadata as ExtendedMetadata | undefined
+					if (metadata?.additionalModelResponseFields?.thinkingResponse) {
+						const thinkingResponse = metadata.additionalModelResponseFields.thinkingResponse
+						if (thinkingResponse.reasoning && Array.isArray(thinkingResponse.reasoning)) {
+							for (const reasoningBlock of thinkingResponse.reasoning) {
+								if (reasoningBlock.type === "text" && reasoningBlock.text) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningBlock.text,
+									}
 								}
 							}
 						}
 					}
-				}
 
-				// Handle metadata events with token usage information
-				if (chunk.metadata?.usage) {
-					const inputTokens = chunk.metadata.usage.inputTokens || 0
-					const outputTokens = chunk.metadata.usage.outputTokens || 0
-					const cacheReadInputTokens = chunk.metadata.usage.cacheReadInputTokens || 0
-					const cacheWriteInputTokens = chunk.metadata.usage.cacheWriteInputTokens || 0
+					// Handle metadata events with token usage information
+					if (chunk.metadata?.usage) {
+						const inputTokens = chunk.metadata.usage.inputTokens || 0
+						const outputTokens = chunk.metadata.usage.outputTokens || 0
+						const cacheReadInputTokens = chunk.metadata.usage.cacheReadInputTokens || 0
+						const cacheWriteInputTokens = chunk.metadata.usage.cacheWriteInputTokens || 0
 
-					yield {
-						type: "usage",
-						inputTokens,
-						outputTokens,
-						cacheReadTokens: cacheReadInputTokens,
-						cacheWriteTokens: cacheWriteInputTokens,
-						totalCost: calculateApiCostOpenAI(
-							modelInfo,
+						yield {
+							type: "usage",
 							inputTokens,
 							outputTokens,
-							cacheWriteInputTokens,
-							cacheReadInputTokens,
-						),
-					}
-				}
-
-				// Handle content block start - check if Bedrock uses Anthropic SDK format
-				if (chunk.contentBlockStart) {
-					const blockStart = chunk.contentBlockStart as ContentBlockStart
-					const blockIndex = chunk.contentBlockStart.contentBlockIndex
-
-					if (blockStart.start?.toolUse) {
-						const toolUse = blockStart.start.toolUse
-						if (toolUse.toolUseId && toolUse.name && blockIndex !== undefined) {
-							activeToolCalls.set(blockIndex, {
-								toolUseId: toolUse.toolUseId,
-								name: toolUse.name,
-							})
+							cacheReadTokens: cacheReadInputTokens,
+							cacheWriteTokens: cacheWriteInputTokens,
+							totalCost: calculateApiCostOpenAI(
+								modelInfo,
+								inputTokens,
+								outputTokens,
+								cacheWriteInputTokens,
+								cacheReadInputTokens,
+							),
 						}
 					}
 
-					// Check for thinking block in various possible formats
-					if (
-						blockStart.start?.type === "thinking" ||
-						blockStart.contentBlock?.type === "thinking" ||
-						blockStart.type === "thinking"
-					) {
+					// Handle content block start - check if Bedrock uses Anthropic SDK format
+					if (chunk.contentBlockStart) {
+						const blockStart = chunk.contentBlockStart as ContentBlockStart
+						const blockIndex = chunk.contentBlockStart.contentBlockIndex
+
+						if (blockStart.start?.toolUse) {
+							const toolUse = blockStart.start.toolUse
+							if (toolUse.toolUseId && toolUse.name && blockIndex !== undefined) {
+								activeToolCalls.set(blockIndex, {
+									toolUseId: toolUse.toolUseId,
+									name: toolUse.name,
+								})
+							}
+						}
+
+						// Check for thinking block in various possible formats
+						if (
+							blockStart.start?.type === "thinking" ||
+							blockStart.contentBlock?.type === "thinking" ||
+							blockStart.type === "thinking"
+						) {
+							if (blockIndex !== undefined) {
+								blockTypes.set(blockIndex, "reasoning")
+								// Initialize content if provided
+								const initialContent =
+									blockStart.start?.thinking || blockStart.contentBlock?.thinking || blockStart.thinking || ""
+								if (initialContent) {
+									yield {
+										type: "reasoning",
+										reasoning: initialContent,
+									}
+								}
+							}
+						}
+					}
+
+					// Handle content block delta - accumulate content by block index
+					if (chunk.contentBlockDelta) {
+						const blockIndex = chunk.contentBlockDelta.contentBlockIndex
+
 						if (blockIndex !== undefined) {
-							blockTypes.set(blockIndex, "reasoning")
-							// Initialize content if provided
-							const initialContent =
-								blockStart.start?.thinking || blockStart.contentBlock?.thinking || blockStart.thinking || ""
-							if (initialContent) {
-								yield {
-									type: "reasoning",
-									reasoning: initialContent,
-								}
+							// Initialize buffer for this block if it doesn't exist
+							if (!(blockIndex in contentBuffers)) {
+								contentBuffers[blockIndex] = ""
 							}
-						}
-					}
-				}
 
-				// Handle content block delta - accumulate content by block index
-				if (chunk.contentBlockDelta) {
-					const blockIndex = chunk.contentBlockDelta.contentBlockIndex
+							// Check if this is a thinking block
+							const blockType = blockTypes.get(blockIndex)
+							const delta = chunk.contentBlockDelta.delta as ContentBlockDelta["delta"]
 
-					if (blockIndex !== undefined) {
-						// Initialize buffer for this block if it doesn't exist
-						if (!(blockIndex in contentBuffers)) {
-							contentBuffers[blockIndex] = ""
-						}
-
-						// Check if this is a thinking block
-						const blockType = blockTypes.get(blockIndex)
-						const delta = chunk.contentBlockDelta.delta as ContentBlockDelta["delta"]
-
-						// Handle thinking delta (Anthropic SDK format)
-						if (delta?.type === "thinking_delta" || delta?.thinking) {
-							const thinkingContent = delta.thinking || delta.text || ""
-							if (thinkingContent) {
-								yield {
-									type: "reasoning",
-									reasoning: thinkingContent,
+							// Handle thinking delta (Anthropic SDK format)
+							if (delta?.type === "thinking_delta" || delta?.thinking) {
+								const thinkingContent = delta.thinking || delta.text || ""
+								if (thinkingContent) {
+									yield {
+										type: "reasoning",
+										reasoning: thinkingContent,
+									}
 								}
-							}
-						} else if (delta?.reasoningContent?.text) {
-							// Handle reasoning content (Bedrock format)
-							const reasoningText = delta.reasoningContent.text
-							if (reasoningText) {
-								yield {
-									type: "reasoning",
-									reasoning: reasoningText,
+							} else if (delta?.reasoningContent?.text) {
+								// Handle reasoning content (Bedrock format)
+								const reasoningText = delta.reasoningContent.text
+								if (reasoningText) {
+									yield {
+										type: "reasoning",
+										reasoning: reasoningText,
+									}
 								}
-							}
-						} else if (delta?.toolUse?.input !== undefined) {
-							const toolCall = activeToolCalls.get(blockIndex)
-							const toolInput = delta.toolUse.input
-							if (toolCall && typeof toolInput === "string") {
-								yield {
-									type: "tool_calls",
-									tool_call: {
-										call_id: toolCall.toolUseId,
-										function: {
-											id: toolCall.toolUseId,
-											name: toolCall.name,
-											arguments: toolInput,
+							} else if (delta?.toolUse?.input !== undefined) {
+								const toolCall = activeToolCalls.get(blockIndex)
+								const toolInput = delta.toolUse.input
+								if (toolCall && typeof toolInput === "string") {
+									yield {
+										type: "tool_calls",
+										tool_call: {
+											call_id: toolCall.toolUseId,
+											function: {
+												id: toolCall.toolUseId,
+												name: toolCall.name,
+												arguments: toolInput,
+											},
 										},
-									},
+									}
 								}
-							}
-						} else if (chunk.contentBlockDelta.delta?.text) {
-							// Handle regular text content
-							const textContent = chunk.contentBlockDelta.delta.text
-							contentBuffers[blockIndex] += textContent
+							} else if (chunk.contentBlockDelta.delta?.text) {
+								// Handle regular text content
+								const textContent = chunk.contentBlockDelta.delta.text
+								contentBuffers[blockIndex] += textContent
 
-							// Stream based on block type
-							if (blockType === "reasoning") {
-								yield {
-									type: "reasoning",
-									reasoning: textContent,
-								}
-							} else {
-								yield {
-									type: "text",
-									text: textContent,
+								// Stream based on block type
+								if (blockType === "reasoning") {
+									yield {
+										type: "reasoning",
+										reasoning: textContent,
+									}
+								} else {
+									yield {
+										type: "text",
+										text: textContent,
+									}
 								}
 							}
 						}
 					}
-				}
 
-				// Handle content block stop - clean up buffers
-				if (chunk.contentBlockStop) {
-					const blockIndex = chunk.contentBlockStop.contentBlockIndex
+					// Handle content block stop - clean up buffers
+					if (chunk.contentBlockStop) {
+						const blockIndex = chunk.contentBlockStop.contentBlockIndex
 
-					if (blockIndex !== undefined) {
-						// Clean up buffers and tracking for this block
-						delete contentBuffers[blockIndex]
-						blockTypes.delete(blockIndex)
-						activeToolCalls.delete(blockIndex)
+						if (blockIndex !== undefined) {
+							// Clean up buffers and tracking for this block
+							delete contentBuffers[blockIndex]
+							blockTypes.delete(blockIndex)
+							activeToolCalls.delete(blockIndex)
+						}
 					}
-				}
 
-				// Handle errors with unified error handling
-				yield* this.handleBedrockStreamError(chunk)
+					// Handle errors with unified error handling
+					yield* this.handleBedrockStreamError(chunk)
+				}
 			}
+		} catch (error) {
+			throw error
 		}
 	}
 
@@ -1014,7 +1018,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		if (item.source.media_type) {
 			// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
 			const formatMatch = item.source.media_type.match(/image\/(\w+)/)
-			if (formatMatch?.[1]) {
+			if (formatMatch && formatMatch[1]) {
 				const extractedFormat = formatMatch[1]
 				// Ensure format is one of the allowed values
 				if (["png", "jpeg", "gif", "webp"].includes(extractedFormat)) {

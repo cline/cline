@@ -486,7 +486,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (taskState.mode && taskState.mode !== mode) {
 			setMode(taskState.mode as Mode)
 		}
-	}, [taskState.mode, mode])
+	}, [taskState.mode])
 
 	const toggleAutoApproveAll = useCallback(() => {
 		const newValue = !autoApproveAll
@@ -499,7 +499,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const stateManager = StateManager.get()
 		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		return (stateManager.getGlobalSettingsKey(providerKey) as string) || ""
-	}, [mode])
+	}, [mode, activePanel])
 
 	// Get model ID based on current mode and provider
 	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
@@ -510,7 +510,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		const stateManager = StateManager.get()
 		const modelKey = getProviderModelIdKey(provider as ApiProvider, mode)
 		return (stateManager.getGlobalSettingsKey(modelKey) as string) || getProviderDefaultModelId(provider as ApiProvider) || ""
-	}, [mode, provider])
+	}, [mode, provider, activePanel])
 
 	const toggleMode = useCallback(async () => {
 		const newMode: Mode = mode === "act" ? "plan" : "act"
@@ -549,7 +549,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		if (ctrl) {
 			ctrl.postStateToWebview()
 		}
-	}, [ctrl, clearState, storageKey, setCursorPos, setTextInput])
+	}, [ctrl, clearState, storageKey])
 
 	const refs = useRef({
 		searchTimeout: null as NodeJS.Timeout | null,
@@ -644,10 +644,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const messages = taskState.clineMessages || []
 
 	// Refresh git diff stats when messages change (after file edits)
-	const _lastMsg = messages[messages.length - 1]
+	const lastMsg = messages[messages.length - 1]
 	useEffect(() => {
 		setGitDiffStats(getGitDiffStats(workspacePath))
-	}, [workspacePath])
+	}, [messages.length, lastMsg?.partial, lastMsg?.ts, workspacePath])
 
 	// Filter messages we want to display
 	const displayMessages = useMemo(() => {
@@ -819,7 +819,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// Controller may be disposed
 			}
 		},
-		[ctrl, pendingAsk, pastedTexts, storageKey, setCursorPos, setTextInput],
+		[ctrl, pendingAsk, pastedTexts, storageKey],
 	)
 
 	// Handle cancel/interrupt
@@ -895,7 +895,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					break
 			}
 		},
-		[sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask, ctrl, setCursorPos, setTextInput],
+		[controller, taskController, sendAskResponse, pendingAsk, handleExit, handleCancel, clearViewAndResetTask],
 	)
 
 	// Handle task submission (new task)
@@ -939,7 +939,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				onError?.()
 			}
 		},
-		[ctrl, onError, pastedTexts, storageKey, setCursorPos, setTextInput],
+		[ctrl, onError, pastedTexts, storageKey],
 	)
 
 	// Auto-submit initial prompt if provided
@@ -998,7 +998,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		autoSubmit()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [controller, initialImages, initialPrompt, onError, taskController, taskId]) // Only run once on mount
+	}, []) // Only run once on mount
 
 	// Search for files when in mention mode
 	useEffect(() => {
@@ -1051,7 +1051,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				clearTimeout(r.searchTimeout)
 			}
 		}
-	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath, mentionInfo])
+	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
 
 	// Handle keyboard input
 	//

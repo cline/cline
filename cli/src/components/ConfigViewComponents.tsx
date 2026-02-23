@@ -127,10 +127,10 @@ export function formatValue(value: unknown, maxLen = 50): string {
 	}
 	if (typeof value === "object") {
 		const json = JSON.stringify(value)
-		return json.length > maxLen ? `${json.slice(0, maxLen - 3)}...` : json
+		return json.length > maxLen ? json.slice(0, maxLen - 3) + "..." : json
 	}
 	const str = String(value)
-	return str.length > maxLen ? `${str.slice(0, maxLen - 3)}...` : str
+	return str.length > maxLen ? str.slice(0, maxLen - 3) + "..." : str
 }
 
 export function parseValue(input: string, type: ValueType): unknown {
@@ -337,7 +337,7 @@ export const SkillRow: React.FC<{
 			{skill.description && (
 				<Box marginLeft={4}>
 					<Text color="gray">
-						{skill.description.length > 60 ? `${skill.description.slice(0, 57)}...` : skill.description}
+						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
 					</Text>
 				</Box>
 			)}

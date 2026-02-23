@@ -70,6 +70,10 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 	/** Whether the process has completed */
 	private isCompleted = false
 
+	constructor() {
+		super()
+	}
+
 	/**
 	 * Run a command in the terminal.
 	 * @param terminal The terminal instance to run in

@@ -243,7 +243,7 @@ function formatSayMessage(message: ClineMessage, prefix: string, verbose: boolea
 
 		case "command_output":
 			const output = message.text || ""
-			const truncated = output.length > 500 ? `${output.substring(0, 500)}...` : output
+			const truncated = output.length > 500 ? output.substring(0, 500) + "..." : output
 			return `${prefix} ${style.dim("Output:")} ${truncated}`
 
 		case "tool":
@@ -319,7 +319,7 @@ export function formatState(state: ExtensionState, verbose = false): string {
 	if (state.clineMessages && state.clineMessages.length > 0) {
 		const messagesToShow = verbose
 			? state.clineMessages
-			: state.clineMessages.filter((_m) => {
+			: state.clineMessages.filter((m) => {
 					// Filter out noisy messages in non-verbose mode
 					// if (m.say === "api_req_started" || m.say === "api_req_finished") return false
 					return true
@@ -366,7 +366,7 @@ export class Spinner {
 		if (finalMessage) {
 			process.stdout.write(`\r${style.success("✓")} ${finalMessage}\n`)
 		} else {
-			process.stdout.write(`\r${" ".repeat(this.message.length + 4)}\r`)
+			process.stdout.write("\r" + " ".repeat(this.message.length + 4) + "\r")
 		}
 	}
 
@@ -443,7 +443,7 @@ export async function promptUser(question: string): Promise<string> {
 	})
 
 	return new Promise((resolve) => {
-		rl.question(`${style.info(question)} `, (answer: string) => {
+		rl.question(style.info(question) + " ", (answer: string) => {
 			rl.close()
 			resolve(answer.trim())
 		})
@@ -465,7 +465,7 @@ export async function promptConfirmation(question: string): Promise<boolean> {
 export function setTerminalTitle(title: string): void {
 	if (process.stdout.isTTY) {
 		const maxLength = 80
-		const truncated = title.length > maxLength ? `${title.slice(0, maxLength)}...` : title
+		const truncated = title.length > maxLength ? title.slice(0, maxLength) + "..." : title
 		process.stdout.write(`\x1b]0;${truncated}\x07`)
 	}
 }

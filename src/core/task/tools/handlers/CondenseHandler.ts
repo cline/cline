@@ -13,6 +13,8 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.CONDENSE
 
+	constructor() {}
+
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

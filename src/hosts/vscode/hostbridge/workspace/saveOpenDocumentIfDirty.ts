@@ -4,7 +4,7 @@ import { SaveOpenDocumentIfDirtyRequest, SaveOpenDocumentIfDirtyResponse } from 
 
 export async function saveOpenDocumentIfDirty(request: SaveOpenDocumentIfDirtyRequest): Promise<SaveOpenDocumentIfDirtyResponse> {
 	const existingDocument = vscode.workspace.textDocuments.find((doc) => arePathsEqual(doc.uri.fsPath, request.filePath))
-	if (existingDocument?.isDirty) {
+	if (existingDocument && existingDocument.isDirty) {
 		await existingDocument.save()
 		return { wasSaved: true }
 	}

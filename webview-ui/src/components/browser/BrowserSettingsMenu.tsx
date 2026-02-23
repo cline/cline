@@ -40,7 +40,7 @@ export const BrowserSettingsMenu = () => {
 		})()
 
 		// No need for message event listeners anymore!
-	}, [])
+	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled])
 
 	// Close popover when clicking outside
 	useEffect(() => {

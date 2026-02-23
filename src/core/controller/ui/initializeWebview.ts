@@ -155,7 +155,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 		// Refresh Hicap models from API
 		refreshHicapModels(controller, EmptyRequest.create()).then(async (response) => {
-			if (response?.models) {
+			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")

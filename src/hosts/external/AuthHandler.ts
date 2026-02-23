@@ -169,7 +169,7 @@ export class AuthHandler {
 			try {
 				redirectUri = (await HostProvider.env.getIdeRedirectUri({})).value
 				Logger.log("AuthHandler: Got redirect URI:", redirectUri)
-			} catch (_error) {
+			} catch (error) {
 				// CLI or JetBrains mode - redirect not available
 				Logger.log("AuthHandler: No redirect URI available (CLI/JetBrains mode)")
 				redirectUri = undefined

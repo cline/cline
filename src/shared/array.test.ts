@@ -52,7 +52,7 @@ describe("Array Utilities", () => {
 			const array = [1, 2, 3, 2, 1]
 			const element = findLast(array, (x) => x === 2)
 			should(element).not.be.undefined()
-			element?.should.equal(2)
+			element!.should.equal(2)
 		})
 
 		it("should return undefined when no element matches", () => {
@@ -75,7 +75,7 @@ describe("Array Utilities", () => {
 			]
 			const element = findLast(array, (x) => x.value === "a")
 			should(element).not.be.undefined()
-			element?.should.deepEqual({ id: 3, value: "a" })
+			element!.should.deepEqual({ id: 3, value: "a" })
 		})
 
 		it("should provide correct index in predicate", () => {

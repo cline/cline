@@ -240,7 +240,7 @@ export class StateManager {
 		if (!this.pendingTaskState.has(taskId)) {
 			this.pendingTaskState.set(taskId, new Set())
 		}
-		this.pendingTaskState.get(taskId)?.add(key)
+		this.pendingTaskState.get(taskId)!.add(key)
 		this.scheduleDebouncedPersistence()
 	}
 
@@ -260,7 +260,7 @@ export class StateManager {
 			this.pendingTaskState.set(taskId, new Set())
 		}
 		Object.keys(updates).forEach((key) => {
-			this.pendingTaskState.get(taskId)?.add(key as SettingsKey)
+			this.pendingTaskState.get(taskId)!.add(key as SettingsKey)
 		})
 
 		// Schedule debounced persistence
@@ -525,9 +525,9 @@ export class StateManager {
 						return
 					}
 					const onDisk = await readTaskHistoryFromState()
-					const cached = this.globalStateCache.taskHistory
+					const cached = this.globalStateCache["taskHistory"]
 					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
-						this.globalStateCache.taskHistory = onDisk
+						this.globalStateCache["taskHistory"] = onDisk
 						await this.onSyncExternalChange?.()
 					}
 				} catch (err) {
@@ -539,7 +539,7 @@ export class StateManager {
 				.on("add", () => syncTaskHistoryFromDisk())
 				.on("change", () => syncTaskHistoryFromDisk())
 				.on("unlink", async () => {
-					this.globalStateCache.taskHistory = []
+					this.globalStateCache["taskHistory"] = []
 					await this.onSyncExternalChange?.()
 				})
 				.on("error", (error) => Logger.error("[StateManager] TaskHistory watcher error:", error))
@@ -885,7 +885,7 @@ export class StateManager {
 		// Preserve legacy fallback behavior for LiteLLM API key:
 		// if a remoteLiteLlmApiKey is set (via remote config), it should
 		// take precedence over the local liteLlmApiKey.
-		const remoteLiteLlmApiKey = this.secretsCache.remoteLiteLlmApiKey
+		const remoteLiteLlmApiKey = this.secretsCache["remoteLiteLlmApiKey"]
 		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
 			secrets.liteLlmApiKey = remoteLiteLlmApiKey
 		}

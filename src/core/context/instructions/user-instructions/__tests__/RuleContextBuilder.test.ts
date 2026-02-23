@@ -11,11 +11,11 @@ const mockHostProvider = {
 }
 
 describe("RuleContextBuilder", () => {
-	let _hostProviderStub: sinon.SinonStub
+	let hostProviderStub: sinon.SinonStub
 
 	beforeEach(() => {
 		// Stub HostProvider to use mock
-		_hostProviderStub = sinon.stub(require("@/hosts/host-provider"), "HostProvider").value(mockHostProvider)
+		hostProviderStub = sinon.stub(require("@/hosts/host-provider"), "HostProvider").value(mockHostProvider)
 	})
 
 	afterEach(() => {

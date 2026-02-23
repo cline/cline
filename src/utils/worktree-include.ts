@@ -182,7 +182,7 @@ export async function copyWorktreeIncludeFiles(
 		const dirName = await isDirectoryPattern(sourceDir, pattern)
 		if (dirName) {
 			// Verify the directory is also gitignored
-			if (gitignoreMatcher.ignores(dirName) || gitignoreMatcher.ignores(`${dirName}/`)) {
+			if (gitignoreMatcher.ignores(dirName) || gitignoreMatcher.ignores(dirName + "/")) {
 				directoryPatterns.push(dirName)
 			}
 		} else {

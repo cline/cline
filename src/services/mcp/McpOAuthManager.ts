@@ -186,7 +186,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		// If tokens exist, this method shouldn't be called (SDK would use them)
 		// But if it is called, don't overwrite existing auth state
 		const existingTokens = await this.tokens()
-		if (existingTokens?.access_token) {
+		if (existingTokens && existingTokens.access_token) {
 			Logger.warn(`[McpOAuth] Preserving existing tokens for ${this.serverName}`)
 			return
 		}
@@ -239,7 +239,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	 */
 	async isAuthenticated(): Promise<boolean> {
 		const tokens = await this.tokens()
-		return Boolean(tokens?.access_token)
+		return Boolean(tokens && tokens.access_token)
 	}
 
 	/**

@@ -59,7 +59,7 @@ export class TelemetryProviderFactory {
 			providers.push(new NoOpTelemetryProvider())
 		}
 
-		Logger.info(`TelemetryProviderFactory: Created providers - ${providers.map((p) => p.name).join(", ")}`)
+		Logger.info("TelemetryProviderFactory: Created providers - " + providers.map((p) => p.name).join(", "))
 		return providers
 	}
 

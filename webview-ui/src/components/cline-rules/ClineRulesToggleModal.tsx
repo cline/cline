@@ -114,7 +114,6 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
 		setLocalWorkflowToggles,
-		setLocalAgentsRulesToggles,
 	])
 
 	// Refresh hooks when hooks tab becomes visible
@@ -430,7 +429,7 @@ const ClineRulesToggleModal: React.FC = () => {
 			setArrowPosition(rightPosition)
 			setMenuPosition(buttonRect.top + 1)
 		}
-	}, [isVisible])
+	}, [isVisible, viewportWidth, viewportHeight])
 
 	return (
 		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>

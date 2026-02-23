@@ -32,7 +32,7 @@ async function getToken(clientId: string, clientSecret: string, tokenUrl: string
 		client_secret: clientSecret,
 	})
 
-	const url = `${tokenUrl.replace(/\/+$/, "")}/oauth/token`
+	const url = tokenUrl.replace(/\/+$/, "") + "/oauth/token"
 	const response = await axios.post(url, payload, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		...getAxiosSettings(),
@@ -105,7 +105,7 @@ async function fetchAiCoreDeploymentsAndOrchestration(
  * @returns SapAiCoreModelsResponse with deployments and orchestration availability
  */
 export async function getSapAiCoreModels(
-	_controller: Controller,
+	controller: Controller,
 	request: SapAiCoreModelsRequest,
 ): Promise<SapAiCoreModelsResponse> {
 	try {

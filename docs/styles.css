@@ -14,7 +14,8 @@ td,
 th,
 span:not(code *),
 div:not(code *):not(pre *) {
-	font-family: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+	font-family:
+		"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
 }
 
 /* Ensure code blocks use Geist Mono */
@@ -24,12 +25,12 @@ pre,
 pre code,
 code *,
 pre * {
-	font-family: "Geist Mono", "Monaco", "Courier New", monospace;
+	font-family: "Geist Mono", "Monaco", "Courier New", monospace !important;
 }
 
 /* Make h1 titles lighter in font weight */
 h1 {
-	font-weight: 600;
+	font-weight: 600 !important;
 }
 
 /* Keep headings and images at full opacity */
@@ -40,8 +41,9 @@ h4,
 h5,
 h6,
 img {
-	opacity: 1;
-	font-family: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+	opacity: 1 !important;
+	font-family:
+		"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
 }
 
 /* Also apply to any h1 elements within content areas */
@@ -49,7 +51,7 @@ img {
 .markdown h1,
 article h1,
 main h1 {
-	font-weight: 500;
+	font-weight: 500 !important;
 }
 
 /* JetBrains logo visibility fix for dark mode */
@@ -87,5 +89,5 @@ img[alt="JetBrains logo"]:hover {
 
 /* Reduce list margin-top */
 .steps {
-	margin-top: 5px;
+	margin-top: 5px !important;
 }

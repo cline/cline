@@ -8,7 +8,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import McpMarketplaceCard from "./McpMarketplaceCard"
@@ -60,6 +60,11 @@ const McpMarketplaceView = () => {
 	}, [items, searchQuery, selectedCategory, sortBy])
 
 	useEffect(() => {
+		// Fetch marketplace catalog on initial load
+		fetchMarketplace()
+	}, [])
+
+	useEffect(() => {
 		// Update loading state when catalog arrives
 		if (mcpMarketplaceCatalog?.items) {
 			setIsLoading(false)
@@ -68,35 +73,27 @@ const McpMarketplaceView = () => {
 		}
 	}, [mcpMarketplaceCatalog])
 
-	const fetchMarketplace = useCallback(
-		(forceRefresh = false) => {
-			if (forceRefresh) {
-				setIsRefreshing(true)
-			} else {
-				setIsLoading(true)
-			}
-			setError(null)
+	const fetchMarketplace = (forceRefresh = false) => {
+		if (forceRefresh) {
+			setIsRefreshing(true)
+		} else {
+			setIsLoading(true)
+		}
+		setError(null)
 
-			if (showMarketplace) {
-				McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
-					.then((response) => {
-						setMcpMarketplaceCatalog(response)
-					})
-					.catch((error) => {
-						console.error("Error refreshing MCP marketplace:", error)
-						setError("Failed to load marketplace data")
-						setIsLoading(false)
-						setIsRefreshing(false)
-					})
-			}
-		},
-		[showMarketplace, setMcpMarketplaceCatalog],
-	)
-
-	useEffect(() => {
-		// Fetch marketplace catalog on initial load
-		fetchMarketplace()
-	}, [fetchMarketplace])
+		if (showMarketplace) {
+			McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
+				.then((response) => {
+					setMcpMarketplaceCatalog(response)
+				})
+				.catch((error) => {
+					console.error("Error refreshing MCP marketplace:", error)
+					setError("Failed to load marketplace data")
+					setIsLoading(false)
+					setIsRefreshing(false)
+				})
+		}
+	}
 
 	if (isLoading || isRefreshing) {
 		return (

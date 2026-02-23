@@ -16,6 +16,8 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.REPORT_BUG
 
+	constructor() {}
+
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}
@@ -72,7 +74,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		}
 
 		// Derive system information values algorithmically
-		const operatingSystem = `${os.platform()} ${os.release()}`
+		const operatingSystem = os.platform() + " " + os.release()
 		const currentMode = config.mode
 		const clineVersion = ExtensionRegistryInfo.version
 		const host = await HostProvider.env.getHostVersion({})

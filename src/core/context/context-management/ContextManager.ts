@@ -1028,7 +1028,7 @@ export class ContextManager {
 				i,
 				EditType.READ_FILE_TOOL,
 				"",
-				`${headerText}\n${formatResponse.duplicateFileReadNotice()}`,
+				headerText + "\n" + formatResponse.duplicateFileReadNotice(),
 				contentBlockIndex,
 			])
 		}

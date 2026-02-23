@@ -258,7 +258,7 @@ export function useScrollBehavior(
 			}
 			// When expanding, don't scroll - let the element expand in place
 		},
-		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom, setExpandedRows],
+		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)
 
 	const handleRowHeightChange = useCallback(
@@ -291,13 +291,13 @@ export function useScrollBehavior(
 			}, 70)
 			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
 		}
-	}, [scrollToBottomSmooth, scrollToBottomAuto])
+	}, [groupedMessages.length, scrollToBottomSmooth, scrollToBottomAuto])
 
 	useEffect(() => {
 		if (pendingScrollToMessage !== null) {
 			scrollToMessage(pendingScrollToMessage)
 		}
-	}, [pendingScrollToMessage, scrollToMessage])
+	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
 
 	useEffect(() => {
 		if (!messages?.length) {

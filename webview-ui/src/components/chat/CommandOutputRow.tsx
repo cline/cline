@@ -38,7 +38,7 @@ export const CommandOutputContent = memo(
 					}
 				}, 50)
 			}
-		}, [isOutputFullyExpanded])
+		}, [output, isOutputFullyExpanded])
 
 		// Don't render anything if container is collapsed
 		if (!isContainerExpanded) {

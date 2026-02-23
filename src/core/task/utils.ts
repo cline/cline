@@ -121,7 +121,7 @@ export async function detectAvailableCliTools(): Promise<string[]> {
 				timeout: 1000, // 1 second timeout to avoid hanging
 			})
 			availableCommands.push(command)
-		} catch (_error) {
+		} catch (error) {
 			// Command not found, skip it
 		}
 	}

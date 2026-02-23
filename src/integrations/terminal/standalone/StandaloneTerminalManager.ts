@@ -68,6 +68,9 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	/** Set of terminal IDs managed by this instance */
 	private terminalIds: Set<number> = new Set()
 
+	/** Timeout for shell integration (not used in standalone, but kept for interface compatibility) */
+	private shellIntegrationTimeout = 4000
+
 	/** Whether terminal reuse is enabled */
 	private terminalReuseEnabled = true
 
@@ -239,7 +242,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		// Terminate all processes
 		for (const [_terminalId, process] of this.processes) {
-			if (process?.terminate) {
+			if (process && process.terminate) {
 				process.terminate()
 			}
 		}
@@ -424,13 +427,13 @@ export class StandaloneTerminalManager implements ITerminalManager {
 
 		// Write existing output that was captured before tracking started
 		if (existingOutput.length > 0) {
-			logStream.write(`${existingOutput.join("\n")}\n`)
+			logStream.write(existingOutput.join("\n") + "\n")
 		}
 
 		// Pipe future process output to log file
 		process.on("line", (line: string) => {
 			backgroundCommand.lineCount++
-			logStream.write(`${line}\n`)
+			logStream.write(line + "\n")
 		})
 
 		// Set up 10-minute hard timeout to prevent zombie processes

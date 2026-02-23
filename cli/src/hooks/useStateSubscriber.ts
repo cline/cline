@@ -58,7 +58,7 @@ export const useCompletedAskMessages = () => {
  */
 export const useLastCompletedAskMessage = () => {
 	const { state } = useTaskContext()
-	const _processed = useProcessedMessages()
+	const processed = useProcessedMessages()
 
 	const getLastCompletedAskMessage = useCallback((): ClineMessage | null => {
 		if (!state.clineMessages) {

@@ -61,7 +61,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 					console.error("Failed to fetch MCP servers:", error)
 				})
 		}
-	}, [showMarketplace, setMcpMarketplaceCatalog, setMcpServers])
+	}, [showMarketplace])
 
 	return (
 		<div

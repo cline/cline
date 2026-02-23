@@ -24,7 +24,7 @@ function truncatePath(filePath: string, maxLength = 50): string {
 	if (filePath.length <= maxLength) {
 		return filePath
 	}
-	return `...${filePath.slice(-(maxLength - 3))}`
+	return "..." + filePath.slice(-(maxLength - 3))
 }
 
 export const FileMentionMenu: React.FC<FileMentionMenuProps> = ({

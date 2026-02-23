@@ -135,8 +135,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 				className="bg-(--vscode-dropdown-background) border border-(--vscode-editorGroup-border) rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col overflow-y-auto"
 				ref={menuRef}
 				role="listbox"
-				style={{ maxHeight: "min(200px, calc(50vh))", overscrollBehavior: "contain" }}
-				tabIndex="0">
+				style={{ maxHeight: "min(200px, calc(50vh))", overscrollBehavior: "contain" }}>
 				{filteredCommands.length > 0 ? (
 					<>
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}

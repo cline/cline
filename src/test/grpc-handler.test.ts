@@ -11,7 +11,7 @@ import type { GrpcRequest } from "@/shared/WebviewMessage"
 describe("GrpcHandler Recording Middleware", () => {
 	let recorderStub: sinon.SinonStubbedInstance<any>
 	let builderStub: any
-	let _consoleWarnStub: sinon.SinonStub
+	let consoleWarnStub: sinon.SinonStub
 	let mockController: sinon.SinonStubbedInstance<Controller>
 	let mockPostMessage: sinon.SinonStub
 
@@ -30,7 +30,7 @@ describe("GrpcHandler Recording Middleware", () => {
 		}
 
 		sinon.stub(GrpcRecorder, "builder").returns(builderStub)
-		_consoleWarnStub = sinon.stub(console, "warn")
+		consoleWarnStub = sinon.stub(console, "warn")
 		mockController = sinon.createStubInstance(Controller)
 		mockPostMessage = sinon.stub().resolves(true)
 

@@ -15,6 +15,8 @@ const requestRegistry = new GrpcRequestRegistry()
  * Handles gRPC requests for the host bridge.
  */
 export class GrpcHandler {
+	constructor() {}
+
 	/**
 	 * Handle a gRPC request for the host bridge.
 	 * @param service The service name

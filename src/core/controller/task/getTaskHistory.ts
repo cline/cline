@@ -82,6 +82,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 							(b.cacheReads || 0) -
 							((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
 						)
+					case "newest":
 					default:
 						return b.ts - a.ts
 				}

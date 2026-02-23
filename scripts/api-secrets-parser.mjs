@@ -241,7 +241,7 @@ function normalizeProviderName(providerPart) {
 function applySpecialCaseMappings(providerApiKeyMap, apiSecretsFields, assignedFields) {
 	// Special case 1: Bedrock needs AWS fields (if not already assigned)
 	const awsFields = ["awsAccessKey", "awsSecretKey", "awsRegion"]
-	const bedrockFields = providerApiKeyMap.bedrock || []
+	const bedrockFields = providerApiKeyMap["bedrock"] || []
 
 	for (const field of awsFields) {
 		if (apiSecretsFields.fieldNames.includes(field) && !bedrockFields.includes(field)) {
@@ -257,19 +257,19 @@ function applySpecialCaseMappings(providerApiKeyMap, apiSecretsFields, assignedF
 	}
 
 	if (bedrockFields.length > 0) {
-		providerApiKeyMap.bedrock = bedrockFields
+		providerApiKeyMap["bedrock"] = bedrockFields
 	}
 
 	// Special case 2: Vertex needs project ID and region
-	if (providerApiKeyMap.vertex) {
+	if (providerApiKeyMap["vertex"]) {
 		// Vertex typically uses application default credentials,
 		// but requires project ID and region configuration
 		// These are already captured if they exist in ApiHandlerSecrets
 	}
 
 	// Special case 3: SAP AI Core multi-key authentication
-	if (providerApiKeyMap.sapaicore) {
-		const sapFields = providerApiKeyMap.sapaicore
+	if (providerApiKeyMap["sapaicore"]) {
+		const sapFields = providerApiKeyMap["sapaicore"]
 		const requiredSapFields = ["sapAiCoreClientId", "sapAiCoreClientSecret"]
 
 		for (const field of requiredSapFields) {

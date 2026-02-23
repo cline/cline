@@ -297,7 +297,7 @@ export class GeminiHandler implements ApiHandler {
 						// https://github.com/googleapis/js-genai/blob/v1.11.0/src/_api_client.ts#L758
 						const response = this.attemptParse(error.message)
 
-						if (response?.error) {
+						if (response && response.error) {
 							const responseBody = this.attemptParse(response.error.message)
 
 							if (responseBody.error) {

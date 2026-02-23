@@ -35,6 +35,7 @@ export function getClineEnvironmentClassname(environment: Environment | undefine
 				return "border-(--vscode-activityWarningBadge-background)"
 			case "staging":
 				return "border-(--vscode-focusBorder)"
+			case "production":
 			default:
 				return "border-(--vscode-editorGroup-border)"
 		}
@@ -45,6 +46,7 @@ export function getClineEnvironmentClassname(environment: Environment | undefine
 			return "var(--vscode-activityWarningBadge-background)"
 		case "staging":
 			return "var(--vscode-focusBorder)"
+		case "production":
 		default:
 			return "var(--vscode-foreground)"
 	}

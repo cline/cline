@@ -86,15 +86,15 @@ describe("AwsBedrockHandler", () => {
 				},
 				async () => {
 					// Verify environment is modified
-					process.env.TEST_VAR?.should.equal("modified")
+					process.env.TEST_VAR!.should.equal("modified")
 					should.not.exist(process.env.ANOTHER_VAR)
 					return "test"
 				},
 			)
 
 			// Verify environment is restored
-			process.env.TEST_VAR?.should.equal(originalTestVar)
-			process.env.ANOTHER_VAR?.should.equal(originalAnotherVar)
+			process.env.TEST_VAR!.should.equal(originalTestVar)
+			process.env.ANOTHER_VAR!.should.equal(originalAnotherVar)
 		})
 
 		it("should handle undefined environment variables", async () => {
@@ -131,7 +131,7 @@ describe("AwsBedrockHandler", () => {
 			}
 
 			// Verify environment is restored even after error
-			process.env.TEST_VAR?.should.equal("original")
+			process.env.TEST_VAR!.should.equal("original")
 		})
 
 		it("should handle multiple environment variable changes", async () => {
@@ -153,53 +153,53 @@ describe("AwsBedrockHandler", () => {
 				},
 				async () => {
 					// Verify environment is modified
-					process.env.VAR1?.should.equal("modified1")
-					process.env.VAR2?.should.equal("modified2")
+					process.env.VAR1!.should.equal("modified1")
+					process.env.VAR2!.should.equal("modified2")
 					should.not.exist(process.env.VAR3)
 					return "test"
 				},
 			)
 
 			// Verify environment is restored
-			process.env.VAR1?.should.equal(originalVar1)
-			process.env.VAR2?.should.equal(originalVar2)
-			process.env.VAR3?.should.equal(originalVar3)
+			process.env.VAR1!.should.equal(originalVar1)
+			process.env.VAR2!.should.equal(originalVar2)
+			process.env.VAR3!.should.equal(originalVar3)
 		})
 
 		it("should work with AWS_PROFILE", async () => {
-			process.env.AWS_PROFILE = "test-profile"
+			process.env["AWS_PROFILE"] = "test-profile"
 
-			const preAWSProfile = process.env.AWS_PROFILE
+			const preAWSProfile = process.env["AWS_PROFILE"]
 
 			await AwsBedrockHandler["withTempEnv"](
 				() => {
-					delete process.env.AWS_PROFILE
+					delete process.env["AWS_PROFILE"]
 				},
 				async () => {
-					should.not.exist(process.env.AWS_PROFILE)
+					should.not.exist(process.env["AWS_PROFILE"])
 					return "test"
 				},
 			)
 
-			process.env.AWS_PROFILE?.should.equal(preAWSProfile)
+			process.env["AWS_PROFILE"]!.should.equal(preAWSProfile)
 		})
 
 		it("should work with AWS_BEARER_TOKEN_BEDROCK", async () => {
-			process.env.AWS_BEARER_TOKEN_BEDROCK = "test-key"
+			process.env["AWS_BEARER_TOKEN_BEDROCK"] = "test-key"
 
-			const preAWSProfile = process.env.AWS_BEARER_TOKEN_BEDROCK
+			const preAWSProfile = process.env["AWS_BEARER_TOKEN_BEDROCK"]
 
 			await AwsBedrockHandler["withTempEnv"](
 				() => {
-					delete process.env.AWS_BEARER_TOKEN_BEDROCK
+					delete process.env["AWS_BEARER_TOKEN_BEDROCK"]
 				},
 				async () => {
-					should.not.exist(process.env.AWS_BEARER_TOKEN_BEDROCK)
+					should.not.exist(process.env["AWS_BEARER_TOKEN_BEDROCK"])
 					return "test"
 				},
 			)
 
-			process.env.AWS_BEARER_TOKEN_BEDROCK?.should.equal(preAWSProfile)
+			process.env["AWS_BEARER_TOKEN_BEDROCK"]!.should.equal(preAWSProfile)
 		})
 	})
 

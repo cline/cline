@@ -310,7 +310,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return () => {
 				document.removeEventListener("mousedown", handleClickOutside)
 			}
-		}, [showContextMenu])
+		}, [showContextMenu, setShowContextMenu])
 
 		useEffect(() => {
 			const handleClickOutsideSlashMenu = (event: MouseEvent) => {
@@ -599,7 +599,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					// Check if we're right after a space that follows a mention or slash command
 					if (
 						charBeforeIsWhitespace &&
-						inputValue.slice(0, cursorPosition - 1).match(new RegExp(`${mentionRegex.source}$`))
+						inputValue.slice(0, cursorPosition - 1).match(new RegExp(mentionRegex.source + "$"))
 					) {
 						// File mention handling
 						const newCursorPosition = cursorPosition - 1
@@ -669,12 +669,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
-				globalWorkflowToggles,
-				justDeletedSpaceAfterSlashCommand,
-				localWorkflowToggles,
-				mcpServers,
-				remoteConfigSettings?.remoteGlobalWorkflows,
-				remoteWorkflowToggles,
 			],
 		)
 
@@ -684,7 +678,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
 				setIntendedCursorPosition(null) // Reset the state after applying
 			}
-		}, [intendedCursorPosition])
+		}, [inputValue, intendedCursorPosition])
 
 		useEffect(() => {
 			if (pendingInsertions.length === 0 || !textAreaRef.current) {
@@ -706,7 +700,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setIntendedCursorPosition(newCursorPosition)
 
 			setPendingInsertions((prev) => prev.slice(1))
-		}, [pendingInsertions, setInputValue, intendedCursorPosition])
+		}, [pendingInsertions, setInputValue])
 
 		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -803,7 +797,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setFileSearchResults([])
 				}
 			},
-			[setInputValue, selectedType],
+			[setInputValue, setFileSearchResults, selectedType],
 		)
 
 		useEffect(() => {
@@ -843,7 +837,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (urlRegex.test(pastedText.trim())) {
 					e.preventDefault()
 					const trimmedUrl = pastedText.trim()
-					const newValue = `${inputValue.slice(0, cursorPosition) + trimmedUrl} ${inputValue.slice(cursorPosition)}`
+					const newValue = inputValue.slice(0, cursorPosition) + trimmedUrl + " " + inputValue.slice(cursorPosition)
 					setInputValue(newValue)
 					const newCursorPosition = cursorPosition + trimmedUrl.length + 1
 					setCursorPosition(newCursorPosition)
@@ -991,7 +985,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		useLayoutEffect(() => {
 			updateHighlights()
-		}, [updateHighlights])
+		}, [inputValue, updateHighlights])
 
 		const updateCursorPosition = useCallback(() => {
 			if (textAreaRef.current) {
@@ -1054,7 +1048,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (inputValue.endsWith(" ")) {
 				const event = {
 					target: {
-						value: `${inputValue}@`,
+						value: inputValue + "@",
 						selectionStart: inputValue.length + 1,
 					},
 				} as React.ChangeEvent<HTMLTextAreaElement>
@@ -1066,7 +1060,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// Otherwise add space then @
 			const event = {
 				target: {
-					value: `${inputValue} @`,
+					value: inputValue + " @",
 					selectionStart: inputValue.length + 2,
 				},
 			} as React.ChangeEvent<HTMLTextAreaElement>
@@ -1114,6 +1108,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${requestyModelId}`
 				case "vercel-ai-gateway":
 					return `${selectedProvider}:${vercelAiGatewayModelId || selectedModelId}`
+				case "anthropic":
+				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}

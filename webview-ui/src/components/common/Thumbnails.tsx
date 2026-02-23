@@ -29,7 +29,7 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 			onHeightChange?.(height)
 		}
 		setHoveredIndex(null)
-	}, [onHeightChange])
+	}, [images, files, width, onHeightChange])
 
 	const handleDeleteImages = (index: number) => {
 		setImages?.((prevImages) => prevImages.filter((_, i) => i !== index))

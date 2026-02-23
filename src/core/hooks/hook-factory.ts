@@ -353,7 +353,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					}
 
 					return output
-				} catch (_parseError) {
+				} catch (parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					// Scan from the end to find the last complete JSON object
 					// This handles cases where hooks output debug info before the actual JSON response
@@ -380,7 +380,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 						}
 
 						if (startCollecting) {
-							jsonCandidate = `${line}\n${jsonCandidate}`
+							jsonCandidate = line + "\n" + jsonCandidate
 						}
 
 						// If we've closed all braces, we have a complete JSON object

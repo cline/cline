@@ -103,10 +103,10 @@ describe("vscode-to-file-migration", () => {
 
 			result.migrated.should.be.true()
 			result.globalStateCount.should.be.greaterThan(0)
-			storageContext.globalState.get("mode")?.should.equal("act")
+			storageContext.globalState.get("mode")!.should.equal("act")
 			// Both sentinels should be written
-			storageContext.globalState.get("__vscodeMigrationVersion")?.should.equal(1)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")?.should.equal(1)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(1)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(1)
 		})
 
 		it("should skip everything when both sentinels are current version", async () => {
@@ -173,7 +173,7 @@ describe("vscode-to-file-migration", () => {
 			const stored = storageContext.workspaceState.get("localClineRulesToggles") as any
 			stored.should.deepEqual({ "rule-1": true })
 			// Workspace sentinel should now be set
-			storageContext.workspaceState.get("__vscodeMigrationVersion")?.should.equal(1)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(1)
 		})
 
 		it("should migrate globals when workspace already migrated", async () => {
@@ -190,11 +190,11 @@ describe("vscode-to-file-migration", () => {
 			result.migrated.should.be.true()
 			// Global state SHOULD have been migrated
 			result.globalStateCount.should.be.greaterThan(0)
-			storageContext.globalState.get("mode")?.should.equal("plan")
+			storageContext.globalState.get("mode")!.should.equal("plan")
 			// Workspace state should NOT have been migrated
 			result.workspaceStateCount.should.equal(0)
 			// Global sentinel should now be set
-			storageContext.globalState.get("__vscodeMigrationVersion")?.should.equal(1)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(1)
 		})
 	})
 
@@ -208,9 +208,9 @@ describe("vscode-to-file-migration", () => {
 			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
 
 			result.migrated.should.be.true()
-			storageContext.globalState.get("mode")?.should.equal("plan")
-			storageContext.globalState.get("yoloModeToggled")?.should.equal(true)
-			storageContext.globalState.get("enableCheckpointsSetting")?.should.equal(false)
+			storageContext.globalState.get("mode")!.should.equal("plan")
+			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
+			storageContext.globalState.get("enableCheckpointsSetting")!.should.equal(false)
 		})
 
 		it("should NOT overwrite existing file store values", async () => {
@@ -225,7 +225,7 @@ describe("vscode-to-file-migration", () => {
 			result.migrated.should.be.true()
 			result.skippedExisting.should.be.greaterThan(0)
 			// File store value should be preserved, NOT overwritten
-			storageContext.globalState.get("mode")?.should.equal("act")
+			storageContext.globalState.get("mode")!.should.equal("act")
 		})
 
 		it("should skip undefined values", async () => {
@@ -261,8 +261,8 @@ describe("vscode-to-file-migration", () => {
 
 			result.migrated.should.be.true()
 			result.secretsCount.should.equal(2)
-			storageContext.secrets.get("apiKey")?.should.equal("sk-test-123")
-			storageContext.secrets.get("openRouterApiKey")?.should.equal("or-test-456")
+			storageContext.secrets.get("apiKey")!.should.equal("sk-test-123")
+			storageContext.secrets.get("openRouterApiKey")!.should.equal("or-test-456")
 		})
 
 		it("should NOT overwrite existing secrets in file store", async () => {
@@ -275,7 +275,7 @@ describe("vscode-to-file-migration", () => {
 
 			result.migrated.should.be.true()
 			result.skippedExisting.should.be.greaterThan(0)
-			storageContext.secrets.get("apiKey")?.should.equal("existing-key")
+			storageContext.secrets.get("apiKey")!.should.equal("existing-key")
 		})
 
 		it("should skip empty string secrets", async () => {
@@ -305,7 +305,7 @@ describe("vscode-to-file-migration", () => {
 
 			result.migrated.should.be.true()
 			result.secretsCount.should.equal(1)
-			storageContext.secrets.get("openRouterApiKey")?.should.equal("or-key-123")
+			storageContext.secrets.get("openRouterApiKey")!.should.equal("or-key-123")
 		})
 	})
 
@@ -380,8 +380,8 @@ describe("vscode-to-file-migration", () => {
 			result2.globalStateCount.should.equal(0)
 
 			// Values should still be correct
-			storageContext.globalState.get("mode")?.should.equal("plan")
-			storageContext.secrets.get("apiKey")?.should.equal("sk-test")
+			storageContext.globalState.get("mode")!.should.equal("plan")
+			storageContext.secrets.get("apiKey")!.should.equal("sk-test")
 		})
 	})
 })
@@ -445,10 +445,10 @@ describe("createStorageContext", () => {
 		const ctx = createStorageContext({ clineDir: tempDir, workspacePath: "/test" })
 
 		ctx.globalState.update("testKey", "testValue")
-		ctx.globalState.get("testKey")?.should.equal("testValue")
+		ctx.globalState.get("testKey")!.should.equal("testValue")
 
 		ctx.secrets.set("secretKey", "secretValue")
-		ctx.secrets.get("secretKey")?.should.equal("secretValue")
+		ctx.secrets.get("secretKey")!.should.equal("secretValue")
 
 		ctx.workspaceState.set("wsKey", { toggle: true })
 		const ws = ctx.workspaceState.get("wsKey") as any

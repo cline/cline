@@ -65,7 +65,7 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 				return
 			}
 
-			const tasksCount = Number.parseInt(count, 10)
+			const tasksCount = Number.parseInt(count)
 			const globalStoragePath = HostProvider.get().globalStorageFsPath
 			const tasksDir = path.join(globalStoragePath, "tasks")
 
@@ -311,7 +311,7 @@ function getRandomTaskName(index: number): string {
 		"Create a notification system",
 	]
 
-	return `${tasks[index % tasks.length]} (Test ${index + 1})`
+	return tasks[index % tasks.length] + ` (Test ${index + 1})`
 }
 
 /**

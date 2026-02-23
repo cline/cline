@@ -191,7 +191,7 @@ export class CommandPermissionController {
 		try {
 			tokens = parse(input)
 		} catch (err) {
-			Logger.error(`Error parsing command: ${err.message}`)
+			Logger.error("Error parsing command: " + err.message)
 			return { segments: [], subshells: [], hasRedirects: false }
 		}
 

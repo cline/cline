@@ -233,7 +233,7 @@ function translateSayMessage(
 			if (message.text) {
 				updates.push({
 					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: `\n${message.text}` },
+					content: { type: "text", text: "\n" + message.text },
 				})
 			}
 			break
@@ -622,7 +622,7 @@ function translateAskMessage(
 			if (message.text) {
 				updates.push({
 					sessionUpdate: "agent_message_chunk",
-					content: { type: "text", text: `\n${message.text}` },
+					content: { type: "text", text: "\n" + message.text },
 				})
 			}
 			break

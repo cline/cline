@@ -82,7 +82,7 @@ async function getChangedFiles(
 		const errorMessage = error instanceof Error ? error.message : "Unknown error"
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Failed to retrieve diff set: ${errorMessage}`,
+			message: "Failed to retrieve diff set: " + errorMessage,
 		})
 		return []
 	}

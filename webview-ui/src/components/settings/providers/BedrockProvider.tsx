@@ -144,7 +144,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		if (dropdownListRef.current) {
 			dropdownListRef.current.scrollTop = 0
 		}
-	}, [])
+	}, [searchTerm])
 
 	// Scroll selected item into view
 	useEffect(() => {

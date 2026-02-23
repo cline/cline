@@ -74,7 +74,7 @@ async function execRipgrep(args: string[]): Promise<string> {
 
 		rl.on("line", (line) => {
 			if (lineCount < maxLines) {
-				output += `${line}\n`
+				output += line + "\n"
 				lineCount++
 			} else {
 				rl.close()
@@ -135,9 +135,9 @@ export async function regexSearchFiles(
 					}
 				} else if (parsed.type === "context" && currentResult) {
 					if (parsed.data.line_number < currentResult.line!) {
-						currentResult.beforeContext?.push(parsed.data.lines.text)
+						currentResult.beforeContext!.push(parsed.data.lines.text)
 					} else {
-						currentResult.afterContext?.push(parsed.data.lines.text)
+						currentResult.afterContext!.push(parsed.data.lines.text)
 					}
 				}
 			} catch (error) {

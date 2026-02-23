@@ -181,10 +181,10 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(3)
-			catalog?.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
-			catalog?.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
-			catalog?.items.map((item) => item.mcpId).should.containEql("github.com/test/web")
+			catalog!.items.should.have.length(3)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/web")
 		})
 
 		it("should return full catalog when remote config has no allowedMCPServers", async () => {
@@ -196,7 +196,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(3)
+			catalog!.items.should.have.length(3)
 		})
 
 		it("should return full catalog when allowedMCPServers is undefined", async () => {
@@ -208,7 +208,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(3)
+			catalog!.items.should.have.length(3)
 		})
 	})
 
@@ -222,10 +222,10 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(2)
-			catalog?.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
-			catalog?.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
-			catalog?.items.map((item) => item.mcpId).should.not.containEql("github.com/test/web")
+			catalog!.items.should.have.length(2)
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/filesystem")
+			catalog!.items.map((item) => item.mcpId).should.containEql("github.com/test/database")
+			catalog!.items.map((item) => item.mcpId).should.not.containEql("github.com/test/web")
 		})
 
 		it("should filter catalog to single allowed server", async () => {
@@ -237,8 +237,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(1)
-			catalog?.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
 		})
 
 		it("should return empty catalog when allowedMCPServers is empty array", async () => {
@@ -250,7 +250,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(0)
+			catalog!.items.should.have.length(0)
 		})
 
 		it("should return empty catalog when no servers match allowlist", async () => {
@@ -262,7 +262,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(0)
+			catalog!.items.should.have.length(0)
 		})
 	})
 
@@ -323,11 +323,11 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(1)
-			catalog?.items[0].githubStars.should.equal(0)
-			catalog?.items[0].downloadCount.should.equal(0)
-			catalog?.items[0].tags.should.be.an.Array()
-			catalog?.items[0].tags.should.have.length(0)
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].githubStars.should.equal(0)
+			catalog!.items[0].downloadCount.should.equal(0)
+			catalog!.items[0].tags.should.be.an.Array()
+			catalog!.items[0].tags.should.have.length(0)
 		})
 	})
 
@@ -359,8 +359,8 @@ describe("Controller Marketplace Filtering", () => {
 			const catalog = await controller.refreshMcpMarketplace(false)
 
 			// Should handle duplicates gracefully
-			catalog?.items.should.have.length(1)
-			catalog?.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
 		})
 
 		it("should preserve all fields when filtering", async () => {
@@ -401,8 +401,8 @@ describe("Controller Marketplace Filtering", () => {
 			const catalog = await controller.refreshMcpMarketplace(false)
 
 			// Catalog should still be filtered by allowlist
-			catalog?.items.should.have.length(1)
-			catalog?.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
 		})
 
 		it("should filter correctly with blockPersonalRemoteMCPServers set", async () => {
@@ -416,8 +416,8 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(1)
-			catalog?.items[0].mcpId.should.equal("github.com/test/web")
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/test/web")
 		})
 	})
 
@@ -437,8 +437,8 @@ describe("Controller Marketplace Filtering", () => {
 			const catalog = await controller.refreshMcpMarketplace(false)
 
 			// Should efficiently filter and return only matching server
-			catalog?.items.should.have.length(1)
-			catalog?.items[0].mcpId.should.equal("github.com/test/filesystem")
+			catalog!.items.should.have.length(1)
+			catalog!.items[0].mcpId.should.equal("github.com/test/filesystem")
 		})
 
 		it("should handle large marketplace catalogs efficiently", async () => {
@@ -474,7 +474,7 @@ describe("Controller Marketplace Filtering", () => {
 
 			const catalog = await controller.refreshMcpMarketplace(false)
 
-			catalog?.items.should.have.length(3)
+			catalog!.items.should.have.length(3)
 		})
 	})
 })

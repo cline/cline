@@ -13,6 +13,8 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.PLAN_MODE
 
+	constructor() {}
+
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

@@ -53,7 +53,7 @@ describe("TaskStart Hook", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (_error) {
+		} catch (error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -88,7 +88,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.equal("All metadata present")
+			result.contextModification!.should.equal("All metadata present")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -121,7 +121,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.equal("All fields present")
+			result.contextModification!.should.equal("All fields present")
 		})
 
 		it("should handle empty initialTask", async () => {
@@ -152,7 +152,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.equal("Task length: 0")
+			result.contextModification!.should.equal("Task length: 0")
 		})
 	})
 
@@ -183,7 +183,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TaskStart hook executed successfully")
+			result.contextModification!.should.equal("TaskStart hook executed successfully")
 		})
 
 		it("should block task when hook returns cancel: true", async () => {
@@ -212,7 +212,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage?.should.equal("Task execution blocked by hook")
+			result.errorMessage!.should.equal("Task execution blocked by hook")
 		})
 
 		it("should provide context modification even when not added to conversation", async () => {
@@ -242,7 +242,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TASK_START: Task 'Build a todo app' beginning")
+			result.contextModification!.should.equal("TASK_START: Task 'Build a todo app' beginning")
 		})
 	})
 
@@ -356,8 +356,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.match(/GLOBAL: Task starting/)
-			result.contextModification?.should.match(/WORKSPACE: Task starting/)
+			result.contextModification!.should.match(/GLOBAL: Task starting/)
+			result.contextModification!.should.match(/WORKSPACE: Task starting/)
 		})
 
 		it("should block if global hook blocks", async () => {
@@ -393,7 +393,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage?.should.match(/Global policy blocks this task/)
+			result.errorMessage!.should.match(/Global policy blocks this task/)
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -429,7 +429,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage?.should.match(/Workspace blocks/)
+			result.errorMessage!.should.match(/Workspace blocks/)
 		})
 	})
 
@@ -472,7 +472,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TaskStart hook executed successfully")
+			result.contextModification!.should.equal("TaskStart hook executed successfully")
 		})
 
 		it("should work with blocking fixture", async () => {
@@ -493,7 +493,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage?.should.equal("Task execution blocked by hook")
+			result.errorMessage!.should.equal("Task execution blocked by hook")
 		})
 
 		it("should work with error fixture", async () => {

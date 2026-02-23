@@ -100,7 +100,7 @@ function generateHookScript(
 
 	// If exitWithoutOutput is true, just exit
 	if (options.exitWithoutOutput) {
-		return `${script}process.exit(0);\n`
+		return script + "process.exit(0);\n"
 	}
 
 	if (options.delay) {

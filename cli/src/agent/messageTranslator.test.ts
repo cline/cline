@@ -983,13 +983,13 @@ describe("translateMessage - ask messages", () => {
 			// Should require permission
 			expect(result.requiresPermission).toBe(true)
 			expect(result.permissionRequest).toBeDefined()
-			expect(result.permissionRequest?.toolCall.toolCallId).toBe(call.toolCallId)
+			expect(result.permissionRequest!.toolCall.toolCallId).toBe(call.toolCallId)
 
 			// Should have standard permission options
-			expect(result.permissionRequest?.options).toHaveLength(3)
-			expect(result.permissionRequest?.options.map((o) => o.kind)).toContain("allow_once")
-			expect(result.permissionRequest?.options.map((o) => o.kind)).toContain("allow_always")
-			expect(result.permissionRequest?.options.map((o) => o.kind)).toContain("reject_once")
+			expect(result.permissionRequest!.options).toHaveLength(3)
+			expect(result.permissionRequest!.options.map((o) => o.kind)).toContain("allow_once")
+			expect(result.permissionRequest!.options.map((o) => o.kind)).toContain("allow_always")
+			expect(result.permissionRequest!.options.map((o) => o.kind)).toContain("reject_once")
 
 			// Should track pending tool call
 			expect(sessionState.pendingToolCalls.has(call.toolCallId)).toBe(true)
@@ -1087,8 +1087,8 @@ describe("translateMessage - ask messages", () => {
 			expect(result.requiresPermission).toBe(true)
 
 			// Browser actions have restricted options (no "always allow")
-			expect(result.permissionRequest?.options).toHaveLength(2)
-			expect(result.permissionRequest?.options.map((o) => o.kind)).not.toContain("allow_always")
+			expect(result.permissionRequest!.options).toHaveLength(2)
+			expect(result.permissionRequest!.options.map((o) => o.kind)).not.toContain("allow_always")
 		})
 	})
 

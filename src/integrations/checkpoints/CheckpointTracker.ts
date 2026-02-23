@@ -245,7 +245,7 @@ class CheckpointTracker {
 				Logger.error("Failed to add at least one file(s) to checkpoints shadow git")
 			}
 
-			const commitMessage = `checkpoint-${this.cwdHash}-${this.taskId}`
+			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
 
 			Logger.info(`Creating checkpoint commit with message: ${commitMessage}`)
 			const result = await git.commit(commitMessage, {

@@ -106,7 +106,7 @@ async function parseServicesWithFiles(protoDir, protoFiles) {
 	return services
 }
 
-function _upperFirst(s) {
+function upperFirst(s) {
 	return s.length ? s[0].toUpperCase() + s.slice(1) : s
 }
 

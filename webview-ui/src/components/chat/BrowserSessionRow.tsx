@@ -417,8 +417,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<BrowserCursor
 							style={{
 								position: "absolute",
-								top: `${(Number.parseInt(mousePosition.split(",")[1], 10) / browserSettings.viewport.height) * 100}%`,
-								left: `${(Number.parseInt(mousePosition.split(",")[0], 10) / browserSettings.viewport.width) * 100}%`,
+								top: `${(Number.parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`,
+								left: `${(Number.parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`,
 								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>
@@ -511,7 +511,7 @@ const BrowserSessionRowContent = memo(
 				setMaxActionHeight(0)
 			}
 			onToggleExpand(message.ts)
-		}, [onToggleExpand, message.ts, setMaxActionHeight, message.say])
+		}, [onToggleExpand, message.ts, setMaxActionHeight])
 
 		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
 			return (

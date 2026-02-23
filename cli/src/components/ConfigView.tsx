@@ -309,7 +309,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				const currentTabIndex = availableTabs.findIndex((t) => t.key === currentTab)
 				const targetIdx =
 					input >= "1" && input <= "5"
-						? Number.parseInt(input, 10) - 1
+						? Number.parseInt(input) - 1
 						: key.leftArrow
 							? (currentTabIndex - 1 + availableTabs.length) % availableTabs.length
 							: (currentTabIndex + 1) % availableTabs.length

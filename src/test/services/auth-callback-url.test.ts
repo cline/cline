@@ -67,7 +67,7 @@ describe("Auth Callback URL", () => {
 
 			// The callback_url value must round-trip intact
 			const parsed = new URL(authUrl.toString())
-			parsed.searchParams.get("callback_url")?.should.equal(webCallback)
+			parsed.searchParams.get("callback_url")!.should.equal(webCallback)
 
 			// The raw URL must NOT contain an unencoded & from the callback
 			const raw = authUrl.toString()
@@ -83,7 +83,7 @@ describe("Auth Callback URL", () => {
 			authUrl.searchParams.set("callback_url", desktopCallback)
 
 			const parsed = new URL(authUrl.toString())
-			parsed.searchParams.get("callback_url")?.should.equal(desktopCallback)
+			parsed.searchParams.get("callback_url")!.should.equal(desktopCallback)
 		})
 	})
 })

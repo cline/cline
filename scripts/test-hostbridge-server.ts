@@ -70,7 +70,7 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 
 					case "getMachineId":
 						callback(null, {
-							value: `fake-machine-id-${os.hostname()}`,
+							value: "fake-machine-id-" + os.hostname(),
 						})
 						return
 
@@ -103,7 +103,7 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 
 					case "openDiff":
 						callback(null, {
-							diff_id: `fake-diff-${Date.now()}`,
+							diff_id: "fake-diff-" + Date.now(),
 						})
 						return
 

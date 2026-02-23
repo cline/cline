@@ -9,6 +9,8 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class ActModeRespondHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ACT_MODE
 
+	constructor() {}
+
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

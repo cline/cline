@@ -143,7 +143,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			setSelectedFiles,
 			setEnableButtons,
 			chatState,
-			messages,
 		],
 	)
 
@@ -297,7 +296,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		[
 			clineAsk,
 			lastMessage,
+			messages,
 			clearInputState,
+			handleSendMessage,
 			startNewTask,
 			chatState,
 			backgroundCommandRunning,

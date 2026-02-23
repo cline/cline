@@ -107,7 +107,7 @@ export async function createOpenRouterStream(
 						msg.content.push(lastTextPart)
 					}
 					// @ts-expect-error-next-line
-					lastTextPart.cache_control = { type: "ephemeral" }
+					lastTextPart["cache_control"] = { type: "ephemeral" }
 				}
 			})
 			break

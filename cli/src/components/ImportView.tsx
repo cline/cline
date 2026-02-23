@@ -77,7 +77,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 	}, [keys, selectedIndex, onComplete])
 
 	useInput(
-		(_input, key) => {
+		(input, key) => {
 			if (key.escape) {
 				if (step === "confirm" && keys.length > 1) {
 					setStep("select")

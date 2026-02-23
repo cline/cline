@@ -106,7 +106,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 			taskState.consecutiveMistakeCount = 0
 
 			// Simulate diff error (search string not found)
-			const _diffError = new Error("SEARCH block content does not match anything in the file")
+			const diffError = new Error("SEARCH block content does not match anything in the file")
 
 			// In validateAndPrepareFileOperation, when diff error occurs:
 			taskState.consecutiveMistakeCount++
@@ -236,7 +236,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 		})
 
 		it("should reset counter and allow new operations after successful operation", () => {
-			const _maxConsecutiveMistakes = 3
+			const maxConsecutiveMistakes = 3
 
 			// Accumulate 2 failures
 			taskState.consecutiveMistakeCount = 2
@@ -385,7 +385,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 		 * The fix applies regardless of whether background edits are on/off.
 		 */
 		it("should increment on errors with background edits enabled", () => {
-			const _backgroundEditsEnabled = true
+			const backgroundEditsEnabled = true
 			taskState.consecutiveMistakeCount = 0
 
 			// Simulate diff error (background edits mode doesn't change this)
@@ -395,7 +395,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 		})
 
 		it("should increment on errors with background edits disabled", () => {
-			const _backgroundEditsEnabled = false
+			const backgroundEditsEnabled = false
 			taskState.consecutiveMistakeCount = 0
 
 			// Simulate diff error
@@ -408,7 +408,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 			taskState.consecutiveMistakeCount = 2
 
 			// Successful operation resets regardless of background edits mode
-			const _backgroundEditsEnabled = true
+			const backgroundEditsEnabled = true
 			taskState.consecutiveMistakeCount = 0
 
 			taskState.consecutiveMistakeCount.should.equal(0)
@@ -434,7 +434,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 
 			// Simulate the streaming behavior where diff errors are skipped for partial blocks
 			const isPartialBlock = true
-			const _diffError = new Error("SEARCH block content does not match anything in the file")
+			const diffError = new Error("SEARCH block content does not match anything in the file")
 
 			// In WriteToFileToolHandler.validateAndPrepareFileOperation, when block.partial=true:
 			// if (block.partial) { return } - early return, no error handling
@@ -451,7 +451,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 
 			// Simulate the final block (streaming complete)
 			const isPartialBlock = false
-			const _diffError = new Error("SEARCH block content does not match anything in the file")
+			const diffError = new Error("SEARCH block content does not match anything in the file")
 
 			// In WriteToFileToolHandler.validateAndPrepareFileOperation, when block.partial=false:
 			// full error handling runs
@@ -572,7 +572,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 		 * The fix applies regardless of whether auto-approval is on/off.
 		 */
 		it("should increment on errors with auto-approval enabled", () => {
-			const _autoApprovalEnabled = true
+			const autoApprovalEnabled = true
 			taskState.consecutiveMistakeCount = 0
 
 			// Simulate diff error
@@ -582,7 +582,7 @@ describe("WriteToFileToolHandler consecutiveMistakeCount", () => {
 		})
 
 		it("should increment on errors with auto-approval disabled", () => {
-			const _autoApprovalEnabled = false
+			const autoApprovalEnabled = false
 			taskState.consecutiveMistakeCount = 0
 
 			// Simulate diff error

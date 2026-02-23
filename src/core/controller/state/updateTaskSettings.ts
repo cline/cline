@@ -15,123 +15,128 @@ export async function updateTaskSettings(controller: Controller, request: Update
 	const convertPlanActMode = (mode: PlanActMode): Mode => {
 		return mode === PlanActMode.PLAN ? "plan" : "act"
 	}
-	// Get taskId from request first, otherwise fall back to current task
-	let taskId: string
-	if (request.taskId) {
-		taskId = request.taskId
-	} else {
-		// Use current task if no taskId is provided
-		if (!controller.task) {
-			throw new Error("No active task to update settings for")
-		}
-		taskId = controller.task.taskId
-	}
 
-	if (request.settings) {
-		// Extract all special case fields that need dedicated handlers
-		const {
-			// Fields requiring conversion
-			autoApprovalSettings,
-			planModeReasoningEffort,
-			actModeReasoningEffort,
-			mode,
-			customPrompt,
-			planModeApiProvider,
-			actModeApiProvider,
-			// Fields requiring special logic
-			browserSettings,
-			...simpleSettings
-		} = request.settings
-
-		// Batch update for simple pass-through fields
-		const filteredSettings: any = Object.fromEntries(
-			Object.entries(simpleSettings).filter(([key, value]) => key !== "openaiReasoningEffort" && value !== undefined),
-		)
-
-		controller.stateManager.setTaskSettingsBatch(taskId, filteredSettings)
-
-		// Handle fields requiring type conversion from generated protobuf types to application types
-		if (autoApprovalSettings) {
-			// Merge with current settings to preserve unspecified fields
-			const currentAutoApprovalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-			const mergedSettings = {
-				...currentAutoApprovalSettings,
-				...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
-				...(autoApprovalSettings.enableNotifications !== undefined && {
-					enableNotifications: autoApprovalSettings.enableNotifications,
-				}),
-				actions: {
-					...currentAutoApprovalSettings.actions,
-					...(autoApprovalSettings.actions
-						? Object.fromEntries(Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined))
-						: {}),
-				},
+	try {
+		// Get taskId from request first, otherwise fall back to current task
+		let taskId: string
+		if (request.taskId) {
+			taskId = request.taskId
+		} else {
+			// Use current task if no taskId is provided
+			if (!controller.task) {
+				throw new Error("No active task to update settings for")
 			}
-			controller.stateManager.setTaskSettings(taskId, "autoApprovalSettings", mergedSettings)
+			taskId = controller.task.taskId
 		}
 
-		if (planModeReasoningEffort !== undefined) {
-			const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)
-			controller.stateManager.setTaskSettings(taskId, "planModeReasoningEffort", converted)
-		}
+		if (request.settings) {
+			// Extract all special case fields that need dedicated handlers
+			const {
+				// Fields requiring conversion
+				autoApprovalSettings,
+				planModeReasoningEffort,
+				actModeReasoningEffort,
+				mode,
+				customPrompt,
+				planModeApiProvider,
+				actModeApiProvider,
+				// Fields requiring special logic
+				browserSettings,
+				...simpleSettings
+			} = request.settings
 
-		if (actModeReasoningEffort !== undefined) {
-			const converted = normalizeOpenaiReasoningEffort(actModeReasoningEffort)
-			controller.stateManager.setTaskSettings(taskId, "actModeReasoningEffort", converted)
-		}
+			// Batch update for simple pass-through fields
+			const filteredSettings: any = Object.fromEntries(
+				Object.entries(simpleSettings).filter(([key, value]) => key !== "openaiReasoningEffort" && value !== undefined),
+			)
 
-		if (mode !== undefined) {
-			const converted = convertPlanActMode(mode)
-			controller.stateManager.setTaskSettings(taskId, "mode", converted)
-		}
+			controller.stateManager.setTaskSettingsBatch(taskId, filteredSettings)
 
-		if (customPrompt === "compact") {
-			controller.stateManager.setTaskSettings(taskId, "customPrompt", "compact")
-		}
-
-		if (planModeApiProvider !== undefined) {
-			const converted = convertProtoToApiProvider(planModeApiProvider)
-			controller.stateManager.setTaskSettings(taskId, "planModeApiProvider", converted)
-		}
-
-		if (actModeApiProvider !== undefined) {
-			const converted = convertProtoToApiProvider(actModeApiProvider)
-			controller.stateManager.setTaskSettings(taskId, "actModeApiProvider", converted)
-		}
-
-		// Update browser settings (requires careful merging to avoid protobuf defaults)
-		if (browserSettings !== undefined) {
-			const currentSettings = controller.stateManager.getGlobalSettingsKey("browserSettings")
-
-			const newBrowserSettings = {
-				...currentSettings,
-				viewport: {
-					width: browserSettings.viewport?.width || currentSettings.viewport.width,
-					height: browserSettings.viewport?.height || currentSettings.viewport.height,
-				},
-				...(browserSettings.remoteBrowserEnabled !== undefined && {
-					remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
-				}),
-				...(browserSettings.remoteBrowserHost !== undefined && {
-					remoteBrowserHost: browserSettings.remoteBrowserHost,
-				}),
-				...(browserSettings.chromeExecutablePath !== undefined && {
-					chromeExecutablePath: browserSettings.chromeExecutablePath,
-				}),
-				...(browserSettings.disableToolUse !== undefined && {
-					disableToolUse: browserSettings.disableToolUse,
-				}),
-				...(browserSettings.customArgs !== undefined && {
-					customArgs: browserSettings.customArgs,
-				}),
+			// Handle fields requiring type conversion from generated protobuf types to application types
+			if (autoApprovalSettings) {
+				// Merge with current settings to preserve unspecified fields
+				const currentAutoApprovalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+				const mergedSettings = {
+					...currentAutoApprovalSettings,
+					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
+					...(autoApprovalSettings.enableNotifications !== undefined && {
+						enableNotifications: autoApprovalSettings.enableNotifications,
+					}),
+					actions: {
+						...currentAutoApprovalSettings.actions,
+						...(autoApprovalSettings.actions
+							? Object.fromEntries(Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined))
+							: {}),
+					},
+				}
+				controller.stateManager.setTaskSettings(taskId, "autoApprovalSettings", mergedSettings)
 			}
 
-			controller.stateManager.setTaskSettings(taskId, "browserSettings", newBrowserSettings)
+			if (planModeReasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(planModeReasoningEffort)
+				controller.stateManager.setTaskSettings(taskId, "planModeReasoningEffort", converted)
+			}
+
+			if (actModeReasoningEffort !== undefined) {
+				const converted = normalizeOpenaiReasoningEffort(actModeReasoningEffort)
+				controller.stateManager.setTaskSettings(taskId, "actModeReasoningEffort", converted)
+			}
+
+			if (mode !== undefined) {
+				const converted = convertPlanActMode(mode)
+				controller.stateManager.setTaskSettings(taskId, "mode", converted)
+			}
+
+			if (customPrompt === "compact") {
+				controller.stateManager.setTaskSettings(taskId, "customPrompt", "compact")
+			}
+
+			if (planModeApiProvider !== undefined) {
+				const converted = convertProtoToApiProvider(planModeApiProvider)
+				controller.stateManager.setTaskSettings(taskId, "planModeApiProvider", converted)
+			}
+
+			if (actModeApiProvider !== undefined) {
+				const converted = convertProtoToApiProvider(actModeApiProvider)
+				controller.stateManager.setTaskSettings(taskId, "actModeApiProvider", converted)
+			}
+
+			// Update browser settings (requires careful merging to avoid protobuf defaults)
+			if (browserSettings !== undefined) {
+				const currentSettings = controller.stateManager.getGlobalSettingsKey("browserSettings")
+
+				const newBrowserSettings = {
+					...currentSettings,
+					viewport: {
+						width: browserSettings.viewport?.width || currentSettings.viewport.width,
+						height: browserSettings.viewport?.height || currentSettings.viewport.height,
+					},
+					...(browserSettings.remoteBrowserEnabled !== undefined && {
+						remoteBrowserEnabled: browserSettings.remoteBrowserEnabled,
+					}),
+					...(browserSettings.remoteBrowserHost !== undefined && {
+						remoteBrowserHost: browserSettings.remoteBrowserHost,
+					}),
+					...(browserSettings.chromeExecutablePath !== undefined && {
+						chromeExecutablePath: browserSettings.chromeExecutablePath,
+					}),
+					...(browserSettings.disableToolUse !== undefined && {
+						disableToolUse: browserSettings.disableToolUse,
+					}),
+					...(browserSettings.customArgs !== undefined && {
+						customArgs: browserSettings.customArgs,
+					}),
+				}
+
+				controller.stateManager.setTaskSettings(taskId, "browserSettings", newBrowserSettings)
+			}
 		}
+
+		// Post updated state to webview
+		await controller.postStateToWebview()
+
+		return Empty.create()
+	} catch (error) {
+		throw error
 	}
-
-	// Post updated state to webview
-	await controller.postStateToWebview()
-
-	return Empty.create()
 }

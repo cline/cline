@@ -9,6 +9,8 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 export class LoadMcpDocumentationHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.MCP_DOCS
 
+	constructor() {}
+
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
 	}

@@ -26,7 +26,7 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 } as const
 
 // Token storage key - must match the key in SECRETS_KEYS (state-keys.ts)
-const _OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
+const OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
 
 // Credentials schema
 const openAiCodexCredentialsSchema = z.object({

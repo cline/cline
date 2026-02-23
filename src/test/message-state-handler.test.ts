@@ -83,7 +83,7 @@ describe("MessageStateHandler Mutex Protection", () => {
 		// Verify initial state
 		const messages = handler.getClineMessages()
 		messages.length.should.equal(1)
-		messages[0].conversationHistoryIndex?.should.equal(2) // length - 1 = 3 - 1 = 2
+		messages[0].conversationHistoryIndex!.should.equal(2) // length - 1 = 3 - 1 = 2
 
 		// Now simulate concurrent additions
 		// Without mutex protection, these could race and get the same index
@@ -115,10 +115,10 @@ describe("MessageStateHandler Mutex Protection", () => {
 		// CRITICAL ASSERTION: Each message should have a valid conversationHistoryIndex
 		// With proper mutex protection, these indices should be set correctly
 		// even though the operations ran concurrently
-		finalMessages.forEach((msg, _idx) => {
+		finalMessages.forEach((msg, idx) => {
 			should.exist(msg.conversationHistoryIndex)
-			msg.conversationHistoryIndex?.should.be.a.Number()
-			msg.conversationHistoryIndex?.should.be.greaterThanOrEqual(0)
+			msg.conversationHistoryIndex!.should.be.a.Number()
+			msg.conversationHistoryIndex!.should.be.greaterThanOrEqual(0)
 		})
 	})
 
@@ -142,9 +142,9 @@ describe("MessageStateHandler Mutex Protection", () => {
 		])
 
 		const finalMessages = handler.getClineMessages()
-		finalMessages[0]?.text?.should.equal("updated1")
-		finalMessages[1]?.text?.should.equal("updated2")
-		finalMessages[2]?.text?.should.equal("updated3")
+		finalMessages[0]!.text!.should.equal("updated1")
+		finalMessages[1]!.text!.should.equal("updated2")
+		finalMessages[2]!.text!.should.equal("updated3")
 	})
 
 	/**
@@ -162,8 +162,8 @@ describe("MessageStateHandler Mutex Protection", () => {
 
 		const finalMessages = handler.getClineMessages()
 		finalMessages.length.should.equal(2)
-		finalMessages[0]?.text?.should.equal("msg1")
-		finalMessages[1]?.text?.should.equal("msg3")
+		finalMessages[0]!.text!.should.equal("msg1")
+		finalMessages[1]!.text!.should.equal("msg3")
 	})
 
 	/**
@@ -237,9 +237,9 @@ describe("MessageStateHandler Mutex Protection", () => {
 
 		const finalMessages = handler.getClineMessages()
 		finalMessages.length.should.equal(3)
-		finalMessages[0]?.text?.should.equal("new1")
-		finalMessages[1]?.text?.should.equal("new2")
-		finalMessages[2]?.text?.should.equal("new3")
+		finalMessages[0]!.text!.should.equal("new1")
+		finalMessages[1]!.text!.should.equal("new2")
+		finalMessages[2]!.text!.should.equal("new3")
 	})
 
 	/**

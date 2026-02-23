@@ -553,7 +553,7 @@ export class TelemetryService {
 			properties: {
 				error:
 					errorMessage.length > MAX_ERROR_MESSAGE_LENGTH
-						? `${errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH)}...`
+						? errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "..."
 						: errorMessage,
 				eventName,
 			},

@@ -156,7 +156,8 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 						setIsModalVisible((prev) => !prev)
 					}
 				}}
-				ref={buttonRef}>
+				ref={buttonRef}
+				tabIndex={0}>
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
 					<span className="whitespace-nowrap">Auto-approve:</span>
 					{getEnabledActionsText()}

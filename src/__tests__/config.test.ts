@@ -9,7 +9,7 @@ import { ClineConfigurationError, ClineEndpoint, ClineEnv, Environment } from ".
 describe("ClineEndpoint configuration", () => {
 	let sandbox: sinon.SinonSandbox
 	let tempDir: string
-	let _originalHomedir: typeof os.homedir
+	let originalHomedir: typeof os.homedir
 
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
@@ -20,7 +20,7 @@ describe("ClineEndpoint configuration", () => {
 		await fs.mkdir(path.join(tempDir, ".cline"), { recursive: true })
 
 		// Stub os.homedir to return our temp directory
-		_originalHomedir = os.homedir
+		originalHomedir = os.homedir
 		sandbox.stub(os, "homedir").returns(tempDir)
 
 		// Reset the singleton state using internal method
@@ -541,7 +541,7 @@ describe("ClineEndpoint configuration", () => {
 
 	describe("bundled endpoints.json behavior", () => {
 		let bundledDir: string
-		let _setVscodeHostProviderMock: (mock: { extensionFsPath: string; globalStorageFsPath: string }) => void
+		let setVscodeHostProviderMock: (mock: { extensionFsPath: string; globalStorageFsPath: string }) => void
 
 		beforeEach(async () => {
 			// Create a separate directory for bundled config
@@ -550,7 +550,7 @@ describe("ClineEndpoint configuration", () => {
 
 			// Import HostProvider utilities
 			const hostProviderModule = await import("../test/host-provider-test-utils")
-			_setVscodeHostProviderMock = hostProviderModule.setVscodeHostProviderMock
+			setVscodeHostProviderMock = hostProviderModule.setVscodeHostProviderMock
 		})
 
 		afterEach(async () => {

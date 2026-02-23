@@ -255,5 +255,5 @@ export function insertMention(text: string, atIndex: number, filePath: string): 
 	// Ensure path starts with / for proper mention format
 	const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
 	const mention = normalizedPath.includes(" ") ? `@"${normalizedPath}"` : `@${normalizedPath}`
-	return `${text.slice(0, atIndex) + mention} ${text.slice(end).trimStart()}`
+	return text.slice(0, atIndex) + mention + " " + text.slice(end).trimStart()
 }

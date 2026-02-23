@@ -68,7 +68,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						selectedModelId={selectedModelId}
 					/>
 
-					{selectedModelId?.includes("3-mini") && (
+					{selectedModelId && selectedModelId.includes("3-mini") && (
 						<>
 							<VSCodeCheckbox
 								checked={reasoningEffortSelected}

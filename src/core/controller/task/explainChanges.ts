@@ -244,7 +244,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 		Logger.error("Error in explainChanges:", errorMessage)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Failed to explain changes: ${errorMessage}`,
+			message: "Failed to explain changes: " + errorMessage,
 		})
 		sendRelinquishControlEvent()
 		return Empty.create({})

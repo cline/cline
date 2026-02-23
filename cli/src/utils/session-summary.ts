@@ -76,30 +76,30 @@ export function printSessionSummary(): void {
 		"├─────────────────────────────────────────────────────────┤",
 		`│ ${GRAY}Session ID:${RESET}    ${stats.sessionId.padEnd(42)}│`,
 		`│ ${GRAY}Session Time:${RESET}  ${sessionTimeStr.padEnd(42)}│`,
-		`${`│ ${GRAY}Tool Calls:${RESET}    ${stats.totalToolCalls} ( ${GREEN}✓ ${stats.successfulToolCalls}${RESET} ${RED}✗ ${stats.failedToolCalls}${RESET} )`.padEnd(
+		`│ ${GRAY}Tool Calls:${RESET}    ${stats.totalToolCalls} ( ${GREEN}✓ ${stats.successfulToolCalls}${RESET} ${RED}✗ ${stats.failedToolCalls}${RESET} )`.padEnd(
 			70,
-		)}│`,
-		`${`│ ${GRAY}Success Rate:${RESET}  ${session.getSuccessRate().toFixed(1)}%`.padEnd(60)}│`,
+		) + "│",
+		`│ ${GRAY}Success Rate:${RESET}  ${session.getSuccessRate().toFixed(1)}%`.padEnd(60) + "│",
 		"├─────────────────────────────────────────────────────────┤",
 		`│ ${BOLD}Performance${RESET}                                              │`,
 		`│ ${GRAY}Wall Time:${RESET}     ${formatDuration(wallTimeMs).padEnd(42)}│`,
 		`│ ${GRAY}Agent Active:${RESET}  ${formatDuration(agentActiveMs).padEnd(42)}│`,
-		`${`│ ${GRAY} » API Time:${RESET}   ${formatDuration(stats.apiTimeMs)} ${GRAY}(${formatPercent(stats.apiTimeMs, agentActiveMs)})${RESET}`.padEnd(
+		`│ ${GRAY} » API Time:${RESET}   ${formatDuration(stats.apiTimeMs)} ${GRAY}(${formatPercent(stats.apiTimeMs, agentActiveMs)})${RESET}`.padEnd(
 			60,
-		)}│`,
-		`${`│ ${GRAY} » Tool Time:${RESET}  ${formatDuration(stats.toolTimeMs)} ${GRAY}(${formatPercent(stats.toolTimeMs, agentActiveMs)})${RESET}`.padEnd(
+		) + "│",
+		`│ ${GRAY} » Tool Time:${RESET}  ${formatDuration(stats.toolTimeMs)} ${GRAY}(${formatPercent(stats.toolTimeMs, agentActiveMs)})${RESET}`.padEnd(
 			60,
-		)}│`,
+		) + "│",
 		"├─────────────────────────────────────────────────────────┤",
 		`│ ${BOLD}Resources${RESET}                                                │`,
 		`│ ${GRAY}Memory (RSS):${RESET}  ${formatBytes(stats.resources.rss).padEnd(42)}│`,
 		`│ ${GRAY}Peak Memory:${RESET}   ${formatBytes(stats.peakMemoryBytes).padEnd(42)}│`,
-		`${`│ ${GRAY}Heap Used:${RESET}     ${formatBytes(stats.resources.heapUsed)} ${GRAY}/ ${formatBytes(stats.resources.heapTotal)}${RESET}`.padEnd(
+		`│ ${GRAY}Heap Used:${RESET}     ${formatBytes(stats.resources.heapUsed)} ${GRAY}/ ${formatBytes(stats.resources.heapTotal)}${RESET}`.padEnd(
 			60,
-		)}│`,
-		`${`│ ${GRAY}CPU Time:${RESET}      ${formatDuration(stats.resources.userCpuMs + stats.resources.systemCpuMs)} ${GRAY}(user: ${formatDuration(stats.resources.userCpuMs)}, sys: ${formatDuration(stats.resources.systemCpuMs)})${RESET}`.padEnd(
+		) + "│",
+		`│ ${GRAY}CPU Time:${RESET}      ${formatDuration(stats.resources.userCpuMs + stats.resources.systemCpuMs)} ${GRAY}(user: ${formatDuration(stats.resources.userCpuMs)}, sys: ${formatDuration(stats.resources.systemCpuMs)})${RESET}`.padEnd(
 			60,
-		)}│`,
+		) + "│",
 		"└─────────────────────────────────────────────────────────┘",
 		"",
 	]

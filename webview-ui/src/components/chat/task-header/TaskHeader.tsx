@@ -71,7 +71,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			// Check if content height exceeds the max-height
 			setIsTextOverflowing(el.scrollHeight > el.clientHeight)
 		}
-	}, [isTaskExpanded, isHighlightedTextExpanded])
+	}, [task.text, isTaskExpanded, isHighlightedTextExpanded])
 
 	// Handle click outside to collapse
 	React.useEffect(() => {
@@ -142,7 +142,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							e.stopPropagation()
 							toggleTaskExpanded()
 						}
-					}}>
+					}}
+					tabIndex={0}>
 					<div className="flex justify-between items-center">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (

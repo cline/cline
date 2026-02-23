@@ -83,7 +83,7 @@ export class OpenTelemetryClientProvider {
 	private createMeterProvider(resource: Resource): MeterProvider {
 		const exporters = this.config?.metricsExporter?.split(",").map((type) => type.trim()) || []
 		const readers: any[] = []
-		const interval = this.config?.metricExportInterval || 60000
+		const interval = this.config!.metricExportInterval || 60000
 		const timeout = Math.min(Math.floor(interval * 0.8), 30000)
 
 		Logger.log(`[OTEL] Creating MeterProvider with exporters: ${exporters.join(", ")}`)
@@ -98,10 +98,10 @@ export class OpenTelemetryClientProvider {
 						break
 					}
 					case "otlp": {
-						const protocol = this.config?.otlpMetricsProtocol || this.config?.otlpProtocol || "grpc"
-						const endpoint = this.config?.otlpMetricsEndpoint || this.config?.otlpEndpoint
-						const insecure = this.config?.otlpInsecure || false
-						const headers = this.config?.otlpMetricsHeaders || this.config?.otlpHeaders
+						const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
+						const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
+						const insecure = this.config!.otlpInsecure || false
+						const headers = this.config!.otlpMetricsHeaders || this.config!.otlpHeaders
 
 						if (endpoint) {
 							const reader = createOTLPMetricReader(protocol, endpoint, insecure, interval, timeout, headers)
@@ -154,10 +154,10 @@ export class OpenTelemetryClientProvider {
 						Logger.log("[OTEL] Console logs exporter created")
 						break
 					case "otlp": {
-						const protocol = this.config?.otlpLogsProtocol || this.config?.otlpProtocol || "grpc"
-						const endpoint = this.config?.otlpLogsEndpoint || this.config?.otlpEndpoint
-						const insecure = this.config?.otlpInsecure || false
-						const headers = this.config?.otlpLogsHeaders || this.config?.otlpHeaders
+						const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
+						const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
+						const insecure = this.config!.otlpInsecure || false
+						const headers = this.config!.otlpLogsHeaders || this.config!.otlpHeaders
 
 						if (endpoint) {
 							exporter = createOTLPLogExporter(protocol, endpoint, insecure, headers)
@@ -175,9 +175,9 @@ export class OpenTelemetryClientProvider {
 
 				if (exporter) {
 					const batchConfig = {
-						maxQueueSize: this.config?.logMaxQueueSize || 2048,
-						maxExportBatchSize: this.config?.logBatchSize || 512,
-						scheduledDelayMillis: this.config?.logBatchTimeout || 5000,
+						maxQueueSize: this.config!.logMaxQueueSize || 2048,
+						maxExportBatchSize: this.config!.logBatchSize || 512,
+						scheduledDelayMillis: this.config!.logBatchTimeout || 5000,
 					}
 
 					loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(exporter, batchConfig))
