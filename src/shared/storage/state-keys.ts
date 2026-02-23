@@ -257,6 +257,7 @@ const USER_SETTINGS_FIELDS = {
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
+	autoCondenseTokenLimit: { default: undefined as number | undefined },
 	subagentsEnabled: { default: false as boolean },
 	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },

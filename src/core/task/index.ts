@@ -1882,6 +1882,7 @@ export class Task {
 			previousApiReqIndex,
 			await ensureTaskDirectoryExists(this.taskId),
 			this.stateManager.getGlobalSettingsKey("useAutoCondense") && isNextGenModelFamily(this.api.getModel().id),
+			this.stateManager.getGlobalSettingsKey("autoCondenseTokenLimit"),
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
@@ -2368,6 +2369,7 @@ export class Task {
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
 		let shouldCompact = false
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+		const autoCondenseTokenLimit = this.stateManager.getGlobalSettingsKey("autoCondenseTokenLimit")
 
 		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
 			// When we initially trigger context cleanup, we increase the context window size, so we need state `currentlySummarizing`
@@ -2392,6 +2394,7 @@ export class Task {
 					this.messageStateHandler.getClineMessages(),
 					this.api,
 					previousApiReqIndex,
+					autoCondenseTokenLimit,
 				)
 
 				// Edge case: summarize_task tool call completes but user cancels next request before it finishes.

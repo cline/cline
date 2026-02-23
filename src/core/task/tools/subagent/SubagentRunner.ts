@@ -3,7 +3,7 @@ import { buildApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
-import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { getEffectiveCompactionThreshold } from "@core/context/context-management/context-window-utils"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
@@ -734,16 +734,16 @@ export class SubagentRunner {
 		api: ReturnType<typeof buildApiHandler>,
 		modelId: string,
 	): boolean {
-		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
 		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
+		const autoCondenseTokenLimit = this.baseConfig.services.stateManager.getGlobalSettingsKey("autoCondenseTokenLimit")
 		if (useAutoCondense && isNextGenModelFamily(modelId)) {
-			const autoCondenseThreshold = 0.75
-			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
-			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+			const thresholdTokens = getEffectiveCompactionThreshold(api, autoCondenseTokenLimit)
 			return previousRequestTotalTokens >= thresholdTokens
 		}
 
-		return previousRequestTotalTokens >= maxAllowedSize
+		// For non-autoCondense path, also respect the custom token limit
+		const effectiveThreshold = getEffectiveCompactionThreshold(api, autoCondenseTokenLimit)
+		return previousRequestTotalTokens >= effectiveThreshold
 	}
 
 	private async *createMessageWithInitialChunkRetry(

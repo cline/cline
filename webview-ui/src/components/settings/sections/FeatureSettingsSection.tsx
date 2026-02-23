@@ -184,6 +184,18 @@ interface FeatureSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
+// Formats a token count for the compaction threshold slider.
+// Values at or above 1,000,000 represent "Default" (no custom limit).
+const formatCompactionThreshold = (value: number): string => {
+	if (value >= 1_000_000) {
+		return "Default"
+	}
+	return `${Math.round(value / 1000)}K tokens`
+}
+
+// The maximum slider value representing "no custom limit" (use model default).
+const COMPACTION_THRESHOLD_MAX = 1_000_000
+
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
 	const {
 		enableCheckpointsSetting,
@@ -191,6 +203,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
+		autoCondenseTokenLimit,
 		subagentsEnabled,
 		clineWebToolsEnabled,
 		worktreesEnabled,
@@ -208,6 +221,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		},
 		[focusChainSettings],
 	)
+
+	const handleAutoCondenseTokenLimitChange = useCallback((sliderValue: number) => {
+		if (sliderValue >= COMPACTION_THRESHOLD_MAX) {
+			// Reset to default: send 0 to signal "clear custom limit"
+			updateSetting("autoCondenseTokenLimit", 0)
+		} else {
+			updateSetting("autoCondenseTokenLimit", sliderValue)
+		}
+	}, [])
 
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
@@ -275,6 +297,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 												: updateSetting(feature.settingKey, checked)
 										}
 									/>
+									{feature.id === "auto-compact" && featureState[feature.stateKey] && (
+										<SettingsSlider
+											description="Set a custom token limit for when context is compacted. Drag left to compact earlier. Drag to Default to use the model's natural limit."
+											formatValue={formatCompactionThreshold}
+											label="Compaction threshold (experimental)"
+											max={COMPACTION_THRESHOLD_MAX}
+											min={50_000}
+											onChange={handleAutoCondenseTokenLimitChange}
+											step={50_000}
+											value={autoCondenseTokenLimit ?? COMPACTION_THRESHOLD_MAX}
+											valueWidth="w-24"
+										/>
+									)}
 									{feature.id === "focus-chain" && featureState[feature.stateKey] && (
 										<SettingsSlider
 											label="Reminder Interval (1-10)"

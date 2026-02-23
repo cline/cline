@@ -344,6 +344,13 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
 		}
 
+		// Update custom context compaction token limit.
+		// A value of 0 means "clear the custom limit" (restore default model-based behavior).
+		if (request.autoCondenseTokenLimit !== undefined) {
+			const value = request.autoCondenseTokenLimit > 0 ? request.autoCondenseTokenLimit : undefined
+			controller.stateManager.setGlobalState("autoCondenseTokenLimit", value)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

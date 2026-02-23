@@ -33,3 +33,26 @@ export function getContextWindowInfo(api: ApiHandler) {
 
 	return { contextWindow, maxAllowedSize }
 }
+
+/**
+ * Returns the effective compaction threshold in tokens, respecting a user-specified custom limit.
+ *
+ * When the user sets a custom token limit (autoCondenseTokenLimit), compaction triggers at
+ * that limit rather than at the model's natural maximum. This allows users to compact earlier
+ * to keep conversation context focused, particularly useful for large-context models where
+ * the natural threshold (e.g. 750K on a 1M model) is impractically expensive.
+ *
+ * The custom limit is always capped by maxAllowedSize to preserve the safety buffer.
+ *
+ * @param api The API handler for the current model
+ * @param customTokenLimit Optional user-configured token limit. When undefined, falls back to
+ *   the model's natural maxAllowedSize.
+ * @returns The effective threshold in tokens at which compaction should trigger
+ */
+export function getEffectiveCompactionThreshold(api: ApiHandler, customTokenLimit?: number): number {
+	const { maxAllowedSize } = getContextWindowInfo(api)
+	if (customTokenLimit !== undefined && customTokenLimit > 0) {
+		return Math.min(customTokenLimit, maxAllowedSize)
+	}
+	return maxAllowedSize
+}

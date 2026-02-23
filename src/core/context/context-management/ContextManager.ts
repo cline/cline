@@ -8,7 +8,7 @@ import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { getContextWindowInfo } from "./context-window-utils"
+import { getContextWindowInfo, getEffectiveCompactionThreshold } from "./context-window-utils"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -145,13 +145,18 @@ export class ContextManager {
 	}
 
 	/**
-	 * Determine whether we should compact context window, based on token counts
+	 * Determine whether we should compact context window, based on token counts.
+	 *
+	 * When customTokenLimit is provided, compaction triggers at that limit rather than
+	 * at the model's natural maximum (maxAllowedSize). This respects the user's
+	 * autoCondenseTokenLimit setting, allowing earlier compaction for large-context models.
+	 * The custom limit is capped by maxAllowedSize to preserve the safety buffer.
 	 */
 	shouldCompactContextWindow(
 		clineMessages: ClineMessage[],
 		api: ApiHandler,
 		previousApiReqIndex: number,
-		thresholdPercentage?: number,
+		customTokenLimit?: number,
 	): boolean {
 		if (previousApiReqIndex >= 0) {
 			const previousRequestText = clineMessages[previousApiReqIndex]?.text
@@ -159,12 +164,7 @@ export class ContextManager {
 				try {
 					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequestText)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-
-					const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-					const roundedThreshold = thresholdPercentage
-						? Math.floor(contextWindow * thresholdPercentage)
-						: maxAllowedSize
-					const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+					const thresholdTokens = getEffectiveCompactionThreshold(api, customTokenLimit)
 					return totalTokens >= thresholdTokens
 				} catch {
 					return false
@@ -222,7 +222,10 @@ export class ContextManager {
 	}
 
 	/**
-	 * primary entry point for getting up to date context
+	 * primary entry point for getting up to date context.
+	 *
+	 * The customTokenLimit parameter is the user-configured autoCondenseTokenLimit setting.
+	 * When set, both paths (autoCondense and legacy truncation) respect this limit.
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
@@ -232,6 +235,7 @@ export class ContextManager {
 		previousApiReqIndex: number,
 		taskDirectory: string,
 		useAutoCondense: boolean, // option to use new auto-condense or old programmatic context management
+		customTokenLimit?: number, // user-configured autoCondenseTokenLimit; when set, overrides the default threshold
 	) {
 		let updatedConversationHistoryDeletedRange = false
 
@@ -244,9 +248,10 @@ export class ContextManager {
 					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequestText)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 					const { maxAllowedSize } = getContextWindowInfo(api)
+					const effectiveThreshold = getEffectiveCompactionThreshold(api, customTokenLimit)
 
 					// This is the most reliable way to know when we're close to hitting the context window.
-					if (totalTokens >= maxAllowedSize) {
+					if (totalTokens >= effectiveThreshold) {
 						// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
 						// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
 						const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"

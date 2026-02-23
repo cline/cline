@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { expect } from "chai"
 import { ContextManager } from "../ContextManager"
+import { getEffectiveCompactionThreshold } from "../context-window-utils"
 
 // Minimal mock for ApiHandler — only getModel().info.contextWindow is used by shouldCompactContextWindow
 function createMockApi(contextWindow: number) {
@@ -411,67 +412,116 @@ describe("ContextManager", () => {
 			contextManager = new ContextManager()
 		})
 
-		it("does not compact at 33K tokens with default 0.75 threshold on 200K context", () => {
+		// --- Default behavior (no custom token limit) ---
+
+		it("does not compact at 33K tokens when default threshold is used on 200K context", () => {
+			// 200K model: maxAllowedSize = 200K - 40K = 160K
+			// 33K << 160K so no compaction
 			const api = createMockApi(200_000)
 			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 30_000, tokensOut: 3_000 })]
 
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, undefined)
 			expect(result).to.equal(false)
 		})
 
-		it("compacts when tokens exceed 0.75 threshold on 200K context", () => {
+		it("compacts when tokens exceed maxAllowedSize on 200K context (default behavior)", () => {
+			// 200K model: maxAllowedSize = 160K; send 165K tokens
 			const api = createMockApi(200_000)
-			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 140_000, tokensOut: 15_000 })]
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 155_000, tokensOut: 10_000 })]
 
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, undefined)
 			expect(result).to.equal(true)
 		})
 
-		it("compacts at only 10K tokens when threshold is accidentally set to 0.05", () => {
-			const contextWindow = 200_000
-			const accidentalThreshold = 0.05
-			// floor(200000 * 0.05) = 10000 — this is the bug case from PR #9348.
-			// Accidental clicks on the progress bar set threshold to ~5%, triggering
-			// compaction at 10K tokens instead of the intended 150K (0.75 * 200K).
-			const compactionTriggersAt = Math.floor(contextWindow * accidentalThreshold) // 10,000
-			const totalTokens = compactionTriggersAt + 500 // 10,500 — just above the trigger
-
-			const api = createMockApi(contextWindow)
-			const tokensIn = totalTokens - 1_500
-			const tokensOut = 1_500
-			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn, tokensOut })]
-
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, accidentalThreshold)
-			expect(result).to.equal(true)
-		})
-
-		it("falls back to maxAllowedSize when threshold is undefined", () => {
+		it("falls back to maxAllowedSize when customTokenLimit is undefined", () => {
+			// 200K model: maxAllowedSize = 160K; 155K < 160K → no compaction
 			const api = createMockApi(200_000)
-			// 155K tokens — above 0.75 threshold (150K) but below maxAllowedSize (160K)
 			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 150_000, tokensOut: 5_000 })]
 
 			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, undefined)
-			// undefined → uses maxAllowedSize (160K), so 155K < 160K → false
 			expect(result).to.equal(false)
 		})
 
-		it("falls back to maxAllowedSize when threshold is 0", () => {
+		it("falls back to maxAllowedSize when customTokenLimit is 0", () => {
+			// 0 is treated as "no custom limit" — falls back to maxAllowedSize (160K)
 			const api = createMockApi(200_000)
 			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 150_000, tokensOut: 5_000 })]
 
-			// 0 is falsy, so ternary falls back to maxAllowedSize (160K)
 			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0)
 			expect(result).to.equal(false)
 		})
 
-		it("includes cacheWrites and cacheReads in total token count", () => {
+		// --- Custom token limit behavior (autoCondenseTokenLimit) ---
+
+		it("compacts earlier when customTokenLimit is set below maxAllowedSize", () => {
+			// 200K model: maxAllowedSize = 160K; customTokenLimit = 100K
+			// Effective threshold = min(100K, 160K) = 100K
+			// Send 110K tokens → should compact
 			const api = createMockApi(200_000)
-			// Low direct tokens but high cache reads push total over threshold
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 100_000, tokensOut: 10_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 100_000)
+			expect(result).to.equal(true)
+		})
+
+		it("does not compact when tokens are below customTokenLimit", () => {
+			// 200K model: maxAllowedSize = 160K; customTokenLimit = 100K
+			// Send only 80K tokens → should NOT compact
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 75_000, tokensOut: 5_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 100_000)
+			expect(result).to.equal(false)
+		})
+
+		it("customTokenLimit is capped at maxAllowedSize to preserve safety buffer", () => {
+			// 200K model: maxAllowedSize = 160K; customTokenLimit = 300K (exceeds maxAllowedSize)
+			// Effective threshold = min(300K, 160K) = 160K
+			// Send 165K tokens → should compact
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 165_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 300_000)
+			expect(result).to.equal(true)
+		})
+
+		it("very large customTokenLimit still respects safety buffer", () => {
+			// Even setting customTokenLimit to 1M on a 200K model, threshold is capped at 160K
+			const api = createMockApi(200_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 155_000 })]
+
+			// 155K < 160K (maxAllowedSize) → false even with huge customTokenLimit
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 1_000_000)
+			expect(result).to.equal(false)
+		})
+
+		it("compacts a 1M context model at 300K custom limit instead of the natural ~750K threshold", () => {
+			// Primary use case: 1M context model with early compaction
+			// Natural threshold for 1M model: max(1M - 40K, 1M * 0.8) = ~960K
+			// With customTokenLimit = 300K: effective = min(300K, ~960K) = 300K
+			const api = createMockApi(1_000_000)
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 280_000, tokensOut: 25_000 })]
+
+			const withoutLimit = contextManager.shouldCompactContextWindow(clineMessages, api, 0, undefined)
+			const withLimit = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 300_000)
+
+			// Without limit: 305K < 960K → no compaction
+			expect(withoutLimit).to.equal(false)
+			// With custom 300K limit: 305K >= 300K → compaction triggered
+			expect(withLimit).to.equal(true)
+		})
+
+		// --- Other behaviors ---
+
+		it("includes cacheWrites and cacheReads in total token count", () => {
+			// 200K model: maxAllowedSize = 160K; customTokenLimit = 150K
+			// Direct tokens: 5.5K, but cacheReads = 150K → total = 155.5K > 150K → compact
+			const api = createMockApi(200_000)
 			const clineMessages: ClineMessage[] = [
 				createApiReqMessage({ tokensIn: 5_000, tokensOut: 500, cacheWrites: 0, cacheReads: 150_000 }),
 			]
 
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 150_000)
 			expect(result).to.equal(true)
 		})
 
@@ -479,17 +529,59 @@ describe("ContextManager", () => {
 			const api = createMockApi(200_000)
 			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 200_000 })]
 
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, -1, 0.75)
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, -1, undefined)
 			expect(result).to.equal(false)
 		})
+	})
 
-		it("threshold is capped at maxAllowedSize even when percentage is very high", () => {
+	describe("getEffectiveCompactionThreshold", () => {
+		it("returns maxAllowedSize when customTokenLimit is undefined", () => {
+			// 200K model: maxAllowedSize = 200K - 40K = 160K
 			const api = createMockApi(200_000)
-			// threshold of 1.0 → floor(200000 * 1.0) = 200000, but min(200000, 160000) = 160000
-			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 165_000 })]
+			const result = getEffectiveCompactionThreshold(api, undefined)
+			expect(result).to.equal(160_000)
+		})
 
-			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 1.0)
-			expect(result).to.equal(true)
+		it("returns maxAllowedSize when customTokenLimit is 0 (treated as no limit)", () => {
+			const api = createMockApi(200_000)
+			const result = getEffectiveCompactionThreshold(api, 0)
+			expect(result).to.equal(160_000)
+		})
+
+		it("returns customTokenLimit when it is positive and below maxAllowedSize", () => {
+			const api = createMockApi(200_000)
+			const result = getEffectiveCompactionThreshold(api, 100_000)
+			expect(result).to.equal(100_000)
+		})
+
+		it("caps customTokenLimit at maxAllowedSize when it exceeds the safety buffer", () => {
+			// 200K model: maxAllowedSize = 160K; customTokenLimit = 250K → capped at 160K
+			const api = createMockApi(200_000)
+			const result = getEffectiveCompactionThreshold(api, 250_000)
+			expect(result).to.equal(160_000)
+		})
+
+		it("allows setting a much earlier threshold on 1M context models", () => {
+			// 1M model: maxAllowedSize = max(1M - 40K, 1M * 0.8) = 960K
+			const api = createMockApi(1_000_000)
+			const result = getEffectiveCompactionThreshold(api, 300_000)
+			// min(300K, 960K) = 300K
+			expect(result).to.equal(300_000)
+		})
+
+		it("returns correct maxAllowedSize for 128K model without custom limit", () => {
+			// 128K model: maxAllowedSize = 128K - 30K = 98K
+			const api = createMockApi(128_000)
+			const result = getEffectiveCompactionThreshold(api, undefined)
+			expect(result).to.equal(98_000)
+		})
+
+		it("customTokenLimit at exact boundary equals maxAllowedSize", () => {
+			// Set customTokenLimit exactly at maxAllowedSize — should be returned as-is
+			const api = createMockApi(200_000)
+			const maxAllowedSize = 160_000
+			const result = getEffectiveCompactionThreshold(api, maxAllowedSize)
+			expect(result).to.equal(maxAllowedSize)
 		})
 	})
 })
