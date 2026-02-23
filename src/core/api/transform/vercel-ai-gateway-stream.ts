@@ -5,6 +5,7 @@ import {
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
@@ -32,6 +33,7 @@ export async function createVercelAIGatewayStream(
 	const isClaude1m =
 		model.id === openRouterClaudeSonnet41mModelId ||
 		model.id === openRouterClaudeSonnet451mModelId ||
+		model.id === openRouterClaudeSonnet461mModelId ||
 		model.id === openRouterClaudeOpus461mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id the API expects
@@ -98,7 +100,7 @@ export async function createVercelAIGatewayStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
-	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+	if (model.id.startsWith("google/gemini-3")) {
 		// Recommended value from google
 		temperature = 1.0
 	}

@@ -69,6 +69,7 @@ describe("SapAiCoreHandler", () => {
 
 		it("should support different Claude model variants", () => {
 			const modelVariants = [
+				"anthropic--claude-4.6-sonnet",
 				"anthropic--claude-4-sonnet",
 				"anthropic--claude-4-opus",
 				"anthropic--claude-3.7-sonnet",

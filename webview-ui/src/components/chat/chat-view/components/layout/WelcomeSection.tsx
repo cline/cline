@@ -3,7 +3,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch } from "lucide-react"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import BannerCarousel from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -37,6 +37,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	// Track if we've shown the "What's New" modal this session
 	const [hasShownWhatsNewModal, setHasShownWhatsNewModal] = useState(false)
 	const [showWhatsNewModal, setShowWhatsNewModal] = useState(false)
+	const bannerWaitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	// Quick launch worktree modal
 	const [showCreateWorktreeModal, setShowCreateWorktreeModal] = useState(false)
@@ -65,22 +66,52 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		navigateToWorktrees,
 		worktreesEnabled,
 		banners,
+		welcomeBanners,
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
-	// Show modal when there's a new announcement and we haven't shown it this session
+	// Show modal when there's a new announcement and we haven't shown it this session.
+	// We delay opening slightly to wait for welcome banners from the backend API,
+	// which are fetched asynchronously and may not be available on the first state push.
+	// The modal opens immediately if banners arrive, or after a 3s timeout as fallback.
 	useEffect(() => {
-		if (showAnnouncement && !hasShownWhatsNewModal) {
+		if (showAnnouncement && !hasShownWhatsNewModal && !bannerWaitTimeoutRef.current) {
+			bannerWaitTimeoutRef.current = setTimeout(() => {
+				bannerWaitTimeoutRef.current = null
+				setShowWhatsNewModal(true)
+				setHasShownWhatsNewModal(true)
+			}, 3000)
+		}
+		return () => {
+			if (bannerWaitTimeoutRef.current) {
+				clearTimeout(bannerWaitTimeoutRef.current)
+				bannerWaitTimeoutRef.current = null
+			}
+		}
+	}, [showAnnouncement, hasShownWhatsNewModal])
+
+	// Open modal early if welcome banners arrive before the timeout
+	useEffect(() => {
+		if (bannerWaitTimeoutRef.current && welcomeBanners && welcomeBanners.length > 0) {
+			if (bannerWaitTimeoutRef.current) {
+				clearTimeout(bannerWaitTimeoutRef.current)
+				bannerWaitTimeoutRef.current = null
+			}
 			setShowWhatsNewModal(true)
 			setHasShownWhatsNewModal(true)
 		}
-	}, [showAnnouncement, hasShownWhatsNewModal])
+	}, [welcomeBanners])
 
 	const handleCloseWhatsNewModal = useCallback(() => {
 		setShowWhatsNewModal(false)
 		// Call hideAnnouncement to persist dismissal (same as old banner behavior)
 		hideAnnouncement()
-	}, [hideAnnouncement])
+		if (welcomeBanners && welcomeBanners.length > 0) {
+			for (const banner of welcomeBanners) {
+				StateServiceClient.dismissBanner({ value: banner.id }).catch(console.error)
+			}
+		}
+	}, [hideAnnouncement, welcomeBanners])
 
 	// Handle click on home page worktree element with telemetry
 	const handleWorktreeClick = useCallback(() => {
@@ -154,7 +185,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.SetModel: {
-					const modelId = action.arg || "anthropic/claude-opus-4.6"
+					const modelId = action.arg || "anthropic/claude-sonnet-4.5"
 					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
@@ -246,7 +277,13 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
-			<WhatsNewModal onClose={handleCloseWhatsNewModal} open={showWhatsNewModal} version={version} />
+			<WhatsNewModal
+				onBannerAction={handleBannerAction}
+				onClose={handleCloseWhatsNewModal}
+				open={showWhatsNewModal}
+				version={version}
+				welcomeBanners={welcomeBanners}
+			/>
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!showWhatsNewModal && (

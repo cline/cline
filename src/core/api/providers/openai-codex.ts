@@ -3,11 +3,16 @@ import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
+import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from "undici"
 import { v7 as uuidv7 } from "uuid"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import { featureFlagsService } from "@/services/feature-flags"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
+import { ApiFormat } from "@/shared/proto/cline/models"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -17,6 +22,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
  * Routes to chatgpt.com/backend-api/codex
  */
 const CODEX_API_BASE_URL = "https://chatgpt.com/backend-api/codex"
+const CODEX_RESPONSES_WEBSOCKET_URL = "wss://chatgpt.com/backend-api/codex/responses"
 
 interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 	reasoningEffort?: string
@@ -36,6 +42,8 @@ interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 export class OpenAiCodexHandler implements ApiHandler {
 	private options: OpenAiCodexHandlerOptions
 	private client?: OpenAI
+	private responsesWs: UndiciWebSocket | undefined
+	private websocketRequestInFlight = false
 	// Session ID for the Codex API (persists for the lifetime of the handler)
 	private readonly sessionId: string
 	// Abort controller for cancelling ongoing requests
@@ -49,7 +57,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 		this.sessionId = uuidv7()
 	}
 
-	private normalizeUsage(usage: any, model: { id: string; info: ModelInfo }): ApiStreamUsageChunk | undefined {
+	private normalizeUsage(usage: any, _model: { id: string; info: ModelInfo }): ApiStreamUsageChunk | undefined {
 		if (!usage) {
 			return undefined
 		}
@@ -101,17 +109,18 @@ export class OpenAiCodexHandler implements ApiHandler {
 		if (!accessToken) {
 			throw new Error("Not authenticated with OpenAI Codex. Please sign in using the OpenAI Codex OAuth flow in settings.")
 		}
-
-		// Format conversation for Responses API
-		const formattedInput = convertToOpenAIResponsesInput(messages).input
+		const useWebsocketMode = this.useWebsocketMode(model.info.apiFormat)
+		const { input, previousResponseId } = convertToOpenAIResponsesInput(messages, { usePreviousResponseId: useWebsocketMode })
+		const usePreviousResponseId = useWebsocketMode && !!previousResponseId
 
 		// Build request body
-		const requestBody = this.buildRequestBody(model, formattedInput, systemPrompt, tools)
+		const requestBody = this.buildRequestBody(model, input, systemPrompt, tools, previousResponseId)
+		const fallbackRequestBody = this.buildRequestBody(model, input, systemPrompt, tools)
 
 		// Make the request with retry on auth failure
 		for (let attempt = 0; attempt < 2; attempt++) {
 			try {
-				yield* this.executeRequest(requestBody, model, accessToken)
+				yield* this.executeRequest(requestBody, fallbackRequestBody, model, accessToken, usePreviousResponseId)
 				return
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error)
@@ -133,11 +142,19 @@ export class OpenAiCodexHandler implements ApiHandler {
 		}
 	}
 
+	private useWebsocketMode(apiFormat?: ApiFormat): boolean {
+		if (featureFlagsService.getBooleanFlagEnabled(FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE)) {
+			return apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
+		}
+		return false
+	}
+
 	private buildRequestBody(
 		model: { id: string; info: ModelInfo },
 		formattedInput: any,
 		systemPrompt: string,
 		tools?: ChatCompletionTool[],
+		previousResponseId?: string,
 	): any {
 		// Determine reasoning effort
 		const reasoningEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
@@ -147,8 +164,9 @@ export class OpenAiCodexHandler implements ApiHandler {
 			model: model.id,
 			input: formattedInput,
 			stream: true,
-			store: false,
+			store: !previousResponseId,
 			instructions: systemPrompt,
+			...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
 			...(includeReasoning ? { include: ["reasoning.encrypted_content"] } : {}),
 			...(includeReasoning
 				? {
@@ -177,7 +195,13 @@ export class OpenAiCodexHandler implements ApiHandler {
 		return body
 	}
 
-	private async *executeRequest(requestBody: any, model: { id: string; info: ModelInfo }, accessToken: string): ApiStream {
+	private async *executeRequest(
+		requestBody: any,
+		fallbackRequestBody: any,
+		model: { id: string; info: ModelInfo },
+		accessToken: string,
+		useWebsocketMode: boolean,
+	): ApiStream {
 		// Create AbortController for cancellation
 		this.abortController = new AbortController()
 
@@ -192,6 +216,16 @@ export class OpenAiCodexHandler implements ApiHandler {
 				"User-Agent": `cline/${process.env.npm_package_version || "1.0.0"} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`,
 				...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
 				...buildExternalBasicHeaders(),
+			}
+
+			if (useWebsocketMode) {
+				try {
+					yield* this.createResponseStreamWebsocket(requestBody, fallbackRequestBody, accessToken, codexHeaders, model)
+					return
+				} catch (error) {
+					Logger.error("OpenAI Codex websocket mode failed, falling back to HTTP Responses API:", error)
+					this.closeResponsesWebsocket()
+				}
 			}
 
 			// Try using OpenAI SDK first
@@ -229,6 +263,223 @@ export class OpenAiCodexHandler implements ApiHandler {
 			}
 		} finally {
 			this.abortController = undefined
+		}
+	}
+
+	private async *createResponseStreamWebsocket(
+		primaryParams: OpenAI.Responses.ResponseCreateParamsStreaming,
+		fallbackParams: OpenAI.Responses.ResponseCreateParamsStreaming,
+		accessToken: string,
+		codexHeaders: Record<string, string>,
+		model: { id: string; info: ModelInfo },
+	): ApiStream {
+		try {
+			for await (const event of this.createResponseEventsViaWebsocket(primaryParams, accessToken, codexHeaders)) {
+				if (this.abortController?.signal.aborted) {
+					return
+				}
+				yield* this.processEvent(event, model)
+			}
+		} catch (error) {
+			if (this.shouldRetryWebsocketWithFullContext(error, !!primaryParams.previous_response_id)) {
+				Logger.log(
+					"Retrying Codex websocket response with full context after previous_response_not_found or socket reset",
+				)
+				this.closeResponsesWebsocket()
+				for await (const event of this.createResponseEventsViaWebsocket(fallbackParams, accessToken, codexHeaders)) {
+					if (this.abortController?.signal.aborted) {
+						return
+					}
+					yield* this.processEvent(event, model)
+				}
+				return
+			}
+			throw error
+		}
+	}
+
+	private shouldRetryWebsocketWithFullContext(error: unknown, hadPreviousResponseId: boolean): boolean {
+		const errorCode =
+			typeof error === "object" && error && "code" in error && typeof (error as { code: unknown }).code === "string"
+				? (error as { code: string }).code
+				: undefined
+
+		if (hadPreviousResponseId && errorCode === "previous_response_not_found") {
+			return true
+		}
+		if (errorCode === "websocket_closed" || errorCode === "websocket_error") {
+			return true
+		}
+		return false
+	}
+
+	private async ensureResponsesWebsocket(accessToken: string, codexHeaders: Record<string, string>): Promise<UndiciWebSocket> {
+		if (this.responsesWs && this.responsesWs.readyState === UndiciWebSocket.OPEN) {
+			return this.responsesWs
+		}
+
+		this.closeResponsesWebsocket()
+
+		const ws = new UndiciWebSocket(CODEX_RESPONSES_WEBSOCKET_URL, {
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				"OpenAI-Beta": "responses_websockets=2026-02-06",
+				...codexHeaders,
+			},
+		})
+
+		await new Promise<void>((resolve, reject) => {
+			const cleanup = () => {
+				ws.removeEventListener("open", handleOpen)
+				ws.removeEventListener("error", handleError)
+				ws.removeEventListener("close", handleClose)
+			}
+			const handleOpen = () => {
+				cleanup()
+				resolve()
+			}
+			const handleError = () => {
+				cleanup()
+				reject(new Error("Failed to open Codex Responses websocket"))
+			}
+			const handleClose = () => {
+				cleanup()
+				reject(new Error("Codex Responses websocket closed before opening"))
+			}
+			ws.addEventListener("open", handleOpen)
+			ws.addEventListener("error", handleError)
+			ws.addEventListener("close", handleClose)
+		})
+
+		this.responsesWs = ws
+		return ws
+	}
+
+	private closeResponsesWebsocket() {
+		if (this.responsesWs) {
+			try {
+				this.responsesWs.close()
+			} catch {}
+			this.responsesWs = undefined
+		}
+	}
+
+	private async *createResponseEventsViaWebsocket(
+		params: OpenAI.Responses.ResponseCreateParamsStreaming,
+		accessToken: string,
+		codexHeaders: Record<string, string>,
+	): AsyncGenerator<OpenAI.Responses.ResponseStreamEvent> {
+		if (this.websocketRequestInFlight) {
+			const error: Error & { code?: string } = new Error("Websocket response.create is already in progress")
+			error.code = "websocket_concurrency_limit"
+			throw error
+		}
+
+		const ws = await this.ensureResponsesWebsocket(accessToken, codexHeaders)
+		this.websocketRequestInFlight = true
+
+		const eventQueue: OpenAI.Responses.ResponseStreamEvent[] = []
+		let resolver: (() => void) | undefined
+		let completed = false
+		let failure: (Error & { code?: string }) | undefined
+
+		const wake = () => {
+			const next = resolver
+			resolver = undefined
+			next?.()
+		}
+
+		const handleMessage = (evt: UndiciMessageEvent) => {
+			try {
+				let raw = ""
+				if (typeof evt.data === "string") {
+					raw = evt.data
+				} else if (evt.data instanceof ArrayBuffer) {
+					raw = new TextDecoder().decode(new Uint8Array(evt.data))
+				} else if (ArrayBuffer.isView(evt.data)) {
+					raw = new TextDecoder().decode(new Uint8Array(evt.data.buffer, evt.data.byteOffset, evt.data.byteLength))
+				} else {
+					raw = String(evt.data)
+				}
+
+				const parsed = JSON.parse(raw)
+				if (parsed?.type === "error" && parsed?.error) {
+					const error: Error & { code?: string } = new Error(parsed.error.message || "Codex Responses websocket error")
+					error.code = parsed.error.code
+					failure = error
+					completed = true
+					wake()
+					return
+				}
+
+				eventQueue.push(parsed as OpenAI.Responses.ResponseStreamEvent)
+				if (parsed?.type === "response.completed" || parsed?.type === "response.failed") {
+					completed = true
+				}
+				wake()
+			} catch (error) {
+				const parseError: Error & { code?: string } = new Error(
+					`Failed to parse websocket event: ${error instanceof Error ? error.message : String(error)}`,
+				)
+				parseError.code = "websocket_parse_error"
+				failure = parseError
+				completed = true
+				wake()
+			}
+		}
+
+		const handleError = () => {
+			const error: Error & { code?: string } = new Error("Codex Responses websocket emitted an error event")
+			error.code = "websocket_error"
+			failure = error
+			completed = true
+			wake()
+		}
+
+		const handleClose = () => {
+			if (!completed) {
+				const error: Error & { code?: string } = new Error("Codex Responses websocket closed during response stream")
+				error.code = "websocket_closed"
+				failure = error
+				completed = true
+				wake()
+			}
+		}
+
+		ws.addEventListener("message", handleMessage)
+		ws.addEventListener("error", handleError)
+		ws.addEventListener("close", handleClose)
+
+		try {
+			ws.send(
+				JSON.stringify({
+					type: "response.create",
+					...params,
+				}),
+			)
+
+			while (!completed || eventQueue.length > 0) {
+				if (eventQueue.length === 0) {
+					await new Promise<void>((resolve) => {
+						resolver = resolve
+					})
+					continue
+				}
+
+				const event = eventQueue.shift()
+				if (event) {
+					yield event
+				}
+			}
+
+			if (failure) {
+				throw failure
+			}
+		} finally {
+			ws.removeEventListener("message", handleMessage)
+			ws.removeEventListener("error", handleError)
+			ws.removeEventListener("close", handleClose)
+			this.websocketRequestInFlight = false
 		}
 	}
 
@@ -465,6 +716,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 	}
 
 	abort(): void {
+		this.closeResponsesWebsocket()
 		this.abortController?.abort()
 	}
 

@@ -127,9 +127,11 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
-// a special jp inference profile was created for opus 4.6, sonnet 4.5 & haiku 4.5
+// a special jp inference profile was created for sonnet 4.6, opus 4.6, sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
 const JP_SUPPORTED_CRIS_MODELS = [
+	"anthropic.claude-sonnet-4-6",
+	"anthropic.claude-sonnet-4-6:1m",
 	"anthropic.claude-opus-4-6-v1",
 	"anthropic.claude-opus-4-6-v1:1m",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",

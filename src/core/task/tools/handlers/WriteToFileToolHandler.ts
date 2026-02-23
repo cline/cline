@@ -6,6 +6,7 @@ import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
+import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
@@ -117,7 +118,27 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (block.name === "write_to_file" && !rawContent) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
+
+			// Use progressive error with token budget awareness
+			const relPath = rawRelPath || "unknown"
+			const contextWindow = config.api.getModel().info.contextWindow ?? 128_000
+			const lastApiReqTotalTokens = getLastApiReqTotalTokens(config.messageState.getClineMessages())
+			const contextUsagePercent = contextWindow > 0 ? Math.round((lastApiReqTotalTokens / contextWindow) * 100) : undefined
+			const errorMessage = formatResponse.writeToFileMissingContentError(
+				relPath,
+				config.taskState.consecutiveMistakeCount,
+				contextUsagePercent,
+			)
+
+			await config.callbacks.say(
+				"error",
+				`Cline tried to use write_to_file for '${relPath}' without value for required parameter 'content'. ${
+					config.taskState.consecutiveMistakeCount >= 2
+						? "This has happened multiple times — Cline will try a different approach."
+						: "Retrying..."
+				}`,
+			)
+			return formatResponse.toolError(errorMessage)
 		}
 
 		if (block.name === "new_rule" && !rawContent) {
@@ -246,35 +267,34 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
-				} else {
-					// User hit the approve button, and may have provided feedback
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						let fileContentString = ""
-						if (files && files.length > 0) {
-							fileContentString = await processFilesIntoText(files)
-						}
-
-						// Push additional tool feedback using existing utilities
-						ToolResultUtils.pushAdditionalToolFeedback(
-							config.taskState.userMessageContent,
-							text,
-							images,
-							fileContentString,
-						)
-						await config.callbacks.say("user_feedback", text, images, files)
+				}
+				// User hit the approve button, and may have provided feedback
+				if (text || (images && images.length > 0) || (files && files.length > 0)) {
+					let fileContentString = ""
+					if (files && files.length > 0) {
+						fileContentString = await processFilesIntoText(files)
 					}
 
-					telemetryService.captureToolUsage(
-						config.ulid,
-						block.name,
-						modelId,
-						providerId,
-						false,
-						true,
-						workspaceContext,
-						block.isNativeToolCall,
+					// Push additional tool feedback using existing utilities
+					ToolResultUtils.pushAdditionalToolFeedback(
+						config.taskState.userMessageContent,
+						text,
+						images,
+						fileContentString,
 					)
+					await config.callbacks.say("user_feedback", text, images, files)
 				}
+
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					modelId,
+					providerId,
+					false,
+					true,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
 			}
 
 			// Run PreToolUse hook after approval but before execution
@@ -327,9 +347,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					finalContent,
 					newProblemsMessage,
 				)
-			} else {
-				return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 			}
+			return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 		} catch (error) {
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()

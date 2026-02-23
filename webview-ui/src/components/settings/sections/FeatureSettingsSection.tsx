@@ -16,7 +16,6 @@ interface FeatureCheckboxProps {
 	label: string
 	description: ReactNode
 	disabled?: boolean
-	isExperimental?: boolean
 	isRemoteLocked?: boolean
 	remoteTooltip?: string
 	isVisible?: boolean
@@ -29,7 +28,6 @@ interface FeatureToggle {
 	description: ReactNode
 	settingKey: keyof UpdateSettingsRequest
 	stateKey: string
-	isExperimental?: boolean
 	/** If set, the setting value is nested with this key (e.g., "enabled" -> { enabled: checked }) */
 	nestedKey?: string
 }
@@ -70,6 +68,14 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
+	{
+		id: "focus-chain",
+		label: "Focus Chain",
+		description: "Maintain context focus across interactions",
+		stateKey: "focusChainEnabled",
+		settingKey: "focusChainSettings",
+		nestedKey: "enabled",
+	},
 ]
 
 const editorFeatures: FeatureToggle[] = [
@@ -79,7 +85,6 @@ const editorFeatures: FeatureToggle[] = [
 		description: "Allow edits without stealing editor focus",
 		stateKey: "backgroundEditEnabled",
 		settingKey: "backgroundEditEnabled",
-		isExperimental: true,
 	},
 	{
 		id: "checkpoints",
@@ -112,15 +117,6 @@ const experimentalFeatures: FeatureToggle[] = [
 			"Execute tasks without user's confirmation. Auto-switches from Plan to Act mode and disables the ask question tool. Use with extreme caution.",
 		stateKey: "yoloModeToggled",
 		settingKey: "yoloModeToggled",
-		isExperimental: true,
-	},
-	{
-		id: "focus-chain",
-		label: "Focus Chain",
-		description: "Maintain context focus across interactions",
-		stateKey: "focusChainEnabled",
-		settingKey: "focusChainSettings",
-		nestedKey: "enabled",
 	},
 	{
 		id: "double-check-completion",
@@ -129,7 +125,6 @@ const experimentalFeatures: FeatureToggle[] = [
 			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
 		stateKey: "doubleCheckCompletionEnabled",
 		settingKey: "doubleCheckCompletionEnabled",
-		isExperimental: true,
 	},
 ]
 
@@ -140,7 +135,6 @@ const FeatureRow = memo(
 		label,
 		description,
 		disabled,
-		isExperimental,
 		isRemoteLocked,
 		isVisible = true,
 		remoteTooltip,
@@ -180,10 +174,7 @@ const FeatureRow = memo(
 						checkbox
 					)}
 				</div>
-				<div className="text-xs text-description">
-					{isExperimental && <span className="text-info">Experimental: </span>}
-					{description}
-				</div>
+				<div className="text-xs text-description">{description}</div>
 			</div>
 		)
 	},
@@ -263,7 +254,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		<div className="mb-2">
 			{renderSectionHeader("features")}
 			<Section>
-				<div className="mb-5">
+				<div className="mb-5 flex flex-col gap-3">
 					{/* Core features */}
 					<div>
 						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Agent</div>
@@ -271,20 +262,36 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="agent-features">
 							{agentFeatures.map((feature) => (
-								<FeatureRow
-									checked={featureState[feature.stateKey]}
-									description={feature.description}
-									isExperimental={feature.isExperimental}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
-									key={feature.id}
-									label={feature.label}
-									onChange={(checked) => updateSetting(feature.settingKey, checked)}
-								/>
+								<div key={feature.id}>
+									<FeatureRow
+										checked={featureState[feature.stateKey]}
+										description={feature.description}
+										isVisible={featureVisibility[feature.stateKey] ?? true}
+										key={feature.id}
+										label={feature.label}
+										onChange={(checked) =>
+											feature.nestedKey === "enabled"
+												? handleFeatureChange(feature, checked)
+												: updateSetting(feature.settingKey, checked)
+										}
+									/>
+									{feature.id === "focus-chain" && featureState[feature.stateKey] && (
+										<SettingsSlider
+											label="Reminder Interval (1-10)"
+											max={10}
+											min={1}
+											onChange={handleFocusChainIntervalChange}
+											step={1}
+											value={focusChainSettings?.remindClineInterval || 6}
+											valueWidth="w-6"
+										/>
+									)}
+								</div>
 							))}
 						</div>
 					</div>
 
-					{/* Optional features */}
+					{/* Editor features */}
 					<div>
 						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Editor</div>
 						<div
@@ -294,7 +301,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
-									isExperimental={feature.isExperimental}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
@@ -306,16 +312,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 					{/* Experimental features */}
 					<div>
-						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Experimental</div>
+						<div className="text-xs font-medium uppercase tracking-wider mb-3 text-warning/80">Experimental</div>
 						<div
-							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
+							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50 w-full"
 							id="experimental-features">
 							{experimentalFeatures.map((feature) => (
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
 									disabled={feature.id === "yolo" && isYoloRemoteLocked}
-									isExperimental={feature.isExperimental}
 									isRemoteLocked={feature.id === "yolo" && isYoloRemoteLocked}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
@@ -324,17 +329,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									remoteTooltip="This setting is managed by your organization's remote configuration"
 								/>
 							))}
-							{focusChainSettings?.enabled && (
-								<SettingsSlider
-									label="Reminder Interval (1-10)"
-									max={10}
-									min={1}
-									onChange={handleFocusChainIntervalChange}
-									step={1}
-									value={focusChainSettings?.remindClineInterval || 6}
-									valueWidth="w-6"
-								/>
-							)}
 						</div>
 					</div>
 				</div>

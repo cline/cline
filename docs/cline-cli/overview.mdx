@@ -207,6 +207,15 @@ Chains multiple Cline invocations together for creative multi-step workflows.
 | Session summary | ✓ | - |
 | JSON output | - | `--json` |
 | Piped input | - | ✓ |
+| [MCP servers](/cline-cli/configuration#mcp-server-configuration) | ✓ | ✓ |
+
+## MCP Server Support
+
+Cline CLI supports [MCP (Model Context Protocol)](/mcp/mcp-overview) servers, the same extensibility system available in the VS Code extension. MCP servers give Cline access to external tools and data sources, from databases and APIs to browser automation and project management.
+
+To use MCP servers with the CLI, add your server configuration to `~/.cline/data/settings/cline_mcp_settings.json`. The format is identical to the VS Code extension.
+
+[Configure MCP servers for the CLI →](/cline-cli/configuration#mcp-server-configuration)
 
 ## Learn More
 

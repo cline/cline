@@ -455,6 +455,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		)
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+				const isSelectAllShortcut =
+					(event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "a"
+				if (isSelectAllShortcut) {
+					event.preventDefault()
+					event.stopPropagation()
+					const textArea = event.currentTarget
+					textArea.setSelectionRange(0, textArea.value.length)
+					setCursorPosition(0)
+					return
+				}
+
 				if (showSlashCommandsMenu) {
 					if (event.key === "Escape") {
 						setShowSlashCommandsMenu(false)

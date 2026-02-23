@@ -36,7 +36,9 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: "lts/*"
+                  # Keep publish environment aligned with test workflow/tooling lockfile expectations.
+                  # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
+                  node-version: 22
 
             - name: Install root dependencies
               run: npm ci --include=optional

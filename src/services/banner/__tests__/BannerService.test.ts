@@ -14,6 +14,7 @@ import { HostRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { mockFetchForTesting } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "../BannerService"
 
@@ -31,6 +32,7 @@ describe("BannerService", () => {
 
 	let mockedPostStateToWebview: sinon.SinonStub
 	let mockController: Controller
+	let flagPayloadStub: sinon.SinonStub
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -45,6 +47,11 @@ describe("BannerService", () => {
 
 		// Mock feature flag service to enable remote banners
 		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").returns(true)
+		flagPayloadStub = sandbox
+			.stub(getFeatureFlagsService(), "getFlagPayload")
+			.callsFake((flag: FeatureFlag) =>
+				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? 24 * 60 * 60 * 1000 : undefined,
+			)
 
 		// Default state manager configuration
 		mockStateManagerConfig = {
@@ -165,8 +172,11 @@ describe("BannerService", () => {
 			})
 		})
 
-		it("should cache banners for 24 hours", async () => {
+		it("should cache banners for the configured hours from PostHog", async () => {
 			const clock = sandbox.useFakeTimers(Date.now())
+			flagPayloadStub.callsFake((flag: FeatureFlag) =>
+				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? 4 * 60 * 60 * 1000 : undefined,
+			)
 
 			const mockResponse = {
 				data: {
@@ -205,13 +215,57 @@ describe("BannerService", () => {
 				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
-				// After 23 hours total, still uses cache
-				await clock.tickAsync(22 * 60 * 60 * 1000)
+				// After 3 hours total, still uses cache
+				await clock.tickAsync(2 * 60 * 60 * 1000)
 				bannerService.getActiveBanners()
 				await clock.tickAsync(0)
 				expect(mockFetch.callCount).to.equal(1)
 
-				// After 25 hours total, cache expired, triggers new background fetch
+				// After 5 hours total, cache expired, triggers new background fetch
+				await clock.tickAsync(2 * 60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
+				expect(mockFetch.callCount).to.equal(2)
+			})
+
+			clock.restore()
+		})
+
+		it("should fall back to 24 hours when payload is invalid", async () => {
+			const clock = sandbox.useFakeTimers(Date.now())
+			flagPayloadStub.callsFake((flag: FeatureFlag) =>
+				flag === FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL ? "invalid" : undefined,
+			)
+
+			const mockResponse = {
+				data: {
+					items: [
+						{
+							id: "bnr_cached",
+							titleMd: "Cached Banner",
+							bodyMd: "Test",
+							severity: "info" as const,
+							placement: "top" as const,
+							rulesJson: "{}",
+						},
+					],
+				},
+			}
+
+			mockFetch.resolves(createSuccessResponse(mockResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
+				expect(mockFetch.callCount).to.equal(1)
+
+				await clock.tickAsync(23 * 60 * 60 * 1000)
+				bannerService.getActiveBanners()
+				await clock.tickAsync(0)
+				expect(mockFetch.callCount).to.equal(1)
+
 				await clock.tickAsync(2 * 60 * 60 * 1000)
 				bannerService.getActiveBanners()
 				await clock.tickAsync(0)
@@ -794,6 +848,155 @@ describe("BannerService", () => {
 				banners[0].actions!.forEach((action, index) => {
 					expect(action.action).to.equal(validActionTypes[index])
 				})
+			})
+		})
+	})
+
+	describe("IDE Type Detection", () => {
+		function stubHostInfo(overrides: { ide?: string; platform?: string }) {
+			;(HostRegistryInfo.get as sinon.SinonStub).returns({
+				extensionVersion: "1.0.0",
+				platform: overrides.platform ?? "darwin",
+				os: "darwin",
+				ide: overrides.ide ?? "vscode",
+				distinctId: "test-distinct-id",
+			})
+		}
+
+		async function getIdeParam(fetch: sinon.SinonStub): Promise<string> {
+			const url = new URL(fetch.getCall(fetch.callCount - 1).args[0])
+			return url.searchParams.get("ide") ?? ""
+		}
+
+		const emptyResponse = { data: { items: [] } }
+
+		it('should return "vscode" when ide contains "vscode"', async () => {
+			stubHostInfo({ ide: "vscode" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("vscode")
+			})
+		})
+
+		it('should return "vscode" when ide is "VSCode Extension" (case-insensitive)', async () => {
+			stubHostInfo({ ide: "VSCode Extension" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("vscode")
+			})
+		})
+
+		it('should return "jetbrains" when ide contains "jetbrains"', async () => {
+			stubHostInfo({ ide: "jetbrains" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("jetbrains")
+			})
+		})
+
+		it('should return "jetbrains" when ide is "Cline for JetBrains" (case-insensitive)', async () => {
+			stubHostInfo({ ide: "Cline for JetBrains" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("jetbrains")
+			})
+		})
+
+		it('should return "cli" when ide contains "cli"', async () => {
+			stubHostInfo({ ide: "cli" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("cli")
+			})
+		})
+
+		it('should fall back to "vscode" when ide is empty but platform contains "Visual Studio"', async () => {
+			stubHostInfo({ ide: "", platform: "Visual Studio Code 1.103.0" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("vscode")
+			})
+		})
+
+		it('should fall back to "vscode" when ide is empty but platform contains "vscode"', async () => {
+			stubHostInfo({ ide: "", platform: "vscode" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("vscode")
+			})
+		})
+
+		it('should return "unknown" when both ide and platform are unrecognized', async () => {
+			stubHostInfo({ ide: "some-random-ide", platform: "some-random-platform" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("unknown")
+			})
+		})
+
+		it('should return "unknown" when both ide and platform are empty', async () => {
+			stubHostInfo({ ide: "", platform: "" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("unknown")
+			})
+		})
+
+		it("should prefer ide field over platform field for detection", async () => {
+			stubHostInfo({ ide: "Cline for JetBrains", platform: "Visual Studio Code 1.103.0" })
+			mockFetch.resolves(createSuccessResponse(emptyResponse))
+
+			await mockFetchForTesting(mockFetch, async () => {
+				const bannerService = BannerService.initialize(mockController)
+				bannerService.getActiveBanners()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+
+				expect(await getIdeParam(mockFetch)).to.equal("jetbrains")
 			})
 		})
 	})
