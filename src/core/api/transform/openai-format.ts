@@ -37,15 +37,15 @@ function isOpenAIResponseToolId(callId: string): boolean {
  * @param provider - The API provider that the OpenAI formatted messages will be sent to
  * @returns The transformed ID suitable for OpenAI API
  */
-function transformToolCallId(toolId: string, provider?: ApiProvider): string {
-	if (provider !== "openai-native") {
-		return toolId
-	}
+function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider): string {
 	// OpenAI Responses API uses "fc_" prefix with 53 char length
 	// Convert these to "call_" prefix format for Chat Completions API
 	if (isOpenAIResponseToolId(toolId)) {
 		// Use the last 33 chars + "call_" (5 chars) to stay under the 40-char limit.
 		return `call_${toolId.slice(toolId.length - (MAX_TOOL_CALL_ID_LENGTH - 5))}`
+	}
+	if (provider !== "openai-native") {
+		return toolId
 	}
 	// Ensure ID doesn't exceed max length
 	if (toolId.length > MAX_TOOL_CALL_ID_LENGTH) {
@@ -128,7 +128,7 @@ export function convertToOpenAiMessages(
 						role: "tool",
 						// The tool_call_id must match the id used in the assistant's tool_calls array.
 						// Use the same transformation logic as tool_calls to ensure IDs match.
-						tool_call_id: transformToolCallId(toolMessage.tool_use_id, provider),
+						tool_call_id: transformToolCallIdForNativeApi(toolMessage.tool_use_id, provider),
 						content: content,
 					})
 				})
@@ -241,7 +241,7 @@ export function convertToOpenAiMessages(
 
 					return {
 						// Use the same transformation as tool_call_id to ensure IDs match
-						id: transformToolCallId(toolId, provider),
+						id: transformToolCallIdForNativeApi(toolId, provider),
 						type: "function",
 						function: {
 							name: toolMessage.name,
