@@ -72,7 +72,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as string
 		return currentProvider || "cline"
-	}, [controller])
+	}, [])
 
 	// Get model ID based on current mode and provider
 	// Different providers use different state keys (e.g., cline uses actModeOpenRouterModelId)
@@ -165,7 +165,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onSubmit, onExit, cont
 				clearTimeout(r.searchTimeout)
 			}
 		}
-	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath])
+	}, [mentionInfo.inMentionMode, mentionInfo.query, workspacePath, mentionInfo])
 
 	useInput(
 		(input, key) => {

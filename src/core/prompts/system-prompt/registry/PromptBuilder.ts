@@ -112,7 +112,7 @@ export class PromptBuilder {
 				const beforeContext = string.substring(Math.max(0, offset - 50), offset)
 				const afterContext = string.substring(offset, Math.min(string.length, offset + 50))
 				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
-				return isDiffLike ? match : prevChar + "\n\n" + match.substring(1).replace(/\n/, "")
+				return isDiffLike ? match : `${prevChar}\n\n${match.substring(1).replace(/\n/, "")}`
 			})
 			.replace(/\n\s*\n\s*\n/g, "\n\n") // Clean up any multiple empty lines created by header removal
 			.trim() // Final trim to remove any whitespace added by regex operations

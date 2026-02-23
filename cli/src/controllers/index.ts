@@ -182,7 +182,6 @@ export class CliWindowServiceClient implements WindowServiceClientInterface {
 			case proto.host.ShowMessageType.WARNING:
 				printWarning(message)
 				break
-			case proto.host.ShowMessageType.INFORMATION:
 			default:
 				printInfo(message)
 				break

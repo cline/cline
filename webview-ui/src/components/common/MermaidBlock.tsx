@@ -87,7 +87,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 	// 1) Whenever `code` changes, mark that we need to re-render a new chart
 	useEffect(() => {
 		setIsLoading(true)
-	}, [code])
+	}, [])
 
 	// 2) Debounce the actual parse/render
 	useDebounceEffect(

@@ -591,8 +591,7 @@ export class Task {
 			const lastMessage = clineMessages.at(-1)
 			const lastMessageIndex = clineMessages.length - 1
 
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
+			const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -728,8 +727,7 @@ export class Task {
 
 		if (partial !== undefined) {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
+			const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage.type === "say" && lastMessage.say === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
@@ -2475,7 +2473,7 @@ export class Task {
 		await this.say(
 			"api_req_started",
 			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+				request: `${userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n")}\n\nLoading...`,
 			}),
 		)
 
@@ -2732,7 +2730,7 @@ export class Task {
 					// Present content once per chunk. Calling this from multiple case branches can
 					// race partial updates and duplicate text rows in the chat.
 					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
+						Logger.debug(`[Task] Failed to present message: ${error}`),
 					)
 
 					if (this.taskState.abort) {
@@ -3287,7 +3285,7 @@ export class Task {
 		}
 
 		// Add primary workspace information
-		const primary = this.workspaceManager!.getPrimaryRoot()
+		const primary = this.workspaceManager?.getPrimaryRoot()
 		const primaryName = this.getPrimaryWorkspaceName(primary)
 		section += `\n\nPrimary workspace: ${primaryName}`
 

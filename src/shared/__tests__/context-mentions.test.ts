@@ -215,7 +215,7 @@ describe("Mention Regex", () => {
 			cases.forEach(([input, expected]) => {
 				const match = mentionRegex.exec(input)
 				const actual = match ? match[0] : null
-				if (expected && expected.includes("41 chars")) {
+				if (expected?.includes("41 chars")) {
 					// Special case: should match first 40 chars
 					expect(actual).to.equal("@abcdef1234567890abcdef1234567890abcdef12")
 				} else {

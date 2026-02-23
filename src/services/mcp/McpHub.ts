@@ -136,7 +136,7 @@ export class McpHub {
 		// Generate a short 6-character unique ID for the server
 		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
 		// Only use the first 5 characters of nanoid to keep it short
-		const uid = "c" + nanoid(5)
+		const uid = `c${nanoid(5)}`
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
@@ -447,7 +447,7 @@ export class McpHub {
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: !!expandedConfig.headers?.["Authorization"],
+						withCredentials: !!expandedConfig.headers?.Authorization,
 						// IMPORTANT: Custom fetch function is required for SSE with OAuth
 						// When we provide eventSourceInit, we override the SDK's default fetch
 						// The SDK's default would call _commonHeaders() for auth, but since we're
@@ -1342,7 +1342,7 @@ export class McpHub {
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection && connection.server.tools) {
+			if (connection?.server.tools) {
 				// Update the autoApprove property of each tool in the in-memory server object
 				connection.server.tools = connection.server.tools.map((tool) => ({
 					...tool,
@@ -1395,7 +1395,7 @@ export class McpHub {
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection && connection.server.tools) {
+			if (connection?.server.tools) {
 				// Update the autoApprove property of each tool in the in-memory server object
 				connection.server.tools = connection.server.tools.map((tool) => ({
 					...tool,

@@ -10,7 +10,6 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.NEW_TASK
-	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for creating a new task]`

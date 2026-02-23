@@ -117,7 +117,7 @@ export async function searchWorkspaceFiles(
 		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
 
 		for (const filePath of activeFilePaths) {
-			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(workspacePath + "/")) {
+			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(`${workspacePath}/`)) {
 				const relativePath = path.relative(workspacePath, filePath)
 				const normalizedPath = relativePath.replace(/\\/g, "/")
 				activeFiles.push({

@@ -76,7 +76,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 	const contextBar = createContextBar(totalTokens, contextWindowSize)
 
 	// Format model ID for display (shorten if needed)
-	const displayModel = modelId.length > 20 ? modelId.substring(0, 17) + "..." : modelId
+	const displayModel = modelId.length > 20 ? `${modelId.substring(0, 17)}...` : modelId
 
 	return (
 		<Box flexDirection="column">

@@ -149,7 +149,7 @@ function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTe
 		observer.observe(element)
 
 		return () => observer.disconnect()
-	}, [prompt, isExpanded])
+	}, [isExpanded])
 
 	return (
 		<div className="relative">

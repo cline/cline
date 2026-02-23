@@ -248,7 +248,7 @@ const SkillRow: React.FC<{ skill: SkillInfo; isSelected: boolean }> = ({ skill, 
 			{skill.description && (
 				<Box marginLeft={4}>
 					<Text color="gray">
-						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
+						{skill.description.length > 60 ? `${skill.description.slice(0, 57)}...` : skill.description}
 					</Text>
 				</Box>
 			)}

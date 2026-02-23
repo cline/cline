@@ -287,7 +287,7 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 		if (exists && !(await isDirectory(clinerulePath))) {
 			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
 			const content = await fs.readFile(clinerulePath, "utf8")
-			const tempPath = clinerulePath + ".bak"
+			const tempPath = `${clinerulePath}.bak`
 			await fs.rename(clinerulePath, tempPath) // create backup
 			try {
 				await fs.mkdir(clinerulePath, { recursive: true })

@@ -67,7 +67,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption])
 
 	// Load when filters change
 	useEffect(() => {
@@ -115,7 +115,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				}, 1000)
 			}
 		},
-		[showFavoritesOnly, loadTaskHistory],
+		[showFavoritesOnly, loadTaskHistory, showCurrentWorkspaceOnly],
 	)
 
 	// Use the onRelinquishControl hook instead of message event
@@ -199,7 +199,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		const results = searchQuery
 			? fuse
 					.search(searchQuery)
-					?.filter(({ matches }) => matches && matches.length)
+					?.filter(({ matches }) => matches?.length)
 					.map(({ item }) => item)
 			: tasks
 
@@ -220,7 +220,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				case "mostRelevant":
 					// NOTE: you must never sort directly on object since it will cause members to be reordered
 					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
-				case "newest":
 				default:
 					return b.ts - a.ts
 			}
@@ -529,7 +528,7 @@ export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassNam
 	}
 
 	return fuseSearchResult
-		.filter(({ matches }) => matches && matches.length)
+		.filter(({ matches }) => matches?.length)
 		.map(({ item, matches }) => {
 			const highlightedItem = { ...item }
 

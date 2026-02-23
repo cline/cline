@@ -142,7 +142,7 @@ export const useOpenRouterKeyInfo = (apiKey?: string) => {
 		return () => {
 			controller.abort()
 		}
-	}, [apiKey]) // Re-run effect only when apiKey changes
+	}, [apiKey, data]) // Re-run effect only when apiKey changes
 
 	return { data, isLoading, error }
 }

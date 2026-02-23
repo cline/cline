@@ -273,9 +273,6 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 		return {
 			contextModification: preCompactResult.contextModification,
 		}
-	} catch (error) {
-		// Re-throw error for caller to handle
-		throw error
 	} finally {
 		// Clean up temporary files - always executed regardless of success or error
 		// Wrap in try-catch to prevent cleanup failures from masking original errors

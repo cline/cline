@@ -89,7 +89,7 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 		if (newIsEnabled !== isEnabled) {
 			setIsEnabled(newIsEnabled)
 		}
-	}, [modeFields.thinkingBudgetTokens])
+	}, [modeFields.thinkingBudgetTokens, isEnabled, localValue])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = Number.parseInt(event.target.value, 10)

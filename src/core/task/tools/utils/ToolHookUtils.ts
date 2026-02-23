@@ -26,7 +26,7 @@ export class ToolHookUtils {
 			return true // Hooks disabled, continue execution
 		}
 
-		if (block.name == "attempt_completion") {
+		if (block.name === "attempt_completion") {
 			return true // Skip this hook
 		}
 

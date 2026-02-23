@@ -275,7 +275,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 	clearCommentsForFile(filePath: string): void {
 		const keysToRemove: string[] = []
 		for (const [key, thread] of this.threads.entries()) {
-			if (key.startsWith(filePath + ":")) {
+			if (key.startsWith(`${filePath}:`)) {
 				this.threadFilePaths.delete(thread)
 				thread.dispose()
 				keysToRemove.push(key)

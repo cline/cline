@@ -74,7 +74,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 			.catch((error) => {
 				console.error("Failed to fetch AIhubmix models:", error)
 			})
-	}, [])
+	}, [ensureSelectedPresent])
 
 	console.log("apiConfiguration", apiConfiguration)
 

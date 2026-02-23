@@ -24,7 +24,7 @@ export const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({ commands, se
 		if (maxLength <= 0) return ""
 		if (text.length <= maxLength) return text
 		if (maxLength <= 3) return text.slice(0, maxLength)
-		return text.slice(0, maxLength - 3) + "..."
+		return `${text.slice(0, maxLength - 3)}...`
 	}
 
 	if (commands.length === 0) {

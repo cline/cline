@@ -137,7 +137,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		} finally {
 			setIsProcessing(false)
 		}
-	}, [onTranscription, onProcessingStateChange])
+	}, [onTranscription, onProcessingStateChange, language])
 
 	// Poll recording status while recording to update duration
 	useEffect(() => {

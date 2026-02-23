@@ -115,7 +115,7 @@ const Header: React.FC<{
 	const isCompleted = completedCount === totalCount
 
 	const displayText = isCompleted ? "All tasks completed!" : currentTodo?.text || "To-Do list"
-	const truncatedText = displayText.length > 50 ? displayText.substring(0, 47) + "..." : displayText
+	const truncatedText = displayText.length > 50 ? `${displayText.substring(0, 47)}...` : displayText
 
 	return (
 		<Box flexDirection="row" gap={1}>

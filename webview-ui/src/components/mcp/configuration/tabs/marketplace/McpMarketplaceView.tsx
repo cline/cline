@@ -8,7 +8,7 @@ import {
 	VSCodeRadioGroup,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import McpMarketplaceCard from "./McpMarketplaceCard"
@@ -59,10 +59,38 @@ const McpMarketplaceView = () => {
 			})
 	}, [items, searchQuery, selectedCategory, sortBy])
 
+	const fetchMarketplace = useCallback(
+		(forceRefresh = false) => {
+			if (forceRefresh) {
+				setIsRefreshing(true)
+			} else {
+				setIsLoading(true)
+			}
+			setError(null)
+
+			if (showMarketplace) {
+				McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
+					.then((response) => {
+						setMcpMarketplaceCatalog(response)
+					})
+					.catch((error) => {
+						console.error("Error refreshing MCP marketplace:", error)
+						setError("Failed to load marketplace data")
+						setIsLoading(false)
+						setIsRefreshing(false)
+					})
+			}
+		},
+		[showMarketplace, setMcpMarketplaceCatalog],
+	)
+
 	useEffect(() => {
 		// Fetch marketplace catalog on initial load
 		fetchMarketplace()
-	}, [])
+	}, [
+		// Fetch marketplace catalog on initial load
+		fetchMarketplace,
+	])
 
 	useEffect(() => {
 		// Update loading state when catalog arrives
@@ -72,28 +100,6 @@ const McpMarketplaceView = () => {
 			setError(null)
 		}
 	}, [mcpMarketplaceCatalog])
-
-	const fetchMarketplace = (forceRefresh = false) => {
-		if (forceRefresh) {
-			setIsRefreshing(true)
-		} else {
-			setIsLoading(true)
-		}
-		setError(null)
-
-		if (showMarketplace) {
-			McpServiceClient.refreshMcpMarketplace(EmptyRequest.create({}))
-				.then((response) => {
-					setMcpMarketplaceCatalog(response)
-				})
-				.catch((error) => {
-					console.error("Error refreshing MCP marketplace:", error)
-					setError("Failed to load marketplace data")
-					setIsLoading(false)
-					setIsRefreshing(false)
-				})
-		}
-	}
 
 	if (isLoading || isRefreshing) {
 		return (

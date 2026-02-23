@@ -176,7 +176,7 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 
 				// Only add rows with actual content
 				if (hasContent) {
-					excelText += rowTexts.join("\t") + "\n"
+					excelText += `${rowTexts.join("\t")}\n`
 				}
 
 				return true

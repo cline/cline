@@ -68,5 +68,5 @@ export const parsePrice = (value: string, defaultValue: number): number => {
 		return defaultValue
 	}
 	const num = Number.parseFloat(value)
-	return isNaN(num) ? defaultValue : num
+	return Number.isNaN(num) ? defaultValue : num
 }

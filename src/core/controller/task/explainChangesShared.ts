@@ -246,7 +246,7 @@ Output your explanation comments now using the @@@ format:`
 
 					// If we're in a comment, stream the text
 					if (inComment) {
-						onCommentChunk(line + "\n")
+						onCommentChunk(`${line}\n`)
 					}
 				}
 

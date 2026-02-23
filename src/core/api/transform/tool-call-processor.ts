@@ -79,7 +79,7 @@ export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCall
 		? {
 				tools,
 				tool_choice: tools ? ("auto" as ChatCompletionToolChoiceOption) : undefined,
-				parallel_tool_calls: enableParallelToolCalls ? true : false,
+				parallel_tool_calls: !!enableParallelToolCalls,
 			}
 		: {
 				tools: undefined,

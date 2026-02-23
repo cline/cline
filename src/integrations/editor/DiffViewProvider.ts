@@ -26,8 +26,6 @@ export abstract class DiffViewProvider {
 	private streamedLines: string[] = []
 	private newContent?: string
 
-	constructor() {}
-
 	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
 		this.isEditing = true
 		const cwd = await getCwd()
