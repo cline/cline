@@ -4,7 +4,7 @@
 
 ### Added
 
-- Improve Cline SDK API surface with better public types and messaging
+- Added Cline SDK API interface for programmatic access to Cline features and tools, enabling integration into custom applications.
 
 ### Fixed
 
