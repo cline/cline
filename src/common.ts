@@ -1,4 +1,3 @@
-import type * as vscode from "vscode"
 import { WebviewProvider } from "./core/webview"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
@@ -10,6 +9,7 @@ import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnb
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
+import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
@@ -24,8 +24,6 @@ import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
 import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
-
-type SlimExtensionContext = Omit<vscode.ExtensionContext, "globalState" | "secrets" | "workspaceState">
 
 /**
  * Performs intialization for Cline that is common to all platforms.
@@ -157,6 +155,7 @@ export async function tearDown(): Promise<void> {
 	// Clean up audio recording service to ensure no orphaned processes
 	audioRecordingService.cleanup()
 
+	AgentConfigLoader.getInstance()?.dispose()
 	PostHogClientProvider.getInstance().dispose()
 	telemetryService.dispose()
 	ErrorService.get().dispose()

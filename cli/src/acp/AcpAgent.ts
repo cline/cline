@@ -15,7 +15,7 @@
 import type * as acp from "@agentclientprotocol/sdk"
 import { Logger } from "@/shared/services/Logger.js"
 import { ClineAgent } from "../agent/ClineAgent.js"
-import type { AcpAgentOptions, SessionUpdateType } from "../agent/types.js"
+import { type AcpAgentOptions, type SessionUpdateType } from "../agent/types.js"
 
 /**
  * ACP Agent wrapper that bridges stdio connection to ClineAgent.
@@ -39,35 +39,19 @@ export class AcpAgent implements acp.Agent {
 		this.clineAgent = new ClineAgent(options)
 
 		// Wire up the permission handler to use the connection
-		this.clineAgent.setPermissionHandler(async (request, resolve) => {
+		this.clineAgent.setPermissionHandler(async (request) => {
 			try {
 				Logger.debug("[AcpAgent] Forwarding permission request to connection")
-				const response = await this.connection.requestPermission({
-					sessionId: this.getCurrentSessionId() ?? "",
+				return await this.connection.requestPermission({
+					sessionId: request.sessionId,
 					toolCall: request.toolCall,
 					options: request.options,
 				})
-				resolve(response)
 			} catch (error) {
 				Logger.debug("[AcpAgent] Error requesting permission:", error)
-				resolve({ outcome: "rejected" as unknown as acp.RequestPermissionOutcome })
+				return { outcome: { outcome: "cancelled" } }
 			}
 		})
-	}
-
-	/**
-	 * Get the current active session ID from the ClineAgent.
-	 */
-	private getCurrentSessionId(): string | undefined {
-		// Find the session that's currently processing
-		for (const [sessionId, session] of this.clineAgent.sessions) {
-			if (session.controller?.task) {
-				return sessionId
-			}
-		}
-		// Fall back to the first session if none is actively processing
-		const firstSession = this.clineAgent.sessions.keys().next()
-		return firstSession.done ? undefined : firstSession.value
 	}
 
 	/**

@@ -2482,6 +2482,7 @@ export class Task {
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
 			content: userContent,
+			ts: Date.now(),
 		})
 
 		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", modelInfo.mode)
@@ -2570,6 +2571,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					ts: Date.now(),
 				})
 
 				telemetryService.captureConversationTurnEvent(
@@ -2645,6 +2647,13 @@ export class Task {
 
 			try {
 				for await (const chunk of stream) {
+					if (
+						!this.taskState.taskFirstTokenTimeMs &&
+						(chunk.type === "text" || chunk.type === "reasoning" || chunk.type === "tool_calls")
+					) {
+						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
+					}
+
 					switch (chunk.type) {
 						case "usage":
 							this.streamHandler.setRequestId(chunk.id)
@@ -2940,6 +2949,7 @@ export class Task {
 							},
 							cost: taskMetrics.totalCost,
 						},
+						ts: Date.now(),
 					})
 				}
 			}
@@ -3032,6 +3042,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					ts: Date.now(),
 				})
 
 				let response: ClineAskResponse

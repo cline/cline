@@ -5,8 +5,8 @@ import {
 	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet461mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
@@ -160,7 +160,7 @@ export async function createOpenRouterStream(
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
-	if (model.id.startsWith("google/gemini-3.0") || model.id === "google/gemini-3.0") {
+	if (model.id.startsWith("google/gemini-3")) {
 		// Recommended value from google
 		temperature = 1.0
 	}
