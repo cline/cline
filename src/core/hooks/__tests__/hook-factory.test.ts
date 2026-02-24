@@ -339,7 +339,7 @@ console.log(JSON.stringify({
 			found.should.equal(ps1Path)
 		})
 
-		it("should prefer extensionless hook over .ps1 on windows", async () => {
+		it("should ignore extensionless hook and resolve .ps1 on windows", async () => {
 			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
 			const extensionless = path.join(hooksDir, "PreToolUse")
 			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
@@ -355,9 +355,24 @@ console.log(JSON.stringify({
 			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			should.exist(found)
 			if (!found) {
-				throw new Error("Expected extensionless hook to be resolved")
+				throw new Error("Expected .ps1 hook to be resolved")
 			}
-			found.should.equal(extensionless)
+			found.should.equal(ps1Path)
+		})
+
+		it("should ignore .ps1 hook on unix-like platforms", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
+			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+
+			Object.defineProperty(process, "platform", {
+				value: "linux",
+				writable: true,
+				configurable: true,
+			})
+
+			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
+			should.not.exist(found)
 		})
 
 		it("should find executable hook", async () => {

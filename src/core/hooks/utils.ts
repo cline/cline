@@ -72,21 +72,18 @@ export async function resolveHooksDirectory(
 /**
  * Resolves the active hook file path for a given hook name.
  *
- * On Windows, supports both canonical and PowerShell-native naming with deterministic precedence:
- * 1) <HookName>
- * 2) <HookName>.ps1
+ * On Windows, only PowerShell-native naming is supported:
+ * - <HookName>.ps1
  *
- * On Unix-like platforms, only canonical extensionless names are considered.
+ * On Unix-like platforms (Linux/macOS), only canonical extensionless names are considered:
+ * - <HookName>
  *
  * @param hooksDir Directory containing hook files
  * @param hookName Hook type/name to resolve
  * @returns Resolved absolute file path if present, otherwise undefined
  */
 export async function resolveExistingHookPath(hooksDir: string, hookName: string): Promise<string | undefined> {
-	const candidates =
-		process.platform === "win32"
-			? [path.join(hooksDir, hookName), path.join(hooksDir, `${hookName}.ps1`)]
-			: [path.join(hooksDir, hookName)]
+	const candidates = process.platform === "win32" ? [path.join(hooksDir, `${hookName}.ps1`)] : [path.join(hooksDir, hookName)]
 
 	for (const candidate of candidates) {
 		if (await isRegularFile(candidate)) {

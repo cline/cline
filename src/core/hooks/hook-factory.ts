@@ -915,8 +915,10 @@ export class HookFactory {
 	}
 
 	/**
-	 * Finds a hook on Windows by checking for a hook file with the canonical hook name.
-	 * Hooks are extensionless by design (`HookName`) for parity with existing Unix naming.
+	 * Finds a hook on Windows by checking for a PowerShell hook file (`<HookName>.ps1`).
+	 *
+	 * Extensionless hooks are intentionally ignored on Windows. This keeps platform behavior
+	 * explicit and avoids ambiguity with Unix-style executable hooks.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the hooks directory path to search
@@ -924,21 +926,8 @@ export class HookFactory {
 	 * @throws Error if an unexpected file system error occurs
 	 */
 	private static async findWindowsHook(hookName: HookName, hooksDir: string): Promise<string | undefined> {
-		const extensionless = path.join(hooksDir, hookName)
 		const powerShell = path.join(hooksDir, `${hookName}.ps1`)
-
-		const extensionlessExists = await HookFactory.isHookFile(extensionless, hookName)
 		const powerShellExists = await HookFactory.isHookFile(powerShell, hookName)
-
-		if (extensionlessExists && powerShellExists) {
-			Logger.warn(
-				`[HookFactory] Both '${hookName}' and '${hookName}.ps1' exist in '${hooksDir}'. Using '${hookName}' due to precedence.`,
-			)
-		}
-
-		if (extensionlessExists) {
-			return extensionless
-		}
 
 		if (powerShellExists) {
 			return powerShell
