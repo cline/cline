@@ -12,6 +12,8 @@ export enum FeatureFlag {
 	// Feature flag for DB-backed welcome banners (What's New modal)
 	// When off, hardcoded welcome items are shown instead
 	REMOTE_WELCOME_BANNERS = "remote-welcome-banners",
+	// Feature flag for upstream Cline recommended model cards
+	CLINE_RECOMMENDED_MODELS_UPSTREAM = "cline-recommended-models-upstream",
 	// Use the websocket mode for OpenAI native Responses API format
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
 }
@@ -23,6 +25,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.REMOTE_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
 	[FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL]: 24 * 60 * 60 * 1000,
 	[FeatureFlag.REMOTE_WELCOME_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
+	[FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM]: false,
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
 }
 

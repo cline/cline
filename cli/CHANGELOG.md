@@ -1,5 +1,18 @@
 # cline
 
+## 2.4.3
+
+### Added
+
+- Add /q command to quit CLI
+- Fetch featured models from backend with local fallback
+
+### Fixed
+
+- Fix auth check for ACP mode
+- Fix Cline auth with ACP flag
+- Fix yolo mode to not persist yolo setting to disk
+
 ## 2.4.2
 
 ### Added

@@ -122,7 +122,12 @@ export class OpenRouterHandler implements ApiHandler {
 
 			// Reasoning tokens are returned separately from the content
 			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+			if (
+				delta &&
+				"reasoning" in delta &&
+				delta.reasoning &&
+				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+			) {
 				yield {
 					type: "reasoning",
 					reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -132,6 +137,7 @@ export class OpenRouterHandler implements ApiHandler {
 			// OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
 			// See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
 			if (
+				delta &&
 				"reasoning_details" in delta &&
 				delta.reasoning_details &&
 				// @ts-expect-error-next-line

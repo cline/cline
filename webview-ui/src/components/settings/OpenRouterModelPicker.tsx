@@ -1,4 +1,5 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
@@ -59,59 +60,16 @@ interface FeaturedModelCardEntry {
 }
 
 // Featured models for Cline provider organized by tabs
-const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
-	{
-		id: "google/gemini-3.1-pro-preview",
-		description: "Latest Gemini release with 1m ctx window and strong coding performance",
-		label: "NEW",
-	},
-	{
-		id: "anthropic/claude-sonnet-4.6",
-		description: "Latest Sonnet release with strong coding and agent performance",
-		label: "NEW",
-	},
-	{
-		id: "anthropic/claude-opus-4.6",
-		description: "Most intelligent model for agents and coding",
-		label: "BEST",
-	},
-	{
-		id: "openai/gpt-5.2-codex",
-		description: "OpenAI's latest with strong coding abilities",
-		label: "HOT",
-	},
-]
-
-const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
-	{
-		id: "minimax/minimax-m2.5",
-		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
-		label: "FREE",
-	},
-	{
-		id: "z-ai/glm-5",
-		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
-		label: "FREE",
-	},
-	{
-		id: "kwaipilot/kat-coder-pro",
-		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
-		label: "FREE",
-	},
-	{
-		id: "arcee-ai/trinity-large-preview:free",
-		description: "Arcee AI's advanced large preview model in the Trinity series",
-		label: "FREE",
-	},
-]
-
 const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
 
 function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: string): FeaturedModelCardEntry | null {
+function toFeaturedModelCardEntry(
+	model: Pick<ClineRecommendedModel, "id" | "description" | "tags">,
+	fallbackLabel: string,
+): FeaturedModelCardEntry | null {
 	if (!model.id) {
 		return null
 	}
@@ -125,6 +83,14 @@ function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: s
 		label: normalizedLabel || fallbackLabel,
 	}
 }
+
+const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.recommended
+	.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
+	.filter((model): model is FeaturedModelCardEntry => model !== null)
+
+const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.free
+	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
+	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 	isPopup,

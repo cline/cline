@@ -54,16 +54,19 @@ import { AuthService } from "@/services/auth/AuthService.js"
 import { Logger } from "@/shared/services/Logger.js"
 import type { Mode } from "@/shared/storage/types"
 import { openExternal } from "@/utils/env"
+import { version as AGENT_VERSION } from "../../package.json"
 import { ACPDiffViewProvider } from "../acp/ACPDiffViewProvider.js"
 import { ACPHostBridgeClientProvider } from "../acp/ACPHostBridgeClientProvider.js"
 import { AcpTerminalManager } from "../acp/AcpTerminalManager.js"
-import { isAuthConfigured } from "../index.js"
+import { isAuthConfigured } from "../utils/auth"
 import { fetchOpenRouterModels, usesOpenRouterModels } from "../utils/openrouter-models"
 import { CliContextResult, initializeCliContext } from "../vscode-context.js"
 import { ClineSessionEmitter } from "./ClineSessionEmitter.js"
 import { translateMessage } from "./messageTranslator.js"
 import { handlePermissionResponse } from "./permissionHandler.js"
-import type { AcpSessionState, ClineAcpSession, ClineAgentOptions, PermissionHandler } from "./types.js"
+import type { ClineAcpSession, ClineAgentOptions, PermissionHandler } from "./public-types.js"
+import { AcpSessionStatus } from "./public-types.js"
+import { type AcpSessionState } from "./types.js"
 
 // Map providers to their static model lists and defaults (copied from ModelPicker.tsx)
 const providerModels: Record<string, { models: Record<string, unknown>; defaultId: string }> = {
@@ -104,7 +107,12 @@ function getModelList(provider: string): string[] {
 export class ClineAgent implements acp.Agent {
 	private readonly options: ClineAgentOptions
 	private readonly ctx: CliContextResult
-	readonly sessions: Map<string, ClineAcpSession> = new Map()
+
+	/** Map of active sessions by session ID */
+	public readonly sessions: Map<string, ClineAcpSession> = new Map()
+
+	/** WeakMap to associate ClineAcpSession with its Controller without exposing it to consumers */
+	readonly #sessionControllers = new WeakMap<ClineAcpSession, Controller>()
 
 	/** Runtime state for active sessions */
 	private readonly sessionStates: Map<string, AcpSessionState> = new Map()
@@ -132,7 +140,7 @@ export class ClineAgent implements acp.Agent {
 
 	constructor(options: ClineAgentOptions) {
 		this.options = options
-		this.ctx = initializeCliContext()
+		this.ctx = initializeCliContext({ clineDir: options.clineDir })
 	}
 
 	/**
@@ -194,7 +202,7 @@ export class ClineAgent implements acp.Agent {
 			},
 			agentInfo: {
 				name: "cline",
-				version: this.options.version,
+				version: AGENT_VERSION,
 			},
 			authMethods: [
 				{
@@ -226,7 +234,7 @@ export class ClineAgent implements acp.Agent {
 			clientCapabilities,
 			() => this.currentActiveSessionId,
 			() => this.sessions.get(this.currentActiveSessionId ?? "")?.cwd ?? process.cwd(),
-			this.options.version,
+			AGENT_VERSION,
 		)
 
 		HostProvider.initialize(
@@ -289,16 +297,16 @@ export class ClineAgent implements acp.Agent {
 			mcpServers: params.mcpServers ?? [],
 			createdAt: Date.now(),
 			lastActivityAt: Date.now(),
-			controller,
 		}
+
+		this.#sessionControllers.set(session, controller)
 
 		this.sessions.set(sessionId, session)
 
 		// Initialize session state
 		const sessionState: AcpSessionState = {
 			sessionId,
-			isProcessing: false,
-			cancelled: false,
+			status: AcpSessionStatus.Idle,
 			pendingToolCalls: new Map(),
 		}
 
@@ -435,11 +443,11 @@ export class ClineAgent implements acp.Agent {
 	 *
 	 * The prompt flow:
 	 * 1. Extract content from the ACP prompt (text, images, files)
-	 * 2. Set up state broadcasting (subscribe to controller updates)
-	 * 3. Initialize or continue task with Controller
+	 * 2. Set up internal cline state subsription
+	 * 3. Initialize or continue cline task
 	 * 4. Translate ClineMessages to ACP SessionUpdates
 	 * 5. Handle permission requests for tools/commands
-	 * 6. Return when task completes, is cancelled, or needs user input
+	 * 6. Return when cline task completes, is cancelled, or needs user input
 	 */
 	async prompt(params: acp.PromptRequest): Promise<acp.PromptResponse> {
 		const session = this.sessions.get(params.sessionId)
@@ -449,11 +457,11 @@ export class ClineAgent implements acp.Agent {
 			throw new Error(`Session not found: ${params.sessionId}`)
 		}
 
-		if (sessionState.isProcessing) {
+		if (sessionState.status === AcpSessionStatus.Processing) {
 			throw new Error(`Session ${params.sessionId} is already processing a prompt`)
 		}
 
-		const controller = session.controller
+		const controller = this.#sessionControllers.get(session)
 		if (!controller) {
 			throw new Error("Controller not initialized for session. This is a bug in the ACP agent setup.")
 		}
@@ -464,8 +472,7 @@ export class ClineAgent implements acp.Agent {
 		})
 
 		// Mark session as processing and set as current active session
-		sessionState.isProcessing = true
-		sessionState.cancelled = false
+		sessionState.status = AcpSessionStatus.Processing
 		session.lastActivityAt = Date.now()
 		this.currentActiveSessionId = params.sessionId
 
@@ -586,7 +593,7 @@ export class ClineAgent implements acp.Agent {
 					Logger.debug("[ClineAgent] Error during cleanup:", error)
 				}
 			}
-			sessionState.isProcessing = false
+			sessionState.status = AcpSessionStatus.Idle
 		}
 	}
 
@@ -648,7 +655,13 @@ export class ClineAgent implements acp.Agent {
 		permissionRequest: Omit<acp.RequestPermissionRequest, "sessionId">,
 	): Promise<void> {
 		const session = this.sessions.get(sessionId)
-		const controller = session?.controller
+
+		if (!session) {
+			Logger.debug("[ClineAgent] No session found for permission request")
+			return
+		}
+
+		const controller = this.#sessionControllers.get(session)
 
 		if (!controller?.task) {
 			Logger.debug("[ClineAgent] No active task for permission request")
@@ -829,7 +842,7 @@ export class ClineAgent implements acp.Agent {
 
 				await this.emitSessionUpdate(sessionId, {
 					sessionUpdate,
-					content: { type: "text", text: needsNewline ? "\n" + textDelta : textDelta },
+					content: { type: "text", text: needsNewline ? `\n${textDelta}` : textDelta },
 				})
 			}
 
@@ -882,18 +895,22 @@ export class ClineAgent implements acp.Agent {
 	 */
 	async cancel(params: acp.CancelNotification): Promise<void> {
 		const session = this.sessions.get(params.sessionId)
+		if (!session) {
+			Logger.debug("[ClineAgent] cancel called for non-existent session:", params.sessionId)
+			return
+		}
 		const sessionState = this.sessionStates.get(params.sessionId)
 
 		Logger.debug("[ClineAgent] cancel called:", {
 			sessionId: params.sessionId,
-			isProcessing: sessionState?.isProcessing,
+			status: sessionState?.status,
 		})
 
 		if (sessionState) {
-			sessionState.cancelled = true
+			sessionState.status = AcpSessionStatus.Cancelled
 
 			// If we have an active controller task, cancel it
-			const controller = session?.controller
+			const controller = this.#sessionControllers.get(session)
 			if (controller?.task) {
 				try {
 					await controller.cancelTask()
@@ -934,7 +951,7 @@ export class ClineAgent implements acp.Agent {
 		session.lastActivityAt = Date.now()
 
 		// Update Controller mode if active
-		const controller = session.controller
+		const controller = this.#sessionControllers.get(session)
 		if (controller) {
 			controller.stateManager.setGlobalState("mode", session.mode)
 
@@ -1065,7 +1082,7 @@ export class ClineAgent implements acp.Agent {
 	 * @returns The permission response from the client
 	 */
 	protected async requestPermission(
-		_sessionId: string,
+		sessionId: string,
 		toolCall: acp.ToolCallUpdate,
 		options: acp.PermissionOption[],
 	): Promise<acp.RequestPermissionResponse> {
@@ -1080,17 +1097,15 @@ export class ClineAgent implements acp.Agent {
 			return { outcome: "rejected" as unknown as acp.RequestPermissionOutcome }
 		}
 
-		// Use the permission handler callback pattern
-		return new Promise<acp.RequestPermissionResponse>((resolve) => {
-			this.permissionHandler!({ toolCall, options }, resolve)
-		})
+		return await this.permissionHandler({ sessionId, toolCall, options })
 	}
 
 	async shutdown(): Promise<void> {
 		for (const [sessionId, session] of this.sessions) {
-			await session.controller?.task?.abortTask()
-			await session.controller?.stateManager.flushPendingState()
-			await session.controller?.dispose()
+			const controller = this.#sessionControllers.get(session)
+			await controller?.task?.abortTask()
+			await controller?.stateManager.flushPendingState()
+			await controller?.dispose()
 			this.sessions.delete(sessionId)
 			this.sessionStates.delete(sessionId)
 		}
