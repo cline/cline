@@ -6,25 +6,15 @@ import path from "path"
 import sinon from "sinon"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { loadFixture } from "./test-utils"
+import { loadFixture, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskComplete Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
 
-	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
@@ -57,7 +47,7 @@ describe("TaskComplete Hook", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -93,7 +83,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All metadata present")
+			result.contextModification?.should.equal("All metadata present")
 		})
 
 		it("should handle completion without command", async () => {
@@ -126,7 +116,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Command: ''")
+			result.contextModification?.should.equal("Command: ''")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -160,7 +150,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 
 		it("should receive result text for logging", async () => {
@@ -192,7 +182,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Result length: 75")
+			result.contextModification?.should.equal("Result length: 75")
 		})
 	})
 
@@ -224,7 +214,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskComplete hook executed successfully")
+			result.contextModification?.should.equal("TaskComplete hook executed successfully")
 		})
 
 		it("should capture contextModification for logging even though task is complete", async () => {
@@ -255,7 +245,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TASK_COMPLETE: Task 'test-task-id' finished")
+			result.contextModification?.should.equal("TASK_COMPLETE: Task 'test-task-id' finished")
 		})
 
 		it("should not block task completion when hook returns cancel: true", async () => {
@@ -287,7 +277,7 @@ console.log(JSON.stringify({
 			// Hook can return cancel: true, but it's ignored (task is already complete)
 			// This is similar to TaskCancel behavior
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Hook tried to block completion")
+			result.errorMessage?.should.equal("Hook tried to block completion")
 		})
 	})
 
@@ -404,8 +394,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Task complete/)
-			result.contextModification!.should.match(/WORKSPACE: Task complete/)
+			result.contextModification?.should.match(/GLOBAL: Task complete/)
+			result.contextModification?.should.match(/WORKSPACE: Task complete/)
 		})
 
 		it("should handle when global hook has error but workspace succeeds", async () => {
@@ -488,7 +478,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskComplete hook executed successfully")
+			result.contextModification?.should.equal("TaskComplete hook executed successfully")
 		})
 
 		it("should work with error fixture", async () => {
@@ -534,7 +524,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("COMPLETED: Build a todo app")
+			result.contextModification?.should.equal("COMPLETED: Build a todo app")
 		})
 	})
 })

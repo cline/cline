@@ -7,26 +7,21 @@ import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
+import { writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	let originalPlatform: NodeJS.Platform
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
 	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
+		originalPlatform = process.platform
 		setDistinctId("test-id")
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -56,6 +51,11 @@ describe("Hook System", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+		Object.defineProperty(process, "platform", {
+			value: originalPlatform,
+			writable: true,
+			configurable: true,
+		})
 
 		// Clean up hook discovery cache
 		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
@@ -63,7 +63,7 @@ describe("Hook System", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -87,7 +87,11 @@ describe("Hook System", () => {
 	})
 
 	describe("StdioHookRunner", () => {
-		it("should execute workspace hook from its respective workspace root directory", async () => {
+		it("should execute workspace hook from its respective workspace root directory", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			// Create a test hook script that outputs the current working directory
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
@@ -115,7 +119,7 @@ console.log(JSON.stringify({
 			result.cancel.should.be.false()
 			// The hook should execute from its workspace root (tempDir)
 			// Use fs.realpath to normalize paths (handles macOS /private prefix)
-			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			const cwdFromHook = result.contextModification?.replace("CWD: ", "")
 			const normalizedCwd = await fs.realpath(cwdFromHook)
 			const normalizedTempDir = await fs.realpath(tempDir)
 			normalizedCwd.should.equal(normalizedTempDir)
@@ -146,7 +150,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TEST_CONTEXT: Added by hook")
+			result.contextModification?.should.equal("TEST_CONTEXT: Added by hook")
 		})
 
 		it("should handle script that blocks execution", async () => {
@@ -171,7 +175,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Hook blocked execution")
+			result.errorMessage?.should.equal("Hook blocked execution")
 		})
 
 		it("should truncate large context modifications", async () => {
@@ -197,8 +201,8 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.length.should.be.lessThan(60000)
-			result.contextModification!.should.match(/truncated due to size limit/)
+			result.contextModification?.length.should.be.lessThan(60000)
+			result.contextModification?.should.match(/truncated due to size limit/)
 		})
 
 		it("should handle script errors", async () => {
@@ -271,7 +275,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Received tool: my_test_tool")
+			result.contextModification?.should.equal("Received tool: my_test_tool")
 		})
 	})
 
@@ -301,11 +305,83 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Tool succeeded: true")
+			result.contextModification?.should.equal("Tool succeeded: true")
 		})
 	})
 
 	describe("Hook Discovery", () => {
+		it("should generate Windows PowerShell bridge files with real newlines", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const hookBasePath = path.join(hooksDir, "PreToolUse")
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			await writeHookScript(hookBasePath, "#!/usr/bin/env node\nprocess.exit(0)")
+
+			const ps1Content = await fs.readFile(`${hookBasePath}.ps1`, "utf-8")
+			ps1Content.should.match(/\n\$scriptPath = Join-Path/)
+			ps1Content.should.not.match(/`n\$scriptPath/)
+		})
+
+		it("should resolve .ps1 hook on windows", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
+			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
+			should.exist(found)
+			if (!found) {
+				throw new Error("Expected .ps1 hook to be resolved")
+			}
+			found.should.equal(ps1Path)
+		})
+
+		it("should ignore extensionless hook on windows and use .ps1 only", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const extensionless = path.join(hooksDir, "PreToolUse")
+			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
+			await fs.writeFile(extensionless, "Write-Output '{\"cancel\":false}'")
+			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
+			should.exist(found)
+			if (!found) {
+				throw new Error("Expected .ps1 hook to be resolved")
+			}
+			found.should.equal(ps1Path)
+		})
+
+		it("should ignore .ps1 hook on unix-like platforms", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
+			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+
+			Object.defineProperty(process, "platform", {
+				value: "linux",
+				writable: true,
+				configurable: true,
+			})
+
+			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
+			should.not.exist(found)
+		})
+
 		it("should find executable hook", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
@@ -415,28 +491,25 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 	})
 
 	describe("Global Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			// Mock getAllHooksDirs to include our test global directory
+			// Mock getAllHooksDirs with deterministic test directories only.
+			// Avoid calling the real implementation, which may hit OS-specific
+			// filesystem resolution and add timing variance in CI.
 			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				// Get workspace dirs from original function
-				const workspaceDirs = await originalGetAllHooksDirs()
-				// Return global first, then workspace
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			sandbox.stub(diskModule, "getAllHooksDirs").resolves([globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace hooks", async () => {
@@ -470,8 +543,8 @@ console.log(JSON.stringify({
 
 			// Both contexts should be present (order not guaranteed)
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Context added/)
-			result.contextModification!.should.match(/WORKSPACE: Context added/)
+			result.contextModification?.should.match(/GLOBAL: Context added/)
+			result.contextModification?.should.match(/WORKSPACE: Context added/)
 		})
 
 		it("should block execution if global hook blocks", async () => {
@@ -500,7 +573,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Global policy violation/)
+			result.errorMessage?.should.match(/Global policy violation/)
 		})
 
 		it("should work with only global hooks (no workspace hooks)", async () => {
@@ -521,7 +594,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Global hook only")
+			result.contextModification?.should.equal("Global hook only")
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -551,9 +624,9 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Workspace blocks/)
+			result.errorMessage?.should.match(/Workspace blocks/)
 			// Context from global should still be included
-			result.contextModification!.should.match(/Global allows/)
+			result.contextModification?.should.match(/Global allows/)
 		})
 
 		it("should combine error messages from global and workspace hooks", async () => {
@@ -583,8 +656,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Global error/)
-			result.errorMessage!.should.match(/Workspace error/)
+			result.errorMessage?.should.match(/Global error/)
+			result.errorMessage?.should.match(/Workspace error/)
 		})
 
 		it("should execute global hook from primary workspace root directory", async () => {
@@ -614,7 +687,7 @@ console.log(JSON.stringify({
 			result.cancel.should.be.false()
 			// Global hooks should execute from the primary workspace root (tempDir)
 			// Use fs.realpath to normalize paths (handles macOS /private prefix)
-			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			const cwdFromHook = result.contextModification?.replace("CWD: ", "")
 			const normalizedCwd = await fs.realpath(cwdFromHook)
 			const normalizedTempDir = await fs.realpath(tempDir)
 			normalizedCwd.should.equal(normalizedTempDir)
@@ -644,7 +717,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Global observed: true")
+			result.contextModification?.should.equal("Global observed: true")
 		})
 	})
 })

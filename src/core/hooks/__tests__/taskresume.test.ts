@@ -6,23 +6,15 @@ import path from "path"
 import sinon from "sinon"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
+import { writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskResume Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
-	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
@@ -50,7 +42,7 @@ describe("TaskResume Hook", () => {
 		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -92,7 +84,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -123,12 +115,16 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 	})
 
 	describe("Time-Based Calculations", () => {
-		it("should correctly calculate minutes ago for recent resumes", async () => {
+		it("should correctly calculate minutes ago for recent resumes", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -166,7 +162,7 @@ console.log(JSON.stringify({
 					},
 				})
 
-				result.contextModification!.should.equal(`Minutes ago: ${expected}`)
+				result.contextModification?.should.equal(`Minutes ago: ${expected}`)
 			}
 		})
 
@@ -201,7 +197,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Days ago: 7")
+			result.contextModification?.should.equal("Days ago: 7")
 		})
 
 		it("should handle edge case: future timestamp", async () => {
@@ -234,7 +230,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Future timestamp detected")
+			result.contextModification?.should.equal("Future timestamp detected")
 		})
 	})
 
@@ -277,7 +273,7 @@ console.log(JSON.stringify({
 					},
 				})
 
-				result.contextModification!.should.equal(`Conversation length: ${expected}`)
+				result.contextModification?.should.equal(`Conversation length: ${expected}`)
 			}
 		})
 
@@ -308,7 +304,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Empty conversation")
+			result.contextModification?.should.equal("Empty conversation")
 		})
 	})
 
@@ -344,7 +340,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("STALE_TASK: Long conversation paused for extended time")
+			result.contextModification?.should.equal("STALE_TASK: Long conversation paused for extended time")
 		})
 
 		it("should combine context deletion with other state", async () => {
@@ -377,7 +373,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("CONTEXT_WARNING: Large conversation with truncated history")
+			result.contextModification?.should.equal("CONTEXT_WARNING: Large conversation with truncated history")
 		})
 	})
 
@@ -438,7 +434,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Invalid timestamp")
+			result.contextModification?.should.equal("Invalid timestamp")
 		})
 	})
 
@@ -491,8 +487,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Task resumed/)
-			result.contextModification!.should.match(/WORKSPACE: Task resumed/)
+			result.contextModification?.should.match(/GLOBAL: Task resumed/)
+			result.contextModification?.should.match(/WORKSPACE: Task resumed/)
 		})
 
 		it("should combine context modifications from both hooks with time analysis", async () => {
@@ -534,8 +530,8 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.match(/GLOBAL_POLICY: Review task context/)
-			result.contextModification!.should.match(/PROJECT_NOTE: 15 messages in history/)
+			result.contextModification?.should.match(/GLOBAL_POLICY: Review task context/)
+			result.contextModification?.should.match(/PROJECT_NOTE: 15 messages in history/)
 		})
 	})
 
@@ -585,7 +581,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskResume hook executed successfully")
+			result.contextModification?.should.equal("TaskResume hook executed successfully")
 		})
 
 		it("should work with recent-resume fixture", async () => {
@@ -605,7 +601,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/Recently paused task/)
+			result.contextModification?.should.match(/Recently paused task/)
 		})
 
 		it("should work with long-pause fixture", async () => {
@@ -625,7 +621,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/paused 48 hours ago/)
+			result.contextModification?.should.match(/paused 48 hours ago/)
 		})
 
 		it("should work with context-deleted fixture", async () => {
@@ -644,7 +640,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/truncated/)
+			result.contextModification?.should.match(/truncated/)
 		})
 
 		it("should work with message-count fixture", async () => {
@@ -663,7 +659,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
+			result.contextModification?.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
 		})
 
 		it("should work with context-injection fixture", async () => {
@@ -682,7 +678,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("WORKSPACE_RULES: Task test-task resumed - review previous context")
+			result.contextModification?.should.equal("WORKSPACE_RULES: Task test-task resumed - review previous context")
 		})
 
 		it("should work with error fixture", async () => {

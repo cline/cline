@@ -1,8 +1,7 @@
 import { ToggleHookRequest, ToggleHookResponse } from "@shared/proto/cline/file"
 import fs from "fs/promises"
-import path from "path"
 import { HookDiscoveryCache } from "../../hooks/HookDiscoveryCache"
-import { resolveHooksDirectory } from "../../hooks/utils"
+import { resolveExistingHookPath, resolveHooksDirectory } from "../../hooks/utils"
 import { Controller } from ".."
 import { refreshHooks } from "./refreshHooks"
 
@@ -15,14 +14,11 @@ export async function toggleHook(
 
 	// Determine hook path
 	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName, globalHooksDirOverride)
-
-	const hookPath = path.join(hooksDir, hookName)
+	const hookPath = await resolveExistingHookPath(hooksDir, hookName)
 
 	// Verify hook exists
-	try {
-		await fs.stat(hookPath)
-	} catch {
-		throw new Error(`Hook ${hookName} does not exist at ${hookPath}`)
+	if (!hookPath) {
+		throw new Error(`Hook ${hookName} does not exist in ${hooksDir}`)
 	}
 
 	// On Windows, we can't use chmod, so we just return the current state
