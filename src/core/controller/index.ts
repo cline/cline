@@ -10,6 +10,7 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
+import { DEFAULT_DICTATION_SETTINGS } from "@shared/DictationSettings"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
@@ -851,7 +852,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
@@ -920,11 +920,7 @@ export class Controller {
 		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
 
 		// Dictation is intentionally disabled in the extension UI.
-		const updatedDictationSettings = {
-			...dictationSettings,
-			featureEnabled: false,
-			dictationEnabled: false,
-		}
+		const updatedDictationSettings = { ...DEFAULT_DICTATION_SETTINGS }
 
 		return {
 			version,
