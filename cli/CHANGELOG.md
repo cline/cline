@@ -1,6 +1,6 @@
 # cline
 
-## 2.4.3
+## [2.4.3]
 
 ### Added
 
@@ -13,7 +13,7 @@
 - Fix Cline auth with ACP flag
 - Fix yolo mode to not persist yolo setting to disk
 
-## 2.4.2
+## [2.4.2]
 
 ### Added
 
