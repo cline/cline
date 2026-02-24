@@ -2576,10 +2576,10 @@ export const mainlandQwenModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.8,
-		outputPrice: 4.8,
+		outputPrice: 6.4,
 		thinkingConfig: {
 			maxBudget: 81_920,
-			outputPrice: 4.8,
+			outputPrice: 6.4,
 		},
 	},
 	"qwen3.5-27b": {
@@ -2587,11 +2587,11 @@ export const mainlandQwenModels = {
 		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.4,
-		outputPrice: 2.4,
+		inputPrice: 0.6,
+		outputPrice: 4.8,
 		thinkingConfig: {
 			maxBudget: 81_920,
-			outputPrice: 2.4,
+			outputPrice: 4.8,
 		},
 	},
 	"qwen3.5-35b-a3b": {
@@ -2599,11 +2599,11 @@ export const mainlandQwenModels = {
 		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.2,
-		outputPrice: 1.2,
+		inputPrice: 0.4,
+		outputPrice: 3.2,
 		thinkingConfig: {
 			maxBudget: 81_920,
-			outputPrice: 1.2,
+			outputPrice: 3.2,
 		},
 	},
 	"qwen3-32b": {
