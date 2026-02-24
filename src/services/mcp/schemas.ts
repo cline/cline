@@ -23,10 +23,10 @@ const createServerTypeSchema = () => {
 			command: z.string(),
 			args: z.array(z.string()).optional(),
 			cwd: z.string().optional(),
-			env: z.record(z.string()).optional(),
+			env: z.record(z.string(), z.string()).optional(),
 			// Allow other fields for backward compatibility
 			url: z.string().optional(),
-			headers: z.record(z.string()).optional(),
+			headers: z.record(z.string(), z.string()).optional(),
 		})
 			.transform((data) => {
 				// Support both type and transportType fields
@@ -45,11 +45,11 @@ const createServerTypeSchema = () => {
 			type: z.literal("sse").optional(),
 			transportType: z.string().optional(), // Support legacy field
 			url: z.string().url("URL must be a valid URL format"),
-			headers: z.record(z.string()).optional(),
+			headers: z.record(z.string(), z.string()).optional(),
 			// Allow other fields for backward compatibility
 			command: z.string().optional(),
 			args: z.array(z.string()).optional(),
-			env: z.record(z.string()).optional(),
+			env: z.record(z.string(), z.string()).optional(),
 		})
 			.transform((data) => {
 				// Support both type and transportType fields
@@ -67,11 +67,11 @@ const createServerTypeSchema = () => {
 			type: z.literal("streamableHttp").optional(),
 			transportType: z.string().optional(), // Support legacy field
 			url: z.string().url("URL must be a valid URL format"),
-			headers: z.record(z.string()).optional(),
+			headers: z.record(z.string(), z.string()).optional(),
 			// Allow other fields for backward compatibility
 			command: z.string().optional(),
 			args: z.array(z.string()).optional(),
-			env: z.record(z.string()).optional(),
+			env: z.record(z.string(), z.string()).optional(),
 		})
 			.transform((data) => {
 				// Support both type and transportType fields
@@ -93,5 +93,5 @@ const createServerTypeSchema = () => {
 export const ServerConfigSchema = createServerTypeSchema()
 
 export const McpSettingsSchema = z.object({
-	mcpServers: z.record(ServerConfigSchema),
+	mcpServers: z.record(z.string(), ServerConfigSchema),
 })

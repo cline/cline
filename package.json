@@ -502,6 +502,7 @@
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
+		"@anthropic-ai/claude-agent-sdk": "^0.2.52",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
@@ -596,7 +597,7 @@
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.24.2"
+		"zod": "^4.3.6"
 	},
 	"overrides": {
 		"tar-fs": ">=3.1.1",
