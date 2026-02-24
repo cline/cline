@@ -11,12 +11,9 @@ export class AutoApprove {
 	// NOTE: This assumes that the task has a fixed set of workspace roots(which is currently true).
 	private workspacePathsCache: { paths: string[] } | null = null
 	private isMultiRootScenarioCache: boolean | null = null
-	// Optional getter for the current task CWD (used after change_directory tool runs)
-	private cwdGetter?: () => string
 
-	constructor(stateManager: StateManager, cwdGetter?: () => string) {
+	constructor(stateManager: StateManager) {
 		this.stateManager = stateManager
-		this.cwdGetter = cwdGetter
 	}
 
 	/**
@@ -146,9 +143,8 @@ export class AutoApprove {
 				// Multi-root: check if file is in ANY workspace
 				isLocalRead = await isLocatedInWorkspace(autoApproveActionpath)
 			} else {
-				// Single-root: use the task's current CWD if available (supports change_directory),
-				// otherwise fall back to the host workspace path.
-				const cwd = this.cwdGetter ? this.cwdGetter() : await getCwd(getDesktopDir())
+				// Single-root: use existing logic
+				const cwd = await getCwd(getDesktopDir())
 				// When called with a string cwd, resolveWorkspacePath returns a string
 				const absolutePath = resolveWorkspacePath(
 					cwd,

@@ -596,6 +596,8 @@ export class Task {
 		// Rebuild WorkspaceManager for the new directory
 		this.workspaceManager = await WorkspaceRootManager.fromLegacyCwd(newCwd)
 
+		await HostProvider.workspace.openFolder({ path: newCwd, newWindow: false })
+
 		// Disable checkpoints after CWD change (shadow git repo is tied to original CWD)
 		if (this.checkpointManager) {
 			this.checkpointManager = undefined

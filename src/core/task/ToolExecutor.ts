@@ -124,10 +124,7 @@ export class ToolExecutor {
 		// Optional callback for changing CWD (CLI-only)
 		private changeCwdCallback?: (newCwd: string) => Promise<void>,
 	) {
-		// Pass a CWD getter so AutoApprove always uses the current task CWD for path locality checks.
-		// This is critical for the change_directory tool: after a CWD change, files in the old
-		// directory should require permission, and files in the new directory should not.
-		this.autoApprover = new AutoApprove(this.stateManager, () => this.cwd)
+		this.autoApprover = new AutoApprove(this.stateManager)
 
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
