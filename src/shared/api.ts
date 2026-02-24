@@ -4243,7 +4243,7 @@ export const internationalZAiModels = {
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		cacheReadsPrice: 0.2,
 		inputPrice: 1.0,
@@ -4252,7 +4252,7 @@ export const internationalZAiModels = {
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		cacheReadsPrice: 0.11,
 		inputPrice: 0.6,
@@ -4291,6 +4291,18 @@ export const internationalZAiModels = {
 		description:
 			"GLM-4.5-Air is the lightweight version of GLM-4.5. It balances performance and cost-effectiveness, and can flexibly switch to hybrid thinking models.",
 	},
+	"glm-4.5v": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.11,
+		description:
+			"GLM-4.5V is Zhipu's multimodal vision-language model with 108B parameters, excelling in image analysis, OCR, and vision-language tasks.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
@@ -4299,7 +4311,7 @@ export const mainlandZAiModels = {
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		cacheReadsPrice: 0.2,
 		inputPrice: 1.0,
@@ -4308,7 +4320,7 @@ export const mainlandZAiModels = {
 	"glm-4.7": {
 		maxTokens: 131_000,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		cacheReadsPrice: 0.11,
 		inputPrice: 0.6,
@@ -4386,6 +4398,18 @@ export const mainlandZAiModels = {
 				cacheReadsPrice: 0.017,
 			},
 		],
+	},
+	"glm-4.5v": {
+		maxTokens: 98_304,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.11,
+		description:
+			"GLM-4.5V is Zhipu's multimodal vision-language model with 108B parameters, excelling in image analysis, OCR, and vision-language tasks.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
