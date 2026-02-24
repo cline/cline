@@ -10,7 +10,6 @@ import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
-import { DEFAULT_DICTATION_SETTINGS } from "@shared/DictationSettings"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
@@ -919,9 +918,6 @@ export class Controller {
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
 		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
 
-		// Dictation is intentionally disabled in the extension UI.
-		const updatedDictationSettings = { ...DEFAULT_DICTATION_SETTINGS }
-
 		return {
 			version,
 			apiConfiguration,
@@ -932,7 +928,6 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
-			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			mode,
 			strictPlanModeEnabled,

@@ -9,7 +9,6 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
-import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
@@ -89,7 +88,6 @@ export interface ExtensionState {
 	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
 	focusChainSettings: FocusChainSettings
-	dictationSettings: DictationSettings
 	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
