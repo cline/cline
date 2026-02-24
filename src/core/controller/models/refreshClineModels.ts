@@ -14,6 +14,7 @@ import {
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeSonnet461mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
@@ -184,6 +185,8 @@ async function fetchAndCacheClineModels(controller: Controller): Promise<Record<
 
 			// Apply model-specific overrides for known models
 			switch (rawModel.id) {
+				case "anthropic/claude-sonnet-4.6":
+				case "anthropic/claude-4.6-sonnet":
 				case "anthropic/claude-sonnet-4.5":
 				case "anthropic/claude-4.5-sonnet":
 				case "anthropic/claude-sonnet-4":
@@ -253,12 +256,25 @@ async function fetchAndCacheClineModels(controller: Controller): Promise<Record<
 			models[rawModel.id] = modelInfo
 
 			// Add custom :1m model variant for Sonnet models
-			if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
+			if (
+				rawModel.id === "anthropic/claude-sonnet-4" ||
+				rawModel.id === "anthropic/claude-sonnet-4.5" ||
+				rawModel.id === "anthropic/claude-sonnet-4.6" ||
+				rawModel.id === "anthropic/claude-4.6-sonnet"
+			) {
 				const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 				claudeSonnet1mModelInfo.contextWindow = 1_000_000
 				claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
-				models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
-				models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+
+				if (rawModel.id === "anthropic/claude-sonnet-4") {
+					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+				}
+				if (rawModel.id === "anthropic/claude-sonnet-4.5") {
+					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+				}
+				if (rawModel.id === "anthropic/claude-sonnet-4.6" || rawModel.id === "anthropic/claude-4.6-sonnet") {
+					models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo
+				}
 			}
 
 			// Add custom :1m model variant for Opus 4.6
