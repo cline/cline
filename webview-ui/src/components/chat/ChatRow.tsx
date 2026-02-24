@@ -45,9 +45,7 @@ import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { WithCopyButton } from "@/components/common/CopyButton"
-import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
-import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, McpServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -932,7 +930,7 @@ export const ChatRowContent = memo(
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem className="text-sm" value="ask">Ask Everytime</SelectItem>
+										<SelectItem className="text-sm" value="ask">Ask Every Time</SelectItem>
 										<SelectItem className="text-sm" value="auto">Auto-approve</SelectItem>
 									</SelectContent>
 								</Select>

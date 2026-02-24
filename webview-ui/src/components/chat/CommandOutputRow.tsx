@@ -128,7 +128,7 @@ export const CommandOutputRow = ({
 	// Find the executeSafeCommands action from metadata for the auto-approve dropdown
 	const safeCommandsAction = ACTION_METADATA.find((a) => a.id === "executeSafeCommands")
 
-	// If command is pending, it wasn't auto-approved, so show "Ask Everytime"
+	// If command is pending, it wasn't auto-approved, so show "Ask Every Time"
 	// Otherwise show the current global setting
 	const autoApprove = isCommandPending
 		? false
@@ -249,7 +249,7 @@ export const CommandOutputRow = ({
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem className="text-sm" value="ask">
-								Ask Everytime
+								Ask Every Time
 							</SelectItem>
 							<SelectItem className="text-sm" value="auto">
 								Auto-approve
