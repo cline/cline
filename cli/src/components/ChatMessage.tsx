@@ -184,12 +184,6 @@ function renderToken(token: Token, key: number, color?: string): React.ReactNode
  */
 const MarkdownText: React.FC<{ children: string; color?: string }> = ({ children, color }) => {
 	const tokens = lexer(children)
-
-	// Single paragraph → render inline without wrapping Box
-	if (tokens.length === 1 && tokens[0].type === "paragraph") {
-		return <Text color={color}>{renderTokens((tokens[0] as Tokens.Paragraph).tokens, color)}</Text>
-	}
-
 	return <Box flexDirection="column">{renderTokens(tokens, color)}</Box>
 }
 
