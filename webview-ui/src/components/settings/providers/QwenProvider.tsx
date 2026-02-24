@@ -12,6 +12,9 @@ import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const SUPPORTED_THINKING_MODELS = [
+	"qwen3.5-plus",
+	"qwen3.5-plus-2026-02-15",
+	"qwen3.5-397b-a17b",
 	"qwen3-235b-a22b",
 	"qwen3-32b",
 	"qwen3-30b-a3b",

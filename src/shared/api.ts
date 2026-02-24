@@ -2069,6 +2069,42 @@ export const internationalQwenModels = {
 		inputPrice: 1,
 		outputPrice: 5,
 	},
+	"qwen3.5-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.4,
+		thinkingConfig: {
+			maxBudget: 81_920,
+			outputPrice: 7.2,
+		},
+	},
+	"qwen3.5-plus-2026-02-15": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.4,
+		thinkingConfig: {
+			maxBudget: 81_920,
+			outputPrice: 7.2,
+		},
+	},
+	"qwen3.5-397b-a17b": {
+		maxTokens: 65_536,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 3.6,
+		thinkingConfig: {
+			maxBudget: 81_920,
+			outputPrice: 3.6,
+		},
+	},
 	"qwen3-coder-480b-a35b-instruct": {
 		maxTokens: 65_536,
 		contextWindow: 204_800,
@@ -2412,6 +2448,42 @@ export const mainlandQwenModels = {
 		thinkingConfig: {
 			maxBudget: 38_912,
 			outputPrice: 20,
+		},
+	},
+	"qwen3.5-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.4,
+		thinkingConfig: {
+			maxBudget: 81_920,
+			outputPrice: 7.2,
+		},
+	},
+	"qwen3.5-plus-2026-02-15": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 2.4,
+		thinkingConfig: {
+			maxBudget: 81_920,
+			outputPrice: 7.2,
+		},
+	},
+	"qwen3.5-397b-a17b": {
+		maxTokens: 65_536,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 3.6,
+		thinkingConfig: {
+			maxBudget: 81_920,
+			outputPrice: 3.6,
 		},
 	},
 	"qwen3-32b": {
