@@ -29,6 +29,12 @@ describe("Path Utilities", () => {
 			const filePath = "/home/user/project/../project/src/index.js"
 			isLocatedInPath(dirPath, filePath).should.be.true()
 		})
+
+		it("should return false when the directory is similarly named", () => {
+			const dirPath = "/home/user/project"
+			const filePath = "/home/user/project_backup/index.js"
+			isLocatedInPath(dirPath, filePath).should.be.false()
+		})
 	})
 
 	describe("arePathsEqual", () => {
