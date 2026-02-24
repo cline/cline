@@ -19,6 +19,7 @@ describe("Hook System", () => {
 
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	let originalPlatform: NodeJS.Platform
 
 	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
@@ -27,6 +28,7 @@ describe("Hook System", () => {
 	}
 
 	beforeEach(async () => {
+		originalPlatform = process.platform
 		setDistinctId("test-id")
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -56,6 +58,11 @@ describe("Hook System", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+		Object.defineProperty(process, "platform", {
+			value: originalPlatform,
+			writable: true,
+			configurable: true,
+		})
 
 		// Clean up hook discovery cache
 		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
@@ -306,6 +313,46 @@ console.log(JSON.stringify({
 	})
 
 	describe("Hook Discovery", () => {
+		it("should resolve .ps1 hook on windows when extensionless is absent", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
+			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
+			should.exist(found)
+			if (!found) {
+				throw new Error("Expected .ps1 hook to be resolved")
+			}
+			found.should.equal(ps1Path)
+		})
+
+		it("should prefer extensionless hook over .ps1 on windows", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const extensionless = path.join(hooksDir, "PreToolUse")
+			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
+			await fs.writeFile(extensionless, "Write-Output '{\"cancel\":false}'")
+			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
+			should.exist(found)
+			if (!found) {
+				throw new Error("Expected extensionless hook to be resolved")
+			}
+			found.should.equal(extensionless)
+		})
+
 		it("should find executable hook", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node

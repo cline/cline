@@ -506,10 +506,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 				return HookOutput.create({
 					cancel: false,
 				})
-			} else {
-				// Hook failed with non-zero exit - include hook name in error
-				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
+			// Hook failed with non-zero exit - include hook name in error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		} catch (error) {
 			const durationMs = performance.now() - startTime
 
@@ -925,15 +924,36 @@ export class HookFactory {
 	 * @throws Error if an unexpected file system error occurs
 	 */
 	private static async findWindowsHook(hookName: HookName, hooksDir: string): Promise<string | undefined> {
-		const candidate = path.join(hooksDir, hookName)
+		const extensionless = path.join(hooksDir, hookName)
+		const powerShell = path.join(hooksDir, `${hookName}.ps1`)
 
+		const extensionlessExists = await HookFactory.isHookFile(extensionless, hookName)
+		const powerShellExists = await HookFactory.isHookFile(powerShell, hookName)
+
+		if (extensionlessExists && powerShellExists) {
+			Logger.warn(
+				`[HookFactory] Both '${hookName}' and '${hookName}.ps1' exist in '${hooksDir}'. Using '${hookName}' due to precedence.`,
+			)
+		}
+
+		if (extensionlessExists) {
+			return extensionless
+		}
+
+		if (powerShellExists) {
+			return powerShell
+		}
+
+		return undefined
+	}
+
+	private static async isHookFile(candidate: string, hookName: HookName): Promise<boolean> {
 		try {
 			const stat = await fs.stat(candidate)
-			return stat.isFile() ? candidate : undefined
+			return stat.isFile()
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected errors (missing/non-readable hook) return no match.
-			return undefined
+			return false
 		}
 	}
 

@@ -19,13 +19,8 @@ import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shar
  * Tests the create, delete, toggle, and refresh hook functionality
  */
 describe("Hook Management", () => {
-	// Skip all hook tests on Windows as hooks are not yet supported on that platform
-	if (process.platform === "win32") {
-		it.skip("Hook tests are not supported on Windows yet", () => {
-			// This is intentional - hooks will be implemented for Windows in a future release
-		})
-		return
-	}
+	const isWindows = process.platform === "win32"
+	const originalPlatform = process.platform
 
 	let tempDir: string
 	let globalHooksDir: string
@@ -82,6 +77,11 @@ describe("Hook Management", () => {
 
 		// Restore all stubs
 		sinon.restore()
+		Object.defineProperty(process, "platform", {
+			value: originalPlatform,
+			writable: true,
+			configurable: true,
+		})
 	})
 
 	describe("createHook", () => {
@@ -105,7 +105,11 @@ describe("Hook Management", () => {
 
 			// Verify content contains expected template structure
 			const content = await fs.readFile(hookPath, "utf-8")
-			content.should.containEql("#!/bin/bash")
+			if (isWindows) {
+				content.should.containEql("PowerShell template for Windows hook execution")
+			} else {
+				content.should.containEql("#!/bin/bash")
+			}
 			content.should.containEql("TaskStart Hook")
 
 			// Verify response contains updated hooks state
@@ -116,6 +120,10 @@ describe("Hook Management", () => {
 
 		it("should create hook with non-executable permissions (644)", async function () {
 			this.timeout(5000)
+
+			if (isWindows) {
+				this.skip()
+			}
 
 			const request = CreateHookRequest.create({
 				hookName: "TaskResume",
@@ -285,6 +293,10 @@ describe("Hook Management", () => {
 		it("should make hook executable (chmod +x)", async function () {
 			this.timeout(5000)
 
+			if (isWindows) {
+				this.skip()
+			}
+
 			// Create a non-executable hook
 			const hookPath = path.join(globalHooksDir, "TaskStart")
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o644 })
@@ -307,6 +319,10 @@ describe("Hook Management", () => {
 		it("should make hook non-executable (chmod -x)", async function () {
 			this.timeout(5000)
 
+			if (isWindows) {
+				this.skip()
+			}
+
 			// Create an executable hook
 			const hookPath = path.join(globalHooksDir, "TaskResume")
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o755 })
@@ -327,6 +343,10 @@ describe("Hook Management", () => {
 
 		it("should work for workspace hooks", async function () {
 			this.timeout(5000)
+
+			if (isWindows) {
+				this.skip()
+			}
 
 			// Create a workspace hook
 			const hookPath = path.join(workspaceHooksDir, "UserPromptSubmit")
@@ -400,6 +420,10 @@ describe("Hook Management", () => {
 		it("should correctly identify executable vs non-executable hooks", async function () {
 			this.timeout(5000)
 
+			if (isWindows) {
+				this.skip()
+			}
+
 			await fs.writeFile(path.join(globalHooksDir, "TaskStart"), "#!/usr/bin/env node", { mode: 0o755 })
 			await fs.writeFile(path.join(globalHooksDir, "TaskCancel"), "#!/usr/bin/env node", { mode: 0o644 })
 
@@ -438,8 +462,43 @@ describe("Hook Management", () => {
 
 			const result = await refreshHooks(mockController, undefined)
 
-			// Should be false on non-Windows platforms
-			result.isWindows.should.equal(false)
+			result.isWindows.should.equal(isWindows)
+		})
+
+		it("should resolve .ps1-only hooks on Windows semantics", async function () {
+			this.timeout(5000)
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
+
+			const result = await refreshHooks(mockController, undefined, globalHooksDir)
+			const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
+			should.exist(taskStart)
+			taskStart!.absolutePath.should.equal(path.join(globalHooksDir, "TaskStart.ps1"))
+			taskStart!.enabled.should.equal(true)
+		})
+
+		it("should prefer extensionless hook over .ps1 on Windows semantics", async function () {
+			this.timeout(5000)
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "Write-Output '{}'", { mode: 0o644 })
+			await fs.writeFile(path.join(globalHooksDir, "TaskResume.ps1"), "Write-Output '{}'", { mode: 0o644 })
+
+			const result = await refreshHooks(mockController, undefined, globalHooksDir)
+			const taskResume = result.globalHooks.find((h) => h.name === "TaskResume")
+			should.exist(taskResume)
+			taskResume!.absolutePath.should.equal(path.join(globalHooksDir, "TaskResume"))
 		})
 	})
 
@@ -459,6 +518,10 @@ describe("Hook Management", () => {
 
 		it("should handle permission errors gracefully", async function () {
 			this.timeout(5000)
+
+			if (isWindows) {
+				this.skip()
+			}
 
 			// Create a hook
 			const hookPath = path.join(globalHooksDir, "TaskStart")
@@ -509,6 +572,48 @@ describe("Hook Management", () => {
 			// Refresh should no longer see the hook
 			result = await refreshHooks(mockController, undefined, globalHooksDir)
 			result.globalHooks.should.have.length(0)
+		})
+
+		it("should toggle and delete .ps1-only hooks on Windows semantics", async function () {
+			this.timeout(5000)
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			const ps1Path = path.join(globalHooksDir, "TaskCancel.ps1")
+			await fs.writeFile(ps1Path, "Write-Output '{}'", { mode: 0o644 })
+
+			const toggleResponse = await toggleHook(
+				mockController,
+				ToggleHookRequest.create({
+					hookName: "TaskCancel",
+					isGlobal: true,
+					enabled: true,
+				}),
+				globalHooksDir,
+			)
+
+			const toggled = toggleResponse.hooksToggles!.globalHooks.find((h) => h.name === "TaskCancel")
+			should.exist(toggled)
+			toggled!.absolutePath.should.equal(ps1Path)
+
+			await deleteHook(
+				mockController,
+				DeleteHookRequest.create({
+					hookName: "TaskCancel",
+					isGlobal: true,
+				}),
+				globalHooksDir,
+			)
+
+			const exists = await fs
+				.access(ps1Path)
+				.then(() => true)
+				.catch(() => false)
+			exists.should.equal(false)
 		})
 	})
 })

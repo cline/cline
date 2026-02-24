@@ -19,13 +19,7 @@ import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shar
  * Tests the complete lifecycle: create -> enable -> disable -> delete
  */
 describe("Hook Management Integration", () => {
-	// Skip all hook tests on Windows as hooks are not yet supported on that platform
-	if (process.platform === "win32") {
-		it.skip("Hook tests are not supported on Windows yet", () => {
-			// This is intentional - hooks will be implemented for Windows in a future release
-		})
-		return
-	}
+	const isWindows = process.platform === "win32"
 
 	let tempDir: string
 	let globalHooksDir: string
@@ -107,9 +101,11 @@ describe("Hook Management Integration", () => {
 			createResponse.hooksToggles!.globalHooks[0].enabled.should.equal(false)
 
 			const hookPath = path.join(globalHooksDir, hookName)
-			const createStats = await fs.stat(hookPath)
-			const createMode = createStats.mode & 0o777
-			createMode.should.equal(0o644)
+			if (!isWindows) {
+				const createStats = await fs.stat(hookPath)
+				const createMode = createStats.mode & 0o777
+				createMode.should.equal(0o644)
+			}
 
 			// Step 4: Enable the hook
 			const enableRequest = ToggleHookRequest.create({
@@ -137,11 +133,16 @@ describe("Hook Management Integration", () => {
 
 			// Step 7: Verify hook is now disabled again
 			disableResponse.hooksToggles!.globalHooks.should.have.length(1)
-			disableResponse.hooksToggles!.globalHooks[0].enabled.should.equal(false)
+			if (isWindows) {
+				// On Windows, toggling is chmod-noop and enabled reflects file existence.
+				disableResponse.hooksToggles!.globalHooks[0].enabled.should.equal(true)
+			} else {
+				disableResponse.hooksToggles!.globalHooks[0].enabled.should.equal(false)
 
-			const disableStats = await fs.stat(hookPath)
-			const disableMode = disableStats.mode & 0o777
-			disableMode.should.equal(0o644)
+				const disableStats = await fs.stat(hookPath)
+				const disableMode = disableStats.mode & 0o777
+				disableMode.should.equal(0o644)
+			}
 
 			// Step 8: Delete the hook
 			const deleteRequest = DeleteHookRequest.create({
@@ -239,10 +240,17 @@ describe("Hook Management Integration", () => {
 			const userPrompt = hooksAfterToggle.globalHooks.find((h) => h.name === "UserPromptSubmit")
 			const taskComplete = hooksAfterToggle.globalHooks.find((h) => h.name === "TaskComplete")
 
-			taskStart!.enabled.should.equal(true)
-			taskResume!.enabled.should.equal(false)
-			userPrompt!.enabled.should.equal(true)
-			taskComplete!.enabled.should.equal(false)
+			if (isWindows) {
+				taskStart!.enabled.should.equal(true)
+				taskResume!.enabled.should.equal(true)
+				userPrompt!.enabled.should.equal(true)
+				taskComplete!.enabled.should.equal(true)
+			} else {
+				taskStart!.enabled.should.equal(true)
+				taskResume!.enabled.should.equal(false)
+				userPrompt!.enabled.should.equal(true)
+				taskComplete!.enabled.should.equal(false)
+			}
 
 			// Clean up - delete all hooks
 			await deleteHook(
@@ -339,9 +347,11 @@ describe("Hook Management Integration", () => {
 
 			// Verify file permissions match
 			const hookPath = path.join(globalHooksDir, hookName)
-			const stats = await fs.stat(hookPath)
-			const mode = stats.mode & 0o777
-			;(mode & 0o100).should.be.greaterThan(0)
+			if (!isWindows) {
+				const stats = await fs.stat(hookPath)
+				const mode = stats.mode & 0o777
+				;(mode & 0o100).should.be.greaterThan(0)
+			}
 		})
 	})
 
@@ -365,7 +375,9 @@ describe("Hook Management Integration", () => {
 
 			// Modify file permissions directly (simulating external change)
 			const hookPath = path.join(globalHooksDir, "TaskStart")
-			await fs.chmod(hookPath, 0o755)
+			if (!isWindows) {
+				await fs.chmod(hookPath, 0o755)
+			}
 
 			// Second refresh should see the permission change
 			// (This tests that refreshHooks properly reads current state)
@@ -385,7 +397,11 @@ describe("Hook Management Integration", () => {
 
 			// Third refresh should see the toggle
 			hooks = await refreshHooks(mockController, undefined, globalHooksDir)
-			hooks.globalHooks[0].enabled.should.equal(false)
+			if (isWindows) {
+				hooks.globalHooks[0].enabled.should.equal(true)
+			} else {
+				hooks.globalHooks[0].enabled.should.equal(false)
+			}
 
 			// Delete it
 			await deleteHook(

@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { VALID_HOOK_TYPES } from "../../hooks/utils"
+import { resolveExistingHookPath, VALID_HOOK_TYPES } from "../../hooks/utils"
 import { Controller } from ".."
 
 export async function refreshHooks(
@@ -17,20 +17,15 @@ export async function refreshHooks(
 	// Collect global hooks
 	const globalHooks: HookInfo[] = []
 	for (const hookName of VALID_HOOK_TYPES) {
-		const hookPath = path.join(globalHooksDir, hookName)
-		try {
-			const stat = await fs.stat(hookPath)
-			if (stat.isFile()) {
-				globalHooks.push(
-					HookInfo.create({
-						name: hookName,
-						enabled: await isExecutable(hookPath),
-						absolutePath: hookPath,
-					}),
-				)
-			}
-		} catch {
-			// File doesn't exist, skip
+		const hookPath = await resolveExistingHookPath(globalHooksDir, hookName)
+		if (hookPath) {
+			globalHooks.push(
+				HookInfo.create({
+					name: hookName,
+					enabled: await isExecutable(hookPath),
+					absolutePath: hookPath,
+				}),
+			)
 		}
 	}
 
@@ -43,20 +38,15 @@ export async function refreshHooks(
 		const hooks: HookInfo[] = []
 
 		for (const hookName of VALID_HOOK_TYPES) {
-			const hookPath = path.join(workspaceHooksDir, hookName)
-			try {
-				const stat = await fs.stat(hookPath)
-				if (stat.isFile()) {
-					hooks.push(
-						HookInfo.create({
-							name: hookName,
-							enabled: await isExecutable(hookPath),
-							absolutePath: hookPath,
-						}),
-					)
-				}
-			} catch {
-				// File doesn't exist, skip
+			const hookPath = await resolveExistingHookPath(workspaceHooksDir, hookName)
+			if (hookPath) {
+				hooks.push(
+					HookInfo.create({
+						name: hookName,
+						enabled: await isExecutable(hookPath),
+						absolutePath: hookPath,
+					}),
+				)
 			}
 		}
 

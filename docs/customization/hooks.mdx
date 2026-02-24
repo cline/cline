@@ -157,6 +157,10 @@ echo '{"cancel":false}'
 On Windows, hooks are executed with PowerShell and run whenever the hook file exists.
 </Note>
 
+<Note>
+On Windows, each hook type supports either filename style: `HookName` or `HookName.ps1` (for example, `PreToolUse` or `PreToolUse.ps1`). If both files exist for the same hook type, Cline uses the extensionless `HookName` file.
+</Note>
+
 ### Test It
 
 Ask Cline to read any file in your project: "What's in package.json?"
