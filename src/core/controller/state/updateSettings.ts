@@ -171,11 +171,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.dictationSettings !== undefined) {
+			const currentDictationSettings = controller.stateManager.getGlobalSettingsKey("dictationSettings")
+
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {
-				featureEnabled: request.dictationSettings.featureEnabled ?? true,
-				dictationEnabled: request.dictationSettings.dictationEnabled ?? true,
-				dictationLanguage: request.dictationSettings.dictationLanguage ?? "en",
+				featureEnabled: request.dictationSettings.featureEnabled ?? currentDictationSettings.featureEnabled ?? false,
+				dictationEnabled:
+					request.dictationSettings.dictationEnabled ?? currentDictationSettings.dictationEnabled ?? false,
+				dictationLanguage:
+					request.dictationSettings.dictationLanguage ?? currentDictationSettings.dictationLanguage ?? "en",
 			}
 			controller.stateManager.setGlobalState("dictationSettings", dictationSettings)
 		}

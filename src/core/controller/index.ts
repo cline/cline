@@ -919,10 +919,11 @@ export class Controller {
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
 		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
 
-		// Set feature flag in dictation settings based on platform
+		// Dictation is intentionally disabled in the extension UI.
 		const updatedDictationSettings = {
 			...dictationSettings,
-			featureEnabled: process.platform === "darwin" || process.platform === "linux", // Enable dictation on macOS and Linux
+			featureEnabled: false,
+			dictationEnabled: false,
 		}
 
 		return {
