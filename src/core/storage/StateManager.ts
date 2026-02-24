@@ -15,7 +15,7 @@ import {
 	type Settings,
 	type SettingsKey,
 } from "@shared/storage/state-keys"
-import type { StorageContext } from "@shared/storage/storage-context"
+import { createStorageContext, type StorageContext } from "@shared/storage/storage-context"
 import chokidar, { FSWatcher } from "chokidar"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
@@ -937,5 +937,42 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return { ...this.workspaceStateCache }
+	}
+
+	/**
+	 * Switch the workspace state to a new directory.
+	 *
+	 * Called after a change_directory tool execution so that workspace-scoped state
+	 * (e.g. workflowToggles, localClineRulesToggles) reflects the new directory.
+	 *
+	 * Workspace state is stored in a hash-keyed subdirectory under ~/.cline/data/workspaces/.
+	 * The StateManager is initialized once at startup with the original workspace path, so
+	 * its in-memory cache and backing store both point to the old directory's file.
+	 * This method flushes any pending writes to the old store, then swaps in a new
+	 * ClineFileStorage for the new path and reloads the cache from it.
+	 */
+	public async reinitializeWorkspaceState(newWorkspacePath: string): Promise<void> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Flush any pending workspace state writes to the old directory before switching
+		if (this.pendingWorkspaceState.size > 0) {
+			await this.persistWorkspaceStateBatch(this.pendingWorkspaceState)
+			this.pendingWorkspaceState.clear()
+		}
+
+		// Create a new storage context for the new workspace path.
+		// This computes the correct hash-based subdirectory and creates the file if needed.
+		const newStorageContext = createStorageContext({ workspacePath: newWorkspacePath })
+
+		// Swap the workspace state backing store so future writes go to the new directory
+		this.storage = { ...this.storage, workspaceState: newStorageContext.workspaceState }
+
+		// Reload workspace state cache from the new directory's file
+		const newWorkspaceState = readWorkspaceStateFromStorage(newStorageContext.workspaceState)
+		this.workspaceStateCache = newWorkspaceState
+
+		Logger.info(`[StateManager] Workspace state reinitialized for: ${newWorkspacePath}`)
 	}
 }

@@ -598,6 +598,15 @@ export class Task {
 
 		await HostProvider.workspace.openFolder({ path: newCwd, newWindow: false })
 
+		// Reload workspace state (workflowToggles, localClineRulesToggles, etc.) for the new
+		// directory. Workspace state is keyed by a hash of the workspace path, so the
+		// StateManager's in-memory cache still reflects the old directory after a CWD change.
+		// Reinitializing it here ensures slash commands and rules pick up the correct toggles.
+		await this.stateManager.reinitializeWorkspaceState(newCwd).catch((err) => {
+			// Non-fatal: log and continue. Worst case, slash commands show stale toggles.
+			Logger.error("[Task] Failed to reinitialize workspace state after CWD change:", err)
+		})
+
 		// Disable checkpoints after CWD change (shadow git repo is tied to original CWD)
 		if (this.checkpointManager) {
 			this.checkpointManager = undefined
