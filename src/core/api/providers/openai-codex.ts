@@ -164,7 +164,7 @@ export class OpenAiCodexHandler implements ApiHandler {
 			model: model.id,
 			input: formattedInput,
 			stream: true,
-			store: !previousResponseId,
+			store: false,
 			instructions: systemPrompt,
 			...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
 			...(includeReasoning ? { include: ["reasoning.encrypted_content"] } : {}),
