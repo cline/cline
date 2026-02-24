@@ -1,14 +1,16 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
-import { StringRequest } from "@shared/proto/cline/common"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
+import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
@@ -51,53 +53,43 @@ export interface ClineModelPickerProps {
 	initialTab?: "recommended" | "free"
 }
 
-export const recommendedModels = [
-	{
-		id: "anthropic/claude-sonnet-4.6",
-		description: "Best balance of speed, cost, and quality",
-		label: "BEST",
-	},
-	{
-		id: "anthropic/claude-opus-4.6",
-		description: "Most intelligent model for agents and coding",
-		label: "NEW",
-	},
-	{
-		id: "openai/gpt-5.2-codex",
-		description: "OpenAI's latest with strong coding abilities",
-		label: "HOT",
-	},
-	{
-		id: "google/gemini-3-pro-preview",
-		description: "1M context window for large codebases",
-		label: "1M CTX",
-	},
-]
+interface FeaturedModelCardEntry {
+	id: string
+	description: string
+	label: string
+}
 
-export const freeModels = [
-	{
-		id: "anthropic/claude-sonnet-4.6",
-		description: "Claude Sonnet 4.6 with strong coding and agent performance, now available free in Cline",
-		label: "FREE",
-	},
-	{
-		id: "z-ai/glm-5",
-		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
-		label: "FREE",
-	},
-	{
-		id: "kwaipilot/kat-coder-pro",
-		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
-		label: "FREE",
-	},
-	{
-		id: "arcee-ai/trinity-large-preview:free",
-		description: "Arcee AI's advanced large preview model in the Trinity series",
-		label: "FREE",
-	},
-]
+const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
 
-const FREE_CLINE_MODELS = freeModels.map((m) => m.id)
+function normalizeModelId(modelId: string): string {
+	return modelId.trim().toLowerCase()
+}
+
+function toFeaturedModelCardEntry(
+	model: Pick<ClineRecommendedModel, "id" | "description" | "tags">,
+	fallbackLabel: string,
+): FeaturedModelCardEntry | null {
+	if (!model.id) {
+		return null
+	}
+
+	const firstTag = model.tags?.[0]
+	const normalizedLabel = typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : undefined
+
+	return {
+		id: model.id,
+		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
+		label: normalizedLabel || fallbackLabel,
+	}
+}
+
+const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.recommended
+	.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
+	.filter((model): model is FeaturedModelCardEntry => model !== null)
+
+const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.free
+	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
+	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
@@ -106,19 +98,98 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const [searchTerm, setSearchTerm] = useState(modeFields.clineModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
-	const [activeTab, setActiveTab] = useState<"recommended" | "free">(() => {
-		if (initialTab) {
-			return initialTab
+	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
+	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
+	const freeClineModelIds = useMemo(() => {
+		const freeModelIds =
+			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
+		return [...new Set(freeModelIds)]
+	}, [clineFreeModels])
+	const freeClineModelIdSet = useMemo(
+		() => new Set(freeClineModelIds.map((modelId) => normalizeModelId(modelId))),
+		[freeClineModelIds],
+	)
+	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
+	const recommendedModels = useMemo(
+		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
+		[clineRecommendedModels],
+	)
+	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
+	const isFetchingClineRecommendedModelsRef = useRef(false)
+	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
+
+	const refreshClineRecommendedModels = useCallback(async (): Promise<boolean> => {
+		try {
+			const response = await ModelsServiceClient.makeUnaryRequest(
+				"refreshClineRecommendedModelsRpc",
+				EmptyRequest.create({}),
+				EmptyRequest.toJSON,
+				ClineRecommendedModelsResponse.fromJSON,
+			)
+			const recommended = (response.recommended ?? [])
+				.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
+				.filter((model): model is FeaturedModelCardEntry => model !== null)
+			const free = (response.free ?? [])
+				.map((model) => toFeaturedModelCardEntry(model, "FREE"))
+				.filter((model): model is FeaturedModelCardEntry => model !== null)
+			setClineRecommendedModels(recommended)
+			setClineFreeModels(free)
+			return true
+		} catch (error) {
+			console.error("Failed to refresh Cline recommended models:", error)
+			return false
 		}
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
-		return freeModels.some((m) => m.id === currentModelId) ? "free" : "recommended"
-	})
+	}, [])
+
+	const clearClineRecommendedModelsRetryTimeout = useCallback(() => {
+		if (clineRecommendedModelsRetryTimeoutRef.current !== null) {
+			window.clearTimeout(clineRecommendedModelsRetryTimeoutRef.current)
+			clineRecommendedModelsRetryTimeoutRef.current = null
+		}
+	}, [])
+
+	const fetchClineRecommendedModels = useCallback(async () => {
+		if (hasSuccessfulClineRecommendedModelsFetchRef.current || isFetchingClineRecommendedModelsRef.current) {
+			return
+		}
+		isFetchingClineRecommendedModelsRef.current = true
+		const succeeded = await refreshClineRecommendedModels()
+		isFetchingClineRecommendedModelsRef.current = false
+
+		if (succeeded) {
+			hasSuccessfulClineRecommendedModelsFetchRef.current = true
+			clearClineRecommendedModelsRetryTimeout()
+			return
+		}
+
+		if (clineRecommendedModelsRetryTimeoutRef.current === null) {
+			clineRecommendedModelsRetryTimeoutRef.current = window.setTimeout(() => {
+				clineRecommendedModelsRetryTimeoutRef.current = null
+				void fetchClineRecommendedModels()
+			}, CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS)
+		}
+	}, [clearClineRecommendedModelsRetryTimeout, refreshClineRecommendedModels])
+
+	useEffect(() => {
+		return () => {
+			clearClineRecommendedModelsRetryTimeout()
+		}
+	}, [clearClineRecommendedModelsRetryTimeout])
 
 	useEffect(() => {
 		if (initialTab) {
 			setActiveTab(initialTab)
 		}
 	}, [initialTab])
+
+	useEffect(() => {
+		if (initialTab) {
+			return
+		}
+		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
+		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
+	}, [modeFields.clineModelId, freeClineModelIdSet, initialTab])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -141,7 +212,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		if (FREE_CLINE_MODELS.includes(selected.selectedModelId)) {
+		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
 			return {
 				...selected,
 				selectedModelInfo: {
@@ -154,9 +225,15 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			}
 		}
 		return selected
-	}, [apiConfiguration, currentMode])
+	}, [apiConfiguration, currentMode, freeClineModelIdSet])
 
-	useMount(refreshClineModels)
+	useMount(() => {
+		refreshClineModels()
+	})
+
+	useEffect(() => {
+		void fetchClineRecommendedModels()
+	}, [fetchClineRecommendedModels])
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
@@ -179,8 +256,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(clineModels ?? {}).sort((a, b) => a.localeCompare(b))
-		return filterOpenRouterModelIds(unfilteredModelIds, "cline")
-	}, [clineModels])
+		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
+	}, [clineModels, freeClineModelIds])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -284,6 +361,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-4.6") ||
+			selectedModelIdLower.includes("claude-sonnet-4-6") ||
+			selectedModelIdLower.includes("claude-4.6-sonnet") ||
 			selectedModelIdLower.includes("claude-sonnet-4.5") ||
 			selectedModelIdLower.includes("claude-sonnet-4") ||
 			selectedModelIdLower.includes("claude-opus-4.1") ||
@@ -432,6 +512,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
 					base200kModelId="anthropic/claude-opus-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Sonnet 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.6"
 					onModelChange={handleModelChange}
 					selectedModelId={selectedModelId}
 				/>
