@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.67.1]
+
+### Added
+
+- Improve Cline SDK API surface with better public types and messaging
+
+### Fixed
+
+- Fix OpenAI Codex by setting `store` to `false`
+- Use `isLocatedInPath()` instead of string matching for path containment checks
+
 ## [3.67.0]
 
 ### Added
