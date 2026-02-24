@@ -148,6 +148,7 @@ import { FileMentionMenu } from "./FileMentionMenu"
 import { HelpPanelContent } from "./HelpPanelContent"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
+import { McpPanelContent } from "./McpPanelContent"
 import { providerModels } from "./ModelPicker"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SkillsPanelContent } from "./SkillsPanelContent"
@@ -414,6 +415,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		| { type: "history" }
 		| { type: "help" }
 		| { type: "skills" }
+		| { type: "mcp" }
 		| null
 	>(null)
 
@@ -1166,6 +1168,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setSlashMenuDismissed(true)
 						return
 					}
+					if (cmd.name === "mcp") {
+						setActivePanel({ type: "mcp" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
 					if (cmd.name === "clear") {
 						clearViewAndResetTask()
 						setSelectedSlashIndex(0)
@@ -1566,6 +1576,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 							setCursorPos(skillPath.length + 2)
 						}}
 					/>
+				)}
+
+				{/* MCP panel */}
+				{activePanel?.type === "mcp" && ctrl && (
+					<McpPanelContent controller={ctrl} onClose={() => setActivePanel(null)} />
 				)}
 
 				{/* Slash command menu - below input (takes priority over file menu) */}

@@ -215,7 +215,11 @@ export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] 
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
-	return getGlobalStorageDir("settings")
+	// Use the shared ~/.cline/data/settings/ path so all hosts (VSCode, CLI, JetBrains)
+	// read the same MCP settings and remote config files.
+	const settingsDir = path.join(getClineHomePath(), "data", "settings")
+	await fs.mkdir(settingsDir, { recursive: true })
+	return settingsDir
 }
 
 /**

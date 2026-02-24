@@ -97,4 +97,10 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	{
+		name: "mcp",
+		description: "Enable or disable installed MCP servers",
+		section: "default",
+		cliCompatible: true,
+	},
 ]
