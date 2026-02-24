@@ -7,7 +7,7 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import { getModelsForProvider, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { getDefaultModelIdForProvider, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -191,9 +191,7 @@ const ApiOptions = ({
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
 	const handleProviderChange = (newProvider: string) => {
-		// Get the default model ID for the new provider
-		const models = getModelsForProvider(newProvider as ApiProvider, apiConfiguration)
-		const defaultModelId = models ? Object.keys(models)[0] : undefined
+		const defaultModelId = getDefaultModelIdForProvider(newProvider as ApiProvider, apiConfiguration)
 
 		if (defaultModelId) {
 			handleModeFieldsChange(
