@@ -42,7 +42,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: "lts/*"
+                  node-version: 22
 
             - name: Install root dependencies
               run: npm install --include=optional

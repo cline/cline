@@ -26,7 +26,7 @@ export interface PlainTextTaskOptions {
 	imageDataUrls?: string[]
 	verbose?: boolean
 	jsonOutput?: boolean
-	/** Timeout in seconds (default: 600 = 10 minutes) */
+	/** Timeout in seconds (only applied when explicitly provided) */
 	timeoutSeconds?: number
 	/** Task ID to resume an existing task */
 	taskId?: string
@@ -153,10 +153,14 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			throw new Error("Either taskId or prompt must be provided")
 		}
 
-		// Normal mode: wait for task completion
-		const timeoutMs = (options.timeoutSeconds ?? 600) * 1000 // default 10 minutes
-		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
-		await Promise.race([completionPromise, timeoutPromise])
+		// Wait for task completion, with optional timeout only when explicitly configured
+		if (options.timeoutSeconds) {
+			const timeoutMs = options.timeoutSeconds * 1000
+			const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+			await Promise.race([completionPromise, timeoutPromise])
+		} else {
+			await completionPromise
+		}
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : String(error)
 		if (jsonOutput) {

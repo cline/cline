@@ -1,3 +1,4 @@
+import { BannerAction, BannerCardData } from "@shared/cline/banner"
 import React, { useCallback } from "react"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
@@ -5,6 +6,7 @@ import GitHubIcon from "@/assets/GitHubIcon"
 import LinkedInIcon from "@/assets/LinkedInIcon"
 import RedditIcon from "@/assets/RedditIcon"
 import XIcon from "@/assets/XIcon"
+import WhatsNewItems from "@/components/common/WhatsNewItems"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
@@ -13,9 +15,11 @@ interface WhatsNewModalProps {
 	open: boolean
 	onClose: () => void
 	version: string
+	welcomeBanners?: BannerCardData[]
+	onBannerAction?: (action: BannerAction) => void
 }
 
-export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
+export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
 	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
@@ -43,18 +47,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
-	type InlineModelLinkProps = { pickerTab: "recommended" | "free"; modelId: string; label: string }
-
-	const InlineModelLink: React.FC<InlineModelLinkProps> = (props) => {
-		return (
-			<span
-				onClick={() => navigateToModelPicker(props.pickerTab, props.modelId)}
-				style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-				{props.label}
-			</span>
-		)
-	}
-
 	const inlineCodeStyle: React.CSSProperties = {
 		backgroundColor: "var(--vscode-textCodeBlock-background)",
 		padding: "2px 6px",
@@ -77,44 +69,13 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						🎉 New in v{version}
 					</h2>
 
-					{/* Description */}
-					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						<li className="mb-2">
-							<strong>Claude Sonnet 4.6 is here!</strong> Advanced reasoning and coding performance. Note: Free
-							promotion ended.{" "}
-							<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="recommended" />
-						</li>
-						<li className="mb-2">
-							<strong>GLM 5:</strong> SOTA coding capability with lightning fast inference, now available with free
-							promo! <InlineModelLink label="Try now" modelId="z-ai/glm-5" pickerTab="free" />
-						</li>
-						<li className="mb-2">
-							<strong>MiniMax M2.5:</strong> SOTA coding capability with lightning fast inference, now available
-							with free promo! <InlineModelLink label="Try now" modelId="minimax/minimax-m2.5" pickerTab="free" />
-						</li>
-						<li className="mb-2">
-							<strong>Cline CLI 2.0:</strong> Major upgrade bringing interactive and autonomous agentic coding to
-							your terminal. Install with <code style={inlineCodeStyle}>npm install -g cline</code>
-							<a
-								href="https://cline.bot/cli"
-								rel="noopener noreferrer"
-								style={{ color: "var(--vscode-textLink-foreground)" }}
-								target="_blank">
-								{" "}
-								Learn more
-							</a>
-						</li>
-						<li className="mb-2">
-							<strong> Subagents experimental feature</strong> available in VSCode and the CLI.{" "}
-							<a
-								href="https://docs.cline.bot/features/subagents"
-								rel="noopener noreferrer"
-								style={{ color: "var(--vscode-textLink-foreground)" }}
-								target="_blank">
-								Learn more
-							</a>
-						</li>
-					</ul>
+					<WhatsNewItems
+						inlineCodeStyle={inlineCodeStyle}
+						onBannerAction={onBannerAction}
+						onClose={onClose}
+						onNavigateToModelPicker={navigateToModelPicker}
+						welcomeBanners={welcomeBanners}
+					/>
 
 					{/* Social Icons Section */}
 					<div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t border-[var(--vscode-widget-border)]">

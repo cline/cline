@@ -1,13 +1,13 @@
 import { machineId } from "node-machine-id"
 import { v4 as uuidv4 } from "uuid"
 import { HostRegistryInfo } from "@/registry"
-import { ClineExtensionContext } from "@/shared/cline/context"
 import { Logger } from "@/shared/services/Logger"
+import { StorageContext } from "@/shared/storage"
 
 /*
  * Unique identifier for the current installation.
  */
-let _distinctId: string = ""
+let _distinctId = ""
 
 /**
  * Some environments don't return a value for the machine ID. For these situations we generated
@@ -15,9 +15,9 @@ let _distinctId: string = ""
  */
 export const _GENERATED_MACHINE_ID_KEY = "cline.generatedMachineId"
 
-export async function initializeDistinctId(context: ClineExtensionContext, uuid: () => string = uuidv4) {
+export async function initializeDistinctId(storage: StorageContext, uuid: () => string = uuidv4) {
 	// Try to read the ID from storage.
-	let distinctId = context.globalState.get<string>(_GENERATED_MACHINE_ID_KEY)
+	let distinctId = storage.globalState.get<string>(_GENERATED_MACHINE_ID_KEY)
 
 	if (!distinctId) {
 		// Get the ID from the host environment.
@@ -27,8 +27,8 @@ export async function initializeDistinctId(context: ClineExtensionContext, uuid:
 		// Fallback to generating a unique ID and keeping in global storage.
 		Logger.warn("No machine ID found for telemetry, generating UUID")
 		// Add a prefix to the UUID so we can see in the telemetry how many clients are don't have a machine ID.
-		distinctId = "cl-" + uuid()
-		context.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
+		distinctId = `cl-${uuid()}`
+		storage.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
 	}
 
 	setDistinctId(distinctId)

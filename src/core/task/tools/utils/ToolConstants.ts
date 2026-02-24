@@ -20,7 +20,6 @@ export const TASK_CONFIG_KEYS = [
 	"vscodeTerminalExecutionMode",
 	"enableParallelToolCalling",
 	"isSubagentExecution",
-	"context",
 	"taskState",
 	"messageState",
 	"api",

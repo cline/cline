@@ -29,11 +29,9 @@ const SettingsSlider: React.FC<SettingsSliderProps> = ({
 	}
 
 	return (
-		<div className="mt-2 p-3 rounded-md bg-editor-widget-background/30 border border-editor-widget-border/30">
+		<div>
 			<div className="flex items-center justify-between gap-4">
-				<div className="space-y-0.5 flex-1">
-					<Label className="text-xs font-medium text-description">{label}</Label>
-				</div>
+				<Label className="space-y-0.5 flex-1 text-xs text-description">{label}</Label>
 				<span className={`text-sm font-mono text-foreground ${valueWidth} text-right`}>{value}</span>
 			</div>
 			<Slider className="mt-2" max={max} min={min} onValueChange={handleSliderChange} step={step} value={[value]} />

@@ -15,6 +15,7 @@ import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
@@ -23,6 +24,7 @@ import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-confi
 import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { StaticRobotFrame } from "./AsciiMotionCli"
+import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
 import {
 	FeaturedModelPicker,
@@ -31,7 +33,7 @@ import {
 	isBrowseAllSelected,
 } from "./FeaturedModelPicker"
 import { ImportView } from "./ImportView"
-import { getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
+import { CUSTOM_MODEL_ID, getDefaultModelId, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
 import { getProviderLabel } from "./ProviderPicker"
 
@@ -51,6 +53,7 @@ type AuthStep =
 	| "openai_codex_auth"
 	| "bedrock"
 	| "import"
+	| "bedrock_custom"
 
 interface AuthViewProps {
 	controller: any
@@ -76,7 +79,7 @@ const Select: React.FC<{
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	useInput(
-		(input, key) => {
+		(_, key) => {
 			if (key.upArrow) {
 				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
 			} else if (key.downArrow) {
@@ -142,7 +145,11 @@ const TextInput: React.FC<{
 
 	return (
 		<Box>
-			<Text color="white">{displayValue || placeholder || ""}</Text>
+			{!displayValue && placeholder ? (
+				<Text color="gray">e.g. {placeholder}</Text>
+			) : (
+				<Text color="white">{displayValue || ""}</Text>
+			)}
 			<Text inverse> </Text>
 		</Box>
 	)
@@ -166,6 +173,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [providerSearch, setProviderSearch] = useState("")
 	const [providerIndex, setProviderIndex] = useState(0)
 	const [clineModelIndex, setClineModelIndex] = useState(0)
+	const featuredModels = useClineFeaturedModels()
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
@@ -248,6 +256,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	}, [])
 
 	// Reset provider index when search changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: we want to reset here
 	useEffect(() => {
 		setProviderIndex(0)
 	}, [providerSearch])
@@ -273,7 +282,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				return
 			}
 
-			if (authState.user && authState.user.email) {
+			if (authState.user?.email) {
 				// Auth succeeded - save configuration and transition to model selection
 				await applyProviderConfig({ providerId: "cline", controller })
 				setSelectedProvider("cline")
@@ -389,6 +398,33 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 		[selectedProvider],
 	)
 
+	// Save custom Bedrock ARN configuration with base model for capability detection
+	const saveCustomBedrockConfiguration = useCallback(
+		async (arn: string, baseModelId: string) => {
+			try {
+				if (!bedrockConfig) {
+					throw new Error("Bedrock configuration is missing")
+				}
+				await applyBedrockConfig({
+					bedrockConfig,
+					modelId: arn,
+					customModelBaseId: baseModelId,
+					controller,
+				})
+
+				const stateManager = StateManager.get()
+				stateManager.setGlobalState("welcomeViewCompleted", true)
+				await stateManager.flushPendingState()
+
+				setStep("success")
+			} catch (error) {
+				setErrorMessage(error instanceof Error ? error.message : String(error))
+				setStep("error")
+			}
+		},
+		[bedrockConfig, controller],
+	)
+
 	const saveConfiguration = useCallback(
 		async (model: string, base: string) => {
 			try {
@@ -423,6 +459,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 
 	const handleModelIdSubmit = useCallback(
 		(value: string) => {
+			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
+			if (value === CUSTOM_MODEL_ID && selectedProvider === "bedrock") {
+				setStep("bedrock_custom")
+				return
+			}
+
 			if (value.trim()) {
 				setModelId(value)
 			}
@@ -530,6 +572,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				// Go back to cline_model if we came from there (Cline provider)
 				if (selectedProvider === "cline") {
 					setStep("cline_model")
+				} else if (selectedProvider === "bedrock") {
+					// Bedrock skips the API key step — go back to Bedrock setup
+					setStep("bedrock")
 				} else {
 					setStep("apikey")
 				}
@@ -724,7 +769,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					<Box flexDirection="column">
 						<Text color="white">Choose a model</Text>
 						<Text> </Text>
-						<FeaturedModelPicker selectedIndex={clineModelIndex} />
+						<FeaturedModelPicker featuredModels={featuredModels} selectedIndex={clineModelIndex} />
 					</Box>
 				)
 			}
@@ -738,6 +783,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 							setStep("provider")
 						}}
 						onComplete={handleBedrockComplete}
+					/>
+				)
+
+			case "bedrock_custom":
+				return (
+					<BedrockCustomModelFlow
+						isActive={step === "bedrock_custom"}
+						onCancel={() => setStep("modelid")}
+						onComplete={(arn, baseModelId) => {
+							setStep("saving")
+							saveCustomBedrockConfiguration(arn, baseModelId)
+						}}
 					/>
 				)
 
@@ -814,17 +871,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setProviderSearch((prev) => prev + input)
 				}
 			} else if (step === "cline_model") {
-				const maxIndex = getFeaturedModelMaxIndex()
+				const maxIndex = getFeaturedModelMaxIndex(featuredModels)
 
 				if (key.upArrow) {
 					setClineModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
 				} else if (key.downArrow) {
 					setClineModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
 				} else if (key.return) {
-					if (isBrowseAllSelected(clineModelIndex)) {
+					if (isBrowseAllSelected(clineModelIndex, featuredModels)) {
 						setStep("modelid")
 					} else {
-						const selectedModel = getFeaturedModelAtIndex(clineModelIndex)
+						const selectedModel = getFeaturedModelAtIndex(clineModelIndex, featuredModels)
 						if (selectedModel) {
 							handleClineModelSelect(selectedModel.id)
 						}
