@@ -309,7 +309,7 @@ export class Task {
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
-		this.urlContentFetcher = new UrlContentFetcher(controller.context)
+		this.urlContentFetcher = new UrlContentFetcher()
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.streamHandler = new StreamResponseHandler()
@@ -530,7 +530,6 @@ export class Task {
 		this.commandExecutor = new CommandExecutor(commandExecutorConfig, commandExecutorCallbacks)
 
 		this.toolExecutor = new ToolExecutor(
-			this.controller.context,
 			this.taskState,
 			this.messageStateHandler,
 			this.api,
@@ -2483,6 +2482,7 @@ export class Task {
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
 			content: userContent,
+			ts: Date.now(),
 		})
 
 		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", modelInfo.mode)
@@ -2571,6 +2571,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					ts: Date.now(),
 				})
 
 				telemetryService.captureConversationTurnEvent(
@@ -2646,6 +2647,13 @@ export class Task {
 
 			try {
 				for await (const chunk of stream) {
+					if (
+						!this.taskState.taskFirstTokenTimeMs &&
+						(chunk.type === "text" || chunk.type === "reasoning" || chunk.type === "tool_calls")
+					) {
+						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
+					}
+
 					switch (chunk.type) {
 						case "usage":
 							this.streamHandler.setRequestId(chunk.id)
@@ -2941,6 +2949,7 @@ export class Task {
 							},
 							cost: taskMetrics.totalCost,
 						},
+						ts: Date.now(),
 					})
 				}
 			}
@@ -3033,6 +3042,7 @@ export class Task {
 						},
 						cost: taskMetrics.totalCost,
 					},
+					ts: Date.now(),
 				})
 
 				let response: ClineAskResponse

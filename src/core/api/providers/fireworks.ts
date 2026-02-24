@@ -71,7 +71,7 @@ export class FireworksHandler implements ApiHandler {
 				}
 			}
 
-			if (reasoning || ("reasoning_content" in delta && delta.reasoning_content)) {
+			if (reasoning || (delta && "reasoning_content" in delta && delta.reasoning_content)) {
 				yield {
 					type: "reasoning",
 					reasoning: delta.content || ((delta as any).reasoning_content as string | undefined) || "",

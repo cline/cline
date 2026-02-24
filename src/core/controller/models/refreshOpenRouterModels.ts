@@ -11,8 +11,8 @@ import {
 	CLAUDE_SONNET_1M_TIERS,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet461mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeSonnet461mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -119,7 +119,7 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
 				if (price) {
-					return parseFloat(price) * 1_000_000
+					return Number.parseFloat(price) * 1_000_000
 				}
 				return undefined
 			}

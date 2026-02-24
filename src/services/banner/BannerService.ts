@@ -11,7 +11,7 @@ import { AuthService } from "../auth/AuthService"
 import { buildBasicClineHeaders } from "../EnvUtils"
 import { featureFlagsService } from "../feature-flags"
 
-const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
+const DEFAULT_CACHE_DURATION_MS = 24 * 60 * 60 * 1000
 const CIRCUIT_BREAKER_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
 const SERVER_ERROR_BACKOFF_MS = 15 * 60 * 1000 // 15 minutes
 const AUTH_DEBOUNCE_MS = 1000 // 1 second
@@ -180,9 +180,10 @@ export class BannerService {
 
 	private ensureFreshCache(): void {
 		const now = Date.now()
+		const cacheDurationMs = this.getCacheDurationMs()
 		const shouldFetch =
 			now >= this.backoffUntil &&
-			now - this.lastFetchTime >= CACHE_DURATION_MS &&
+			now - this.lastFetchTime >= cacheDurationMs &&
 			!this.fetchPromise &&
 			!this.authFetchPending
 
@@ -192,6 +193,13 @@ export class BannerService {
 				this.fetchPromise = null
 			})
 		}
+	}
+
+	private getCacheDurationMs(): number {
+		const flagPayload = featureFlagsService.getFlagPayload(FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL)
+		const ms = typeof flagPayload === "number" && Number.isFinite(flagPayload) ? flagPayload : DEFAULT_CACHE_DURATION_MS
+		if (!Number.isFinite(ms) || ms <= 0) return DEFAULT_CACHE_DURATION_MS
+		return ms
 	}
 
 	public clearCache(): void {

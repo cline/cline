@@ -19,17 +19,11 @@ export interface ClineMemento {
 	get<T>(key: string, defaultValue: T): T
 	update(key: string, value: any): Thenable<void>
 	keys(): readonly string[]
-}
-
-/**
- * SecretStorage-compatible interface for async secret storage.
- * VSCode's SecretStorage and ClineStorage both satisfy this interface.
- */
-export interface ClineSecretStore {
-	get(key: string): Thenable<string | undefined>
-	store(key: string, value: string): Thenable<void>
-	delete(key: string): Thenable<void>
-	onDidChange: any
+	/**
+	 * Set multiple keys in a single operation.
+	 * More efficient than calling update() for each key individually.
+	 */
+	setBatch(entries: Record<string, any>): Thenable<void>
 }
 
 /**
@@ -61,13 +55,6 @@ export abstract class ClineStorage {
 	}
 
 	/**
-	 * Fire storage change event to all subscribers.
-	 */
-	protected async fire(key: string): Promise<void> {
-		await Promise.all(this.subscribers.map((subscriber) => subscriber({ key })))
-	}
-
-	/**
 	 * Get a value from storage. This method is final and cannot be overridden.
 	 * Subclasses should implement _get() to define their storage retrieval logic.
 	 */
@@ -81,7 +68,6 @@ export abstract class ClineStorage {
 
 	async _dangerousStore(key: string, value: string): Promise<void> {
 		await this._store(key, value)
-		await this.fire(key)
 	}
 
 	/**
@@ -105,7 +91,6 @@ export abstract class ClineStorage {
 	public async delete(key: string): Promise<void> {
 		try {
 			await this._delete(key)
-			await this.fire(key)
 		} catch {
 			// Silently fail on delete errors
 		}
@@ -137,33 +122,38 @@ export abstract class ClineStorage {
  * values and provides synchronous access - required for VSCode Memento compatibility.
  */
 
+export type SyncStorageEventListener = (event: ClineStorageChangeEvent) => void
+
 export abstract class ClineSyncStorage<T = any> {
 	protected abstract name: string
 
-	private readonly subscribers: Array<StorageEventListener> = []
+	/**
+	 * List of subscribers to storage change events.
+	 */
+	private readonly changeSubscribers: Array<SyncStorageEventListener> = []
 
 	/**
-	 * Subscribe to storage change events.
+	 * Subscribe to storage change events. Returns an unsubscribe function.
 	 */
-	public onDidChange(callback: StorageEventListener): () => void {
-		this.subscribers.push(callback)
+	public onDidChange(callback: SyncStorageEventListener): () => void {
+		this.changeSubscribers.push(callback)
 		return () => {
-			const callbackIndex = this.subscribers.indexOf(callback)
-			if (callbackIndex >= 0) {
-				this.subscribers.splice(callbackIndex, 1)
+			const idx = this.changeSubscribers.indexOf(callback)
+			if (idx >= 0) {
+				this.changeSubscribers.splice(idx, 1)
 			}
 		}
 	}
 
 	/**
-	 * Fire storage change event to all subscribers.
+	 * Notify all subscribers of a key change.
 	 */
-	protected fire(key: string): void {
-		for (const subscriber of this.subscribers) {
+	protected fireChange(key: string): void {
+		for (const subscriber of this.changeSubscribers) {
 			try {
 				subscriber({ key })
 			} catch (error) {
-				Logger.error(`[${this.name}] subscriber error for '${key}':`, error)
+				Logger.error(`[${this.name}] change subscriber error for '${key}':`, error)
 			}
 		}
 	}
@@ -191,7 +181,7 @@ export abstract class ClineSyncStorage<T = any> {
 	public set(key: string, value: T | undefined): void {
 		try {
 			this._set(key, value)
-			this.fire(key)
+			this.fireChange(key)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to set '${key}':`, error)
 		}
@@ -200,7 +190,7 @@ export abstract class ClineSyncStorage<T = any> {
 	public delete(key: string): void {
 		try {
 			this._delete(key)
-			this.fire(key)
+			this.fireChange(key)
 		} catch (error) {
 			Logger.error(`[${this.name}] failed to delete '${key}':`, error)
 		}

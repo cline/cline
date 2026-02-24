@@ -15,6 +15,7 @@ import { StringRequest } from "@/shared/proto/cline/common"
 import { openExternal } from "@/utils/env"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
@@ -172,6 +173,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const [providerSearch, setProviderSearch] = useState("")
 	const [providerIndex, setProviderIndex] = useState(0)
 	const [clineModelIndex, setClineModelIndex] = useState(0)
+	const featuredModels = useClineFeaturedModels()
 	const [importSources, setImportSources] = useState<DetectedSources>({ codex: false, opencode: false })
 	const [importSource, setImportSource] = useState<ImportSource | null>(null)
 	const [bedrockConfig, setBedrockConfig] = useState<BedrockConfig | null>(null)
@@ -767,7 +769,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					<Box flexDirection="column">
 						<Text color="white">Choose a model</Text>
 						<Text> </Text>
-						<FeaturedModelPicker selectedIndex={clineModelIndex} />
+						<FeaturedModelPicker featuredModels={featuredModels} selectedIndex={clineModelIndex} />
 					</Box>
 				)
 			}
@@ -869,17 +871,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setProviderSearch((prev) => prev + input)
 				}
 			} else if (step === "cline_model") {
-				const maxIndex = getFeaturedModelMaxIndex()
+				const maxIndex = getFeaturedModelMaxIndex(featuredModels)
 
 				if (key.upArrow) {
 					setClineModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
 				} else if (key.downArrow) {
 					setClineModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
 				} else if (key.return) {
-					if (isBrowseAllSelected(clineModelIndex)) {
+					if (isBrowseAllSelected(clineModelIndex, featuredModels)) {
 						setStep("modelid")
 					} else {
-						const selectedModel = getFeaturedModelAtIndex(clineModelIndex)
+						const selectedModel = getFeaturedModelAtIndex(clineModelIndex, featuredModels)
 						if (selectedModel) {
 							handleClineModelSelect(selectedModel.id)
 						}

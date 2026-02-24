@@ -19,6 +19,7 @@ import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { createStorageContext } from "@/shared/storage/storage-context"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
 import { addToCline } from "./core/controller/commands/addToCline"
@@ -28,7 +29,6 @@ import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
-import { StateManager } from "./core/storage/StateManager"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	cleanupOldApiKey,
@@ -48,6 +48,7 @@ import {
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
+import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
@@ -66,17 +67,25 @@ export async function activate(context: vscode.ExtensionContext) {
 	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
 
-	// 2. Register services and perform common initialization
-	// IMPORTANT: Must be done after host provider is setup
-	const webview = (await initialize(context)) as VscodeWebviewProvider
+	// 2. Clean up legacy data patterns within VSCode's native storage.
+	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
+	// Must run BEFORE the file export so we copy clean state.
+	await cleanupLegacyVSCodeStorage(context)
 
-	// 3. Register services and commands specific to VS Code
+	// 3. One-time export of VSCode's native storage to shared file-backed stores.
+	// After this, all platforms (VSCode, CLI, JetBrains) read from ~/.cline/data/.
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	const storageContext = createStorageContext({ workspacePath })
+	await exportVSCodeStorageToSharedFiles(context, storageContext)
+
+	// 4. Register services and perform common initialization
+	// IMPORTANT: Must be done after host provider is setup and migrations are complete
+	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
+
+	// 5. Register services and commands specific to VS Code
 	// Initialize test mode and add disposables to context
 	const testModeWatchers = await initializeTestMode(webview)
 	context.subscriptions.push(...testModeWatchers)
-
-	// Perform storage migrations that does not block extension activation
-	performStorageMigrations(context)
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
@@ -514,25 +523,24 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	context.subscriptions.push(
-		context.secrets.onDidChange(async (event) => {
-			if (event.key === "cline:clineAccountId") {
-				// Check if the secret was removed (logout) or added/updated (login)
-				const secretValue = await context.secrets.get(event.key)
-				const activeWebview = WebviewProvider.getVisibleInstance()
-				const controller = activeWebview?.controller
+	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
+		if (event.key === "cline:clineAccountId") {
+			const secretValue = storageContext.secrets.get<string>(event.key)
+			const activeWebview = WebviewProvider.getVisibleInstance()
+			const controller = activeWebview?.controller
 
-				const authService = AuthService.getInstance(controller)
-				if (secretValue) {
-					// Secret was added or updated - restore auth info (login from another window)
-					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
-				} else {
-					// Secret was removed - handle logout for all windows
-					authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
-				}
+			const authService = AuthService.getInstance(controller)
+			if (secretValue) {
+				// Secret was added or updated - restore auth info (login from another window)
+				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+			} else {
+				// Secret was removed - handle logout for all windows
+				authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
 			}
-		}),
-	)
+		}
+	})
+	context.subscriptions.push({ dispose: unsubSecrets })
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
@@ -706,11 +714,11 @@ if (IS_DEV) {
 }
 
 // VSCode-specific storage migrations
-async function performStorageMigrations(context: ExtensionContext): Promise<void> {
+async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<void> {
 	try {
-		cleanupOldApiKey()
+		await cleanupOldApiKey(context)
 		// Migrate is not done if the new storage does not have the lastShownAnnouncementId flag
-		const hasMigrated = StateManager.get().getGlobalStateKey("lastShownAnnouncementId")
+		const hasMigrated = context.globalState.get("lastShownAnnouncementId")
 		if (hasMigrated !== undefined) {
 			return
 		}

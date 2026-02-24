@@ -73,6 +73,8 @@ Cline stores configuration in `~/.cline/data/`:
 ├── data/                    # Configuration directory
 │   ├── globalState.json     # Global settings
 │   ├── secrets.json         # API keys (encrypted)
+│   ├── settings/            # Settings files
+│   │   └── cline_mcp_settings.json  # MCP server configuration
 │   ├── workspace/           # Workspace-specific state
 │   └── tasks/               # Task history and data
 └── log/                     # Log files
@@ -171,6 +173,46 @@ cline --config ~/.cline-work "review this PR"
 # Personal projects
 cline --config ~/.cline-personal "help me with this side project"
 ```
+
+## MCP Server Configuration
+
+Cline CLI supports [MCP (Model Context Protocol)](/mcp/mcp-overview) servers, giving you access to external tools and data sources directly from the terminal. The CLI uses the same MCP configuration format as the VS Code extension.
+
+### Setting Up MCP Servers
+
+To configure MCP servers for the CLI, create or edit the settings file at:
+
+```
+~/.cline/data/settings/cline_mcp_settings.json
+```
+
+The file uses the same JSON format as the VS Code extension:
+
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "API_KEY": "your_api_key"
+      },
+      "alwaysAllow": ["tool1", "tool2"],
+      "disabled": false
+    }
+  }
+}
+```
+
+For the full configuration reference including STDIO and SSE transport types, see [Adding and Configuring MCP Servers](/mcp/adding-and-configuring-servers).
+
+<Note>
+The CLI does not yet have a `/mcp` slash command for managing MCP servers interactively. For now, you'll need to edit the `cline_mcp_settings.json` file directly.
+</Note>
+
+### Custom Config Directory
+
+If you use the `CLINE_DIR` environment variable or `--config` flag, the MCP settings file will be located at `<your-config-dir>/data/settings/cline_mcp_settings.json` instead.
 
 ## Configuration for Local Providers
 

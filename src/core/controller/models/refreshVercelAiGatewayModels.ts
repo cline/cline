@@ -68,8 +68,8 @@ function deriveTemperature(modelId: string): number | undefined {
 		return 0.7
 	}
 
-	// Gemini 3.0 recommends temperature 1.0
-	if (modelId.startsWith("google/gemini-3.0") || modelId === "google/gemini-3.0") {
+	// Gemini 3 models recommend temperature 1.0
+	if (modelId.startsWith("google/gemini-3")) {
 		return 1.0
 	}
 

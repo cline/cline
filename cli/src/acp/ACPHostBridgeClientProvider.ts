@@ -108,11 +108,7 @@ class ACPDiffServiceClient implements DiffServiceClientInterface {
 class ACPEnvServiceClient implements EnvServiceClientInterface {
 	private readonly version: string
 
-	constructor(
-		_clientCapabilities: acp.ClientCapabilities | undefined,
-		_sessionIdResolver: SessionIdResolver,
-		version: string = "1.0.0",
-	) {
+	constructor(_clientCapabilities: acp.ClientCapabilities | undefined, _sessionIdResolver: SessionIdResolver, version: string) {
 		this.version = version
 	}
 
@@ -402,7 +398,7 @@ export class ACPHostBridgeClientProvider implements HostBridgeClientProvider {
 		clientCapabilities: acp.ClientCapabilities | undefined,
 		sessionIdResolver: SessionIdResolver,
 		cwdResolver: CwdResolver,
-		version: string = "1.0.0",
+		version: string,
 	) {
 		this.workspaceClient = new ACPWorkspaceServiceClient(clientCapabilities, sessionIdResolver, cwdResolver)
 		this.envClient = new ACPEnvServiceClient(clientCapabilities, sessionIdResolver, version)

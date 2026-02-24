@@ -1,0 +1,298 @@
+---
+title: "MCP Marketplace"
+sidebarTitle: "MCP Marketplace"
+description: "Enterprise controls for MCP Marketplace access, server allowlisting, and remote MCP server management"
+---
+
+The MCP Marketplace lets developers discover and install MCP servers that extend Cline's capabilities. For Enterprise administrators, this page covers how to control marketplace access, restrict which servers are available, and push pre-configured MCP servers to your organization.
+
+<Note>
+For complete details about the MCP Marketplace and how developers use it, see [MCP Made Easy](/mcp/mcp-marketplace).
+</Note>
+
+## Overview
+
+Enterprise administrators have four configuration options to govern MCP server usage across their organization:
+
+| Setting | Purpose |
+|---------|---------|
+| `mcpMarketplaceEnabled` | Enable or disable the MCP Marketplace entirely |
+| `allowedMCPServers` | Restrict the marketplace to only approved MCP servers |
+| `remoteMCPServers` | Push pre-configured remote MCP servers to all users |
+| `blockPersonalRemoteMCPServers` | Prevent users from adding their own remote MCP servers |
+
+These settings are applied through your organization's [remote configuration](/enterprise-solutions/configuration/remote-configuration/overview) and take effect immediately for all team members.
+
+## Disabling the MCP Marketplace
+
+To completely disable the MCP Marketplace for your organization, set `mcpMarketplaceEnabled` to `false`:
+
+```json
+{
+  "mcpMarketplaceEnabled": false
+}
+```
+
+When `mcpMarketplaceEnabled` is set to `false`:
+- The MCP Marketplace tab is hidden from all users
+- Users cannot browse or install MCP servers from the marketplace
+- Locally configured MCP servers are blocked
+- Enterprise policy takes precedence over individual preferences
+
+When `mcpMarketplaceEnabled` is set to `true` or omitted:
+- Users can freely browse and install MCP servers from the marketplace
+- No organizational restrictions apply to marketplace access
+
+<Warning>
+Disabling the marketplace entirely also blocks locally configured MCP servers. If you want to allow specific servers while restricting others, use the allowlist approach described below instead.
+</Warning>
+
+## Restricting the Marketplace to Approved Servers
+
+Rather than disabling the marketplace entirely, you can restrict it to a curated list of approved MCP servers using the `allowedMCPServers` setting. This is the recommended approach for most enterprises — it lets developers benefit from MCP while ensuring only vetted servers are available.
+
+### Configuration
+
+Add an `allowedMCPServers` array to your remote configuration. Each entry requires an `id` field set to the server's GitHub repository path:
+
+```json
+{
+  "allowedMCPServers": [
+    { "id": "github.com/modelcontextprotocol/server-filesystem" },
+    { "id": "github.com/modelcontextprotocol/server-github" },
+    { "id": "github.com/your-org/internal-mcp-server" }
+  ]
+}
+```
+
+### How It Works
+
+When `allowedMCPServers` is configured:
+- The marketplace catalog is filtered to show **only** the servers in your allowlist
+- Users can browse, view details, and install any server on the list
+- Servers not on the list are completely hidden from the marketplace
+- The allowlist applies to all team members in the organization
+
+When `allowedMCPServers` is omitted or `undefined`:
+- The full marketplace catalog is available with no restrictions
+
+When `allowedMCPServers` is set to an empty array (`[]`):
+- The marketplace shows no servers — effectively disabling installation while keeping the UI visible
+
+### Finding Server IDs
+
+The `id` for each allowed server is its GitHub repository path (without the `https://` prefix). For example:
+
+| Server | ID |
+|--------|----|
+| Filesystem | `github.com/modelcontextprotocol/server-filesystem` |
+| GitHub | `github.com/modelcontextprotocol/server-github` |
+| Custom internal server | `github.com/your-org/your-mcp-server` |
+
+You can find the correct ID by checking the `githubUrl` field of any server in the [MCP Marketplace](/mcp/mcp-marketplace) and removing the `https://` prefix.
+
+## Pushing Pre-Configured Remote MCP Servers
+
+Use `remoteMCPServers` to push MCP servers directly to all users without requiring them to install anything from the marketplace. This is ideal for internal MCP servers or third-party servers that need specific configuration.
+
+### Configuration
+
+```json
+{
+  "remoteMCPServers": [
+    {
+      "name": "Internal Code Search",
+      "url": "https://mcp.internal.yourcompany.com/code-search",
+      "alwaysEnabled": true,
+      "headers": {
+        "Authorization": "Bearer ${AUTH_TOKEN}"
+      }
+    },
+    {
+      "name": "Documentation Server",
+      "url": "https://mcp.internal.yourcompany.com/docs",
+      "alwaysEnabled": false
+    }
+  ]
+}
+```
+
+### Remote Server Options
+
+Each remote MCP server entry supports the following fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name for the server |
+| `url` | string | Yes | The URL endpoint of the MCP server |
+| `alwaysEnabled` | boolean | No | When `true`, users cannot disable this server |
+| `headers` | object | No | Custom HTTP headers for authentication |
+
+### Always-Enabled Servers
+
+When `alwaysEnabled` is set to `true`:
+- The server is automatically active for all users
+- Users cannot toggle the server off
+- The server appears in the user's MCP configuration but the disable control is locked
+- This is useful for compliance, security, or internal tooling servers that must always be available
+
+## Blocking Personal Remote MCP Servers
+
+To prevent users from adding their own remote MCP servers, set `blockPersonalRemoteMCPServers` to `true`:
+
+```json
+{
+  "blockPersonalRemoteMCPServers": true
+}
+```
+
+When `blockPersonalRemoteMCPServers` is `true`:
+- Users cannot add or configure remote MCP servers on their own
+- Only servers defined in the organization's `remoteMCPServers` configuration are available
+- This ensures all remote MCP connections go through approved, organization-managed endpoints
+
+When `blockPersonalRemoteMCPServers` is `false` or omitted:
+- Users can freely add their own remote MCP server connections
+
+## Combined Configuration Examples
+
+### Locked-Down Environment
+
+For organizations that need strict control over all MCP server access:
+
+```json
+{
+  "mcpMarketplaceEnabled": true,
+  "allowedMCPServers": [
+    { "id": "github.com/modelcontextprotocol/server-filesystem" },
+    { "id": "github.com/modelcontextprotocol/server-github" }
+  ],
+  "remoteMCPServers": [
+    {
+      "name": "Internal API Gateway",
+      "url": "https://mcp.internal.yourcompany.com/gateway",
+      "alwaysEnabled": true,
+      "headers": {
+        "X-Api-Key": "org-managed-key"
+      }
+    }
+  ],
+  "blockPersonalRemoteMCPServers": true
+}
+```
+
+This configuration:
+- Allows the marketplace but limits it to two approved servers
+- Pushes an always-enabled internal MCP server to all users
+- Blocks users from adding their own remote MCP servers
+
+### Open Environment with Internal Servers
+
+For organizations that want flexibility with internal server access:
+
+```json
+{
+  "remoteMCPServers": [
+    {
+      "name": "Company Knowledge Base",
+      "url": "https://mcp.yourcompany.com/kb",
+      "alwaysEnabled": true
+    }
+  ]
+}
+```
+
+This configuration:
+- Leaves the full marketplace open (no `allowedMCPServers` restriction)
+- Ensures all developers have access to the company knowledge base
+- Allows users to add their own remote MCP servers
+
+### Marketplace Disabled with Internal Servers Only
+
+For organizations that want to fully manage the MCP experience:
+
+```json
+{
+  "mcpMarketplaceEnabled": false,
+  "remoteMCPServers": [
+    {
+      "name": "Approved Code Assistant",
+      "url": "https://mcp.internal.yourcompany.com/code-assist",
+      "alwaysEnabled": true
+    },
+    {
+      "name": "Internal Docs Search",
+      "url": "https://mcp.internal.yourcompany.com/docs",
+      "alwaysEnabled": true
+    }
+  ],
+  "blockPersonalRemoteMCPServers": true
+}
+```
+
+This configuration:
+- Disables the marketplace completely
+- Provides only organization-managed MCP servers
+- Prevents users from adding any additional remote servers
+
+## Enterprise Policy Recommendations
+
+### Recommended Approach
+
+Most organizations should **use the allowlist** (`allowedMCPServers`) rather than disabling the marketplace entirely. This gives developers access to useful tools while ensuring security review of each server.
+
+<AccordionGroup>
+  <Accordion title="Security Review Process" icon="shield">
+    Before adding an MCP server to your allowlist:
+    - Review the server's source code on GitHub
+    - Evaluate the server's permissions and data access patterns
+    - Check for active maintenance and security practices
+    - Assess whether the server's data handling meets your compliance requirements
+    - Test the server in a sandbox environment before approving
+  </Accordion>
+
+  <Accordion title="Internal MCP Servers" icon="building">
+    For internal tooling, use `remoteMCPServers` with `alwaysEnabled: true`:
+    - Connect Cline to internal APIs, databases, and knowledge bases
+    - Ensure consistent access across all developers
+    - Manage authentication centrally through custom headers
+    - Use `blockPersonalRemoteMCPServers` to prevent shadow IT
+  </Accordion>
+
+  <Accordion title="Compliance Considerations" icon="clipboard-check">
+    MCP servers can access external APIs and process data:
+    - Audit which servers handle sensitive data
+    - Ensure servers comply with your data residency requirements
+    - Document approved servers in your security policies
+    - Regularly review and update your allowlist
+  </Accordion>
+</AccordionGroup>
+
+### Recommendations by Organization Size
+
+#### Small Teams (5–20 developers)
+- **Marketplace:** Open or lightly restricted with an allowlist
+- **Remote Servers:** Push internal servers as needed
+- **Personal Servers:** Allow with guidance
+- **Review Cadence:** Quarterly allowlist review
+
+#### Medium Organizations (20–100 developers)
+- **Marketplace:** Restricted to an approved allowlist
+- **Remote Servers:** Push internal servers with `alwaysEnabled`
+- **Personal Servers:** Consider blocking (`blockPersonalRemoteMCPServers: true`)
+- **Review Cadence:** Monthly allowlist review
+
+#### Large Enterprises (100+ developers)
+- **Marketplace:** Strictly restricted to a vetted allowlist
+- **Remote Servers:** All MCP access through organization-managed servers
+- **Personal Servers:** Blocked (`blockPersonalRemoteMCPServers: true`)
+- **Review Cadence:** Formal approval process for new servers with security review
+
+## Support & Questions
+
+For help configuring MCP Marketplace policies:
+- Review [Remote Configuration Overview](/enterprise-solutions/configuration/remote-configuration/overview)
+- See [MCP Made Easy](/mcp/mcp-marketplace) for marketplace functionality details
+- See [MCP Overview](/mcp/mcp-overview) for general MCP concepts
+- Contact your Enterprise support representative
+- Join our [Discord](https://discord.gg/cline) for community discussion

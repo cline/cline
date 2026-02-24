@@ -1,3 +1,4 @@
+import { AgentConfigLoader } from "@core/task/tools/subagent/AgentConfigLoader"
 import { CLINE_MCP_TOOL_IDENTIFIER, McpServer } from "@/shared/mcp"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -104,6 +105,46 @@ export class ClineToolSet {
 		return enabledTools
 	}
 
+	private static getDynamicSubagentToolSpecs(variant: PromptVariant, context: SystemPromptContext): ClineToolSpec[] {
+		if (context.subagentsEnabled !== true || context.isSubagentRun) {
+			return []
+		}
+
+		const requestedIds = variant.tools ? [...variant.tools] : []
+		const shouldIncludeSubagentTools = requestedIds.length === 0 || requestedIds.includes(ClineDefaultTool.USE_SUBAGENTS)
+		if (!shouldIncludeSubagentTools) {
+			return []
+		}
+
+		const agentConfigs = AgentConfigLoader.getInstance().getAllCachedConfigsWithToolNames()
+		return agentConfigs.map(({ toolName, config }) => ({
+			variant: variant.family,
+			id: ClineDefaultTool.USE_SUBAGENTS,
+			name: toolName,
+			description: `Use the "${config.name}" subagent: ${config.description}`,
+			contextRequirements: (ctx) => ctx.subagentsEnabled === true && !ctx.isSubagentRun,
+			parameters: [
+				{
+					name: "prompt",
+					required: true,
+					instruction: "Helpful instruction for the task that the subagent will perform.",
+				},
+			],
+		}))
+	}
+
+	public static getEnabledToolSpecs(variant: PromptVariant, context: SystemPromptContext): ClineToolSpec[] {
+		const registeredTools = ClineToolSet.getEnabledTools(variant, context).map((tool) => tool.config)
+		const dynamicSubagentTools = ClineToolSet.getDynamicSubagentToolSpecs(variant, context)
+
+		const includesDynamicSubagents = dynamicSubagentTools.length > 0
+		const filteredRegistered = includesDynamicSubagents
+			? registeredTools.filter((tool) => tool.id !== ClineDefaultTool.USE_SUBAGENTS)
+			: registeredTools
+
+		return [...filteredRegistered, ...dynamicSubagentTools]
+	}
+
 	/**
 	 * Get the appropriate native tool converter for the given provider
 	 */
@@ -136,8 +177,7 @@ export class ClineToolSet {
 		}
 
 		// Base set
-		const toolsets = ClineToolSet.getEnabledTools(variant, context)
-		const toolConfigs = toolsets.map((tool) => tool.config)
+		const toolConfigs = ClineToolSet.getEnabledToolSpecs(variant, context)
 
 		// MCP tools
 		const mcpServers = context.mcpHub?.getServers()?.filter((s) => s.disabled !== true) || []

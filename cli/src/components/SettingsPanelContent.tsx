@@ -25,6 +25,7 @@ import { supportsReasoningEffortForModel } from "@/utils/model-utils"
 import { version as CLI_VERSION } from "../../package.json"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
@@ -161,6 +162,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 	const [isPickingFeaturedModel, setIsPickingFeaturedModel] = useState(initialMode === "featured-models")
 	const [featuredModelIndex, setFeaturedModelIndex] = useState(0)
+	const featuredModels = useClineFeaturedModels()
 	const [isPickingProvider, setIsPickingProvider] = useState(false)
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
@@ -1292,7 +1294,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 			// Featured model picker mode (Cline provider)
 			if (isPickingFeaturedModel) {
-				const maxIndex = getFeaturedModelMaxIndex()
+				const maxIndex = getFeaturedModelMaxIndex(featuredModels)
 
 				if (key.escape) {
 					setIsPickingFeaturedModel(false)
@@ -1306,12 +1308,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				} else if (key.downArrow) {
 					setFeaturedModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
 				} else if (key.return) {
-					if (isBrowseAllSelected(featuredModelIndex)) {
+					if (isBrowseAllSelected(featuredModelIndex, featuredModels)) {
 						// Switch to full ModelPicker
 						setIsPickingFeaturedModel(false)
 						setIsPickingModel(true)
 					} else {
-						const selectedModel = getFeaturedModelAtIndex(featuredModelIndex)
+						const selectedModel = getFeaturedModelAtIndex(featuredModelIndex, featuredModels)
 						if (selectedModel && pickingModelKey) {
 							handleModelSelect(selectedModel.id)
 							setIsPickingFeaturedModel(false)
@@ -1522,6 +1524,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			const label = pickingModelKey === "actModelId" ? "Model ID (Act)" : "Model ID (Plan)"
 			return (
 				<FeaturedModelPicker
+					featuredModels={featuredModels}
 					helpText="Arrows to navigate, Enter to select, Esc to cancel"
 					selectedIndex={featuredModelIndex}
 					title={`Select: ${label}`}

@@ -1,4 +1,5 @@
 import { ApiProvider } from "@shared/api"
+import type { ClineFileStorage } from "@shared/storage/ClineFileStorage"
 import {
 	applyTransform,
 	GlobalStateAndSettingKeys,
@@ -11,87 +12,80 @@ import {
 	SecretKeys,
 	Secrets,
 } from "@shared/storage/state-keys"
-import { ExtensionContext } from "vscode"
-import { Controller } from "@/core/controller"
-import { ClineRulesToggles } from "@/shared/cline-rules"
 import { Logger } from "@/shared/services/Logger"
-import { secretStorage } from "@/shared/storage"
+import { ClineMemento } from "@/shared/storage"
 import { readTaskHistoryFromState } from "../disk"
+import { StateManager } from "../StateManager"
 
-export async function readSecretsFromDisk(): Promise<Secrets> {
-	const secrets = await Promise.all(SecretKeys.map((key) => secretStorage.get(key)))
+// ─── File-backed storage readers (used by StateManager) ────────────────────
 
-	return SecretKeys.reduce((acc, key, index) => {
-		acc[key] = secrets[index]
+/**
+ * Read secrets from a ClineFileStorage instance.
+ */
+export function readSecretsFromStorage(store: ClineFileStorage<string>): Secrets {
+	return SecretKeys.reduce((acc, key) => {
+		acc[key] = store.get(key)
 		return acc
 	}, {} as Secrets)
 }
 
-export async function readWorkspaceStateFromDisk(context: ExtensionContext): Promise<LocalState> {
-	const states = LocalStateKeys.map((key) => context.workspaceState.get<ClineRulesToggles | undefined>(key))
-
-	return LocalStateKeys.reduce((acc, key, index) => {
-		acc[key] = states[index] || {}
+/**
+ * Read workspace state from a ClineFileStorage instance.
+ */
+export function readWorkspaceStateFromStorage(store: ClineFileStorage): LocalState {
+	return LocalStateKeys.reduce((acc, key) => {
+		acc[key] = store.get(key) || {}
 		return acc
 	}, {} as LocalState)
 }
 
-export async function readGlobalStateFromDisk(context: ExtensionContext): Promise<GlobalStateAndSettings> {
+/**
+ * Read global state from a ClineFileStorage instance.
+ */
+export async function readGlobalStateFromStorage(store: ClineMemento): Promise<GlobalStateAndSettings> {
 	try {
 		// Batch read all state values in a single optimized pass
 		const stateValues = new Map<string, any>()
-		// Read all values at once for better performance
 		for (const key of GlobalStateAndSettingKeys) {
-			const value = context.globalState.get(key as string)
+			const value = store.get(key as string)
 			stateValues.set(key, value)
 		}
 
-		// Build result object with proper typing
-		const result = {} as any // Use any for assignment, but return proper type
+		const result = {} as any
 
-		// Process each state property using optimized approach
 		for (const key of GlobalStateAndSettingKeys) {
 			const stateKey = key as keyof GlobalStateAndSettings
 			let value = stateValues.get(stateKey)
 
-			// Skip async properties - they need special handling
 			if (isAsyncProperty(stateKey)) {
 				continue
 			}
-
-			// Skip computed properties - they need special handling
 			if (isComputedProperty(stateKey)) {
 				continue
 			}
-
-			// Apply default value if needed
 			if (value === undefined) {
 				const defaultValue = getDefaultValue(stateKey)
 				if (defaultValue !== undefined) {
 					value = defaultValue
 				}
 			}
-
-			// Apply transformation if provided
 			if (value !== undefined) {
 				value = applyTransform(stateKey, value)
 			}
-			// Set the processed value
 			result[stateKey] = value
 		}
 
-		// Handle computed properties with special logic
 		await handleComputedProperties(result, stateValues)
-
-		// Handle async properties
 		await handleAsyncProperties(result)
 
 		return result as GlobalStateAndSettings
 	} catch (error) {
-		Logger.error("[StateHelpers] Failed to read global state:", error)
+		Logger.error("[StateHelpers] Failed to read global state from storage:", error)
 		throw error
 	}
 }
+
+// ─── Legacy readers (for VSCode migration — reads from ExtensionContext) ────
 
 /**
  * Handle properties that require computed logic
@@ -120,19 +114,16 @@ async function handleAsyncProperties(result: any): Promise<void> {
 	result.taskHistory = await readTaskHistoryFromState()
 }
 
-export async function resetWorkspaceState(controller: Controller) {
-	await Promise.all(LocalStateKeys.map((key) => controller.context.workspaceState.update(key, undefined)))
-
-	await controller.stateManager.reInitialize()
+export async function resetWorkspaceState() {
+	const stateManager = StateManager.get()
+	LocalStateKeys.map((key) => stateManager.setWorkspaceState(key, {}))
+	await stateManager.reInitialize()
 }
 
-export async function resetGlobalState(controller: Controller) {
+export async function resetGlobalState() {
 	// TODO: Reset all workspace states?
-	const context = controller.context
-
-	await Promise.all(GlobalStateAndSettingKeys.map((key) => context.globalState.update(key, undefined)))
-
-	await Promise.all(SecretKeys.map((key) => secretStorage.delete(key)))
-
-	await controller.stateManager.reInitialize()
+	const stateManager = StateManager.get()
+	GlobalStateAndSettingKeys.map((key) => stateManager.setGlobalState(key, undefined))
+	SecretKeys.map((key) => stateManager.setSecret(key, undefined))
+	await stateManager.reInitialize()
 }

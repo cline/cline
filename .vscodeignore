@@ -35,11 +35,9 @@ cli/**
 eslint-rules/
 old_docs/
 evals/
-.changie.yaml
 .codespellrc
 .mocharc.json
 buf.yaml
-.changeset/
 .clinerules/
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
