@@ -21,7 +21,7 @@ import { WithCopyButton } from "./CopyButton"
  * Returns the platform-specific keyboard shortcut for toggling Plan/Act mode.
  * Mac: ⌘⇧A, Windows: Win+Shift+A, Linux: Alt+Shift+A
  */
-function getPlanActShortcut(): string {
+export function getPlanActShortcut(): string {
 	const platform = getCurrentPlatform()
 	switch (platform) {
 		case "mac":
