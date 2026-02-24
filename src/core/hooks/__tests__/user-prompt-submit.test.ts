@@ -6,30 +6,14 @@ import path from "path"
 import sinon from "sinon"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
+import { writeHookScriptForPlatform } from "./test-utils"
 
 describe("UserPromptSubmit Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 
-	// Helper to write executable hook script
-	const isWindows = process.platform === "win32"
-
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		if (isWindows) {
-			const jsPath = `${hookPath}.js`
-			const psBridge = [
-				`$inputData = [Console]::In.ReadToEnd()`,
-				`$inputData | node "$PSScriptRoot\${path.basename(jsPath)}"`,
-				`exit $LASTEXITCODE`,
-			].join("`n")
-
-			await fs.writeFile(jsPath, nodeScript)
-			await fs.writeFile(hookPath, psBridge)
-			return
-		}
-
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {

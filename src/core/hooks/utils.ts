@@ -72,11 +72,20 @@ export async function resolveHooksDirectory(
 /**
  * Resolves the active hook file path for a given hook name.
  *
+ * Platform-specific filename rules are intentionally strict:
+ *
  * On Windows, only PowerShell-native naming is supported:
  * - <HookName>.ps1
  *
+ * Why: Windows hooks execute via PowerShell (`powershell -File ...`).
+ * PowerShell cannot execute bash-style extensionless hook files as-is.
+ *
  * On Unix-like platforms (Linux/macOS), only canonical extensionless names are considered:
  * - <HookName>
+ *
+ * Why: Unix hooks are discovered/executed as native executable files
+ * (bash scripts, binaries, etc.) using executable-bit semantics.
+ * `.ps1` files are not part of the supported Unix hook contract.
  *
  * @param hooksDir Directory containing hook files
  * @param hookName Hook type/name to resolve

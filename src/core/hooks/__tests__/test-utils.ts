@@ -84,6 +84,41 @@ export async function createTestHook(
 }
 
 /**
+ * Writes a hook script at a specific hook base path (without extension).
+ *
+ * - Unix/macOS: writes executable extensionless script directly
+ * - Windows: writes `<HookName>.ps1` + `<HookName>.js` companion script
+ */
+export async function writeHookScriptForPlatform(hookPath: string, nodeScript: string): Promise<void> {
+	if (process.platform === "win32") {
+		const jsPath = `${hookPath}.js`
+		const ps1Path = `${hookPath}.ps1`
+		const psBridge = buildPowerShellNodeBridge(process.execPath, path.basename(jsPath))
+
+		await fs.writeFile(jsPath, nodeScript)
+		await fs.writeFile(ps1Path, psBridge)
+		return
+	}
+
+	await fs.writeFile(hookPath, nodeScript)
+	await fs.chmod(hookPath, 0o755)
+}
+
+function buildPowerShellNodeBridge(nodePath: string, jsFileName: string): string {
+	const escapedNodePath = nodePath.replace(/'/g, "''")
+	const escapedJsFileName = jsFileName.replace(/'/g, "''")
+
+	return [
+		`$ErrorActionPreference = 'Stop'`,
+		`$scriptPath = Join-Path -Path $PSScriptRoot -ChildPath '${escapedJsFileName}'`,
+		`$inputData = [Console]::In.ReadToEnd()`,
+		`$inputData | & '${escapedNodePath}' $scriptPath`,
+		`if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`,
+		`exit 0`,
+	].join("\n")
+}
+
+/**
  * Generates an executable Node.js script with shebang.
  */
 function generateHookScript(
@@ -137,23 +172,8 @@ function generateHookScript(
  */
 async function writeShellHook(hooksDir: string, hookName: string, scriptContent: string): Promise<string> {
 	const scriptPath = path.join(hooksDir, hookName)
-
-	if (process.platform === "win32") {
-		const jsPath = `${scriptPath}.js`
-		const psBridge = [
-			`$inputData = [Console]::In.ReadToEnd()`,
-			`$inputData | node "$PSScriptRoot\\${path.basename(jsPath)}"`,
-			`exit $LASTEXITCODE`,
-		].join("`n")
-
-		await fs.writeFile(jsPath, scriptContent)
-		await fs.writeFile(scriptPath, psBridge)
-		return scriptPath
-	}
-
-	await fs.writeFile(scriptPath, scriptContent)
-	await fs.chmod(scriptPath, 0o755)
-	return scriptPath
+	await writeHookScriptForPlatform(scriptPath, scriptContent)
+	return process.platform === "win32" ? `${scriptPath}.ps1` : scriptPath
 }
 
 /**
@@ -447,11 +467,15 @@ export async function loadFixture(fixtureName: string, destDir: string): Promise
 	const files = await fs.readdir(sourcePath)
 	for (const file of files) {
 		const sourceFile = path.join(sourcePath, file)
-		const destFile = path.join(destHooksDir, file)
-		await fs.copyFile(sourceFile, destFile)
 
-		// Set executable permission (not needed on Windows)
-		if (process.platform !== "win32") {
+		if (process.platform === "win32") {
+			const sourceContent = await fs.readFile(sourceFile, "utf-8")
+			await writeHookScriptForPlatform(path.join(destHooksDir, file), sourceContent)
+		} else {
+			const destFile = path.join(destHooksDir, file)
+			await fs.copyFile(sourceFile, destFile)
+
+			// Set executable permission (not needed on Windows)
 			const stats = await fs.stat(sourceFile)
 			await fs.chmod(destFile, stats.mode)
 		}

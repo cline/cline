@@ -917,8 +917,10 @@ export class HookFactory {
 	/**
 	 * Finds a hook on Windows by checking for a PowerShell hook file (`<HookName>.ps1`).
 	 *
-	 * Extensionless hooks are intentionally ignored on Windows. This keeps platform behavior
-	 * explicit and avoids ambiguity with Unix-style executable hooks.
+	 * Extensionless hooks are intentionally ignored on Windows.
+	 *
+	 * Why: Windows hooks execute via PowerShell (`powershell -File ...`).
+	 * The supported contract is an explicit PowerShell script file per hook type.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the hooks directory path to search
@@ -948,6 +950,11 @@ export class HookFactory {
 
 	/**
 	 * Finds a hook on Unix-like systems (Linux, macOS) by checking for an executable file.
+	 *
+	 * `.ps1` hook files are intentionally ignored on Unix platforms.
+	 *
+	 * Why: Unix hooks use executable-file semantics (bash scripts, binaries, etc.)
+	 * with canonical extensionless hook names.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the .clinerules directory path to search

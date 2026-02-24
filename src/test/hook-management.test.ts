@@ -21,6 +21,8 @@ import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shar
 describe("Hook Management", () => {
 	const isWindows = process.platform === "win32"
 	const originalPlatform = process.platform
+	const hookFileName = (hookName: string) => (isWindows ? `${hookName}.ps1` : hookName)
+	const hookTemplate = isWindows ? "Write-Output '{}'" : "#!/usr/bin/env node"
 
 	let tempDir: string
 	let globalHooksDir: string
@@ -96,7 +98,7 @@ describe("Hook Management", () => {
 			const response = await createHook(mockController, request, globalHooksDir)
 
 			// Verify file was created
-			const hookPath = path.join(globalHooksDir, "TaskStart")
+			const hookPath = path.join(globalHooksDir, hookFileName("TaskStart"))
 			const exists = await fs
 				.access(hookPath)
 				.then(() => true)
@@ -132,7 +134,7 @@ describe("Hook Management", () => {
 
 			await createHook(mockController, request)
 
-			const hookPath = path.join(workspaceHooksDir, "TaskResume")
+			const hookPath = path.join(workspaceHooksDir, hookFileName("TaskResume"))
 			const stats = await fs.stat(hookPath)
 
 			// Check permissions - should be 0o644 (non-executable)
@@ -197,7 +199,7 @@ describe("Hook Management", () => {
 			dirExists.should.equal(true)
 
 			// Verify hook was created
-			const hookPath = path.join(globalHooksDir, "TaskComplete")
+			const hookPath = path.join(globalHooksDir, hookFileName("TaskComplete"))
 			const fileExists = await fs
 				.access(hookPath)
 				.then(() => true)
@@ -215,7 +217,7 @@ describe("Hook Management", () => {
 
 			await createHook(mockController, request)
 
-			const hookPath = path.join(workspaceHooksDir, "TaskCancel")
+			const hookPath = path.join(workspaceHooksDir, hookFileName("TaskCancel"))
 			const exists = await fs
 				.access(hookPath)
 				.then(() => true)
@@ -229,7 +231,7 @@ describe("Hook Management", () => {
 			this.timeout(5000)
 
 			// Create a hook first
-			const hookPath = path.join(globalHooksDir, "TaskStart")
+			const hookPath = path.join(globalHooksDir, hookFileName("TaskStart"))
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o755 })
 
 			const request = DeleteHookRequest.create({
@@ -271,7 +273,7 @@ describe("Hook Management", () => {
 			this.timeout(5000)
 
 			// Create a workspace hook first
-			const hookPath = path.join(workspaceHooksDir, "TaskResume")
+			const hookPath = path.join(workspaceHooksDir, hookFileName("TaskResume"))
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o755 })
 
 			const request = DeleteHookRequest.create({
@@ -368,7 +370,7 @@ describe("Hook Management", () => {
 		it("should return updated hooks state", async function () {
 			this.timeout(5000)
 
-			const hookPath = path.join(globalHooksDir, "TaskComplete")
+			const hookPath = path.join(globalHooksDir, hookFileName("TaskComplete"))
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o644 })
 
 			const request = ToggleHookRequest.create({
@@ -390,8 +392,13 @@ describe("Hook Management", () => {
 			this.timeout(5000)
 
 			// Create some hooks
-			await fs.writeFile(path.join(globalHooksDir, "TaskStart"), "#!/usr/bin/env node", { mode: 0o755 })
-			await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "#!/usr/bin/env node", { mode: 0o644 })
+			if (isWindows) {
+				await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
+				await fs.writeFile(path.join(globalHooksDir, "TaskResume.ps1"), "Write-Output '{}'", { mode: 0o644 })
+			} else {
+				await fs.writeFile(path.join(globalHooksDir, "TaskStart"), "#!/usr/bin/env node", { mode: 0o755 })
+				await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "#!/usr/bin/env node", { mode: 0o644 })
+			}
 
 			const result = await refreshHooks(mockController, undefined, globalHooksDir)
 
@@ -399,13 +406,17 @@ describe("Hook Management", () => {
 			result.globalHooks[0].name.should.equal("TaskStart")
 			result.globalHooks[0].enabled.should.equal(true)
 			result.globalHooks[1].name.should.equal("TaskResume")
-			result.globalHooks[1].enabled.should.equal(false)
+			if (isWindows) {
+				result.globalHooks[1].enabled.should.equal(true)
+			} else {
+				result.globalHooks[1].enabled.should.equal(false)
+			}
 		})
 
 		it("should discover hooks in workspace directories", async function () {
 			this.timeout(5000)
 
-			await fs.writeFile(path.join(workspaceHooksDir, "UserPromptSubmit"), "#!/usr/bin/env node", {
+			await fs.writeFile(path.join(workspaceHooksDir, hookFileName("UserPromptSubmit")), hookTemplate, {
 				mode: 0o755,
 			})
 
@@ -450,11 +461,15 @@ describe("Hook Management", () => {
 		it("should include absolute paths in hook info", async function () {
 			this.timeout(5000)
 
-			await fs.writeFile(path.join(globalHooksDir, "TaskComplete"), "#!/usr/bin/env node", { mode: 0o755 })
+			if (isWindows) {
+				await fs.writeFile(path.join(globalHooksDir, "TaskComplete.ps1"), "Write-Output '{}'", { mode: 0o644 })
+			} else {
+				await fs.writeFile(path.join(globalHooksDir, "TaskComplete"), "#!/usr/bin/env node", { mode: 0o755 })
+			}
 
 			const result = await refreshHooks(mockController, undefined, globalHooksDir)
 
-			result.globalHooks[0].absolutePath.should.equal(path.join(globalHooksDir, "TaskComplete"))
+			result.globalHooks[0].absolutePath.should.equal(path.join(globalHooksDir, hookFileName("TaskComplete")))
 		})
 
 		it("should set isWindows flag correctly", async function () {
@@ -465,7 +480,7 @@ describe("Hook Management", () => {
 			result.isWindows.should.equal(isWindows)
 		})
 
-		it("should resolve .ps1-only hooks on Windows semantics", async function () {
+		it("should resolve .ps1-only hooks on Windows (extensionless is unsupported)", async function () {
 			this.timeout(5000)
 
 			Object.defineProperty(process, "platform", {
@@ -483,7 +498,7 @@ describe("Hook Management", () => {
 			taskStart!.enabled.should.equal(true)
 		})
 
-		it("should prefer extensionless hook over .ps1 on Windows semantics", async function () {
+		it("should ignore extensionless hook on Windows and use .ps1 only", async function () {
 			this.timeout(5000)
 
 			Object.defineProperty(process, "platform", {
@@ -498,7 +513,7 @@ describe("Hook Management", () => {
 			const result = await refreshHooks(mockController, undefined, globalHooksDir)
 			const taskResume = result.globalHooks.find((h) => h.name === "TaskResume")
 			should.exist(taskResume)
-			taskResume!.absolutePath.should.equal(path.join(globalHooksDir, "TaskResume"))
+			taskResume!.absolutePath.should.equal(path.join(globalHooksDir, "TaskResume.ps1"))
 		})
 	})
 
@@ -574,7 +589,7 @@ describe("Hook Management", () => {
 			result.globalHooks.should.have.length(0)
 		})
 
-		it("should toggle and delete .ps1-only hooks on Windows semantics", async function () {
+		it("should toggle and delete .ps1-only hooks on Windows", async function () {
 			this.timeout(5000)
 
 			Object.defineProperty(process, "platform", {

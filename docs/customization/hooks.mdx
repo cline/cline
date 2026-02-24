@@ -158,7 +158,12 @@ On Windows, hooks are executed with PowerShell and run whenever the hook file ex
 </Note>
 
 <Note>
-On Windows, each hook type supports either filename style: `HookName` or `HookName.ps1` (for example, `PreToolUse` or `PreToolUse.ps1`). If both files exist for the same hook type, Cline uses the extensionless `HookName` file.
+Hook filenames are platform-specific:
+
+- **Windows**: only `HookName.ps1` is supported (PowerShell script files)
+- **macOS/Linux**: only extensionless `HookName` is supported (executable files like bash scripts or binaries)
+
+Wrong-platform naming is ignored by hook discovery.
 </Note>
 
 ### Test It
@@ -460,6 +465,8 @@ Windows hooks require PowerShell (`powershell.exe`) available on your PATH.
 **Hook not running?**
 - On macOS/Linux, check that the file is executable (`chmod +x hookname`)
 - On Windows, ensure PowerShell is available (`powershell -NoProfile -Command "$PSVersionTable.PSVersion"`)
+- On Windows, ensure the hook file is named `<HookName>.ps1` (for example `PreToolUse.ps1`)
+- On macOS/Linux, ensure the hook file uses extensionless `<HookName>` naming (for example `PreToolUse`)
 - On macOS/Linux, verify the hook is enabled (toggle is on in the Hooks tab)
 - Check that Hooks are enabled globally in Settings
 

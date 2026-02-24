@@ -98,9 +98,13 @@ describe("Hook Management Integration", () => {
 			// Step 3: Verify hook was created and is disabled (644 permissions)
 			createResponse.hooksToggles!.globalHooks.should.have.length(1)
 			createResponse.hooksToggles!.globalHooks[0].name.should.equal(hookName)
-			createResponse.hooksToggles!.globalHooks[0].enabled.should.equal(false)
+			if (isWindows) {
+				createResponse.hooksToggles!.globalHooks[0].enabled.should.equal(true)
+			} else {
+				createResponse.hooksToggles!.globalHooks[0].enabled.should.equal(false)
+			}
 
-			const hookPath = path.join(globalHooksDir, hookName)
+			const hookPath = path.join(globalHooksDir, isWindows ? `${hookName}.ps1` : hookName)
 			if (!isWindows) {
 				const createStats = await fs.stat(hookPath)
 				const createMode = createStats.mode & 0o777
@@ -121,7 +125,9 @@ describe("Hook Management Integration", () => {
 
 			const enableStats = await fs.stat(hookPath)
 			const enableMode = enableStats.mode & 0o777
-			;(enableMode & 0o100).should.be.greaterThan(0)
+			if (!isWindows) {
+				;(enableMode & 0o100).should.be.greaterThan(0)
+			}
 
 			// Step 6: Disable the hook
 			const disableRequest = ToggleHookRequest.create({
@@ -209,7 +215,11 @@ describe("Hook Management Integration", () => {
 			const hooks = await refreshHooks(mockController, undefined, globalHooksDir)
 			hooks.globalHooks.should.have.length(4)
 			hooks.globalHooks.forEach((hook) => {
-				hook.enabled.should.equal(false)
+				if (isWindows) {
+					hook.enabled.should.equal(true)
+				} else {
+					hook.enabled.should.equal(false)
+				}
 			})
 
 			// Enable two of them
@@ -374,7 +384,7 @@ describe("Hook Management Integration", () => {
 			hooks.globalHooks.should.have.length(1)
 
 			// Modify file permissions directly (simulating external change)
-			const hookPath = path.join(globalHooksDir, "TaskStart")
+			const hookPath = path.join(globalHooksDir, isWindows ? "TaskStart.ps1" : "TaskStart")
 			if (!isWindows) {
 				await fs.chmod(hookPath, 0o755)
 			}

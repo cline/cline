@@ -7,6 +7,7 @@ import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
+import { writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
 	let tempDir: string
@@ -14,24 +15,8 @@ describe("Hook System", () => {
 	let originalPlatform: NodeJS.Platform
 
 	// Helper to write executable hook script
-	const isWindows = process.platform === "win32"
-
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		if (isWindows) {
-			const jsPath = `${hookPath}.js`
-			const psBridge = [
-				`$inputData = [Console]::In.ReadToEnd()`,
-				`$inputData | node "$PSScriptRoot\${path.basename(jsPath)}"`,
-				`exit $LASTEXITCODE`,
-			].join("`n")
-
-			await fs.writeFile(jsPath, nodeScript)
-			await fs.writeFile(hookPath, psBridge)
-			return
-		}
-
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
@@ -320,7 +305,24 @@ console.log(JSON.stringify({
 	})
 
 	describe("Hook Discovery", () => {
-		it("should resolve .ps1 hook on windows when extensionless is absent", async () => {
+		it("should generate Windows PowerShell bridge files with real newlines", async () => {
+			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
+			const hookBasePath = path.join(hooksDir, "PreToolUse")
+
+			Object.defineProperty(process, "platform", {
+				value: "win32",
+				writable: true,
+				configurable: true,
+			})
+
+			await writeHookScript(hookBasePath, "#!/usr/bin/env node\nprocess.exit(0)")
+
+			const ps1Content = await fs.readFile(`${hookBasePath}.ps1`, "utf-8")
+			ps1Content.should.match(/\n\$scriptPath = Join-Path/)
+			ps1Content.should.not.match(/`n\$scriptPath/)
+		})
+
+		it("should resolve .ps1 hook on windows", async () => {
 			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
 			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
 			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
@@ -339,7 +341,7 @@ console.log(JSON.stringify({
 			found.should.equal(ps1Path)
 		})
 
-		it("should ignore extensionless hook and resolve .ps1 on windows", async () => {
+		it("should ignore extensionless hook on windows and use .ps1 only", async () => {
 			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
 			const extensionless = path.join(hooksDir, "PreToolUse")
 			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")

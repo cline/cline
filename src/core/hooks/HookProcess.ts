@@ -1,5 +1,6 @@
 import { ChildProcess, spawn, spawnSync } from "child_process"
 import { EventEmitter } from "events"
+import path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { HookProcessRegistry } from "./HookProcessRegistry"
 import { escapeShellPath } from "./shell-escape"
@@ -14,7 +15,22 @@ interface HookLaunchConfig {
 	detached: boolean
 }
 
-const WINDOWS_POWERSHELL_CANDIDATES = ["powershell.exe", "pwsh.exe", "pwsh"]
+function getWindowsPowerShellCandidates(): string[] {
+	const systemRoot = process.env.SystemRoot || "C:\\Windows"
+	const programFiles = process.env.ProgramW6432 || process.env.ProgramFiles || "C:\\Program Files"
+
+	const absoluteCandidates = [
+		path.join(programFiles, "PowerShell", "7", "pwsh.exe"),
+		path.join(programFiles, "PowerShell", "6", "pwsh.exe"),
+		path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+	]
+
+	const pathResolvedCandidates = ["pwsh.exe", "pwsh", "powershell.exe", "powershell"]
+
+	// De-duplicate while preserving order.
+	return [...new Set([...absoluteCandidates, ...pathResolvedCandidates])]
+}
+
 let cachedWindowsPowerShellExecutable: string | undefined
 
 function resolveWindowsPowerShellExecutable(): string {
@@ -22,7 +38,10 @@ function resolveWindowsPowerShellExecutable(): string {
 		return cachedWindowsPowerShellExecutable
 	}
 
-	for (const candidate of WINDOWS_POWERSHELL_CANDIDATES) {
+	const systemRoot = process.env.SystemRoot || "C:\\Windows"
+	const candidates = getWindowsPowerShellCandidates()
+
+	for (const candidate of candidates) {
 		const probe = spawnSync(candidate, ["-NoProfile", "-NonInteractive", "-Command", "$PSVersionTable.PSVersion"], {
 			stdio: "ignore",
 			windowsHide: true,
@@ -30,18 +49,21 @@ function resolveWindowsPowerShellExecutable(): string {
 
 		if (!probe.error) {
 			cachedWindowsPowerShellExecutable = candidate
+			Logger.debug(`[HookProcess] Using PowerShell executable: ${candidate}`)
 			return candidate
 		}
 	}
 
+	const legacyAbsolutePath = path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+
 	Logger.warn(
 		"[HookProcess] Could not resolve PowerShell executable from candidates " +
-			WINDOWS_POWERSHELL_CANDIDATES.join(", ") +
-			". Falling back to powershell.exe.",
+			candidates.join(", ") +
+			`. Falling back to ${legacyAbsolutePath}.`,
 	)
 
-	cachedWindowsPowerShellExecutable = "powershell.exe"
-	return cachedWindowsPowerShellExecutable
+	cachedWindowsPowerShellExecutable = legacyAbsolutePath
+	return legacyAbsolutePath
 }
 
 function getHookLaunchConfig(scriptPath: string): HookLaunchConfig {

@@ -46,7 +46,7 @@ describe("Hook Executor", () => {
 		exitCode = 0,
 		delayMs = 0,
 	): Promise<string> {
-		const scriptPath = path.join(tempDir, hookName)
+		const scriptPath = path.join(tempDir, isWindows ? `${hookName}.ps1` : hookName)
 		const scriptContent = isWindows
 			? `Start-Sleep -Milliseconds ${delayMs}
 Write-Output '${JSON.stringify(output).replace(/'/g, "''")}'
