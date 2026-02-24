@@ -14,7 +14,12 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 const SUPPORTED_THINKING_MODELS = [
 	"qwen3.5-plus",
 	"qwen3.5-plus-2026-02-15",
+	"qwen3.5-flash",
+	"qwen3.5-flash-2026-02-23",
 	"qwen3.5-397b-a17b",
+	"qwen3.5-122b-a10b",
+	"qwen3.5-27b",
+	"qwen3.5-35b-a3b",
 	"qwen3-235b-a22b",
 	"qwen3-32b",
 	"qwen3-30b-a3b",
