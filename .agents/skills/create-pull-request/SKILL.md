@@ -1,6 +1,6 @@
 ---
 name: create-pull-request
-description: Create a GitHub pull request following project conventions. Use when the user asks to create a PR, submit changes for review, or open a pull request. Handles commit analysis, branch management, and PR creation using the gh CLI tool.
+description: Create a GitHub pull request following project conventions. Use when the user asks to create a PR, submit changes for review, or open a pull request. Handles commit analysis, branch management, PR template usage, and PR creation using the gh CLI tool.
 ---
 
 # Create Pull Request
@@ -170,25 +170,6 @@ gh pr create --title "PR_TITLE" --body-file /tmp/pr-body.md --base main --draft
 ```
 
 **Why use a file?** Passing complex markdown with newlines, special characters, and checkboxes directly via `--body` is error-prone. The `--body-file` flag handles all content reliably.
-
-## Changesets
-
-When in doubt, create a changeset. Any change that could be noticed by a user should have one.
-
-To create a changeset, write a markdown file to `.changeset/` with a short kebab-case name describing the change:
-
-**File: `.changeset/your-change-name.md`**
-```markdown
----
-"claude-dev": patch
----
-
-Short description of what changed, written for end users.
-```
-
-**Always use `patch`.** Never use `minor` or `major`.
-
-Only skip changesets for purely internal changes like refactors, CI tweaks, or documentation updates that have zero user-facing impact.
 
 ## Post-Creation
 
