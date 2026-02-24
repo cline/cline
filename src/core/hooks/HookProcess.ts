@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "child_process"
+import { ChildProcess, spawn, spawnSync } from "child_process"
 import { EventEmitter } from "events"
 import { Logger } from "@/shared/services/Logger"
 import { HookProcessRegistry } from "./HookProcessRegistry"
@@ -14,10 +14,41 @@ interface HookLaunchConfig {
 	detached: boolean
 }
 
+const WINDOWS_POWERSHELL_CANDIDATES = ["powershell.exe", "pwsh.exe", "pwsh"]
+let cachedWindowsPowerShellExecutable: string | undefined
+
+function resolveWindowsPowerShellExecutable(): string {
+	if (cachedWindowsPowerShellExecutable) {
+		return cachedWindowsPowerShellExecutable
+	}
+
+	for (const candidate of WINDOWS_POWERSHELL_CANDIDATES) {
+		const probe = spawnSync(candidate, ["-NoProfile", "-NonInteractive", "-Command", "$PSVersionTable.PSVersion"], {
+			stdio: "ignore",
+			windowsHide: true,
+		})
+
+		if (!probe.error) {
+			cachedWindowsPowerShellExecutable = candidate
+			return candidate
+		}
+	}
+
+	Logger.warn(
+		"[HookProcess] Could not resolve PowerShell executable from candidates " +
+			WINDOWS_POWERSHELL_CANDIDATES.join(", ") +
+			". Falling back to powershell.exe.",
+	)
+
+	cachedWindowsPowerShellExecutable = "powershell.exe"
+	return cachedWindowsPowerShellExecutable
+}
+
 function getHookLaunchConfig(scriptPath: string): HookLaunchConfig {
 	if (process.platform === "win32") {
+		const powerShellExecutable = resolveWindowsPowerShellExecutable()
 		return {
-			command: "powershell.exe",
+			command: powerShellExecutable,
 			args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
 			shell: false,
 			detached: false,

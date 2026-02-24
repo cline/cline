@@ -8,19 +8,26 @@ import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
 
 describe("UserPromptSubmit Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 
 	// Helper to write executable hook script
+	const isWindows = process.platform === "win32"
+
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
+		if (isWindows) {
+			const jsPath = `${hookPath}.js`
+			const psBridge = [
+				`$inputData = [Console]::In.ReadToEnd()`,
+				`$inputData | node "$PSScriptRoot\${path.basename(jsPath)}"`,
+				`exit $LASTEXITCODE`,
+			].join("`n")
+
+			await fs.writeFile(jsPath, nodeScript)
+			await fs.writeFile(hookPath, psBridge)
+			return
+		}
+
 		await fs.writeFile(hookPath, nodeScript)
 		await fs.chmod(hookPath, 0o755)
 	}
@@ -49,7 +56,7 @@ describe("UserPromptSubmit Hook", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -81,7 +88,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Received prompt")
+			result.contextModification?.should.equal("Received prompt")
 		})
 
 		it("should handle multiline prompts", async () => {
@@ -108,7 +115,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Line count: 3")
+			result.contextModification?.should.equal("Line count: 3")
 		})
 
 		it("should handle large prompts", async () => {
@@ -135,7 +142,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Prompt size: 10000")
+			result.contextModification?.should.equal("Prompt size: 10000")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -162,7 +169,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 	})
 
@@ -198,7 +205,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Prompt length: 0")
+			result.contextModification?.should.equal("Prompt length: 0")
 		})
 
 		it("should preserve special characters in prompt", async () => {
@@ -225,7 +232,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Special chars preserved")
+			result.contextModification?.should.equal("Special chars preserved")
 		})
 	})
 
@@ -330,8 +337,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Prompt received/)
-			result.contextModification!.should.match(/WORKSPACE: Prompt received/)
+			result.contextModification?.should.match(/GLOBAL: Prompt received/)
+			result.contextModification?.should.match(/WORKSPACE: Prompt received/)
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -365,7 +372,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Workspace blocks/)
+			result.errorMessage?.should.match(/Workspace blocks/)
 		})
 	})
 
@@ -413,7 +420,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Prompt approved")
+			result.contextModification?.should.equal("Prompt approved")
 		})
 
 		it("should work with blocking fixture", async () => {
@@ -428,7 +435,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Prompt violates policy")
+			result.errorMessage?.should.equal("Prompt violates policy")
 		})
 
 		it("should work with context-injection fixture", async () => {
@@ -443,7 +450,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("CONTEXT_INJECTION: User is in plan mode")
+			result.contextModification?.should.equal("CONTEXT_INJECTION: User is in plan mode")
 		})
 
 		it("should work with error fixture", async () => {
@@ -492,7 +499,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Line count: 3")
+			result.contextModification?.should.equal("Line count: 3")
 		})
 
 		it("should work with large-prompt fixture", async () => {
@@ -508,7 +515,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Prompt size: 10000")
+			result.contextModification?.should.equal("Prompt size: 10000")
 		})
 
 		it("should work with special-chars fixture", async () => {
@@ -523,7 +530,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Special chars preserved")
+			result.contextModification?.should.equal("Special chars preserved")
 		})
 
 		it("should work with empty-prompt fixture", async () => {
@@ -538,7 +545,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Prompt length: 0")
+			result.contextModification?.should.equal("Prompt length: 0")
 		})
 	})
 })

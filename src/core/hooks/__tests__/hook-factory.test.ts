@@ -9,20 +9,27 @@ import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
 
 describe("Hook System", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let originalPlatform: NodeJS.Platform
 
 	// Helper to write executable hook script
+	const isWindows = process.platform === "win32"
+
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
+		if (isWindows) {
+			const jsPath = `${hookPath}.js`
+			const psBridge = [
+				`$inputData = [Console]::In.ReadToEnd()`,
+				`$inputData | node "$PSScriptRoot\${path.basename(jsPath)}"`,
+				`exit $LASTEXITCODE`,
+			].join("`n")
+
+			await fs.writeFile(jsPath, nodeScript)
+			await fs.writeFile(hookPath, psBridge)
+			return
+		}
+
 		await fs.writeFile(hookPath, nodeScript)
 		await fs.chmod(hookPath, 0o755)
 	}
@@ -70,7 +77,7 @@ describe("Hook System", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -122,7 +129,7 @@ console.log(JSON.stringify({
 			result.cancel.should.be.false()
 			// The hook should execute from its workspace root (tempDir)
 			// Use fs.realpath to normalize paths (handles macOS /private prefix)
-			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			const cwdFromHook = result.contextModification?.replace("CWD: ", "")
 			const normalizedCwd = await fs.realpath(cwdFromHook)
 			const normalizedTempDir = await fs.realpath(tempDir)
 			normalizedCwd.should.equal(normalizedTempDir)
@@ -153,7 +160,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TEST_CONTEXT: Added by hook")
+			result.contextModification?.should.equal("TEST_CONTEXT: Added by hook")
 		})
 
 		it("should handle script that blocks execution", async () => {
@@ -178,7 +185,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Hook blocked execution")
+			result.errorMessage?.should.equal("Hook blocked execution")
 		})
 
 		it("should truncate large context modifications", async () => {
@@ -204,8 +211,8 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.length.should.be.lessThan(60000)
-			result.contextModification!.should.match(/truncated due to size limit/)
+			result.contextModification?.length.should.be.lessThan(60000)
+			result.contextModification?.should.match(/truncated due to size limit/)
 		})
 
 		it("should handle script errors", async () => {
@@ -278,7 +285,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Received tool: my_test_tool")
+			result.contextModification?.should.equal("Received tool: my_test_tool")
 		})
 	})
 
@@ -308,7 +315,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Tool succeeded: true")
+			result.contextModification?.should.equal("Tool succeeded: true")
 		})
 	})
 
@@ -462,7 +469,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 	})
 
@@ -517,8 +524,8 @@ console.log(JSON.stringify({
 
 			// Both contexts should be present (order not guaranteed)
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Context added/)
-			result.contextModification!.should.match(/WORKSPACE: Context added/)
+			result.contextModification?.should.match(/GLOBAL: Context added/)
+			result.contextModification?.should.match(/WORKSPACE: Context added/)
 		})
 
 		it("should block execution if global hook blocks", async () => {
@@ -547,7 +554,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Global policy violation/)
+			result.errorMessage?.should.match(/Global policy violation/)
 		})
 
 		it("should work with only global hooks (no workspace hooks)", async () => {
@@ -568,7 +575,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Global hook only")
+			result.contextModification?.should.equal("Global hook only")
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -598,9 +605,9 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Workspace blocks/)
+			result.errorMessage?.should.match(/Workspace blocks/)
 			// Context from global should still be included
-			result.contextModification!.should.match(/Global allows/)
+			result.contextModification?.should.match(/Global allows/)
 		})
 
 		it("should combine error messages from global and workspace hooks", async () => {
@@ -630,8 +637,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Global error/)
-			result.errorMessage!.should.match(/Workspace error/)
+			result.errorMessage?.should.match(/Global error/)
+			result.errorMessage?.should.match(/Workspace error/)
 		})
 
 		it("should execute global hook from primary workspace root directory", async () => {
@@ -661,7 +668,7 @@ console.log(JSON.stringify({
 			result.cancel.should.be.false()
 			// Global hooks should execute from the primary workspace root (tempDir)
 			// Use fs.realpath to normalize paths (handles macOS /private prefix)
-			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			const cwdFromHook = result.contextModification?.replace("CWD: ", "")
 			const normalizedCwd = await fs.realpath(cwdFromHook)
 			const normalizedTempDir = await fs.realpath(tempDir)
 			normalizedCwd.should.equal(normalizedTempDir)
@@ -691,7 +698,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Global observed: true")
+			result.contextModification?.should.equal("Global observed: true")
 		})
 	})
 })

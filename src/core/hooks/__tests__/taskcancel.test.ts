@@ -9,20 +9,27 @@ import { HookFactory } from "../hook-factory"
 import { loadFixture } from "./test-utils"
 
 describe("TaskCancel Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
 
 	// Helper to write executable hook script
+	const isWindows = process.platform === "win32"
+
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
+		if (isWindows) {
+			const jsPath = `${hookPath}.js`
+			const psBridge = [
+				`$inputData = [Console]::In.ReadToEnd()`,
+				`$inputData | node "$PSScriptRoot\${path.basename(jsPath)}"`,
+				`exit $LASTEXITCODE`,
+			].join("`n")
+
+			await fs.writeFile(jsPath, nodeScript)
+			await fs.writeFile(hookPath, psBridge)
+			return
+		}
+
 		await fs.writeFile(hookPath, nodeScript)
 		await fs.chmod(hookPath, 0o755)
 	}
@@ -57,7 +64,7 @@ describe("TaskCancel Hook", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -196,7 +203,7 @@ console.log(JSON.stringify({
 
 			// Hook returns contextModification, but it's completely ignored (fire-and-forget)
 			result1.cancel.should.be.false()
-			result1.contextModification!.should.equal("This is a context modification that should be ignored")
+			result1.contextModification?.should.equal("This is a context modification that should be ignored")
 
 			// Update hook to return different contextModification
 			const hookScript2 = `#!/usr/bin/env node
@@ -220,7 +227,7 @@ console.log(JSON.stringify({
 
 			// Both results behave identically - contextModification has no effect
 			result2.cancel.should.be.false()
-			result2.contextModification!.should.equal("Different context that is also ignored")
+			result2.contextModification?.should.equal("Different context that is also ignored")
 			// The key point: both executions succeeded with cancel: false
 			// The contextModification value is different but behavior is identical (fire-and-forget)
 		})
@@ -284,7 +291,7 @@ console.log(JSON.stringify({
 			// In abortTask(), the errorMessage will be surfaced to the user via this.say("error", ...)
 			// but cancellation will still proceed (fire-and-forget behavior)
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Hook tried to block cancellation")
+			result.errorMessage?.should.equal("Hook tried to block cancellation")
 		})
 
 		it("should execute without errors for cleanup purposes", async () => {
@@ -516,7 +523,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("")
+			result.errorMessage?.should.equal("")
 			// In abortTask(), no error is surfaced since errorMessage is empty
 			// Cancellation still proceeds (fire-and-forget)
 		})
@@ -539,7 +546,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("some error happened")
+			result.errorMessage?.should.equal("some error happened")
 			// In abortTask(), the errorMessage WILL be surfaced to user via this.say("error", ...)
 			// Cancellation still proceeds (fire-and-forget)
 		})
@@ -562,7 +569,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.errorMessage!.should.equal("")
+			result.errorMessage?.should.equal("")
 			// Normal success case - no errors to surface
 		})
 
@@ -584,7 +591,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.errorMessage!.should.equal("some error happened")
+			result.errorMessage?.should.equal("some error happened")
 			// In abortTask(), the errorMessage WILL be surfaced to user via this.say("error", ...)
 			// This is the scenario that was fixed - error messages are now displayed regardless of shouldContinue value
 			// Cancellation still proceeds (fire-and-forget)

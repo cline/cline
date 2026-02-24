@@ -9,20 +9,27 @@ import { HookFactory } from "../hook-factory"
 import { loadFixture } from "./test-utils"
 
 describe("TaskStart Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
 
 	// Helper to write executable hook script
+	const isWindows = process.platform === "win32"
+
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
+		if (isWindows) {
+			const jsPath = `${hookPath}.js`
+			const psBridge = [
+				`$inputData = [Console]::In.ReadToEnd()`,
+				`$inputData | node "$PSScriptRoot\${path.basename(jsPath)}"`,
+				`exit $LASTEXITCODE`,
+			].join("`n")
+
+			await fs.writeFile(jsPath, nodeScript)
+			await fs.writeFile(hookPath, psBridge)
+			return
+		}
+
 		await fs.writeFile(hookPath, nodeScript)
 		await fs.chmod(hookPath, 0o755)
 	}
@@ -53,7 +60,7 @@ describe("TaskStart Hook", () => {
 
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 	})
@@ -88,7 +95,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All metadata present")
+			result.contextModification?.should.equal("All metadata present")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -121,7 +128,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 
 		it("should handle empty initialTask", async () => {
@@ -152,7 +159,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Task length: 0")
+			result.contextModification?.should.equal("Task length: 0")
 		})
 	})
 
@@ -183,7 +190,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskStart hook executed successfully")
+			result.contextModification?.should.equal("TaskStart hook executed successfully")
 		})
 
 		it("should block task when hook returns cancel: true", async () => {
@@ -212,7 +219,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Task execution blocked by hook")
+			result.errorMessage?.should.equal("Task execution blocked by hook")
 		})
 
 		it("should provide context modification even when not added to conversation", async () => {
@@ -242,7 +249,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TASK_START: Task 'Build a todo app' beginning")
+			result.contextModification?.should.equal("TASK_START: Task 'Build a todo app' beginning")
 		})
 	})
 
@@ -356,8 +363,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Task starting/)
-			result.contextModification!.should.match(/WORKSPACE: Task starting/)
+			result.contextModification?.should.match(/GLOBAL: Task starting/)
+			result.contextModification?.should.match(/WORKSPACE: Task starting/)
 		})
 
 		it("should block if global hook blocks", async () => {
@@ -393,7 +400,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Global policy blocks this task/)
+			result.errorMessage?.should.match(/Global policy blocks this task/)
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -429,7 +436,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Workspace blocks/)
+			result.errorMessage?.should.match(/Workspace blocks/)
 		})
 	})
 
@@ -472,7 +479,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskStart hook executed successfully")
+			result.contextModification?.should.equal("TaskStart hook executed successfully")
 		})
 
 		it("should work with blocking fixture", async () => {
@@ -493,7 +500,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Task execution blocked by hook")
+			result.errorMessage?.should.equal("Task execution blocked by hook")
 		})
 
 		it("should work with error fixture", async () => {

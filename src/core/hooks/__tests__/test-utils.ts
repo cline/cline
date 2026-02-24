@@ -25,8 +25,13 @@ export async function createHooksDirectory(baseDir: string): Promise<string> {
 
 /**
  * Creates a test hook script with the specified output behavior.
- * Generates executable scripts for the embedded shell architecture.
- * Note: Windows support requires embedded shell implementation.
+ *
+ * On Unix, this writes an executable `HookName` script with a shebang.
+ * On Windows, this writes both:
+ * - `HookName` (PowerShell bridge script)
+ * - `HookName.js` (Node implementation)
+ *
+ * This mirrors runtime behavior where Windows hooks execute via PowerShell.
  *
  * @param baseDir Base directory (typically tempDir from test environment)
  * @param hookName Name of the hook (e.g., "PreToolUse", "PostToolUse")
@@ -74,7 +79,7 @@ export async function createTestHook(
 	const hooksDir = await createHooksDirectory(baseDir)
 	const scriptContent = generateHookScript(output, options)
 
-	// Create uniform shell script (works on all platforms via embedded shell)
+	// Create hook scripts compatible with the active platform/runtime.
 	return writeShellHook(hooksDir, hookName, scriptContent)
 }
 
@@ -100,7 +105,7 @@ function generateHookScript(
 
 	// If exitWithoutOutput is true, just exit
 	if (options.exitWithoutOutput) {
-		return script + "process.exit(0);\n"
+		return `${script}process.exit(0);\n`
 	}
 
 	if (options.delay) {
@@ -126,9 +131,26 @@ function generateHookScript(
 
 /**
  * Writes an executable hook script.
+ *
+ * Unix: writes executable script directly.
+ * Windows: writes a PowerShell bridge that pipes stdin to a Node companion script.
  */
 async function writeShellHook(hooksDir: string, hookName: string, scriptContent: string): Promise<string> {
 	const scriptPath = path.join(hooksDir, hookName)
+
+	if (process.platform === "win32") {
+		const jsPath = `${scriptPath}.js`
+		const psBridge = [
+			`$inputData = [Console]::In.ReadToEnd()`,
+			`$inputData | node "$PSScriptRoot\\${path.basename(jsPath)}"`,
+			`exit $LASTEXITCODE`,
+		].join("`n")
+
+		await fs.writeFile(jsPath, scriptContent)
+		await fs.writeFile(scriptPath, psBridge)
+		return scriptPath
+	}
+
 	await fs.writeFile(scriptPath, scriptContent)
 	await fs.chmod(scriptPath, 0o755)
 	return scriptPath
