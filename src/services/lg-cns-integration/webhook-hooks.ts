@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-import { ensureHooksDirectoryExists, getDocumentsPath } from "@/core/storage/disk"
+import { ensureHooksDirectoryExists, getClineHomePath } from "@/core/storage/disk"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -11,19 +11,18 @@ import { Logger } from "@/shared/services/Logger"
  * the LG web dashboard.
  */
 export async function setupLgWebhooks(webhookUrl: string, webhookToken: string): Promise<void> {
-	const documentsPath = await getDocumentsPath()
-	const clineDir = path.join(documentsPath, "Cline")
+	// Write webhook config to ~/.cline/ (stable, platform-independent path).
+	// We avoid ~/Documents/Cline/ because the Documents folder can be in a
+	// non-standard location (e.g., OneDrive, different drive) on Windows.
+	const clineHome = getClineHomePath()
+	await fs.mkdir(clineHome, { recursive: true })
 
-	// Ensure Cline directory exists
-	await fs.mkdir(clineDir, { recursive: true })
-
-	// Write webhook config
 	const config = {
 		webhook_url: webhookUrl,
 		webhook_token: webhookToken,
 		created_at: new Date().toISOString(),
 	}
-	await fs.writeFile(path.join(clineDir, "webhook_config.json"), JSON.stringify(config, null, 2), "utf-8")
+	await fs.writeFile(path.join(clineHome, "webhook_config.json"), JSON.stringify(config, null, 2), "utf-8")
 
 	// Write hook scripts
 	const hooksDir = await ensureHooksDirectoryExists()
@@ -53,8 +52,8 @@ $ErrorActionPreference = "SilentlyContinue"
 # Read hook input from stdin (Cline sends JSON)
 $hookInput = $input | Out-String | ConvertFrom-Json
 
-# Load webhook config
-$configPath = Join-Path $HOME "Documents" "Cline" "webhook_config.json"
+# Load webhook config from ~/.cline/ (stable path across platforms)
+$configPath = Join-Path $HOME ".cline" "webhook_config.json"
 if (-not (Test-Path $configPath)) {
     Write-Output '{"cancel": false}'
     exit 0
