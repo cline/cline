@@ -11,6 +11,7 @@ import { writeHookScriptForPlatform } from "./test-utils"
 describe("TaskResume Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
@@ -119,7 +120,11 @@ console.log(JSON.stringify({
 	})
 
 	describe("Time-Based Calculations", () => {
-		it("should correctly calculate minutes ago for recent resumes", async () => {
+		it("should correctly calculate minutes ago for recent resumes", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));

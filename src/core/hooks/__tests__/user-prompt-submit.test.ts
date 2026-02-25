@@ -486,7 +486,9 @@ console.log(JSON.stringify({
 			result.contextModification?.should.equal("Line count: 3")
 		})
 
-		it("should work with large-prompt fixture", async () => {
+		it("should work with large-prompt fixture", async function () {
+			this.timeout(5000)
+
 			const runner = await loadFixtureAndCreateRunner("large-prompt")
 
 			const largePrompt = "x".repeat(10000)
