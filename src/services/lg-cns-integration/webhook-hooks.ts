@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-import { ensureHooksDirectoryExists, getClineHomePath } from "@/core/storage/disk"
+import { ensureHooksDirectoryExists, getDocumentsPath } from "@/core/storage/disk"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -11,26 +11,36 @@ import { Logger } from "@/shared/services/Logger"
  * the LG web dashboard.
  */
 export async function setupLgWebhooks(webhookUrl: string, webhookToken: string): Promise<void> {
-	// Write webhook config to ~/.cline/ (stable, platform-independent path).
-	// We avoid ~/Documents/Cline/ because the Documents folder can be in a
-	// non-standard location (e.g., OneDrive, different drive) on Windows.
-	const clineHome = getClineHomePath()
-	await fs.mkdir(clineHome, { recursive: true })
+	const documentsPath = await getDocumentsPath()
+	const clineDir = path.join(documentsPath, "Cline")
 
+	await fs.mkdir(clineDir, { recursive: true })
+
+	// Write webhook config next to hooks in ~/Documents/Cline/
+	const configPath = path.join(clineDir, "webhook_config.json")
 	const config = {
 		webhook_url: webhookUrl,
 		webhook_token: webhookToken,
 		created_at: new Date().toISOString(),
 	}
-	await fs.writeFile(path.join(clineHome, "webhook_config.json"), JSON.stringify(config, null, 2), "utf-8")
+	await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8")
 
-	// Write hook scripts
+	// Write hook scripts with the resolved config path baked in,
+	// so hooks don't need to guess the Documents folder location at runtime
 	const hooksDir = await ensureHooksDirectoryExists()
 
 	await Promise.all([
-		fs.writeFile(path.join(hooksDir, "TaskStart"), makeHookScript("task_started", TASK_START_DATA), "utf-8"),
-		fs.writeFile(path.join(hooksDir, "PostToolUse"), makeHookScript("tool_executed", POST_TOOL_USE_DATA), "utf-8"),
-		fs.writeFile(path.join(hooksDir, "TaskComplete"), makeHookScript("task_completed", TASK_COMPLETE_DATA), "utf-8"),
+		fs.writeFile(path.join(hooksDir, "TaskStart"), makeHookScript("task_started", TASK_START_DATA, configPath), "utf-8"),
+		fs.writeFile(
+			path.join(hooksDir, "PostToolUse"),
+			makeHookScript("tool_executed", POST_TOOL_USE_DATA, configPath),
+			"utf-8",
+		),
+		fs.writeFile(
+			path.join(hooksDir, "TaskComplete"),
+			makeHookScript("task_completed", TASK_COMPLETE_DATA, configPath),
+			"utf-8",
+		),
 	])
 
 	Logger.info(`LG webhooks configured: ${webhookUrl}`)
@@ -42,18 +52,22 @@ export async function setupLgWebhooks(webhookUrl: string, webhookToken: string):
  * Generates a PowerShell hook script that reads stdin JSON from Cline,
  * extracts event-specific data, and POSTs a webhook event.
  *
- * @param eventName - The webhook event name (e.g., "task_started")
- * @param dataExtraction - PowerShell code that sets $eventData from $hookInput
+ * The config path is resolved at generation time and embedded in the script,
+ * so hooks work correctly even if the Documents folder is in a non-standard
+ * location (e.g., OneDrive, different drive on Windows).
  */
-function makeHookScript(eventName: string, dataExtraction: string): string {
+function makeHookScript(eventName: string, dataExtraction: string, configPath: string): string {
+	// Escape backslashes for embedding in the PowerShell string
+	const escapedConfigPath = configPath.replace(/\\/g, "\\\\")
+
 	return `#!/usr/bin/env pwsh
 $ErrorActionPreference = "SilentlyContinue"
 
 # Read hook input from stdin (Cline sends JSON)
 $hookInput = $input | Out-String | ConvertFrom-Json
 
-# Load webhook config from ~/.cline/ (stable path across platforms)
-$configPath = Join-Path $HOME ".cline" "webhook_config.json"
+# Load webhook config (path resolved at install time by the Cline extension)
+$configPath = "${escapedConfigPath}"
 if (-not (Test-Path $configPath)) {
     Write-Output '{"cancel": false}'
     exit 0
