@@ -172,7 +172,7 @@ export class ClineToolSet {
 		// via the "use_native_tools" label set to 1
 		// This avoids exposing tools to models that don't support them
 		// or variants that aren't designed for tool use
-		if (variant.labels["use_native_tools"] !== 1 || !context.enableNativeToolCalls) {
+		if (variant.labels.use_native_tools !== 1 || !context.enableNativeToolCalls) {
 			return undefined
 		}
 
@@ -183,7 +183,9 @@ export class ClineToolSet {
 		const mcpServers = context.mcpHub?.getServers()?.filter((s) => s.disabled !== true) || []
 		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(variant.family, server))
 
-		const enabledTools = [...toolConfigs, ...mcpTools]
+		const enabledTools = [...toolConfigs, ...mcpTools].filter(
+			(tool) => typeof tool.description === "string" && tool.description.trim().length > 0,
+		)
 		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
 
 		return enabledTools.map((tool) => converter(tool, context))

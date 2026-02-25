@@ -34,10 +34,10 @@ export const CLINE_RECOMMENDED_MODELS_FALLBACK: ClineRecommendedModelsData = {
 			tags: ["BEST"],
 		},
 		{
-			id: "openai/gpt-5.2-codex",
-			name: "OpenAI GPT-5.2 Codex",
+			id: "openai/gpt-5.3-codex",
+			name: "OpenAI GPT-5.3 Codex",
 			description: "OpenAI's latest with strong coding abilities",
-			tags: ["HOT"],
+			tags: ["NEW"],
 		},
 	],
 	free: [

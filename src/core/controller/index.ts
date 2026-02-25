@@ -851,7 +851,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
@@ -919,12 +918,6 @@ export class Controller {
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
 		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
 
-		// Set feature flag in dictation settings based on platform
-		const updatedDictationSettings = {
-			...dictationSettings,
-			featureEnabled: process.platform === "darwin" || process.platform === "linux", // Enable dictation on macOS and Linux
-		}
-
 		return {
 			version,
 			apiConfiguration,
@@ -935,7 +928,6 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
-			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			mode,
 			strictPlanModeEnabled,

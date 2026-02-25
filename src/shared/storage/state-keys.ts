@@ -9,7 +9,6 @@ import {
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
@@ -262,10 +261,6 @@ const USER_SETTINGS_FIELDS = {
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
-	dictationSettings: {
-		default: DEFAULT_DICTATION_SETTINGS as DictationSettings,
-		transform: (v: any) => ({ ...DEFAULT_DICTATION_SETTINGS, ...v }),
-	},
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	customPrompt: { default: undefined as "compact" | undefined },
 	enableParallelToolCalling: { default: true as boolean },

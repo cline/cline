@@ -255,7 +255,6 @@ message Settings {
   optional bool cline_web_tools_enabled = 144;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
-  optional DictationSettings dictation_settings = 148;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
   optional bool subagents_enabled = 153;
@@ -282,11 +281,6 @@ message Settings {
   map<string, string> open_ai_headers = 177;
 }
 
-message DictationSettings {
-  bool feature_enabled = 1;
-  bool dictation_enabled = 2;
-  string dictation_language = 3;
-}
 message State {
   string state_json = 1;
 }
@@ -387,6 +381,7 @@ message UpdateTaskSettingsRequest {
 // Message for updating settings
 message UpdateSettingsRequest {
   reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
+  reserved 23; // was dictation_settings (dictation removed)
   reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
   reserved 38; // was skills_enabled (removed - now always enabled)
 
@@ -410,7 +405,6 @@ message UpdateSettingsRequest {
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
-  optional DictationSettings dictation_settings = 23;
   optional bool multi_root_enabled = 25;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;

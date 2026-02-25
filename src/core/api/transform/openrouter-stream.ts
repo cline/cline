@@ -80,6 +80,7 @@ export async function createOpenRouterStream(
 		case "minimax/minimax-m2":
 		case "minimax/minimax-m2.1":
 		case "minimax/minimax-m2.1-lightning":
+		case "minimax/minimax-m2.5":
 			openAiMessages[0] = {
 				role: "system",
 				content: [

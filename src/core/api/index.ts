@@ -428,6 +428,8 @@ function createHandlerForProvider(
 				minimaxApiKey: options.minimaxApiKey,
 				minimaxApiLine: options.minimaxApiLine,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "hicap":
 			return new HicapHandler({

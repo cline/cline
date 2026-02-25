@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.67.1]
+
+### Added
+
+- Added Cline SDK API interface for programmatic access to Cline features and tools, enabling integration into custom applications.
+- Added Codex 5.3 model support
+
+### Fixed
+
+- Fix OpenAI Codex by setting `store` to `false`
+- Use `isLocatedInPath()` instead of string matching for path containment checks
+
 ## [3.67.0]
 
 ### Added
