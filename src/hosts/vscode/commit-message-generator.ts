@@ -1,7 +1,7 @@
 import { buildApiHandler } from "@core/api"
 import * as path from "path"
 import * as vscode from "vscode"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -14,15 +14,16 @@ import { getGitDiff } from "@/utils/git"
 let commitGenerationAbortController: AbortController | undefined
 
 const PROMPT = {
-	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
+	system: "You are a helpful assistant that generates git commit messages in Chinese based on git diffs output. Skip preamble and remove all backticks surrounding the commit message. Always respond in Chinese.",
 	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
-	instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
+	instruction: `Based on the provided git diff, generate a commit message in Chinese.
 
 The commit message should:
-1. Has a short title (50-72 characters)
-2. The commit message should adhere to the conventional commit format
-3. Describe what was changed and why
-4. Be clear and informative`,
+1. Only one short line in Chinese, no more than 50 characters
+2. Use conventional commit format prefix (e.g. feat:, fix:, refactor:, docs:, chore:)
+3. The prefix is in English, but the description after the colon must be in Chinese
+4. No body or footer, just the single title line
+5. Example: feat: 添加用户登录功能`,
 }
 
 export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
