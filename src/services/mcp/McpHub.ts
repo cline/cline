@@ -1140,13 +1140,32 @@ export class McpHub {
 				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
+				// Suppress our own file watcher when enabling — we'll connect directly below,
+				// and without suppression the watcher would fire concurrently causing a race.
+				if (!disabled) {
+					this.isUpdatingClineSettings = true
+				}
+
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					connection.server.disabled = disabled
-					// When enabling a server, set status to "connecting" so UI shows yellow indicator
 					if (!disabled) {
+						// Enabling: actually establish the connection — disabled servers have a null
+						// client so setting the flag alone leaves the server stuck at "connecting".
+						const serverConfig = config.mcpServers[serverName]
 						connection.server.status = "connecting"
 						connection.server.error = ""
+						await this.deleteConnection(serverName)
+						try {
+							await this.connectToServer(serverName, serverConfig, "rpc")
+						} catch (error) {
+							Logger.error(`Failed to connect to enabled server ${serverName}:`, error)
+						} finally {
+							// Re-enable watcher after connection attempt + stabilityThreshold window
+							setTimeout(() => {
+								this.isUpdatingClineSettings = false
+							}, 300)
+						}
 					}
 				}
 

@@ -5,7 +5,7 @@
 
 import type { McpServer } from "@shared/mcp"
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import type { Controller } from "@/core/controller"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
@@ -24,46 +24,28 @@ export const McpPanelContent: React.FC<McpPanelContentProps> = ({ controller, on
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
 
-	const pollRef = useRef<NodeJS.Timeout | null>(null)
-
-	// Fetch latest server state from McpHub
-	const refreshServers = useCallback(async () => {
-		const hub = controller.mcpHub
-		if (!hub) return
-		try {
-			const mcpServers = (await hub.getLatestMcpServersRPC()) || []
-			setServers(mcpServers)
-		} catch {
-			// Ignore transient errors during polling
-		}
-	}, [controller])
-
-	// Load MCP servers on mount, poll while any server is still connecting
+	// Load MCP servers once on mount
 	useEffect(() => {
-		const hub = controller.mcpHub
-		if (!hub) {
-			setIsLoading(false)
-			return
-		}
-
-		const load = async () => {
-			// Wait for McpHub's initial connection sweep
-			const maxWait = 5000
-			const start = Date.now()
-			while (hub.isConnecting && Date.now() - start < maxWait) {
-				await new Promise((r) => setTimeout(r, 200))
+		const loadServers = async () => {
+			try {
+				const hub = controller.mcpHub
+				if (!hub) return
+				// Wait for McpHub's initial connection sweep
+				const maxWait = 5000
+				const start = Date.now()
+				while (hub.isConnecting && Date.now() - start < maxWait) {
+					await new Promise((r) => setTimeout(r, 200))
+				}
+				const mcpServers = (await hub.getLatestMcpServersRPC()) || []
+				setServers(mcpServers)
+			} catch {
+				// Loading failed, show empty state
+			} finally {
+				setIsLoading(false)
 			}
-			await refreshServers()
-			setIsLoading(false)
 		}
-		load()
-
-		// Poll every second to pick up status changes (connecting → connected)
-		pollRef.current = setInterval(refreshServers, 1000)
-		return () => {
-			if (pollRef.current) clearInterval(pollRef.current)
-		}
-	}, [controller, refreshServers])
+		loadServers()
+	}, [controller])
 
 	// Handle toggle
 	const handleToggle = useCallback(async () => {
