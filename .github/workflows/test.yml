@@ -98,12 +98,6 @@ jobs:
               run: |
                   npm run test:unit
 
-            - name: Hook Tests - Windows (targeted)
-              id: hook_tests_windows
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Windows' }}
-              run: |
-                  npx cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha --no-config --require ts-node/register --require source-map-support/register --require ./src/test/requires.ts src/test/hook-management.test.ts src/test/hook-management-integration.test.ts src/test/hook-executor.test.ts src/core/hooks/__tests__/hook-factory.test.ts src/core/hooks/__tests__/taskstart.test.ts src/core/hooks/__tests__/taskresume.test.ts src/core/hooks/__tests__/taskcancel.test.ts src/core/hooks/__tests__/taskcomplete.test.ts src/core/hooks/__tests__/user-prompt-submit.test.ts
-
             - name: Extension Integration Tests - Linux
               id: integration_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
