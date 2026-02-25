@@ -1,4 +1,3 @@
-import fs from "fs/promises"
 import { WebviewProvider } from "@/core/webview"
 import { setupLgWebhooks } from "@/services/lg-cns-integration/webhook-hooks"
 import { Logger } from "@/shared/services/Logger"
@@ -102,15 +101,19 @@ export class SharedUriHandler {
 						return false
 					}
 
-					const specContents = await fs.readFile(promptFile, "utf-8")
-
 					const webhookUrl = query.get("webhook-url")
 					const webhookToken = query.get("webhook-token")
 					if (webhookUrl && webhookToken) {
 						await setupLgWebhooks(webhookUrl, webhookToken)
 					}
 
-					await visibleWebview.controller.handleTaskCreation(specContents)
+					const prompt =
+						`The following file contains a development specification for you to implement: ${promptFile}\n\n` +
+						`Start by reading this file. As you work through the task, re-read the file whenever its contents ` +
+						`are lost during context compaction (when the context window limit is reached), so you can keep ` +
+						`track of your progress against the spec requirements.`
+
+					await visibleWebview.controller.handleTaskCreation(prompt)
 					return true
 				}
 				// Match /mcp-auth/callback/{hash}
