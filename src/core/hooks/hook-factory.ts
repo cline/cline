@@ -916,9 +916,8 @@ export class HookFactory {
 	}
 
 	/**
-	 * Finds a hook on Windows using git-style hook discovery.
-	 * Like git, we look for a file with the hook name (no extension) and execute it
-	 * through the shell, which handles shebangs and script interpretation.
+	 * Finds a hook on Windows by checking for a hook file with the canonical hook name.
+	 * Hooks are extensionless by design (`HookName`) for parity with existing Unix naming.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the hooks directory path to search
@@ -933,7 +932,7 @@ export class HookFactory {
 			return stat.isFile() ? candidate : undefined
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected error (file doesn't exist), return undefined
+			// Expected errors (missing/non-readable hook) return no match.
 			return undefined
 		}
 	}
@@ -954,7 +953,7 @@ export class HookFactory {
 			return stat.isFile() ? candidate : undefined
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected error (file doesn't exist or not executable), return undefined
+			// Expected errors (missing/non-executable hook) return no match.
 			return undefined
 		}
 	}
