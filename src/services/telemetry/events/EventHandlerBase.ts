@@ -6,7 +6,7 @@ import type { TelemetryService } from "../TelemetryService"
  * Provides common functionality for event capture with metadata enrichment
  */
 export abstract class EventHandlerBase {
-	/** Event prefix for this handler (e.g., "task", "ui", "dictation") */
+	/** Event prefix for this handler (e.g., "task", "ui", "hooks") */
 	static readonly prefix: string
 
 	/**

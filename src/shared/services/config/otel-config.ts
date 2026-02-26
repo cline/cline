@@ -1,3 +1,4 @@
+import { parseKeyPairsIntoRecord } from "@opentelemetry/core"
 import { BUILD_CONSTANTS } from "@/shared/constants"
 import { RemoteConfigFields } from "@/shared/storage/state-keys"
 
@@ -128,7 +129,10 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 		otlpProtocol: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_PROTOCOL,
 		otlpEndpoint: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_ENDPOINT,
 		metricExportInterval: BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL
-			? parseInt(BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL, 10)
+			? Number.parseInt(BUILD_CONSTANTS.OTEL_METRIC_EXPORT_INTERVAL, 10)
+			: undefined,
+		otlpHeaders: BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_HEADERS
+			? parseKeyPairsIntoRecord(BUILD_CONSTANTS.OTEL_EXPORTER_OTLP_HEADERS)
 			: undefined,
 	}
 }
@@ -148,6 +152,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
  * - CLINE_OTEL_LOGS_EXPORTER: Comma-separated list: "console", "otlp"
  * - CLINE_OTEL_EXPORTER_OTLP_PROTOCOL: "grpc", "http/json", or "http/protobuf"
  * - CLINE_OTEL_EXPORTER_OTLP_ENDPOINT: OTLP collector endpoint (if not using specific endpoints)
+ * - CLINE_OTEL_EXPORTER_OTLP_HEADERS: Comma-separated key-value pairs (e.g., "key1=value1,key2=value2")
  * - CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: Metrics-specific protocol override
  * - CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: Metrics-specific endpoint override
  * - CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: Logs-specific protocol override
@@ -174,17 +179,20 @@ function getRuntimeOtelConfig(): OpenTelemetryClientConfig {
 		otlpLogsProtocol: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
 		otlpLogsEndpoint: process.env.CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
 		metricExportInterval: process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL
-			? parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
+			? Number.parseInt(process.env.CLINE_OTEL_METRIC_EXPORT_INTERVAL, 10)
 			: undefined,
 		otlpInsecure: process.env.CLINE_OTEL_EXPORTER_OTLP_INSECURE === "true",
 		logBatchSize: process.env.CLINE_OTEL_LOG_BATCH_SIZE
-			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
+			? Math.max(1, Number.parseInt(process.env.CLINE_OTEL_LOG_BATCH_SIZE, 10))
 			: undefined,
 		logBatchTimeout: process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT
-			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
+			? Math.max(1, Number.parseInt(process.env.CLINE_OTEL_LOG_BATCH_TIMEOUT, 10))
 			: undefined,
 		logMaxQueueSize: process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE
-			? Math.max(1, parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
+			? Math.max(1, Number.parseInt(process.env.CLINE_OTEL_LOG_MAX_QUEUE_SIZE, 10))
+			: undefined,
+		otlpHeaders: process.env.CLINE_OTEL_EXPORTER_OTLP_HEADERS
+			? parseKeyPairsIntoRecord(process.env.CLINE_OTEL_EXPORTER_OTLP_HEADERS)
 			: undefined,
 	}
 }

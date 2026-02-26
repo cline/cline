@@ -79,6 +79,10 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 				<>
 					{/* Hardcoded fallback items shown when remote welcome banners feature flag is off */}
 					<li className="mb-2">
+						<strong>Try Codex 5.3:</strong> OpenAI's latest coding model, now available in Cline!{" "}
+						<InlineModelLink label="Try now" modelId="openai/gpt-5.3-codex" pickerTab="recommended" />
+					</li>
+					<li className="mb-2">
 						<strong>Try latest SOTA coding model:</strong> Claude Sonnet 4.6 and Gemini 3.1 pro within Cline!{" "}
 						<InlineModelLink label="Try now" modelId="anthropic/claude-sonnet-4.6" pickerTab="recommended" />
 					</li>
