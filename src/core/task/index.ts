@@ -1740,6 +1740,49 @@ export class Task {
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true
 	}
 
+	private async handleApiReqFailedMessageResponse(askResult: {
+		response: ClineAskResponse
+		text?: string
+		images?: string[]
+		files?: string[]
+	}): Promise<ClineAskResponse> {
+		if (askResult.response !== "messageResponse") {
+			return askResult.response
+		}
+
+		const retryUserContent = await buildUserFeedbackContent(askResult.text, askResult.images, askResult.files)
+
+		if (retryUserContent.length > 0) {
+			await this.say("user_feedback", askResult.text, askResult.images, askResult.files)
+
+			const apiHistory = this.messageStateHandler.getApiConversationHistory()
+			const lastApiMessage = apiHistory.at(-1)
+
+			if (lastApiMessage?.role === "user") {
+				const existingUserContent: ClineContent[] = Array.isArray(lastApiMessage.content)
+					? lastApiMessage.content
+					: [{ type: "text", text: lastApiMessage.content }]
+
+				await this.messageStateHandler.overwriteApiConversationHistory([
+					...apiHistory.slice(0, -1),
+					{
+						...lastApiMessage,
+						content: [...existingUserContent, ...retryUserContent],
+					},
+				])
+			} else {
+				await this.messageStateHandler.addToApiConversationHistory({
+					role: "user",
+					content: retryUserContent,
+					ts: Date.now(),
+				})
+			}
+		}
+
+		// this will simulate user attempted to retry the failed api request
+		return "yesButtonClicked"
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
@@ -2032,7 +2075,7 @@ export class Task {
 						)
 					}
 					const askResult = await this.ask("api_req_failed", streamingFailedMessage)
-					response = askResult.response
+					response = await this.handleApiReqFailedMessageResponse(askResult)
 					if (response === "yesButtonClicked") {
 						this.taskState.autoRetryAttempts = 0
 					}
@@ -3079,7 +3122,7 @@ export class Task {
 						}),
 					)
 					const askResult = await this.ask("api_req_failed", noResponseErrorMessage)
-					response = askResult.response
+					response = await this.handleApiReqFailedMessageResponse(askResult)
 					// Reset retry counter if user chooses to manually retry
 					if (response === "yesButtonClicked") {
 						this.taskState.autoRetryAttempts = 0
