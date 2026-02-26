@@ -1,6 +1,18 @@
 # cline
 
-## 2.4.3
+## [2.5.0]
+
+### Added
+
+- Added Cline SDK API interface for programmatic access to Cline features and tools, enabling integration into custom applications.
+- Added Codex 5.3 model support
+
+### Fixed
+
+- Fix OpenAI Codex by setting `store` to `false`
+- Use `isLocatedInPath()` instead of string matching for path containment checks
+
+## [2.4.3]
 
 ### Added
 
@@ -13,7 +25,7 @@
 - Fix Cline auth with ACP flag
 - Fix yolo mode to not persist yolo setting to disk
 
-## 2.4.2
+## [2.4.2]
 
 ### Added
 

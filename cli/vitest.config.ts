@@ -5,11 +5,28 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: "node",
-		include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
 		coverage: {
 			reporter: ["text", "json", "html"],
 			exclude: ["node_modules/", "dist/"],
 		},
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"],
+					exclude: ["src/**/*.markdown.test.tsx"],
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: "markdown",
+					include: ["src/**/*.markdown.test.tsx"],
+					env: { FORCE_COLOR: "3" },
+				},
+			},
+		],
 	},
 	resolve: {
 		alias: {

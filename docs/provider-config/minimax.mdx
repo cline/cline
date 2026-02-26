@@ -1,6 +1,6 @@
 ---
 title: "MiniMax"
-description: "Learn how to configure and use MiniMax models with Cline. Access MiniMax-M2 series models with large context windows and prompt caching."
+description: "Learn how to configure and use MiniMax models with Cline. Access MiniMax-M2 series models with large context windows, prompt caching, and reasoning support."
 ---
 
 MiniMax provides AI models with large context windows and competitive pricing, featuring the MiniMax-M2 series.
@@ -18,9 +18,10 @@ MiniMax provides AI models with large context windows and competitive pricing, f
 
 Cline supports the following MiniMax models:
 
--   `MiniMax-M2.1` (Default) - Latest model with 192K context and prompt caching ($0.30/$1.20 per 1M tokens)
+-   `MiniMax-M2.5` (Default) - Latest model with 192K context, prompt caching, and reasoning/thinking support ($0.30/$1.20 per 1M tokens)
+-   `MiniMax-M2.1` - Previous generation with 192K context and prompt caching ($0.30/$1.20 per 1M tokens)
 -   `MiniMax-M2.1-lightning` - Fast variant with higher output pricing ($0.30/$2.40 per 1M tokens)
--   `MiniMax-M2` - Previous generation with 192K context ($0.30/$1.20 per 1M tokens)
+-   `MiniMax-M2` - Earlier generation with 192K context ($0.30/$1.20 per 1M tokens)
 
 ### Configuration in Cline
 
@@ -32,5 +33,6 @@ Cline supports the following MiniMax models:
 ### Tips and Notes
 
 -   **Large Context:** All models support 192K token context windows.
--   **Prompt Caching:** M2.1 models support prompt caching for reduced costs on repeated queries.
+-   **Reasoning Support:** M2.5 supports extended thinking/reasoning for complex tasks.
+-   **Prompt Caching:** M2.5 and M2.1 models support prompt caching for reduced costs on repeated queries.
 -   **Pricing:** Check the [MiniMax pricing page](https://www.minimax.io/platform/document/pricing) for current rates.
