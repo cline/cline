@@ -1,6 +1,6 @@
 /**
  * Model picker component for model selection
- * Supports static model lists and async loading for OpenRouter
+ * Supports static model lists and async loading for OpenRouter and SAP AI Core
  */
 
 import { Box, Text } from "ink"
@@ -8,6 +8,7 @@ import Spinner from "ink-spinner"
 import React, { useEffect, useMemo, useState } from "react"
 import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
+import { StateManager } from "@/core/storage/StateManager"
 import {
 	type ApiProvider,
 	anthropicDefaultModelId,
@@ -69,7 +70,8 @@ import { StringRequest } from "@/shared/proto/cline/common"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
 import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
-import { SearchableList, SearchableListItem } from "./SearchableList"
+import { getSapAiCoreModels, type SapAiCoreCredentials, type SapAiCoreModelItem } from "../utils/sapaicore-models"
+import { SearchableList, type SearchableListItem } from "./SearchableList"
 
 // Special ID used to indicate the user wants to enter a custom model ID / ARN
 export const CUSTOM_MODEL_ID = "__custom__"
@@ -129,13 +131,27 @@ interface ModelPickerProps {
 	provider: string
 	controller: any
 	onChange: (modelId: string) => void
-	onSubmit: (modelId: string) => void
+	onSubmit: (modelId: string, deploymentId?: string) => void
 	isActive?: boolean
+	/** SAP AI Core credentials for direct deployment mode */
+	sapAiCoreCredentials?: SapAiCoreCredentials
+	/** Whether SAP AI Core is using orchestration mode */
+	sapAiCoreUseOrchestrationMode?: boolean
 }
 
-export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, onChange, onSubmit, isActive = true }) => {
+export const ModelPicker: React.FC<ModelPickerProps> = ({
+	provider,
+	controller,
+	onChange,
+	onSubmit,
+	isActive = true,
+	sapAiCoreCredentials,
+	sapAiCoreUseOrchestrationMode,
+}) => {
 	const [isLoading, setIsLoading] = useState(false)
 	const [asyncModels, setAsyncModels] = useState<string[]>([])
+	const [sapAiCoreModelItems, setSapAiCoreModelItems] = useState<SapAiCoreModelItem[]>([])
+	const [sapAiCoreError, setSapAiCoreError] = useState<string | null>(null)
 
 	// Fetch async models (OpenRouter or OCA) when needed
 	useEffect(() => {
@@ -165,17 +181,112 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 		}
 	}, [provider, controller])
 
+	// Fetch SAP AI Core models when needed
+	// Reference commits: d7b3a5253, c1e3ac860, ea8a7fd7d, f7fe2b854
+	useEffect(() => {
+		if (provider === "sapaicore") {
+			setIsLoading(true)
+			setSapAiCoreError(null)
+
+			// Determine orchestration mode: use prop if provided, otherwise check state
+			const useOrchestrationMode =
+				sapAiCoreUseOrchestrationMode !== undefined
+					? sapAiCoreUseOrchestrationMode
+					: StateManager.get().getApiConfiguration().sapAiCoreUseOrchestrationMode !== false
+
+			// Get credentials: use props if provided, otherwise try to get from state
+			let credentials: SapAiCoreCredentials | null = sapAiCoreCredentials || null
+			if (!credentials && !useOrchestrationMode) {
+				// Try to get credentials from state for direct deployment mode
+				const config = StateManager.get().getApiConfiguration()
+				if (
+					config.sapAiCoreClientId &&
+					config.sapAiCoreClientSecret &&
+					config.sapAiCoreBaseUrl &&
+					config.sapAiCoreTokenUrl
+				) {
+					credentials = {
+						clientId: config.sapAiCoreClientId,
+						clientSecret: config.sapAiCoreClientSecret,
+						baseUrl: config.sapAiCoreBaseUrl,
+						tokenUrl: config.sapAiCoreTokenUrl,
+						resourceGroup: config.sapAiResourceGroup,
+					}
+				}
+			}
+
+			getSapAiCoreModels(credentials, useOrchestrationMode)
+				.then((result) => {
+					setSapAiCoreModelItems(result.models)
+					setSapAiCoreError(result.error)
+				})
+				.finally(() => {
+					setIsLoading(false)
+				})
+		}
+	}, [provider, sapAiCoreCredentials, sapAiCoreUseOrchestrationMode])
+
 	const modelList = useMemo(() => {
 		if (usesOpenRouterModels(provider) || provider === "oca") {
 			return asyncModels
 		}
+		if (provider === "sapaicore") {
+			// For SAP AI Core, we use sapAiCoreModelItems which have richer info
+			return sapAiCoreModelItems.map((m) => m.id)
+		}
 		return getModelList(provider)
-	}, [provider, asyncModels])
+	}, [provider, asyncModels, sapAiCoreModelItems])
 
 	// Providers that support custom model IDs (e.g., Bedrock Application Inference Profiles)
 	const supportsCustomModel = provider === "bedrock"
 
 	const items: SearchableListItem[] = useMemo(() => {
+		// For SAP AI Core, use the enhanced model items with deployment info
+		if (provider === "sapaicore" && sapAiCoreModelItems.length > 0) {
+			// Group by section for visual separation
+			const deployedItems = sapAiCoreModelItems.filter((m) => m.section === "deployed")
+			const availableItems = sapAiCoreModelItems.filter((m) => m.section === "available")
+
+			const result: SearchableListItem[] = []
+
+			// Add deployed models section header if there are any
+			if (deployedItems.length > 0 && availableItems.length > 0) {
+				// Only show section headers if we have both sections
+				result.push({
+					id: "__section_deployed__",
+					label: "--- Deployed Models ---",
+					isDisabled: true,
+				})
+			}
+
+			// Add deployed models
+			for (const item of deployedItems) {
+				result.push({
+					id: item.id,
+					label: item.label,
+					data: { deploymentId: item.deploymentId },
+				})
+			}
+
+			// Add available models section header if there are any
+			if (availableItems.length > 0 && deployedItems.length > 0) {
+				result.push({
+					id: "__section_available__",
+					label: "--- Available Models (not deployed) ---",
+					isDisabled: true,
+				})
+			}
+
+			// Add available models
+			for (const item of availableItems) {
+				result.push({
+					id: item.id,
+					label: item.label,
+				})
+			}
+
+			return result
+		}
 		const list = modelList.map((modelId) => ({
 			id: modelId,
 			label: modelId,
@@ -188,7 +299,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 			})
 		}
 		return list
-	}, [modelList, supportsCustomModel])
+	}, [modelList, provider, sapAiCoreModelItems])
 
 	// For providers without a model picker, render nothing
 	if (!hasModelPicker(provider)) {
@@ -207,6 +318,28 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 		)
 	}
 
+	// Show error for SAP AI Core if deployment fetching failed
+	// Reference: commit e7edd2f7c
+	if (provider === "sapaicore" && sapAiCoreError) {
+		return (
+			<Box flexDirection="column">
+				<Box>
+					<Text color="yellow">⚠ {sapAiCoreError}</Text>
+				</Box>
+				<Text color="gray">Showing available models (deployment status unknown)</Text>
+				<Text> </Text>
+				<SearchableList
+					isActive={isActive}
+					items={items}
+					onSelect={(item) => {
+						onChange(item.id)
+						onSubmit(item.id, item.data?.deploymentId as string | undefined)
+					}}
+				/>
+			</Box>
+		)
+	}
+
 	// If async fetch returned no models, render nothing
 	if ((usesOpenRouterModels(provider) || provider === "oca") && modelList.length === 0) {
 		return null
@@ -218,7 +351,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 			items={items}
 			onSelect={(item) => {
 				onChange(item.id)
-				onSubmit(item.id)
+				onSubmit(item.id, item.data?.deploymentId as string | undefined)
 			}}
 		/>
 	)

@@ -28,7 +28,7 @@ import { useStdinContext } from "../context/StdinContext"
 import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { isMouseEscapeSequence } from "../utils/input"
-import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
+import { applyBedrockConfig, applyProviderConfig, applySapAiCoreConfig, clearSapAiCoreConfig } from "../utils/provider-config"
 import { ApiKeyInput } from "./ApiKeyInput"
 import { BedrockCustomModelFlow } from "./BedrockCustomModelFlow"
 import { type BedrockConfig, BedrockSetup } from "./BedrockSetup"
@@ -43,8 +43,9 @@ import { LanguagePicker } from "./LanguagePicker"
 import { CUSTOM_MODEL_ID, hasModelPicker, ModelPicker } from "./ModelPicker"
 import { OcaEmployeeCheck } from "./OcaEmployeeCheck"
 import { OrganizationPicker } from "./OrganizationPicker"
-import { Panel, PanelTab } from "./Panel"
+import { Panel, type PanelTab } from "./Panel"
 import { getProviderLabel, ProviderPicker } from "./ProviderPicker"
+import { type SapAiCoreConfig, SapAiCoreSetup } from "./SapAiCoreSetup"
 
 interface SettingsPanelContentProps {
 	onClose: () => void
@@ -167,6 +168,8 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	const [isPickingLanguage, setIsPickingLanguage] = useState(false)
 	const [isEnteringApiKey, setIsEnteringApiKey] = useState(false)
 	const [isConfiguringBedrock, setIsConfiguringBedrock] = useState(false)
+	const [isConfiguringSapAiCore, setIsConfiguringSapAiCore] = useState(false)
+	const [pendingSapAiCoreConfig, setPendingSapAiCoreConfig] = useState<SapAiCoreConfig | null>(null)
 	const [isWaitingForCodexAuth, setIsWaitingForCodexAuth] = useState(false)
 	const [isShowingOcaEmployeeCheck, setIsShowingOcaEmployeeCheck] = useState(false)
 	const [codexAuthError, setCodexAuthError] = useState<string | null>(null)
@@ -989,9 +992,26 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 	)
 
 	// Handle model selection from picker
+	// For SAP AI Core in deployment mode, deploymentId is passed from ModelPicker
 	const handleModelSelect = useCallback(
-		async (modelId: string) => {
+		async (modelId: string, deploymentId?: string) => {
 			if (!pickingModelKey) return
+
+			// If we have a pending SAP AI Core config, apply it with the selected model
+			if (pendingSapAiCoreConfig) {
+				await applySapAiCoreConfig({
+					sapAiCoreConfig: pendingSapAiCoreConfig,
+					modelId,
+					deploymentId,
+					controller,
+				})
+				setProvider("sapaicore")
+				setPendingSapAiCoreConfig(null)
+				refreshModelIds()
+				setIsPickingModel(false)
+				setPickingModelKey(null)
+				return
+			}
 
 			// Intercept "Custom" selection for Bedrock — redirect to custom ARN input flow
 			if (modelId === CUSTOM_MODEL_ID && provider === "bedrock") {
@@ -1030,6 +1050,12 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						pickingModelKey === "actModelId" ? "actModeOpenRouterModelInfo" : "planModeOpenRouterModelInfo"
 					stateManager.setGlobalState(infoKey, modelInfo)
 				}
+				// For SAP AI Core, also store deployment ID if provided
+				if (providerForSelection === "sapaicore") {
+					const deploymentKey =
+						pickingModelKey === "actModelId" ? "actModeSapAiCoreDeploymentId" : "planModeSapAiCoreDeploymentId"
+					stateManager.setGlobalState(deploymentKey, deploymentId || undefined)
+				}
 			} else {
 				// Update both modes to keep them in sync
 				if (actKey) stateManager.setGlobalState(actKey, modelId)
@@ -1038,6 +1064,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				if (modelInfo) {
 					stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
 					stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+				}
+				// For SAP AI Core, also store deployment ID for both modes if provided
+				if (providerForSelection === "sapaicore") {
+					stateManager.setGlobalState("actModeSapAiCoreDeploymentId", deploymentId || undefined)
+					stateManager.setGlobalState("planModeSapAiCoreDeploymentId", deploymentId || undefined)
 				}
 			}
 
@@ -1060,7 +1091,17 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				onClose()
 			}
 		},
-		[pickingModelKey, separateModels, stateManager, controller, provider, refreshModelIds, initialMode, onClose],
+		[
+			pickingModelKey,
+			separateModels,
+			stateManager,
+			controller,
+			provider,
+			refreshModelIds,
+			initialMode,
+			onClose,
+			pendingSapAiCoreConfig,
+		],
 	)
 
 	// Handle language selection from picker
@@ -1102,6 +1143,11 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 
 	const handleProviderSelect = useCallback(
 		async (providerId: string) => {
+			// Clear SAP AI Core config when switching away from sapaicore (commit 78dce9d17)
+			if (provider === "sapaicore" && providerId !== "sapaicore") {
+				await clearSapAiCoreConfig(controller)
+			}
+
 			// Special handling for Cline - uses OAuth (but skip if already logged in)
 			if (providerId === "cline") {
 				setIsPickingProvider(false)
@@ -1150,6 +1196,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			// Special handling for SAP AI Core - needs multi-field configuration
+			if (providerId === "sapaicore") {
+				setPendingProvider(providerId)
+				setIsPickingProvider(false)
+				setIsConfiguringSapAiCore(true)
+				return
+			}
+
 			// Check if this provider needs an API key
 			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {
@@ -1170,7 +1224,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				setIsPickingProvider(false)
 			}
 		},
-		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds],
+		[stateManager, startCodexAuth, handleClineLogin, startOcaAuth, isOcaAuthenticated, controller, refreshModelIds, provider],
 	)
 
 	// Handle API key submission after provider selection
@@ -1204,6 +1258,18 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		},
 		[controller, refreshModelIds],
 	)
+
+	// Handle SAP AI Core configuration complete
+	// Store config and show model picker (like AuthView flow)
+	const handleSapAiCoreComplete = useCallback((sapAiCoreConfig: SapAiCoreConfig) => {
+		// Store the config for later use when model is selected
+		setPendingSapAiCoreConfig(sapAiCoreConfig)
+		setIsConfiguringSapAiCore(false)
+		setPendingProvider(null)
+		// Show model picker for SAP AI Core
+		setPickingModelKey("actModelId")
+		setIsPickingModel(true)
+	}, [])
 
 	// Handle saving edited value
 	const handleSave = useCallback(() => {
@@ -1288,6 +1354,15 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (isPickingProvider) {
 				if (key.escape) {
 					setIsPickingProvider(false)
+				}
+				return
+			}
+
+			// SAP AI Core configuration mode - escape to close, input is handled by SapAiCoreSetup
+			if (isConfiguringSapAiCore) {
+				if (key.escape) {
+					setIsConfiguringSapAiCore(false)
+					setPendingProvider(null)
 				}
 				return
 			}
@@ -1433,7 +1508,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 		},
-		{ isActive: isRawModeSupported && !isEnteringApiKey && !isConfiguringBedrock && !isShowingOcaEmployeeCheck },
+		{
+			isActive:
+				isRawModeSupported &&
+				!isEnteringApiKey &&
+				!isConfiguringBedrock &&
+				!isShowingOcaEmployeeCheck &&
+				!isConfiguringSapAiCore,
+		},
 	)
 
 	// Render content
@@ -1480,6 +1562,30 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						setPendingProvider(null)
 					}}
 					onComplete={handleBedrockComplete}
+				/>
+			)
+		}
+
+		if (isConfiguringSapAiCore) {
+			// Get existing SAP AI Core configuration for pre-filling the form
+			const apiConfig = stateManager.getApiConfiguration()
+			const initialSapAiCoreConfig = {
+				clientId: apiConfig.sapAiCoreClientId || "",
+				clientSecret: apiConfig.sapAiCoreClientSecret || "",
+				baseUrl: apiConfig.sapAiCoreBaseUrl || "",
+				tokenUrl: apiConfig.sapAiCoreTokenUrl || "",
+				resourceGroup: apiConfig.sapAiResourceGroup || "",
+				useOrchestrationMode: apiConfig.sapAiCoreUseOrchestrationMode ?? true,
+			}
+			return (
+				<SapAiCoreSetup
+					initialConfig={initialSapAiCoreConfig}
+					isActive={isConfiguringSapAiCore}
+					onCancel={() => {
+						setIsConfiguringSapAiCore(false)
+						setPendingProvider(null)
+					}}
+					onComplete={handleSapAiCoreComplete}
 				/>
 			)
 		}
@@ -1545,7 +1651,19 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 							isActive={isPickingModel}
 							onChange={() => {}}
 							onSubmit={handleModelSelect}
-							provider={provider}
+							provider={pendingSapAiCoreConfig ? "sapaicore" : provider}
+							sapAiCoreCredentials={
+								pendingSapAiCoreConfig
+									? {
+											clientId: pendingSapAiCoreConfig.clientId,
+											clientSecret: pendingSapAiCoreConfig.clientSecret,
+											baseUrl: pendingSapAiCoreConfig.baseUrl,
+											tokenUrl: pendingSapAiCoreConfig.tokenUrl,
+											resourceGroup: pendingSapAiCoreConfig.resourceGroup,
+										}
+									: undefined
+							}
+							sapAiCoreUseOrchestrationMode={pendingSapAiCoreConfig?.useOrchestrationMode}
 						/>
 					</Box>
 					<Box marginTop={1}>
@@ -1814,6 +1932,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		isPickingLanguage ||
 		isEnteringApiKey ||
 		isConfiguringBedrock ||
+		isConfiguringSapAiCore ||
 		isWaitingForCodexAuth ||
 		!!codexAuthError ||
 		isPickingOrganization ||
