@@ -328,7 +328,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					handleModelChange(modelSearchResults[selectedIndex].id)
 					setIsDropdownVisible(false)
 				} else {
-					// User typed a custom model ID (e.g., @preset/something)
+					// User typed a custom model ID
 					handleModelChange(searchTerm)
 					setIsDropdownVisible(false)
 				}
@@ -342,18 +342,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	const hasInfo = useMemo(() => {
 		try {
-			if (searchTerm.startsWith("@preset/")) {
-				return false // Disable model info for presets
-			}
 			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 		} catch {
 			return false
 		}
 	}, [modelIds, searchTerm])
-
-	const isOpenRouterPreset = useMemo(() => {
-		return searchTerm.startsWith("@preset/")
-	}, [searchTerm])
 
 	useEffect(() => {
 		setSelectedIndex(-1)
@@ -579,20 +572,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						showProviderRouting={showProviderRouting}
 					/>
 				</>
-			) : isOpenRouterPreset ? (
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: 3,
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					Using OpenRouter preset: <strong>{searchTerm}</strong>. Preset models reference your configured model
-					preferences on{" "}
-					<VSCodeLink href="https://openrouter.ai/settings/presets" style={{ display: "inline", fontSize: "inherit" }}>
-						OpenRouter.
-					</VSCodeLink>
-					Model info and pricing will depend on your preset configuration.
-				</p>
 			) : (
 				<p
 					style={{
@@ -610,8 +589,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						style={{ display: "inline", fontSize: "inherit" }}>
 						anthropic/claude-sonnet-4.6.
 					</VSCodeLink>
-					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
-					entering @preset/your-preset-name
+					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
 		</div>

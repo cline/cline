@@ -191,9 +191,6 @@ export function validateModelId(
 				if (!modelId) {
 					return "You must provide a model ID."
 				}
-				if (modelId.startsWith("@preset/")) {
-					break
-				}
 				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
 					return "The model ID you provided is not available. Please choose a different model."
@@ -203,9 +200,6 @@ export function validateModelId(
 				const clineResolvedModelId = clineModelId || openRouterDefaultModelId
 				if (!clineResolvedModelId) {
 					return "You must provide a model ID."
-				}
-				if (clineResolvedModelId.startsWith("@preset/")) {
-					break
 				}
 				if (clineModels && !Object.keys(clineModels).includes(clineResolvedModelId)) {
 					return "The model ID you provided is not available. Please choose a different model."

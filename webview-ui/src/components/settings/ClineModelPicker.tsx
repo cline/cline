@@ -324,9 +324,6 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	const hasInfo = useMemo(() => {
 		try {
-			if (searchTerm.startsWith("@preset/")) {
-				return false
-			}
 			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 		} catch {
 			return false
