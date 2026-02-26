@@ -219,6 +219,26 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
 	// read the same MCP settings and remote config files.
 	const settingsDir = path.join(getClineHomePath(), "data", "settings")
 	await fs.mkdir(settingsDir, { recursive: true })
+
+	// One-time migration: copy MCP settings from the old host-specific path if the new file
+	// doesn't exist yet. Before this change, VSCode stored settings under
+	// {globalStorageFsPath}/settings/ (a VSCode-managed path). The CLI's globalStorageFsPath
+	// is already ~/.cline/data so old === new for CLI users and no copy occurs.
+	const newMcpSettingsPath = path.join(settingsDir, GlobalFileNames.mcpSettings)
+	if (!(await fileExistsAtPath(newMcpSettingsPath))) {
+		try {
+			const oldSettingsDir = path.resolve(HostProvider.get().globalStorageFsPath, "settings")
+			const oldMcpSettingsPath = path.join(oldSettingsDir, GlobalFileNames.mcpSettings)
+			if (oldSettingsDir !== settingsDir && (await fileExistsAtPath(oldMcpSettingsPath))) {
+				await fs.copyFile(oldMcpSettingsPath, newMcpSettingsPath)
+				Logger.info(`[Settings] Migrated MCP settings from ${oldMcpSettingsPath} to ${newMcpSettingsPath}`)
+			}
+		} catch (error) {
+			Logger.error("[Settings] Failed to migrate MCP settings file:", error)
+			// Non-fatal — MCP settings will start fresh if migration fails
+		}
+	}
+
 	return settingsDir
 }
 
