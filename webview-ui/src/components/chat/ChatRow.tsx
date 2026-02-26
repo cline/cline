@@ -842,6 +842,23 @@ export const ChatRowContent = memo(
 
 			const mcpState = getMcpState()
 
+			// Memoize the MCP response lookup to avoid searching clineMessages on every render
+			const mcpResponseText = useMemo(() => {
+				const messageIndex = clineMessages.findIndex((m) => m.ts === message.ts)
+				if (messageIndex >= 0) {
+					for (let i = messageIndex + 1; i < clineMessages.length; i++) {
+						const nextMsg = clineMessages[i]
+						if (nextMsg.say === "mcp_server_response" && nextMsg.text) {
+							return nextMsg.text
+						}
+						if (nextMsg.ask === "use_mcp_server" || nextMsg.say === "use_mcp_server") {
+							break
+						}
+					}
+				}
+				return null
+			}, [clineMessages, message.ts])
+
 			return (
 				<div className="rounded-sm border border-editor-group-border overflow-hidden">
 					{/* Header - clickable to collapse/expand */}
@@ -880,37 +897,20 @@ export const ChatRowContent = memo(
 							</div>
 						)}
 
-						{/* Response section - find matching response from clineMessages */}
-						{(() => {
-							// Find the mcp_server_response that comes after this message
-							const messageIndex = clineMessages.findIndex((m) => m.ts === message.ts)
-							if (messageIndex >= 0) {
-								// Look for the next mcp_server_response message
-								for (let i = messageIndex + 1; i < clineMessages.length; i++) {
-									const nextMsg = clineMessages[i]
-									if (nextMsg.say === "mcp_server_response" && nextMsg.text) {
-										return (
-											<div className="px-3 pb-2">
-												<div className="text-sm text-description mb-1.5">Response</div>
-												<CodeAccordian
-													code={nextMsg.text}
-													isExpanded={true}
-													language="json"
-													onToggleExpand={() => {}}
-													variant="subtle"
-													noBorder
-												/>
-											</div>
-										)
-									}
-									// Stop if we hit another use_mcp_server (different tool call)
-									if (nextMsg.ask === "use_mcp_server" || nextMsg.say === "use_mcp_server") {
-										break
-									}
-								}
-							}
-							return null
-						})()}
+						{/* Response section */}
+						{mcpResponseText && (
+							<div className="px-3 pb-2">
+								<div className="text-sm text-description mb-1.5">Response</div>
+								<CodeAccordian
+									code={mcpResponseText}
+									isExpanded={true}
+									language="json"
+									onToggleExpand={() => {}}
+									variant="subtle"
+									noBorder
+								/>
+							</div>
+						)}
 					</div>
 
 					{/* Footer - always visible */}

@@ -112,7 +112,7 @@ interface CommandOutputRowProps {
  * - Collapsible output section
  * - Footer with auto-approve dropdown and action buttons
  */
-export const CommandOutputRow = ({
+export const CommandOutputRow = memo(({
 	message,
 	isCommandExecuting = false,
 	isCommandPending = false,
@@ -325,4 +325,6 @@ export const CommandOutputRow = ({
 			</div>
 		</div>
 	)
-}
+})
+
+CommandOutputRow.displayName = "CommandOutputRow"
