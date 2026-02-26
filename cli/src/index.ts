@@ -637,6 +637,13 @@ async function performQuickAuthSetup(
 		return { success: false, error: "Base URL is only supported for OpenAI and OpenAI-compatible providers" }
 	}
 
+	if (normalizedProvider === "openai-oauth") {
+		return {
+			success: false,
+			error: "OpenAI OAuth provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
+		}
+	}
+
 	// Save configuration using shared utility
 	await applyProviderConfig({
 		providerId: normalizedProvider,

@@ -19,19 +19,46 @@ export interface ApplyProviderConfigOptions {
 	modelId?: string // Override default model
 	baseUrl?: string // For OpenAI-compatible providers
 	controller?: Controller
+	// OpenAI OAuth fields
+	openAiOAuthBaseUrl?: string
+	openAiOAuthAuthUrl?: string
+	openAiOAuthClientId?: string
+	openAiOAuthScopes?: string
+	openAiOAuthTokenUrl?: string
 }
 
 /**
  * Apply provider configuration to state and rebuild API handler if needed
  */
 export async function applyProviderConfig(options: ApplyProviderConfigOptions): Promise<void> {
-	const { providerId, apiKey, modelId, baseUrl, controller } = options
+	const {
+		providerId,
+		apiKey,
+		modelId,
+		baseUrl,
+		controller,
+		openAiOAuthBaseUrl,
+		openAiOAuthClientId,
+		openAiOAuthAuthUrl,
+		openAiOAuthTokenUrl,
+		openAiOAuthScopes,
+	} = options
 	const stateManager = StateManager.get()
 
 	const config: Record<string, string> = {
 		actModeApiProvider: providerId,
 		planModeApiProvider: providerId,
 	}
+
+	// Add OAuth configuration
+	const openAiOAuthFields: Record<string, unknown> = {
+		openAiOAuthAuthUrl,
+		openAiOAuthBaseUrl,
+		openAiOAuthClientId,
+		openAiOAuthScopes,
+		openAiOAuthTokenUrl,
+	}
+	Object.assign(config, openAiOAuthFields)
 
 	// Add model ID (use provided or fall back to default)
 	// Use provider-specific model ID keys (e.g., actModeOpenRouterModelId for cline/openrouter)
@@ -73,6 +100,23 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	// Add base URL if provided (for OpenAI-compatible providers)
 	if (baseUrl) {
 		config.openAiBaseUrl = baseUrl
+	}
+
+	// Add OpenAI OAuth fields if provided
+	if (openAiOAuthAuthUrl) {
+		config.openAiOAuthAuthUrl = openAiOAuthAuthUrl
+	}
+	if (openAiOAuthBaseUrl) {
+		config.openAiOAuthBaseUrl = openAiOAuthBaseUrl
+	}
+	if (openAiOAuthClientId) {
+		config.openAiOAuthClientId = openAiOAuthClientId
+	}
+	if (openAiOAuthScopes) {
+		config.openAiOAuthScopes = openAiOAuthScopes
+	}
+	if (openAiOAuthTokenUrl) {
+		config.openAiOAuthTokenUrl = openAiOAuthTokenUrl
 	}
 
 	// Save via StateManager

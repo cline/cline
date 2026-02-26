@@ -59,6 +59,7 @@ export async function checkAnyProviderConfigured(): Promise<boolean> {
 	if (config.vertexProjectId) return true
 	if (config.ollamaBaseUrl) return true
 	if (config.lmStudioBaseUrl) return true
+	if (config.openAiOAuthClientId) return true
 
 	return false
 }

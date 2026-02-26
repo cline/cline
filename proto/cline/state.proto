@@ -105,6 +105,9 @@ message Secrets {
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
   optional string openai_codex_oauth_credentials = 48;
+  optional string open_ai_o_auth_access_token = 49;
+  optional string open_ai_o_auth_client_secret = 50;
+  optional string open_ai_o_auth_refresh_token = 51;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -283,6 +286,18 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
+  optional string open_ai_o_auth_auth_url = 182;
+  optional string open_ai_o_auth_base_url = 183;
+  optional string open_ai_o_auth_client_id = 184;
+  optional string open_ai_o_auth_scopes = 185;
+  optional string open_ai_o_auth_token_url = 186;
+  optional string act_mode_open_ai_o_auth_model_id = 187;
+  optional OpenAiCompatibleModelInfo act_mode_open_ai_o_auth_model_info = 188;
+  optional string plan_mode_open_ai_o_auth_model_id = 189;
+  optional OpenAiCompatibleModelInfo plan_mode_open_ai_o_auth_model_info = 190;
+  optional string open_ai_o_auth_model_id = 191;
+  optional OpenRouterModelInfo open_ai_o_auth_model_info = 192;
+  map<string, string> open_ai_o_auth_headers = 193;
 }
 
 message State {
@@ -424,6 +439,12 @@ message UpdateSettingsRequest {
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
   optional bool double_check_completion_enabled = 41;
+  optional string open_ai_oauth_auth_url = 42;
+  optional string open_ai_oauth_base_url = 43;
+  optional string open_ai_oauth_client_id = 44;
+  optional string open_ai_oauth_client_secret = 45;
+  optional string open_ai_oauth_scopes = 46;
+  optional string open_ai_oauth_token_url = 47;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
