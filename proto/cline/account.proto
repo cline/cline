@@ -42,6 +42,8 @@ service AccountService {
 
   rpc requestyAuthClicked(StringRequest) returns (Empty);
 
+  rpc hicapAuthClicked(EmptyRequest) returns (Empty);
+
   // Returns a link the webview can use to redirect back to the user's IDE.
   rpc getRedirectUrl(EmptyRequest) returns (String);
 

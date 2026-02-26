@@ -9,6 +9,8 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
 	CallToolResultSchema,
+	GetPromptResultSchema,
+	ListPromptsResultSchema,
 	ListResourcesResultSchema,
 	ListResourceTemplatesResultSchema,
 	ListToolsResultSchema,
@@ -16,6 +18,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
+	McpPrompt,
+	McpPromptResponse,
 	McpResource,
 	McpResourceResponse,
 	McpResourceTemplate,
@@ -53,7 +57,7 @@ export class McpHub {
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
-	isConnecting: boolean = false
+	isConnecting = false
 	/**
 	 * Flag to skip file watcher processing when we're updating Cline-specific settings
 	 * (autoApprove, timeout) that don't require an MCP server restart.
@@ -68,10 +72,10 @@ export class McpHub {
 	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
 	 *   300ms:  flag = false (ready for external file changes)
 	 */
-	private isUpdatingClineSettings: boolean = false
+	private isUpdatingClineSettings = false
 
 	// Track when remote config is updating to prevent unnecessary watcher triggers
-	private isUpdatingFromRemoteConfig: boolean = false
+	private isUpdatingFromRemoteConfig = false
 
 	/**
 	 * Map of unique keys to each connected server names
@@ -167,6 +171,12 @@ export class McpHub {
 
 			let config: any
 
+			// Handle empty or minimal files silently - this is a valid state meaning "no MCP servers"
+			const trimmedContent = content.trim()
+			if (!trimmedContent || trimmedContent === "{}" || trimmedContent === '{"mcpServers":{}}') {
+				return { mcpServers: {} }
+			}
+
 			// Parse JSON file content
 			try {
 				config = JSON.parse(content)
@@ -226,6 +236,29 @@ export class McpHub {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				try {
+					// Re-add any remotely configured servers that were manually removed from the file
+					const remoteServers = StateManager.get().getRemoteConfigSettings().remoteMCPServers
+					if (remoteServers?.length) {
+						let fileNeedsUpdate = false
+						for (const rs of remoteServers) {
+							if (!settings.mcpServers[rs.name]) {
+								;(settings.mcpServers as Record<string, any>)[rs.name] = {
+									url: rs.url,
+									type: "streamableHttp",
+									disabled: false,
+									autoApprove: [],
+									remoteConfigured: true,
+								}
+								fileNeedsUpdate = true
+							}
+						}
+						if (fileNeedsUpdate) {
+							this.isUpdatingFromRemoteConfig = true
+							const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+							await fs.writeFile(settingsPath, JSON.stringify({ mcpServers: settings.mcpServers }, null, 2))
+							this.isUpdatingFromRemoteConfig = false
+						}
+					}
 					await this.updateServerConnections(settings.mcpServers)
 				} catch (error) {
 					Logger.error("Failed to process MCP settings change:", error)
@@ -617,10 +650,11 @@ export class McpHub {
 				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
-			// Initial fetch of tools and resources
+			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)
 			connection.server.resourceTemplates = await this.fetchResourceTemplatesList(name)
+			connection.server.prompts = await this.fetchPromptsList(name)
 		} catch (error) {
 			// Update status with error
 			const connection = this.findConnection(name, source)
@@ -712,6 +746,34 @@ export class McpHub {
 			return response?.resourceTemplates || []
 		} catch (_error) {
 			// Logger.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			return []
+		}
+	}
+
+	private async fetchPromptsList(serverName: string): Promise<McpPrompt[]> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty prompts list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			})
+
+			return (response?.prompts || []).map((prompt) => ({
+				name: prompt.name,
+				title: prompt.title,
+				description: prompt.description,
+				arguments: prompt.arguments?.map((arg) => ({
+					name: arg.name,
+					description: arg.description,
+					required: arg.required,
+				})),
+			}))
+		} catch (_error) {
 			return []
 		}
 	}
@@ -910,8 +972,18 @@ export class McpHub {
 	 */
 	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
 		// Exclude Cline-specific settings from comparison (add new ones here)
-		const { autoApprove: _oldAutoApprove, timeout: _oldTimeout, ...oldConnectionConfig } = oldConfig
-		const { autoApprove: _newAutoApprove, timeout: _newTimeout, ...newConnectionConfig } = newConfig
+		const {
+			autoApprove: _oldAutoApprove,
+			timeout: _oldTimeout,
+			remoteConfigured: _oldRemoteConfigured,
+			...oldConnectionConfig
+		} = oldConfig
+		const {
+			autoApprove: _newAutoApprove,
+			timeout: _newTimeout,
+			remoteConfigured: _newRemoteConfigured,
+			...newConnectionConfig
+		} = newConfig
 		return !deepEqual(oldConnectionConfig, newConnectionConfig)
 	}
 
@@ -1116,6 +1188,45 @@ export class McpHub {
 		)
 	}
 
+	async getPrompt(
+		serverName: string,
+		promptName: string,
+		promptArguments?: Record<string, string>,
+	): Promise<McpPromptResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled`)
+		}
+		if (!connection.client) {
+			throw new Error(`No client available for server: ${serverName}`)
+		}
+
+		const response = await connection.client.request(
+			{
+				method: "prompts/get",
+				params: {
+					name: promptName,
+					arguments: promptArguments,
+				},
+			},
+			GetPromptResultSchema,
+			{
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			},
+		)
+
+		return {
+			description: response.description,
+			messages: response.messages.map((msg) => ({
+				role: msg.role,
+				content: msg.content as McpPromptResponse["messages"][0]["content"],
+			})),
+		}
+	}
+
 	async callTool(
 		serverName: string,
 		toolName: string,
@@ -1306,11 +1417,7 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(
-		serverName: string,
-		serverUrl: string,
-		transportType: string = "streamableHttp",
-	): Promise<McpServer[]> {
+	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1389,9 +1496,8 @@ export class McpHub {
 				// Get the servers in their correct order from settings
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
-			} else {
-				throw new Error(`${serverName} not found in MCP configuration`)
 			}
+			throw new Error(`${serverName} not found in MCP configuration`)
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error

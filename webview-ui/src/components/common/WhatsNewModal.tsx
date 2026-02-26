@@ -1,83 +1,59 @@
-import { Button } from "@components/ui/button"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import React, { useCallback, useRef } from "react"
+import { BannerAction, BannerCardData } from "@shared/cline/banner"
+import React, { useCallback } from "react"
 import { useMount } from "react-use"
+import DiscordIcon from "@/assets/DiscordIcon"
+import GitHubIcon from "@/assets/GitHubIcon"
+import LinkedInIcon from "@/assets/LinkedInIcon"
+import RedditIcon from "@/assets/RedditIcon"
+import XIcon from "@/assets/XIcon"
+import WhatsNewItems from "@/components/common/WhatsNewItems"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface WhatsNewModalProps {
 	open: boolean
 	onClose: () => void
 	version: string
+	welcomeBanners?: BannerCardData[]
+	onBannerAction?: (action: BannerAction) => void
 }
 
-export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version }) => {
-	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels, navigateToSettings } = useExtensionState()
+export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
+	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const clickedModelsRef = useRef<Set<string>>(new Set())
 
 	// Get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
-	const setModel = useCallback(
-		(modelId: string) => {
-			handleFieldsChange({
-				planModeOpenRouterModelId: modelId,
-				actModeOpenRouterModelId: modelId,
-				planModeOpenRouterModelInfo: openRouterModels[modelId],
-				actModeOpenRouterModelInfo: openRouterModels[modelId],
+	const navigateToModelPicker = useCallback(
+		(initialModelTab: "recommended" | "free", modelId?: string) => {
+			// Switch to Cline provider first so the model picker tab works
+			// Optionally also set the model if provided
+			const updates: Record<string, any> = {
 				planModeApiProvider: "cline",
 				actModeApiProvider: "cline",
-			})
-
-			clickedModelsRef.current.add(modelId)
-			setShowChatModelSelector(true)
+			}
+			if (modelId) {
+				updates.planModeOpenRouterModelId = modelId
+				updates.actModeOpenRouterModelId = modelId
+				updates.planModeOpenRouterModelInfo = openRouterModels[modelId]
+				updates.actModeOpenRouterModelInfo = openRouterModels[modelId]
+			}
+			handleFieldsChange(updates)
 			onClose()
+			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
 		},
-		[handleFieldsChange, openRouterModels, setShowChatModelSelector, onClose],
+		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)
 
-	const setOpenAiCodexProvider = useCallback(() => {
-		handleFieldsChange({
-			planModeApiProvider: "openai-codex",
-			actModeApiProvider: "openai-codex",
-		})
-		onClose()
-		navigateToSettings("api-config")
-	}, [handleFieldsChange, onClose, navigateToSettings])
-
-	const handleShowAccount = useCallback(() => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
-	}, [])
-
-	const ModelButton: React.FC<{ modelId: string; label: string }> = ({ modelId, label }) => {
-		const isClicked = clickedModelsRef.current.has(modelId)
-		if (isClicked) {
-			return null
-		}
-
-		return (
-			<Button className="my-1" onClick={() => setModel(modelId)} size="sm">
-				{label}
-			</Button>
-		)
+	const inlineCodeStyle: React.CSSProperties = {
+		backgroundColor: "var(--vscode-textCodeBlock-background)",
+		padding: "2px 6px",
+		borderRadius: "3px",
+		fontFamily: "var(--vscode-editor-font-family)",
+		fontSize: "0.9em",
 	}
-
-	const AuthButton: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-		clineUser ? (
-			<div className="flex gap-2 flex-wrap">{children}</div>
-		) : (
-			<Button className="my-1" onClick={handleShowAccount} size="sm">
-				Sign Up with Cline
-			</Button>
-		)
 
 	return (
 		<Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
@@ -93,30 +69,82 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						🎉 New in v{version}
 					</h2>
 
-					{/* Description */}
-					<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
-						<li className="mb-2">
-							<strong>OpenAI ChatGPT Subscription Integration:</strong> Use your ChatGPT subscription directly in
-							Cline with no additional token cost and no api keys to manage.{" "}
-							<span
-								onClick={setOpenAiCodexProvider}
-								style={{ color: "var(--vscode-textLink-foreground)", cursor: "pointer" }}>
-								Sign in
-							</span>
-						</li>
-						<li className="mb-2">
-							<strong>Jupyter Notebooks:</strong> Comprehensive AI-assisted editing of <code>.ipynb</code> files
-							with full cell-level context awareness.{" "}
+					<WhatsNewItems
+						inlineCodeStyle={inlineCodeStyle}
+						onBannerAction={onBannerAction}
+						onClose={onClose}
+						onNavigateToModelPicker={navigateToModelPicker}
+						welcomeBanners={welcomeBanners}
+					/>
+
+					{/* Social Icons Section */}
+					<div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t border-[var(--vscode-widget-border)]">
+						{/* Icon Row */}
+						<div className="flex items-center gap-4">
+							{/* X/Twitter */}
 							<a
-								href="https://docs.cline.bot/features/jupyter-notebooks"
-								style={{ color: "var(--vscode-textLink-foreground)" }}>
-								Learn More
+								aria-label="Follow us on X"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://x.com/cline"
+								rel="noopener noreferrer"
+								target="_blank">
+								<XIcon />
 							</a>
-						</li>
-						<li>
-							<strong>Grok Code Fast 1: </strong> is no longer free to use.
-						</li>
-					</ul>
+
+							{/* Discord */}
+							<a
+								aria-label="Join our Discord"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://discord.gg/cline"
+								rel="noopener noreferrer"
+								target="_blank">
+								<DiscordIcon />
+							</a>
+
+							{/* GitHub */}
+							<a
+								aria-label="Star us on GitHub"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://github.com/cline/cline"
+								rel="noopener noreferrer"
+								target="_blank">
+								<GitHubIcon />
+							</a>
+
+							{/* Reddit */}
+							<a
+								aria-label="Join our subreddit"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://www.reddit.com/r/cline/"
+								rel="noopener noreferrer"
+								target="_blank">
+								<RedditIcon />
+							</a>
+
+							{/* LinkedIn */}
+							<a
+								aria-label="Follow us on LinkedIn"
+								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
+								href="https://www.linkedin.com/company/clinebot/"
+								rel="noopener noreferrer"
+								target="_blank">
+								<LinkedInIcon />
+							</a>
+						</div>
+
+						{/* GitHub Star CTA */}
+						<p className="text-sm text-center" style={{ color: "var(--vscode-descriptionForeground)" }}>
+							Please support Cline by{" "}
+							<a
+								href="https://github.com/cline/cline"
+								rel="noopener noreferrer"
+								style={{ color: "var(--vscode-textLink-foreground)" }}
+								target="_blank">
+								starring us on GitHub
+							</a>
+							.
+						</p>
+					</div>
 				</div>
 			</DialogContent>
 		</Dialog>

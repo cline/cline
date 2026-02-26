@@ -1,5 +1,6 @@
 import { HostProvider } from "@hosts/host-provider"
 import type { BrowserSettings } from "@shared/BrowserSettings"
+import { ApiFormat, apiFormatToJSON } from "@shared/proto/cline/models"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
@@ -17,7 +18,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents" | "skills" | "hooks"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents" | "skills" | "hooks"
 
 /**
  * Terminal type for telemetry differentiation
@@ -107,7 +108,6 @@ export class TelemetryService {
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", true], // Checkpoints telemetry enabled
 		["browser", true], // Browser telemetry enabled
-		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 		["subagents", true], // CLI Subagents telemetry enabled
 		["skills", true], // Skills telemetry enabled
@@ -115,6 +115,11 @@ export class TelemetryService {
 	])
 
 	private userId?: string
+	private activeOrg: {
+		organization_id: string
+		organization_name: string
+		member_id: string
+	} | null = null
 	private taskTurnCounts = new Map<string, number>()
 	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
@@ -164,6 +169,7 @@ export class TelemetryService {
 
 		USER: {
 			OPT_OUT: "user.opt_out",
+			OPT_IN: "user.opt_in",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
 			EXTENSION_STORAGE_ERROR: "user.extension_storage_error",
@@ -172,19 +178,6 @@ export class TelemetryService {
 			AUTH_FAILED: "user.auth_failed",
 			AUTH_LOGGED_OUT: "user.auth_logged_out",
 			ONBOARDING_PROGRESS: "user.onboarding_progress",
-		},
-		DICTATION: {
-			// Tracks when voice recording is started
-			RECORDING_STARTED: "voice.recording_started",
-			// Tracks when voice recording is stopped
-			RECORDING_STOPPED: "voice.recording_stopped",
-			// Tracks when voice transcription is started
-			TRANSCRIPTION_STARTED: "voice.transcription_started",
-			// Tracks when voice transcription is completed successfully
-			TRANSCRIPTION_COMPLETED: "voice.transcription_completed",
-			// Tracks when voice transcription fails
-			TRANSCRIPTION_ERROR: "voice.transcription_error",
-			// Tracks when voice feature is enabled or disabled in settings
 		},
 		// Workspace-related events for multi-root support
 		WORKSPACE: {
@@ -322,6 +315,10 @@ export class TelemetryService {
 			// Tracks when a worktree merge is attempted
 			MERGE_ATTEMPTED: "worktree.merge_attempted",
 		},
+		HOST: {
+			// Tracks events detected from the host environment
+			DETECTED: "host.detected",
+		},
 	}
 
 	public static async create(): Promise<TelemetryService> {
@@ -390,11 +387,23 @@ export class TelemetryService {
 					})
 			}
 		}
+	}
 
-		// Update all providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
+	/**
+	 * Captures when a user explicitly opts out of telemetry.
+	 * Uses captureRequired to ensure the event is sent before telemetry is disabled.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptOut(): void {
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+	}
+
+	/**
+	 * Captures when a user explicitly opts back into telemetry.
+	 * Should only be called on explicit user action, not on init/sync.
+	 */
+	public captureUserOptIn(): void {
+		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
 	}
 
 	/**
@@ -446,6 +455,7 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
+			...this.activeOrg,
 			...(extra ?? {}),
 		}
 	}
@@ -518,7 +528,9 @@ export class TelemetryService {
 	}
 
 	public captureExtensionActivated() {
-		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+		this.capture({
+			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
+		})
 	}
 
 	public captureExtensionStorageError(errorMessage: string, eventName: string) {
@@ -599,6 +611,16 @@ export class TelemetryService {
 		}
 
 		this.userId = userInfo.id
+		const activeOrg = userInfo.organizations?.find((org) => org.active)
+		if (activeOrg) {
+			this.activeOrg = {
+				organization_id: activeOrg.organizationId,
+				organization_name: activeOrg.name,
+				member_id: activeOrg.memberId,
+			}
+		} else {
+			this.activeOrg = null
+		}
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
@@ -611,127 +633,6 @@ export class TelemetryService {
 		if (userInfo.id) {
 			setDistinctId(userInfo.id)
 		}
-	}
-
-	// Dictation events
-	/**
-	 * Records when voice recording is started
-	 * @param taskId Optional task identifier if recording was started during a task
-	 * @param platform The platform where recording is happening (macOS, Windows, Linux)
-	 */
-	public captureVoiceRecordingStarted(taskId?: string, platform?: string) {
-		if (!this.isCategoryEnabled("dictation")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.RECORDING_STARTED,
-			properties: {
-				taskId,
-				platform: platform ?? process.platform,
-				timestamp: new Date().toISOString(),
-			},
-		})
-	}
-
-	/**
-	 * Records when voice recording is stopped
-	 * @param taskId Optional task identifier if recording was stopped during a task
-	 * @param durationMs Duration of the recording in milliseconds
-	 * @param success Whether the recording was successful
-	 * @param platform The platform where recording happened
-	 */
-	public captureVoiceRecordingStopped(taskId?: string, durationMs?: number, success?: boolean, platform?: string) {
-		if (!this.isCategoryEnabled("dictation")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.RECORDING_STOPPED,
-			properties: {
-				taskId,
-				durationMs,
-				success,
-				platform: platform ?? process.platform,
-				timestamp: new Date().toISOString(),
-			},
-		})
-	}
-
-	/**
-	 * Records when voice transcription is started
-	 * @param taskId Optional task identifier if transcription was started during a task
-	 * @param language Language hint provided for transcription
-	 */
-	public captureVoiceTranscriptionStarted(taskId?: string, language?: string) {
-		if (!this.isCategoryEnabled("dictation")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_STARTED,
-			properties: {
-				taskId,
-				language,
-				timestamp: new Date().toISOString(),
-			},
-		})
-	}
-
-	/**
-	 * Records when voice transcription is completed successfully
-	 * @param taskId Optional task identifier if transcription was completed during a task
-	 * @param transcriptionLength Length of the transcribed text
-	 * @param durationMs Time taken for transcription in milliseconds
-	 * @param language Language used for transcription
-	 * @param isOrgAccount Whether the transcription was done using an organization account
-	 */
-	public captureVoiceTranscriptionCompleted(
-		taskId?: string,
-		transcriptionLength?: number,
-		durationMs?: number,
-		language?: string,
-		isOrgAccount?: boolean,
-	) {
-		if (!this.isCategoryEnabled("dictation")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_COMPLETED,
-			properties: {
-				taskId,
-				transcriptionLength,
-				durationMs,
-				language,
-				accountType: isOrgAccount ? "organization" : "personal",
-				timestamp: new Date().toISOString(),
-			},
-		})
-	}
-
-	/**
-	 * Records when voice transcription fails
-	 * @param taskId Optional task identifier if transcription failed during a task
-	 * @param errorType Type of error that occurred (e.g., "no_openai_key", "api_error", "network_error")
-	 * @param errorMessage The error message
-	 * @param durationMs Time taken before failure in milliseconds
-	 */
-	public captureVoiceTranscriptionError(taskId?: string, errorType?: string, errorMessage?: string, durationMs?: number) {
-		if (!this.isCategoryEnabled("dictation")) {
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_ERROR,
-			properties: {
-				taskId,
-				errorType,
-				errorMessage,
-				durationMs,
-				timestamp: new Date().toISOString(),
-			},
-		})
 	}
 
 	// Task events
@@ -767,11 +668,53 @@ export class TelemetryService {
 	 * Records when cline calls the task completion_result tool signifying that cline is done with the task
 	 * @param ulid Unique identifier for the task
 	 */
-	public captureTaskCompleted(ulid: string) {
+	public captureTaskCompleted(
+		ulid: string,
+		args?: {
+			provider?: string
+			modelId?: string
+			apiFormat?: ApiFormat
+			timeToFirstTokenMs?: number
+			durationMs?: number
+			mode: Mode
+		},
+	) {
+		const apiFormatName = args?.apiFormat !== undefined ? apiFormatToJSON(args.apiFormat) : undefined
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: { ulid },
+			properties: {
+				ulid,
+				provider: args?.provider,
+				modelId: args?.modelId,
+				apiFormat: args?.apiFormat,
+				apiFormatName,
+				timeToFirstTokenMs: args?.timeToFirstTokenMs,
+				durationMs: args?.durationMs,
+				mode: args?.mode,
+			},
 		})
+
+		if (Number.isFinite(args?.timeToFirstTokenMs)) {
+			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, (args?.timeToFirstTokenMs ?? 0) / 1000, {
+				ulid,
+				provider: args?.provider,
+				model: args?.modelId,
+				apiFormat: apiFormatName,
+				mode: args?.mode,
+			})
+		}
+
+		if (Number.isFinite(args?.durationMs)) {
+			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, (args?.durationMs ?? 0) / 1000, {
+				ulid,
+				provider: args?.provider,
+				model: args?.modelId,
+				apiFormat: apiFormatName,
+				scope: "task",
+				mode: args?.mode,
+			})
+		}
+
 		this.resetTaskAggregates(ulid)
 	}
 
@@ -786,8 +729,8 @@ export class TelemetryService {
 	 */
 	public captureConversationTurnEvent(
 		ulid: string,
-		provider: string = "unknown",
-		model: string = "unknown",
+		provider = "unknown",
+		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
 		tokenUsage: {
@@ -1530,9 +1473,9 @@ export class TelemetryService {
 	 * Records when slash commands or workflows are activated
 	 * @param ulid Unique identifier for the task
 	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
-	 * @param commandType Whether it's a built-in command or custom workflow
+	 * @param commandType Whether it's a built-in command, custom workflow, or MCP prompt
 	 */
-	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow") {
+	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow" | "mcp_prompt") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
 			properties: {
@@ -1977,7 +1920,6 @@ export class TelemetryService {
 		return this.providers.length > 0
 			? this.providers[0].getSettings()
 			: {
-					extensionEnabled: false,
 					hostEnabled: false,
 					level: "off" as const,
 				}
@@ -2228,6 +2170,16 @@ export class TelemetryService {
 				workspaceCount,
 				totalCount: globalCount + workspaceCount,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	public captureHostEvent(name: string, content: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.HOST.DETECTED,
+			properties: {
+				name,
+				content,
 			},
 		})
 	}

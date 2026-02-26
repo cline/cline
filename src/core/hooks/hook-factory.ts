@@ -263,6 +263,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		private readonly abortSignal?: AbortSignal,
 		private readonly taskId?: string,
 		private readonly toolName?: string,
+		private readonly cwd?: string,
 	) {
 		super(hookName)
 	}
@@ -302,7 +303,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		const inputJson = JSON.stringify(jsonObj)
 
 		// Create HookProcess for execution with streaming
-		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal)
+		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal, this.cwd)
 
 		// Set up streaming if callback is provided
 		if (this.streamCallback) {
@@ -775,10 +776,19 @@ export class HookFactory {
 			)
 		}
 
-		// Create runners with source determination for each script
+		// Get workspace roots for cwd determination
+		const stateManager = StateManager.get()
+		const workspaceRoots = stateManager.getGlobalStateKey("workspaceRoots")
+		const primaryRootIndex = stateManager.getGlobalStateKey("primaryRootIndex") ?? 0
+		const primaryCwd = workspaceRoots?.[primaryRootIndex]?.path
+
+		// Create runners with source and cwd determination for each script
+		// Global hooks run from primary workspace root
+		// Workspace-specific hooks run from their respective workspace root
 		const runners = scripts.map((script) => {
 			const source = this.determineScriptSource(script, hooksDirs)
-			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName)
+			const cwd = this.determineHookCwd(script, hooksDirs, workspaceRoots, primaryCwd)
+			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName, cwd)
 		})
 
 		if (runners.length === 0) {
@@ -804,6 +814,48 @@ export class HookFactory {
 			return "global"
 		}
 		return "workspace" // Default to workspace if uncertain
+	}
+
+	/**
+	 * Determines the working directory for a hook script based on its location.
+	 *
+	 * - Global hooks (from ~/Documents/Cline/Hooks/): run from the primary workspace root
+	 * - Workspace hooks (from workspaceRoot/.clinerules/hooks/): run from that specific workspace root
+	 *
+	 * This ensures workspace-specific hooks can use relative paths that are meaningful
+	 * within their own workspace context.
+	 *
+	 * @param scriptPath The full path to the hook script
+	 * @param hooksDirs Array of all hooks directories
+	 * @param workspaceRoots Array of workspace root objects
+	 * @param primaryCwd The primary workspace root path (fallback)
+	 * @returns The working directory to use for this hook
+	 */
+	private determineHookCwd(
+		scriptPath: string,
+		hooksDirs: string[],
+		workspaceRoots: Array<{ path: string }> | undefined,
+		primaryCwd: string | undefined,
+	): string | undefined {
+		const containingDir = hooksDirs.find((dir) => scriptPath.startsWith(dir))
+
+		// If global hook, use primary workspace root
+		if (containingDir && HookFactory.isGlobalHooksDir(containingDir)) {
+			return primaryCwd
+		}
+
+		// If workspace hook, find which workspace root it belongs to
+		// Workspace hooks are at: workspaceRoot/.clinerules/hooks/
+		// So find the workspace root whose path is a prefix of the containing hooks dir
+		if (containingDir && workspaceRoots) {
+			const workspaceRoot = workspaceRoots.find((root) => containingDir.startsWith(root.path))
+			if (workspaceRoot) {
+				return workspaceRoot.path
+			}
+		}
+
+		// Fallback to primary cwd
+		return primaryCwd
 	}
 
 	/**

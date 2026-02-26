@@ -13,10 +13,19 @@
 	"license": "ISC",
 	"description": "",
 	"dependencies": {
-		"mintlify": "^4.2.249"
+		"mintlify": "^4.2.338"
 	},
 	"overrides": {
 		"tar-fs": "^3.1.1",
-		"js-yaml": "^4.1.1"
+		"js-yaml": "^4.1.1",
+		"tar@<=6.2.1": "6.2.1",
+		"body-parser@<=1.20.3": "1.20.3",
+		"axios@<=1.13.5": "1.13.5",
+		"qs@<=6.14.1": "6.14.1",
+		"express@<=4.20.0": "4.20.0",
+		"serve-static@<=1.16.0": "1.16.0",
+		"send@<=0.19.0": "0.19.0",
+		"path-to-regexp@<=0.1.12": "0.1.12",
+		"cookie@<=0.7.0": "0.7.0"
 	}
 }

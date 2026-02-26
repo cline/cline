@@ -16,6 +16,8 @@ import {
 	ArrowRightIcon,
 	BellIcon,
 	CheckIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
 	CircleSlashIcon,
 	CircleXIcon,
 	FileCode2Icon,
@@ -59,11 +61,9 @@ import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
 import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
+import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
 import UserMessage from "./UserMessage"
-
-// State type for api_req_started rendering
-type ApiReqState = "pre" | "thinking" | "error" | "final"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
@@ -114,7 +114,7 @@ const ChatRow = memo(
 			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
 			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
 			// height starts off at Infinity
-			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+			if (isLast && height !== 0 && height !== Number.POSITIVE_INFINITY && height !== prevHeightRef.current) {
 				if (!isInitialRender) {
 					onHeightChange(height > prevHeightRef.current)
 				}
@@ -422,7 +422,8 @@ export const ChatRowContent = memo(
 						marginBottom: "-1.5px",
 						transform: rotation ? `rotate(${rotation}deg)` : undefined,
 					}}
-					title={title}></span>
+					title={title}
+				/>
 			)
 
 			switch (tool.tool) {
@@ -641,7 +642,7 @@ export const ChatRowContent = memo(
 											<div className="flex items-center mb-2">
 												<span className="font-bold mr-1">Summary:</span>
 												<div className="grow" />
-												<span className="codicon codicon-chevron-up my-0.5 shrink-0" />
+												<ChevronDownIcon className="my-0.5 shrink-0 size-4" />
 											</div>
 											<span className="ph-no-capture break-words whitespace-pre-wrap">{tool.content}</span>
 										</div>
@@ -650,7 +651,7 @@ export const ChatRowContent = memo(
 											<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2 [direction:rtl]">
 												{tool.content + "\u200E"}
 											</span>
-											<span className="codicon codicon-chevron-down my-0.5 shrink-0" />
+											<ChevronRightIcon className="my-0.5 shrink-0 size-4" />
 										</div>
 									)}
 								</div>
@@ -762,6 +763,10 @@ export const ChatRowContent = memo(
 					title={title}
 				/>
 			)
+		}
+
+		if (message.ask === "use_subagents" || message.say === "use_subagents") {
+			return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
 		}
 
 		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
@@ -881,13 +886,18 @@ export const ChatRowContent = memo(
 						)
 					}
 					case "reasoning": {
+						const isReasoningStreaming = message.partial === true
+						const hasReasoningText = !!message.text?.trim()
 						return (
 							<ThinkingRow
-								isExpanded={isExpanded}
+								isExpanded={(isReasoningStreaming && hasReasoningText) || isExpanded}
+								isStreaming={isReasoningStreaming}
 								isVisible={true}
-								onToggle={handleToggle}
+								onToggle={isReasoningStreaming ? undefined : handleToggle}
 								reasoningContent={message.text}
+								showChevron={!isReasoningStreaming || hasReasoningText}
 								showTitle={true}
+								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 							/>
 						)
 					}
@@ -1085,6 +1095,8 @@ export const ChatRowContent = memo(
 					case "hook_output_stream":
 						// hook_output_stream messages are combined with hook_status messages, so we don't render them separately
 						return <InvisibleSpacer />
+					case "subagent":
+						return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
@@ -1159,10 +1171,9 @@ export const ChatRowContent = memo(
 									text={text || ""}
 								/>
 							)
-						} else {
-							// Virtuoso cannot handle zero-height items; render a spacer instead of null
-							return <InvisibleSpacer />
 						}
+						// Virtuoso cannot handle zero-height items; render a spacer instead of null
+						return <InvisibleSpacer />
 					case "followup":
 						let question: string | undefined
 						let options: string[] | undefined
@@ -1202,15 +1213,17 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
-								<OptionsButtons
-									inputValue={inputValue}
-									isActive={
-										(isLast && lastModifiedMessage?.ask === "followup") ||
-										(!selected && options && options.length > 0)
-									}
-									options={options}
-									selected={selected}
-								/>
+								<div className="pt-3">
+									<OptionsButtons
+										inputValue={inputValue}
+										isActive={
+											(isLast && lastModifiedMessage?.ask === "followup") ||
+											(!selected && options && options.length > 0)
+										}
+										options={options}
+										selected={selected}
+									/>
+								</div>
 							</div>
 						)
 					case "new_task":

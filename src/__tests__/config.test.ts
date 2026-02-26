@@ -28,6 +28,7 @@ describe("ClineEndpoint configuration", () => {
 		// Reset the singleton state using internal method
 		;(ClineEndpoint as any)._instance = null
 		;(ClineEndpoint as any)._initialized = false
+		;(ClineEndpoint as any)._extensionFsPath = undefined
 	})
 
 	afterEach(async () => {
@@ -52,7 +53,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(validConfig), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const config = ClineEndpoint.config
 			config.appBaseUrl.should.equal("https://app.enterprise.com")
@@ -64,7 +65,7 @@ describe("ClineEndpoint configuration", () => {
 		it("should work without endpoints.json (standard mode)", async () => {
 			// No endpoints.json file exists
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const config = ClineEndpoint.config
 			config.environment.should.not.equal(Environment.selfHosted)
@@ -82,7 +83,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(validConfig), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const config = ClineEndpoint.config
 			config.appBaseUrl.should.equal("http://localhost:3000")
@@ -99,7 +100,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(validConfig), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const config = ClineEndpoint.config
 			config.appBaseUrl.should.equal("https://proxy.enterprise.com/cline/app")
@@ -111,7 +112,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), "{ invalid json }", "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -123,7 +124,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), '{"appBaseUrl": "https://test.com"', "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -135,7 +136,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), "", "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -146,7 +147,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), '"just a string"', "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -158,7 +159,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), "[]", "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -171,7 +172,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), "null", "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -190,7 +191,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -207,7 +208,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -224,7 +225,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -236,7 +237,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), "{}", "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -254,7 +255,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -272,7 +273,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -290,7 +291,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -308,7 +309,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -328,7 +329,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -346,7 +347,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -364,7 +365,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -383,7 +384,7 @@ describe("ClineEndpoint configuration", () => {
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
 			try {
-				await ClineEndpoint.initialize()
+				await ClineEndpoint.initialize(tempDir)
 				throw new Error("Should have thrown")
 			} catch (error: any) {
 				error.should.be.instanceof(ClineConfigurationError)
@@ -402,7 +403,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			// Verify we're in self-hosted mode
 			ClineEndpoint.config.environment.should.equal(Environment.selfHosted)
@@ -425,7 +426,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const environments = ["staging", "local", "production", "anything"]
 			for (const env of environments) {
@@ -441,7 +442,7 @@ describe("ClineEndpoint configuration", () => {
 		it("should allow environment switching in standard mode", async () => {
 			// No endpoints.json file - standard mode
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			// Verify we're NOT in self-hosted mode
 			ClineEndpoint.config.environment.should.not.equal(Environment.selfHosted)
@@ -468,7 +469,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const envConfig = ClineEndpoint.config
 			envConfig.environment.should.equal(Environment.selfHosted)
@@ -483,7 +484,7 @@ describe("ClineEndpoint configuration", () => {
 
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(customConfig), "utf8")
 
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			const config = ClineEndpoint.config
 			config.appBaseUrl.should.equal("https://custom-app.internal")
@@ -494,11 +495,11 @@ describe("ClineEndpoint configuration", () => {
 
 	describe("initialization behavior", () => {
 		it("should only initialize once", async () => {
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 			ClineEndpoint.isInitialized().should.be.true()
 
 			// Second initialize should be a no-op
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 			ClineEndpoint.isInitialized().should.be.true()
 		})
 
@@ -527,16 +528,167 @@ describe("ClineEndpoint configuration", () => {
 				mcpBaseUrl: "https://mcp.enterprise.com",
 			}
 			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(config), "utf8")
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			ClineEndpoint.isSelfHosted().should.be.true()
 		})
 
 		it("should return false when in normal mode (no endpoints.json)", async () => {
 			// No endpoints.json file exists
-			await ClineEndpoint.initialize()
+			await ClineEndpoint.initialize(tempDir)
 
 			ClineEndpoint.isSelfHosted().should.be.false()
+		})
+	})
+
+	describe("bundled endpoints.json behavior", () => {
+		let bundledDir: string
+		let setVscodeHostProviderMock: (mock: { extensionFsPath: string; globalStorageFsPath: string }) => void
+
+		beforeEach(async () => {
+			// Create a separate directory for bundled config
+			bundledDir = path.join(os.tmpdir(), `config-bundled-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+			await fs.mkdir(bundledDir, { recursive: true })
+
+			// Import HostProvider utilities
+			const hostProviderModule = await import("../test/host-provider-test-utils")
+			setVscodeHostProviderMock = hostProviderModule.setVscodeHostProviderMock
+		})
+
+		afterEach(async () => {
+			try {
+				await fs.rm(bundledDir, { recursive: true, force: true })
+			} catch {
+				// Ignore cleanup errors
+			}
+		})
+
+		it("should use bundled endpoints.json when available", async () => {
+			const bundledConfig = {
+				appBaseUrl: "https://bundled.enterprise.com",
+				apiBaseUrl: "https://bundled-api.enterprise.com",
+				mcpBaseUrl: "https://bundled-mcp.enterprise.com",
+			}
+
+			// Set up bundled config
+			await fs.writeFile(path.join(bundledDir, "endpoints.json"), JSON.stringify(bundledConfig), "utf8")
+
+			await ClineEndpoint.initialize(bundledDir)
+
+			const config = ClineEndpoint.config
+			config.appBaseUrl.should.equal("https://bundled.enterprise.com")
+			config.apiBaseUrl.should.equal("https://bundled-api.enterprise.com")
+			config.mcpBaseUrl.should.equal("https://bundled-mcp.enterprise.com")
+			config.environment.should.equal(Environment.selfHosted)
+		})
+
+		it("should prefer bundled endpoints.json over user file", async () => {
+			const bundledConfig = {
+				appBaseUrl: "https://bundled.enterprise.com",
+				apiBaseUrl: "https://bundled-api.enterprise.com",
+				mcpBaseUrl: "https://bundled-mcp.enterprise.com",
+			}
+
+			const userConfig = {
+				appBaseUrl: "https://user.enterprise.com",
+				apiBaseUrl: "https://user-api.enterprise.com",
+				mcpBaseUrl: "https://user-mcp.enterprise.com",
+			}
+
+			// Set up both configs
+			await fs.writeFile(path.join(bundledDir, "endpoints.json"), JSON.stringify(bundledConfig), "utf8")
+			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(userConfig), "utf8")
+
+			await ClineEndpoint.initialize(bundledDir)
+
+			// Should use bundled config, not user config
+			const config = ClineEndpoint.config
+			config.appBaseUrl.should.equal("https://bundled.enterprise.com")
+			config.apiBaseUrl.should.equal("https://bundled-api.enterprise.com")
+			config.mcpBaseUrl.should.equal("https://bundled-mcp.enterprise.com")
+		})
+
+		it("should fall back to user endpoints.json when bundled is not present", async () => {
+			const userConfig = {
+				appBaseUrl: "https://user.enterprise.com",
+				apiBaseUrl: "https://user-api.enterprise.com",
+				mcpBaseUrl: "https://user-mcp.enterprise.com",
+			}
+
+			// Only create user config, no bundled config
+			await fs.writeFile(path.join(tempDir, ".cline", "endpoints.json"), JSON.stringify(userConfig), "utf8")
+
+			await ClineEndpoint.initialize(bundledDir)
+
+			// Should use user config
+			const config = ClineEndpoint.config
+			config.appBaseUrl.should.equal("https://user.enterprise.com")
+			config.apiBaseUrl.should.equal("https://user-api.enterprise.com")
+			config.mcpBaseUrl.should.equal("https://user-mcp.enterprise.com")
+		})
+
+		it("should use standard mode when neither bundled nor user file exists", async () => {
+			// No config files at all
+
+			await ClineEndpoint.initialize(bundledDir)
+
+			// Should use production defaults
+			const config = ClineEndpoint.config
+			config.environment.should.not.equal(Environment.selfHosted)
+			config.appBaseUrl.should.equal("https://app.cline.bot")
+			config.apiBaseUrl.should.equal("https://api.cline.bot")
+		})
+
+		it("should throw ClineConfigurationError for invalid bundled file", async () => {
+			const invalidConfig = {
+				appBaseUrl: "not-a-url",
+				apiBaseUrl: "https://api.enterprise.com",
+				mcpBaseUrl: "https://mcp.enterprise.com",
+			}
+
+			// Set up invalid bundled config
+			await fs.writeFile(path.join(bundledDir, "endpoints.json"), JSON.stringify(invalidConfig), "utf8")
+
+			try {
+				await ClineEndpoint.initialize(bundledDir)
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.should.be.instanceof(ClineConfigurationError)
+				error.message.should.containEql("must be a valid URL")
+				error.message.should.containEql("bundled")
+			}
+		})
+
+		it("should throw ClineConfigurationError for invalid JSON in bundled file", async () => {
+			// Set up invalid JSON in bundled file
+			await fs.writeFile(path.join(bundledDir, "endpoints.json"), "{ invalid json }", "utf8")
+
+			try {
+				await ClineEndpoint.initialize(bundledDir)
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.should.be.instanceof(ClineConfigurationError)
+				error.message.should.containEql("Invalid JSON")
+				error.message.should.containEql("bundled")
+			}
+		})
+
+		it("should indicate bundled source in error messages", async () => {
+			const incompleteConfig = {
+				appBaseUrl: "https://bundled.enterprise.com",
+				// Missing apiBaseUrl and mcpBaseUrl
+			}
+
+			await fs.writeFile(path.join(bundledDir, "endpoints.json"), JSON.stringify(incompleteConfig), "utf8")
+
+			try {
+				await ClineEndpoint.initialize(bundledDir)
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.should.be.instanceof(ClineConfigurationError)
+				error.message.should.containEql("Missing required field")
+				error.message.should.containEql(path.join(bundledDir, "endpoints.json"))
+			}
 		})
 	})
 })

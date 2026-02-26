@@ -1,14 +1,220 @@
 # Changelog
 
+## [3.67.1]
+
+### Added
+
+- Added Cline SDK API interface for programmatic access to Cline features and tools, enabling integration into custom applications.
+- Added Codex 5.3 model support
+
+### Fixed
+
+- Fix OpenAI Codex by setting `store` to `false`
+- Use `isLocatedInPath()` instead of string matching for path containment checks
+
+## [3.67.0]
+
+### Added
+
+- Add support for skills and optional modelId in subagent configuration
+- Add AgentConfigLoader for file-based agent configs
+- Add Responses API support for OpenAI native provider
+- Preconnect websocket to reduce response latency
+- Fetch featured models from backend with local fallback
+- Add /q command to quit CLI
+- Add MCP enterprise configuration details
+- Pull Cline's recommended models from internal endpoint
+- Add dynamic flag to adjust banner cache duration
+
+### Fixed
+
+- Fix reasoning delta crash on usage-only stream chunks
+- Fix OpenAI tool ID transformation restricted to native provider only
+- Fix auth check for ACP mode
+- Fix CLI yolo mode to not persist yolo setting to disk
+- Fix inline focus-chain slider within its feature row
+- Fix Gemini 3.1 Pro compatibility
+- Fix Cline auth with ACP flag
+
+### Changed
+
+- Move PR skill to .agents/skills
+- SambaNova provider: update models list
+- Remove changeset-converter GitHub Action and npm run changeset
+
+## [3.66.0]
+
+### Added
+
+- Gemini-3.1 Pro Preview
+
+
+## [3.65.0]
+
+### Added
+
+- Add /skills slash command to CLI for viewing and managing installed skills
+
+### Fixed
+
+- Fix aggressive context compaction caused by accidental clicks on the context window progress bar silently setting a very low auto-condense threshold
+- Fix infinite retry loop when write_to_file fails with missing content parameter.
+- Fixed default claude model
+
+## [3.64.0]
+
+### Added
+- Added sonnet 4.6
+
+
+## [3.63.0]
+
+### Added
+
+- added zai GLM 5 Free promo
+
+### Fixed
+
+- Restore reasoning trace visibility in chat and improve the thinking row UX so reasoning is visible, then collapsible after completion.
+
+## [3.62.0]
+
+### Fixed
+
+- Banners now display immediately when opening the extension instead of requiring user interaction first
+- Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
+
+## [3.61.0]
+
+- UI/UX fixes with minimax model family
+
+## [3.60.0]
+
+- Fixes for Minimax model family
+
+## [3.59.0]
+
+- Added Minimax 2.5 Free Promo
+- Fixed Response chaining for OpenAI's Responses API
+
+## [3.58.0]
+
+### Added
+
+- Subagent: replace legacy subagents with the native `use_subagents` tool
+- Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
+- Amazon Bedrock: support parallel tool calling
+- New "double-check completion" experimental feature to verify work before marking tasks complete
+- CLI: new task controls/flags including custom `--thinking` token budget and `--max-consecutive-mistakes` for yolo runs
+- Remote config: new UI/options (including connection/test buttons) and support for syncing deletion of remotely configured MCP servers
+- Vertex / Claude Code: add 1M context model options for Claude Opus 4.6
+- ZAI/GLM: add GLM-5
+
+### Fixed
+
+- CLI: handle stdin redirection correctly in CI/headless environments
+- CLI: preserve OAuth callback paths during auth redirects
+- VS Code Web: generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
+- Terminal: surface command exit codes in results and improve long-running `execute_command` timeout behavior
+- UI: add loading indicator and fix `api_req_started` rendering
+- Task streaming: prevent duplicate streamed text rows after completion
+- API: preserve selected Vercel model when model metadata is missing
+- Telemetry: route PostHog networking through proxy-aware shared fetch and ensure telemetry flushes on shutdown
+- CI: increase Windows E2E test timeout to reduce flakiness
+
+### Changed
+
+- Settings/model UX: move "reasoning effort" into model configuration and expose it in settings
+- CLI provider selection: limit provider list to those remotely configured
+- UI: consolidate ViewHeader component/styling across views
+- Tools: add auto-approval support for `attempt_completion` commands
+- Remotely configured MCP server schema now supports custom headers
+
+## [3.57.1]
+
+### Fixed
+
+- Fixed Opus 4.6 for bedrock provider
+
+## [3.57.0]
+
+### Added
+
+- Cline CLI 2.0 now available. Install with `npm install -g cline`
+- Anthopic Opus 4.6
+- Minimax-2.1 and Kimi-k2.5 now available for free for a limited time promo
+- Codex-5.3 through ChatGPT subscription
+
+### Fixed
+
+- Fix read file tool to support reading large files
+- Fix decimal input crash in OpenAI Compatible price fields (#8129)
+- Fix build complete handlers when updating the api config
+- Fixed missing provider from list
+- Fixed Favorite Icon / Star from getting clipped in the task history view
+
+### Changed
+
+- Make skills always enabled and remove feature toggle setting
+
+## [3.56.0]
+
+### Added
+
+- **CLI authentication:** Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- **New model:** Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- **Prompt variant:** Added Trinity Large prompt variant for improved tool-calling support
+- **OpenTelemetry:** Added support for custom headers on metrics and logs endpoints
+- **Social links:** Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+
+### Fixed
+
+- **LiteLLM:** Fixed thinking configuration not appearing for reasoning-capable models
+- **OpenTelemetry:** Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
+- **CLI auth:** Fixed `cline auth` displaying incorrect provider information after configuration
+
+### Changed
+
+- **Hooks:** Hook scripts now run from the workspace repository root instead of filesystem root
+- **Default settings:** Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- **Settings UI:** Refreshed feature settings section with collapsible design
+
+## [3.55.0]
+
+- Add new model: Arcee Trinity Large Preview
+- Add new model: Moonshot Kimi K2.5
+- Add MCP prompts support - prompts from connected MCP servers now appear in slash command autocomplete as `/mcp:<server>:<prompt>`
+
+## [3.54.0]
+
+### Added
+
+- Native tool calls support for Ollama provider
+- Sonnet 4.5 is now the default Amazon Bedrock model id
+
+### Fixed
+
+- Prevent infinite retry loops when replace_in_file fails repeatedly. The system now detects repeated failures and provides better guidance to break out of retry cycles.
+- Skip diff error UI handling during streaming to prevent flickering. Error handling is deferred until streaming completes.
+- Strip notebook cell outputs when extracting text content from Jupyter notebooks, significantly reducing context size sent to the LLM.
+- Throttle diff view updates during streaming to reduce UI flickering and improve performance.
+
+### Changed
+
+- Removed Mistral's Devstral-2512 free from the free models list
+- Removed deprecated zai-glm-4.6 model from Cerebras provider
+
 ## [3.53.1]
 
 ### Fixed
- - Bug in responses API
+
+- Bug in responses API
 
 ## [3.53.0]
 
 ### Fixed
- - Removed grok model from free tier
+
+- Removed grok model from free tier
 
 ## [3.52.0]
 

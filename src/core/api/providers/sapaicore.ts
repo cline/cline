@@ -10,6 +10,7 @@ import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels }
 import axios from "axios"
 import JSON5 from "json5"
 import OpenAI from "openai"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -371,12 +372,12 @@ export class SapAiCoreHandler implements ApiHandler {
 	private chunkToString(chunk: any): string {
 		if (Buffer.isBuffer(chunk)) {
 			return chunk.toString("utf-8")
-		} else if (typeof chunk === "string") {
-			return chunk
-		} else {
-			// Handle comma-separated byte values or other array-like formats
-			return Buffer.from(chunk).toString("utf-8")
 		}
+		if (typeof chunk === "string") {
+			return chunk
+		}
+		// Handle comma-separated byte values or other array-like formats
+		return Buffer.from(chunk).toString("utf-8")
 	}
 
 	private validateCredentials(): void {
@@ -427,9 +428,10 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
+		const externalHeaders = buildExternalBasicHeaders()
 		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
-			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			headers: { ...externalHeaders, "Content-Type": "application/x-www-form-urlencoded" },
 			...getAxiosSettings(),
 		})
 		const token = response.data as Token
@@ -447,7 +449,9 @@ export class SapAiCoreHandler implements ApiHandler {
 	// TODO: these fallback fetching deployment id methods can be removed in future version if decided that users migration to fetching deployment id in design-time (open SAP AI Core provider UI) considered as completed.
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
 		const token = await this.getToken()
+		const externalHeaders = buildExternalBasicHeaders()
 		const headers = {
+			...externalHeaders,
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
@@ -522,7 +526,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			if (!expiresIn) {
 				throw new Error("Destination is missing required authTokens with expiresIn")
 			}
-			this.destinationExpiresAt = Date.now() + parseInt(expiresIn, 10) * 1000
+			this.destinationExpiresAt = Date.now() + Number.parseInt(expiresIn, 10) * 1000
 		}
 	}
 
@@ -585,7 +589,9 @@ export class SapAiCoreHandler implements ApiHandler {
 
 	private async *createMessageWithDeployments(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const token = await this.getToken()
+		const externalHeaders = buildExternalBasicHeaders()
 		const headers = {
+			...externalHeaders,
 			Authorization: `Bearer ${token}`,
 			"AI-Resource-Group": this.options.sapAiResourceGroup || "default",
 			"Content-Type": "application/json",
@@ -604,6 +610,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		const anthropicModels = [
 			"anthropic--claude-4.5-haiku",
 			"anthropic--claude-4.5-opus",
+			"anthropic--claude-4.6-sonnet",
 			"anthropic--claude-4.5-sonnet",
 			"anthropic--claude-4-sonnet",
 			"anthropic--claude-4-opus",
@@ -653,6 +660,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 			if (
 				model.id === "anthropic--claude-4.5-opus" ||
+				model.id === "anthropic--claude-4.6-sonnet" ||
 				model.id === "anthropic--claude-4.5-sonnet" ||
 				model.id === "anthropic--claude-4.5-haiku" ||
 				model.id === "anthropic--claude-4-sonnet" ||
@@ -785,6 +793,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				yield* this.streamCompletionGPT(response.data, model)
 			} else if (
 				model.id === "anthropic--claude-4.5-opus" ||
+				model.id === "anthropic--claude-4.6-sonnet" ||
 				model.id === "anthropic--claude-4.5-sonnet" ||
 				model.id === "anthropic--claude-4.5-haiku" ||
 				model.id === "anthropic--claude-4-sonnet" ||
@@ -840,20 +849,21 @@ export class SapAiCoreHandler implements ApiHandler {
 
 				if (error.response.status === 404) {
 					throw new Error(`404 Not Found: ${errorMessage}`)
-				} else if (error.response.status === 400) {
+				}
+				if (error.response.status === 400) {
 					throw new Error(`400 Bad Request: ${errorMessage}`)
 				}
 
 				throw new Error(`HTTP ${error.response.status}: ${errorMessage}`)
-			} else if (error.request) {
+			}
+			if (error.request) {
 				// The request was made but no response was received
 				Logger.error("Error request:", error.request)
 				throw new Error("No response received from server")
-			} else {
-				// Something happened in setting up the request that triggered an Error
-				Logger.error("Error message:", error.message)
-				throw new Error(`Error setting up request: ${error.message}`)
 			}
+			// Something happened in setting up the request that triggered an Error
+			Logger.error("Error message:", error.message)
+			throw new Error(`Error setting up request: ${error.message}`)
 		}
 	}
 

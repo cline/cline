@@ -117,7 +117,7 @@ export const mockProviderInfo = {
 	mode: "act" as const,
 }
 
-const makeProviderInfo = (modelId: string, providerId: string = "test") => ({
+const makeProviderInfo = (modelId: string, providerId = "test") => ({
 	providerId: modelId.includes("ollama") ? "ollama" : providerId,
 	model: { ...mockProviderInfo.model, id: modelId },
 	mode: "act" as const,
@@ -129,6 +129,7 @@ const baseContext: SystemPromptContext = {
 	ide: "TestIde",
 	supportsBrowserUse: true,
 	clineWebToolsEnabled: true,
+	subagentsEnabled: true,
 	mcpHub: {
 		getServers: () => [
 			{
@@ -200,6 +201,7 @@ const modelTestCases = [
 	{ family: ModelFamily.NATIVE_GPT_5, modelId: "gpt-5-codex", providerId: "openai" },
 	{ family: ModelFamily.NATIVE_GPT_5_1, modelId: "gpt-5-1", providerId: "openai" },
 	{ family: ModelFamily.GEMINI_3, modelId: "gemini-3", providerId: "vertex" },
+	{ family: ModelFamily.TRINITY, modelId: "arcee-ai/trinity-large-preview", providerId: "openrouter" },
 ]
 
 // ============================================================================
@@ -231,6 +233,14 @@ describe("Prompt System Integration Tests", () => {
 						}
 
 						expect(tools).to.be.an("array").that.is.not.empty
+						const toolNames = (tools as any[]).map((tool) => {
+							if (tool?.type === "function") {
+								return tool.function?.name
+							}
+							return tool?.name
+						})
+						expect(toolNames).to.not.include("focus_chain")
+						expect(JSON.stringify(tools)).to.not.include('"focus_chain"')
 						const snapshotName = `${providerId}_${family.replace(/[^a-zA-Z0-9]/g, "_")}.tools.snap`
 						await assertSnapshot(snapshotName, JSON.stringify(tools, null, 2))
 					})
@@ -248,6 +258,13 @@ describe("Prompt System Integration Tests", () => {
 						await runPromptTest(this, context, modelId, async ({ systemPrompt, tools }) => {
 							if (enableNativeToolCalls) {
 								expect(tools).to.be.an("array").that.is.not.empty
+								const toolNames = (tools as any[]).map((tool) => {
+									if (tool?.type === "function") {
+										return tool.function?.name
+									}
+									return tool?.name
+								})
+								expect(toolNames).to.not.include("focus_chain")
 							} else {
 								expect(tools).to.be.undefined
 							}

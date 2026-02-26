@@ -1,7 +1,6 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
@@ -46,6 +45,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
 	lastDismissedCliBannerVersion: number
+	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -54,17 +54,15 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpTab?: McpViewTab
 	showSettings: boolean
 	settingsTargetSection?: string
+	settingsInitialModelTab?: "recommended" | "free"
 	showHistory: boolean
 	showAccount: boolean
 	showWorktrees: boolean
 	showAnnouncement: boolean
-	showChatModelSelector: boolean
 	expandTaskHeader: boolean
 
 	// Setters
-	setDictationSettings: (value: DictationSettings) => void
 	setShowAnnouncement: (value: boolean) => void
-	setShowChatModelSelector: (value: boolean) => void
 	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
@@ -92,7 +90,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
-	refreshLiteLlmModels: () => void
+	refreshLiteLlmModels: () => Promise<void>
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -102,6 +100,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
 	navigateToSettings: (targetSection?: string) => void
+	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
@@ -113,7 +112,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideAccount: () => void
 	hideWorktrees: () => void
 	hideAnnouncement: () => void
-	hideChatModelSelector: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
@@ -130,11 +128,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
 	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
+	const [settingsInitialModelTab, setSettingsInitialModelTab] = useState<"recommended" | "free" | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showWorktrees, setShowWorktrees] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -146,12 +144,12 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideSettings = useCallback(() => {
 		setShowSettings(false)
 		setSettingsTargetSection(undefined)
+		setSettingsInitialModelTab(undefined)
 	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
-	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -175,6 +173,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowAccount(false)
 			setShowWorktrees(false)
 			setSettingsTargetSection(targetSection)
+			setSettingsInitialModelTab(undefined)
+			setShowSettings(true)
+		},
+		[closeMcpView],
+	)
+
+	const navigateToSettingsModelPicker = useCallback(
+		(opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => {
+			setShowHistory(false)
+			closeMcpView()
+			setShowAccount(false)
+			setShowWorktrees(false)
+			setSettingsTargetSection(opts.targetSection)
+			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
 		},
 		[closeMcpView],
@@ -219,10 +231,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
 		preferredLanguage: "English",
-		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
 		environment: Environment.production,
@@ -243,7 +253,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
 		maxConsecutiveMistakes: 3,
-		subagentTerminalOutputLineLimit: 2000,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
@@ -253,9 +262,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		subagentsEnabled: false,
 		clineWebToolsEnabled: { user: true, featureFlag: false },
 		worktreesEnabled: { user: true, featureFlag: false },
-		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
@@ -264,9 +273,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
 		lastDismissedCliBannerVersion: 0,
-		subagentsEnabled: false,
 		backgroundEditEnabled: false,
-		skillsEnabled: false,
+		doubleCheckCompletionEnabled: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 
@@ -700,7 +708,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshLiteLlmModels = useCallback(() => {
-		ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
+		return ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
 				setLiteLlmModels(models)
@@ -773,11 +781,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpTab,
 		showSettings,
 		settingsTargetSection,
+		settingsInitialModelTab,
 		showHistory,
 		showAccount,
 		showWorktrees,
 		showAnnouncement,
-		showChatModelSelector,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -793,6 +801,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Navigation functions
 		navigateToMcp,
 		navigateToSettings,
+		navigateToSettingsModelPicker,
 		navigateToHistory,
 		navigateToAccount,
 		navigateToWorktrees,
@@ -805,10 +814,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideWorktrees,
 		hideAnnouncement,
 		setShowAnnouncement,
-		hideChatModelSelector,
 		setShowWelcome,
 		setOnboardingModels,
-		setShowChatModelSelector,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -887,11 +894,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,
-		setDictationSettings: (value: DictationSettings) =>
-			setState((prevState) => ({
-				...prevState,
-				dictationSettings: value,
-			})),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

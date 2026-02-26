@@ -16,6 +16,7 @@ export type McpServer = {
 	tools?: McpTool[]
 	resources?: McpResource[]
 	resourceTemplates?: McpResourceTemplate[]
+	prompts?: McpPrompt[]
 	disabled?: boolean
 	timeout?: number
 	uid?: string
@@ -44,6 +45,54 @@ export type McpResourceTemplate = {
 	name: string
 	description?: string
 	mimeType?: string
+}
+
+export type McpPromptArgument = {
+	name: string
+	description?: string
+	required?: boolean
+}
+
+export type McpPrompt = {
+	name: string
+	title?: string
+	description?: string
+	arguments?: McpPromptArgument[]
+}
+
+export type McpPromptMessageContent =
+	| {
+			type: "text"
+			text: string
+	  }
+	| {
+			type: "image"
+			data: string
+			mimeType: string
+	  }
+	| {
+			type: "audio"
+			data: string
+			mimeType: string
+	  }
+	| {
+			type: "resource"
+			resource: {
+				uri: string
+				mimeType?: string
+				text?: string
+				blob?: string
+			}
+	  }
+
+export type McpPromptMessage = {
+	role: "user" | "assistant"
+	content: McpPromptMessageContent
+}
+
+export type McpPromptResponse = {
+	description?: string
+	messages: McpPromptMessage[]
 }
 
 export type McpResourceResponse = {

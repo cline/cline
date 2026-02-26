@@ -2,8 +2,9 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import { StateManager } from "@/core/storage/StateManager"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient, fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { isAnthropicModelId } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
@@ -64,6 +65,7 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 			headers: {
 				accept: "application/json",
 				"x-litellm-api-key": apiKey,
+				...buildExternalBasicHeaders(),
 			},
 		})
 
@@ -78,6 +80,7 @@ export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): P
 				headers: {
 					accept: "application/json",
 					Authorization: `Bearer ${apiKey}`,
+					...buildExternalBasicHeaders(),
 				},
 			})
 
@@ -112,10 +115,9 @@ export class LiteLlmHandler implements ApiHandler {
 				throw new Error("LiteLLM API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
 					apiKey: this.options.liteLlmApiKey || "noop",
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating LiteLLM client: ${error.message}`)

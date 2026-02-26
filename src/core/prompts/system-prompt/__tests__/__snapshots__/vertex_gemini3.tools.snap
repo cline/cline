@@ -322,15 +322,6 @@
     }
   },
   {
-    "name": "focus_chain",
-    "description": "",
-    "parameters": {
-      "type": "OBJECT",
-      "properties": {},
-      "required": []
-    }
-  },
-  {
     "name": "generate_explanation",
     "description": "Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
     "parameters": {
@@ -349,6 +340,33 @@
       "required": [
         "title",
         "from_ref"
+      ]
+    }
+  },
+  {
+    "name": "use_subagents",
+    "description": "Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window. You do not need to launch multiple subagents every time; using one subagent is valid when it avoids unnecessary context usage for light discovery work.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "prompt_1": {
+          "type": "STRING"
+        },
+        "prompt_2": {
+          "type": "STRING"
+        },
+        "prompt_3": {
+          "type": "STRING"
+        },
+        "prompt_4": {
+          "type": "STRING"
+        },
+        "prompt_5": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "prompt_1"
       ]
     }
   },

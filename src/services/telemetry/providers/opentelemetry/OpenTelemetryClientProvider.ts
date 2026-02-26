@@ -48,14 +48,8 @@ export class OpenTelemetryClientProvider {
 			Logger.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
 		}
 
-		// Check for headers configuration
-		// This is only used for printing, only the config value should be passed down
-		// so that the library can read and parse the env variable correclty if the config value is undefined
-		const headers = config?.otlpHeaders || process.env.OTEL_EXPORTER_OTLP_HEADERS
-		if (isDebugMode && headers) {
-			const headerCount = config?.otlpHeaders
-				? Object.keys(config.otlpHeaders).length
-				: process.env.OTEL_EXPORTER_OTLP_HEADERS?.length
+		if (isDebugMode && config.otlpHeaders) {
+			const headerCount = Object.keys(config.otlpHeaders).length
 			// In debug mode, show that headers are configured and their total length
 			Logger.log(`[OTEL DEBUG]   - OTLP Headers: ${headerCount} headers configured`)
 			Logger.log("[OTEL DEBUG] ================================================")
@@ -101,7 +95,7 @@ export class OpenTelemetryClientProvider {
 						const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
 						const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
 						const insecure = this.config!.otlpInsecure || false
-						const headers = this.config!.otlpHeaders
+						const headers = this.config!.otlpMetricsHeaders || this.config!.otlpHeaders
 
 						if (endpoint) {
 							const reader = createOTLPMetricReader(protocol, endpoint, insecure, interval, timeout, headers)
@@ -157,7 +151,7 @@ export class OpenTelemetryClientProvider {
 						const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
 						const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
 						const insecure = this.config!.otlpInsecure || false
-						const headers = this.config!.otlpHeaders
+						const headers = this.config!.otlpLogsHeaders || this.config!.otlpHeaders
 
 						if (endpoint) {
 							exporter = createOTLPLogExporter(protocol, endpoint, insecure, headers)

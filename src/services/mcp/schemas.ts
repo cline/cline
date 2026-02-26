@@ -8,6 +8,9 @@ export const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
 	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
+	// Marker for servers that were added by remote config sync.
+	// Used to identify which servers should be removed when they are no longer in the remote config.
+	remoteConfigured: z.boolean().optional(),
 })
 
 // Helper function to create a refined schema with better error messages

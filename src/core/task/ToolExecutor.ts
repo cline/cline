@@ -4,15 +4,15 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import type { CommandExecutionOptions } from "@integrations/terminal"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
-import { ClineDefaultTool } from "@shared/tools"
+import { ClineDefaultTool, toolUseNames } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import * as vscode from "vscode"
-import { isGPT5ModelFamily, modelDoesntSupportWebp } from "@/utils/model-utils"
+import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
@@ -22,35 +22,21 @@ import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
-import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
-import { ActModeRespondHandler } from "./tools/handlers/ActModeRespondHandler"
-import { ApplyPatchHandler } from "./tools/handlers/ApplyPatchHandler"
-import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
-import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
-import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
-import { CondenseHandler } from "./tools/handlers/CondenseHandler"
-import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
-import { GenerateExplanationToolHandler } from "./tools/handlers/GenerateExplanationToolHandler"
-import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
-import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
-import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
-import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
-import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
-import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
-import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
-import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
-import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
-import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
-import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
-import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
-import { WebSearchToolHandler } from "./tools/handlers/WebSearchToolHandler"
-import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
-import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import { IPartialBlockHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { ToolValidator } from "./tools/ToolValidator"
 import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { createUIHelpers } from "./tools/types/UIHelpers"
 import { ToolDisplayUtils } from "./tools/utils/ToolDisplayUtils"
 import { ToolResultUtils } from "./tools/utils/ToolResultUtils"
+
+export function canonicalizeAttemptCompletionParams(block: ToolUse): boolean {
+	if (block.name === ClineDefaultTool.ATTEMPT && !block.params?.result && typeof block.params?.response === "string") {
+		block.params.result = block.params.response
+		return true
+	}
+
+	return false
+}
 
 export class ToolExecutor {
 	private autoApprover: AutoApprove
@@ -70,7 +56,6 @@ export class ToolExecutor {
 
 	constructor(
 		// Core Services & Managers
-		private context: vscode.ExtensionContext,
 		private taskState: TaskState,
 		private messageStateHandler: MessageStateHandler,
 		private api: ApiHandler,
@@ -116,7 +101,12 @@ export class ToolExecutor {
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
-		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
+		private executeCommandTool: (
+			command: string,
+			timeoutSeconds: number | undefined,
+			options?: CommandExecutionOptions,
+		) => Promise<[boolean, any]>,
+		private cancelRunningCommandTool: () => Promise<boolean>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
@@ -144,12 +134,13 @@ export class ToolExecutor {
 		const config: TaskConfig = {
 			taskId: this.taskId,
 			ulid: this.ulid,
-			context: this.context,
 			mode: this.stateManager.getGlobalSettingsKey("mode"),
 			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			doubleCheckCompletionEnabled: this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled"),
 			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
+			isSubagentExecution: false,
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
@@ -178,8 +169,9 @@ export class ToolExecutor {
 				postStateToWebview: async () => {},
 				reinitExistingTaskFromId: async () => {},
 				cancelTask: this.cancelTask,
-				updateTaskHistory: async (_: any) => [],
+				updateTaskHistory: async () => [],
 				executeCommandTool: this.executeCommandTool,
+				cancelRunningCommandTool: this.cancelRunningCommandTool,
 				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
 				updateFCListFromToolResponse: this.updateFCListFromToolResponse,
 				sayAndCreateMissingParamError: this.sayAndCreateMissingParamError,
@@ -206,37 +198,10 @@ export class ToolExecutor {
 	 */
 	private registerToolHandlers(): void {
 		const validator = new ToolValidator(this.clineIgnoreController)
-
-		// Register all tool handlers
-		this.coordinator.register(new ListFilesToolHandler(validator))
-		this.coordinator.register(new ReadFileToolHandler(validator))
-		this.coordinator.register(new BrowserToolHandler())
-		this.coordinator.register(new AskFollowupQuestionToolHandler())
-		this.coordinator.register(new WebFetchToolHandler())
-		this.coordinator.register(new WebSearchToolHandler())
-
-		// Register WriteToFileToolHandler for all three file tools with proper typing
-		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
-		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
-		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
-
-		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
-		this.coordinator.register(new SearchFilesToolHandler(validator))
-		this.coordinator.register(new ExecuteCommandToolHandler(validator))
-		this.coordinator.register(new UseMcpToolHandler())
-		this.coordinator.register(new AccessMcpResourceHandler())
-		this.coordinator.register(new LoadMcpDocumentationHandler())
-		this.coordinator.register(new UseSkillToolHandler())
-		this.coordinator.register(new PlanModeRespondHandler())
-		this.coordinator.register(new ActModeRespondHandler())
-		this.coordinator.register(new NewTaskHandler())
-		this.coordinator.register(new AttemptCompletionHandler())
-		this.coordinator.register(new CondenseHandler())
-		this.coordinator.register(new SummarizeTaskHandler(validator))
-		this.coordinator.register(new ReportBugHandler())
-		this.coordinator.register(new ApplyPatchHandler(validator))
-		this.coordinator.register(new GenerateExplanationToolHandler())
+		// Register all tools via toolUseNames
+		for (const tool of toolUseNames) {
+			this.coordinator.registerByName(tool, validator)
+		}
 	}
 
 	/**
@@ -307,11 +272,15 @@ export class ToolExecutor {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model is GPT-5 (which handles parallel tools well)
+	 * 2. The current model/provider supports native tool calling and handles parallel tools well
 	 */
 	private isParallelToolCallingEnabled(): boolean {
-		const modelId = this.api.getModel().id
-		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
+		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
+		const model = this.api.getModel()
+		const apiConfig = this.stateManager.getApiConfiguration()
+		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
 	}
 
 	/**
@@ -345,6 +314,7 @@ export class ToolExecutor {
 		if (!this.coordinator.has(block.name)) {
 			return false // Tool not handled by coordinator
 		}
+		canonicalizeAttemptCompletionParams(block)
 
 		const config = this.asToolConfig()
 

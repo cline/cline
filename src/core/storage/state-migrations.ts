@@ -587,6 +587,8 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
 			const hicapApiKey = await context.secrets.get("hicapApiKey")
+			// OpenAI Codex OAuth credentials
+			const openAiCodexCredentials = await context.secrets.get("openai-codex-oauth-credentials")
 
 			// Fetch configuration values from global state
 			const awsRegion = context.globalState.get("awsRegion")
@@ -629,6 +631,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sapAiCoreClientId,
 				difyApiKey,
 				hicapApiKey,
+				openAiCodexCredentials,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys
@@ -658,5 +661,16 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 	} catch (error) {
 		Logger.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
 		// Continue execution - cleanup failure shouldn't break extension startup
+	}
+}
+
+export async function cleanupOldApiKey(context: vscode.ExtensionContext) {
+	try {
+		// Old API Keys were introduced in March 2025 and later replaced with tokens
+		// Now that we have new API keys that are prefixed with `sk_`,
+		// we need to clean up the old ones to free the secret storage
+		await context.secrets.delete("clineApiKey")
+	} catch (error) {
+		Logger.error("Failed to cleanup old clineApiKey", error)
 	}
 }

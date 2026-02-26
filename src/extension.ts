@@ -13,24 +13,30 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
-import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
+import { initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
-
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+import { createStorageContext } from "@/shared/storage/storage-context"
 import { readTextFromClipboard, writeTextToClipboard } from "@/utils/env"
 import { initialize, tearDown } from "./common"
 import { addToCline } from "./core/controller/commands/addToCline"
 import { explainWithCline } from "./core/controller/commands/explainWithCline"
 import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
-import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
-import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
+import {
+	cleanupMcpMarketplaceCatalogFromGlobalState,
+	cleanupOldApiKey,
+	migrateCustomInstructionsToGlobalRules,
+	migrateTaskHistoryToFile,
+	migrateWelcomeViewCompleted,
+	migrateWorkspaceToGlobalStorage,
+} from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
@@ -42,27 +48,44 @@ import {
 import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
+import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
-import { ClineTempManager } from "./services/temp"
-import { SharedUriHandler } from "./services/uri/SharedUriHandler"
+import { SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { fileExistsAtPath } from "./utils/fs"
-/*
-Built using https://github.com/microsoft/vscode-webview-ui-toolkit
 
-Inspired by
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/default/weather-webview
-https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/frameworks/hello-world-react-cra
-
-*/
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+// This method is called when the VS Code extension is activated.
+// NOTE: This is VS Code specific - services that should be registered
+// for all-platform should be registered in common.ts.
 export async function activate(context: vscode.ExtensionContext) {
+	const activationStartTime = performance.now()
+
+	// 1. Set up HostProvider for VSCode
+	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
+
+	// 2. Clean up legacy data patterns within VSCode's native storage.
+	// Moves workspace→global keys, task history→file, custom instructions→rules, etc.
+	// Must run BEFORE the file export so we copy clean state.
+	await cleanupLegacyVSCodeStorage(context)
+
+	// 3. One-time export of VSCode's native storage to shared file-backed stores.
+	// After this, all platforms (VSCode, CLI, JetBrains) read from ~/.cline/data/.
+	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+	const storageContext = createStorageContext({ workspacePath })
+	await exportVSCodeStorageToSharedFiles(context, storageContext)
+
+	// 4. Register services and perform common initialization
+	// IMPORTANT: Must be done after host provider is setup and migrations are complete
+	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
+
+	// 5. Register services and commands specific to VS Code
+	// Initialize test mode and add disposables to context
+	const testModeWatchers = await initializeTestMode(webview)
+	context.subscriptions.push(...testModeWatchers)
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
@@ -71,6 +94,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			try {
 				const pattern = new vscode.RelativePattern(dir, "*")
 				const watcher = vscode.workspace.createFileSystemWatcher(pattern)
+				// Ensure watcher is disposed when extension is deactivated
+				context.subscriptions.push(watcher)
 				// Adapt VSCode FileSystemWatcher to generic interface
 				return {
 					onDidCreate: (listener: () => void) => watcher.onDidCreate(listener),
@@ -84,22 +109,11 @@ export async function activate(context: vscode.ExtensionContext) {
 		},
 		(callback: () => void) => {
 			// Adapt VSCode Disposable to generic interface
-			return vscode.workspace.onDidChangeWorkspaceFolders(callback)
+			const disposable = vscode.workspace.onDidChangeWorkspaceFolders(callback)
+			context.subscriptions.push(disposable)
+			return disposable
 		},
 	)
-
-	const webview = (await initialize(context)) as VscodeWebviewProvider
-
-	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
-	ClineTempManager.startPeriodicCleanup()
-
-	Logger.log("Cline extension activated")
-
-	const testModeWatchers = await initializeTestMode(webview)
-	// Initialize test mode and add disposables to context
-	context.subscriptions.push(...testModeWatchers)
-
-	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, webview, {
@@ -107,51 +121,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// NOTE: Commands must be added to the internal registry before registering them with VSCode
 	const { commands } = ExtensionRegistryInfo
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
-			Logger.log("[DEBUG] plusButtonClicked")
-
 			const sidebarInstance = WebviewProvider.getInstance()
 			await sidebarInstance.controller.clearTask()
 			await sidebarInstance.controller.postStateToWebview()
 			await sendChatButtonClickedEvent()
 		}),
 	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.McpButton, () => {
-			sendMcpButtonClickedEvent()
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.SettingsButton, () => {
-			sendSettingsButtonClickedEvent()
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.HistoryButton, async () => {
-			// Send event to all subscribers using the gRPC streaming method
-			await sendHistoryButtonClickedEvent()
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.AccountButton, () => {
-			// Send event to all subscribers using the gRPC streaming method
-			sendAccountButtonClickedEvent()
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.WorktreesButton, () => {
-			// Send event to all subscribers using the gRPC streaming method
-			sendWorktreesButtonClickedEvent()
-		}),
-	)
+	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.SettingsButton, () => sendSettingsButtonClickedEvent()))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.HistoryButton, () => sendHistoryButtonClickedEvent()))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
 
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a
@@ -175,7 +160,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const handleUri = async (uri: vscode.Uri) => {
 		const url = decodeURIComponent(uri.toString())
-		const success = await SharedUriHandler.handleUri(url)
+		const isTaskUri = getUriPath(url) === TASK_URI_PATH
+
+		if (isTaskUri) {
+			await openClineSidebarForTaskUri()
+		}
+
+		let success = await SharedUriHandler.handleUri(url)
+
+		// Task deeplinks can race with first-time sidebar initialization.
+		if (!success && isTaskUri) {
+			await openClineSidebarForTaskUri()
+			success = await SharedUriHandler.handleUri(url)
+		}
+
 		if (!success) {
 			Logger.warn("Extension URI handler: Failed to process URI:", uri.toString())
 		}
@@ -183,16 +181,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
 	// Register size testing commands in development mode
-	if (IS_DEV && IS_DEV === "true") {
+	if (IS_DEV) {
+		vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV)
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
 				const devTaskCommands = module.registerTaskCommands(webview.controller)
 				context.subscriptions.push(...devTaskCommands)
-				Logger.log("Cline dev task commands registered")
+				Logger.log("[Cline Dev] Dev mode activated & dev commands registered")
 			})
 			.catch((error) => {
-				Logger.log("Failed to register dev task commands: " + error)
+				Logger.log("[Cline Dev] Failed to register dev commands: " + error)
 			})
 	}
 
@@ -375,7 +374,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus: boolean = false) => {
+		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
 			// Show the webview
@@ -517,32 +516,33 @@ ${ctx.cellJson || "{}"}
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMsg(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
 		}),
 	)
 
-	context.subscriptions.push(
-		context.secrets.onDidChange(async (event) => {
-			if (event.key === "cline:clineAccountId") {
-				// Check if the secret was removed (logout) or added/updated (login)
-				const secretValue = await context.secrets.get(event.key)
-				const activeWebview = WebviewProvider.getVisibleInstance()
-				const controller = activeWebview?.controller
+	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
+		if (event.key === "cline:clineAccountId") {
+			const secretValue = storageContext.secrets.get<string>(event.key)
+			const activeWebview = WebviewProvider.getVisibleInstance()
+			const controller = activeWebview?.controller
 
-				const authService = AuthService.getInstance(controller)
-				if (secretValue) {
-					// Secret was added or updated - restore auth info (login from another window)
-					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
-				} else {
-					// Secret was removed - handle logout for all windows
-					authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
-				}
+			const authService = AuthService.getInstance(controller)
+			if (secretValue) {
+				// Secret was added or updated - restore auth info (login from another window)
+				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+			} else {
+				// Secret was removed - handle logout for all windows
+				authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
 			}
-		}),
-	)
+		}
+	})
+	context.subscriptions.push({ dispose: unsubSecrets })
+
+	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
 	return createClineAPI(webview.controller)
 }
@@ -595,14 +595,28 @@ async function showJupyterPromptInput(title: string, placeholder: string): Promi
 
 function setupHostProvider(context: ExtensionContext) {
 	const outputChannel = registerClineOutputChannel(context)
-	outputChannel.appendLine("Setting up vscode host providers...")
+	outputChannel.appendLine("[Cline] Setting up VS Code host...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async () => `${vscode.env.uriScheme || "vscode"}://${context.extension.id}`
+	const getCallbackUrl = async (path: string) => {
+		const scheme = vscode.env.uriScheme || "vscode"
+		const callbackUri = vscode.Uri.parse(`${scheme}://${context.extension.id}${path}`)
+
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			// In VS Code Web (Codespaces, code serve-web), vscode:// URIs redirect to the
+			// desktop app instead of staying in the browser. Use asExternalUri to convert
+			// to a web-reachable HTTPS URL that routes back to the extension's URI handler.
+			const externalUri = await vscode.env.asExternalUri(callbackUri)
+			return externalUri.toString(true)
+		}
+
+		// In regular desktop VS Code, use the vscode:// URI protocol handler directly.
+		return callbackUri.toString(true)
+	}
 	HostProvider.initialize(
 		createWebview,
 		createDiffView,
@@ -615,6 +629,31 @@ function setupHostProvider(context: ExtensionContext) {
 		context.extensionUri.fsPath,
 		context.globalStorageUri.fsPath,
 	)
+}
+
+function getUriPath(url: string): string | undefined {
+	try {
+		return new URL(url).pathname
+	} catch {
+		return undefined
+	}
+}
+
+async function openClineSidebarForTaskUri(): Promise<void> {
+	const sidebarWaitTimeoutMs = 3000
+	const sidebarWaitIntervalMs = 50
+
+	await vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
+
+	const startedAt = Date.now()
+	while (Date.now() - startedAt < sidebarWaitTimeoutMs) {
+		if (WebviewProvider.getVisibleInstance()) {
+			return
+		}
+		await new Promise((resolve) => setTimeout(resolve, sidebarWaitIntervalMs))
+	}
+
+	Logger.warn("Task URI handling timed out waiting for Cline sidebar visibility")
 }
 
 async function getBinaryLocation(name: string): Promise<string> {
@@ -646,28 +685,11 @@ async function getBinaryLocation(name: string): Promise<string> {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
-	Logger.log("Cline extension deactivating, cleaning up resources...")
-
-	// Stop periodic temp file cleanup
-	ClineTempManager.stopPeriodicCleanup()
-
+	// Dispose Non-VSCode-specific services
 	tearDown()
 
-	// Clean up test mode
-	cleanupTestMode()
-
-	// Kill any running hook processes to prevent zombies
-	await HookProcessRegistry.terminateAll()
-
-	// Clean up hook discovery cache
-	HookDiscoveryCache.getInstance().dispose()
-
-	// Clean up comment review controller
+	// VSCode-specific services
 	disposeVscodeCommentReviewController()
-
-	clearOnboardingModelsCache()
-
-	Logger.log("Cline extension deactivated")
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.
@@ -676,11 +698,11 @@ export async function deactivate() {
 //
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
-const IS_DEV = process.env.IS_DEV
+const IS_DEV = process.env.IS_DEV === "true"
 const DEV_WORKSPACE_FOLDER = process.env.DEV_WORKSPACE_FOLDER
 
 // Set up development mode file watcher
-if (IS_DEV && IS_DEV !== "false") {
+if (IS_DEV) {
 	assert(DEV_WORKSPACE_FOLDER, "DEV_WORKSPACE_FOLDER must be set in development")
 	const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(DEV_WORKSPACE_FOLDER, "src/**/*"))
 
@@ -689,4 +711,40 @@ if (IS_DEV && IS_DEV !== "false") {
 
 		vscode.commands.executeCommand("workbench.action.reloadWindow")
 	})
+}
+
+// VSCode-specific storage migrations
+async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<void> {
+	try {
+		await cleanupOldApiKey(context)
+		// Migrate is not done if the new storage does not have the lastShownAnnouncementId flag
+		const hasMigrated = context.globalState.get("lastShownAnnouncementId")
+		if (hasMigrated !== undefined) {
+			return
+		}
+
+		Logger.info("[VS Code Storage Migrations] Starting")
+
+		// Migrate custom instructions to global Cline rules (one-time cleanup)
+		await migrateCustomInstructionsToGlobalRules(context)
+
+		// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
+		await migrateWelcomeViewCompleted(context)
+
+		// Migrate workspace storage values back to global storage (reverting previous migration)
+		await migrateWorkspaceToGlobalStorage(context)
+
+		// Ensure taskHistory.json exists and migrate legacy state (runs once)
+		await migrateTaskHistoryToFile(context)
+
+		// Clean up MCP marketplace catalog from global state (moved to disk cache)
+		await cleanupMcpMarketplaceCatalogFromGlobalState(context)
+
+		// lastShownAnnouncementId will be set when announcement is shown
+		// after activation so we don't need to set it here.
+
+		Logger.info("[VS Code Storage Migrations] Completed")
+	} catch (error) {
+		Logger.warn("[VS Code Storage Migrations] Failed" + (error instanceof Error ? `: ${error.message}` : ""))
+	}
 }

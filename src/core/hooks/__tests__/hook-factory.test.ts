@@ -38,7 +38,15 @@ describe("Hook System", () => {
 
 		// Mock StateManager to return our temp directory
 		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
+			getGlobalStateKey: (key: string) => {
+				if (key === "workspaceRoots") {
+					return [{ path: tempDir }]
+				}
+				if (key === "primaryRootIndex") {
+					return 0
+				}
+				return undefined
+			},
 		} as any)
 
 		// Reset hook discovery cache for clean test state
@@ -79,6 +87,40 @@ describe("Hook System", () => {
 	})
 
 	describe("StdioHookRunner", () => {
+		it("should execute workspace hook from its respective workspace root directory", async () => {
+			// Create a test hook script that outputs the current working directory
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+// Output the current working directory
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "CWD: " + process.cwd()
+}))`
+
+			await writeHookScript(hookPath, hookScript)
+
+			// Test execution
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			// The hook should execute from its workspace root (tempDir)
+			// Use fs.realpath to normalize paths (handles macOS /private prefix)
+			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			const normalizedCwd = await fs.realpath(cwdFromHook)
+			const normalizedTempDir = await fs.realpath(tempDir)
+			normalizedCwd.should.equal(normalizedTempDir)
+		})
+
 		it("should execute hook script and parse output", async () => {
 			// Create a test hook script
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
@@ -543,6 +585,39 @@ console.log(JSON.stringify({
 			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Global error/)
 			result.errorMessage!.should.match(/Workspace error/)
+		})
+
+		it("should execute global hook from primary workspace root directory", async () => {
+			// Create a global hook script that outputs the current working directory
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+// Output the current working directory
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: "CWD: " + process.cwd()
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Test execution
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			// Global hooks should execute from the primary workspace root (tempDir)
+			// Use fs.realpath to normalize paths (handles macOS /private prefix)
+			const cwdFromHook = result.contextModification!.replace("CWD: ", "")
+			const normalizedCwd = await fs.realpath(cwdFromHook)
+			const normalizedTempDir = await fs.realpath(tempDir)
+			normalizedCwd.should.equal(normalizedTempDir)
 		})
 
 		it("should work with global PostToolUse hooks", async () => {

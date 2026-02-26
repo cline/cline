@@ -19,6 +19,7 @@ interface TodoInfo {
 interface FocusChainProps {
 	readonly lastProgressMessageText?: string
 	readonly currentTaskItemId?: string
+	readonly showPlaceholderWhenEmpty?: boolean
 }
 
 // Static strings to avoid recreating them
@@ -54,7 +55,7 @@ const ToDoListHeader = memo<{
 					width: `${progressPercentage}%`,
 				}}
 			/>
-			<div className="flex items-center justify-between gap-2 z-10 py-2 px-2.5">
+			<div className="flex items-center gap-2 z-10 py-2 px-2.5">
 				<div className="flex items-center gap-1.5 flex-1 min-w-0 text-sm">
 					<span
 						className={cn(
@@ -65,11 +66,11 @@ const ToDoListHeader = memo<{
 						)}>
 						{currentIndex}/{totalCount}
 					</span>
-					<div className="header-text text-sm font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
+					<div className="header-text flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium">
 						<LightMarkdown compact text={displayText} />
 					</div>
 				</div>
-				<div className="flex items-center justify-between text-foreground">
+				<div className="flex items-center text-foreground shrink-0">
 					{isExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
 				</div>
 			</div>
@@ -157,7 +158,7 @@ const parseCurrentTodoInfo = (text: string): TodoInfo | null => {
 
 // Main component with aggressive optimization
 export const FocusChain: React.FC<FocusChainProps> = memo(
-	({ currentTaskItemId, lastProgressMessageText }) => {
+	({ currentTaskItemId, lastProgressMessageText, showPlaceholderWhenEmpty }) => {
 		const [isExpanded, setIsExpanded] = useState(false)
 
 		// Parse todo info with caching
@@ -182,6 +183,23 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 
 		// Early return for no content
 		if (!todoInfo) {
+			if (!showPlaceholderWhenEmpty) {
+				return null
+			}
+
+			return (
+				<div
+					aria-hidden={true}
+					className="relative rounded-sm bg-toolbar-hover/65 flex items-center gap-2 select-none overflow-hidden opacity-80 px-2.5 py-2">
+					<span className="rounded-lg px-2 py-0.25 inline-block shrink-0 bg-badge-foreground/20 text-foreground text-sm">
+						0/0
+					</span>
+					<span className="text-sm text-foreground/80 truncate">TODOs</span>
+				</div>
+			)
+		}
+
+		if (isExpanded && !lastProgressMessageText) {
 			return null
 		}
 
@@ -217,7 +235,8 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 		// Custom comparison for better performance
 		return (
 			prevProps.lastProgressMessageText === nextProps.lastProgressMessageText &&
-			prevProps.currentTaskItemId === nextProps.currentTaskItemId
+			prevProps.currentTaskItemId === nextProps.currentTaskItemId &&
+			prevProps.showPlaceholderWhenEmpty === nextProps.showPlaceholderWhenEmpty
 		)
 	},
 )

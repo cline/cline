@@ -1,6 +1,8 @@
 import { WebviewProvider } from "@/core/webview"
 import { Logger } from "@/shared/services/Logger"
 
+export const TASK_URI_PATH = "/task"
+
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks
  */
@@ -81,7 +83,7 @@ export class SharedUriHandler {
 					Logger.warn("SharedUriHandler: Missing code parameter for auth callback")
 					return false
 				}
-				case "/task": {
+				case TASK_URI_PATH: {
 					const prompt = query.get("prompt")
 					if (prompt) {
 						await visibleWebview.controller.handleTaskCreation(prompt)
@@ -103,6 +105,15 @@ export class SharedUriHandler {
 
 					await visibleWebview.controller.handleMcpOAuthCallback(serverHash, code, state)
 					return true
+				}
+				case "/hicap": {
+					const code = query.get("code")
+					if (code) {
+						await visibleWebview.controller.handleHicapCallback(code)
+						return true
+					}
+					Logger.warn("SharedUriHandler: Missing code parameter for Hicap callback")
+					return false
 				}
 				default:
 					Logger.warn(`SharedUriHandler: Unknown path: ${path}`)

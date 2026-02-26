@@ -1,8 +1,8 @@
 import * as crypto from "crypto"
 import * as http from "http"
 import { URL } from "url"
-import type { ExtensionContext } from "vscode"
 import { z } from "zod"
+import { StateManager } from "@/core/storage/StateManager"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
@@ -25,7 +25,7 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 	callbackPort: 1455,
 } as const
 
-// Token storage key
+// Token storage key - must match the key in SECRETS_KEYS (state-keys.ts)
 const OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
 
 // Credentials schema
@@ -335,7 +335,6 @@ export function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
  * OpenAiCodexOAuthManager - Handles OAuth flow and token management
  */
 export class OpenAiCodexOAuthManager {
-	private context: ExtensionContext | null = null
 	private credentials: OpenAiCodexCredentials | null = null
 	private refreshPromise: Promise<OpenAiCodexCredentials> | null = null
 	private pendingAuth: {
@@ -343,13 +342,6 @@ export class OpenAiCodexOAuthManager {
 		state: string
 		server?: http.Server
 	} | null = null
-
-	/**
-	 * Initialize the OAuth manager with VS Code extension context
-	 */
-	initialize(context: ExtensionContext): void {
-		this.context = context
-	}
 
 	/**
 	 * Force a refresh using the stored refresh token even if the access token is not expired.
@@ -386,15 +378,13 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Load credentials from storage
+	 * Load credentials from storage via StateManager.
 	 */
 	async loadCredentials(): Promise<OpenAiCodexCredentials | null> {
-		if (!this.context) {
-			return null
-		}
-
 		try {
-			const credentialsJson = await this.context.secrets.get(OPENAI_CODEX_CREDENTIALS_KEY)
+			const stateManager = StateManager.get()
+			const credentialsJson = stateManager.getSecretKey("openai-codex-oauth-credentials")
+
 			if (!credentialsJson) {
 				return null
 			}
@@ -409,14 +399,12 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Save credentials to storage
+	 * Save credentials to storage via StateManager
 	 */
 	async saveCredentials(credentials: OpenAiCodexCredentials): Promise<void> {
-		if (!this.context) {
-			throw new Error("OAuth manager not initialized")
-		}
-
-		await this.context.secrets.store(OPENAI_CODEX_CREDENTIALS_KEY, JSON.stringify(credentials))
+		const stateManager = StateManager.get()
+		stateManager.setSecret("openai-codex-oauth-credentials", JSON.stringify(credentials))
+		await stateManager.flushPendingState()
 		this.credentials = credentials
 	}
 
@@ -424,11 +412,9 @@ export class OpenAiCodexOAuthManager {
 	 * Clear credentials from storage
 	 */
 	async clearCredentials(): Promise<void> {
-		if (!this.context) {
-			return
-		}
-
-		await this.context.secrets.delete(OPENAI_CODEX_CREDENTIALS_KEY)
+		const stateManager = StateManager.get()
+		stateManager.setSecret("openai-codex-oauth-credentials", undefined)
+		await stateManager.flushPendingState()
 		this.credentials = null
 	}
 
@@ -494,11 +480,16 @@ export class OpenAiCodexOAuthManager {
 	}
 
 	/**
-	 * Check if the user is authenticated
+	 * Check if the user has stored credentials (i.e. has completed auth).
+	 * This intentionally does NOT attempt a token refresh so that transient
+	 * network failures or expired-but-refreshable tokens don't cause the
+	 * CLI to bounce the user back to the onboarding flow.
 	 */
 	async isAuthenticated(): Promise<boolean> {
-		const token = await this.getAccessToken()
-		return token !== null
+		if (!this.credentials) {
+			await this.loadCredentials()
+		}
+		return this.credentials !== null
 	}
 
 	/**
@@ -623,7 +614,7 @@ export class OpenAiCodexOAuthManager {
     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
   </div>
   <h1>Authentication Successful</h1>
-  <p>You're now signed in to OpenAI Codex. You can close this window and return to VS Code.</p>
+  <p>You're now signed in to OpenAI Codex. You can close this window and return to your IDE.</p>
   <p class="closing">This window will close automatically...</p>
 </div>
 <script>setTimeout(() => window.close(), 3000);</script>

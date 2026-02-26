@@ -1,23 +1,25 @@
-import { ApiConfiguration, ModelInfo } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
-	GlobalState,
-	GlobalStateAndSettings,
-	GlobalStateAndSettingsKey,
+	type GlobalState,
+	type GlobalStateAndSettings,
+	type GlobalStateAndSettingsKey,
 	isSecretKey,
 	isSettingsKey,
-	LocalState,
-	LocalStateKey,
-	RemoteConfigFields,
-	SecretKey,
+	type LocalState,
+	type LocalStateKey,
+	type RemoteConfigFields,
+	type SecretKey,
 	SecretKeys,
-	Secrets,
-	Settings,
-	SettingsKey,
+	type Secrets,
+	type Settings,
+	type SettingsKey,
 } from "@shared/storage/state-keys"
+import type { StorageContext } from "@shared/storage/storage-context"
 import chokidar, { FSWatcher } from "chokidar"
-import type { ExtensionContext } from "vscode"
+import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
+import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -27,7 +29,7 @@ import {
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
-import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
+import { readGlobalStateFromStorage, readSecretsFromStorage, readWorkspaceStateFromStorage } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -35,6 +37,9 @@ export interface PersistenceErrorEvent {
 /**
  * In-memory state manager for fast state access.
  * Provides immediate reads/writes with async disk persistence.
+ *
+ * All persistent storage is backed by file-based stores via StorageContext.
+ * This is shared across all platforms (VSCode, CLI, JetBrains).
  *
  * MULTI-INSTANCE BEHAVIOR:
  * StateManager reads from disk ONLY during initialize(). After that, all reads come from
@@ -55,24 +60,34 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
+	private sessionOverrideCache: Partial<Settings> = {}
 	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
-	private context: ExtensionContext
+
+	/**
+	 * File-backed storage context. All reads/writes to persistent state go through here.
+	 * Do NOT access VSCode's ExtensionContext for storage — use this instead.
+	 */
+	private storage: StorageContext
 	private isInitialized = false
+
+	// Cache TTL: 1 hour - long enough to prevent duplicate fetches, short enough to see new models
+	private readonly MODEL_CACHE_TTL_MS = 60 * 60 * 1000
 
 	// In-memory model info cache (not persisted to disk)
 	// These are for dynamic providers that fetch models from APIs
 	private modelInfoCache: {
-		openRouterModels: Record<string, ModelInfo> | null
-		groqModels: Record<string, ModelInfo> | null
-		basetenModels: Record<string, ModelInfo> | null
-		huggingFaceModels: Record<string, ModelInfo> | null
-		requestyModels: Record<string, ModelInfo> | null
-		huaweiCloudMaasModels: Record<string, ModelInfo> | null
-		hicapModels: Record<string, ModelInfo> | null
-		aihubmixModels: Record<string, ModelInfo> | null
-		liteLlmModels: Record<string, ModelInfo> | null
+		openRouterModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		groqModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		basetenModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		huggingFaceModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		requestyModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		huaweiCloudMaasModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		hicapModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		aihubmixModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		liteLlmModels: { data: Record<string, ModelInfo>; timestamp: number } | null
+		vercelModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 	} = {
 		openRouterModels: null,
 		groqModels: null,
@@ -83,6 +98,7 @@ export class StateManager {
 		hicapModels: null,
 		aihubmixModels: null,
 		liteLlmModels: null,
+		vercelModels: null,
 	}
 
 	// Debounced persistence state
@@ -100,16 +116,16 @@ export class StateManager {
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
 
-	private constructor(context: ExtensionContext) {
-		this.context = context
+	private constructor(storage: StorageContext) {
+		this.storage = storage
 	}
 
 	/**
-	 * Initialize the cache by loading data from disk
+	 * Initialize the cache by loading data from the file-backed StorageContext.
 	 */
-	public static async initialize(context: ExtensionContext): Promise<StateManager> {
+	public static async initialize(storage: StorageContext): Promise<StateManager> {
 		if (!StateManager.instance) {
-			StateManager.instance = new StateManager(context)
+			StateManager.instance = new StateManager(storage)
 		}
 
 		if (StateManager.instance.isInitialized) {
@@ -117,10 +133,12 @@ export class StateManager {
 		}
 
 		try {
-			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(context)
-			const secrets = await readSecretsFromDisk(context)
-			const workspaceState = await readWorkspaceStateFromDisk(context)
+			await initializeDistinctId(storage)
+
+			// Load all extension state from file-backed stores
+			const globalState = await readGlobalStateFromStorage(storage.globalState)
+			const secrets = readSecretsFromStorage(storage.secrets)
+			const workspaceState = readWorkspaceStateFromStorage(storage.workspaceState)
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
@@ -130,6 +148,8 @@ export class StateManager {
 			await StateManager.instance.setupTaskHistoryWatcher()
 
 			StateManager.instance.isInitialized = true
+
+			await AgentConfigLoader.getInstance().ready()
 		} catch (error) {
 			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error
@@ -282,8 +302,6 @@ export class StateManager {
 				this.pendingTaskState.clear()
 			} catch (error) {
 				Logger.error("[StateManager] Failed to persist task settings before clearing:", error)
-				// If persistence fails, we just move on with clearing the in-memory state.
-				// clearTaskSettings realistically probably won't be called in the small window of time between task settings being set and their persistence anyways
 			}
 		}
 
@@ -366,6 +384,21 @@ export class StateManager {
 	}
 
 	/**
+	 * Set a session-scoped override for a settings key.
+	 * Session overrides are in-memory only and are NEVER persisted to disk.
+	 * They take precedence after remote config but before task-specific and global settings.
+	 *
+	 * Use this for CLI flags like --yolo that should apply for the current
+	 * process lifetime only, without modifying the user's saved settings.
+	 */
+	setSessionOverride<K extends keyof Settings>(key: K, value: Settings[K]): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		this.sessionOverrideCache[key] = value
+	}
+
+	/**
 	 * Set method for remote config field - updates cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
@@ -415,11 +448,41 @@ export class StateManager {
 			| "huaweiCloudMaas"
 			| "hicap"
 			| "aihubmix"
-			| "liteLlm",
+			| "liteLlm"
+			| "vercel",
 		models: Record<string, ModelInfo>,
 	): void {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		this.modelInfoCache[cacheKey] = models
+		this.modelInfoCache[cacheKey] = { data: models, timestamp: Date.now() }
+	}
+
+	getModelsCache(
+		provider:
+			| "openRouter"
+			| "groq"
+			| "baseten"
+			| "huggingFace"
+			| "requesty"
+			| "huaweiCloudMaas"
+			| "hicap"
+			| "aihubmix"
+			| "liteLlm"
+			| "vercel",
+	): Record<string, ModelInfo> | null {
+		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
+		const cached = this.modelInfoCache[cacheKey]
+
+		if (!cached) {
+			return null
+		}
+
+		// Check if cache has expired
+		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
+			this.modelInfoCache[cacheKey] = null
+			return null
+		}
+
+		return cached.data
 	}
 
 	/**
@@ -439,7 +502,19 @@ export class StateManager {
 		modelId: string,
 	): ModelInfo | undefined {
 		const cacheKey = `${provider}Models` as keyof typeof this.modelInfoCache
-		return this.modelInfoCache[cacheKey]?.[modelId]
+		const cached = this.modelInfoCache[cacheKey]
+
+		if (!cached) {
+			return undefined
+		}
+
+		// Check if cache has expired
+		if (Date.now() - cached.timestamp > this.MODEL_CACHE_TTL_MS) {
+			this.modelInfoCache[cacheKey] = null
+			return undefined
+		}
+
+		return cached.data[modelId]
 	}
 
 	/**
@@ -548,16 +623,17 @@ export class StateManager {
 
 	/**
 	 * Get method for global settings keys - reads from in-memory cache
-	 * Precedence: remote config > task settings > global settings
+	 * Precedence: remote config > session override > task settings > global settings
 	 */
 	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
-			// type casting here, TS cannot infer that the key will ONLY be one of Settings
-
 			return this.remoteConfigCache[key] as Settings[K]
+		}
+		if (this.sessionOverrideCache[key] !== undefined) {
+			return this.sessionOverrideCache[key] as Settings[K]
 		}
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
@@ -573,7 +649,6 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
-			// type casting here, TS cannot infer that the key will ONLY be one of GlobalState
 			return this.remoteConfigCache[key] as GlobalState[K]
 		}
 		return this.globalStateCache[key]
@@ -604,11 +679,14 @@ export class StateManager {
 	 * Used for error recovery when write operations fail
 	 */
 	async reInitialize(currentTaskId?: string): Promise<void> {
+		if (this.persistenceTimeout) {
+			await this.persistPendingState()
+		}
 		// Clear all cached data and pending state
 		this.dispose()
 
-		// Reinitialize from disk
-		await StateManager.initialize(this.context)
+		// Reinitialize from the same storage context
+		await StateManager.initialize(this.storage)
 
 		// If there's an active task, reload its settings
 		if (currentTaskId) {
@@ -640,6 +718,7 @@ export class StateManager {
 		this.workspaceStateCache = {} as LocalState
 		this.taskStateCache = {}
 		this.remoteConfigCache = {} as GlobalStateAndSettings
+		this.sessionOverrideCache = {}
 
 		this.isInitialized = false
 	}
@@ -714,21 +793,25 @@ export class StateManager {
 	}
 
 	/**
-	 * Private method to batch persist global state keys with Promise.all
+	 * Persist global state keys to the file-backed store.
+	 * Uses setBatch for efficiency (single disk write).
 	 */
 	private async persistGlobalStateBatch(keys: Set<GlobalStateAndSettingsKey>): Promise<void> {
-		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					if (key === "taskHistory") {
-						// Route task history persistence to file, not VS Code globalState
-						return writeTaskHistoryToState(this.globalStateCache[key])
-					}
-					return this.context.globalState.update(key, this.globalStateCache[key])
-				}),
-			)
-		} catch (error) {
-			throw error
+		// Separate taskHistory (goes to its own file) from regular global state
+		const regularEntries: Record<string, any> = {}
+
+		for (const key of keys) {
+			if (key === "taskHistory") {
+				// Route task history persistence to its own file
+				await writeTaskHistoryToState(this.globalStateCache[key])
+			} else {
+				regularEntries[key] = this.globalStateCache[key]
+			}
+		}
+
+		// Batch write all regular keys in a single disk operation
+		if (Object.keys(regularEntries).length > 0) {
+			this.storage.globalStateBackingStore.setBatch(regularEntries)
 		}
 	}
 
@@ -739,62 +822,47 @@ export class StateManager {
 		if (pendingTaskStates.size === 0) {
 			return
 		}
-		try {
-			// Persist each task's settings
-			await Promise.all(
-				Array.from(pendingTaskStates.entries()).map(([taskId, keys]) => {
-					if (keys.size === 0) {
-						return Promise.resolve()
+		// Persist each task's settings
+		await Promise.all(
+			Array.from(pendingTaskStates.entries()).map(([taskId, keys]) => {
+				if (keys.size === 0) {
+					return Promise.resolve()
+				}
+				const settingsToWrite: Record<string, any> = {}
+				for (const key of keys) {
+					const value = this.taskStateCache[key]
+					if (value !== undefined) {
+						settingsToWrite[key] = value
 					}
-					const settingsToWrite: Record<string, any> = {}
-					for (const key of keys) {
-						const value = this.taskStateCache[key]
-						if (value !== undefined) {
-							settingsToWrite[key] = value
-						}
-					}
-					return writeTaskSettingsToStorage(taskId, settingsToWrite)
-				}),
-			)
-		} catch (error) {
-			throw error
-		}
+				}
+				return writeTaskSettingsToStorage(taskId, settingsToWrite)
+			}),
+		)
 	}
 
 	/**
-	 * Private method to batch persist secrets with Promise.all
+	 * Persist secrets to the file-backed store.
+	 * Uses setBatch for efficiency (single disk write).
 	 */
 	private async persistSecretsBatch(keys: Set<SecretKey>): Promise<void> {
-		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					const value = this.secretsCache[key]
-					if (value) {
-						return this.context.secrets.store(key, value)
-					} else {
-						return this.context.secrets.delete(key)
-					}
-				}),
-			)
-		} catch (error) {
-			throw error
+		const entries: Record<string, string | undefined> = {}
+		for (const key of keys) {
+			const value = this.secretsCache[key]
+			entries[key] = value || undefined // Convert empty strings to undefined (delete)
 		}
+		this.storage.secrets.setBatch(entries)
 	}
 
 	/**
-	 * Private method to batch persist workspace state keys with Promise.all
+	 * Persist workspace state to the file-backed store.
+	 * Uses setBatch for efficiency (single disk write).
 	 */
 	private async persistWorkspaceStateBatch(keys: Set<LocalStateKey>): Promise<void> {
-		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					const value = this.workspaceStateCache[key]
-					return this.context.workspaceState.update(key, value)
-				}),
-			)
-		} catch (error) {
-			throw error
+		const entries: Record<string, any> = {}
+		for (const key of keys) {
+			entries[key] = this.workspaceStateCache[key]
 		}
+		this.storage.workspaceState.setBatch(entries)
 	}
 
 	/**
@@ -849,5 +917,25 @@ export class StateManager {
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
 		return { ...secrets, ...settings } satisfies ApiConfiguration
+	}
+
+	/**
+	 * Get all global state entries (for debugging/inspection)
+	 */
+	public getAllGlobalStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.globalStateCache }
+	}
+
+	/**
+	 * Get all workspace state entries (for debugging/inspection)
+	 */
+	public getAllWorkspaceStateEntries(): Record<string, unknown> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return { ...this.workspaceStateCache }
 	}
 }
