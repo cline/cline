@@ -1146,31 +1146,36 @@ export class McpHub {
 					this.isUpdatingClineSettings = true
 				}
 
-				const connection = this.connections.find((conn) => conn.server.name === serverName)
-				if (connection) {
-					connection.server.disabled = disabled
-					if (!disabled) {
-						// Enabling: actually establish the connection — disabled servers have a null
-						// client so setting the flag alone leaves the server stuck at "connecting".
-						const serverConfig = config.mcpServers[serverName]
-						connection.server.status = "connecting"
-						connection.server.error = ""
-						await this.deleteConnection(serverName)
-						try {
-							await this.connectToServer(serverName, serverConfig, "rpc")
-						} catch (error) {
-							Logger.error(`Failed to connect to enabled server ${serverName}:`, error)
-						} finally {
-							// Re-enable watcher after connection attempt + stabilityThreshold window
-							setTimeout(() => {
-								this.isUpdatingClineSettings = false
-							}, 300)
+				try {
+					const connection = this.connections.find((conn) => conn.server.name === serverName)
+					if (connection) {
+						connection.server.disabled = disabled
+						if (!disabled) {
+							// Enabling: actually establish the connection — disabled servers have a null
+							// client so setting the flag alone leaves the server stuck at "connecting".
+							const serverConfig = config.mcpServers[serverName]
+							connection.server.status = "connecting"
+							connection.server.error = ""
+							await this.deleteConnection(serverName)
+							try {
+								await this.connectToServer(serverName, serverConfig, "rpc")
+							} catch (error) {
+								Logger.error(`Failed to connect to enabled server ${serverName}:`, error)
+							}
 						}
 					}
-				}
 
-				const serverOrder = Object.keys(config.mcpServers || {})
-				return this.getSortedMcpServers(serverOrder)
+					const serverOrder = Object.keys(config.mcpServers || {})
+					return this.getSortedMcpServers(serverOrder)
+				} finally {
+					if (!disabled) {
+						// Re-enable watcher after connection attempt + stabilityThreshold window.
+						// Keep delayed reset so the watcher event (100ms stabilityThreshold) is skipped.
+						setTimeout(() => {
+							this.isUpdatingClineSettings = false
+						}, 300)
+					}
+				}
 			}
 			Logger.error(`Server "${serverName}" not found in MCP configuration`)
 			throw new Error(`Server "${serverName}" not found in MCP configuration`)

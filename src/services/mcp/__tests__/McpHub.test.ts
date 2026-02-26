@@ -297,6 +297,31 @@ describe("McpHub", () => {
 				const result = await hub.toggleServerDisabledRPC("test-server", false)
 				result.should.be.an.Array()
 			})
+
+			it("resets watcher suppression even when enabling with no existing in-memory connection", async () => {
+				const clock = sandbox.useFakeTimers()
+
+				await fs.writeFile(
+					settingsPath,
+					JSON.stringify({ mcpServers: { "test-server": { ...serverConfig, disabled: true } } }, null, 2),
+				)
+
+				const { hub, connectStub } = await buildHub(sandbox, tempDir)
+				// Simulate edge case: settings contains server but no in-memory connection object exists
+				;(hub as any).connections = []
+
+				await hub.toggleServerDisabledRPC("test-server", false)
+
+				// No connection means no direct reconnect attempt in this code path
+				connectStub.called.should.be.false()
+
+				// Flag is set immediately for watcher suppression, then reset asynchronously
+				;(hub as any).isUpdatingClineSettings.should.be.true()
+				clock.tick(299)
+				;(hub as any).isUpdatingClineSettings.should.be.true()
+				clock.tick(1)
+				;(hub as any).isUpdatingClineSettings.should.be.false()
+			})
 		})
 
 		describe("error handling", () => {
