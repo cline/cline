@@ -256,7 +256,7 @@ export const CommandOutputRow = memo(({
 							</SelectItem>
 						</SelectContent>
 					</Select>
-					{requestsApproval && !isCommandPending && (
+					{requestsApproval && isCommandPending && (
 						<span className="text-xs text-editor-warning-foreground flex items-center gap-1.5">
 							<i className="codicon codicon-warning text-[11px]" />
 							Requires approval
