@@ -28,15 +28,7 @@ export const McpPanelContent: React.FC<McpPanelContentProps> = ({ controller, on
 	useEffect(() => {
 		const loadServers = async () => {
 			try {
-				const hub = controller.mcpHub
-				if (!hub) return
-				// Wait for McpHub's initial connection sweep
-				const maxWait = 5000
-				const start = Date.now()
-				while (hub.isConnecting && Date.now() - start < maxWait) {
-					await new Promise((r) => setTimeout(r, 200))
-				}
-				const mcpServers = (await hub.getLatestMcpServersRPC()) || []
+				const mcpServers = (await controller.mcpHub?.getLatestMcpServersRPC()) || []
 				setServers(mcpServers)
 			} catch {
 				// Loading failed, show empty state
