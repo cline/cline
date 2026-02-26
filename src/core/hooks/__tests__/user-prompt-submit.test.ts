@@ -1,48 +1,28 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("UserPromptSubmit Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	let hookTestEnv: HookTestEnv
 
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
-		} as any)
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (_error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("Hook Input Format", () => {

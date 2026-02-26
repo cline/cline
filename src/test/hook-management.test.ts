@@ -9,11 +9,11 @@ import { createHook } from "../core/controller/file/createHook"
 import { deleteHook } from "../core/controller/file/deleteHook"
 import { refreshHooks } from "../core/controller/file/refreshHooks"
 import { toggleHook } from "../core/controller/file/toggleHook"
+import { hookFileName, withPlatform } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { StateManager } from "../core/storage/StateManager"
 import { HostProvider } from "../hosts/host-provider"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
-import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Unit tests for hook management operations
@@ -21,7 +21,6 @@ import { hookFileName } from "../core/hooks/__tests__/test-utils"
  */
 describe("Hook Management", () => {
 	const isWindows = process.platform === "win32"
-	const originalPlatform = process.platform
 	const hookTemplate = isWindows ? "Write-Output '{}'" : "#!/usr/bin/env node"
 
 	let tempDir: string
@@ -79,11 +78,6 @@ describe("Hook Management", () => {
 
 		// Restore all stubs
 		sinon.restore()
-		Object.defineProperty(process, "platform", {
-			value: originalPlatform,
-			writable: true,
-			configurable: true,
-		})
 	})
 
 	describe("createHook", () => {
@@ -483,37 +477,29 @@ describe("Hook Management", () => {
 		it("should resolve .ps1-only hooks on Windows (extensionless is unsupported)", async function () {
 			this.timeout(5000)
 
-			Object.defineProperty(process, "platform", {
-				value: "win32",
-				writable: true,
-				configurable: true,
+			await withPlatform("win32", async () => {
+				await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
+
+				const result = await refreshHooks(mockController, undefined, globalHooksDir)
+				const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
+				should.exist(taskStart)
+				taskStart!.absolutePath.should.equal(path.join(globalHooksDir, "TaskStart.ps1"))
+				taskStart!.enabled.should.equal(true)
 			})
-
-			await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
-
-			const result = await refreshHooks(mockController, undefined, globalHooksDir)
-			const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
-			should.exist(taskStart)
-			taskStart!.absolutePath.should.equal(path.join(globalHooksDir, "TaskStart.ps1"))
-			taskStart!.enabled.should.equal(true)
 		})
 
 		it("should ignore extensionless hook on Windows and use .ps1 only", async function () {
 			this.timeout(5000)
 
-			Object.defineProperty(process, "platform", {
-				value: "win32",
-				writable: true,
-				configurable: true,
+			await withPlatform("win32", async () => {
+				await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "Write-Output '{}'", { mode: 0o644 })
+				await fs.writeFile(path.join(globalHooksDir, "TaskResume.ps1"), "Write-Output '{}'", { mode: 0o644 })
+
+				const result = await refreshHooks(mockController, undefined, globalHooksDir)
+				const taskResume = result.globalHooks.find((h) => h.name === "TaskResume")
+				should.exist(taskResume)
+				taskResume!.absolutePath.should.equal(path.join(globalHooksDir, "TaskResume.ps1"))
 			})
-
-			await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "Write-Output '{}'", { mode: 0o644 })
-			await fs.writeFile(path.join(globalHooksDir, "TaskResume.ps1"), "Write-Output '{}'", { mode: 0o644 })
-
-			const result = await refreshHooks(mockController, undefined, globalHooksDir)
-			const taskResume = result.globalHooks.find((h) => h.name === "TaskResume")
-			should.exist(taskResume)
-			taskResume!.absolutePath.should.equal(path.join(globalHooksDir, "TaskResume.ps1"))
 		})
 	})
 
@@ -592,43 +578,39 @@ describe("Hook Management", () => {
 		it("should toggle and delete .ps1-only hooks on Windows", async function () {
 			this.timeout(5000)
 
-			Object.defineProperty(process, "platform", {
-				value: "win32",
-				writable: true,
-				configurable: true,
+			await withPlatform("win32", async () => {
+				const ps1Path = path.join(globalHooksDir, "TaskCancel.ps1")
+				await fs.writeFile(ps1Path, "Write-Output '{}'", { mode: 0o644 })
+
+				const toggleResponse = await toggleHook(
+					mockController,
+					ToggleHookRequest.create({
+						hookName: "TaskCancel",
+						isGlobal: true,
+						enabled: true,
+					}),
+					globalHooksDir,
+				)
+
+				const toggled = toggleResponse.hooksToggles!.globalHooks.find((h) => h.name === "TaskCancel")
+				should.exist(toggled)
+				toggled!.absolutePath.should.equal(ps1Path)
+
+				await deleteHook(
+					mockController,
+					DeleteHookRequest.create({
+						hookName: "TaskCancel",
+						isGlobal: true,
+					}),
+					globalHooksDir,
+				)
+
+				const exists = await fs
+					.access(ps1Path)
+					.then(() => true)
+					.catch(() => false)
+				exists.should.equal(false)
 			})
-
-			const ps1Path = path.join(globalHooksDir, "TaskCancel.ps1")
-			await fs.writeFile(ps1Path, "Write-Output '{}'", { mode: 0o644 })
-
-			const toggleResponse = await toggleHook(
-				mockController,
-				ToggleHookRequest.create({
-					hookName: "TaskCancel",
-					isGlobal: true,
-					enabled: true,
-				}),
-				globalHooksDir,
-			)
-
-			const toggled = toggleResponse.hooksToggles!.globalHooks.find((h) => h.name === "TaskCancel")
-			should.exist(toggled)
-			toggled!.absolutePath.should.equal(ps1Path)
-
-			await deleteHook(
-				mockController,
-				DeleteHookRequest.create({
-					hookName: "TaskCancel",
-					isGlobal: true,
-				}),
-				globalHooksDir,
-			)
-
-			const exists = await fs
-				.access(ps1Path)
-				.then(() => true)
-				.catch(() => false)
-			exists.should.equal(false)
 		})
 	})
 })

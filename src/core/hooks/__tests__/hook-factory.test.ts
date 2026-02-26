@@ -1,17 +1,16 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
-import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	let hookTestEnv: HookTestEnv
 	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
 	// Helper to write executable hook script
@@ -21,44 +20,13 @@ describe("Hook System", () => {
 
 	beforeEach(async () => {
 		setDistinctId("test-id")
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: (key: string) => {
-				if (key === "workspaceRoots") {
-					return [{ path: tempDir }]
-				}
-				if (key === "primaryRootIndex") {
-					return 0
-				}
-				return undefined
-			},
-		} as any)
-
-		// Reset hook discovery cache for clean test state
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (_error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("NoOpRunner", () => {
