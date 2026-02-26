@@ -1,12 +1,12 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import type { ModelInfo } from "@shared/api"
+import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
-import { featureFlagsService } from "@/services/feature-flags"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_OPUS_1M_TIERS,
@@ -17,7 +17,6 @@ import {
 	openRouterClaudeSonnet461mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 import { refreshOpenRouterModels } from "./refreshOpenRouterModels"
@@ -99,7 +98,7 @@ async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
-	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
+	const shouldUseClineEndpointSource = true
 	if (!shouldUseClineEndpointSource) {
 		return refreshOpenRouterModels(controller)
 	}
@@ -282,10 +281,7 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 
 		// If we failed to fetch models, try to read cached models from disk
 		try {
-			const fileExists = await fs
-				.access(clineModelsFilePath)
-				.then(() => true)
-				.catch(() => false)
+			const fileExists = await fileExistsAtPath(clineModelsFilePath)
 			if (fileExists) {
 				const fileContents = await fs.readFile(clineModelsFilePath, "utf8")
 				models = JSON.parse(fileContents)
@@ -311,10 +307,7 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 export async function readClineModelsFromCache(): Promise<Record<string, ModelInfo> | undefined> {
 	try {
 		const clineModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.clineModels)
-		const fileExists = await fs
-			.access(clineModelsFilePath)
-			.then(() => true)
-			.catch(() => false)
+		const fileExists = await fileExistsAtPath(clineModelsFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(clineModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
