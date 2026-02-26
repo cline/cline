@@ -17,6 +17,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { computeLineDiffStats } from "../utils/lineDiffStats"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -211,6 +212,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 
+				// Capture AI output accepted telemetry with line diff stats
+				const originalContent = config.services.diffViewProvider.originalContent || ""
+				const diffStats = computeLineDiffStats(originalContent, newContent)
+				telemetryService.captureAiOutputAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					provider: providerId,
+					model: modelId,
+					...diffStats,
+					filesCreated: fileExists ? 0 : 1,
+				})
+
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
 			} else {
@@ -265,6 +278,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						block.isNativeToolCall,
 					)
 
+					// Capture AI output rejected telemetry with line diff stats
+					const originalContentForReject = config.services.diffViewProvider.originalContent || ""
+					const rejectDiffStats = computeLineDiffStats(originalContentForReject, newContent)
+					telemetryService.captureAiOutputRejected({
+						ulid: config.ulid,
+						tool: block.name,
+						provider: providerId,
+						model: modelId,
+						...rejectDiffStats,
+						filesCreated: fileExists ? 0 : 1,
+					})
+
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
 				}
@@ -295,6 +320,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					workspaceContext,
 					block.isNativeToolCall,
 				)
+
+				// Capture AI output accepted telemetry with line diff stats (manual approval)
+				const originalContentForApproval = config.services.diffViewProvider.originalContent || ""
+				const approvalDiffStats = computeLineDiffStats(originalContentForApproval, newContent)
+				telemetryService.captureAiOutputAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					provider: providerId,
+					model: modelId,
+					...approvalDiffStats,
+					filesCreated: fileExists ? 0 : 1,
+				})
 			}
 
 			// Run PreToolUse hook after approval but before execution

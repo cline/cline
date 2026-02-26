@@ -16,6 +16,7 @@ import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
+import { computeLineDiffStats } from "../utils/lineDiffStats"
 import { PatchParser } from "../utils/PatchParser"
 import { PathResolver } from "../utils/PathResolver"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -297,7 +298,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				await this.prepareFileChange(change, operationPath)
 
 				// Get approval
-				const approved = await this.handleApproval(config, block, message, rawInput)
+				const approved = await this.handleApproval(config, block, message, rawInput, change)
 				if (!approved) {
 					this.config = undefined
 					config.taskState.didRejectTool = true
@@ -687,7 +688,13 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return summaries
 	}
 
-	private async handleApproval(config: TaskConfig, block: ToolUse, message: ClineSayTool, rawInput: string): Promise<boolean> {
+	private async handleApproval(
+		config: TaskConfig,
+		block: ToolUse,
+		message: ClineSayTool,
+		rawInput: string,
+		change?: FileChange,
+	): Promise<boolean> {
 		const patch = { ...message, content: rawInput }
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
@@ -697,6 +704,20 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const modelId = config.api.getModel().id
+
+		// Compute line diff stats for this file change
+		const diffStats = change
+			? computeLineDiffStats(change.oldContent || "", change.newContent || "")
+			: { linesAdded: 0, linesDeleted: 0, linesChanged: 0 }
+
+		// Determine file-level operation counts from the change type
+		const fileOps = change
+			? {
+					filesCreated: change.type === PatchActionType.ADD ? 1 : 0,
+					filesDeleted: change.type === PatchActionType.DELETE ? 1 : 0,
+					filesMoved: change.type === PatchActionType.UPDATE && change.movePath ? 1 : 0,
+				}
+			: { filesCreated: 0, filesDeleted: 0, filesMoved: 0 }
 
 		if (shouldAutoApprove) {
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -711,6 +732,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				undefined,
 				block.isNativeToolCall,
 			)
+			telemetryService.captureAiOutputAccepted({
+				ulid: config.ulid,
+				tool: this.name,
+				provider: providerId,
+				model: modelId,
+				...diffStats,
+				...fileOps,
+			})
 			return true
 		}
 
@@ -737,6 +766,26 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			undefined,
 			block.isNativeToolCall,
 		)
+
+		if (approved) {
+			telemetryService.captureAiOutputAccepted({
+				ulid: config.ulid,
+				tool: this.name,
+				provider: providerId,
+				model: modelId,
+				...diffStats,
+				...fileOps,
+			})
+		} else {
+			telemetryService.captureAiOutputRejected({
+				ulid: config.ulid,
+				tool: this.name,
+				provider: providerId,
+				model: modelId,
+				...diffStats,
+				...fileOps,
+			})
+		}
 
 		return approved
 	}
