@@ -20,6 +20,7 @@ import { getAxiosSettings } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
+import { refreshOpenRouterModels } from "./refreshOpenRouterModels"
 
 type ClineSupportedParams =
 	| "frequency_penalty"
@@ -80,27 +81,7 @@ interface ClineRawModelInfo {
 // Track pending refresh promise to prevent duplicate concurrent fetches
 let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
 
-async function fetchRawClineModels(controller: Controller): Promise<ClineRawModelInfo[]> {
-	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
-
-	// Rollout behavior:
-	// off => OpenRouter model list (current baseline)
-	// on  => Cline endpoint model list (new path)
-	if (!shouldUseClineEndpointSource) {
-		const { openRouterApiKey } = controller.stateManager.getApiConfiguration()
-		const response = await axios.get("https://openrouter.ai/api/v1/models", {
-			...getAxiosSettings(),
-			...(openRouterApiKey ? { headers: { Authorization: `Bearer ${openRouterApiKey}` } } : {}),
-		})
-
-		if (!Array.isArray(response.data?.data)) {
-			throw new Error("Invalid response data when fetching OpenRouter models for Cline")
-		}
-
-		Logger.log(`Cline models source: OpenRouter (${openRouterApiKey ? "with API key" : "without API key"})`)
-		return response.data.data as ClineRawModelInfo[]
-	}
-
+async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
 	const apiBaseUrl = ClineEnv.config().apiBaseUrl
 	const response = await axios.get(`${apiBaseUrl}/api/v1/ai/cline/models`, getAxiosSettings())
 
@@ -118,6 +99,11 @@ async function fetchRawClineModels(controller: Controller): Promise<ClineRawMode
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
+	if (!shouldUseClineEndpointSource) {
+		return refreshOpenRouterModels(controller)
+	}
+
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("cline")
 	if (cache) {
@@ -132,7 +118,7 @@ export async function refreshClineModels(controller: Controller): Promise<Record
 	// Start new fetch and track the promise
 	pendingRefresh = (async () => {
 		try {
-			return await fetchAndCacheClineModels(controller)
+			return await fetchAndCacheClineModels()
 		} finally {
 			// Clear pending promise when done (success or error)
 			pendingRefresh = null
@@ -142,12 +128,12 @@ export async function refreshClineModels(controller: Controller): Promise<Record
 	return pendingRefresh
 }
 
-async function fetchAndCacheClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 	const clineModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.clineModels)
 
 	let models: Record<string, ModelInfo> = {}
 	try {
-		const rawModels = await fetchRawClineModels(controller)
+		const rawModels = await fetchRawClineModels()
 		const parsePrice = (price: any) => {
 			if (price === undefined || price === null || price === "") {
 				return undefined
