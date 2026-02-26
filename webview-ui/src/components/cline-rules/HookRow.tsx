@@ -60,7 +60,7 @@ const HookRow: React.FC<HookRowProps> = ({
 					<div
 						title={
 							isWindows
-								? "Hook toggling is not supported on Windows. Hooks execute when the hook file exists."
+								? "Hook toggling is not yet supported on Windows in this foundation PR. Hooks execute when the hook file exists."
 								: undefined
 						}>
 						<Switch

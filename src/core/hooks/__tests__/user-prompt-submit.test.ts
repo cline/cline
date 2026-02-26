@@ -6,7 +6,7 @@ import path from "path"
 import sinon from "sinon"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { writeHookScriptForPlatform } from "./test-utils"
+import { stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("UserPromptSubmit Hook", () => {
 	let tempDir: string
@@ -282,8 +282,7 @@ process.exit(1)`
 
 			// Use deterministic hook directories to avoid test flakiness from
 			// calling real directory discovery logic in CI.
-			const diskModule = require("../../storage/disk")
-			sandbox.stub(diskModule, "getAllHooksDirs").resolves([globalHooksDir, workspaceHooksDir])
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace UserPromptSubmit hooks", async () => {

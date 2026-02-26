@@ -6,7 +6,7 @@ import path from "path"
 import sinon from "sinon"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { writeHookScriptForPlatform } from "./test-utils"
+import { stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskResume Hook", () => {
 	let tempDir: string
@@ -440,18 +440,14 @@ console.log(JSON.stringify({
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				const workspaceDirs = await originalGetAllHooksDirs()
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace TaskResume hooks", async () => {

@@ -13,6 +13,7 @@ import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { StateManager } from "../core/storage/StateManager"
 import { HostProvider } from "../hosts/host-provider"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Integration tests for hook management
@@ -104,7 +105,7 @@ describe("Hook Management Integration", () => {
 				createResponse.hooksToggles!.globalHooks[0].enabled.should.equal(false)
 			}
 
-			const hookPath = path.join(globalHooksDir, isWindows ? `${hookName}.ps1` : hookName)
+			const hookPath = path.join(globalHooksDir, hookFileName(hookName))
 			if (!isWindows) {
 				const createStats = await fs.stat(hookPath)
 				const createMode = createStats.mode & 0o777

@@ -6,7 +6,7 @@ import path from "path"
 import sinon from "sinon"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { loadFixture, writeHookScriptForPlatform } from "./test-utils"
+import { loadFixture, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskStart Hook", () => {
 	let tempDir: string
@@ -295,20 +295,16 @@ console.log("not valid json")`
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			// Mock getAllHooksDirs to include our test global directory
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				const workspaceDirs = await originalGetAllHooksDirs()
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			// Use deterministic hook directories to avoid test flakiness.
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace TaskStart hooks", async () => {

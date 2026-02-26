@@ -13,6 +13,7 @@ import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { StateManager } from "../core/storage/StateManager"
 import { HostProvider } from "../hosts/host-provider"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Unit tests for hook management operations
@@ -21,7 +22,6 @@ import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shar
 describe("Hook Management", () => {
 	const isWindows = process.platform === "win32"
 	const originalPlatform = process.platform
-	const hookFileName = (hookName: string) => (isWindows ? `${hookName}.ps1` : hookName)
 	const hookTemplate = isWindows ? "Write-Output '{}'" : "#!/usr/bin/env node"
 
 	let tempDir: string

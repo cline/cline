@@ -1,11 +1,80 @@
 import * as fs from "fs/promises"
+import * as os from "os"
 import * as path from "path"
 import should from "should"
+import sinon from "sinon"
+import { StateManager } from "../../storage/StateManager"
+import * as diskModule from "../../storage/disk"
+import { HookDiscoveryCache } from "../HookDiscoveryCache"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { Hooks, NamedHookInput } from "../hook-factory"
 
 // Define HookName locally since it's not exported from hook-factory
 type HookName = keyof Hooks
+
+export type HookTestEnv = {
+	tempDir: string
+	hooksDir: string
+	sandbox: sinon.SinonSandbox
+	cleanup: () => Promise<void>
+}
+
+export function resetHookCache(): void {
+	HookDiscoveryCache.resetForTesting()
+}
+
+export async function withPlatform<T>(platform: NodeJS.Platform, fn: () => Promise<T> | T): Promise<T> {
+	const originalPlatform = process.platform
+	Object.defineProperty(process, "platform", { value: platform, configurable: true })
+	try {
+		return await fn()
+	} finally {
+		Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+	}
+}
+
+export function hookFileName(hookName: string, platform: NodeJS.Platform = process.platform): string {
+	return platform === "win32" ? `${hookName}.ps1` : hookName
+}
+
+export function hookPath(hooksDir: string, hookName: string, platform: NodeJS.Platform = process.platform): string {
+	return path.join(hooksDir, hookFileName(hookName, platform))
+}
+
+export function stubHookDirs(sandbox: sinon.SinonSandbox, dirs: string[]): sinon.SinonStub {
+	return sandbox.stub(diskModule, "getAllHooksDirs").resolves(dirs)
+}
+
+export async function createHookTestEnv(): Promise<HookTestEnv> {
+	const sandbox = sinon.createSandbox()
+	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
+	const hooksDir = await createHooksDirectory(tempDir)
+
+	sandbox.stub(StateManager, "get").returns({
+		getGlobalStateKey: (key: string) => {
+			if (key === "workspaceRoots") {
+				return [{ path: tempDir }]
+			}
+			if (key === "primaryRootIndex") {
+				return 0
+			}
+			return undefined
+		},
+	} as any)
+
+	resetHookCache()
+
+	return {
+		tempDir,
+		hooksDir,
+		sandbox,
+		cleanup: async () => {
+			sandbox.restore()
+			resetHookCache()
+			await fs.rm(tempDir, { recursive: true, force: true })
+		},
+	}
+}
 
 /**
  * Creates a hooks directory structure at the specified location.

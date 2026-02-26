@@ -23,8 +23,12 @@ export async function toggleHook(
 
 	// On Windows, we can't use chmod, so we just return the current state
 	// without modifying the file. The frontend will disable the toggle.
+	// TODO(PR-9552 follow-up): Replace this temporary behavior with a
+	// JSON-backed cross-platform enabled/disabled hook state.
 	if (process.platform !== "win32") {
 		// Toggle executable bit (Unix-like systems only)
+		// TODO(PR-9552 follow-up): Revisit chmod-driven enablement semantics
+		// once cross-platform JSON-backed state is implemented.
 		await fs.chmod(hookPath, enabled ? 0o755 : 0o644)
 	}
 

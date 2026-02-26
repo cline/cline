@@ -10,6 +10,7 @@ import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { ClineMessage } from "../shared/ExtensionMessage"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Unit tests for the hook-executor module
@@ -46,7 +47,7 @@ describe("Hook Executor", () => {
 		exitCode = 0,
 		delayMs = 0,
 	): Promise<string> {
-		const scriptPath = path.join(tempDir, isWindows ? `${hookName}.ps1` : hookName)
+		const scriptPath = path.join(tempDir, hookFileName(hookName))
 		const scriptContent = isWindows
 			? `Start-Sleep -Milliseconds ${delayMs}
 Write-Output '${JSON.stringify(output).replace(/'/g, "''")}'

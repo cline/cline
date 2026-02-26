@@ -154,7 +154,13 @@ echo '{"cancel":false}'
 </Steps>
 
 <Note>
-On Windows, hooks are executed with PowerShell and run whenever the hook file exists.
+On Windows, hooks are executed with PowerShell and run whenever the hook file exists. In this
+foundation PR, hook enable/disable toggling is not yet supported on Windows.
+</Note>
+
+<Note>
+Coming next: JSON-backed hook enabled/disabled state across platforms, so toggle behavior is
+consistent on Windows, macOS, and Linux.
 </Note>
 
 <Note>

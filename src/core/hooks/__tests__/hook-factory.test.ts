@@ -7,12 +7,11 @@ import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { writeHookScriptForPlatform } from "./test-utils"
+import { stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
-	let originalPlatform: NodeJS.Platform
 	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
 	// Helper to write executable hook script
@@ -21,7 +20,6 @@ describe("Hook System", () => {
 	}
 
 	beforeEach(async () => {
-		originalPlatform = process.platform
 		setDistinctId("test-id")
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -51,11 +49,6 @@ describe("Hook System", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
-		Object.defineProperty(process, "platform", {
-			value: originalPlatform,
-			writable: true,
-			configurable: true,
-		})
 
 		// Clean up hook discovery cache
 		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
@@ -314,13 +307,9 @@ console.log(JSON.stringify({
 			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
 			const hookBasePath = path.join(hooksDir, "PreToolUse")
 
-			Object.defineProperty(process, "platform", {
-				value: "win32",
-				writable: true,
-				configurable: true,
+			await withPlatform("win32", async () => {
+				await writeHookScript(hookBasePath, "#!/usr/bin/env node\nprocess.exit(0)")
 			})
-
-			await writeHookScript(hookBasePath, "#!/usr/bin/env node\nprocess.exit(0)")
 
 			const ps1Content = await fs.readFile(`${hookBasePath}.ps1`, "utf-8")
 			ps1Content.should.match(/\n\$scriptPath = Join-Path/)
@@ -332,13 +321,10 @@ console.log(JSON.stringify({
 			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
 			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
 
-			Object.defineProperty(process, "platform", {
-				value: "win32",
-				writable: true,
-				configurable: true,
+			const found = await withPlatform("win32", async () => {
+				return await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			})
 
-			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			should.exist(found)
 			if (!found) {
 				throw new Error("Expected .ps1 hook to be resolved")
@@ -353,13 +339,10 @@ console.log(JSON.stringify({
 			await fs.writeFile(extensionless, "Write-Output '{\"cancel\":false}'")
 			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
 
-			Object.defineProperty(process, "platform", {
-				value: "win32",
-				writable: true,
-				configurable: true,
+			const found = await withPlatform("win32", async () => {
+				return await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			})
 
-			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			should.exist(found)
 			if (!found) {
 				throw new Error("Expected .ps1 hook to be resolved")
@@ -372,13 +355,10 @@ console.log(JSON.stringify({
 			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
 			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
 
-			Object.defineProperty(process, "platform", {
-				value: "linux",
-				writable: true,
-				configurable: true,
+			const found = await withPlatform("linux", async () => {
+				return await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			})
 
-			const found = await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
 			should.not.exist(found)
 		})
 
@@ -508,8 +488,7 @@ console.log(JSON.stringify({
 			// Mock getAllHooksDirs with deterministic test directories only.
 			// Avoid calling the real implementation, which may hit OS-specific
 			// filesystem resolution and add timing variance in CI.
-			const diskModule = require("../../storage/disk")
-			sandbox.stub(diskModule, "getAllHooksDirs").resolves([globalHooksDir, workspaceHooksDir])
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace hooks", async () => {
