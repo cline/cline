@@ -107,6 +107,13 @@ const editorFeatures: FeatureToggle[] = [
 		stateKey: "worktreesEnabled",
 		settingKey: "worktreesEnabled",
 	},
+	{
+		id: "project-specific-history",
+		label: "Project-Specific History",
+		description: "Only show conversations from the current project in the history view.",
+		stateKey: "projectSpecificHistory",
+		settingKey: "projectSpecificHistory",
+	},
 ]
 
 const experimentalFeatures: FeatureToggle[] = [
@@ -200,6 +207,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		projectSpecificHistory,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -224,6 +232,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		projectSpecificHistory,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 

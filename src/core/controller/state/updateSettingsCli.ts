@@ -54,6 +54,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				focusChainSettings,
 				browserSettings,
 				defaultTerminalProfile,
+				projectSpecificHistory,
 				...simpleSettings
 			} = request.settings
 
@@ -265,6 +266,11 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 						})
 					}
 				}
+			}
+
+			// Update project specific history setting
+			if (projectSpecificHistory !== undefined) {
+				controller.stateManager.setGlobalState("projectSpecificHistory", projectSpecificHistory)
 			}
 		}
 

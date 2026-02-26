@@ -279,6 +279,7 @@ message Settings {
   optional bool auto_approve_all_toggled = 174;
   optional bool double_check_completion_enabled = 176;
   map<string, string> open_ai_headers = 177;
+  optional bool project_specific_history = 178;
 }
 
 message State {
@@ -420,6 +421,7 @@ message UpdateSettingsRequest {
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
   optional bool double_check_completion_enabled = 41;
+  optional bool project_specific_history = 42;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

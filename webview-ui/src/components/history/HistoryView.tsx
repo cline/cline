@@ -37,7 +37,7 @@ const HISTORY_FILTERS = {
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
+	const { taskHistory, onRelinquishControl, environment, projectSpecificHistory } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -60,7 +60,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					favoritesOnly: showFavoritesOnly,
 					searchQuery: searchQuery || undefined,
 					sortBy: sortOption,
-					currentWorkspaceOnly: showCurrentWorkspaceOnly,
+					currentWorkspaceOnly: showCurrentWorkspaceOnly || !!projectSpecificHistory,
 				}),
 			)
 			setTasks(response.tasks || [])
@@ -157,9 +157,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setSelectedItems((prev) => {
 			if (checked) {
 				return [...prev, itemId]
-			} else {
-				return prev.filter((id) => id !== itemId)
 			}
+			return prev.filter((id) => id !== itemId)
 		})
 	}, [])
 
@@ -342,7 +341,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							}
 							// Handle filter toggles
 							else if (value === "workspaceOnly") {
-								setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
+								if (!projectSpecificHistory) {
+									setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)
+								}
 							} else if (value === "favoritesOnly") {
 								setShowFavoritesOnly(!showFavoritesOnly)
 							}
@@ -360,11 +361,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								const isSelected = isSortOption
 									? sortOption === key
 									: key === "workspaceOnly"
-										? showCurrentWorkspaceOnly
+										? showCurrentWorkspaceOnly || !!projectSpecificHistory
 										: key === "favoritesOnly"
 											? showFavoritesOnly
 											: false
-								const isDisabled = key === "mostRelevant" && !searchQuery
+								const isDisabled =
+									(key === "mostRelevant" && !searchQuery) ||
+									(key === "workspaceOnly" && !!projectSpecificHistory)
 
 								return (
 									<SelectItem
@@ -460,7 +463,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number

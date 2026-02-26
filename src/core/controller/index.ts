@@ -40,7 +40,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
-import { getCwd, getDesktopDir } from "@/utils/path"
+import { arePathsEqual, getCwd, getDesktopDir, getWorkspacePath } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -887,6 +887,7 @@ export class Controller {
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
 		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
+		const projectSpecificHistory = this.stateManager.getGlobalSettingsKey("projectSpecificHistory")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -899,10 +900,19 @@ export class Controller {
 		const clineMessages = [...(this.task?.messageStateHandler.getClineMessages() || [])]
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
-		const processedTaskHistory = (taskHistory || [])
+		let processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
 			.sort((a, b) => b.ts - a.ts)
 			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
+
+		if (projectSpecificHistory) {
+			const workspacePath = await getWorkspacePath()
+			processedTaskHistory = processedTaskHistory.filter((item) => {
+				if (item.cwdOnTaskInitialization) return arePathsEqual(item.cwdOnTaskInitialization, workspacePath)
+				if (item.shadowGitConfigWorkTree) return arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)
+				return false
+			})
+		}
 
 		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
@@ -997,6 +1007,7 @@ export class Controller {
 			backgroundEditEnabled: this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			doubleCheckCompletionEnabled,
+			projectSpecificHistory,
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,
