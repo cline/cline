@@ -129,6 +129,13 @@ export class ClineAgent implements acp.Agent {
 	/** Track last sent content for partial messages to compute deltas */
 	private partialMessageLastContent: Map<number, string> = new Map()
 
+	/** Track last sent content per say/ask subtype within a prompt cycle.
+	 * Used as a fallback when the final non-partial message arrives with a
+	 * different timestamp than the partial streaming messages (due to a SET
+	 * event that replaces the streaming message with a new one). This prevents
+	 * re-emitting content that was already fully streamed. */
+	private partialMessageLastContentByType: Map<string, string> = new Map()
+
 	/** Map message timestamps to toolCallIds to avoid creating duplicate tool calls during streaming */
 	private messageToToolCallId: Map<number, string> = new Map()
 
@@ -189,7 +196,7 @@ export class ClineAgent implements acp.Agent {
 		return {
 			protocolVersion: PROTOCOL_VERSION,
 			agentCapabilities: {
-				loadSession: true,
+				loadSession: false,
 				promptCapabilities: {
 					image: true,
 					audio: false,
@@ -478,6 +485,7 @@ export class ClineAgent implements acp.Agent {
 
 		// Clear delta tracking state for new prompt cycle
 		this.partialMessageLastContent.clear()
+		this.partialMessageLastContentByType.clear()
 		this.messageToToolCallId.clear()
 
 		// Track cleanup functions for subscriptions
@@ -485,10 +493,8 @@ export class ClineAgent implements acp.Agent {
 
 		// Promise that resolves when task completes, is cancelled, or needs input
 		let resolvePrompt: (response: acp.PromptResponse) => void
-		let _rejectPrompt: (error: Error) => void
-		const promptPromise = new Promise<acp.PromptResponse>((resolve, reject) => {
+		const promptPromise = new Promise<acp.PromptResponse>((resolve) => {
 			resolvePrompt = resolve
-			_rejectPrompt = reject
 		})
 
 		// Track if we've already resolved/rejected (object for pass-by-reference)
@@ -511,49 +517,8 @@ export class ClineAgent implements acp.Agent {
 				.filter((block): block is acp.EmbeddedResource & { type: "resource" } => block.type === "resource")
 				.map((block) => block.resource.uri)
 
-			// Determine if this is a new task, continuation, or loaded session resume
-			const hasActiveTask = controller.task !== undefined
-			const isLoadedSession = session.isLoadedFromHistory === true
-
-			if (isLoadedSession && !hasActiveTask) {
-				// First prompt on a loaded session - resume the task from history
-				Logger.debug("[ClineAgent] Resuming loaded session:", params.sessionId)
-
-				// Clear the flag so subsequent prompts are handled normally
-				session.isLoadedFromHistory = false
-
-				// Resume the task using its history item
-				await controller.reinitExistingTaskFromId(params.sessionId)
-
-				// After reinit, the task should be in a waiting state (resume_task ask)
-				// Send the user's prompt as a response to continue
-				if (controller.task) {
-					await controller.task.handleWebviewAskResponse("messageResponse", textContent, imageContent, fileResources)
-				}
-			} else if (hasActiveTask && controller.task) {
-				// Continue existing task - respond to pending ask
-				Logger.debug("[ClineAgent] Continuing existing task:", controller.task.taskId)
-
-				// Find the last ask message and respond to it
-				const messages = controller.task.messageStateHandler.getClineMessages()
-				const lastAskMessage = [...messages].reverse().find((m) => m.type === "ask")
-
-				if (lastAskMessage) {
-					await controller.task.handleWebviewAskResponse("messageResponse", textContent, imageContent, fileResources)
-				} else {
-					// No pending ask - treat as new user message
-					// This shouldn't normally happen but handle gracefully
-					Logger.debug("[ClineAgent] No pending ask found, starting new task")
-					await controller.initTask(textContent, imageContent, fileResources)
-				}
-			} else {
-				// Start new task
-				Logger.debug("[ClineAgent] Starting new task")
-				await controller.initTask(textContent, imageContent, fileResources)
-			}
-
-			// Subscribe to clineMessages changes after task is created
-			if (controller.task) {
+			// Helper to wire up the clineMessages subscription
+			const subscribeToTaskMessages = (task: NonNullable<typeof controller.task>) => {
 				const onClineMessagesChanged = (change: ClineMessageChange) => {
 					this.handleClineMessagesChanged(params.sessionId, sessionState, change, resolvePrompt, promptResolved).catch(
 						(error) => {
@@ -561,11 +526,30 @@ export class ClineAgent implements acp.Agent {
 						},
 					)
 				}
-
-				controller.task.messageStateHandler.on("clineMessagesChanged", onClineMessagesChanged)
+				task.messageStateHandler.on("clineMessagesChanged", onClineMessagesChanged)
 				cleanupFunctions.push(() => {
-					controller.task?.messageStateHandler.off("clineMessagesChanged", onClineMessagesChanged)
+					task.messageStateHandler.off("clineMessagesChanged", onClineMessagesChanged)
 				})
+			}
+
+			if (controller.task) {
+				// Case 2: Existing task — this prompt is another conversation turn.
+				// Subscribe BEFORE responding so we don't miss any messages that fire
+				// synchronously or very quickly after handleWebviewAskResponse unblocks
+				// the task's pWaitFor loop.
+				Logger.debug("[ClineAgent] Continuing existing task:", controller.task.taskId)
+				subscribeToTaskMessages(controller.task)
+				await controller.task.handleWebviewAskResponse("messageResponse", textContent, imageContent, fileResources)
+			} else {
+				// Case 1: No active task — start a brand-new task.
+				Logger.debug("[ClineAgent] Starting new task")
+				await controller.initTask(textContent, imageContent, fileResources)
+
+				// controller.task is set synchronously inside initTask (before startTask is
+				// called), so we can subscribe right after initTask returns.
+				if (controller.task) {
+					subscribeToTaskMessages(controller.task)
+				}
 			}
 
 			// Return the promise that will resolve when task completes
@@ -609,22 +593,20 @@ export class ClineAgent implements acp.Agent {
 			switch (change.type) {
 				case "add":
 					// Process the newly added message
-					if (change.message) {
-						await this.processMessageWithDelta(sessionId, sessionState, change.message)
-						this.checkMessageForPromptResolution(change.message, resolvePrompt, promptResolved)
-					}
+					await this.processMessageWithDelta(sessionId, sessionState, change.message)
+					this.checkMessageForPromptResolution(change.message, resolvePrompt, promptResolved)
 					break
 
 				case "update":
 					// Process the updated message (streaming updates)
-					if (change.message) {
-						await this.processMessageWithDelta(sessionId, sessionState, change.message)
-						// Also check for prompt resolution on updates - message may have transitioned from partial to complete
-						this.checkMessageForPromptResolution(change.message, resolvePrompt, promptResolved)
-					}
+					await this.processMessageWithDelta(sessionId, sessionState, change.message)
+					// Also check for prompt resolution on updates - message may have transitioned from partial to complete
+					this.checkMessageForPromptResolution(change.message, resolvePrompt, promptResolved)
 					break
 				case "set":
-					// Check the last message for prompt resolution
+					// The SET event fires when Cline replaces the full messages array (e.g.
+					// removing a partial streaming message). The final message arrives via a
+					// subsequent "add" event, hence no action needed.
 					break
 				case "delete":
 					// Message deleted - no action needed for ACP updates
@@ -771,17 +753,21 @@ export class ClineAgent implements acp.Agent {
 	/**
 	 * Process a message and compute deltas for streaming content.
 	 *
-	 * This method uses translateMessage to properly map ClineMessages to ACP SessionUpdates,
-	 * while computing deltas for text content to avoid sending duplicate content during
-	 * streaming updates.
+	 * This method handles two categories of messages:
 	 *
-	 * For text-streaming messages (text, reasoning, followup, plan_mode_respond):
-	 * - Computes delta between current and last-sent content
-	 * - Only sends the new portion to avoid duplicates
+	 * 1. **Text-streaming messages** (say: text, reasoning, completion_result;
+	 *    ask: followup, plan_mode_respond, completion_result):
+	 *    - These stream incrementally via partial=true updates followed by partial=false
+	 *    - We compute a delta (new chars only) to avoid re-sending already-sent content
+	 *    - We own the full rendering for these message types; they must NOT fall through
+	 *      to translateMessage (which would double-send the content)
 	 *
-	 * For other messages (tool calls, commands, etc.):
-	 * - Uses translateMessage to produce proper ACP updates
-	 * - Sends complete updates (no delta computation needed)
+	 * 2. **All other messages** (tool calls, commands, errors, etc.):
+	 *    - Delegated entirely to translateMessage for proper ACP mapping
+	 *    - No delta computation needed; each update is self-contained
+	 *
+	 * Note: act_mode_respond is intentionally excluded from text-streaming because its
+	 * text content was already emitted via the preceding say: "text" message.
 	 */
 	private async processMessageWithDelta(
 		sessionId: string,
@@ -789,98 +775,115 @@ export class ClineAgent implements acp.Agent {
 		message: ClineMessageType,
 	): Promise<void> {
 		const messageKey = message.ts
-		const lastText = this.partialMessageLastContent.get(messageKey) || ""
 
-		// Determine if this is a text-streaming message type that needs delta handling
-		// Note: act_mode_respond is NOT included here because its text content was already
-		// sent via the say: "text" message. Including it would cause duplicate output.
+		// Determine if this is a text-streaming message type that we own entirely.
+		// These message types stream text incrementally and must be handled with delta
+		// computation here — they must NOT also go through translateMessage.
 		const isTextStreamingMessage =
 			(message.type === "say" &&
 				(message.say === "text" || message.say === "reasoning" || message.say === "completion_result")) ||
 			(message.type === "ask" &&
 				(message.ask === "followup" || message.ask === "plan_mode_respond" || message.ask === "completion_result"))
 
-		if (isTextStreamingMessage && message.text) {
-			// Extract the actual text content for JSON-wrapped messages
-			// plan_mode_respond uses { response: string, options?: string[] }
-			// followup uses { question: string, options?: string[] }
-			let textContent = message.text
-			if (message.type === "ask" && (message.ask === "plan_mode_respond" || message.ask === "followup")) {
-				try {
-					const parsed = JSON.parse(message.text)
-					if (message.ask === "plan_mode_respond" && parsed.response !== undefined) {
-						textContent = parsed.response
-					} else if (message.ask === "followup" && parsed.question !== undefined) {
-						textContent = parsed.question
+		if (isTextStreamingMessage) {
+			// Build a type key (e.g. "say:completion_result") for cross-timestamp dedup.
+			// When Cline replaces a partial streaming message (ts=A) with a final non-partial
+			// message (ts=B) via a SET event, ts=B won't be in partialMessageLastContent.
+			// The type-keyed fallback lets us find the text already emitted for this message
+			// type so we compute the correct delta and avoid re-sending the entire content.
+			const typeKey = message.type === "say" ? `say:${message.say}` : `ask:${message.ask}`
+			const lastText =
+				this.partialMessageLastContent.get(messageKey) ?? this.partialMessageLastContentByType.get(typeKey) ?? ""
+
+			// Even if message.text is empty/undefined, we still own this message type
+			// and must not let it fall through to translateMessage (which would double-send).
+			if (message.text) {
+				// Extract the actual text content for JSON-wrapped messages.
+				// plan_mode_respond uses { response: string, options?: string[] }
+				// followup uses { question: string, options?: string[] }
+				let textContent = message.text
+				if (message.type === "ask" && (message.ask === "plan_mode_respond" || message.ask === "followup")) {
+					try {
+						const parsed = JSON.parse(message.text)
+						if (message.ask === "plan_mode_respond" && parsed.response !== undefined) {
+							textContent = parsed.response
+						} else if (message.ask === "followup" && parsed.question !== undefined) {
+							textContent = parsed.question
+						}
+					} catch {
+						// If parsing fails, use the raw text
 					}
-				} catch {
-					// If parsing fails, use the raw text
+				}
+
+				// Compute delta to avoid re-sending already-streamed content
+				let textDelta: string
+				if (textContent.startsWith(lastText)) {
+					textDelta = textContent.slice(lastText.length)
+				} else {
+					// Content changed entirely (rare edge case), send everything
+					textDelta = textContent
+				}
+
+				if (textDelta) {
+					const sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" =
+						message.type === "say" && message.say === "reasoning" ? "agent_thought_chunk" : "agent_message_chunk"
+
+					// For completion_result, prepend a newline on the very first chunk to
+					// visually separate it from any preceding assistant text.
+					const isCompletionResult =
+						(message.type === "say" && message.say === "completion_result") ||
+						(message.type === "ask" && message.ask === "completion_result")
+					const needsLeadingNewline = isCompletionResult && lastText === ""
+
+					await this.emitSessionUpdate(sessionId, {
+						sessionUpdate,
+						content: { type: "text", text: needsLeadingNewline ? `\n${textDelta}` : textDelta },
+					})
+				}
+
+				// Track what we've sent so the next update can compute the correct delta.
+				// Both maps are updated: the timestamp-keyed one for the normal streaming case,
+				// and the type-keyed one as a fallback for when the final non-partial message
+				// arrives with a different timestamp (after a SET event).
+				this.partialMessageLastContent.set(messageKey, textContent)
+				this.partialMessageLastContentByType.set(typeKey, textContent)
+			}
+
+			// Clean up the timestamp-keyed entry once the message is fully streamed.
+			// The type-keyed entry is intentionally kept for the rest of the prompt cycle
+			// so it can dedup any subsequent non-partial message with a new timestamp.
+			if (!message.partial) {
+				this.partialMessageLastContent.delete(messageKey)
+				if (!message.text) {
+					this.partialMessageLastContentByType.delete(typeKey)
 				}
 			}
-
-			// For streaming text messages, compute delta to avoid sending duplicates
-			let textDelta: string
-			if (textContent.startsWith(lastText)) {
-				textDelta = textContent.slice(lastText.length)
-			} else {
-				// Content changed entirely (rare), send all
-				textDelta = textContent
-			}
-
-			// Only send if there's new content
-			if (textDelta) {
-				// Determine the correct update type based on message type
-				const sessionUpdate: "agent_message_chunk" | "agent_thought_chunk" =
-					message.type === "say" && message.say === "reasoning" ? "agent_thought_chunk" : "agent_message_chunk"
-
-				// For completion_result messages, add a leading newline to separate from previous content
-				// This ensures the completion message appears on a new line after any preceding text
-				const isCompletionResult =
-					(message.type === "say" && message.say === "completion_result") ||
-					(message.type === "ask" && message.ask === "completion_result")
-				const needsNewline = isCompletionResult && lastText === ""
-
-				await this.emitSessionUpdate(sessionId, {
-					sessionUpdate,
-					content: { type: "text", text: needsNewline ? `\n${textDelta}` : textDelta },
-				})
-			}
-
-			// Track what we've sent (use extracted text, not raw JSON)
-			this.partialMessageLastContent.set(messageKey, textContent)
 		} else {
-			// For non-streaming messages, use the full translator
-			// Check if we already have a toolCallId for this message (from a previous partial update)
+			// All other message types: delegate to translateMessage for proper ACP mapping.
+			// Check if we already have a toolCallId for this message (from a previous partial
+			// update) so we send a tool_call_update rather than a new tool_call.
 			const existingToolCallId = this.messageToToolCallId.get(messageKey)
 
 			const result = translateMessage(message, sessionState, {
 				existingToolCallId,
 			})
 
-			// Send all updates produced by the translator
+			// Emit all updates produced by the translator
 			for (const update of result.updates) {
 				await this.emitSessionUpdate(sessionId, update)
 			}
 
-			// Track the toolCallId for this message so subsequent updates reuse it
+			// Persist the toolCallId so subsequent partial updates reuse it
 			if (result.toolCallId) {
 				this.messageToToolCallId.set(messageKey, result.toolCallId)
 			}
 
-			// Handle permission requests for ask messages
-			// Only process permissions for non-partial (complete) ask messages
+			// Handle permission requests for complete (non-partial) ask messages
 			if (result.requiresPermission && result.permissionRequest && !message.partial) {
-				// Handle the permission request asynchronously
-				// This will request permission from the client and respond to Cline
 				await this.handlePermissionRequest(sessionId, sessionState, message, result.permissionRequest)
 			}
 
-			// Track text content for this message (in case of future updates)
-			if (message.text) {
-				this.partialMessageLastContent.set(messageKey, message.text)
-			}
-
-			// Clean up the mapping when the message is complete (not partial)
+			// Clean up the toolCallId mapping once the message is complete
 			if (!message.partial && result.toolCallId) {
 				this.messageToToolCallId.delete(messageKey)
 			}

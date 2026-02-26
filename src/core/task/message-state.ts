@@ -14,22 +14,15 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
-// Event types for clineMessages changes
-export type ClineMessageChangeType = "add" | "update" | "delete" | "set"
+type BaseMessageChange = { messages: ClineMessage[] }
+export type ClineMessageChange =
+	| (BaseMessageChange & { type: "add"; index: number; message: ClineMessage })
+	| (BaseMessageChange & { type: "update"; index: number; message: ClineMessage; previousMessage: ClineMessage })
+	| (BaseMessageChange & { type: "delete"; index: number; previousMessage: ClineMessage })
+	| (BaseMessageChange & { type: "set"; previousMessages: ClineMessage[] })
 
-export interface ClineMessageChange {
-	type: ClineMessageChangeType
-	/** The full array after the change */
-	messages: ClineMessage[]
-	/** The affected index (for add/update/delete) */
-	index?: number
-	/** The new/updated message (for add/update) */
-	message?: ClineMessage
-	/** The old message before change (for update/delete) */
-	previousMessage?: ClineMessage
-	/** The entire previous array (for set) */
-	previousMessages?: ClineMessage[]
-}
+// Event types for clineMessages changes
+export type ClineMessageChangeType = ClineMessageChange["type"]
 
 // Strongly-typed event emitter interface
 export interface MessageStateHandlerEvents {
