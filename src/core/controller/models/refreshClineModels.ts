@@ -7,6 +7,7 @@ import fs from "fs/promises"
 import path from "path"
 import { ClineEnv } from "@/config"
 import { StateManager } from "@/core/storage/StateManager"
+import { featureFlagsService } from "@/services/feature-flags"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_OPUS_1M_TIERS,
@@ -17,6 +18,7 @@ import {
 	openRouterClaudeSonnet461mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 import { refreshOpenRouterModels } from "./refreshOpenRouterModels"
@@ -98,7 +100,7 @@ async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
-	const shouldUseClineEndpointSource = true
+	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
 	if (!shouldUseClineEndpointSource) {
 		return refreshOpenRouterModels(controller)
 	}
