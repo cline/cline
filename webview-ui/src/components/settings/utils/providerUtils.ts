@@ -48,6 +48,8 @@ import {
 	nebiusModels,
 	nousResearchDefaultModelId,
 	nousResearchModels,
+	modelsLabDefaultModelId,
+	modelsLabModels,
 	openAiCodexDefaultModelId,
 	openAiCodexModels,
 	openAiModelInfoSaneDefaults,
@@ -140,6 +142,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "modelslab":
+			return modelsLabModels
 		case "litellm":
 			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
@@ -491,6 +495,19 @@ export function normalizeApiConfiguration(
 					nousResearchModelId && nousResearchModelId in nousResearchModels
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
+			}
+		case "modelslab":
+			const modelsLabModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeModelsLabModelId
+					: apiConfiguration?.actModeModelsLabModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: modelsLabModelId || modelsLabDefaultModelId,
+				selectedModelInfo:
+					modelsLabModelId && modelsLabModelId in modelsLabModels
+						? modelsLabModels[modelsLabModelId as keyof typeof modelsLabModels]
+						: modelsLabModels[modelsLabDefaultModelId],
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

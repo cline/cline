@@ -40,6 +40,7 @@ export type ApiProvider =
 	| "zai"
 	| "oca"
 	| "aihubmix"
+	| "modelslab"
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
@@ -4559,3 +4560,33 @@ export const nousResearchModels = {
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// ---------------------------------------------------------------------------
+// ModelsLab — https://modelslab.com
+// ---------------------------------------------------------------------------
+
+export type ModelsLabModelId = keyof typeof modelsLabModels
+
+export const modelsLabDefaultModelId: ModelsLabModelId = "llama-3.1-8b-uncensored"
+
+export const modelsLabModels = {
+	"llama-3.1-8b-uncensored": {
+		maxTokens: 8192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Llama 3.1 8B Uncensored — fast, no content restrictions, 128K context. Via ModelsLab API.",
+	},
+	"llama-3.1-70b-uncensored": {
+		maxTokens: 8192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Llama 3.1 70B Uncensored — higher quality, no content restrictions, 128K context. Via ModelsLab API.",
+	},
+} satisfies Record<string, ModelInfo>
+
