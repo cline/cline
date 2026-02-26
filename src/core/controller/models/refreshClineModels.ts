@@ -81,7 +81,7 @@ interface ClineRawModelInfo {
 let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
 
 async function fetchRawClineModels(controller: Controller): Promise<ClineRawModelInfo[]> {
-	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_MODELS_CLINE_ENDPOINT_SOURCE)
+	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
 
 	// Rollout behavior:
 	// off => OpenRouter model list (current baseline)
