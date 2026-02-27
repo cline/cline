@@ -33,33 +33,3 @@ Or do auth + prompt in one line:
 ```bash
 cline auth -p cline -k "your_api_key_here" -m anthropic/claude-sonnet-4.5 && cline "Write a one-line hello world in Python."
 ```
-
-## Use Cline API Key as normal api endpoint
-
-Use this endpoint to generate chat completions.
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/api/v1/chat/completions` | Generate chat completions |
-
-Set your API key as an environment variable, then call the endpoint with `curl`.
-
-```bash
-export CLINE_API_KEY="your_api_key_here"
-```
-
-```bash
-curl -X POST "https://api.example.com/api/v1/chat/completions" \
-  -H "Authorization: Bearer $CLINE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-3-5-sonnet",
-    "messages": [
-      { "role": "user", "content": "Write a one-line hello world in Python." }
-    ]
-  }'
-```
-
-<Note>
-  Replace `https://api.example.com` with your deployment's API base URL.
-</Note>
