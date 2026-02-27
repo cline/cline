@@ -1,5 +1,5 @@
 import { BooleanRequest, EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { FunnelIcon } from "lucide-react"
@@ -50,7 +50,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
 
 	// Load filtered task history with gRPC
-	const [tasks, setTasks] = useState<any[]>([])
+	const [tasks, setTasks] = useState<TaskItem[]>([])
 
 	// Load and refresh task history
 	const loadTaskHistory = useCallback(async () => {
@@ -157,9 +157,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		setSelectedItems((prev) => {
 			if (checked) {
 				return [...prev, itemId]
-			} else {
-				return prev.filter((id) => id !== itemId)
 			}
+			return prev.filter((id) => id !== itemId)
 		})
 	}, [])
 
@@ -233,20 +232,58 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	// Group tasks into "Today" and "Older" (only for date-based sorts)
 	const { groupedTasks, groupCounts, groupLabels } = useMemo(() => {
 		const isDateSort = sortOption === "newest" || sortOption === "oldest"
+		const workspaceTasks: TaskItem[] = []
+		const otherWorkspaceTasks: TaskItem[] = []
+
+		taskHistorySearchResults.forEach((task) => {
+			if (task.isCurrentWorkspace) {
+				workspaceTasks.push(task)
+			} else {
+				otherWorkspaceTasks.push(task)
+			}
+		})
+
+		const groups: { tasks: TaskItem[]; label: string }[] = []
+
+		// Derive workspace label from first task's workspaceName
+		const currentWorkspaceLabel =
+			workspaceTasks.length > 0 && workspaceTasks[0].workspaceName ? workspaceTasks[0].workspaceName : "This Workspace"
+
+		// When workspace filter is active, all tasks are already workspace-only from backend
+		// When not active, show workspace tasks grouped at top
+		if (showCurrentWorkspaceOnly) {
+			// All tasks are workspace tasks, treat them as the full set (no special grouping needed)
+			// They'll be date-grouped below
+		} else if (workspaceTasks.length > 0) {
+			groups.push({ tasks: workspaceTasks, label: currentWorkspaceLabel })
+		}
 
 		if (!isDateSort) {
-			// No grouping for non-date sorts
+			if (otherWorkspaceTasks.length > 0) {
+				groups.push({ tasks: otherWorkspaceTasks, label: workspaceTasks.length > 0 ? "Other Workspaces" : "All Tasks" })
+			}
+
+			if (groups.length === 0) {
+				return {
+					groupedTasks: taskHistorySearchResults,
+					groupCounts: [taskHistorySearchResults.length],
+					groupLabels: [] as string[],
+				}
+			}
+
 			return {
-				groupedTasks: taskHistorySearchResults,
-				groupCounts: [taskHistorySearchResults.length],
-				groupLabels: [] as string[],
+				groupedTasks: groups.flatMap((g) => g.tasks),
+				groupCounts: groups.map((g) => g.tasks.length),
+				groupLabels: groups.map((g) => g.label),
 			}
 		}
 
-		const todayTasks: any[] = []
-		const olderTasks: any[] = []
+		// Date-group the remaining tasks (non-workspace, or all tasks if workspace filter is active)
+		const tasksToDateGroup = showCurrentWorkspaceOnly ? taskHistorySearchResults : otherWorkspaceTasks
+		const todayTasks: TaskItem[] = []
+		const olderTasks: TaskItem[] = []
 
-		taskHistorySearchResults.forEach((task) => {
+		tasksToDateGroup.forEach((task) => {
 			if (isToday(task.ts)) {
 				todayTasks.push(task)
 			} else {
@@ -254,12 +291,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			}
 		})
 
-		const groups: { tasks: any[]; label: string }[] = []
 		if (todayTasks.length > 0) {
-			groups.push({ tasks: todayTasks, label: "Today" })
+			const hasWorkspaceGroup = !showCurrentWorkspaceOnly && workspaceTasks.length > 0
+			groups.push({ tasks: todayTasks, label: hasWorkspaceGroup ? "Today (Other Workspaces)" : "Today" })
 		}
 		if (olderTasks.length > 0) {
-			groups.push({ tasks: olderTasks, label: "Older" })
+			const hasWorkspaceGroup = !showCurrentWorkspaceOnly && workspaceTasks.length > 0
+			groups.push({ tasks: olderTasks, label: hasWorkspaceGroup ? "Older (Other Workspaces)" : "Older" })
+		}
+
+		if (groups.length === 0) {
+			return {
+				groupedTasks: taskHistorySearchResults,
+				groupCounts: [taskHistorySearchResults.length],
+				groupLabels: [] as string[],
+			}
 		}
 
 		return {
@@ -267,7 +313,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			groupCounts: groups.map((g) => g.tasks.length),
 			groupLabels: groups.map((g) => g.label),
 		}
-	}, [taskHistorySearchResults, sortOption])
+	}, [taskHistorySearchResults, sortOption, showCurrentWorkspaceOnly])
 
 	// Calculate total size of selected items
 	const selectedItemsSize = useMemo(() => {
@@ -275,8 +321,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			return 0
 		}
 
-		return taskHistory.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
-	}, [selectedItems, taskHistory])
+		return tasks.filter((item) => selectedItems.includes(item.id)).reduce((total, item) => total + (item.size || 0), 0)
+	}, [selectedItems, tasks])
 
 	const handleBatchHistorySelect = useCallback(
 		(selectAll: boolean) => {
@@ -402,6 +448,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					groupCounts={groupCounts}
 					itemContent={(index) => {
 						const item = groupedTasks[index]
+						if (!item) return null
 						return (
 							<HistoryViewItem
 								handleDeleteHistoryItem={handleDeleteHistoryItem}
@@ -460,7 +507,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 }
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
-export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName: string = "history-item-highlight") => {
+export const highlight = (fuseSearchResult: FuseResult<any>[], highlightClassName = "history-item-highlight") => {
 	const set = (obj: Record<string, any>, path: string, value: any) => {
 		const pathValue = path.split(".")
 		let i: number
