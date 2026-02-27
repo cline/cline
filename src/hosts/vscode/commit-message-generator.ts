@@ -11,6 +11,18 @@ import { getGitDiff } from "@/utils/git"
  * Git commit message generator module
  */
 
+/**
+ * Gets git diff prioritizing staged changes. If staged changes exist, returns only those.
+ * Falls back to all changes when nothing is staged.
+ */
+export async function getGitDiffStagedFirst(cwd: string): Promise<string> {
+	try {
+		return await getGitDiff(cwd, true)
+	} catch {
+		return await getGitDiff(cwd, false)
+	}
+}
+
 let commitGenerationAbortController: AbortController | undefined
 
 const PROMPT = {
@@ -102,10 +114,10 @@ async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, r
 async function filterForReposWithChanges(repos: any[]) {
 	const reposWithChanges = []
 
-	// Check which repositories have changes
+	// Check which repositories have changes (prefer staged, fall back to all)
 	for (const repo of repos) {
 		try {
-			const gitDiff = await getGitDiff(repo.rootUri.fsPath)
+			const gitDiff = await getGitDiffStagedFirst(repo.rootUri.fsPath)
 			if (gitDiff) {
 				reposWithChanges.push(repo)
 			}
@@ -138,7 +150,7 @@ async function promptRepoSelection(repos: any[]) {
 async function generateCommitMsgForRepository(controller: Controller, repository: any) {
 	const inputBox = repository.inputBox
 	const repoPath = repository.rootUri.fsPath
-	const gitDiff = await getGitDiff(repoPath)
+	const gitDiff = await getGitDiffStagedFirst(repoPath)
 
 	if (!gitDiff) {
 		throw new Error(`No changes in repository ${repoPath.split(path.sep).pop() || "repository"} for commit message`)

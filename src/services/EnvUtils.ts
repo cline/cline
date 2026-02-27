@@ -22,7 +22,7 @@ export function buildExternalBasicHeaders(): Record<string, string> {
 }
 
 export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
-	const headers: Record<string, string> = {}
+	const headers: Record<string, string> = buildExternalBasicHeaders()
 	try {
 		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
 		headers[ClineHeaders.PLATFORM] = host.platform || "unknown"
