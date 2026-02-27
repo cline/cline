@@ -15,7 +15,28 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 		// Get task history from global state
 		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
-		const workspacePath = await getWorkspacePath()
+		// Ensure workspace manager is initialized for workspace path detection
+		const wm = await controller.ensureWorkspaceManager()
+		const workspacePath = wm?.getPrimaryRoot()?.path || (await getWorkspacePath().catch(() => ""))
+
+		const getWorkspaceName = (item: (typeof taskHistory)[number]): string => {
+			const p = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+			if (!p) return ""
+			const segments = p.replace(/\\/g, "/").split("/").filter(Boolean)
+			return segments[segments.length - 1] || ""
+		}
+
+		const isTaskInCurrentWorkspace = (item: (typeof taskHistory)[number]) => {
+			if (item.cwdOnTaskInitialization && arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) {
+				return true
+			}
+
+			if (item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)) {
+				return true
+			}
+
+			return false
+		}
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
@@ -32,23 +53,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 			// Apply current workspace filter if requested
 			if (currentWorkspaceOnly) {
-				let isInWorkspace = false
-
-				// First check the cwdOnTaskInitialization property - Only present on tasks from this change forward
-				if (item.cwdOnTaskInitialization) {
-					if (arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				// For tasks without cwdOnTaskInitialization, check the older shadowGitConfigWorkTree property
-				if (!isInWorkspace && item.shadowGitConfigWorkTree) {
-					if (arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				if (!isInWorkspace) {
+				if (!isTaskInCurrentWorkspace(item)) {
 					return false
 				}
 			}
@@ -105,6 +110,8 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			cacheWrites: item.cacheWrites || 0,
 			cacheReads: item.cacheReads || 0,
 			modelId: item.modelId || "",
+			isCurrentWorkspace: isTaskInCurrentWorkspace(item),
+			workspaceName: getWorkspaceName(item),
 		}))
 
 		return TaskHistoryArray.create({
