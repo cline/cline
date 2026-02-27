@@ -43,6 +43,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "avian"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -4559,3 +4560,42 @@ export const nousResearchModels = {
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Avian
+// https://api.avian.io/v1
+export const avianModels = {
+	"deepseek/deepseek-v3.2": {
+		maxTokens: 65536,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.26,
+		outputPrice: 0.38,
+	},
+	"moonshotai/kimi-k2.5": {
+		maxTokens: 262144,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.45,
+		outputPrice: 2.2,
+	},
+	"z-ai/glm-5": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 2.55,
+	},
+	"minimax/minimax-m2.5": {
+		maxTokens: 131072,
+		contextWindow: 1048576,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.1,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type AvianModelId = keyof typeof avianModels
+export const avianDefaultModelId: AvianModelId = "deepseek/deepseek-v3.2"

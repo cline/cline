@@ -4,6 +4,7 @@ import { Secrets, SettingsKey } from "@shared/storage/state-keys"
 import {
 	ApiProvider,
 	anthropicDefaultModelId,
+	avianDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,
 	deepSeekDefaultModelId,
@@ -82,6 +83,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	minimax: "minimaxApiKey",
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
+	avian: "avianApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
 } as const
 
@@ -113,6 +115,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	moonshot: moonshotDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
+	avian: avianDefaultModelId,
 } as const
 
 /**

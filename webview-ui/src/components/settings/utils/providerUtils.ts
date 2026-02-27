@@ -5,6 +5,8 @@ import {
 	anthropicModels,
 	askSageDefaultModelId,
 	askSageModels,
+	avianDefaultModelId,
+	avianModels,
 	basetenDefaultModelId,
 	basetenModels,
 	bedrockDefaultModelId,
@@ -140,6 +142,8 @@ export function getModelsForProvider(
 			return huggingFaceModels
 		case "nousResearch":
 			return nousResearchModels
+		case "avian":
+			return avianModels
 		case "litellm":
 			return dynamicModels?.liteLlmModels
 		// Providers with dynamic models - return undefined
@@ -373,6 +377,8 @@ export function normalizeApiConfiguration(
 			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
+		case "avian":
+			return getProviderData(avianModels, avianDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		case "cerebras":
@@ -832,6 +838,7 @@ export async function syncModeConfigurations(
 		case "sapaicore":
 		case "zai":
 		case "minimax":
+		case "avian":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId

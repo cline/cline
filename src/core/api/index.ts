@@ -5,6 +5,7 @@ import { Logger } from "@/shared/services/Logger"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
+import { AvianHandler } from "./providers/avian"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
 import { AwsBedrockHandler } from "./providers/bedrock"
@@ -449,6 +450,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "avian":
+			return new AvianHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				avianApiKey: options.avianApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		default:
 			return new AnthropicHandler({

@@ -172,6 +172,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key"
 				}
 				break
+			case "avian":
+				if (!apiConfiguration.avianApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 		}
 	}
 	return undefined
