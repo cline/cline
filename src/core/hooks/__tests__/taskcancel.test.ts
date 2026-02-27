@@ -1,65 +1,31 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
-import { loadFixture } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, loadFixture, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskCancel Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
+	let hookTestEnv: HookTestEnv
 
-	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
-		} as any)
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 
 		getEnv = () => ({ tempDir })
-
-		// Reset hook discovery cache for clean test state
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("Hook Input Format", () => {
@@ -196,7 +162,7 @@ console.log(JSON.stringify({
 
 			// Hook returns contextModification, but it's completely ignored (fire-and-forget)
 			result1.cancel.should.be.false()
-			result1.contextModification!.should.equal("This is a context modification that should be ignored")
+			result1.contextModification?.should.equal("This is a context modification that should be ignored")
 
 			// Update hook to return different contextModification
 			const hookScript2 = `#!/usr/bin/env node
@@ -220,7 +186,7 @@ console.log(JSON.stringify({
 
 			// Both results behave identically - contextModification has no effect
 			result2.cancel.should.be.false()
-			result2.contextModification!.should.equal("Different context that is also ignored")
+			result2.contextModification?.should.equal("Different context that is also ignored")
 			// The key point: both executions succeeded with cancel: false
 			// The contextModification value is different but behavior is identical (fire-and-forget)
 		})
@@ -284,7 +250,7 @@ console.log(JSON.stringify({
 			// In abortTask(), the errorMessage will be surfaced to the user via this.say("error", ...)
 			// but cancellation will still proceed (fire-and-forget behavior)
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Hook tried to block cancellation")
+			result.errorMessage?.should.equal("Hook tried to block cancellation")
 		})
 
 		it("should execute without errors for cleanup purposes", async () => {
@@ -380,20 +346,16 @@ console.log("not valid json")`
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			// Mock getAllHooksDirs to include our test global directory
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				const workspaceDirs = await originalGetAllHooksDirs()
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			// Use deterministic hook directories to avoid test flakiness.
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace TaskCancel hooks", async () => {
@@ -516,7 +478,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("")
+			result.errorMessage?.should.equal("")
 			// In abortTask(), no error is surfaced since errorMessage is empty
 			// Cancellation still proceeds (fire-and-forget)
 		})
@@ -539,7 +501,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("some error happened")
+			result.errorMessage?.should.equal("some error happened")
 			// In abortTask(), the errorMessage WILL be surfaced to user via this.say("error", ...)
 			// Cancellation still proceeds (fire-and-forget)
 		})
@@ -562,7 +524,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.errorMessage!.should.equal("")
+			result.errorMessage?.should.equal("")
 			// Normal success case - no errors to surface
 		})
 
@@ -584,7 +546,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.errorMessage!.should.equal("some error happened")
+			result.errorMessage?.should.equal("some error happened")
 			// In abortTask(), the errorMessage WILL be surfaced to user via this.say("error", ...)
 			// This is the scenario that was fixed - error messages are now displayed regardless of shouldContinue value
 			// Cancellation still proceeds (fire-and-forget)

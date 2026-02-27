@@ -19,50 +19,72 @@ Requires Node.js 20+.
 ## Quick Start
 
 ```typescript
-import { ClineAgent } from "cline"
+import { ClineAgent } from "cline";
 
-const agent = new ClineAgent({ version: "1.0.0" })
+const CLINE_DIR = "/Users/username/.cline";
+const agent = new ClineAgent({ clineDir: CLINE_DIR });
 
 // 1. Initialize — negotiates capabilities
-await agent.initialize({
-  protocolVersion: 1,
-  clientCapabilities: {},
-})
+const initializeResponse = await agent.initialize({
+    protocolVersion: 1,
+    // these are the capabilities that the client (you) supports
+    // The cline agent may or may not use them, but it needs to know about them to make informed decisions about what tools to use.
+    clientCapabilities: {
+        fs: { readTextFile: true, writeTextFile: true },
+        terminal: true,
+    },
+});
 
-// 2. Authenticate (if using Cline-hosted models)
-await agent.authenticate({ methodId: "cline-oauth" })
+const { agentInfo, authMethods } = initializeResponse;
+console.log("Agent info:", agentInfo); // contains things like agent name and version
+console.log("Auth methods:", authMethods); // contains a list of supported authentication methods. More auth methods coming soon
 
-// 3. Create a session
+// 2. Authenticate if needed
+// If you skip this step, ClineAgent will look in CLINE_DIR for any existing credentials and authenticate with those
+await agent.authenticate({ methodId: "cline-oauth" });
+
+// 3. Create a session.
+// A session represents a conversation or task with the agent. You can have multiple sessions for different tasks or conversations.
 const { sessionId } = await agent.newSession({
-  cwd: process.cwd(),
-  mcpServers: [],
-})
+    cwd: process.cwd(),
+    mcpServers: [], // mcpServers field not supported yet, but exposed here to maintain conformance with acp protocol
+});
 
-// 4. Subscribe to streaming output
-const emitter = agent.emitterForSession(sessionId)
+// 4. Agent updates are sent via events. You can subscribe to these events to get real-time updates on the agent's progress, tool calls, and more.
+const emitter = agent.emitterForSession(sessionId);
 
 emitter.on("agent_message_chunk", (payload) => {
-  process.stdout.write(payload.content.text)
-})
-
+    process.stdout.write(
+        payload.content.type === "text"
+            ? payload.content.text
+            : `[${payload.content.type}]`,
+    );
+});
+emitter.on("agent_thought_chunk", (payload) => {
+    process.stdout.write(
+        payload.content.type === "text"
+            ? payload.content.text
+            : `[${payload.content.type}]`,
+    );
+});
 emitter.on("tool_call", (payload) => {
-  console.log(`[tool] ${payload.title}`)
-})
-
+    console.log(`[tool] ${payload.title}`);
+});
 emitter.on("error", (err) => {
-  console.error("[session error]", err)
-})
+    console.error("[session error]", err);
+});
 
 // 5. Send a prompt and wait for completion
 const { stopReason } = await agent.prompt({
-  sessionId,
-  prompt: [{ type: "text", text: "Create a hello world Express server" }],
-})
+    sessionId,
+    prompt: [{ type: "text", text: "Create a hello world Express server" }],
+});
 
-console.log("Done:", stopReason)
+console.log("Done:", stopReason);
 
 // 6. Clean up
-await agent.shutdown()
+await agent.shutdown();
+
 ```
 
 ## Core Concepts
@@ -78,7 +100,7 @@ initialize() → authenticate() → newSession() → prompt() ⇄ events → shu
 | Step | Method | Purpose |
 |------|--------|---------|
 | Init | `initialize()` | Exchange protocol version and capabilities |
-| Auth | `authenticate()` | OAuth flow for Cline or OpenAI Codex accounts |
+| Auth | `authenticate()` | OAuth flow for Cline or OpenAI Codex accounts. Optional step if cline config directory already has credentials |
 | Session | `newSession()` | Create an isolated conversation context |
 | Prompt | `prompt()` | Send user messages; blocks until the turn ends |
 | Cancel | `cancel()` | Abort an in-progress prompt turn |
@@ -88,14 +110,12 @@ initialize() → authenticate() → newSession() → prompt() ⇄ events → shu
 
 ### Sessions
 
-A session is an independent conversation with its own task history, working directory, and MCP server connections. You can run multiple sessions concurrently.
+A session is an independent conversation with its own task history and working directory. You can run multiple sessions concurrently.
 
 ```typescript
 const { sessionId, modes, models } = await agent.newSession({
   cwd: "/path/to/project",
-  mcpServers: [
-    { name: "my-server", command: "npx", args: ["-y", "my-mcp-server"] },
-  ],
+  mcpServers: [], // mcpServers field not supported yet, but exposed here to maintain conformance with acp protocol
 })
 ```
 
@@ -160,9 +180,7 @@ await agent.prompt({
 | Value | Meaning |
 |-------|---------|
 | `"end_turn"` | Agent finished normally (completed task or waiting for user input) |
-| `"cancelled"` | You called `cancel()` during the turn |
-| `"error"` | An unrecoverable error occurred |
-| `"max_tokens"` | Context window exhausted |
+| `"error"` | An error occurred |
 
 ### Streaming Events
 
@@ -220,7 +238,7 @@ The emitter supports `on`, `once`, `off`, and `removeAllListeners`.
 When the agent wants to execute a tool (edit a file, run a command, etc.), it requests permission. You **must** set a permission handler or all tool calls will be auto-rejected.
 
 ```typescript
-agent.setPermissionHandler((request, resolve) => {
+agent.setPermissionHandler(async (request) => {
   // request.toolCall — details about what the agent wants to do
   // request.options — available choices (allow_once, reject_once, etc.)
 
@@ -228,11 +246,11 @@ agent.setPermissionHandler((request, resolve) => {
   console.log("Options:", request.options.map(o => `${o.optionId} (${o.kind})`))
 
   // Auto-approve everything:
-  const allowOption = request.options.find(o => o.kind === "allow_once")
+  const allowOption = request.options.find(o => o.kind.includes("allow"))
   if (allowOption) {
-    resolve({ outcome: { outcome: "selected", optionId: allowOption.optionId } })
+    return { outcome: { outcome: "selected", optionId: allowOption.optionId } }
   } else {
-    resolve({ outcome: { outcome: "rejected" } })
+    return { outcome: { outcome: "rejected" } }
   }
 })
 ```
@@ -265,7 +283,7 @@ await agent.setSessionMode({ sessionId, modeId: "plan" })
 await agent.setSessionMode({ sessionId, modeId: "act" })
 ```
 
-The current mode is returned in `newSession()` and emitted via `current_mode_update` events.
+The current mode is returned in `newSession()`
 
 ### Model Selection
 
@@ -278,9 +296,9 @@ await agent.unstable_setSessionModel({
 })
 ```
 
-This sets the model for both plan and act modes. Available providers include `anthropic`, `openai-native`, `gemini`, `bedrock`, `deepseek`, `mistral`, `groq`, `xai`, and others.
+This sets the model for both plan and act modes. Available providers include `anthropic`, `openai-native`, `gemini`, `bedrock`, `deepseek`, `mistral`, `groq`, `xai`, and others. Model Ids can be found in the NewSessionResponse object after calling `agent.newSession(..)`
 
-> **Note:** This API is experimental and may change.
+> **Note:** This API is experimental and may change. 
 
 ### Authentication
 
@@ -296,7 +314,7 @@ await agent.authenticate({ methodId: "openai-codex-oauth" })
 
 Both methods open a browser window for the OAuth flow and block until authentication completes (5-minute timeout for Cline OAuth).
 
-For BYO (bring-your-own) API key providers, configure the key through the state manager before creating a session. The `authenticate()` call is not needed for BYO providers.
+For BYO (bring-your-own) API key providers, configure the key through the cline config directory before creating a session. The `authenticate()` call is not needed for BYO providers. We plan to support more auth providers in the near future.
 
 ### Cancellation
 
@@ -305,8 +323,6 @@ Cancel an in-progress prompt turn:
 ```typescript
 await agent.cancel({ sessionId })
 ```
-
-The pending `prompt()` call will resolve with `{ stopReason: "cancelled" }`.
 
 ## API Reference
 
@@ -318,8 +334,6 @@ new ClineAgent(options: ClineAgentOptions)
 
 ```typescript
 interface ClineAgentOptions {
-  /** Version string for your application (required) */
-  version: string
   /** Enable debug logging (default: false) */
   debug?: boolean
   /** Custom Cline config directory (default: ~/.cline) */
@@ -331,7 +345,6 @@ The `clineDir` option lets you isolate configuration and task history per-applic
 
 ```typescript
 const agent = new ClineAgent({
-  version: "1.0.0",
   clineDir: "/tmp/my-app-cline",
 })
 ```
@@ -434,7 +447,7 @@ await agent.setSessionMode({ sessionId, modeId: "plan" })
 
 #### `unstable_setSessionModel(params): Promise<SetSessionModelResponse>`
 
-Change the model for the session. Model ID format: `"provider/modelId"`.
+Change the model for the session. Model ID format depends on the inference provider. See NewSessionResponse object to get modelIds.
 
 ```typescript
 await agent.unstable_setSessionModel({
@@ -450,6 +463,14 @@ Authenticate with a provider. Opens a browser window for OAuth flow.
 ```typescript
 await agent.authenticate({ methodId: "cline-oauth" })
 ```
+
+Current methodIds we support:
+
+| methodId             | Description                   |
+| -------------------- | ----------------------------- |
+| `cline-oauth`        | use cline inference provider  |
+| `openai-codex-oauth` | use your chatgpt subscription |
+| more coming soon!... |                               |
 
 #### `shutdown(): Promise<void>`
 
@@ -490,116 +511,122 @@ for (const [sessionId, session] of agent.sessions) {
 ## Full Example: Auto-Approve Agent
 
 ```typescript
-import { ClineAgent } from "cline"
+import { ClineAgent } from "cline";
 
-async function runTask(task: string, cwd: string) {
-  const agent = new ClineAgent({ version: "1.0.0" })
+async function runTask(taskPrompt: string, cwd: string) {
+    const agent = new ClineAgent({ clineDir: "/Users/maxpaulus/.cline" });
 
-  await agent.initialize({
-    protocolVersion: 1,
-    clientCapabilities: {},
-  })
+    await agent.initialize({
+        protocolVersion: 1,
+        clientCapabilities: {},
+    });
 
-  const { sessionId } = await agent.newSession({ cwd, mcpServers: [] })
+    const { sessionId } = await agent.newSession({ cwd, mcpServers: [] });
 
-  // Auto-approve all tool calls
-  agent.setPermissionHandler((request, resolve) => {
-    const allow = request.options.find(o => o.kind === "allow_once")
-    resolve({
-      outcome: allow
-        ? { outcome: "selected", optionId: allow.optionId }
-        : { outcome: "rejected" },
-    })
-  })
+    // Auto-approve all tool calls
+    agent.setPermissionHandler(async (request) => {
+        const allow = request.options.find((o) => o.kind === "allow_once");
+        return {
+            outcome: allow
+                ? { outcome: "selected", optionId: allow.optionId }
+                : { outcome: "cancelled" },
+        };
+    });
 
-  // Collect output
-  const output: string[] = []
-  const emitter = agent.emitterForSession(sessionId)
+    // Collect output
+    const output: string[] = [];
+    const emitter = agent.emitterForSession(sessionId);
 
-  emitter.on("agent_message_chunk", (p) => {
-    if (p.content.type === "text") output.push(p.content.text)
-  })
+    emitter.on("agent_message_chunk", (p) => {
+        if (p.content.type === "text") output.push(p.content.text);
+    });
 
-  emitter.on("tool_call", (p) => {
-    console.log(`[tool] ${p.title}`)
-  })
+    emitter.on("tool_call", (p) => {
+        console.log(`[tool] ${p.title}`);
+    });
 
-  const { stopReason } = await agent.prompt({
-    sessionId,
-    prompt: [{ type: "text", text: task }],
-  })
+    const { stopReason } = await agent.prompt({
+        sessionId,
+        prompt: [{ type: "text", text: taskPrompt }],
+    });
 
-  console.log("\n--- Agent Output ---")
-  console.log(output.join(""))
-  console.log(`\nStop reason: ${stopReason}`)
+    console.log("\n--- Agent Output ---");
+    console.log(output.join(""));
+    console.log(`\nStop reason: ${stopReason}`);
 
-  await agent.shutdown()
+    await agent.shutdown();
 }
 
-runTask("Create a README.md for this project", process.cwd())
+runTask("Create a README.md for this project", process.cwd());
 ```
 
 ## Full Example: Interactive Permission Flow
 
 ```typescript
-import { ClineAgent, type PermissionHandler } from "cline"
-import * as readline from "readline"
+import { ClineAgent, type PermissionHandler } from "cline";
+import * as readline from "readline";
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-const ask = (q: string) => new Promise<string>((res) => rl.question(q, res))
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+});
+const ask = (q: string) => new Promise<string>((res) => rl.question(q, res));
 
-const interactivePermissions: PermissionHandler = async (request, resolve) => {
-  console.log(`\n⚠️  Permission: ${request.toolCall.title}`)
+const interactivePermissions: PermissionHandler = async (request) => {
+    console.log(`\n⚠️  Permission: ${request.toolCall.title}`);
 
-  for (const [i, opt] of request.options.entries()) {
-    console.log(`  ${i + 1}. [${opt.kind}] ${opt.name}`)
-  }
+    for (const [i, opt] of request.options.entries()) {
+        console.log(`  ${i + 1}. [${opt.kind}] ${opt.name}`);
+    }
 
-  const choice = await ask("Choose (number): ")
-  const idx = parseInt(choice, 10) - 1
-  const selected = request.options[idx]
+    const choice = await ask("Choose (number): ");
+    const idx = parseInt(choice, 10) - 1;
+    const selected = request.options[idx];
 
-  if (selected) {
-    resolve({ outcome: { outcome: "selected", optionId: selected.optionId } })
-  } else {
-    resolve({ outcome: { outcome: "rejected" } })
-  }
-}
+    if (selected) {
+        return {
+            outcome: { outcome: "selected", optionId: selected.optionId },
+        };
+    } else {
+        return { outcome: { outcome: "cancelled" } };
+    }
+};
 
 async function main() {
-  const agent = new ClineAgent({ version: "1.0.0" })
-  await agent.initialize({ protocolVersion: 1, clientCapabilities: {} })
+    const agent = new ClineAgent({});
+    await agent.initialize({ protocolVersion: 1, clientCapabilities: {} });
 
-  const { sessionId } = await agent.newSession({
-    cwd: process.cwd(),
-    mcpServers: [],
-  })
+    const { sessionId } = await agent.newSession({
+        cwd: process.cwd(),
+        mcpServers: [],
+    });
 
-  agent.setPermissionHandler(interactivePermissions)
+    agent.setPermissionHandler(interactivePermissions);
 
-  const emitter = agent.emitterForSession(sessionId)
-  emitter.on("agent_message_chunk", (p) => {
-    if (p.content.type === "text") process.stdout.write(p.content.text)
-  })
+    const emitter = agent.emitterForSession(sessionId);
+    emitter.on("agent_message_chunk", (p) => {
+        if (p.content.type === "text") process.stdout.write(p.content.text);
+    });
 
-  // Multi-turn conversation
-  while (true) {
-    const userInput = await ask("\n> ")
-    if (userInput === "exit") break
+    // Multi-turn conversation
+    while (true) {
+        const userInput = await ask("\n> ");
+        if (userInput === "exit") break;
 
-    const { stopReason } = await agent.prompt({
-      sessionId,
-      prompt: [{ type: "text", text: userInput }],
-    })
+        const { stopReason } = await agent.prompt({
+            sessionId,
+            prompt: [{ type: "text", text: userInput }],
+        });
 
-    console.log(`\n[${stopReason}]`)
-  }
+        console.log(`\n[${stopReason}]`);
+    }
 
-  await agent.shutdown()
-  rl.close()
+    await agent.shutdown();
+    rl.close();
 }
 
-main()
+main();
+
 ```
 
 ## Exported Types
@@ -640,4 +667,4 @@ The Cline SDK implements the [Agent Client Protocol](https://agentclientprotocol
 | Permissions requested via `connection.requestPermission()` | Permissions requested via `setPermissionHandler()` callback |
 | Single process, single connection | Embeddable, multiple concurrent sessions |
 
-If you need stdio-based ACP communication (e.g., for IDE integration), use the `cline` CLI binary directly. The SDK is for embedding Cline in your own Node.js processes.
+If you need stdio-based ACP communication (e.g., for IDE integration), use the `cline` CLI binary directly. The SDK is for embedding Cline in your own Nodke.js processes.

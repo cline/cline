@@ -46,6 +46,7 @@ export const GlobalFileNames = {
 	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
 	clineRecommendedModels: "cline_recommended_models.json",
+	clineModels: "cline_models.json",
 	openRouterModels: "openrouter_models.json",
 	vercelAiGatewayModels: "vercel_ai_gateway_models.json",
 	groqModels: "groq_models.json",

@@ -1,10 +1,14 @@
 /**
  * Hook script templates for all supported hook types.
- * Templates are provided as executable Bash shell scripts with comprehensive examples.
- * Scripts use jq for JSON parsing when available, with fallback to basic parsing.
+ * On Unix, templates are Bash scripts with comprehensive examples.
+ * On Windows, templates are PowerShell scripts executed by the Windows hook runtime.
  */
 
 export function getHookTemplate(hookName: string): string {
+	if (process.platform === "win32") {
+		return getWindowsPowerShellTemplate(hookName)
+	}
+
 	const templates: Record<string, string> = {
 		TaskStart: getTaskStartTemplate(),
 		TaskResume: getTaskResumeTemplate(),
@@ -17,6 +21,27 @@ export function getHookTemplate(hookName: string): string {
 	}
 
 	return templates[hookName] || getDefaultTemplate(hookName)
+}
+
+function getWindowsPowerShellTemplate(hookName: string): string {
+	return `# ${hookName} Hook
+# PowerShell template for Windows hook execution.
+
+try {
+    $rawInput = [Console]::In.ReadToEnd()
+    if ($rawInput) {
+        $null = $rawInput | ConvertFrom-Json
+    }
+} catch {
+    Write-Error "[${hookName}] Invalid JSON input: $($_.Exception.Message)"
+}
+
+@{
+    cancel = $false
+    contextModification = ""
+    errorMessage = ""
+} | ConvertTo-Json -Compress
+`
 }
 
 function getTaskStartTemplate(): string {
