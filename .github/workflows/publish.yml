@@ -49,6 +49,8 @@ jobs:
               run: |
                   TAG="${{ github.event.inputs.tag }}"
                   AUTO_CREATE="${{ github.event.inputs.auto_create_tag_from_main }}"
+                  TESTED_SHA="${{ github.sha }}"
+                  WORKFLOW_REF="${{ github.ref }}"
 
                   if [[ -z "$TAG" ]]; then
                     echo "Error: tag input is required"
@@ -63,22 +65,30 @@ jobs:
                   git fetch origin main --tags
 
                   if [[ "$AUTO_CREATE" == "true" ]]; then
-                    MAIN_SHA=$(git rev-parse origin/main)
-                    echo "Auto-create enabled. Latest origin/main: $MAIN_SHA"
+                    if [[ "$WORKFLOW_REF" != "refs/heads/main" ]]; then
+                      echo "Error: auto-create mode requires dispatching from main (current ref: $WORKFLOW_REF)"
+                      exit 1
+                    fi
+                    echo "Auto-create enabled. Using tested workflow SHA: $TESTED_SHA"
+
+                    if ! git merge-base --is-ancestor "$TESTED_SHA" origin/main; then
+                      echo "Error: tested SHA $TESTED_SHA is not on origin/main"
+                      exit 1
+                    fi
 
                     if git rev-parse "$TAG" >/dev/null 2>&1; then
                       TAG_SHA=$(git rev-list -n 1 "$TAG")
-                      if [[ "$TAG_SHA" != "$MAIN_SHA" ]]; then
-                        echo "Error: tag '$TAG' already exists at $TAG_SHA, not at latest origin/main ($MAIN_SHA)"
+                      if [[ "$TAG_SHA" != "$TESTED_SHA" ]]; then
+                        echo "Error: tag '$TAG' already exists at $TAG_SHA, not at tested SHA ($TESTED_SHA)"
                         exit 1
                       fi
-                      echo "Tag '$TAG' already exists at latest origin/main. Continuing."
+                      echo "Tag '$TAG' already exists at tested SHA. Continuing."
                     else
                       git config user.name "github-actions[bot]"
                       git config user.email "github-actions[bot]@users.noreply.github.com"
-                      git tag "$TAG" "$MAIN_SHA"
+                      git tag "$TAG" "$TESTED_SHA"
                       git push origin "$TAG"
-                      echo "Created and pushed tag '$TAG' from latest origin/main."
+                      echo "Created and pushed tag '$TAG' from tested SHA $TESTED_SHA."
                     fi
                   else
                     if ! git rev-parse "$TAG" >/dev/null 2>&1; then
