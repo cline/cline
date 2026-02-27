@@ -62,6 +62,10 @@ function createMockVSCodeContext() {
 			},
 			setKeysForSync() {},
 		},
+		// globalStorageUri for MCP settings migration
+		globalStorageUri: {
+			fsPath: "/nonexistent",
+		},
 		// Expose internal stores for test setup
 		_globalStateStore: globalStateStore,
 		_secretsStore: secretsStore,
@@ -382,6 +386,143 @@ describe("vscode-to-file-migration", () => {
 			// Values should still be correct
 			storageContext.globalState.get("mode")!.should.equal("plan")
 			storageContext.secrets.get("apiKey")!.should.equal("sk-test")
+		})
+	})
+
+	describe("MCP settings file migration", () => {
+		it("should copy MCP settings when destination has no file", async () => {
+			// Create a fake VSCode globalStorage with an MCP settings file
+			const vscodeStorageDir = path.join(tempDir, "vscode-storage")
+			const vscodeSettingsDir = path.join(vscodeStorageDir, "settings")
+			fs.mkdirSync(vscodeSettingsDir, { recursive: true })
+			const mcpData = { mcpServers: { "test-server": { command: "node", args: ["server.js"] } } }
+			fs.writeFileSync(path.join(vscodeSettingsDir, "cline_mcp_settings.json"), JSON.stringify(mcpData))
+
+			const mockCtx = createMockVSCodeContext()
+			mockCtx.globalStorageUri.fsPath = vscodeStorageDir
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+
+			// MCP settings should be copied to shared location
+			const destPath = path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")
+			fs.existsSync(destPath).should.be.true()
+			const copied = JSON.parse(fs.readFileSync(destPath, "utf8"))
+			copied.mcpServers["test-server"].command.should.equal("node")
+		})
+
+		it("should skip MCP copy when destination already has servers configured", async () => {
+			// Create VSCode source with server-a
+			const vscodeStorageDir = path.join(tempDir, "vscode-storage")
+			const vscodeSettingsDir = path.join(vscodeStorageDir, "settings")
+			fs.mkdirSync(vscodeSettingsDir, { recursive: true })
+			const srcData = {
+				mcpServers: {
+					"server-a": { command: "node", args: ["a.js"] },
+				},
+			}
+			fs.writeFileSync(path.join(vscodeSettingsDir, "cline_mcp_settings.json"), JSON.stringify(srcData))
+
+			// Create shared destination that already has servers (destination wins)
+			const sharedSettingsDir = path.join(storageContext.dataDir, "settings")
+			fs.mkdirSync(sharedSettingsDir, { recursive: true })
+			const destData = {
+				mcpServers: {
+					"server-b": { command: "python", args: ["b.py"] },
+				},
+			}
+			fs.writeFileSync(path.join(sharedSettingsDir, "cline_mcp_settings.json"), JSON.stringify(destData))
+
+			const mockCtx = createMockVSCodeContext()
+			mockCtx.globalStorageUri.fsPath = vscodeStorageDir
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+
+			// Destination should be unchanged — source was NOT copied over
+			const afterMigration = JSON.parse(fs.readFileSync(path.join(sharedSettingsDir, "cline_mcp_settings.json"), "utf8"))
+			Object.keys(afterMigration.mcpServers).length.should.equal(1)
+			afterMigration.mcpServers["server-b"].command.should.equal("python")
+			// server-a should NOT have been added
+			;(afterMigration.mcpServers["server-a"] === undefined).should.be.true()
+		})
+
+		it("should copy MCP file even when source has no servers (dest empty)", async () => {
+			const vscodeStorageDir = path.join(tempDir, "vscode-storage")
+			const vscodeSettingsDir = path.join(vscodeStorageDir, "settings")
+			fs.mkdirSync(vscodeSettingsDir, { recursive: true })
+			fs.writeFileSync(path.join(vscodeSettingsDir, "cline_mcp_settings.json"), JSON.stringify({ mcpServers: {} }))
+
+			const mockCtx = createMockVSCodeContext()
+			mockCtx.globalStorageUri.fsPath = vscodeStorageDir
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+
+			// File gets copied because destination has no servers (the check is on dest, not source)
+			const destPath = path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")
+			fs.existsSync(destPath).should.be.true()
+			const data = JSON.parse(fs.readFileSync(destPath, "utf8"))
+			Object.keys(data.mcpServers).length.should.equal(0)
+		})
+
+		it("should skip MCP migration when source file does not exist", async () => {
+			const vscodeStorageDir = path.join(tempDir, "vscode-storage")
+			// Don't create settings dir — no source file
+
+			const mockCtx = createMockVSCodeContext()
+			mockCtx.globalStorageUri.fsPath = vscodeStorageDir
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+
+			// No file should be created
+			const destPath = path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")
+			fs.existsSync(destPath).should.be.false()
+		})
+
+		it("should skip MCP migration when source and dest are the same path", async () => {
+			// Point globalStorageUri to the same base as the shared storage (CLI case)
+			const mockCtx = createMockVSCodeContext()
+			mockCtx.globalStorageUri.fsPath = storageContext.dataDir
+
+			// Create a settings file at that shared path
+			const sharedSettingsDir = path.join(storageContext.dataDir, "settings")
+			fs.mkdirSync(sharedSettingsDir, { recursive: true })
+			const original = { mcpServers: { existing: { command: "echo" } } }
+			fs.writeFileSync(path.join(sharedSettingsDir, "cline_mcp_settings.json"), JSON.stringify(original))
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+
+			// File should be unchanged
+			const data = JSON.parse(fs.readFileSync(path.join(sharedSettingsDir, "cline_mcp_settings.json"), "utf8"))
+			data.mcpServers.existing.command.should.equal("echo")
+			Object.keys(data.mcpServers).length.should.equal(1)
+		})
+
+		it("should not block migration if MCP file copy fails", async () => {
+			const vscodeStorageDir = path.join(tempDir, "vscode-storage")
+			const vscodeSettingsDir = path.join(vscodeStorageDir, "settings")
+			fs.mkdirSync(vscodeSettingsDir, { recursive: true })
+			// Write invalid JSON to trigger a parse error on the source
+			fs.writeFileSync(path.join(vscodeSettingsDir, "cline_mcp_settings.json"), "NOT VALID JSON")
+
+			const mockCtx = createMockVSCodeContext()
+			mockCtx.globalStorageUri.fsPath = vscodeStorageDir
+			mockCtx._globalStateStore.set("mode", "act")
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			// Migration should still succeed (MCP step is non-fatal)
+			result.migrated.should.be.true()
+			result.globalStateCount.should.be.greaterThan(0)
+			storageContext.globalState.get("mode")!.should.equal("act")
 		})
 	})
 })

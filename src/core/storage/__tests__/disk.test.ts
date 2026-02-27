@@ -1,4 +1,4 @@
-import { afterEach, before, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import { HistoryItem } from "@shared/HistoryItem"
 import * as fsUtils from "@utils/fs"
@@ -9,7 +9,6 @@ import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import {
-	ensureSettingsDirectoryExists,
 	ensureStateDirectoryExists,
 	getTaskHistoryStateFilePath,
 	getWorkspaceHooksDirs,
@@ -199,109 +198,6 @@ describe("disk - hooks functionality", () => {
 			result.length.should.equal(1)
 			result[0].should.equal(hooksDir)
 		})
-	})
-})
-
-describe("disk - ensureSettingsDirectoryExists migration", () => {
-	let sandbox: sinon.SinonSandbox
-	let tempDir: string
-	let fakeHome: string
-
-	beforeEach(async () => {
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `disk-settings-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		// Fake home so ~/.cline/data/settings lands in our temp dir
-		fakeHome = path.join(tempDir, "home")
-		await fs.mkdir(fakeHome, { recursive: true })
-		sandbox.stub(os, "homedir").returns(fakeHome)
-	})
-
-	afterEach(async () => {
-		sandbox.restore()
-		HostProvider.reset()
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch {
-			// ignore
-		}
-	})
-
-	const newSettingsDir = () => path.join(fakeHome, ".cline", "data", "settings")
-	const newMcpFile = () => path.join(newSettingsDir(), "cline_mcp_settings.json")
-	const oldStorageRoot = () => path.join(tempDir, "vscode-storage")
-	const oldMcpFile = () => path.join(oldStorageRoot(), "settings", "cline_mcp_settings.json")
-
-	it("copies MCP settings from old VSCode path when new file does not exist", async () => {
-		const content = JSON.stringify({ mcpServers: { "my-server": { command: "npx", args: ["serve"] } } }, null, 2)
-		await fs.mkdir(path.dirname(oldMcpFile()), { recursive: true })
-		await fs.writeFile(oldMcpFile(), content)
-
-		setVscodeHostProviderMock({ globalStorageFsPath: oldStorageRoot() })
-
-		const result = await ensureSettingsDirectoryExists()
-		result.should.equal(newSettingsDir())
-		const copied = await fs.readFile(newMcpFile(), "utf-8")
-		copied.should.equal(content)
-	})
-
-	it("does not overwrite new file when it already exists (new wins)", async () => {
-		const oldContent = JSON.stringify({ mcpServers: { "old-server": {} } }, null, 2)
-		const newContent = JSON.stringify({ mcpServers: { "new-server": {} } }, null, 2)
-
-		await fs.mkdir(path.dirname(oldMcpFile()), { recursive: true })
-		await fs.writeFile(oldMcpFile(), oldContent)
-		await fs.mkdir(newSettingsDir(), { recursive: true })
-		await fs.writeFile(newMcpFile(), newContent)
-
-		setVscodeHostProviderMock({ globalStorageFsPath: oldStorageRoot() })
-
-		await ensureSettingsDirectoryExists()
-		const result = await fs.readFile(newMcpFile(), "utf-8")
-		result.should.equal(newContent)
-	})
-
-	it("skips migration when old path equals new path (CLI case)", async () => {
-		// CLI: globalStorageFsPath is ~/.cline/data, so old settings dir === new settings dir
-		const cliDataDir = path.join(fakeHome, ".cline", "data")
-		setVscodeHostProviderMock({ globalStorageFsPath: cliDataDir })
-
-		await ensureSettingsDirectoryExists()
-
-		// Migration should not have created any file
-		try {
-			await fs.access(newMcpFile())
-			throw new Error("File should not exist")
-		} catch (err: any) {
-			err.code.should.equal("ENOENT")
-		}
-	})
-
-	it("skips migration when old settings file does not exist", async () => {
-		setVscodeHostProviderMock({ globalStorageFsPath: oldStorageRoot() })
-
-		// Should complete without error even though old file is missing
-		await ensureSettingsDirectoryExists()
-
-		// No file created by migration
-		try {
-			await fs.access(newMcpFile())
-			throw new Error("File should not exist")
-		} catch (err: any) {
-			err.code.should.equal("ENOENT")
-		}
-	})
-
-	it("is non-fatal when copyFile fails", async () => {
-		const content = JSON.stringify({ mcpServers: {} })
-		await fs.mkdir(path.dirname(oldMcpFile()), { recursive: true })
-		await fs.writeFile(oldMcpFile(), content)
-
-		setVscodeHostProviderMock({ globalStorageFsPath: oldStorageRoot() })
-		sandbox.stub(fs, "copyFile").rejects(new Error("Permission denied"))
-
-		// Should not throw
-		const result = await ensureSettingsDirectoryExists()
-		result.should.equal(newSettingsDir())
 	})
 })
 
