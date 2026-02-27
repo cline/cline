@@ -25,6 +25,15 @@ import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
 import RulesToggleList from "./RulesToggleList"
 
+const getHookDisplayName = (hookName: string, absolutePath: string, isWindows: boolean): string => {
+	if (!isWindows) {
+		return hookName
+	}
+
+	const filename = absolutePath.split(/[/\\]/).pop()
+	return filename || `${hookName}.ps1`
+}
+
 const ClineRulesToggleModal: React.FC = () => {
 	const {
 		globalClineRulesToggles = {},
@@ -697,9 +706,9 @@ const ClineRulesToggleModal: React.FC = () => {
 									<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-inputValidation-warningBackground border-l-[3px] border-vscode-inputValidation-warningBorder">
 										<i className="codicon codicon-warning text-sm" />
 										<span className="text-base">
-											Hook toggling is not yet supported on Windows in this foundation PR. Hooks can be created,
-											edited, and deleted, and execute whenever the hook file exists. Coming next: JSON-backed
-											hook enabled/disabled state across platforms.
+											Hook toggling is not yet supported on Windows in this foundation PR. Hooks can be
+											created, edited, and deleted, and execute whenever the hook file exists. Coming next:
+											JSON-backed hook enabled/disabled state across platforms.
 										</span>
 									</div>
 								)}
@@ -713,6 +722,7 @@ const ClineRulesToggleModal: React.FC = () => {
 											.map((hook) => (
 												<HookRow
 													absolutePath={hook.absolutePath}
+													displayName={getHookDisplayName(hook.name, hook.absolutePath, isWindows)}
 													enabled={hook.enabled}
 													hookName={hook.name}
 													isGlobal={true}
@@ -750,6 +760,7 @@ const ClineRulesToggleModal: React.FC = () => {
 												.map((hook) => (
 													<HookRow
 														absolutePath={hook.absolutePath}
+														displayName={getHookDisplayName(hook.name, hook.absolutePath, isWindows)}
 														enabled={hook.enabled}
 														hookName={hook.name}
 														isGlobal={false}

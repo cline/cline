@@ -5,6 +5,7 @@ import { useClickAway } from "react-use"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 
 interface NewRuleRowProps {
 	isGlobal: boolean
@@ -29,11 +30,22 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 	const [filename, setFilename] = useState("")
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [error, setError] = useState<string | null>(null)
+	const isWindows = !isMacOSOrLinux()
 
 	const componentRef = useRef<HTMLDivElement>(null)
 
+	const normalizeHookTypeName = (name: string): string => {
+		return isWindows && name.endsWith(".ps1") ? name.slice(0, -4) : name
+	}
+
+	const formatHookTypeForDisplay = (name: string): string => {
+		return isWindows ? `${name}.ps1` : name
+	}
+
+	const existingHookTypes = useMemo(() => new Set(existingHooks.map((name) => normalizeHookTypeName(name))), [existingHooks])
+
 	// Calculate available hook types by filtering out existing hooks
-	const availableHookTypes = useMemo(() => HOOK_TYPES.filter((type) => !existingHooks.includes(type.name)), [existingHooks])
+	const availableHookTypes = useMemo(() => HOOK_TYPES.filter((type) => !existingHookTypes.has(type.name)), [existingHookTypes])
 
 	// Focus the input when expanded
 	useEffect(() => {
@@ -197,7 +209,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 								</option>
 								{availableHookTypes.map((hook) => (
 									<option key={hook.name} title={hook.description} value={hook.name}>
-										{hook.name}
+										{formatHookTypeForDisplay(hook.name)}
 									</option>
 								))}
 							</select>
