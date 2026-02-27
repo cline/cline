@@ -1,4 +1,4 @@
-import { type ModelInfo, type AvianModelId, avianDefaultModelId, avianModels } from "@shared/api"
+import { type AvianModelId, avianDefaultModelId, avianModels, type ModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
