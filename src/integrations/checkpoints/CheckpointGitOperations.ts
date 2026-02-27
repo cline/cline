@@ -140,11 +140,14 @@ export class GitOperations {
 	 * @throws Error if renaming any .git directory fails
 	 */
 	public async renameNestedGitRepos(disable: boolean) {
-		// Find all .git directories that are not at the root level
-		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
+		const suffix = GIT_DISABLED_SUFFIX
+		const target = disable ? ".git" : ".git" + suffix
+		// Find all matching directories; ignore both .git and .git_disabled at root
+		// to guarantee the workspace's own repository is never touched.
+		const gitPaths = await globby("**/" + target, {
 			cwd: this.cwd,
 			onlyDirectories: true,
-			ignore: [".git"], // Ignore root level .git
+			ignore: [".git", ".git" + suffix],
 			dot: true,
 			markDirectories: false,
 			suppressErrors: true,
@@ -152,12 +155,17 @@ export class GitOperations {
 
 		// For each nested .git directory, rename it based on operation
 		for (const gitPath of gitPaths) {
+			// Safety: skip root-level matches that slipped through ignore
+			if (gitPath === target) {
+				continue
+			}
+
 			const fullPath = path.join(this.cwd, gitPath)
 			let newPath: string
 			if (disable) {
-				newPath = fullPath + GIT_DISABLED_SUFFIX
+				newPath = fullPath + suffix
 			} else {
-				newPath = fullPath.endsWith(GIT_DISABLED_SUFFIX) ? fullPath.slice(0, -GIT_DISABLED_SUFFIX.length) : fullPath
+				newPath = fullPath.endsWith(suffix) ? fullPath.slice(0, -suffix.length) : fullPath
 			}
 
 			try {
@@ -192,6 +200,10 @@ export class GitOperations {
 	public async addCheckpointFiles(git: SimpleGit): Promise<CheckpointAddResult> {
 		const startTime = performance.now()
 		try {
+			// Recover any leftover .git_disabled directories from a previous interrupted run
+			// (e.g. process killed during git add, VS Code crash, etc.)
+			await this.renameNestedGitRepos(false)
+
 			// Update exclude patterns before each commit
 			await this.renameNestedGitRepos(true)
 			Logger.info("Starting checkpoint add operation...")
