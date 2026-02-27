@@ -37,6 +37,14 @@ describe("UserPromptSubmit Hook", () => {
 		// Mock StateManager to return our temp directory
 		sandbox.stub(StateManager, "get").returns({
 			getGlobalStateKey: () => [{ path: tempDir }],
+			getGlobalSettingsKey: (key: string) => {
+				if (key === "mode") return "act"
+				if (key === "actModeApiProvider") return "anthropic"
+				if (key === "actModeApiModelId") return "claude-sonnet-4-20250514"
+				if (key === "planModeApiProvider") return "anthropic"
+				if (key === "planModeApiModelId") return "claude-sonnet-4-20250514"
+				return undefined
+			},
 		} as any)
 	})
 
