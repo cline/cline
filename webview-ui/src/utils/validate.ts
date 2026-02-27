@@ -181,21 +181,27 @@ export function validateModelId(
 	currentMode: Mode,
 	apiConfiguration?: ApiConfiguration,
 	openRouterModels?: Record<string, ModelInfo>,
+	clineModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
-		const { apiProvider, openRouterModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+		const { apiProvider, openRouterModelId, clineModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 		switch (apiProvider) {
 			case "openrouter":
-			case "cline":
 				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
 				}
-				if (modelId.startsWith("@preset/")) {
-					break
-				}
 				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
+					return "The model ID you provided is not available. Please choose a different model."
+				}
+				break
+			case "cline":
+				const clineResolvedModelId = clineModelId || openRouterDefaultModelId
+				if (!clineResolvedModelId) {
+					return "You must provide a model ID."
+				}
+				if (clineModels && !Object.keys(clineModels).includes(clineResolvedModelId)) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break

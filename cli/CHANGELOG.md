@@ -1,5 +1,16 @@
 # cline
 
+## [2.5.1]
+
+### Added
+
+- Expanded CLI markdown rendering support (headings, lists, blockquotes, fenced code blocks, links, and nested lists).
+
+### Fixed
+
+- Fixed CLI headless auth provider model metadata loading for Cline and Vercel AI Gateway by fetching model info from API with cache fallback.
+- Increased flaky CLI import test timeout on Windows CI to reduce intermittent test failures.
+
 ## [2.5.0]
 
 ### Added
