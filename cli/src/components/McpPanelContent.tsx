@@ -86,7 +86,7 @@ export const McpPanelContent: React.FC<McpPanelContentProps> = ({ controller, on
 				setSelectedIndex((i) => (i < servers.length - 1 ? i + 1 : 0))
 				return
 			}
-			if ((key.return || input === " ") && servers.length > 0) {
+			if ((key.return || key.tab || input === " ") && servers.length > 0) {
 				handleToggle()
 				return
 			}
@@ -147,7 +147,7 @@ export const McpPanelContent: React.FC<McpPanelContentProps> = ({ controller, on
 				{/* Help text */}
 				{servers.length > 0 && (
 					<Box marginTop={1}>
-						<Text color="gray">↑/↓ Navigate • Space/Enter Toggle</Text>
+						<Text color="gray">↑/↓ Navigate • Space/Enter/Tab Toggle</Text>
 					</Box>
 				)}
 			</Box>
