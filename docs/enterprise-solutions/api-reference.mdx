@@ -1,0 +1,114 @@
+---
+title: "Enterprise API Reference"
+sidebarTitle: "API Reference"
+description: "Reference for enterprise-focused account, organization, billing, plan, and API key endpoints."
+---
+
+This page covers enterprise-focused API endpoints from `api.md`, including user/account management, organizations, member administration, billing, plans, usage, and API key management.
+
+<Note>
+  Endpoints below are listed as path references. Use your deployment's API host and standard authorization headers when calling them.
+</Note>
+
+## Users
+
+User account management, terms, active account selection, balance, usage, and payments.
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/users/me` |
+| `PATCH` | `/api/v1/users/me` |
+| `DELETE` | `/api/v1/users/me` |
+| `POST` | `/api/v1/users/me/accept-terms` |
+| `GET` | `/api/v1/users/me/remote-config` |
+| `PUT` | `/api/v1/users/active-account` |
+| `GET` | `/api/v1/users/{id}/balance` |
+| `GET` | `/api/v1/users/{id}/usages` |
+| `GET` | `/api/v1/users/{id}/payments` |
+| `GET` | `/api/v1/users/{id}/payments/{paymentId}` |
+| `GET` | `/api/v1/users/{id}/payments/{paymentId}/status` |
+| `GET` | `/api/v1/users/{id}/payments/provider/{paymentId}` |
+| `POST` | `/api/v1/users/credits/checkout` |
+| `POST` | `/api/v1/users/{id}/credits/purchase` |
+| `GET` | `/api/v1/users/{id}/auto-top-up` |
+| `PUT` | `/api/v1/users/{id}/auto-top-up` |
+| `GET` | `/api/v1/users/{id}/payment-method/default` |
+| `POST` | `/api/v1/users/{id}/payment-method/setup-session` |
+| `GET` | `/api/v1/users/{id}/promotions` |
+
+## Organizations
+
+Create and manage organizations, list organization API keys, access remote config, and fetch org-level metrics.
+
+| Method | Endpoint |
+|---|---|
+| `POST` | `/api/v1/organizations` |
+| `GET` | `/api/v1/organizations/{id}` |
+| `PUT` | `/api/v1/organizations/{id}` |
+| `DELETE` | `/api/v1/organizations/{id}` |
+| `GET` | `/api/v1/organizations/{id}/api-keys` |
+| `GET` | `/api/v1/organizations/{id}/remote-config` |
+| `GET` | `/api/v1/organizations/{orgId}/metrics` |
+
+## Organization Members
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/organizations/{orgId}/members` |
+| `DELETE` | `/api/v1/organizations/{orgId}/members` |
+| `GET` | `/api/v1/organizations/{orgId}/members/available-roles` |
+| `PUT` | `/api/v1/organizations/{orgId}/members/{memberId}/role` |
+| `GET` | `/api/v1/organizations/{orgId}/members/{memberId}/usages` |
+
+## Organization Invites
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/organizations/{orgId}/invites` |
+| `POST` | `/api/v1/organizations/{orgId}/invites` |
+| `GET` | `/api/v1/organizations/{orgId}/invites/count` |
+| `DELETE` | `/api/v1/organizations/{orgId}/invites/{inviteId}` |
+| `POST` | `/api/v1/invites/accept` |
+
+## Organization Balance & Payments
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/organizations/{orgId}/balance` |
+| `GET` | `/api/v1/organizations/{orgId}/payments` |
+| `GET` | `/api/v1/organizations/{orgId}/payments/{paymentId}` |
+| `GET` | `/api/v1/organizations/{orgId}/payments/{paymentId}/status` |
+| `GET` | `/api/v1/organizations/{orgId}/payments/provider/{paymentId}` |
+| `POST` | `/api/v1/organizations/{orgId}/credits/checkout` |
+| `POST` | `/api/v1/organizations/{orgId}/credits/purchase` |
+| `GET` | `/api/v1/organizations/{orgId}/auto-top-up` |
+| `PUT` | `/api/v1/organizations/{orgId}/auto-top-up` |
+| `GET` | `/api/v1/organizations/{orgId}/payment-method/default` |
+| `POST` | `/api/v1/organizations/{orgId}/payment-method/setup-session` |
+| `GET` | `/api/v1/organizations/{id}/promotions` |
+
+## Organization Plans
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/plans` |
+| `GET` | `/api/v1/organizations/{orgId}/plan` |
+| `GET` | `/api/v1/organizations/{orgId}/plan/history` |
+| `GET` | `/api/v1/organizations/{orgId}/plan/{planId}` |
+| `POST` | `/api/v1/organizations/{orgId}/plan` |
+| `PUT` | `/api/v1/organizations/{orgId}/plan/seats` |
+| `DELETE` | `/api/v1/organizations/{orgId}/plan/{planId}` |
+
+## Organization Usage
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/organizations/{orgId}/usages` |
+
+## API Keys
+
+| Method | Endpoint |
+|---|---|
+| `GET` | `/api/v1/api-keys` |
+| `POST` | `/api/v1/api-keys` |
+| `DELETE` | `/api/v1/api-keys/{key_id}` |

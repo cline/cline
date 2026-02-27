@@ -222,6 +222,12 @@
 						]
 					},
 					{
+						"group": "API Reference",
+						"pages": [
+							"api/reference"
+						]
+					},
+					{
 						"group": "Tools Reference",
 						"pages": [
 							"tools-reference/all-cline-tools",
@@ -297,7 +303,8 @@
 									"enterprise-solutions/monitoring/telemetry",
 									"enterprise-solutions/monitoring/opentelemetry"
 								]
-							}
+							},
+							"enterprise-solutions/api-reference"
 						]
 					}
 				]
