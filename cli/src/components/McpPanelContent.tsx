@@ -3,6 +3,7 @@
  * Shows installed MCP servers with enable/disable toggle
  */
 
+import { subscribeToMcpServerUpdates } from "@core/controller/mcp/subscribeToMcpServers"
 import type { McpServer } from "@shared/mcp"
 import { Box, Text, useInput } from "ink"
 import React, { useCallback, useEffect, useState } from "react"
@@ -38,6 +39,14 @@ export const McpPanelContent: React.FC<McpPanelContentProps> = ({ controller, on
 		}
 		loadServers()
 	}, [controller])
+
+	// Subscribe to real-time server updates (e.g. after a server finishes connecting)
+	useEffect(() => {
+		const unsubscribe = subscribeToMcpServerUpdates((updatedServers) => {
+			setServers(updatedServers)
+		})
+		return unsubscribe
+	}, [])
 
 	// Handle toggle
 	const handleToggle = useCallback(async () => {

@@ -186,7 +186,7 @@ describe("McpHub", () => {
 				saved.mcpServers["test-server"].disabled.should.be.false()
 			})
 
-			it("calls connectToServer to actually establish the connection", async () => {
+			it("sets server status to 'connecting' and clears error when enabling", async () => {
 				await fs.writeFile(
 					settingsPath,
 					JSON.stringify({ mcpServers: { "test-server": { ...serverConfig, disabled: true } } }, null, 2),
@@ -200,6 +200,7 @@ describe("McpHub", () => {
 							config: JSON.stringify(serverConfig),
 							status: "disconnected",
 							disabled: true,
+							error: "previous error",
 						},
 						client: null,
 						transport: null,
@@ -208,18 +209,22 @@ describe("McpHub", () => {
 
 				await hub.toggleServerDisabledRPC("test-server", false)
 
-				connectStub.calledOnce.should.be.true()
-				connectStub.firstCall.args[0].should.equal("test-server")
-				connectStub.firstCall.args[2].should.equal("rpc")
+				// Main does not call connectToServer — it just marks the server as connecting
+				// so the webview/watcher can pick it up
+				connectStub.called.should.be.false()
+				const conn = (hub as any).connections.find((c: any) => c.server.name === "test-server")
+				conn.server.disabled.should.be.false()
+				conn.server.status.should.equal("connecting")
+				conn.server.error.should.equal("")
 			})
 
-			it("sets isUpdatingClineSettings to suppress the file watcher during connection", async () => {
+			it("does not modify isUpdatingClineSettings when enabling", async () => {
 				await fs.writeFile(
 					settingsPath,
 					JSON.stringify({ mcpServers: { "test-server": { ...serverConfig, disabled: true } } }, null, 2),
 				)
 
-				const { hub, connectStub } = await buildHub(sandbox, tempDir)
+				const { hub } = await buildHub(sandbox, tempDir)
 				;(hub as any).connections = [
 					{
 						server: {
@@ -233,14 +238,10 @@ describe("McpHub", () => {
 					},
 				]
 
-				let flagDuringConnect = false
-				connectStub.callsFake(async () => {
-					flagDuringConnect = (hub as any).isUpdatingClineSettings
-				})
-
 				await hub.toggleServerDisabledRPC("test-server", false)
 
-				flagDuringConnect.should.be.true()
+				// Main's implementation does not use isUpdatingClineSettings in toggleServerDisabledRPC
+				;(hub as any).isUpdatingClineSettings.should.be.false()
 			})
 
 			it("returns the updated server list with disabled:false", async () => {
@@ -298,29 +299,23 @@ describe("McpHub", () => {
 				result.should.be.an.Array()
 			})
 
-			it("resets watcher suppression even when enabling with no existing in-memory connection", async () => {
-				const clock = sandbox.useFakeTimers()
-
+			it("does nothing to in-memory state when enabling with no existing connection", async () => {
 				await fs.writeFile(
 					settingsPath,
 					JSON.stringify({ mcpServers: { "test-server": { ...serverConfig, disabled: true } } }, null, 2),
 				)
 
 				const { hub, connectStub } = await buildHub(sandbox, tempDir)
-				// Simulate edge case: settings contains server but no in-memory connection object exists
+				// Edge case: settings has server but no in-memory connection object exists
 				;(hub as any).connections = []
 
-				await hub.toggleServerDisabledRPC("test-server", false)
+				const result = await hub.toggleServerDisabledRPC("test-server", false)
 
-				// No connection means no direct reconnect attempt in this code path
+				// No connection to update, no reconnect attempted
 				connectStub.called.should.be.false()
-
-				// Flag is set immediately for watcher suppression, then reset asynchronously
-				;(hub as any).isUpdatingClineSettings.should.be.true()
-				clock.tick(299)
-				;(hub as any).isUpdatingClineSettings.should.be.true()
-				clock.tick(1)
-				;(hub as any).isUpdatingClineSettings.should.be.false()
+				;(hub as any).connections.should.have.length(0)
+				// Should still return the server list (sorted from settings)
+				result.should.be.an.Array()
 			})
 		})
 
