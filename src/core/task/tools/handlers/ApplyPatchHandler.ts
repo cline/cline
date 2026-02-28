@@ -338,6 +338,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			this.config = undefined
 
+			// Extract provider info for human edit telemetry
+			const apiConfig = config.services.stateManager.getApiConfiguration()
+			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+			const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+			const modelId = config.api.getModel().id
+
 			// Build response with file contents and diagnostics
 			const responseLines = ["Successfully applied patch to the following files:"]
 
@@ -358,6 +364,19 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 								diff: result.userEdits,
 							}),
 						)
+
+						// Capture human edit telemetry: diff between agent's proposed content and the final saved content
+						const change = commit.changes[path] || Object.values(commit.changes).find((c) => c.movePath === path)
+						const agentContent = change?.newContent || ""
+						const humanDiffStats = computeLineDiffStats(agentContent, result.finalContent || "")
+						telemetryService.captureAiOutputAccepted({
+							ulid: config.ulid,
+							tool: this.name,
+							provider: providerId,
+							model: modelId,
+							source: "human",
+							...humanDiffStats,
+						})
 					}
 					if (result.autoFormattingEdits) {
 						responseLines.push(`\nAuto-formatting was applied to ${path}:\n${result.autoFormattingEdits}\n`)
@@ -737,6 +756,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				tool: this.name,
 				provider: providerId,
 				model: modelId,
+				source: "agent",
 				...diffStats,
 				...fileOps,
 			})
@@ -773,6 +793,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				tool: this.name,
 				provider: providerId,
 				model: modelId,
+				source: "agent",
 				...diffStats,
 				...fileOps,
 			})
@@ -782,6 +803,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				tool: this.name,
 				provider: providerId,
 				model: modelId,
+				source: "agent",
 				...diffStats,
 				...fileOps,
 			})

@@ -2201,6 +2201,7 @@ export class TelemetryService {
 		tool: string
 		provider?: string
 		model?: string
+		source: "agent" | "human"
 		linesAdded: number
 		linesDeleted: number
 		linesChanged: number
@@ -2215,6 +2216,7 @@ export class TelemetryService {
 				tool: args.tool,
 				provider: args.provider,
 				model: args.model,
+				source: args.source,
 				linesAdded: args.linesAdded,
 				linesDeleted: args.linesDeleted,
 				linesChanged: args.linesChanged,
@@ -2224,7 +2226,7 @@ export class TelemetryService {
 			},
 		})
 
-		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model }
+		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
 		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_ADDED, args.linesAdded, attrs)
 		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_DELETED, args.linesDeleted, attrs)
 		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_CHANGED, args.linesChanged, attrs)
@@ -2250,6 +2252,7 @@ export class TelemetryService {
 		tool: string
 		provider?: string
 		model?: string
+		source: "agent" | "human"
 		linesAdded: number
 		linesDeleted: number
 		linesChanged: number
@@ -2264,6 +2267,7 @@ export class TelemetryService {
 				tool: args.tool,
 				provider: args.provider,
 				model: args.model,
+				source: args.source,
 				linesAdded: args.linesAdded,
 				linesDeleted: args.linesDeleted,
 				linesChanged: args.linesChanged,
@@ -2273,7 +2277,7 @@ export class TelemetryService {
 			},
 		})
 
-		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model }
+		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
 		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_ADDED, args.linesAdded, attrs)
 		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_DELETED, args.linesDeleted, attrs)
 		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_CHANGED, args.linesChanged, attrs)

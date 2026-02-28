@@ -220,6 +220,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					tool: block.name,
 					provider: providerId,
 					model: modelId,
+					source: "agent",
 					...diffStats,
 					filesCreated: fileExists ? 0 : 1,
 				})
@@ -286,6 +287,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						tool: block.name,
 						provider: providerId,
 						model: modelId,
+						source: "agent",
 						...rejectDiffStats,
 						filesCreated: fileExists ? 0 : 1,
 					})
@@ -329,6 +331,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					tool: block.name,
 					provider: providerId,
 					model: modelId,
+					source: "agent",
 					...approvalDiffStats,
 					filesCreated: fileExists ? 0 : 1,
 				})
@@ -377,6 +380,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						diff: userEdits,
 					}),
 				)
+
+				// Capture human edit telemetry: diff between agent's proposed content and the final saved content
+				const humanDiffStats = computeLineDiffStats(newContent, finalContent || "")
+				telemetryService.captureAiOutputAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					provider: providerId,
+					model: modelId,
+					source: "human",
+					...humanDiffStats,
+				})
+
 				return formatResponse.fileEditWithUserChanges(
 					relPath,
 					userEdits,
