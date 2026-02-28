@@ -4635,13 +4635,13 @@ export const brainiallModels = {
 		description: "Meta Llama 3.3 70B — Strong open-weight model",
 	},
 	"llama-4-scout": {
-		maxTokens: 8_192,
-		contextWindow: 512_000,
-		supportsImages: false,
+		maxTokens: 16_384,
+		contextWindow: 3_500_000,
+		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.17,
-		outputPrice: 0.17,
-		description: "Meta Llama 4 Scout 17B — 512K context, ultra-affordable",
+		outputPrice: 0.66,
+		description: "Meta Llama 4 Scout 17B — 3.5M context, multimodal",
 	},
 	"nova-pro": {
 		maxTokens: 5_120,
