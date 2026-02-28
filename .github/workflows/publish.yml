@@ -12,12 +12,12 @@ on:
                     - pre-release
                     - release
             auto_create_tag_from_main:
-                description: "Auto-create and push the tag from latest origin/main (recommended)"
+                description: "Auto-create and push the provided tag from the tested main commit (recommended)"
                 required: true
                 default: true
                 type: boolean
             tag:
-                description: "Tag to publish (e.g., v3.1.2)"
+                description: "Tag to publish (required in both modes, e.g., v3.1.2)"
                 required: true
                 type: string
 
