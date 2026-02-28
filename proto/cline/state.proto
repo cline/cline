@@ -105,6 +105,7 @@ message Secrets {
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
   optional string openai_codex_oauth_credentials = 48;
+  optional string brainiall_api_key = 50;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
