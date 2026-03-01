@@ -6,6 +6,9 @@ import type { Controller } from "../index"
 // Keep track of active addToInput subscriptions
 const activeAddToInputSubscriptions = new Set<StreamingResponseHandler<ProtoString>>()
 
+// Pending text to send when a subscriber connects
+let pendingAddToInputText: string | null = null
+
 /**
  * Subscribe to addToInput events
  * @param controller The controller instance
@@ -22,6 +25,13 @@ export async function subscribeToAddToInput(
 	// Add this subscription to the active subscriptions
 	activeAddToInputSubscriptions.add(responseStream)
 
+	// If there was pending text waiting for a subscriber, send it now
+	if (pendingAddToInputText !== null) {
+		const text = pendingAddToInputText
+		pendingAddToInputText = null
+		await sendAddToInputEvent(text)
+	}
+
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
 		activeAddToInputSubscriptions.delete(responseStream)
@@ -34,10 +44,17 @@ export async function subscribeToAddToInput(
 }
 
 /**
- * Send an addToInput event to all active subscribers
+ * Send an addToInput event to all active subscribers.
+ * If no subscribers are active (e.g. panel not yet initialized), the text is
+ * queued and will be delivered when the first subscriber connects.
  * @param text The text to add to the input
  */
 export async function sendAddToInputEvent(text: string): Promise<void> {
+	if (activeAddToInputSubscriptions.size === 0) {
+		pendingAddToInputText = text
+		return
+	}
+
 	// Send the event to all active subscribers
 	const promises = Array.from(activeAddToInputSubscriptions).map(async (responseStream) => {
 		try {
