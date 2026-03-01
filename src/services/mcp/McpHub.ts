@@ -676,9 +676,9 @@ export class McpHub {
 		if (connection) {
 			try {
 				const config = JSON.parse(connection.server.config)
-				const parsedConfig = ServerConfigSchema.parse(config)
-				if (parsedConfig.timeout) {
-					return secondsToMs(parsedConfig.timeout)
+				if (Object.hasOwn(config, "timeout")) {
+					const timeoutInSeconds = z.number().parse((config as { timeout: unknown }).timeout)
+					return secondsToMs(timeoutInSeconds)
 				}
 			} catch (error) {
 				Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
