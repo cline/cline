@@ -1,4 +1,5 @@
 import { fileExistsAtPath } from "@utils/fs"
+import { retryWithBackoff } from "@utils/retry"
 import fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
@@ -57,6 +58,11 @@ export class GitOperations {
 	 */
 	public async initShadowGit(gitPath: string, cwd: string, taskId: string): Promise<string> {
 		Logger.info(`Initializing shadow git`)
+		// Clean up any leftover .git_disabled directories from a previous crash/interruption.
+		// If addCheckpointFiles() was interrupted mid disable/enable cycle, nested repos may still be disabled.
+		await this.renameNestedGitRepos(false).catch((error) => {
+			Logger.warn("CheckpointTracker failed best-effort nested git cleanup during shadow git init:", error)
+		})
 
 		// If repo exists, just verify worktree
 		if (await fileExistsAtPath(gitPath)) {
@@ -165,6 +171,11 @@ export class GitOperations {
 				Logger.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
 				Logger.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				throw new Error(
+					`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
 			}
 		}
 	}
@@ -209,7 +220,18 @@ export class GitOperations {
 		} catch (_error) {
 			return { success: false }
 		} finally {
-			await this.renameNestedGitRepos(false)
+			await retryWithBackoff(() => this.renameNestedGitRepos(false), {
+				operationName: "CheckpointTracker re-enable nested git repos",
+				maxAttempts: 3,
+				baseDelayMs: 50,
+				onRetry: (_error, attempt, maxAttempts, delayMs) => {
+					Logger.warn(
+						`CheckpointTracker re-enable nested git repos failed on attempt ${attempt}/${maxAttempts}. Retrying in ${delayMs}ms`,
+					)
+				},
+			}).catch((error) => {
+				Logger.error("CheckpointTracker failed to re-enable nested git repos after retries:", error)
+			})
 		}
 	}
 }
