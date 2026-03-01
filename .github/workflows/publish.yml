@@ -57,10 +57,11 @@ jobs:
                     exit 1
                   fi
 
-                  if [[ ! "$TAG" =~ ^v[0-9] ]]; then
-                    echo "Error: tag must start with 'v' and look like vX.Y.Z"
+                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+                    echo "Error: tag must match vX.Y.Z (optionally with -suffix or .suffix)"
                     exit 1
                   fi
+                  TAG_REF="refs/tags/$TAG"
 
                   git fetch origin main --tags
 
@@ -76,8 +77,8 @@ jobs:
                       exit 1
                     fi
 
-                    if git rev-parse "$TAG" >/dev/null 2>&1; then
-                      TAG_SHA=$(git rev-list -n 1 "$TAG")
+                    if git show-ref --verify --quiet "$TAG_REF"; then
+                      TAG_SHA=$(git rev-list -n 1 "$TAG_REF^{commit}")
                       if [[ "$TAG_SHA" != "$TESTED_SHA" ]]; then
                         echo "Error: tag '$TAG' already exists at $TAG_SHA, not at tested SHA ($TESTED_SHA)"
                         exit 1
@@ -87,18 +88,18 @@ jobs:
                       git config user.name "github-actions[bot]"
                       git config user.email "github-actions[bot]@users.noreply.github.com"
                       git tag "$TAG" "$TESTED_SHA"
-                      git push origin "$TAG"
+                      git push origin "$TAG_REF"
                       echo "Created and pushed tag '$TAG' from tested SHA $TESTED_SHA."
                     fi
                   else
-                    if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+                    if ! git show-ref --verify --quiet "$TAG_REF"; then
                       echo "Error: tag '$TAG' does not exist in the repository"
                       exit 1
                     fi
                     echo "Using existing tag '$TAG'."
                   fi
 
-                  git checkout --detach "$TAG"
+                  git checkout --detach "$TAG_REF^{commit}"
                   echo "tag=$TAG" >> $GITHUB_OUTPUT
                   echo "resolved_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
