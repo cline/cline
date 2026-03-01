@@ -248,7 +248,8 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const messageBody = match[1]
 
 	// Match field definitions: optional/required/repeated type name = number;
-	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
+	// Type can be a simple word (e.g. string) or a generic type (e.g. map<string, string>)
+	const fieldRegex = /(?:optional|required|repeated)?\s*\w+(?:<[^>]+>)?\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
