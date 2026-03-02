@@ -116,6 +116,7 @@
 							},
 							"cline-cli/configuration",
 							"cline-cli/acp-editor-integrations",
+							"cline-sdk/overview",
 							"cline-cli/cli-reference"
 						]
 					},
