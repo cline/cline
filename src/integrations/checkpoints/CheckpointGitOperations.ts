@@ -150,7 +150,7 @@ export class GitOperations {
 		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
 			cwd: this.cwd,
 			onlyDirectories: true,
-			ignore: [".git"], // Ignore root level .git
+			ignore: [".git", "**/node_modules/**"], // Ignore root level .git and node_modules (can contain recursive .git dirs that cause 10s+ scans)
 			dot: true,
 			markDirectories: false,
 			suppressErrors: true,
