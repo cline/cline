@@ -56,22 +56,25 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
-					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider && !clineUser) {
-						return (
-							<div className="flex flex-col gap-3">
-								<div className="flex items-center justify-center rounded border border-neutral-500/30 bg-vscode-editor-background p-6 text-center text-vscode-foreground">
-									Whoops looks like you&apos;re logged out – click below to sign in
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider) {
+						if (!clineUser) {
+							return (
+								<div className="flex flex-col gap-3">
+									<div className="flex items-center justify-center rounded border border-neutral-500/30 bg-vscode-editor-background p-6 text-center text-vscode-foreground">
+										Whoops looks like you&apos;re logged out – click below to sign in
+									</div>
+									<Button className="w-full" disabled={isLoginLoading} onClick={handleSignIn}>
+										Sign in to Cline
+										{isLoginLoading && (
+											<span className="ml-1 animate-spin">
+												<span className="codicon codicon-refresh" />
+											</span>
+										)}
+									</Button>
 								</div>
-								<Button className="w-full" disabled={isLoginLoading} onClick={handleSignIn}>
-									Sign in to Cline
-									{isLoginLoading && (
-										<span className="ml-1 animate-spin">
-											<span className="codicon codicon-refresh" />
-										</span>
-									)}
-								</Button>
-							</div>
-						)
+							)
+						}
+						return <span className="text-description">(Click &quot;Retry&quot; below)</span>
 					}
 
 					return (
@@ -100,23 +103,6 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 							{/* Display raw API error if different from parsed error message */}
 							{errorMessage !== rawApiError && <div>{rawApiError}</div>}
-
-							{/* Display Login button for non-logged in users using the Cline provider */}
-							<div>
-								{/* The user is signed in or not using cline provider */}
-								{isClineProvider && !clineUser ? (
-									<Button className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
-										Sign in to Cline
-										{isLoginLoading && (
-											<span className="ml-1 animate-spin">
-												<span className="codicon codicon-refresh" />
-											</span>
-										)}
-									</Button>
-								) : (
-									<span className="mb-4 text-description">(Click "Retry" below)</span>
-								)}
-							</div>
 						</p>
 					)
 				}
