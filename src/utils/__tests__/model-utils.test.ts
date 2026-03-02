@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { isClaude4PlusModelFamily, isGPT5ModelFamily, shouldSkipReasoningForModel } from "../model-utils"
+import { isClaude4PlusModelFamily, isGptOssModelFamily, isGPT5ModelFamily, shouldSkipReasoningForModel } from "../model-utils"
 
 describe("shouldSkipReasoningForModel", () => {
 	it("should return true for grok-4 models", () => {
@@ -78,7 +78,27 @@ describe("isGPT5ModelFamily", () => {
 	it("should return false for non-GPT-5 models", () => {
 		isGPT5ModelFamily("gpt-4").should.equal(false)
 		isGPT5ModelFamily("gpt-4o").should.equal(false)
+		isGPT5ModelFamily("gpt-oss-120b").should.equal(false)
 		isGPT5ModelFamily("claude-3-sonnet").should.equal(false)
 		isGPT5ModelFamily("gemini-pro").should.equal(false)
+	})
+})
+
+describe("isGptOssModelFamily", () => {
+	it("should return true for gpt-oss model IDs", () => {
+		isGptOssModelFamily("gpt-oss-120b").should.equal(true)
+		isGptOssModelFamily("openai/gpt-oss-120b").should.equal(true)
+		isGptOssModelFamily("gpt_oss_120b").should.equal(true)
+	})
+
+	it("should be case insensitive", () => {
+		isGptOssModelFamily("GPT-OSS-120B").should.equal(true)
+		isGptOssModelFamily("OPENAI/GPT_OSS_120B").should.equal(true)
+	})
+
+	it("should return false for non-gpt-oss models", () => {
+		isGptOssModelFamily("gpt-5").should.equal(false)
+		isGptOssModelFamily("gpt-4o").should.equal(false)
+		isGptOssModelFamily("claude-sonnet-4").should.equal(false)
 	})
 })
