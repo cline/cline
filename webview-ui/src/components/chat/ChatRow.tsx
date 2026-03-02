@@ -1055,7 +1055,7 @@ export const ChatRowContent = memo(
 									{errorMessage && (
 										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
 									)}
-									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px] p-4">
+									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px] p-3">
 										<div className="flex items-center mb-1">
 											{isFailed && !isRequestInProgress ? (
 												<TriangleAlertIcon className="mr-2 size-2" />
