@@ -2,17 +2,22 @@ import { expect } from "chai"
 import { checkContextWindowExceededError } from "../context-error-handling"
 
 describe("checkContextWindowExceededError", () => {
-	it("detects wrapped OpenRouter context errors when status is only in message text", () => {
-		const error = new Error(
-			'OpenRouter API Error 400: 400 This endpoint\'s maximum context length is 204800 tokens. However, you requested about 244027 tokens (112955 of text input, 131072 in the output). Please reduce the length of either one, or use the "middle-out" transform to compress your prompt automatically.',
+	it("detects OpenRouter context errors using structured status", () => {
+		const error = Object.assign(
+			new Error(
+				"This endpoint's maximum context length is 204800 tokens. However, you requested about 244027 tokens.",
+			),
+			{
+				status: 400,
+			},
 		)
 
 		expect(checkContextWindowExceededError(error)).to.equal(true)
 	})
 
-	it("detects OpenRouter JSON-encoded code + context length errors", () => {
+	it("detects OpenRouter JSON-encoded status + context length errors", () => {
 		const error = new Error(
-			'OpenRouter Mid-Stream Error: {"code":400,"message":"This endpoint\'s maximum context length is 200000 tokens"}',
+			'OpenRouter Mid-Stream Error: {"status":400,"message":"This endpoint\'s maximum context length is 200000 tokens"}',
 		)
 
 		expect(checkContextWindowExceededError(error)).to.equal(true)
