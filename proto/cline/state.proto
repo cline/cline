@@ -279,6 +279,10 @@ message Settings {
   optional bool auto_approve_all_toggled = 174;
   optional bool double_check_completion_enabled = 176;
   map<string, string> open_ai_headers = 177;
+  optional string plan_mode_cline_model_id = 178;
+  optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
+  optional string act_mode_cline_model_id = 180;
+  optional OpenRouterModelInfo act_mode_cline_model_info = 181;
 }
 
 message State {

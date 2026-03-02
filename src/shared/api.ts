@@ -165,7 +165,7 @@ export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
 	"claude-sonnet-4-6": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -176,7 +176,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"claude-sonnet-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -188,7 +188,7 @@ export const anthropicModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-5-20250929": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -199,7 +199,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"claude-sonnet-4-5-20250929:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -211,7 +211,7 @@ export const anthropicModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-haiku-4-5-20251001": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -222,7 +222,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.1,
 	},
 	"claude-sonnet-4-20250514": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -233,7 +233,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"claude-sonnet-4-20250514:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -245,7 +245,7 @@ export const anthropicModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-opus-4-6": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -256,7 +256,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.5,
 	},
 	"claude-opus-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -268,7 +268,7 @@ export const anthropicModels = {
 		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-5-20251101": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -279,7 +279,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.5,
 	},
 	"claude-opus-4-1-20250805": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -290,7 +290,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 1.5,
 	},
 	"claude-opus-4-20250514": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -301,7 +301,7 @@ export const anthropicModels = {
 		cacheReadsPrice: 1.5,
 	},
 	"claude-3-7-sonnet-20250219": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 
@@ -452,7 +452,7 @@ export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-6": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -464,7 +464,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-sonnet-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -477,7 +477,7 @@ export const bedrockModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -489,7 +489,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -502,7 +502,7 @@ export const bedrockModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-haiku-4-5-20251001-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -514,7 +514,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.1,
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -526,7 +526,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -539,7 +539,7 @@ export const bedrockModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-6-v1": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -551,7 +551,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.5,
 	},
 	"anthropic.claude-opus-4-6-v1:1m": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -564,7 +564,7 @@ export const bedrockModels = {
 		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -576,7 +576,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.5,
 	},
 	"anthropic.claude-opus-4-20250514-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -587,7 +587,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 1.5,
 	},
 	"anthropic.claude-opus-4-1-20250805-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -652,7 +652,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.00875,
 	},
 	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 
@@ -774,7 +774,7 @@ export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${C
 export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
-	maxTokens: 8192,
+	maxTokens: 64_000,
 	contextWindow: 200_000,
 	supportsImages: true,
 	supportsPromptCache: true,
@@ -937,7 +937,7 @@ export const vertexModels = {
 		},
 	},
 	"claude-sonnet-4-6": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -948,7 +948,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-sonnet-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -960,7 +960,7 @@ export const vertexModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-5@20250929": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -971,7 +971,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-sonnet-4@20250514": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -982,7 +982,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-haiku-4-5@20251001": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: true,
@@ -993,7 +993,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-opus-4-6": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1005,7 +1005,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-opus-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1018,7 +1018,7 @@ export const vertexModels = {
 		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-5@20251101": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1029,7 +1029,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-opus-4-1@20250805": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1040,7 +1040,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-opus-4@20250514": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1051,7 +1051,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-3-7-sonnet@20250219": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -3772,28 +3772,28 @@ export const sapAiCoreModels = {
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4.5-sonnet": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-sonnet": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4.5-opus": {
-		maxTokens: 8192,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
 	"anthropic--claude-4-opus": {
-		maxTokens: 8192,
+		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,

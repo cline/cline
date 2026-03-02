@@ -307,8 +307,8 @@ async function handleCommentReply(
 		planModeThinkingBudgetTokens: 0,
 	}
 
-	// Find the relevant file
-	const file = changedFiles.find((f) => f.absolutePath === filePath)
+	// Find the relevant file - check both absolutePath and relativePath for robustness
+	const file = changedFiles.find((f) => f.absolutePath === filePath || f.relativePath === filePath)
 	if (!file) {
 		onChunk("Error: Could not find the file context")
 		return

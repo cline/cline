@@ -253,7 +253,13 @@ function createHandlerForProvider(
 				vsCodeLmModelSelector:
 					mode === "plan" ? options.planModeVsCodeLmModelSelector : options.actModeVsCodeLmModelSelector,
 			})
-		case "cline":
+		case "cline": {
+			const clineModelId =
+				(mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId) ||
+				(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
+			const clineModelInfo =
+				(mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo) ||
+				(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				clineAccountId: options.clineAccountId,
@@ -263,9 +269,10 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				openRouterProviderSorting: options.openRouterProviderSorting,
-				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
-				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
+				openRouterModelId: clineModelId,
+				openRouterModelInfo: clineModelInfo,
 			})
+		}
 		case "litellm":
 			return new LiteLlmHandler({
 				onRetryAttempt: options.onRetryAttempt,

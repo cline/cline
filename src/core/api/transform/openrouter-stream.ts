@@ -116,37 +116,7 @@ export async function createOpenRouterStream(
 			break
 	}
 
-	// Not sure how openrouter defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
-	// (models usually default to max tokens allowed)
-	let maxTokens: number | undefined
-	switch (model.id) {
-		case "anthropic/claude-opus-4.6":
-		case "anthropic/claude-haiku-4.5":
-		case "anthropic/claude-4.5-haiku":
-		case "anthropic/claude-sonnet-4.6":
-		case "anthropic/claude-4.6-sonnet":
-		case "anthropic/claude-sonnet-4.5":
-		case "anthropic/claude-4.5-sonnet":
-		case "anthropic/claude-sonnet-4":
-		case "anthropic/claude-opus-4.5":
-		case "anthropic/claude-opus-4.1":
-		case "anthropic/claude-opus-4":
-		case "anthropic/claude-3.7-sonnet":
-		case "anthropic/claude-3.7-sonnet:beta":
-		case "anthropic/claude-3.7-sonnet:thinking":
-		case "anthropic/claude-3-7-sonnet":
-		case "anthropic/claude-3-7-sonnet:beta":
-		case "anthropic/claude-3.5-sonnet":
-		case "anthropic/claude-3.5-sonnet:beta":
-		case "anthropic/claude-3.5-sonnet-20240620":
-		case "anthropic/claude-3.5-sonnet-20240620:beta":
-		case "anthropic/claude-3-5-haiku":
-		case "anthropic/claude-3-5-haiku:beta":
-		case "anthropic/claude-3-5-haiku-20241022":
-		case "anthropic/claude-3-5-haiku-20241022:beta":
-			maxTokens = 8_192
-			break
-	}
+	const maxTokens = model.info.maxTokens || undefined
 
 	let temperature: number | undefined = 0
 	let topP: number | undefined

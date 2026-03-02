@@ -1,11 +1,80 @@
 import * as fs from "fs/promises"
+import * as os from "os"
 import * as path from "path"
 import should from "should"
+import sinon from "sinon"
+import { StateManager } from "../../storage/StateManager"
+import * as diskModule from "../../storage/disk"
+import { HookDiscoveryCache } from "../HookDiscoveryCache"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { Hooks, NamedHookInput } from "../hook-factory"
 
 // Define HookName locally since it's not exported from hook-factory
 type HookName = keyof Hooks
+
+export type HookTestEnv = {
+	tempDir: string
+	hooksDir: string
+	sandbox: sinon.SinonSandbox
+	cleanup: () => Promise<void>
+}
+
+export function resetHookCache(): void {
+	HookDiscoveryCache.resetForTesting()
+}
+
+export async function withPlatform<T>(platform: NodeJS.Platform, fn: () => Promise<T> | T): Promise<T> {
+	const originalPlatform = process.platform
+	Object.defineProperty(process, "platform", { value: platform, configurable: true })
+	try {
+		return await fn()
+	} finally {
+		Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+	}
+}
+
+export function hookFileName(hookName: string, platform: NodeJS.Platform = process.platform): string {
+	return platform === "win32" ? `${hookName}.ps1` : hookName
+}
+
+export function hookPath(hooksDir: string, hookName: string, platform: NodeJS.Platform = process.platform): string {
+	return path.join(hooksDir, hookFileName(hookName, platform))
+}
+
+export function stubHookDirs(sandbox: sinon.SinonSandbox, dirs: string[]): sinon.SinonStub {
+	return sandbox.stub(diskModule, "getAllHooksDirs").resolves(dirs)
+}
+
+export async function createHookTestEnv(): Promise<HookTestEnv> {
+	const sandbox = sinon.createSandbox()
+	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
+	const hooksDir = await createHooksDirectory(tempDir)
+
+	sandbox.stub(StateManager, "get").returns({
+		getGlobalStateKey: (key: string) => {
+			if (key === "workspaceRoots") {
+				return [{ path: tempDir }]
+			}
+			if (key === "primaryRootIndex") {
+				return 0
+			}
+			return undefined
+		},
+	} as any)
+
+	resetHookCache()
+
+	return {
+		tempDir,
+		hooksDir,
+		sandbox,
+		cleanup: async () => {
+			sandbox.restore()
+			resetHookCache()
+			await fs.rm(tempDir, { recursive: true, force: true })
+		},
+	}
+}
 
 /**
  * Creates a hooks directory structure at the specified location.
@@ -25,8 +94,13 @@ export async function createHooksDirectory(baseDir: string): Promise<string> {
 
 /**
  * Creates a test hook script with the specified output behavior.
- * Generates executable scripts for the embedded shell architecture.
- * Note: Windows support requires embedded shell implementation.
+ *
+ * On Unix, this writes an executable `HookName` script with a shebang.
+ * On Windows, this writes both:
+ * - `HookName` (PowerShell bridge script)
+ * - `HookName.js` (Node implementation)
+ *
+ * This mirrors runtime behavior where Windows hooks execute via PowerShell.
  *
  * @param baseDir Base directory (typically tempDir from test environment)
  * @param hookName Name of the hook (e.g., "PreToolUse", "PostToolUse")
@@ -74,8 +148,43 @@ export async function createTestHook(
 	const hooksDir = await createHooksDirectory(baseDir)
 	const scriptContent = generateHookScript(output, options)
 
-	// Create uniform shell script (works on all platforms via embedded shell)
+	// Create hook scripts compatible with the active platform/runtime.
 	return writeShellHook(hooksDir, hookName, scriptContent)
+}
+
+/**
+ * Writes a hook script at a specific hook base path (without extension).
+ *
+ * - Unix/macOS: writes executable extensionless script directly
+ * - Windows: writes `<HookName>.ps1` + `<HookName>.js` companion script
+ */
+export async function writeHookScriptForPlatform(hookPath: string, nodeScript: string): Promise<void> {
+	if (process.platform === "win32") {
+		const jsPath = `${hookPath}.js`
+		const ps1Path = `${hookPath}.ps1`
+		const psBridge = buildPowerShellNodeBridge(process.execPath, path.basename(jsPath))
+
+		await fs.writeFile(jsPath, nodeScript)
+		await fs.writeFile(ps1Path, psBridge)
+		return
+	}
+
+	await fs.writeFile(hookPath, nodeScript)
+	await fs.chmod(hookPath, 0o755)
+}
+
+function buildPowerShellNodeBridge(nodePath: string, jsFileName: string): string {
+	const escapedNodePath = nodePath.replace(/'/g, "''")
+	const escapedJsFileName = jsFileName.replace(/'/g, "''")
+
+	return [
+		`$ErrorActionPreference = 'Stop'`,
+		`$scriptPath = Join-Path -Path $PSScriptRoot -ChildPath '${escapedJsFileName}'`,
+		`$inputData = [Console]::In.ReadToEnd()`,
+		`$inputData | & '${escapedNodePath}' $scriptPath`,
+		`if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`,
+		`exit 0`,
+	].join("\n")
 }
 
 /**
@@ -100,7 +209,7 @@ function generateHookScript(
 
 	// If exitWithoutOutput is true, just exit
 	if (options.exitWithoutOutput) {
-		return script + "process.exit(0);\n"
+		return `${script}process.exit(0);\n`
 	}
 
 	if (options.delay) {
@@ -126,12 +235,14 @@ function generateHookScript(
 
 /**
  * Writes an executable hook script.
+ *
+ * Unix: writes executable script directly.
+ * Windows: writes a PowerShell bridge that pipes stdin to a Node companion script.
  */
 async function writeShellHook(hooksDir: string, hookName: string, scriptContent: string): Promise<string> {
 	const scriptPath = path.join(hooksDir, hookName)
-	await fs.writeFile(scriptPath, scriptContent)
-	await fs.chmod(scriptPath, 0o755)
-	return scriptPath
+	await writeHookScriptForPlatform(scriptPath, scriptContent)
+	return process.platform === "win32" ? `${scriptPath}.ps1` : scriptPath
 }
 
 /**
@@ -425,11 +536,15 @@ export async function loadFixture(fixtureName: string, destDir: string): Promise
 	const files = await fs.readdir(sourcePath)
 	for (const file of files) {
 		const sourceFile = path.join(sourcePath, file)
-		const destFile = path.join(destHooksDir, file)
-		await fs.copyFile(sourceFile, destFile)
 
-		// Set executable permission (not needed on Windows)
-		if (process.platform !== "win32") {
+		if (process.platform === "win32") {
+			const sourceContent = await fs.readFile(sourceFile, "utf-8")
+			await writeHookScriptForPlatform(path.join(destHooksDir, file), sourceContent)
+		} else {
+			const destFile = path.join(destHooksDir, file)
+			await fs.copyFile(sourceFile, destFile)
+
+			// Set executable permission (not needed on Windows)
 			const stats = await fs.stat(sourceFile)
 			await fs.chmod(destFile, stats.mode)
 		}
