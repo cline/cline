@@ -26,7 +26,7 @@ import { SubagentBuilder } from "./SubagentBuilder"
 
 const MAX_EMPTY_ASSISTANT_RETRIES = 3
 const MAX_INITIAL_STREAM_ATTEMPTS = 3
-const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 250
+const INITIAL_STREAM_RETRY_BASE_DELAY_MS = 2_000
 
 export type SubagentRunStatus = "completed" | "failed"
 
@@ -292,6 +292,8 @@ export class SubagentRunner {
 		this.abortRequested = false
 		const state = new TaskState()
 		let emptyAssistantResponseRetries = 0
+		let providerId: string | undefined
+		let modelId: string | undefined
 		const usageState: SubagentUsageState = {
 			currentRequest: createEmptyRequestUsageState(),
 		}
@@ -315,15 +317,14 @@ export class SubagentRunner {
 			const api = this.apiHandler
 			this.activeApiAbort = api.abort?.bind(api)
 
-			const providerId = (
-				mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
-			) as string
+			providerId = (mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) as string
 			const providerInfo = {
 				providerId,
 				model: api.getModel(),
 				mode,
 				customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
 			}
+			modelId = providerInfo.model.id
 			stats.contextWindow = providerInfo.model.info.contextWindow || 0
 			const nativeToolCallsRequested =
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
@@ -665,7 +666,8 @@ export class SubagentRunner {
 				return { status: "failed", error: cancelledError, stats }
 			}
 
-			const errorText = (error as Error).message || "Subagent execution failed."
+			const clineError = ClineError.transform(error, modelId, providerId)
+			const errorText = clineError.serialize()
 			Logger.error("[SubagentRunner] run failed", error)
 			onProgress({ status: "failed", error: errorText, stats: { ...stats } })
 			return { status: "failed", error: errorText, stats }
