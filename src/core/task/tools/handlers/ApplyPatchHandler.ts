@@ -15,8 +15,8 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
 import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
-import { computeLineDiffStats } from "../utils/lineDiffStats"
 import { PatchParser } from "../utils/PatchParser"
 import { PathResolver } from "../utils/PathResolver"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -339,10 +339,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			this.config = undefined
 
 			// Extract provider info for human edit telemetry
-			const apiConfig = config.services.stateManager.getApiConfiguration()
-			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-			const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-			const modelId = config.api.getModel().id
+			const { providerId, modelId } = getModelInfo(config)
 
 			// Build response with file contents and diagnostics
 			const responseLines = ["Successfully applied patch to the following files:"]
@@ -367,15 +364,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 						// Capture human edit telemetry: diff between agent's proposed content and the final saved content
 						const change = commit.changes[path] || Object.values(commit.changes).find((c) => c.movePath === path)
-						const agentContent = change?.newContent || ""
-						const humanDiffStats = computeLineDiffStats(agentContent, result.finalContent || "")
-						telemetryService.captureAiOutputAccepted({
+						captureAccepted({
 							ulid: config.ulid,
 							tool: this.name,
-							provider: providerId,
-							model: modelId,
 							source: "human",
-							...humanDiffStats,
+							beforeContent: change?.newContent || "",
+							afterContent: result.finalContent || "",
+							providerId,
+							modelId,
 						})
 					}
 					if (result.autoFormattingEdits) {
@@ -718,16 +714,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
 
-		// Extract provider using the proven pattern from ReportBugHandler
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const modelId = config.api.getModel().id
-
-		// Compute line diff stats for this file change
-		const diffStats = change
-			? computeLineDiffStats(change.oldContent || "", change.newContent || "")
-			: { linesAdded: 0, linesDeleted: 0, linesChanged: 0 }
+		// Extract provider info for telemetry
+		const { providerId, modelId } = getModelInfo(config)
 
 		// Determine file-level operation counts from the change type
 		const fileOps = change
@@ -751,13 +739,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				undefined,
 				block.isNativeToolCall,
 			)
-			telemetryService.captureAiOutputAccepted({
+			captureAccepted({
 				ulid: config.ulid,
 				tool: this.name,
-				provider: providerId,
-				model: modelId,
 				source: "agent",
-				...diffStats,
+				beforeContent: change?.oldContent || "",
+				afterContent: change?.newContent || "",
+				providerId,
+				modelId,
 				...fileOps,
 			})
 			return true
@@ -788,23 +777,25 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		)
 
 		if (approved) {
-			telemetryService.captureAiOutputAccepted({
+			captureAccepted({
 				ulid: config.ulid,
 				tool: this.name,
-				provider: providerId,
-				model: modelId,
 				source: "agent",
-				...diffStats,
+				beforeContent: change?.oldContent || "",
+				afterContent: change?.newContent || "",
+				providerId,
+				modelId,
 				...fileOps,
 			})
 		} else {
-			telemetryService.captureAiOutputRejected({
+			captureRejected({
 				ulid: config.ulid,
 				tool: this.name,
-				provider: providerId,
-				model: modelId,
 				source: "agent",
-				...diffStats,
+				beforeContent: change?.oldContent || "",
+				afterContent: change?.newContent || "",
+				providerId,
+				modelId,
 				...fileOps,
 			})
 		}

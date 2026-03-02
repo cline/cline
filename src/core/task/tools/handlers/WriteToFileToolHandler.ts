@@ -17,7 +17,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { computeLineDiffStats } from "../utils/lineDiffStats"
+import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -98,7 +98,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Extract provider information for telemetry
-		const { providerId, modelId } = this.getModelInfo(config)
+		const { providerId, modelId } = getModelInfo(config)
 
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
@@ -213,15 +213,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				)
 
 				// Capture AI output accepted telemetry with line diff stats
-				const originalContent = config.services.diffViewProvider.originalContent || ""
-				const diffStats = computeLineDiffStats(originalContent, newContent)
-				telemetryService.captureAiOutputAccepted({
+				captureAccepted({
 					ulid: config.ulid,
 					tool: block.name,
-					provider: providerId,
-					model: modelId,
 					source: "agent",
-					...diffStats,
+					beforeContent: config.services.diffViewProvider.originalContent || "",
+					afterContent: newContent,
+					providerId,
+					modelId,
 					filesCreated: fileExists ? 0 : 1,
 				})
 
@@ -280,15 +279,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					)
 
 					// Capture AI output rejected telemetry with line diff stats
-					const originalContentForReject = config.services.diffViewProvider.originalContent || ""
-					const rejectDiffStats = computeLineDiffStats(originalContentForReject, newContent)
-					telemetryService.captureAiOutputRejected({
+					captureRejected({
 						ulid: config.ulid,
 						tool: block.name,
-						provider: providerId,
-						model: modelId,
 						source: "agent",
-						...rejectDiffStats,
+						beforeContent: config.services.diffViewProvider.originalContent || "",
+						afterContent: newContent,
+						providerId,
+						modelId,
 						filesCreated: fileExists ? 0 : 1,
 					})
 
@@ -324,15 +322,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				)
 
 				// Capture AI output accepted telemetry with line diff stats (manual approval)
-				const originalContentForApproval = config.services.diffViewProvider.originalContent || ""
-				const approvalDiffStats = computeLineDiffStats(originalContentForApproval, newContent)
-				telemetryService.captureAiOutputAccepted({
+				captureAccepted({
 					ulid: config.ulid,
 					tool: block.name,
-					provider: providerId,
-					model: modelId,
 					source: "agent",
-					...approvalDiffStats,
+					beforeContent: config.services.diffViewProvider.originalContent || "",
+					afterContent: newContent,
+					providerId,
+					modelId,
 					filesCreated: fileExists ? 0 : 1,
 				})
 			}
@@ -382,14 +379,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				)
 
 				// Capture human edit telemetry: diff between agent's proposed content and the final saved content
-				const humanDiffStats = computeLineDiffStats(newContent, finalContent || "")
-				telemetryService.captureAiOutputAccepted({
+				captureAccepted({
 					ulid: config.ulid,
 					tool: block.name,
-					provider: providerId,
-					model: modelId,
 					source: "human",
-					...humanDiffStats,
+					beforeContent: newContent,
+					afterContent: finalContent || "",
+					providerId,
+					modelId,
 				})
 
 				return formatResponse.fileEditWithUserChanges(
@@ -511,7 +508,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
-				const { providerId, modelId } = this.getModelInfo(config)
+				const { providerId, modelId } = getModelInfo(config)
 
 				// Extract error type from error message if possible
 				const errorType =
@@ -568,14 +565,5 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices }
-	}
-
-	private getModelInfo(config: TaskConfig) {
-		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const modelId = config.api.getModel().id
-		return { providerId, modelId }
 	}
 }
