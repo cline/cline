@@ -81,39 +81,25 @@ export class OpenRouterHandler implements ApiHandler {
 				Logger.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
 				// Include metadata in the error message if available
 				const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
-				const wrappedError = new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`) as Error & {
-					status?: number
-					code?: number
-				}
-				wrappedError.status = error.code
-				wrappedError.code = error.code
-				throw wrappedError
+				throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
 			}
 
 			// Check for error in choices[0].finish_reason
 			// OpenRouter may return errors in a non-standard way within choices
 			const choice = chunk.choices?.[0]
 			// Use type assertion since OpenRouter uses non-standard "error" finish_reason
-				if ((choice?.finish_reason as string) === "error") {
-					// Use type assertion since OpenRouter adds non-standard error property
-					const choiceWithError = choice as any
-					if (choiceWithError.error) {
-						const error = choiceWithError.error
+			if ((choice?.finish_reason as string) === "error") {
+				// Use type assertion since OpenRouter adds non-standard error property
+				const choiceWithError = choice as any
+				if (choiceWithError.error) {
+					const error = choiceWithError.error
 					Logger.error(
 						`OpenRouter Mid-Stream Error: ${error?.code || "Unknown"} - ${error?.message || "Unknown error"}`,
-						)
-						// Format error details
-						const errorDetails = typeof error === "object" ? JSON.stringify(error, null, 2) : String(error)
-						const wrappedError = new Error(`OpenRouter Mid-Stream Error: ${errorDetails}`) as Error & {
-							status?: number
-							code?: number
-						}
-						if (typeof error?.code === "number") {
-							wrappedError.status = error.code
-							wrappedError.code = error.code
-						}
-						throw wrappedError
-					}
+					)
+					// Format error details
+					const errorDetails = typeof error === "object" ? JSON.stringify(error, null, 2) : String(error)
+					throw new Error(`OpenRouter Mid-Stream Error: ${errorDetails}`)
+				}
 				// Fallback if error details are not available
 				throw new Error(`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`)
 			}
