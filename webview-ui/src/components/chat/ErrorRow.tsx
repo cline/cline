@@ -56,6 +56,19 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider && !clineUser) {
+						return (
+							<Button className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
+								Sign in to Cline
+								{isLoginLoading && (
+									<span className="ml-1 animate-spin">
+										<span className="codicon codicon-refresh" />
+									</span>
+								)}
+							</Button>
+						)
+					}
+
 					return (
 						<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere flex flex-col gap-3">
 							{/* Display the well-formatted error extracted from the ClineError instance */}
@@ -91,7 +104,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 										Sign in to Cline
 										{isLoginLoading && (
 											<span className="ml-1 animate-spin">
-												<span className="codicon codicon-refresh"></span>
+												<span className="codicon codicon-refresh" />
 											</span>
 										)}
 									</Button>
