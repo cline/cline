@@ -1,0 +1,58 @@
+---
+title: "Cline API"
+sidebarTitle: "Overview"
+description: "Programmatic access to AI models through an OpenAI-compatible Chat Completions API."
+---
+
+Welcome to the Cline API documentation. Use the same models that power the Cline extension and CLI from any language, framework, or tool that speaks the OpenAI format.
+
+## What is the Cline API?
+
+The Cline API is an OpenAI-compatible Chat Completions endpoint. You authenticate once with a Cline API key and get access to models from Anthropic, OpenAI, Google, and more through a single base URL. No need to manage separate keys for each provider.
+
+```
+Your App  →  Cline API (api.cline.bot)  →  Anthropic / OpenAI / Google / etc.
+```
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/api/getting-started">
+    Create an API key and make your first request in under a minute.
+  </Card>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    API keys, account tokens, key rotation, and security best practices.
+  </Card>
+  <Card title="Chat Completions" icon="message" href="/api/chat-completions">
+    Full endpoint reference with request schemas, streaming, and tool calling.
+  </Card>
+  <Card title="SDK Examples" icon="code" href="/api/sdk-examples">
+    Ready-to-copy examples for Python, Node.js, curl, and the Cline CLI.
+  </Card>
+</CardGroup>
+
+## Explore the Reference
+
+<CardGroup cols={3}>
+  <Card title="Models" icon="brain" href="/api/models">
+    Browse available models, free tier options, reasoning support, and selection guidance.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/api/errors">
+    Error codes, mid-stream errors, retry strategies, and debugging tips.
+  </Card>
+  <Card title="Enterprise API" icon="building" href="/enterprise-solutions/api-reference">
+    Admin endpoints for managing users, organizations, billing, and API keys.
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4-6",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+Get your API key at [app.cline.bot](https://app.cline.bot) (Settings > API Keys), then follow the [Getting Started](/api/getting-started) guide.

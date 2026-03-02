@@ -222,12 +222,6 @@
 						]
 					},
 					{
-						"group": "API Reference",
-						"pages": [
-							"api/reference"
-						]
-					},
-					{
 						"group": "Tools Reference",
 						"pages": [
 							"tools-reference/all-cline-tools",
@@ -305,6 +299,34 @@
 								]
 							},
 							"enterprise-solutions/api-reference"
+						]
+					}
+				]
+			},
+			{
+				"tab": "API",
+				"icon": "code",
+				"groups": [
+					{
+						"group": "Cline API",
+						"pages": [
+							"api/overview",
+							"api/getting-started",
+							"api/authentication"
+						]
+					},
+					{
+						"group": "Endpoints",
+						"pages": [
+							"api/chat-completions"
+						]
+					},
+					{
+						"group": "Reference",
+						"pages": [
+							"api/models",
+							"api/errors",
+							"api/sdk-examples"
 						]
 					}
 				]
@@ -614,6 +636,10 @@
 		{
 			"source": "/features/skills",
 			"destination": "/customization/skills"
+		},
+		{
+			"source": "/api/reference",
+			"destination": "/api/overview"
 		}
 	],
 	"search": {

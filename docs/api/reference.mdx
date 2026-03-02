@@ -1,35 +1,257 @@
 ---
-title: "Public API Reference"
+title: "Cline API Reference"
 sidebarTitle: "API Reference"
-description: "Reference for the public Chat Completions endpoint."
+description: "Reference for the Cline Chat Completions API, an OpenAI-compatible endpoint for programmatic access."
 ---
 
-## Get an API Key
+The Cline API provides an OpenAI-compatible Chat Completions endpoint. You can use it from the Cline extension, the CLI, or any HTTP client that speaks the OpenAI format.
 
-To create an API key:
+## Base URL
 
-1. Go to [app.cline.bot](https://app.cline.bot)
-2. Open **Settings**
-3. Go to **API Keys**
-4. Create and copy your API key
-
-
-## API Key Usage (Cline CLI Provider Auth)
-
-To configure Cline CLI with this API key using the **cline** provider:
-
-```bash
-cline auth -p cline -k "your_api_key_here" -m anthropic/claude-sonnet-4.5
+```
+https://api.cline.bot/api/v1
 ```
 
-Then run Cline normally:
+## Authentication
+
+All requests require a Bearer token in the `Authorization` header. You can use either:
+
+- **API key** created at [app.cline.bot](https://app.cline.bot) (Settings > API Keys)
+- **Account auth token** (used automatically by the Cline extension and CLI when you sign in)
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+### Getting an API Key
+
+<Steps>
+  <Step title="Go to app.cline.bot">
+    Open [app.cline.bot](https://app.cline.bot) and sign in.
+  </Step>
+  <Step title="Open Settings > API Keys">
+    Navigate to **Settings**, then **API Keys**.
+  </Step>
+  <Step title="Create and copy your key">
+    Create a new key and copy it. Store it securely. You will not be able to see it again.
+  </Step>
+</Steps>
+
+## Chat Completions
+
+Create a chat completion with streaming support. This endpoint follows the [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) format.
+
+### Request
+
+```
+POST /chat/completions
+```
+
+**Headers:**
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer YOUR_API_KEY` |
+| `Content-Type` | Yes | `application/json` |
+| `HTTP-Referer` | No | Your application URL |
+| `X-Title` | No | Your application name |
+
+**Body parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `model` | string | Yes | Model ID in `provider/model` format (e.g., `anthropic/claude-sonnet-4-6`) |
+| `messages` | array | Yes | Array of message objects with `role` and `content` |
+| `stream` | boolean | No | Enable SSE streaming (default: `true`) |
+| `tools` | array | No | Tool definitions in OpenAI function calling format |
+| `temperature` | number | No | Sampling temperature |
+
+### Example Request
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4-6",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Explain what a context window is in 2 sentences."}
+    ],
+    "stream": true
+  }'
+```
+
+### Response (Streaming)
+
+When `stream: true`, the response is a series of [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-Sent_Events). Each event contains a JSON chunk:
+
+```json
+data: {"id":"gen-abc123","choices":[{"delta":{"content":"A context"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+
+data: {"id":"gen-abc123","choices":[{"delta":{"content":" window is"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+
+data: [DONE]
+```
+
+The final chunk includes a `usage` object with token counts and cost:
+
+```json
+{
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 42,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "cost": 0.000315
+  }
+}
+```
+
+### Response (Non-Streaming)
+
+When `stream: false`, the response is a single JSON object:
+
+```json
+{
+  "id": "gen-abc123",
+  "model": "anthropic/claude-sonnet-4-6",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "A context window is the maximum amount of text..."
+      },
+      "finish_reason": "stop",
+      "index": 0
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 42
+  }
+}
+```
+
+## Models
+
+Model IDs use the `provider/model-name` format, the same format used by [OpenRouter](https://openrouter.ai). Some examples:
+
+| Model ID | Description |
+|----------|-------------|
+| `anthropic/claude-sonnet-4-6` | Claude Sonnet 4.6 |
+| `anthropic/claude-sonnet-4-5` | Claude Sonnet 4.5 |
+| `google/gemini-2.5-pro` | Gemini 2.5 Pro |
+| `openai/gpt-4o` | GPT-4o |
+
+### Free Models
+
+The following models are available at no cost:
+
+| Model ID | Provider |
+|----------|----------|
+| `minimax/minimax-m2.5` | MiniMax |
+| `kwaipilot/kat-coder-pro` | Kwaipilot |
+| `z-ai/glm-5` | Z-AI |
+
+<Note>
+  Model availability and pricing may change. Check [app.cline.bot](https://app.cline.bot) for the latest list.
+</Note>
+
+## Error Handling
+
+Errors follow the OpenAI error format:
+
+```json
+{
+  "error": {
+    "code": 401,
+    "message": "Invalid API key",
+    "metadata": {}
+  }
+}
+```
+
+Common error codes:
+
+| Code | Meaning |
+|------|---------|
+| `401` | Invalid or missing API key |
+| `402` | Insufficient credits |
+| `429` | Rate limit exceeded |
+| `500` | Server error |
+| `error` (finish_reason) | Mid-stream error from the upstream model provider |
+
+## Using with Cline
+
+The easiest way to use the Cline API is through the Cline extension or CLI, which handle authentication and streaming for you.
+
+### VS Code / JetBrains
+
+Select **Cline** as your provider in the model picker dropdown. Sign in with your Cline account and your API key is managed automatically.
+
+### Cline CLI
+
+Configure the CLI with your API key in one command:
+
+```bash
+cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4-6
+```
+
+Then run tasks normally:
 
 ```bash
 cline "Write a one-line hello world in Python."
 ```
 
-Or do auth + prompt in one line:
+See the [CLI Reference](/cline-cli/cli-reference) for all available commands and options.
 
-```bash
-cline auth -p cline -k "your_api_key_here" -m anthropic/claude-sonnet-4.5 && cline "Write a one-line hello world in Python."
+## Using with Other Tools
+
+Because the Cline API is OpenAI-compatible, you can use it with any library or tool that supports custom OpenAI endpoints.
+
+### Python (OpenAI SDK)
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.cline.bot/api/v1",
+    api_key="YOUR_API_KEY",
+)
+
+response = client.chat.completions.create(
+    model="anthropic/claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(response.choices[0].message.content)
 ```
+
+### Node.js (OpenAI SDK)
+
+```typescript
+import OpenAI from "openai"
+
+const client = new OpenAI({
+  baseURL: "https://api.cline.bot/api/v1",
+  apiKey: "YOUR_API_KEY",
+})
+
+const response = await client.chat.completions.create({
+  model: "anthropic/claude-sonnet-4-6",
+  messages: [{ role: "user", content: "Hello!" }],
+})
+console.log(response.choices[0].message.content)
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cline-cli/cli-reference">
+    Full command reference for the Cline CLI, including auth setup.
+  </Card>
+  <Card title="Enterprise API" icon="building" href="/enterprise-solutions/api-reference">
+    Admin endpoints for user management, organizations, billing, and API keys.
+  </Card>
+</CardGroup>

@@ -1,114 +1,208 @@
 ---
 title: "Enterprise API Reference"
 sidebarTitle: "API Reference"
-description: "Reference for enterprise-focused account, organization, billing, plan, and API key endpoints."
+description: "REST API endpoints for managing users, organizations, billing, plans, and API keys."
 ---
 
-This page covers enterprise-focused API endpoints from `api.md`, including user/account management, organizations, member administration, billing, plans, usage, and API key management.
+The Enterprise API provides REST endpoints for account management, organization administration, billing, and API key management. These are separate from the [Chat Completions API](/api/reference), which handles model inference.
 
-<Note>
-  Endpoints below are listed as path references. Use your deployment's API host and standard authorization headers when calling them.
-</Note>
+## Base URL
+
+```
+https://api.cline.bot
+```
+
+## Authentication
+
+All endpoints require a Bearer token in the `Authorization` header:
+
+```bash
+Authorization: Bearer YOUR_AUTH_TOKEN
+```
+
+Use the same API key or account auth token described in the [public API reference](/api/reference#authentication).
+
+## Quick Example
+
+```bash
+# Get your user profile
+curl https://api.cline.bot/api/v1/users/me \
+  -H "Authorization: Bearer YOUR_AUTH_TOKEN"
+```
+
+```json
+{
+  "id": "user_abc123",
+  "email": "you@company.com",
+  "name": "Your Name",
+  "active_account_id": "org_xyz789"
+}
+```
+
+---
 
 ## Users
 
-User account management, terms, active account selection, balance, usage, and payments.
+Manage user accounts, accept terms, check balances, view usage, and configure payment methods.
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/users/me` |
-| `PATCH` | `/api/v1/users/me` |
-| `DELETE` | `/api/v1/users/me` |
-| `POST` | `/api/v1/users/me/accept-terms` |
-| `GET` | `/api/v1/users/me/remote-config` |
-| `PUT` | `/api/v1/users/active-account` |
-| `GET` | `/api/v1/users/{id}/balance` |
-| `GET` | `/api/v1/users/{id}/usages` |
-| `GET` | `/api/v1/users/{id}/payments` |
-| `GET` | `/api/v1/users/{id}/payments/{paymentId}` |
-| `GET` | `/api/v1/users/{id}/payments/{paymentId}/status` |
-| `GET` | `/api/v1/users/{id}/payments/provider/{paymentId}` |
-| `POST` | `/api/v1/users/credits/checkout` |
-| `POST` | `/api/v1/users/{id}/credits/purchase` |
-| `GET` | `/api/v1/users/{id}/auto-top-up` |
-| `PUT` | `/api/v1/users/{id}/auto-top-up` |
-| `GET` | `/api/v1/users/{id}/payment-method/default` |
-| `POST` | `/api/v1/users/{id}/payment-method/setup-session` |
-| `GET` | `/api/v1/users/{id}/promotions` |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/users/me` | Get current user profile |
+| `PATCH` | `/api/v1/users/me` | Update current user profile |
+| `DELETE` | `/api/v1/users/me` | Delete current user account |
+| `POST` | `/api/v1/users/me/accept-terms` | Accept terms of service |
+| `GET` | `/api/v1/users/me/remote-config` | Get remote configuration for the current user |
+| `PUT` | `/api/v1/users/active-account` | Switch active account (personal or organization) |
+| `GET` | `/api/v1/users/{id}/balance` | Get credit balance |
+| `GET` | `/api/v1/users/{id}/usages` | Get usage history |
+
+### Payments and Credits
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/users/{id}/payments` | List payment history |
+| `GET` | `/api/v1/users/{id}/payments/{paymentId}` | Get payment details |
+| `GET` | `/api/v1/users/{id}/payments/{paymentId}/status` | Check payment status |
+| `GET` | `/api/v1/users/{id}/payments/provider/{paymentId}` | Get provider-side payment details |
+| `POST` | `/api/v1/users/credits/checkout` | Start a credit purchase checkout |
+| `POST` | `/api/v1/users/{id}/credits/purchase` | Purchase credits directly |
+
+### Billing Configuration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/users/{id}/auto-top-up` | Get auto top-up settings |
+| `PUT` | `/api/v1/users/{id}/auto-top-up` | Configure auto top-up |
+| `GET` | `/api/v1/users/{id}/payment-method/default` | Get default payment method |
+| `POST` | `/api/v1/users/{id}/payment-method/setup-session` | Start payment method setup |
+| `GET` | `/api/v1/users/{id}/promotions` | List active promotions |
+
+---
 
 ## Organizations
 
-Create and manage organizations, list organization API keys, access remote config, and fetch org-level metrics.
+Create and manage organizations. Organization admins can configure remote settings, manage members, and control billing.
 
-| Method | Endpoint |
-|---|---|
-| `POST` | `/api/v1/organizations` |
-| `GET` | `/api/v1/organizations/{id}` |
-| `PUT` | `/api/v1/organizations/{id}` |
-| `DELETE` | `/api/v1/organizations/{id}` |
-| `GET` | `/api/v1/organizations/{id}/api-keys` |
-| `GET` | `/api/v1/organizations/{id}/remote-config` |
-| `GET` | `/api/v1/organizations/{orgId}/metrics` |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/organizations` | Create a new organization |
+| `GET` | `/api/v1/organizations/{id}` | Get organization details |
+| `PUT` | `/api/v1/organizations/{id}` | Update organization settings |
+| `DELETE` | `/api/v1/organizations/{id}` | Delete an organization |
+| `GET` | `/api/v1/organizations/{id}/api-keys` | List organization API keys |
+| `GET` | `/api/v1/organizations/{id}/remote-config` | Get remote config for the org |
+| `GET` | `/api/v1/organizations/{orgId}/metrics` | Get organization usage metrics |
+
+---
 
 ## Organization Members
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/organizations/{orgId}/members` |
-| `DELETE` | `/api/v1/organizations/{orgId}/members` |
-| `GET` | `/api/v1/organizations/{orgId}/members/available-roles` |
-| `PUT` | `/api/v1/organizations/{orgId}/members/{memberId}/role` |
-| `GET` | `/api/v1/organizations/{orgId}/members/{memberId}/usages` |
+Manage who has access to the organization and what role they hold.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/organizations/{orgId}/members` | List all members |
+| `DELETE` | `/api/v1/organizations/{orgId}/members` | Remove members |
+| `GET` | `/api/v1/organizations/{orgId}/members/available-roles` | List assignable roles |
+| `PUT` | `/api/v1/organizations/{orgId}/members/{memberId}/role` | Change a member's role |
+| `GET` | `/api/v1/organizations/{orgId}/members/{memberId}/usages` | Get a member's usage |
+
+<Tip>
+  For a walkthrough of member management in the UI, see [Managing Members](/enterprise-solutions/team-management/managing-members).
+</Tip>
+
+---
 
 ## Organization Invites
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/organizations/{orgId}/invites` |
-| `POST` | `/api/v1/organizations/{orgId}/invites` |
-| `GET` | `/api/v1/organizations/{orgId}/invites/count` |
-| `DELETE` | `/api/v1/organizations/{orgId}/invites/{inviteId}` |
-| `POST` | `/api/v1/invites/accept` |
+Invite new members to join your organization.
 
-## Organization Balance & Payments
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/organizations/{orgId}/invites` | List pending invites |
+| `POST` | `/api/v1/organizations/{orgId}/invites` | Send new invites |
+| `GET` | `/api/v1/organizations/{orgId}/invites/count` | Get invite count |
+| `DELETE` | `/api/v1/organizations/{orgId}/invites/{inviteId}` | Revoke an invite |
+| `POST` | `/api/v1/invites/accept` | Accept an invite (called by the invitee) |
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/organizations/{orgId}/balance` |
-| `GET` | `/api/v1/organizations/{orgId}/payments` |
-| `GET` | `/api/v1/organizations/{orgId}/payments/{paymentId}` |
-| `GET` | `/api/v1/organizations/{orgId}/payments/{paymentId}/status` |
-| `GET` | `/api/v1/organizations/{orgId}/payments/provider/{paymentId}` |
-| `POST` | `/api/v1/organizations/{orgId}/credits/checkout` |
-| `POST` | `/api/v1/organizations/{orgId}/credits/purchase` |
-| `GET` | `/api/v1/organizations/{orgId}/auto-top-up` |
-| `PUT` | `/api/v1/organizations/{orgId}/auto-top-up` |
-| `GET` | `/api/v1/organizations/{orgId}/payment-method/default` |
-| `POST` | `/api/v1/organizations/{orgId}/payment-method/setup-session` |
-| `GET` | `/api/v1/organizations/{id}/promotions` |
+---
+
+## Organization Balance and Payments
+
+Manage credits and payments at the organization level. These mirror the user-level payment endpoints but operate on the organization's account.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/organizations/{orgId}/balance` | Get org credit balance |
+| `GET` | `/api/v1/organizations/{orgId}/payments` | List payment history |
+| `GET` | `/api/v1/organizations/{orgId}/payments/{paymentId}` | Get payment details |
+| `GET` | `/api/v1/organizations/{orgId}/payments/{paymentId}/status` | Check payment status |
+| `GET` | `/api/v1/organizations/{orgId}/payments/provider/{paymentId}` | Provider-side payment details |
+| `POST` | `/api/v1/organizations/{orgId}/credits/checkout` | Start credit checkout |
+| `POST` | `/api/v1/organizations/{orgId}/credits/purchase` | Purchase credits |
+| `GET` | `/api/v1/organizations/{orgId}/auto-top-up` | Get auto top-up config |
+| `PUT` | `/api/v1/organizations/{orgId}/auto-top-up` | Configure auto top-up |
+| `GET` | `/api/v1/organizations/{orgId}/payment-method/default` | Get default payment method |
+| `POST` | `/api/v1/organizations/{orgId}/payment-method/setup-session` | Start payment method setup |
+| `GET` | `/api/v1/organizations/{id}/promotions` | List active promotions |
+
+---
 
 ## Organization Plans
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/plans` |
-| `GET` | `/api/v1/organizations/{orgId}/plan` |
-| `GET` | `/api/v1/organizations/{orgId}/plan/history` |
-| `GET` | `/api/v1/organizations/{orgId}/plan/{planId}` |
-| `POST` | `/api/v1/organizations/{orgId}/plan` |
-| `PUT` | `/api/v1/organizations/{orgId}/plan/seats` |
-| `DELETE` | `/api/v1/organizations/{orgId}/plan/{planId}` |
+Subscribe to, upgrade, or cancel plans. Manage seat counts for your team.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/plans` | List all available plans |
+| `GET` | `/api/v1/organizations/{orgId}/plan` | Get current plan |
+| `GET` | `/api/v1/organizations/{orgId}/plan/history` | View plan change history |
+| `GET` | `/api/v1/organizations/{orgId}/plan/{planId}` | Get specific plan details |
+| `POST` | `/api/v1/organizations/{orgId}/plan` | Subscribe to a plan |
+| `PUT` | `/api/v1/organizations/{orgId}/plan/seats` | Update seat count |
+| `DELETE` | `/api/v1/organizations/{orgId}/plan/{planId}` | Cancel a plan |
+
+---
 
 ## Organization Usage
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/organizations/{orgId}/usages` |
+Track token consumption and costs across your organization.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/organizations/{orgId}/usages` | Get aggregated usage data |
+
+<Tip>
+  For dashboards and monitoring, see [Monitoring Overview](/enterprise-solutions/monitoring/overview) and [Telemetry](/enterprise-solutions/monitoring/telemetry).
+</Tip>
+
+---
 
 ## API Keys
 
-| Method | Endpoint |
-|---|---|
-| `GET` | `/api/v1/api-keys` |
-| `POST` | `/api/v1/api-keys` |
-| `DELETE` | `/api/v1/api-keys/{key_id}` |
+Create and manage API keys for programmatic access. Keys created here work with both the [Chat Completions API](/api/reference) and the endpoints on this page.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/api-keys` | List your API keys |
+| `POST` | `/api/v1/api-keys` | Create a new API key |
+| `DELETE` | `/api/v1/api-keys/{key_id}` | Delete an API key |
+
+---
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Chat Completions API" icon="code" href="/api/reference">
+    The public inference API for sending prompts and receiving completions.
+  </Card>
+  <Card title="SSO Setup" icon="key" href="/enterprise-solutions/sso-setup">
+    Configure single sign-on for your organization.
+  </Card>
+  <Card title="Managing Members" icon="users" href="/enterprise-solutions/team-management/managing-members">
+    Add, remove, and manage member roles in the UI.
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/enterprise-solutions/monitoring/overview">
+    Track usage, costs, and telemetry across your organization.
+  </Card>
+</CardGroup>
