@@ -16,8 +16,12 @@ function checkIsOpenRouterContextWindowError(error: any): boolean {
 		const status = error?.status ?? error?.code ?? error?.error?.status ?? error?.response?.status
 		const message: string = String(error?.message || error?.error?.message || "")
 
-		// There seems to be an issue where the true status code is embedded only in the message itself
-		const statusFromMessage = message.match(/"code":\s*(\d+)/)?.[1]
+		// Some providers wrap the HTTP status into a plain Error string, so parse a few common forms.
+		const statusFromMessage =
+			message.match(/"code":\s*(\d+)/)?.[1] ??
+			message.match(/\b(?:status|code)\s*[:=]?\s*(\d{3})\b/i)?.[1] ??
+			message.match(/\b(?:api\s+)?error\s+(\d{3})\b/i)?.[1] ??
+			message.match(/^\s*(\d{3})\b/)?.[1]
 		const finalStatus = statusFromMessage || status
 
 		// Known OpenAI/OpenRouter-style signal (code 400 and message includes "context length")
