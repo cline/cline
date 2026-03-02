@@ -889,7 +889,7 @@ export class Task {
 
 	private async runUserPromptSubmitHook(
 		userContent: ClineContent[],
-		_context: "initial_task" | "resume" | "feedback",
+		_context: "initial_task" | "resume" | "feedback" | "retry",
 	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
 		const hooksEnabled = getHooksEnabledSafe()
 
@@ -1755,28 +1755,35 @@ export class Task {
 		if (retryUserContent.length > 0) {
 			await this.say("user_feedback", askResult.text, askResult.images, askResult.files)
 
-			const apiHistory = this.messageStateHandler.getApiConversationHistory()
-			const lastApiMessage = apiHistory.at(-1)
+			// Run UserPromptSubmit hook for retry feedback
+			const hookResult = await this.runUserPromptSubmitHook(retryUserContent, "retry")
 
-			if (lastApiMessage?.role === "user") {
-				const existingUserContent: ClineContent[] = Array.isArray(lastApiMessage.content)
-					? lastApiMessage.content
-					: [{ type: "text", text: lastApiMessage.content }]
+			if (this.taskState.abort) {
+				return "messageResponse" // will be caught by abort check in caller
+			}
 
-				await this.messageStateHandler.overwriteApiConversationHistory([
-					...apiHistory.slice(0, -1),
-					{
-						...lastApiMessage,
-						content: [...existingUserContent, ...retryUserContent],
-					},
-				])
-			} else {
-				await this.messageStateHandler.addToApiConversationHistory({
-					role: "user",
-					content: retryUserContent,
-					ts: Date.now(),
+			if (hookResult.cancel === true) {
+				await this.handleHookCancellation("UserPromptSubmit", hookResult.wasCancelled ?? false)
+				await this.cancelTask()
+				return "messageResponse" // will be caught by abort check in caller
+			}
+
+			// Always add as a new user message for clean conversation semantics
+			const contentToAdd = [...retryUserContent]
+
+			// Add hook context if provided
+			if (hookResult.contextModification) {
+				contentToAdd.push({
+					type: "text",
+					text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
 				})
 			}
+
+			await this.messageStateHandler.addToApiConversationHistory({
+				role: "user",
+				content: contentToAdd,
+				ts: Date.now(),
+			})
 		}
 
 		// this will simulate user attempted to retry the failed api request
