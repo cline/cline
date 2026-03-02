@@ -158,7 +158,7 @@ export class FeatureFlagsService {
 	 * Cache is updated periodically via poll(), and is generated on extension startup,
 	 * and whenever the user logs in.
 	 */
-	private getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
+	getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
 		return this.cache.get(flagName) === true
 	}
 
