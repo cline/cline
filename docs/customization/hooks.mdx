@@ -228,6 +228,15 @@ Every hook receives a JSON object with common fields plus hook-specific data:
 
 `model.provider` and `model.slug` are machine-stable identifiers for the active provider/model at hook execution time. If unavailable, Cline sends deterministic fallback values: `"unknown"`.
 
+<Note>
+Migration note for existing hook scripts:
+
+- `timestamp` is a string (milliseconds since epoch), not a number
+- `workspaceRoots` is an array of workspace root paths and replaces the old singular `workspacePath`
+
+If your scripts previously read `.workspacePath`, switch to `.workspaceRoots[0]` (or iterate all roots).
+</Note>
+
 The hook-specific field name matches the hook type:
 - `taskStart`, `taskResume`, `taskCancel`, `taskComplete` contain `{ task: string }`
 - `preToolUse` contains `{ tool: string, parameters: object }`
@@ -447,7 +456,7 @@ Inject project-specific information when a task begins:
 # TaskStart hook
 
 INPUT=$(cat)
-WORKSPACE=$(echo "$INPUT" | jq -r '.workspacePath')
+WORKSPACE=$(echo "$INPUT" | jq -r '.workspaceRoots[0] // empty')
 
 # Read project info if available
 if [[ -f "$WORKSPACE/.project-context" ]]; then
