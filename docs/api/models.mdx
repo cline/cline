@@ -1,0 +1,114 @@
+---
+title: "Models"
+sidebarTitle: "Models"
+description: "Available models, pricing tiers, free models, and how model IDs work in the Cline API."
+---
+
+The Cline API gives you access to models from multiple providers through a single endpoint. Model IDs follow the `provider/model-name` format, the same convention used by [OpenRouter](https://openrouter.ai).
+
+## Model ID Format
+
+Every model is identified by a string in the format:
+
+```
+provider/model-name
+```
+
+For example:
+- `anthropic/claude-sonnet-4-6` - Claude Sonnet 4.6 from Anthropic
+- `openai/gpt-4o` - GPT-4o from OpenAI
+- `google/gemini-2.5-pro` - Gemini 2.5 Pro from Google
+
+Pass this string as the `model` parameter in your [Chat Completions](/api/chat-completions) request.
+
+## Popular Models
+
+| Model ID | Provider | Context Window | Reasoning | Best For |
+|----------|----------|---------------|-----------|----------|
+| `anthropic/claude-sonnet-4-6` | Anthropic | 200K | Yes | General coding, analysis, complex tasks |
+| `anthropic/claude-sonnet-4-5` | Anthropic | 200K | Yes | Balanced performance and cost |
+| `openai/gpt-4o` | OpenAI | 128K | No | Multimodal tasks, fast responses |
+| `google/gemini-2.5-pro` | Google | 1M | Yes | Very long context, document analysis |
+| `deepseek/deepseek-chat` | DeepSeek | 64K | No | Cost-effective coding tasks |
+| `x-ai/grok-3` | xAI | 128K | Yes | Reasoning-heavy tasks |
+
+<Note>
+  Model availability and pricing change over time. Check [app.cline.bot](https://app.cline.bot) for the latest catalog.
+</Note>
+
+## Free Models
+
+These models are available at no cost. They are a good starting point for experimentation and lightweight tasks:
+
+| Model ID | Provider | Context Window |
+|----------|----------|---------------|
+| `minimax/minimax-m2.5` | MiniMax | 1M |
+| `kwaipilot/kat-coder-pro` | Kwaipilot | 32K |
+| `z-ai/glm-5` | Z-AI | 128K |
+
+Free models have the same API interface as paid models. Just use their model ID:
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "minimax/minimax-m2.5",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+## Reasoning Models
+
+Some models support extended thinking, where the model reasons through a problem before responding. When using these models:
+
+- Reasoning content appears in `delta.reasoning` during streaming
+- Some providers return encrypted reasoning blocks in `delta.reasoning_details`
+- Reasoning tokens are counted separately from output tokens
+
+Models with reasoning support include most Claude, Gemini 2.5, and Grok 3 models. Check the model's `supportsReasoning` capability in the model catalog.
+
+## Choosing a Model
+
+| If you need... | Consider |
+|----------------|----------|
+| Best coding performance | `anthropic/claude-sonnet-4-6` |
+| Long document analysis | `google/gemini-2.5-pro` (1M context) |
+| Fast, cheap responses | `deepseek/deepseek-chat` |
+| Free experimentation | `minimax/minimax-m2.5` |
+| Multi-modal (text + images) | `openai/gpt-4o` or `anthropic/claude-sonnet-4-6` |
+| Complex reasoning | Any model with reasoning support |
+
+For a deeper comparison of model capabilities and pricing, see the [Model Selection Guide](/core-features/model-selection-guide).
+
+## Image Support
+
+Models that support images accept base64-encoded image content in the `messages` array:
+
+```json
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "What's in this image?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+      ]
+    }
+  ]
+}
+```
+
+Not all models support images. Check the model's `supportsImages` capability before sending image content.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Chat Completions" icon="message" href="/api/chat-completions">
+    Use these models in your API requests.
+  </Card>
+  <Card title="Model Selection Guide" icon="scale-balanced" href="/core-features/model-selection-guide">
+    In-depth comparison for choosing the right model.
+  </Card>
+</CardGroup>
