@@ -24,10 +24,9 @@ import {
 	xaiDefaultModelId,
 } from "../api"
 
-// Note: "cline" provider uses the same model ID key as "openrouter"
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
-	cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
+	cline: "ClineModelId",
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",

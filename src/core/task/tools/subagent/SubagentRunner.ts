@@ -13,7 +13,7 @@ import { ClineDefaultTool, ClineTool } from "@shared/tools"
 import { ContextManager } from "@/core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@/core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@/core/context/context-management/context-window-utils"
-import { HostProvider } from "@/hosts/host-provider"
+import { HostRegistryInfo } from "@/registry"
 import { ClineError, ClineErrorType } from "@/services/error"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
@@ -57,6 +57,20 @@ interface SubagentRunStats {
 	contextUsagePercentage: number
 }
 
+interface SubagentRequestUsageState {
+	inputTokens: number
+	outputTokens: number
+	cacheWriteTokens: number
+	cacheReadTokens: number
+	totalTokens: number
+	totalCost?: number
+}
+
+interface SubagentUsageState {
+	currentRequest: SubagentRequestUsageState
+	lastRequest?: SubagentRequestUsageState
+}
+
 interface SubagentToolCall {
 	toolUseId: string
 	id?: string
@@ -65,6 +79,16 @@ interface SubagentToolCall {
 	name: string
 	input: unknown
 	isNativeToolCall: boolean
+}
+
+function createEmptyRequestUsageState(): SubagentRequestUsageState {
+	return {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheWriteTokens: 0,
+		cacheReadTokens: 0,
+		totalTokens: 0,
+	}
 }
 
 function serializeToolResult(result: unknown): string {
@@ -268,7 +292,9 @@ export class SubagentRunner {
 		this.abortRequested = false
 		const state = new TaskState()
 		let emptyAssistantResponseRetries = 0
-		let previousRequestTotalTokens: number | undefined
+		const usageState: SubagentUsageState = {
+			currentRequest: createEmptyRequestUsageState(),
+		}
 		const stats: SubagentRunStats = {
 			toolCalls: 0,
 			inputTokens: 0,
@@ -303,9 +329,22 @@ export class SubagentRunner {
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				!!this.baseConfig.services.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 
-			const host = await HostProvider.env.getHostVersion({})
+			const host = HostRegistryInfo.get()
 			const discoveredSkills = await discoverSkills(this.baseConfig.cwd)
-			const skills = getAvailableSkills(discoveredSkills)
+			const availableSkills = getAvailableSkills(discoveredSkills)
+			const configuredSkillNames = this.agent.getConfiguredSkills()
+			const skills =
+				configuredSkillNames !== undefined
+					? configuredSkillNames
+							.map((skillName) => {
+								const skill = availableSkills.find((candidate) => candidate.name === skillName)
+								if (!skill) {
+									Logger.warn(`[SubagentRunner] Configured skill '${skillName}' not found for subagent run.`)
+								}
+								return skill
+							})
+							.filter((skill): skill is (typeof availableSkills)[number] => Boolean(skill))
+					: availableSkills
 
 			const context: SystemPromptContext = {
 				providerInfo,
@@ -364,24 +403,21 @@ export class SubagentRunner {
 
 			while (true) {
 				if (
-					previousRequestTotalTokens !== undefined &&
-					this.shouldCompactBeforeNextRequest(previousRequestTotalTokens, api, providerInfo.model.id)
+					usageState.lastRequest &&
+					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, api, providerInfo.model.id)
 				) {
 					const didCompact = this.compactConversationForContextWindow(conversation)
 					if (didCompact) {
 						Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
 					}
 					// Prevent repeated compaction attempts off the same token sample.
-					previousRequestTotalTokens = undefined
+					usageState.lastRequest = undefined
 				}
 
 				const streamHandler = new StreamResponseHandler()
 				const { toolUseHandler } = streamHandler.getHandlers()
-				let requestInputTokens = 0
-				let requestOutputTokens = 0
-				let requestCacheWriteTokens = 0
-				let requestCacheReadTokens = 0
-				let requestTotalCost: number | undefined
+				usageState.currentRequest = createEmptyRequestUsageState()
+				const requestUsage = usageState.currentRequest
 
 				let assistantText = ""
 				let assistantTextSignature: string | undefined
@@ -404,13 +440,17 @@ export class SubagentRunner {
 							stats.outputTokens += chunk.outputTokens || 0
 							stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
 							stats.cacheReadTokens += chunk.cacheReadTokens || 0
-							requestInputTokens += chunk.inputTokens || 0
-							requestOutputTokens += chunk.outputTokens || 0
-							requestCacheWriteTokens += chunk.cacheWriteTokens || 0
-							requestCacheReadTokens += chunk.cacheReadTokens || 0
-							requestTotalCost = chunk.totalCost ?? requestTotalCost
-							stats.contextTokens =
-								requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
+							requestUsage.inputTokens += chunk.inputTokens || 0
+							requestUsage.outputTokens += chunk.outputTokens || 0
+							requestUsage.cacheWriteTokens += chunk.cacheWriteTokens || 0
+							requestUsage.cacheReadTokens += chunk.cacheReadTokens || 0
+							requestUsage.totalTokens =
+								requestUsage.inputTokens +
+								requestUsage.outputTokens +
+								requestUsage.cacheWriteTokens +
+								requestUsage.cacheReadTokens
+							requestUsage.totalCost = chunk.totalCost ?? requestUsage.totalCost
+							stats.contextTokens = requestUsage.totalTokens
 							stats.contextUsagePercentage =
 								stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
 							onProgress({ stats: { ...stats } })
@@ -447,17 +487,21 @@ export class SubagentRunner {
 				}
 
 				const calculatedRequestCost =
-					requestTotalCost ??
+					requestUsage.totalCost ??
 					calculateApiCostAnthropic(
 						providerInfo.model.info,
-						requestInputTokens,
-						requestOutputTokens,
-						requestCacheWriteTokens,
-						requestCacheReadTokens,
+						requestUsage.inputTokens,
+						requestUsage.outputTokens,
+						requestUsage.cacheWriteTokens,
+						requestUsage.cacheReadTokens,
 					)
+				requestUsage.totalTokens =
+					requestUsage.inputTokens +
+					requestUsage.outputTokens +
+					requestUsage.cacheWriteTokens +
+					requestUsage.cacheReadTokens
 				stats.totalCost += calculatedRequestCost || 0
-				previousRequestTotalTokens =
-					requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
+				usageState.lastRequest = { ...requestUsage }
 
 				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
 					toolUseId: resolveToolUseId(toolCall, index),
@@ -723,7 +767,7 @@ export class SubagentRunner {
 	}
 
 	private shouldCompactBeforeNextRequest(
-		previousRequestTotalTokens: number,
+		requestTotalTokens: number,
 		api: ReturnType<typeof buildApiHandler>,
 		modelId: string,
 	): boolean {
@@ -733,10 +777,10 @@ export class SubagentRunner {
 			const autoCondenseThreshold = 0.75
 			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
 			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
-			return previousRequestTotalTokens >= thresholdTokens
+			return requestTotalTokens >= thresholdTokens
 		}
 
-		return previousRequestTotalTokens >= maxAllowedSize
+		return requestTotalTokens >= maxAllowedSize
 	}
 
 	private async *createMessageWithInitialChunkRetry(

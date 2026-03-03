@@ -116,6 +116,7 @@
 							},
 							"cline-cli/configuration",
 							"cline-cli/acp-editor-integrations",
+							"cline-sdk/overview",
 							"cline-cli/cli-reference"
 						]
 					},
@@ -286,7 +287,8 @@
 							{
 								"group": "Control Other Cline Features",
 								"pages": [
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace"
 								]
 							},
 							{

@@ -3,9 +3,11 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { ClineEnv } from "@/config"
+import { featureFlagsService } from "@/services/feature-flags"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { getAxiosSettings } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
-import type { Controller } from ".."
 
 export interface ClineRecommendedModelData {
 	id: string
@@ -23,6 +25,14 @@ const RECOMMENDED_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
 
 let pendingRefresh: Promise<ClineRecommendedModelsData> | null = null
 let inMemoryCache: { data: ClineRecommendedModelsData; timestamp: number } | null = null
+
+function getHardcodedRecommendedModels(): ClineRecommendedModelsData {
+	return CLINE_RECOMMENDED_MODELS_FALLBACK
+}
+
+function useUpstreamRecommendedModels(): boolean {
+	return featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM)
+}
 
 function normalizeRecommendedModel(raw: unknown): ClineRecommendedModelData | null {
 	if (!raw || typeof raw !== "object") {
@@ -69,7 +79,11 @@ function normalizeRecommendedModelsResponse(raw: unknown): ClineRecommendedModel
 	return { recommended, free }
 }
 
-export async function refreshClineRecommendedModels(_controller: Controller): Promise<ClineRecommendedModelsData> {
+export async function refreshClineRecommendedModels(): Promise<ClineRecommendedModelsData> {
+	if (!useUpstreamRecommendedModels()) {
+		return getHardcodedRecommendedModels()
+	}
+
 	if (inMemoryCache && Date.now() - inMemoryCache.timestamp <= RECOMMENDED_MODELS_CACHE_TTL_MS) {
 		return inMemoryCache.data
 	}
@@ -87,6 +101,11 @@ export async function refreshClineRecommendedModels(_controller: Controller): Pr
 	})()
 
 	return pendingRefresh
+}
+
+export function resetClineRecommendedModelsCacheForTests(): void {
+	pendingRefresh = null
+	inMemoryCache = null
 }
 
 async function fetchAndCacheClineRecommendedModels(): Promise<ClineRecommendedModelsData> {

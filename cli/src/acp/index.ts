@@ -15,22 +15,18 @@
 
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
 import { Logger } from "@/shared/services/Logger"
-import { version as CLI_VERSION } from "../../../package.json"
 import { AcpAgent } from "./AcpAgent.js"
 import { nodeToWebReadable, nodeToWebWritable } from "./streamUtils.js"
 
 // Re-export classes for programmatic use
 export { ClineAgent } from "../agent/ClineAgent.js"
 export { ClineSessionEmitter } from "../agent/ClineSessionEmitter.js"
-// Re-export types
 export type {
 	AcpAgentOptions,
 	AcpSessionState,
-	ClineAcpSession,
 	ClineAgentOptions,
 	ClineSessionEvents,
 	PermissionHandler,
-	PermissionResolver,
 } from "../agent/types.js"
 export { AcpAgent } from "./AcpAgent.js"
 
@@ -99,7 +95,6 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
 
 	new AgentSideConnection((conn) => {
 		agent = new AcpAgent(conn, {
-			version: CLI_VERSION,
 			debug: Boolean(options.verbose),
 		})
 		return agent

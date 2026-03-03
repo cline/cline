@@ -20,7 +20,7 @@ import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/Po
 import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
+import { getProviderModelIdKey } from "@/shared/storage"
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@/shared/storage/types"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
@@ -29,7 +29,8 @@ import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
-import { restoreConsole } from "./utils/console"
+import { isAuthConfigured } from "./utils/auth"
+import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
 import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
@@ -41,6 +42,10 @@ import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
+
+// CLI-only behavior: suppress console output unless verbose mode is enabled.
+// Kept explicit here so importing the library bundle does not mutate global console methods.
+suppressConsoleUnlessVerbose()
 
 /**
  * Common options shared between runTask and resumeTask
@@ -789,68 +794,6 @@ devCommand
 		const { openExternal } = await import("@/utils/env")
 		await openExternal(CLI_LOG_FILE)
 	})
-
-/**
- * Check if the user has completed onboarding (has any provider configured).
- *
- * Uses `welcomeViewCompleted` as the single source of truth, matching the VS Code extension's approach.
- * If `welcomeViewCompleted` is undefined (first run), checks if ANY provider has credentials
- * and sets the flag accordingly.
- */
-export async function isAuthConfigured(): Promise<boolean> {
-	const stateManager = StateManager.get()
-
-	// Check welcomeViewCompleted first - this is the single source of truth
-	const welcomeViewCompleted = stateManager.getGlobalStateKey("welcomeViewCompleted")
-	if (welcomeViewCompleted !== undefined) {
-		return welcomeViewCompleted
-	}
-
-	// welcomeViewCompleted is undefined - run migration logic to check if ANY provider has credentials
-	// This mirrors the extension's migrateWelcomeViewCompleted behavior
-	const hasAnyAuth = await checkAnyProviderConfigured()
-
-	// Set welcomeViewCompleted based on what we found
-	stateManager.setGlobalState("welcomeViewCompleted", hasAnyAuth)
-	await stateManager.flushPendingState()
-
-	return hasAnyAuth
-}
-
-/**
- * Check if ANY provider has valid credentials configured.
- * Used for migration when welcomeViewCompleted is undefined.
- */
-async function checkAnyProviderConfigured(): Promise<boolean> {
-	const stateManager = StateManager.get()
-	const config = stateManager.getApiConfiguration() as Record<string, unknown>
-
-	// Check Cline account (stored as "cline:clineAccountId" in secrets, loaded into config)
-	if (config["clineApiKey"] || config["cline:clineAccountId"]) return true
-
-	// Check OpenAI Codex OAuth (stored in SECRETS_KEYS, loaded into config)
-	if (config["openai-codex-oauth-credentials"]) return true
-
-	// Check all BYO provider API keys (loaded into config from secrets)
-	for (const [provider, keyField] of Object.entries(ProviderToApiKeyMap)) {
-		// Skip cline - already checked above with the correct key
-		if (provider === "cline") continue
-
-		const fields = Array.isArray(keyField) ? keyField : [keyField]
-		for (const field of fields) {
-			if (config[field]) return true
-		}
-	}
-
-	// Check provider-specific settings that indicate configuration
-	// (for providers that don't require API keys like Bedrock with IAM, Ollama, LM Studio)
-	if (config.awsRegion) return true
-	if (config.vertexProjectId) return true
-	if (config.ollamaBaseUrl) return true
-	if (config.lmStudioBaseUrl) return true
-
-	return false
-}
 
 /**
  * Validate that a task exists in history

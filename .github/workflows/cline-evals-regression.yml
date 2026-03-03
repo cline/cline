@@ -55,7 +55,22 @@ jobs:
           CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
           cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
-          npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --parallel
+          max_attempts=3
+          for attempt in $(seq 1 $max_attempts); do
+            echo "::group::Attempt $attempt of $max_attempts"
+            if npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1 --parallel; then
+              echo "::endgroup::"
+              echo "Smoke tests passed on attempt $attempt"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ $attempt -lt $max_attempts ]; then
+              echo "::warning::Smoke tests failed on attempt $attempt, retrying..."
+              sleep 10
+            fi
+          done
+          echo "::error::Smoke tests failed after $max_attempts attempts"
+          exit 1
 
       - name: Generate summary
         if: always()

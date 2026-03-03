@@ -1,19 +1,17 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
+import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
-import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import {
@@ -49,189 +47,15 @@ export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 	showProviderRouting?: boolean
-	initialTab?: "recommended" | "free"
 }
 
-interface FeaturedModelCardEntry {
-	id: string
-	description: string
-	label: string
-}
-
-// Featured models for Cline provider organized by tabs
-const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
-	{
-		id: "google/gemini-3.1-pro-preview",
-		description: "Latest Gemini release with 1m ctx window and strong coding performance",
-		label: "NEW",
-	},
-	{
-		id: "anthropic/claude-sonnet-4.6",
-		description: "Latest Sonnet release with strong coding and agent performance",
-		label: "NEW",
-	},
-	{
-		id: "anthropic/claude-opus-4.6",
-		description: "Most intelligent model for agents and coding",
-		label: "BEST",
-	},
-	{
-		id: "openai/gpt-5.2-codex",
-		description: "OpenAI's latest with strong coding abilities",
-		label: "HOT",
-	},
-]
-
-const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = [
-	{
-		id: "minimax/minimax-m2.5",
-		description: "MiniMax-M2.5 is a lightweight, state-of-the-art LLM optimized for coding and agentic workflows",
-		label: "FREE",
-	},
-	{
-		id: "z-ai/glm-5",
-		description: "Z.AI's latest GLM 5 model with strong coding and agent performance",
-		label: "FREE",
-	},
-	{
-		id: "kwaipilot/kat-coder-pro",
-		description: "KwaiKAT's most advanced agentic coding model in the KAT-Coder series",
-		label: "FREE",
-	},
-	{
-		id: "arcee-ai/trinity-large-preview:free",
-		description: "Arcee AI's advanced large preview model in the Trinity series",
-		label: "FREE",
-	},
-]
-
-const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
-
-function normalizeModelId(modelId: string): string {
-	return modelId.trim().toLowerCase()
-}
-
-function toFeaturedModelCardEntry(model: ClineRecommendedModel, fallbackLabel: string): FeaturedModelCardEntry | null {
-	if (!model.id) {
-		return null
-	}
-
-	const firstTag = model.tags?.[0]
-	const normalizedLabel = typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : undefined
-
-	return {
-		id: model.id,
-		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
-		label: normalizedLabel || fallbackLabel,
-	}
-}
-
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
-	isPopup,
-	currentMode,
-	showProviderRouting,
-	initialTab,
-}) => {
+const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
-	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
-	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
-	const freeClineModelIds = useMemo(() => {
-		const freeModelIds =
-			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
-		return [...new Set(freeModelIds)]
-	}, [clineFreeModels])
-	const freeClineModelIdSet = useMemo(
-		() => new Set(freeClineModelIds.map((modelId) => normalizeModelId(modelId))),
-		[freeClineModelIds],
-	)
-	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
-	const recommendedModels = useMemo(
-		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
-		[clineRecommendedModels],
-	)
-	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
-	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
-	const isFetchingClineRecommendedModelsRef = useRef(false)
-	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
-
-	const refreshClineRecommendedModels = useCallback(async (): Promise<boolean> => {
-		try {
-			const response = await ModelsServiceClient.makeUnaryRequest(
-				"refreshClineRecommendedModelsRpc",
-				EmptyRequest.create({}),
-				EmptyRequest.toJSON,
-				ClineRecommendedModelsResponse.fromJSON,
-			)
-			const recommended = (response.recommended ?? [])
-				.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
-				.filter((model): model is FeaturedModelCardEntry => model !== null)
-			const free = (response.free ?? [])
-				.map((model) => toFeaturedModelCardEntry(model, "FREE"))
-				.filter((model): model is FeaturedModelCardEntry => model !== null)
-			setClineRecommendedModels(recommended)
-			setClineFreeModels(free)
-			return true
-		} catch (error) {
-			console.error("Failed to refresh Cline recommended models:", error)
-			return false
-		}
-	}, [])
-
-	const clearClineRecommendedModelsRetryTimeout = useCallback(() => {
-		if (clineRecommendedModelsRetryTimeoutRef.current !== null) {
-			window.clearTimeout(clineRecommendedModelsRetryTimeoutRef.current)
-			clineRecommendedModelsRetryTimeoutRef.current = null
-		}
-	}, [])
-
-	const fetchClineRecommendedModels = useCallback(async () => {
-		if (hasSuccessfulClineRecommendedModelsFetchRef.current || isFetchingClineRecommendedModelsRef.current) {
-			return
-		}
-		isFetchingClineRecommendedModelsRef.current = true
-		const succeeded = await refreshClineRecommendedModels()
-		isFetchingClineRecommendedModelsRef.current = false
-
-		if (succeeded) {
-			hasSuccessfulClineRecommendedModelsFetchRef.current = true
-			clearClineRecommendedModelsRetryTimeout()
-			return
-		}
-
-		if (clineRecommendedModelsRetryTimeoutRef.current === null) {
-			clineRecommendedModelsRetryTimeoutRef.current = window.setTimeout(() => {
-				clineRecommendedModelsRetryTimeoutRef.current = null
-				void fetchClineRecommendedModels()
-			}, CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS)
-		}
-	}, [clearClineRecommendedModelsRetryTimeout, refreshClineRecommendedModels])
-
-	useEffect(() => {
-		return () => {
-			clearClineRecommendedModelsRetryTimeout()
-		}
-	}, [clearClineRecommendedModelsRetryTimeout])
-
-	// If a caller wants to deep-link to the Free tab (or Recommended), honor that.
-	useEffect(() => {
-		if (initialTab) {
-			setActiveTab(initialTab)
-		}
-	}, [initialTab])
-
-	useEffect(() => {
-		if (initialTab) {
-			return
-		}
-		const currentModelId = modeFields.openRouterModelId || openRouterDefaultModelId
-		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
-	}, [modeFields.openRouterModelId, freeClineModelIdSet, initialTab])
-
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -256,33 +80,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		const isCline = selected.selectedProvider === "cline"
-		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		if (isCline && freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
-			return {
-				...selected,
-				selectedModelInfo: {
-					...selected.selectedModelInfo,
-					inputPrice: 0,
-					outputPrice: 0,
-					cacheReadsPrice: 0,
-					cacheWritesPrice: 0,
-				},
-			}
-		}
 		return selected
-	}, [apiConfiguration, currentMode, freeClineModelIdSet])
+	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
 		refreshOpenRouterModels()
 	})
-
-	useEffect(() => {
-		if (modeFields.apiProvider !== "cline") {
-			return
-		}
-		void fetchClineRecommendedModels()
-	}, [modeFields.apiProvider, fetchClineRecommendedModels])
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
@@ -305,8 +108,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-		return filterOpenRouterModelIds(unfilteredModelIds, modeFields.apiProvider || "openrouter", freeClineModelIds)
-	}, [openRouterModels, modeFields.apiProvider, freeClineModelIds])
+		return filterOpenRouterModelIds(unfilteredModelIds, "openrouter")
+	}, [openRouterModels])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -362,7 +165,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 					handleModelChange(modelSearchResults[selectedIndex].id)
 					setIsDropdownVisible(false)
 				} else {
-					// User typed a custom model ID (e.g., @preset/something)
+					// User typed a custom model ID
 					handleModelChange(searchTerm)
 					setIsDropdownVisible(false)
 				}
@@ -376,18 +179,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 
 	const hasInfo = useMemo(() => {
 		try {
-			if (searchTerm.startsWith("@preset/")) {
-				return false // Disable model info for presets
-			}
 			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 		} catch {
 			return false
 		}
 	}, [modelIds, searchTerm])
-
-	const isOpenRouterPreset = useMemo(() => {
-		return searchTerm.startsWith("@preset/")
-	}, [searchTerm])
 
 	useEffect(() => {
 		setSelectedIndex(-1)
@@ -445,52 +241,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
-
-				{modeFields.apiProvider === "cline" && (
-					<>
-						{/* Tabs */}
-						<TabsContainer style={{ marginTop: 4 }}>
-							<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
-								Recommended
-							</Tab>
-							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-								Free
-							</Tab>
-						</TabsContainer>
-
-						{/* Model Cards */}
-						<div style={{ marginBottom: "6px" }}>
-							{activeTab === "recommended" &&
-								recommendedModels.map((model) => (
-									<FeaturedModelCard
-										description={model.description}
-										isSelected={selectedModelId === model.id}
-										key={model.id}
-										label={model.label}
-										modelId={model.id}
-										onClick={() => {
-											handleModelChange(model.id)
-											setIsDropdownVisible(false)
-										}}
-									/>
-								))}
-							{activeTab === "free" &&
-								freeModels.map((model) => (
-									<FeaturedModelCard
-										description={model.description}
-										isSelected={selectedModelId === model.id}
-										key={model.id}
-										label={model.label}
-										modelId={model.id}
-										onClick={() => {
-											handleModelChange(model.id)
-											setIsDropdownVisible(false)
-										}}
-									/>
-								))}
-						</div>
-					</>
-				)}
 
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
@@ -613,20 +363,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						showProviderRouting={showProviderRouting}
 					/>
 				</>
-			) : isOpenRouterPreset ? (
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: 3,
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					Using OpenRouter preset: <strong>{searchTerm}</strong>. Preset models reference your configured model
-					preferences on{" "}
-					<VSCodeLink href="https://openrouter.ai/settings/presets" style={{ display: "inline", fontSize: "inherit" }}>
-						OpenRouter.
-					</VSCodeLink>
-					Model info and pricing will depend on your preset configuration.
-				</p>
 			) : (
 				<p
 					style={{
@@ -644,8 +380,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({
 						style={{ display: "inline", fontSize: "inherit" }}>
 						anthropic/claude-sonnet-4.6.
 					</VSCodeLink>
-					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
-					entering @preset/your-preset-name
+					You can also try searching "free" for no-cost options currently available.
 				</p>
 			)}
 		</div>
@@ -687,28 +422,5 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
-	}
-`
-
-// Tabs
-
-const TabsContainer = styled.div`
-	display: flex;
-	gap: 0;
-	margin-bottom: 12px;
-	border-bottom: 1px solid #333;
-`
-
-const Tab = styled.div<{ active: boolean }>`
-	padding: 8px 16px;
-	cursor: pointer;
-	font-size: 12px;
-	font-weight: 500;
-	color: ${({ active }) => (active ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	border-bottom: 2px solid ${({ active }) => (active ? "var(--vscode-textLink-foreground)" : "transparent")};
-	transition: all 0.15s ease;
-
-	&:hover {
-		color: var(--vscode-foreground);
 	}
 `
