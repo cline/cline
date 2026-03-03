@@ -15,10 +15,16 @@ export function getHookModelContext(api: ApiHandler, stateManager: StateManager)
 		| ApiProvider
 		| undefined
 
-	const modelKey = provider ? getProviderModelIdKey(provider, resolvedMode) : undefined
+	const genericModelKey = `${resolvedMode}ModeApiModelId`
+	const providerModelKey = provider ? getProviderModelIdKey(provider, resolvedMode) : undefined
 	const configRecord = apiConfig as Record<string, unknown>
-	const providerModelSlug = modelKey ? (configRecord[modelKey] as string | undefined) : undefined
-	const genericModelSlug = configRecord[`${resolvedMode}ModeApiModelId`] as string | undefined
+	const providerModelSlug = providerModelKey ? (configRecord[providerModelKey] as string | undefined) : undefined
+
+	// Only read the generic fallback key when it differs from the provider key.
+	// Some providers (e.g. anthropic/gemini/bedrock) intentionally map directly to the generic key,
+	// so a second lookup would be redundant and add noise to fallback semantics.
+	const genericModelSlug =
+		providerModelKey !== genericModelKey ? (configRecord[genericModelKey] as string | undefined) : undefined
 	const activeHandlerModelSlug = api.getModel().id
 	const slug = providerModelSlug || genericModelSlug || activeHandlerModelSlug
 
