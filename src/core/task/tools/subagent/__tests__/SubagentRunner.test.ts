@@ -416,8 +416,7 @@ describe("SubagentRunner", () => {
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 3)
-		const parsedError = JSON.parse(result.error || "{}")
-		assert.match(parsedError.message || "", /stream_initialization_failed/i)
+		assert.match(result.error || "", /stream_initialization_failed/i)
 	})
 
 	it("fails context window errors", async () => {
@@ -444,8 +443,7 @@ describe("SubagentRunner", () => {
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 1)
-		const parsedError = JSON.parse(result.error || "{}")
-		assert.match(parsedError.message || "", /context length exceeded/i)
+		assert.match(result.error || "", /context length exceeded/i)
 	})
 
 	it("uses the configured task api handler for subagent requests", async () => {

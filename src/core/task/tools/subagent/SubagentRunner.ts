@@ -81,6 +81,10 @@ interface SubagentToolCall {
 	isNativeToolCall: boolean
 }
 
+interface SubagentContextState {
+	conversationHistoryDeletedRange?: [number, number]
+}
+
 function createEmptyRequestUsageState(): SubagentRequestUsageState {
 	return {
 		inputTokens: 0,
@@ -292,8 +296,8 @@ export class SubagentRunner {
 		this.abortRequested = false
 		const state = new TaskState()
 		let emptyAssistantResponseRetries = 0
-		let providerId: string | undefined
-		let modelId: string | undefined
+		const contextState: SubagentContextState = {}
+		const contextManager = new ContextManager()
 		const usageState: SubagentUsageState = {
 			currentRequest: createEmptyRequestUsageState(),
 		}
@@ -317,14 +321,15 @@ export class SubagentRunner {
 			const api = this.apiHandler
 			this.activeApiAbort = api.abort?.bind(api)
 
-			providerId = (mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider) as string
+			const providerId = (
+				mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+			) as string
 			const providerInfo = {
 				providerId,
 				model: api.getModel(),
 				mode,
 				customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
 			}
-			modelId = providerInfo.model.id
 			stats.contextWindow = providerInfo.model.info.contextWindow || 0
 			const nativeToolCallsRequested =
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
@@ -407,8 +412,13 @@ export class SubagentRunner {
 					usageState.lastRequest &&
 					this.shouldCompactBeforeNextRequest(usageState.lastRequest.totalTokens, api, providerInfo.model.id)
 				) {
-					const didCompact = this.compactConversationForContextWindow(conversation)
-					if (didCompact) {
+					const compactResult = this.compactConversationForContextWindow(
+						contextManager,
+						conversation,
+						contextState.conversationHistoryDeletedRange,
+					)
+					contextState.conversationHistoryDeletedRange = compactResult.conversationHistoryDeletedRange
+					if (compactResult.didCompact) {
 						Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
 					}
 					// Prevent repeated compaction attempts off the same token sample.
@@ -431,6 +441,8 @@ export class SubagentRunner {
 					nativeTools,
 					providerInfo.providerId,
 					providerInfo.model.id,
+					contextManager,
+					contextState,
 				)
 
 				for await (const chunk of stream) {
@@ -666,8 +678,7 @@ export class SubagentRunner {
 				return { status: "failed", error: cancelledError, stats }
 			}
 
-			const clineError = ClineError.transform(error, modelId, providerId)
-			const errorText = clineError.serialize()
+			const errorText = (error as Error).message || "Subagent execution failed."
 			Logger.error("[SubagentRunner] run failed", error)
 			onProgress({ status: "failed", error: errorText, stats: { ...stats } })
 			return { status: "failed", error: errorText, stats }
@@ -725,27 +736,50 @@ export class SubagentRunner {
 		return true
 	}
 
-	private compactConversationForContextWindow(conversation: ClineStorageMessage[]): boolean {
-		const contextManager = new ContextManager()
+	private compactConversationForContextWindow(
+		contextManager: ContextManager,
+		conversation: ClineStorageMessage[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+	): {
+		didCompact: boolean
+		conversationHistoryDeletedRange: [number, number] | undefined
+	} {
 		const optimizationResult = this.optimizeConversationForContextWindow(contextManager, conversation)
+		let didCompact = optimizationResult.didOptimize
+		let updatedDeletedRange = conversationHistoryDeletedRange
+
 		if (optimizationResult.didOptimize && !optimizationResult.needToTruncate) {
-			return true
+			return {
+				didCompact: true,
+				conversationHistoryDeletedRange: updatedDeletedRange,
+			}
 		}
 
-		const deletedRange = contextManager.getNextTruncationRange(conversation, undefined, "quarter")
+		const deletedRange = contextManager.getNextTruncationRange(conversation, conversationHistoryDeletedRange, "quarter")
 		if (deletedRange[1] < deletedRange[0]) {
-			return optimizationResult.didOptimize
+			return {
+				didCompact,
+				conversationHistoryDeletedRange: updatedDeletedRange,
+			}
 		}
 
-		const truncated = contextManager
-			.getTruncatedMessages(conversation, deletedRange)
-			.map((message) => message as ClineStorageMessage)
-		if (truncated.length >= conversation.length) {
-			return optimizationResult.didOptimize
+		if (
+			conversationHistoryDeletedRange &&
+			deletedRange[0] === conversationHistoryDeletedRange[0] &&
+			deletedRange[1] === conversationHistoryDeletedRange[1]
+		) {
+			return {
+				didCompact,
+				conversationHistoryDeletedRange: updatedDeletedRange,
+			}
 		}
 
-		conversation.splice(0, conversation.length, ...truncated)
-		return true
+		updatedDeletedRange = deletedRange
+		didCompact = true
+		return {
+			didCompact,
+			conversationHistoryDeletedRange: updatedDeletedRange,
+		}
 	}
 
 	private optimizeConversationForContextWindow(
@@ -788,13 +822,18 @@ export class SubagentRunner {
 	private async *createMessageWithInitialChunkRetry(
 		api: ReturnType<typeof buildApiHandler>,
 		systemPrompt: string,
-		conversation: ClineStorageMessage[],
+		fullConversation: ClineStorageMessage[],
 		nativeTools: ClineTool[] | undefined,
 		providerId: string,
 		modelId: string,
+		contextManager: ContextManager,
+		contextState: SubagentContextState,
 	) {
 		for (let attempt = 1; attempt <= MAX_INITIAL_STREAM_ATTEMPTS; attempt += 1) {
-			const stream = api.createMessage(systemPrompt, conversation, nativeTools)
+			const truncatedConversation = contextManager
+				.getTruncatedMessages(fullConversation, contextState.conversationHistoryDeletedRange)
+				.map((message) => message as ClineStorageMessage)
+			const stream = api.createMessage(systemPrompt, truncatedConversation, nativeTools)
 			const iterator = stream[Symbol.asyncIterator]()
 
 			try {
@@ -807,8 +846,13 @@ export class SubagentRunner {
 				return
 			} catch (error) {
 				if (checkContextWindowExceededError(error)) {
-					const didCompact = this.compactConversationForContextWindow(conversation)
-					if (!didCompact || this.shouldAbort() || attempt >= MAX_INITIAL_STREAM_ATTEMPTS) {
+					const compactResult = this.compactConversationForContextWindow(
+						contextManager,
+						fullConversation,
+						contextState.conversationHistoryDeletedRange,
+					)
+					contextState.conversationHistoryDeletedRange = compactResult.conversationHistoryDeletedRange
+					if (!compactResult.didCompact || this.shouldAbort() || attempt >= MAX_INITIAL_STREAM_ATTEMPTS) {
 						throw error
 					}
 					Logger.warn(
