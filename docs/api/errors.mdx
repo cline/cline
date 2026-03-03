@@ -1,0 +1,152 @@
+---
+title: "Errors"
+sidebarTitle: "Errors"
+description: "Error codes, error formats, mid-stream errors, and retry strategies for the Cline API."
+---
+
+The Cline API returns errors in a consistent JSON format. Understanding these errors helps you build reliable integrations.
+
+## Error Format
+
+All errors follow the OpenAI error format:
+
+```json
+{
+  "error": {
+    "code": 401,
+    "message": "Invalid API key",
+    "metadata": {}
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | number/string | HTTP status code or error identifier |
+| `message` | string | Human-readable description of the error |
+| `metadata` | object | Additional context (provider details, request IDs) |
+
+## Error Codes
+
+### HTTP Errors
+
+These are returned as the HTTP response status code and in the error body:
+
+| Code | Name | Cause | What to do |
+|------|------|-------|------------|
+| `400` | Bad Request | Malformed request body, missing required fields | Check your JSON syntax and required parameters |
+| `401` | Unauthorized | Invalid or missing API key | Verify your API key in the `Authorization` header |
+| `402` | Payment Required | Insufficient credits | Add credits at [app.cline.bot](https://app.cline.bot) |
+| `403` | Forbidden | Key does not have access to this resource | Check key permissions |
+| `404` | Not Found | Invalid endpoint or model ID | Verify the URL and model ID format |
+| `429` | Too Many Requests | Rate limit exceeded | Wait and retry with exponential backoff |
+| `500` | Internal Server Error | Server-side issue | Retry after a short delay |
+| `502` | Bad Gateway | Upstream provider error | Retry after a short delay |
+| `503` | Service Unavailable | Service temporarily down | Retry after a short delay |
+
+### Mid-Stream Errors
+
+When streaming, errors can occur after the response has started. These appear as a chunk with `finish_reason: "error"`:
+
+```json
+{
+  "choices": [
+    {
+      "finish_reason": "error",
+      "error": {
+        "code": "context_length_exceeded",
+        "message": "The input exceeds the model's maximum context length."
+      }
+    }
+  ]
+}
+```
+
+Common mid-stream error codes:
+
+| Code | Meaning |
+|------|---------|
+| `context_length_exceeded` | Input tokens exceed the model's context window |
+| `content_filter` | Content was blocked by a safety filter |
+| `rate_limit` | Rate limit hit during generation |
+| `server_error` | Upstream provider failed during generation |
+
+<Warning>
+  Mid-stream errors do not produce an HTTP error code (the connection was already 200 OK). Always check `finish_reason` in your streaming handler.
+</Warning>
+
+## Retry Strategies
+
+### Exponential Backoff
+
+For transient errors (429, 500, 502, 503), retry with exponential backoff:
+
+```python
+import time
+import requests
+
+def call_api_with_retry(payload, max_retries=3):
+    for attempt in range(max_retries):
+        response = requests.post(
+            "https://api.cline.bot/api/v1/chat/completions",
+            headers={
+                "Authorization": "Bearer YOUR_API_KEY",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+
+        if response.status_code == 200:
+            return response.json()
+
+        if response.status_code in (429, 500, 502, 503):
+            delay = (2 ** attempt) + 1
+            print(f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+            time.sleep(delay)
+            continue
+
+        # Non-retryable error
+        response.raise_for_status()
+
+    raise Exception("Max retries exceeded")
+```
+
+### When to Retry
+
+| Error | Retry? | Strategy |
+|-------|--------|----------|
+| `401 Unauthorized` | No | Fix your API key |
+| `402 Payment Required` | No | Add credits |
+| `429 Too Many Requests` | Yes | Exponential backoff (start at 1s) |
+| `500 Internal Server Error` | Yes | Retry once after 1s |
+| `502 Bad Gateway` | Yes | Retry up to 3 times with backoff |
+| `503 Service Unavailable` | Yes | Retry up to 3 times with backoff |
+| Mid-stream `error` | Depends | Retry the full request for transient errors |
+
+### Rate Limits
+
+If you hit rate limits frequently:
+
+- Add delays between requests
+- Reduce the number of concurrent requests
+- Contact support if you need higher limits
+
+## Debugging
+
+When reporting issues, include:
+
+1. The **error code and message** from the response
+2. The **model ID** you were using
+3. The **request ID** (from the `x-request-id` response header, if available)
+4. Whether the error was **immediate** (HTTP error) or **mid-stream** (finish_reason error)
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Chat Completions" icon="message" href="/api/chat-completions">
+    Endpoint reference with request and response schemas.
+  </Card>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Verify your API key is configured correctly.
+  </Card>
+</CardGroup>
