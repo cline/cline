@@ -44,6 +44,7 @@ import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
+import { NvidiaNimHandler } from "./providers/nvidia-nim"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
@@ -449,6 +450,15 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+                                nvidiaApiKey: options.nvidiaApiKey,
+                                nvidiaBaseUrl: options.nvidiaBaseUrl,
+                                nvidiaModelId: mode === "plan" ? options.planModeNvidiaModelId : options.actModeNvidiaModelId,
+                                temperature: options.nvidiaTemperature,
+                                topP: options.nvidiaTopP,
+                                maxTokens: options.nvidiaMaxTokens,
+                                enableThinking: options.nvidiaEnableThinking,
+                                clearThinking: options.nvidiaClearThinking,
+                        })
 			})
 		default:
 			return new AnthropicHandler({
