@@ -295,6 +295,226 @@ Content`,
 				assert.deepStrictEqual(catalog.items[0].tags, [])
 			})
 
+			it("should parse version, created_at, and updated_at from frontmatter", async () => {
+				const mockDirectoryResponse = {
+					data: [
+						{
+							name: "test-prompt.md",
+							type: "file",
+							download_url: "https://raw.githubusercontent.com/test.md",
+							html_url: "https://github.com/test.md",
+						},
+					],
+				}
+
+				const mockContentResponse = {
+					data: `---
+description: Test description
+author: testuser
+version: 2.5
+created_at: 2025-01-15
+updated_at: 2025-06-01
+category: Testing
+tags: [tag1]
+---
+Content`,
+				}
+
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				assert.strictEqual(catalog.items[0].version, "2.5")
+				assert.strictEqual(catalog.items[0].createdAt, "2025-01-15")
+				assert.strictEqual(catalog.items[0].updatedAt, "2025-06-01")
+			})
+
+			it("should trim whitespace from frontmatter values", async () => {
+				const mockDirectoryResponse = {
+					data: [
+						{
+							name: "test-prompt.md",
+							type: "file",
+							download_url: "https://raw.githubusercontent.com/test.md",
+							html_url: "https://github.com/test.md",
+						},
+					],
+				}
+
+				const mockContentResponse = {
+					data: `---
+description: Description with spaces   
+author: Author Name   
+category: Category   
+---
+Content`,
+				}
+
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return mockContentResponse
+					}
+					return { data: [] }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				assert.strictEqual(catalog.items[0].description, "Description with spaces")
+				assert.strictEqual(catalog.items[0].author, "Author Name")
+				assert.strictEqual(catalog.items[0].category, "Category")
+			})
+
+			it("should backfill dates from commits API when frontmatter has no dates", async () => {
+				const mockDirectoryResponse = {
+					data: [
+						{
+							name: "test-prompt.md",
+							type: "file",
+							download_url: "https://raw.githubusercontent.com/test.md",
+							html_url: "https://github.com/test.md",
+						},
+					],
+				}
+
+				const mockContentResponse = {
+					data: `---
+description: Test
+author: testuser
+---
+Content`,
+				}
+
+				const mockCommitsResponse = {
+					data: [
+						{ commit: { author: { date: "2025-06-15T10:00:00Z" } } },
+						{ commit: { author: { date: "2025-01-10T08:00:00Z" } } },
+					],
+				}
+
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return mockContentResponse
+					}
+					if (url.includes("/commits?")) {
+						return mockCommitsResponse
+					}
+					return { data: [] }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				assert.strictEqual(catalog.items[0].updatedAt, "2025-06-15T10:00:00Z")
+				assert.strictEqual(catalog.items[0].createdAt, "2025-01-10T08:00:00Z")
+			})
+
+			it("should skip date backfill when frontmatter already has created_at", async () => {
+				const mockDirectoryResponse = {
+					data: [
+						{
+							name: "test-prompt.md",
+							type: "file",
+							download_url: "https://raw.githubusercontent.com/test.md",
+							html_url: "https://github.com/test.md",
+						},
+					],
+				}
+
+				const mockContentResponse = {
+					data: `---
+description: Test
+created_at: 2025-01-15
+---
+Content`,
+				}
+
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return mockContentResponse
+					}
+					// Should NOT be called since frontmatter has created_at
+					if (url.includes("/commits?")) {
+						throw new Error("Should not fetch commits when frontmatter has dates")
+					}
+					return { data: [] }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				assert.strictEqual(catalog.items[0].createdAt, "2025-01-15")
+			})
+
+			it("should gracefully handle commits API failure", async () => {
+				const mockDirectoryResponse = {
+					data: [
+						{
+							name: "test-prompt.md",
+							type: "file",
+							download_url: "https://raw.githubusercontent.com/test.md",
+							html_url: "https://github.com/test.md",
+						},
+					],
+				}
+
+				const mockContentResponse = {
+					data: `---
+description: Test
+---
+Content`,
+				}
+
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/contents/.clinerules")) {
+						return mockDirectoryResponse
+					}
+					if (url.includes("/contents/workflows")) {
+						return { data: [] }
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return mockContentResponse
+					}
+					if (url.includes("/commits?")) {
+						throw new Error("Rate limit exceeded")
+					}
+					return { data: [] }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				// Should still return the item, just with empty dates
+				assert.strictEqual(catalog.items.length, 1)
+				assert.strictEqual(catalog.items[0].createdAt, "")
+				assert.strictEqual(catalog.items[0].updatedAt, "")
+			})
+
 			it("should handle malformed tag array (missing brackets)", async () => {
 				const mockDirectoryResponse = {
 					data: [

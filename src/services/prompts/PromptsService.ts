@@ -8,6 +8,7 @@ import { Logger } from "@/shared/services/Logger"
  */
 export class PromptsService {
 	private readonly PROMPTS_REPO_API = "https://api.github.com/repos/cline/prompts/contents"
+	private readonly PROMPTS_COMMITS_API = "https://api.github.com/repos/cline/prompts/commits"
 	private cachedCatalog: PromptsCatalog | null = null
 	private lastFetchTime = 0
 	private readonly CACHE_DURATION = 60 * 60 * 1000 // 1 hour
@@ -106,10 +107,53 @@ export class PromptsService {
 				}
 			}
 
+			// Backfill commit dates for items missing createdAt/updatedAt from frontmatter
+			const itemsNeedingDates = items.filter((item) => !item.createdAt)
+			if (itemsNeedingDates.length > 0) {
+				await this.backfillCommitDates(itemsNeedingDates, directory)
+			}
+
 			return items
 		} catch (error) {
 			Logger.error(`Error fetching directory ${directory}:`, error)
 			return []
+		}
+	}
+
+	/**
+	 * Fetches commit dates from the GitHub Commits API for items missing dates.
+	 * Uses batched parallel requests. Failures are silently ignored (dates remain empty).
+	 */
+	private async backfillCommitDates(items: PromptItem[], directory: string): Promise<void> {
+		const BATCH_SIZE = 5
+		for (let i = 0; i < items.length; i += BATCH_SIZE) {
+			const batch = items.slice(i, i + BATCH_SIZE)
+			await Promise.all(
+				batch.map(async (item) => {
+					try {
+						const filePath = `${directory}/${item.promptId}.md`
+						const commitsUrl = `${this.PROMPTS_COMMITS_API}?path=${encodeURIComponent(filePath)}&per_page=100`
+						const response = await this.httpGet(commitsUrl)
+
+						if (Array.isArray(response.data) && response.data.length > 0) {
+							// First element = most recent commit = updatedAt
+							const latestCommit = response.data[0]
+							if (latestCommit?.commit?.author?.date) {
+								item.updatedAt = latestCommit.commit.author.date
+							}
+
+							// Last element = first commit = createdAt
+							const oldestCommit = response.data[response.data.length - 1]
+							if (oldestCommit?.commit?.author?.date) {
+								item.createdAt = oldestCommit.commit.author.date
+							}
+						}
+					} catch (error) {
+						// Silently ignore — dates will remain empty (displayed as "—")
+						Logger.debug?.(`Could not fetch commit dates for ${item.promptId}: ${error}`)
+					}
+				}),
+			)
 		}
 	}
 
@@ -129,16 +173,26 @@ export class PromptsService {
 			let category = ""
 			const tags: string[] = []
 
+			let version = ""
+			let createdAt = ""
+			let updatedAt = ""
+
 			if (frontmatterMatch) {
 				const frontmatter = frontmatterMatch[1]
 				const descMatch = frontmatter.match(/description:\s*["']?(.*?)["']?(?:\n|$)/)
 				const authorMatch = frontmatter.match(/author:\s*["']?(.*?)["']?(?:\n|$)/)
 				const categoryMatch = frontmatter.match(/category:\s*["']?(.*?)["']?(?:\n|$)/)
+				const versionMatch = frontmatter.match(/version:\s*["']?(.*?)["']?(?:\n|$)/)
+				const createdAtMatch = frontmatter.match(/created_at:\s*["']?(.*?)["']?(?:\n|$)/)
+				const updatedAtMatch = frontmatter.match(/updated_at:\s*["']?(.*?)["']?(?:\n|$)/)
 				const tagsMatch = frontmatter.match(/tags:\s*\[(.*?)\]/)
 
-				if (descMatch) description = descMatch[1]
-				if (authorMatch) author = authorMatch[1]
-				if (categoryMatch) category = categoryMatch[1]
+				if (descMatch) description = descMatch[1].trim()
+				if (authorMatch) author = authorMatch[1].trim()
+				if (categoryMatch) category = categoryMatch[1].trim()
+				if (versionMatch) version = versionMatch[1].trim()
+				if (createdAtMatch) createdAt = createdAtMatch[1].trim()
+				if (updatedAtMatch) updatedAt = updatedAtMatch[1].trim()
 				if (tagsMatch) {
 					const tagContent = tagsMatch[1].trim()
 					if (tagContent) {
@@ -175,10 +229,10 @@ export class PromptsService {
 				tags,
 				type,
 				content,
-				version: "1.0",
+				version: version || "",
 				globs: [],
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
+				createdAt,
+				updatedAt,
 			}
 		} catch (error) {
 			Logger.error(`Error parsing prompt ${file.name}:`, error)

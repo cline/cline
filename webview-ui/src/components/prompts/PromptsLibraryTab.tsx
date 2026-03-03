@@ -3,6 +3,7 @@ import { ApplyPromptRequest, RemovePromptRequest } from "@shared/proto/cline/pro
 import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import { useEffect, useMemo, useState } from "react"
+import { Switch } from "@/components/ui/switch"
 import { PromptsServiceClient } from "@/services/grpc-client"
 
 type PromptsLibraryTabProps = {
@@ -16,6 +17,7 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 	const [applyingPromptId, setApplyingPromptId] = useState<string | null>(null)
 	const [removingPromptId, setRemovingPromptId] = useState<string | null>(null)
 	const [appliedPrompts, setAppliedPrompts] = useState<Set<string>>(new Set())
+	const [expandedPromptIds, setExpandedPromptIds] = useState<Set<string>>(new Set())
 	const [toastMessage, setToastMessage] = useState<{
 		message: string
 		type: "success" | "error"
@@ -127,6 +129,26 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 		}
 	}
 
+	const handleToggle = (promptId: string, type: string, content: string, name: string, isCurrentlyApplied: boolean) => {
+		if (isCurrentlyApplied) {
+			handleRemovePrompt(promptId, type, name)
+		} else {
+			handleApplyPrompt(promptId, type, content, name)
+		}
+	}
+
+	const formatDate = (dateString: string): string => {
+		try {
+			const date = new Date(dateString)
+			const month = String(date.getMonth() + 1).padStart(2, "0")
+			const day = String(date.getDate()).padStart(2, "0")
+			const year = date.getFullYear()
+			return `${month}.${day}.${year}`
+		} catch {
+			return dateString
+		}
+	}
+
 	// Auto-hide toast after 5 seconds
 	useEffect(() => {
 		if (toastMessage) {
@@ -191,7 +213,7 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 				</div>
 			)}
 
-			<div style={{ marginBottom: "20px" }}>
+			<div style={{ marginBottom: "0" }}>
 				<h4 style={{ margin: "0 0 8px 0" }}>Community Prompts Library</h4>
 				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 16px 0" }}>
 					{catalog.items.length} prompts available from the community
@@ -203,6 +225,18 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 					placeholder="Search prompts..."
 					style={{ width: "100%", marginBottom: "12px" }}
 					value={searchTerm}>
+					<span
+						className="codicon codicon-search"
+						slot="start"
+						style={{
+							display: "flex",
+							justifyContent: "center",
+							alignItems: "center",
+							height: "100%",
+							fontSize: "14px",
+							color: "var(--vscode-descriptionForeground)",
+						}}
+					/>
 					{searchTerm && (
 						<div
 							className="input-icon-button codicon codicon-close"
@@ -254,12 +288,15 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 						</VSCodeDropdown>
 					</div>
 				</div>
-
-				{/* Results count */}
-				<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: "0 0 12px 0" }}>
-					Showing {filteredPrompts.length} of {catalog.items.length} prompts
-				</p>
 			</div>
+
+			{/* Dashed Separator */}
+			<div
+				style={{
+					borderTop: "1px dashed var(--vscode-panel-border)",
+					marginBottom: "20px",
+				}}
+			/>
 
 			{/* Prompt List */}
 			{filteredPrompts.length === 0 ? (
@@ -286,108 +323,182 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 					{filteredPrompts.map((prompt) => {
 						const isApplied = appliedPrompts.has(prompt.promptId)
 						const isProcessing = applyingPromptId === prompt.promptId || removingPromptId === prompt.promptId
+						const isExpanded = expandedPromptIds.has(prompt.promptId)
 
 						return (
 							<div
 								key={prompt.promptId}
-								onMouseEnter={(e) => {
-									if (!isApplied) {
-										e.currentTarget.style.backgroundColor = "var(--vscode-list-hoverBackground)"
-									}
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.backgroundColor = isApplied ? "rgba(0, 255, 0, 0.05)" : "transparent"
-								}}
 								style={{
-									padding: "12px",
-									border: isApplied
-										? "1px solid var(--vscode-terminal-ansiGreen)"
-										: "1px solid var(--vscode-panel-border)",
-									borderRadius: "4px",
-									transition: "all 0.2s",
-									backgroundColor: isApplied ? "rgba(0, 255, 0, 0.05)" : "transparent",
+									padding: "16px",
+									border: "1px solid var(--vscode-panel-border)",
+									borderRadius: "6px",
+									transition: "background-color 0.2s, border-color 0.2s",
+									backgroundColor: isApplied ? "var(--vscode-list-hoverBackground)" : "transparent",
 								}}>
+								{/* Header: Name + Toggle */}
 								<div
 									style={{
 										display: "flex",
 										justifyContent: "space-between",
-										alignItems: "start",
+										alignItems: "center",
 										gap: "12px",
+										marginBottom: "4px",
 									}}>
-									<div style={{ flex: 1, minWidth: 0, overflow: "hidden", wordWrap: "break-word" }}>
-										<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-											<h5 style={{ margin: 0, fontSize: "14px" }}>{prompt.name}</h5>
-											{isApplied && (
-												<span
-													style={{
-														fontSize: "16px",
-														color: "var(--vscode-terminal-ansiGreen)",
-													}}>
-													✓
-												</span>
-											)}
-										</div>
-										<p
-											style={{
-												margin: "0 0 8px 0",
-												fontSize: "12px",
-												color: "var(--vscode-descriptionForeground)",
-											}}>
-											{prompt.description}
-										</p>
-										<div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-											<span
-												style={{
-													fontSize: "11px",
-													padding: "2px 6px",
-													borderRadius: "3px",
-													backgroundColor: "var(--vscode-badge-background)",
-													color: "var(--vscode-badge-foreground)",
-												}}>
-												{prompt.type}
-											</span>
-											{prompt.category && (
-												<span
-													style={{
-														fontSize: "11px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													{prompt.category}
-												</span>
-											)}
-											{prompt.author && (
-												<span
-													style={{
-														fontSize: "11px",
-														color: "var(--vscode-descriptionForeground)",
-													}}>
-													by {prompt.author}
-												</span>
-											)}
-										</div>
-									</div>
-
-									{/* Apply/Remove Button */}
-									{isApplied ? (
-										<VSCodeButton
-											appearance="secondary"
-											disabled={isProcessing}
-											onClick={() => handleRemovePrompt(prompt.promptId, prompt.type, prompt.name)}
-											style={{ flexShrink: 0 }}>
-											{removingPromptId === prompt.promptId ? "Removing..." : "Remove"}
-										</VSCodeButton>
-									) : (
-										<VSCodeButton
-											appearance="primary"
-											disabled={isProcessing}
-											onClick={() =>
-												handleApplyPrompt(prompt.promptId, prompt.type, prompt.content, prompt.name)
-											}
-											style={{ flexShrink: 0 }}>
-											{applyingPromptId === prompt.promptId ? "Applying..." : "Apply"}
-										</VSCodeButton>
-									)}
+									<h5 style={{ margin: 0, fontSize: "14px", fontWeight: 600 }}>{prompt.name}</h5>
+									<Switch
+										checked={isApplied}
+										disabled={isProcessing}
+										onClick={() =>
+											handleToggle(prompt.promptId, prompt.type, prompt.content, prompt.name, isApplied)
+										}
+										size="lg"
+									/>
 								</div>
+
+								{/* Category with icon */}
+								{prompt.category && (
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: "4px",
+											marginBottom: "10px",
+											fontSize: "12px",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										<span className="codicon codicon-git-pull-request" style={{ fontSize: "12px" }} />
+										{prompt.category}
+									</div>
+								)}
+
+								{/* Description */}
+								<p
+									style={{
+										margin: "0 0 12px 0",
+										fontSize: "13px",
+										color: "var(--vscode-foreground)",
+										lineHeight: "1.4",
+									}}>
+									{prompt.description}
+								</p>
+
+								{/* Footer: Type badge + Expand chevron */}
+								<div
+									style={{
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "center",
+									}}>
+									<span
+										style={{
+											fontSize: "11px",
+											padding: "2px 8px",
+											borderRadius: "3px",
+											border: "1px solid var(--vscode-descriptionForeground)",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										{prompt.type === "rule" ? "Rule" : "Workflow"}
+									</span>
+									<button
+										onClick={() =>
+											setExpandedPromptIds((prev) => {
+												const next = new Set(prev)
+												if (next.has(prompt.promptId)) {
+													next.delete(prompt.promptId)
+												} else {
+													next.add(prompt.promptId)
+												}
+												return next
+											})
+										}
+										style={{
+											background: "none",
+											border: "none",
+											cursor: "pointer",
+											padding: "2px 4px",
+											color: "var(--vscode-foreground)",
+											display: "flex",
+											alignItems: "center",
+										}}
+										title={isExpanded ? "Collapse details" : "Expand details"}>
+										<span
+											className={`codicon ${isExpanded ? "codicon-chevron-up" : "codicon-chevron-down"}`}
+											style={{ fontSize: "14px" }}
+										/>
+									</button>
+								</div>
+
+								{/* Expandable Metadata Section */}
+								{isExpanded && (
+									<div
+										style={{
+											marginTop: "12px",
+											border: "1px solid var(--vscode-descriptionForeground)",
+											borderRadius: "4px",
+											overflow: "hidden",
+										}}>
+										<table
+											style={{
+												width: "100%",
+												borderCollapse: "collapse",
+												fontSize: "12px",
+											}}>
+											<tbody>
+												<tr>
+													<td
+														style={{
+															padding: "8px 12px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														Published by
+													</td>
+													<td
+														style={{
+															padding: "8px 12px",
+															textAlign: "right",
+															fontWeight: 600,
+														}}>
+														{prompt.author || "—"}
+													</td>
+												</tr>
+												<tr>
+													<td
+														style={{
+															padding: "8px 12px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														Created at
+													</td>
+													<td
+														style={{
+															padding: "8px 12px",
+															textAlign: "right",
+															fontWeight: 600,
+														}}>
+														{prompt.createdAt ? formatDate(prompt.createdAt) : "—"}
+													</td>
+												</tr>
+												<tr>
+													<td
+														style={{
+															padding: "8px 12px",
+															color: "var(--vscode-descriptionForeground)",
+														}}>
+														Version
+													</td>
+													<td
+														style={{
+															padding: "8px 12px",
+															textAlign: "right",
+															fontWeight: 600,
+														}}>
+														{prompt.version || "—"}
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								)}
 							</div>
 						)
 					})}
