@@ -32,9 +32,7 @@ const ServersToggleModal: React.FC = () => {
 					console.error("Failed to fetch MCP servers:", error)
 				})
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- setMcpServers is excluded because the context
-		// wrapper creates a new reference on every render, which would cause an infinite fetch loop.
-	}, [isVisible])
+	}, [isVisible, setMcpServers])
 
 	// Close modal when clicking outside
 	useClickAway(modalRef, () => {
