@@ -5,6 +5,7 @@ import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
+import PromptsLibraryView from "./components/prompts/PromptsLibraryView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import WorktreesView from "./components/worktrees/WorktreesView"
@@ -25,6 +26,8 @@ const AppContent = () => {
 		showHistory,
 		showAccount,
 		showWorktrees,
+		showPrompts,
+		promptsTab,
 		showAnnouncement,
 		onboardingModels,
 		setShowAnnouncement,
@@ -35,6 +38,7 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hidePrompts,
 		hideAnnouncement,
 	} = useExtensionState()
 
@@ -68,6 +72,7 @@ const AppContent = () => {
 			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
+			{showPrompts && <PromptsLibraryView initialTab={promptsTab} onDone={hidePrompts} />}
 			{showAccount && (
 				<AccountView
 					activeOrganization={activeOrganization}
@@ -80,7 +85,7 @@ const AppContent = () => {
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMcp || showAccount || showWorktrees}
+				isHidden={showSettings || showHistory || showMcp || showPrompts || showAccount || showWorktrees}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>
