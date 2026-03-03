@@ -4,6 +4,7 @@ import type { HookOutput } from "@shared/proto/cline/hooks"
 import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
+import type { HookModelInputContext } from "./hook-factory"
 import { HookFactory } from "./hook-factory"
 
 export interface HookExecutionOptions<Name extends keyof Hooks = any> {
@@ -21,6 +22,7 @@ export interface HookExecutionOptions<Name extends keyof Hooks = any> {
 	messageStateHandler: MessageStateHandler
 	taskId: string
 	hooksEnabled: boolean
+	model?: HookModelInputContext
 	toolName?: string // Optional tool name for PreToolUse/PostToolUse hooks
 	pendingToolInfo?: any // Optional metadata about pending tool execution for PreToolUse
 }
@@ -149,6 +151,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		const result = await hook.run({
 			taskId,
+			model: options.model,
 			...hookInput,
 		})
 

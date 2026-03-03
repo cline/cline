@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -328,6 +329,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				messageStateHandler: config.messageState,
 				taskId: config.taskId,
 				hooksEnabled,
+				model: getHookModelContext(config.api, config.services.stateManager),
 			})
 		} catch (error) {
 			// TaskComplete hook failed - non-fatal, just log

@@ -209,9 +209,15 @@ Every hook receives a JSON object with common fields plus hook-specific data:
 ```json
 {
   "taskId": "abc123",
+  "hookName": "PreToolUse",
   "clineVersion": "3.17.0",
   "timestamp": 1736654400000,
-  "workspacePath": "/path/to/project",
+  "workspaceRoots": ["/path/to/project"],
+  "userId": "user_123",
+  "model": {
+    "provider": "openrouter",
+    "slug": "anthropic/claude-sonnet-4.5"
+  },
   
   // Hook-specific field (name matches hook type in camelCase)
   "taskStart": {
@@ -219,6 +225,8 @@ Every hook receives a JSON object with common fields plus hook-specific data:
   }
 }
 ```
+
+`model.provider` and `model.slug` are machine-stable identifiers for the active provider/model at hook execution time. If unavailable, Cline sends deterministic fallback values: `"unknown"`.
 
 The hook-specific field name matches the hook type:
 - `taskStart`, `taskResume`, `taskCancel`, `taskComplete` contain `{ task: string }`
