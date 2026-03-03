@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.69.0]
+
+### Added
+
+- Add `User-Agent` header to requests sent to the Cline backend
+- Add default auto-tag workflow for publish release flow
+- Show Cline SDK docs on the Cline page
+
+### Fixed
+
+- Retry nested git restore and prevent silent `.git_disabled` leftovers in checkpoints
+- Prevent Chinese filename escaping in diff view
+- Trigger auto-compaction on OpenRouter context overflow errors
+- Restore GPT-OSS native file editing on OpenAI-compatible models
+
+### Changed
+
+- Update Cline SDK docs
+- Improve hooks support for Windows PowerShell
+
 ## [3.68.0]
 
 ### Added

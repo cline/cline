@@ -1,5 +1,18 @@
 # cline
 
+## [2.5.2]
+
+### Added
+
+- Added Windows PowerShell support for hooks (execution, resolution, and management), improving hook behavior on Windows for CLI and shared core workflows.
+
+### Fixed
+
+- Restored GPT-OSS native file editing for OpenAI-compatible models used through shared core tooling.
+- Improved OpenRouter context overflow error handling so auto-compaction triggers correctly for wrapped 400 errors.
+- Hardened checkpoint recovery by retrying nested git restore and preventing silent `.git_disabled` leftovers.
+- Added a User-Agent header for requests to the Cline back-end to improve request handling consistency.
+
 ## [2.5.1]
 
 ### Added
