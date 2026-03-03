@@ -25,7 +25,8 @@ export async function createHook(
 	// Ensure directory exists
 	await fs.mkdir(hooksDir, { recursive: true })
 
-	const hookPath = path.join(hooksDir, hookName)
+	const hookFileName = process.platform === "win32" ? `${hookName}.ps1` : hookName
+	const hookPath = path.join(hooksDir, hookFileName)
 
 	// Check if already exists
 	try {

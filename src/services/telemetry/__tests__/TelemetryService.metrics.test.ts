@@ -235,4 +235,43 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(durationMetric?.value, 2.1)
 		assert.strictEqual(durationMetric?.attributes.scope, "task")
 	})
+
+	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(123456, "cline.StateService", "subscribeToState")
+
+		assert.strictEqual(provider.histograms.length, 1)
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.name, TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES)
+		assert.strictEqual(entry.value, 123456)
+		assert.strictEqual(entry.attributes.service, "cline.StateService")
+		assert.strictEqual(entry.attributes.method, "subscribeToState")
+		assert.strictEqual(entry.description, "Size of gRPC response messages in bytes")
+		// Should not have request_id when not provided
+		assert.strictEqual(entry.attributes.request_id, undefined)
+	})
+
+	it("captureGrpcResponseSize includes request_id when provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(5000, "cline.StateService", "subscribeToState", "req-42")
+
+		assert.strictEqual(provider.histograms.length, 1)
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.attributes.request_id, "req-42")
+	})
+
+	it("captureGrpcResponseSize includes standard metadata attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(1000, "cline.StateService", "subscribeToState")
+
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.attributes.extension_version, "test")
+		assert.strictEqual(entry.attributes.platform, "test-platform")
+	})
 })
