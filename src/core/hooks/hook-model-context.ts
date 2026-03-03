@@ -9,13 +9,16 @@ import type { HookModelInputContext } from "./hook-factory"
  */
 export function getHookModelContext(api: ApiHandler, stateManager: StateManager): HookModelInputContext {
 	const mode = stateManager.getGlobalSettingsKey("mode")
+	const resolvedMode = mode === "plan" ? "plan" : "act"
 	const apiConfig = stateManager.getApiConfiguration()
-	const provider = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as ApiProvider | undefined
+	const provider = (resolvedMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as
+		| ApiProvider
+		| undefined
 
-	const modelKey = provider ? getProviderModelIdKey(provider, mode === "plan" ? "plan" : "act") : undefined
+	const modelKey = provider ? getProviderModelIdKey(provider, resolvedMode) : undefined
 	const configRecord = apiConfig as Record<string, unknown>
 	const providerModelSlug = modelKey ? (configRecord[modelKey] as string | undefined) : undefined
-	const genericModelSlug = configRecord[`${mode}ModeApiModelId`] as string | undefined
+	const genericModelSlug = configRecord[`${resolvedMode}ModeApiModelId`] as string | undefined
 	const activeHandlerModelSlug = api.getModel().id
 	const slug = providerModelSlug || genericModelSlug || activeHandlerModelSlug
 

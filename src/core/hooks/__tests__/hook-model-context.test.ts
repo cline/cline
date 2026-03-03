@@ -22,6 +22,25 @@ describe("getHookModelContext", () => {
 		context.slug?.should.equal("anthropic/claude-sonnet-4.5")
 	})
 
+	it("should return concrete provider and model slug for act mode", () => {
+		const api = {
+			getModel: () => ({ id: "handler-act-model" }),
+		} as any
+
+		const stateManager = {
+			getGlobalSettingsKey: (key: string) => (key === "mode" ? "act" : undefined),
+			getApiConfiguration: () => ({
+				planModeApiProvider: "openrouter",
+				actModeApiProvider: "openai",
+				actModeOpenAiModelId: "gpt-5",
+			}),
+		} as any
+
+		const context = getHookModelContext(api, stateManager)
+		context.provider?.should.equal("openai")
+		context.slug?.should.equal("gpt-5")
+	})
+
 	it("should fall back to unknown values when provider/slug are unavailable", () => {
 		const api = {
 			getModel: () => ({ id: "" }),
