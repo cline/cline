@@ -69,7 +69,7 @@ export class McpHub {
 	 *
 	 * Timeline:
 	 *   0ms:    flag = true, write file
-	 *   ~100ms: file watcher fires "change" â†’ sees flag=true â†’ skips
+	 *   ~100ms: file watcher fires "change" -> sees flag=true -> skips
 	 *   300ms:  flag = false (ready for external file changes)
 	 */
 	private isUpdatingClineSettings = false
