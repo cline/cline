@@ -139,14 +139,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.hooksEnabled !== undefined) {
-			controller.stateManager.setGlobalState("hooksEnabled", !!request.hooksEnabled)
-			if (controller.task) {
-				telemetryService.captureFeatureToggle(
-					controller.task.ulid,
-					"hooks",
-					!!request.hooksEnabled,
-					controller.task.api.getModel().id,
-				)
+			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? false
+			const isEnabled = !!request.hooksEnabled
+			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
+			if (controller.task && wasEnabled !== isEnabled) {
+				telemetryService.captureFeatureToggle(controller.task.ulid, "hooks", isEnabled, controller.task.api.getModel().id)
 			}
 		}
 		// Update yolo mode setting
