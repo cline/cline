@@ -5,6 +5,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { applyPatch } from "diff"
 import { telemetryService } from "@/services/telemetry"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
 import { preserveEscaping } from "@/shared/string"
@@ -362,14 +363,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							}),
 						)
 
-						// Capture human edit telemetry: diff between agent's proposed content and the final saved content
+						// Capture human edit telemetry: diff between agent's proposed content and user's pre-save edits
+						// Use applyPatch to reconstruct pre-save content from userEdits, excluding auto-formatting noise
 						const change = commit.changes[path] || Object.values(commit.changes).find((c) => c.movePath === path)
+						const preSaveContent = result.userEdits ? applyPatch(change?.newContent || "", result.userEdits) : false
 						captureAccepted({
 							ulid: config.ulid,
 							tool: this.name,
 							source: "human",
 							beforeContent: change?.newContent || "",
-							afterContent: result.finalContent || "",
+							afterContent: preSaveContent || result.finalContent || "",
 							providerId,
 							modelId,
 						})

@@ -9,6 +9,7 @@ import { ClineSayTool } from "@shared/ExtensionMessage"
 import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { applyPatch } from "diff"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -378,13 +379,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					}),
 				)
 
-				// Capture human edit telemetry: diff between agent's proposed content and the final saved content
+				// Capture human edit telemetry: diff between agent's proposed content and user's pre-save edits
+				// Use applyPatch to reconstruct pre-save content from userEdits, excluding auto-formatting noise
+				const preSaveContent = applyPatch(newContent, userEdits)
 				captureAccepted({
 					ulid: config.ulid,
 					tool: block.name,
 					source: "human",
 					beforeContent: newContent,
-					afterContent: finalContent || "",
+					afterContent: preSaveContent || finalContent || "",
 					providerId,
 					modelId,
 				})
