@@ -4,11 +4,7 @@
  *
  * NOTE: This is the single choke point used by runtime and UI state shaping.
  */
-export function getHooksEnabledSafe(userSetting: boolean | { user?: boolean; featureFlag?: boolean } | undefined): boolean {
-	if (typeof userSetting === "object" && userSetting !== null) {
-		userSetting = userSetting.user ?? false
-	}
-
+export function getHooksEnabledSafe(userSetting: boolean | undefined): boolean {
 	if (!userSetting) {
 		return false
 	}

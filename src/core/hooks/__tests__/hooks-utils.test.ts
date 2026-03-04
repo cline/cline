@@ -23,11 +23,6 @@ describe("hooks-utils", () => {
 			getHooksEnabledSafe(undefined).should.be.false()
 		})
 
-		it("supports legacy object shape", () => {
-			getHooksEnabledSafe({ user: true }).should.be.true()
-			getHooksEnabledSafe({ user: false, featureFlag: true }).should.be.false()
-		})
-
 		it("does not depend on process.platform in current implementation", async () => {
 			await withPlatform("win32", () => {
 				getHooksEnabledSafe(true).should.be.true()
