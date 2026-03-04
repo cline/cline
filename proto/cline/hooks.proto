@@ -14,6 +14,7 @@ message HookInput {
   string task_id = 4;
   repeated string workspace_roots = 5;
   string user_id = 6;
+  HookModelContext model = 7;
   oneof data {
     PreToolUseData pre_tool_use = 10;
     PostToolUseData post_tool_use = 11;
@@ -24,6 +25,11 @@ message HookInput {
     TaskCompleteData task_complete = 16;
     PreCompactData pre_compact = 17;
   }
+}
+
+message HookModelContext {
+  string provider = 1;
+  string slug = 2;
 }
 
 // Output message for all hooks

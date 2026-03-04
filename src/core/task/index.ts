@@ -20,6 +20,7 @@ import {
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
@@ -918,6 +919,7 @@ export class Task {
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
 			hooksEnabled,
+			model: getHookModelContext(this.api, this.stateManager),
 		})
 
 		// Handle cancellation from hook
@@ -998,6 +1000,7 @@ export class Task {
 				messageStateHandler: this.messageStateHandler,
 				taskId: this.taskId,
 				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
 			})
 
 			// Handle cancellation from hook
@@ -1151,6 +1154,7 @@ export class Task {
 				messageStateHandler: this.messageStateHandler,
 				taskId: this.taskId,
 				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
 			})
 
 			// Handle cancellation from hook
@@ -1470,6 +1474,7 @@ export class Task {
 						messageStateHandler: this.messageStateHandler,
 						taskId: this.taskId,
 						hooksEnabled,
+						model: getHookModelContext(this.api, this.stateManager),
 					})
 
 					// TaskCancel completed successfully
@@ -1692,6 +1697,7 @@ export class Task {
 				await executePreCompactHookWithCleanup({
 					taskId: this.taskId,
 					ulid: this.ulid,
+					modelContext: getHookModelContext(this.api, this.stateManager),
 					apiConversationHistory,
 					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 					contextManager: this.contextManager,
