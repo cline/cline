@@ -41,13 +41,6 @@ const agentFeatures: FeatureToggle[] = [
 		settingKey: "subagentsEnabled",
 	},
 	{
-		id: "hooks",
-		label: "Hooks",
-		description: "Enable lifecycle and tool hooks during task execution.",
-		stateKey: "hooksEnabled",
-		settingKey: "hooksEnabled",
-	},
-	{
 		id: "native-tool-call",
 		label: "Native Tool Call",
 		description: "Use native function calling when available",
@@ -132,6 +125,16 @@ const experimentalFeatures: FeatureToggle[] = [
 			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
 		stateKey: "doubleCheckCompletionEnabled",
 		settingKey: "doubleCheckCompletionEnabled",
+	},
+]
+
+const advancedFeatures: FeatureToggle[] = [
+	{
+		id: "hooks",
+		label: "Hooks",
+		description: "Enable lifecycle and tool hooks during task execution.",
+		stateKey: "hooksEnabled",
+		settingKey: "hooksEnabled",
 	},
 ]
 
@@ -347,6 +350,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Advanced</div>
 					<div className="relative p-3 my-3 rounded-md border border-editor-widget-border/50" id="advanced-features">
 						<div className="space-y-3">
+							{advancedFeatures.map((feature) => (
+								<FeatureRow
+									checked={featureState[feature.stateKey]}
+									description={feature.description}
+									isVisible={featureVisibility[feature.stateKey] ?? true}
+									key={feature.id}
+									label={feature.label}
+									onChange={(checked) => handleFeatureChange(feature, checked)}
+								/>
+							))}
+
 							{/* MCP Display Mode */}
 							<div className="space-y-2">
 								<Label className="text-sm font-medium text-foreground">MCP Display Mode</Label>
