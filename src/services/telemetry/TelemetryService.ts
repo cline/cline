@@ -175,6 +175,8 @@ export class TelemetryService {
 			REJECTED_FILES_CREATED: "cline.ai_output.rejected.files_created.total",
 			REJECTED_FILES_DELETED: "cline.ai_output.rejected.files_deleted.total",
 			REJECTED_FILES_MOVED: "cline.ai_output.rejected.files_moved.total",
+		GRPC: {
+			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
 	}
 	// Event constants for tracking user interactions and system events
@@ -2300,6 +2302,35 @@ export class TelemetryService {
 				content,
 			},
 		})
+	}
+
+	/**
+	 * Records the size of a gRPC response message for observability.
+	 *
+	 * @param sizeUtf8Bytes Size in UTF-8 bytes (use `Buffer.byteLength`, not `string.length`)
+	 * @param service The gRPC service name
+	 * @param method The gRPC method name
+	 * @param requestId Optional request ID for correlation
+	 */
+	public captureGrpcResponseSize(sizeUtf8Bytes: number, service: string, method: string, requestId?: string): void {
+		this.recordHistogram(
+			TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES,
+			sizeUtf8Bytes,
+			{
+				service,
+				method,
+				...(requestId && { request_id: requestId }),
+			},
+			"Size of gRPC response messages in bytes",
+		)
+
+		if (sizeUtf8Bytes > 4 * 1024 * 1024) {
+			Logger.warn(
+				`[TelemetryService] Large gRPC response: ${service}.${method} ` +
+					`size=${(sizeUtf8Bytes / (1024 * 1024)).toFixed(1)}MB` +
+					(requestId ? ` request_id=${requestId}` : ""),
+			)
+		}
 	}
 
 	/**

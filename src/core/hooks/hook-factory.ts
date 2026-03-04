@@ -6,6 +6,7 @@ import { getDistinctId } from "../../services/logging/distinctId"
 import { telemetryService } from "../../services/telemetry"
 import {
 	HookInput,
+	HookModelContext,
 	HookOutput,
 	PostToolUseData,
 	PreCompactData,
@@ -124,6 +125,11 @@ export interface Hooks {
 	}
 }
 
+export interface HookModelInputContext {
+	provider?: string
+	slug?: string
+}
+
 // The names of all supported hooks. Hooks[N] is the type of data the hook takes as input.
 type HookName = keyof Hooks
 
@@ -134,6 +140,7 @@ type HookName = keyof Hooks
  */
 export type NamedHookInput<Name extends HookName> = {
 	taskId: string
+	model?: HookModelInputContext
 } & Hooks[Name]
 
 // We look up HookRunner.exec via symbol so that the combined hook runner can call
@@ -189,6 +196,12 @@ export abstract class HookRunner<Name extends HookName> {
 			StateManager.get()
 				.getGlobalStateKey("workspaceRoots")
 				?.map((root) => root.path) || []
+
+		const model: HookModelContext = {
+			provider: params.model?.provider?.trim() || "unknown",
+			slug: params.model?.slug?.trim() || "unknown",
+		}
+
 		return {
 			clineVersion,
 			hookName: this.hookName,
@@ -196,6 +209,7 @@ export abstract class HookRunner<Name extends HookName> {
 			workspaceRoots,
 			userId: getDistinctId(), // Always available: Cline User ID, machine ID, or generated UUID
 			...params,
+			model,
 		}
 	}
 }
