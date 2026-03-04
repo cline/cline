@@ -12,6 +12,7 @@ describe("Hook System", () => {
 	let sandbox: sinon.SinonSandbox
 	let hookTestEnv: HookTestEnv
 	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
+	const WINDOWS_TEST_TIMEOUT_MS = 10000
 
 	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
@@ -23,6 +24,12 @@ describe("Hook System", () => {
 		hookTestEnv = await createHookTestEnv()
 		tempDir = hookTestEnv.tempDir
 		sandbox = hookTestEnv.sandbox
+	})
+
+	beforeEach(function () {
+		if (process.platform === "win32") {
+			this.timeout(WINDOWS_TEST_TIMEOUT_MS)
+		}
 	})
 
 	afterEach(async () => {
@@ -419,9 +426,10 @@ console.log(JSON.stringify({ cancel: false }))`
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+const hasConcreteModelContext = input.model?.provider === 'openai' && input.model?.slug === 'gpt-5';
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
                      input.taskId && input.workspaceRoots !== undefined &&
-                     input.model && input.model.provider && input.model.slug;
+                     hasConcreteModelContext;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
@@ -434,6 +442,10 @@ console.log(JSON.stringify({
 
 			const result = await runner.run({
 				taskId: "test-task",
+				model: {
+					provider: "openai",
+					slug: "gpt-5",
+				},
 				preToolUse: {
 					toolName: "test_tool",
 					parameters: { key: "value" },

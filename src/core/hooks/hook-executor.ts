@@ -151,8 +151,8 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		const result = await hook.run({
 			taskId,
-			model: options.model,
 			...hookInput,
+			model: options.model,
 		})
 
 		Logger.log(`[${hookName} Hook]`, result)

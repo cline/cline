@@ -4,10 +4,12 @@ import type { ApiProvider } from "@shared/api"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import type { HookModelInputContext } from "./hook-factory"
 
+export type ResolvedHookModelContext = Required<HookModelInputContext>
+
 /**
  * Resolve the active provider/model pair used for hook payload metadata.
  */
-export function getHookModelContext(api: ApiHandler, stateManager: StateManager): HookModelInputContext {
+export function getHookModelContext(api: ApiHandler, stateManager: StateManager): ResolvedHookModelContext {
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const resolvedMode = mode === "plan" ? "plan" : "act"
 	const apiConfig = stateManager.getApiConfiguration()
