@@ -2191,8 +2191,6 @@ export class TelemetryService {
 		})
 	}
 
-	// AI Output tracking methods
-
 	/**
 	 * Records when a file edit (write_to_file, replace_in_file, apply_patch) is accepted by the user
 	 * Tracks lines added, deleted, and changed for the accepted edit.
