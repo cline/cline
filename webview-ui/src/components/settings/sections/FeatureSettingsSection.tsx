@@ -41,6 +41,13 @@ const agentFeatures: FeatureToggle[] = [
 		settingKey: "subagentsEnabled",
 	},
 	{
+		id: "hooks",
+		label: "Hooks",
+		description: "Enable lifecycle and tool hooks during task execution.",
+		stateKey: "hooksEnabled",
+		settingKey: "hooksEnabled",
+	},
+	{
 		id: "native-tool-call",
 		label: "Native Tool Call",
 		description: "Use native function calling when available",
@@ -187,6 +194,7 @@ interface FeatureSettingsSectionProps {
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
 	const {
 		enableCheckpointsSetting,
+		hooksEnabled,
 		mcpDisplayMode,
 		strictPlanModeEnabled,
 		yoloModeToggled,
@@ -215,6 +223,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const featureState: Record<string, boolean | undefined> = {
 		enableCheckpointsSetting,
 		strictPlanModeEnabled,
+		hooksEnabled,
 		nativeToolCallSetting,
 		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,

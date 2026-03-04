@@ -1,14 +1,18 @@
 /**
- * Determines if hooks are safely enabled based on platform support.
+ * Computes the effective hooks-enabled state from persisted user setting and
+ * platform policy.
  *
- * NOTE: This function is the single choke point used by the task runtime and
- * webview state to determine the effective hooks setting.
- *
- * Hooks are supported on all current desktop platforms. Runtime details are
- * handled by hook discovery and platform-specific process launch logic.
- *
- * @returns true if hooks are enabled and supported on this platform, false otherwise
+ * NOTE: This is the single choke point used by runtime and UI state shaping.
  */
-export function getHooksEnabledSafe(): boolean {
+export function getHooksEnabledSafe(userSetting: boolean | { user?: boolean; featureFlag?: boolean } | undefined): boolean {
+	if (typeof userSetting === "object" && userSetting !== null) {
+		userSetting = userSetting.user ?? false
+	}
+
+	if (!userSetting) {
+		return false
+	}
+
+	// Hooks are currently supported on all desktop platforms.
 	return true
 }
