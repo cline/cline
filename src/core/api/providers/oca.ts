@@ -397,16 +397,18 @@ export class OcaHandler implements ApiHandler {
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
 
-		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0
+		// Only include temperature when we have explicitly set a value AND the model is not in reasoning mode.
+		let temperature: number | undefined = this.options.ocaModelInfo?.temperature
 		const maxOutputTokens: number | undefined = this.options.ocaModelInfo?.maxTokens
 
 		const ocaModelInfo = this.options.ocaModelInfo
 		if (!ocaModelInfo) {
 			throw new Error("Oracle Code Assist (OCA) model info is required for Responses API")
 		}
+
 		const reasoningOn = !!ocaModelInfo.supportsReasoning
-		if (isOminiModel && reasoningOn) {
-			temperature = undefined // Reasoning mode doesn't support temperature for these models
+		if (reasoningOn) {
+			temperature = undefined
 		}
 
 		const responsesParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
