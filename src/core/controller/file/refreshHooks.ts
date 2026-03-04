@@ -1,5 +1,4 @@
 import { HookInfo, HooksToggles, WorkspaceHooks } from "@shared/proto/cline/file"
-import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
@@ -27,8 +26,7 @@ export async function refreshHooks(
 		const hookPath = await resolveExistingHookPath(globalHooksDir, hookName)
 		if (hookPath) {
 			existingGlobalHookPaths.add(hookPath)
-			const legacyEnabled = await isExecutable(hookPath)
-			const enabled = globalHooksToggles[hookPath] ?? legacyEnabled
+			const enabled = globalHooksToggles[hookPath] ?? false
 
 			if (!(hookPath in globalHooksToggles)) {
 				globalHooksToggles[hookPath] = enabled
@@ -57,8 +55,7 @@ export async function refreshHooks(
 			const hookPath = await resolveExistingHookPath(workspaceHooksDir, hookName)
 			if (hookPath) {
 				existingLocalHookPaths.add(hookPath)
-				const legacyEnabled = await isExecutable(hookPath)
-				const enabled = localHooksToggles[hookPath] ?? legacyEnabled
+				const enabled = localHooksToggles[hookPath] ?? false
 
 				if (!(hookPath in localHooksToggles)) {
 					localHooksToggles[hookPath] = enabled
@@ -113,18 +110,4 @@ export async function refreshHooks(
 		workspaceHooks: workspaceHooksList,
 		isWindows: process.platform === "win32",
 	})
-}
-
-async function isExecutable(filePath: string): Promise<boolean> {
-	try {
-		if (process.platform === "win32") {
-			await fs.access(filePath)
-			return true
-		}
-
-		await fs.access(filePath, fs.constants.X_OK)
-		return true
-	} catch {
-		return false
-	}
 }

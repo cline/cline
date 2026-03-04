@@ -68,8 +68,16 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 	const sandbox = sinon.createSandbox()
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
 	const hooksDir = await createHooksDirectory(tempDir)
+	let globalHooksToggles: Record<string, boolean> = {}
+	let localHooksToggles: Record<string, boolean> = {}
 
 	sandbox.stub(StateManager, "get").returns({
+		getGlobalSettingsKey: (key: string) => {
+			if (key === "globalHooksToggles") {
+				return globalHooksToggles
+			}
+			return undefined
+		},
 		getGlobalStateKey: (key: string) => {
 			if (key === "workspaceRoots") {
 				return [{ path: tempDir }]
@@ -78,18 +86,26 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 				return 0
 			}
 			if (key === "globalHooksToggles") {
-				return {}
+				return globalHooksToggles
 			}
 			return undefined
 		},
 		getWorkspaceStateKey: (key: string) => {
 			if (key === "localHooksToggles") {
-				return {}
+				return localHooksToggles
 			}
 			return undefined
 		},
-		setGlobalState: () => {},
-		setWorkspaceState: () => {},
+		setGlobalState: (key: string, value: Record<string, boolean>) => {
+			if (key === "globalHooksToggles") {
+				globalHooksToggles = value
+			}
+		},
+		setWorkspaceState: (key: string, value: Record<string, boolean>) => {
+			if (key === "localHooksToggles") {
+				localHooksToggles = value
+			}
+		},
 	} as any)
 
 	resetHookCache()
@@ -196,11 +212,28 @@ export async function writeHookScriptForPlatform(hookPath: string, nodeScript: s
 
 		await fs.writeFile(jsPath, nodeScript)
 		await fs.writeFile(ps1Path, psBridge)
+		setHookToggleForTesting(ps1Path, true)
 		return
 	}
 
 	await fs.writeFile(hookPath, nodeScript)
 	await fs.chmod(hookPath, 0o755)
+	setHookToggleForTesting(hookPath, true)
+}
+
+function setHookToggleForTesting(scriptPath: string, enabled: boolean): void {
+	try {
+		const stateManager = StateManager.get() as any
+		const globalHooksToggles = stateManager.getGlobalSettingsKey?.("globalHooksToggles") || {}
+		globalHooksToggles[scriptPath] = enabled
+		stateManager.setGlobalState?.("globalHooksToggles", globalHooksToggles)
+
+		const localHooksToggles = stateManager.getWorkspaceStateKey?.("localHooksToggles") || {}
+		localHooksToggles[scriptPath] = enabled
+		stateManager.setWorkspaceState?.("localHooksToggles", localHooksToggles)
+	} catch {
+		// No-op for tests that don't stub StateManager
+	}
 }
 
 function buildPowerShellNodeBridge(nodePath: string, jsFileName: string): string {
@@ -577,6 +610,7 @@ export async function loadFixture(fixtureName: string, destDir: string): Promise
 			// Set executable permission (not needed on Windows)
 			const stats = await fs.stat(sourceFile)
 			await fs.chmod(destFile, stats.mode)
+			setHookToggleForTesting(destFile, true)
 		}
 	}
 }

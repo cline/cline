@@ -719,8 +719,7 @@ function isHookEnabledForPath(scriptPath: string): boolean {
 		return localHooksToggles[scriptPath] !== false
 	}
 
-	// Backward compatibility for hooks that predate persisted toggle maps.
-	return true
+	return false
 }
 
 export class HookFactory {

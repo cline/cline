@@ -29,6 +29,8 @@ describe("Hook Management", () => {
 	let mockController: Controller
 	let stateManagerStub: sinon.SinonStub
 	let getWorkspacePathsStub: sinon.SinonStub
+	let globalHooksToggles: Record<string, boolean>
+	let localHooksToggles: Record<string, boolean>
 
 	beforeEach(async () => {
 		// Reset the hook discovery cache before each test
@@ -41,6 +43,8 @@ describe("Hook Management", () => {
 
 		await fs.mkdir(globalHooksDir, { recursive: true })
 		await fs.mkdir(workspaceHooksDir, { recursive: true })
+		globalHooksToggles = {}
+		localHooksToggles = {}
 
 		// Mock Controller
 		mockController = {
@@ -48,10 +52,18 @@ describe("Hook Management", () => {
 				globalStorageUri: { fsPath: path.join(tempDir, "global") },
 			},
 			stateManager: {
-				getGlobalSettingsKey: (key: string) => (key === "globalHooksToggles" ? {} : undefined),
-				getWorkspaceStateKey: (key: string) => (key === "localHooksToggles" ? {} : undefined),
-				setGlobalState: () => {},
-				setWorkspaceState: () => {},
+				getGlobalSettingsKey: (key: string) => (key === "globalHooksToggles" ? globalHooksToggles : undefined),
+				getWorkspaceStateKey: (key: string) => (key === "localHooksToggles" ? localHooksToggles : undefined),
+				setGlobalState: (key: string, value: any) => {
+					if (key === "globalHooksToggles") {
+						globalHooksToggles = value
+					}
+				},
+				setWorkspaceState: (key: string, value: any) => {
+					if (key === "localHooksToggles") {
+						localHooksToggles = value
+					}
+				},
 			},
 		} as any
 
@@ -62,18 +74,26 @@ describe("Hook Management", () => {
 					return [{ path: path.join(tempDir, "workspace") }]
 				}
 				if (key === "globalHooksToggles") {
-					return {}
+					return globalHooksToggles
 				}
 				return undefined
 			},
 			getWorkspaceStateKey: (key: string) => {
 				if (key === "localHooksToggles") {
-					return {}
+					return localHooksToggles
 				}
 				return undefined
 			},
-			setGlobalState: () => {},
-			setWorkspaceState: () => {},
+			setGlobalState: (key: string, value: any) => {
+				if (key === "globalHooksToggles") {
+					globalHooksToggles = value
+				}
+			},
+			setWorkspaceState: (key: string, value: any) => {
+				if (key === "localHooksToggles") {
+					localHooksToggles = value
+				}
+			},
 		} as any)
 
 		// Mock HostProvider.workspace.getWorkspacePaths - need to stub the method directly
@@ -406,9 +426,11 @@ describe("Hook Management", () => {
 			if (isWindows) {
 				await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
 				await fs.writeFile(path.join(globalHooksDir, "TaskResume.ps1"), "Write-Output '{}'", { mode: 0o644 })
+				globalHooksToggles[path.join(globalHooksDir, "TaskStart.ps1")] = true
 			} else {
 				await fs.writeFile(path.join(globalHooksDir, "TaskStart"), "#!/usr/bin/env node", { mode: 0o755 })
 				await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "#!/usr/bin/env node", { mode: 0o644 })
+				globalHooksToggles[path.join(globalHooksDir, "TaskStart")] = true
 			}
 
 			const result = await refreshHooks(mockController, undefined, globalHooksDir)
@@ -417,11 +439,7 @@ describe("Hook Management", () => {
 			result.globalHooks[0].name.should.equal("TaskStart")
 			result.globalHooks[0].enabled.should.equal(true)
 			result.globalHooks[1].name.should.equal("TaskResume")
-			if (isWindows) {
-				result.globalHooks[1].enabled.should.equal(true)
-			} else {
-				result.globalHooks[1].enabled.should.equal(false)
-			}
+			result.globalHooks[1].enabled.should.equal(false)
 		})
 
 		it("should discover hooks in workspace directories", async function () {
@@ -430,6 +448,7 @@ describe("Hook Management", () => {
 			await fs.writeFile(path.join(workspaceHooksDir, hookFileName("UserPromptSubmit")), hookTemplate, {
 				mode: 0o755,
 			})
+			localHooksToggles[path.join(workspaceHooksDir, hookFileName("UserPromptSubmit"))] = true
 
 			const result = await refreshHooks(mockController, undefined)
 
@@ -439,23 +458,32 @@ describe("Hook Management", () => {
 			result.workspaceHooks[0].hooks[0].enabled.should.equal(true)
 		})
 
-		it("should correctly identify executable vs non-executable hooks", async function () {
+		it("should default unmanaged discovered hooks to disabled regardless of chmod", async function () {
 			this.timeout(5000)
 
-			if (isWindows) {
-				this.skip()
-			}
-
-			await fs.writeFile(path.join(globalHooksDir, "TaskStart"), "#!/usr/bin/env node", { mode: 0o755 })
-			await fs.writeFile(path.join(globalHooksDir, "TaskCancel"), "#!/usr/bin/env node", { mode: 0o644 })
+			await fs.writeFile(path.join(globalHooksDir, hookFileName("TaskStart")), "#!/usr/bin/env node", { mode: 0o755 })
+			await fs.writeFile(path.join(globalHooksDir, hookFileName("TaskCancel")), "#!/usr/bin/env node", { mode: 0o644 })
 
 			const result = await refreshHooks(mockController, undefined, globalHooksDir)
 
 			const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
 			const taskCancel = result.globalHooks.find((h) => h.name === "TaskCancel")
 
-			taskStart!.enabled.should.equal(true)
+			taskStart!.enabled.should.equal(false)
 			taskCancel!.enabled.should.equal(false)
+		})
+
+		it("should use persisted toggle map as authoritative enablement source", async function () {
+			this.timeout(5000)
+
+			const hookPath = path.join(globalHooksDir, hookFileName("TaskStart"))
+			await fs.writeFile(hookPath, "#!/usr/bin/env node", { mode: 0o644 })
+			globalHooksToggles[hookPath] = true
+
+			const result = await refreshHooks(mockController, undefined, globalHooksDir)
+			const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
+			should.exist(taskStart)
+			taskStart!.enabled.should.equal(true)
 		})
 
 		it("should return empty list when no hooks exist", async function () {
@@ -501,7 +529,7 @@ describe("Hook Management", () => {
 				const taskStart = result.globalHooks.find((h) => h.name === "TaskStart")
 				should.exist(taskStart)
 				taskStart!.absolutePath.should.equal(path.join(globalHooksDir, "TaskStart.ps1"))
-				taskStart!.enabled.should.equal(true)
+				taskStart!.enabled.should.equal(false)
 			})
 		})
 

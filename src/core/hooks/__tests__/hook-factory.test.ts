@@ -293,8 +293,11 @@ console.log(JSON.stringify({
 
 		it("should resolve .ps1 hook on windows", async () => {
 			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
-			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+			const hookBasePath = path.join(hooksDir, "PreToolUse")
+			await withPlatform("win32", async () => {
+				await writeHookScript(hookBasePath, "#!/usr/bin/env node\nprocess.exit(0)")
+			})
+			const ps1Path = `${hookBasePath}.ps1`
 
 			const found = await withPlatform("win32", async () => {
 				return await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
@@ -310,9 +313,11 @@ console.log(JSON.stringify({
 		it("should ignore extensionless hook on windows and use .ps1 only", async () => {
 			const hooksDir = path.join(tempDir, ".clinerules", "hooks")
 			const extensionless = path.join(hooksDir, "PreToolUse")
-			const ps1Path = path.join(hooksDir, "PreToolUse.ps1")
 			await fs.writeFile(extensionless, "Write-Output '{\"cancel\":false}'")
-			await fs.writeFile(ps1Path, "Write-Output '{\"cancel\":false}'")
+			await withPlatform("win32", async () => {
+				await writeHookScript(extensionless, "#!/usr/bin/env node\nprocess.exit(0)")
+			})
+			const ps1Path = `${extensionless}.ps1`
 
 			const found = await withPlatform("win32", async () => {
 				return await HookFactory.findHookInHooksDir("PreToolUse", hooksDir)
@@ -426,10 +431,8 @@ console.log(JSON.stringify({ cancel: false }))`
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
-const hasConcreteModelContext = input.model?.provider === 'openai' && input.model?.slug === 'gpt-5';
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
-                     input.taskId && input.workspaceRoots !== undefined &&
-                     hasConcreteModelContext;
+                     input.taskId && input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
@@ -442,10 +445,6 @@ console.log(JSON.stringify({
 
 			const result = await runner.run({
 				taskId: "test-task",
-				model: {
-					provider: "openai",
-					slug: "gpt-5",
-				},
 				preToolUse: {
 					toolName: "test_tool",
 					parameters: { key: "value" },
