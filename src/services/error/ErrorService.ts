@@ -40,6 +40,10 @@ export class ErrorService {
 		this.provider = provider
 	}
 
+	captureException(error: Error | ClineError, properties?: Record<string, unknown>): void {
+		this.provider.captureException(error, properties)
+	}
+
 	public logException(error: Error | ClineError, properties?: Record<string, unknown>): void {
 		this.provider.logException(error, properties)
 		Logger.error("[ErrorService] Logging exception", JSON.stringify(error))
@@ -81,6 +85,10 @@ export class ErrorService {
 	 */
 	public getProvider(): IErrorProvider {
 		return this.provider
+	}
+
+	flush(): Promise<void> {
+		return this.provider.flush()
 	}
 
 	/**
