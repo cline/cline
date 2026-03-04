@@ -9,6 +9,7 @@ export interface PostHogClientConfig {
 	 * The API key for PostHog used only for error tracking service.
 	 */
 	errorTrackingApiKey?: string | undefined
+	enableErrorAutocapture?: boolean
 	host: string
 	uiHost: string
 }
@@ -41,6 +42,7 @@ export const posthogConfig: PostHogClientConfig = {
 	errorTrackingApiKey: BUILD_CONSTANTS.ERROR_SERVICE_API_KEY,
 	host: "https://data.cline.bot",
 	uiHost: useDevEnv ? "https://us.i.posthog.com" : "https://us.posthog.com",
+	enableErrorAutocapture: BUILD_CONSTANTS.ENABLE_ERROR_AUTOCAPTURE === "true",
 }
 
 const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
