@@ -20,12 +20,18 @@
   },
   {
     "name": "read_file",
-    "description": "Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Returned text lines are prefixed with line labels in the format `L<number>:`. Treat these labels as metadata and not part of the underlying file text. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.",
+    "description": "Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Returned text lines are prefixed with line labels (e.g. `L1:`, `L2:`). These labels are metadata, not part of the file content. For large files, output is automatically limited to 1000 lines. Use start_line and end_line to read specific sections. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.",
     "parameters": {
       "type": "OBJECT",
       "properties": {
         "path": {
           "type": "STRING"
+        },
+        "start_line": {
+          "type": "NUMBER"
+        },
+        "end_line": {
+          "type": "NUMBER"
         },
         "task_progress": {
           "type": "STRING"
