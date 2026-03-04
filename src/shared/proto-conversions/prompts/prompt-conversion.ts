@@ -2,12 +2,10 @@
  * Conversion functions between protobuf and TypeScript types for prompts
  */
 
-import type { PromptItem, PromptsCatalog, TeamPrompt, TeamPromptsCatalog } from "@/shared/prompts"
+import type { PromptItem, PromptsCatalog } from "@/shared/prompts"
 import type {
 	PromptItem as ProtoPromptItem,
 	PromptsCatalog as ProtoPromptsCatalog,
-	TeamPrompt as ProtoTeamPrompt,
-	TeamPromptsCatalog as ProtoTeamPromptsCatalog,
 } from "@/shared/proto/cline/prompts"
 import { PromptType as ProtoPromptType } from "@/shared/proto/cline/prompts"
 
@@ -68,35 +66,5 @@ export function convertProtoPromptsCatalog(protoCatalog: ProtoPromptsCatalog): P
 	return {
 		items: protoCatalog.items.map(convertProtoPromptItem),
 		lastUpdated: protoCatalog.lastUpdated,
-	}
-}
-
-/**
- * Converts proto TeamPrompt to TypeScript TeamPrompt
- */
-export function convertProtoTeamPrompt(protoPrompt: ProtoTeamPrompt): TeamPrompt {
-	return {
-		id: protoPrompt.id,
-		organizationId: protoPrompt.organizationId,
-		name: protoPrompt.name,
-		description: protoPrompt.description,
-		content: protoPrompt.content,
-		type: convertProtoPromptTypeToString(protoPrompt.type),
-		category: protoPrompt.category,
-		tags: protoPrompt.tags,
-		author: protoPrompt.author,
-		createdAt: protoPrompt.createdAt,
-		updatedAt: protoPrompt.updatedAt,
-		shared: protoPrompt.shared,
-	}
-}
-
-/**
- * Converts proto TeamPromptsCatalog to TypeScript TeamPromptsCatalog
- */
-export function convertProtoTeamPromptsCatalog(protoCatalog: ProtoTeamPromptsCatalog): TeamPromptsCatalog {
-	return {
-		items: protoCatalog.items.map(convertProtoTeamPrompt),
-		organizationId: protoCatalog.organizationId,
 	}
 }

@@ -44,24 +44,3 @@ export interface PromptsCatalog {
 	lastUpdated: string
 }
 
-export interface TeamPrompt {
-	id: string
-	organizationId: string
-	name: string
-	description: string
-	content: string
-	type: "rule" | "workflow"
-	category: string
-	tags: string[]
-	author: string
-	createdAt: string
-	updatedAt: string
-	shared: boolean // whether it's shared with the team
-}
-
-export interface TeamPromptsCatalog {
-	items: TeamPrompt[]
-	organizationId: string
-}
-
-export type PromptsViewTab = "library" | "team"

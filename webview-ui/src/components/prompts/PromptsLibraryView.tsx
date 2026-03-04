@@ -1,27 +1,14 @@
-import type { PromptsViewTab } from "@shared/prompts"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
-import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import PromptsLibraryTab from "./PromptsLibraryTab"
-import TeamPromptsTab from "./TeamPromptsTab"
 
 type PromptsLibraryViewProps = {
 	onDone: () => void
-	initialTab?: PromptsViewTab
 }
 
-const PromptsLibraryView = ({ onDone, initialTab }: PromptsLibraryViewProps) => {
-	const { environment, userInfo, promptsCatalog, teamPromptsCatalog } = useExtensionState()
-	const [activeTab, setActiveTab] = useState<PromptsViewTab>(initialTab || "library")
-
-	// Check if user is logged in - team prompts require authentication
-	const isLoggedIn = !!userInfo
-
-	const handleTabChange = (tab: PromptsViewTab) => {
-		setActiveTab(tab)
-	}
+const PromptsLibraryView = ({ onDone }: PromptsLibraryViewProps) => {
+	const { environment, promptsCatalog } = useExtensionState()
 
 	return (
 		<div
@@ -52,68 +39,10 @@ const PromptsLibraryView = ({ onDone, initialTab }: PromptsLibraryViewProps) => 
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto" }}>
-				{/* Tabs container */}
-				<div
-					style={{
-						display: "flex",
-						gap: "1px",
-						padding: "0 20px 0 20px",
-						borderBottom: "1px solid var(--vscode-panel-border)",
-					}}>
-					<TabButton isActive={activeTab === "library"} onClick={() => handleTabChange("library")}>
-						Library
-					</TabButton>
-					<TabButton isActive={activeTab === "team"} onClick={() => handleTabChange("team")}>
-						Team Prompts
-					</TabButton>
-				</div>
-
-				{/* Content container */}
-				<div style={{ width: "100%" }}>
-					{activeTab === "library" && <PromptsLibraryTab catalog={promptsCatalog} />}
-					{activeTab === "team" && <TeamPromptsTab catalog={teamPromptsCatalog} hasEnterpriseAccount={isLoggedIn} />}
-				</div>
+				<PromptsLibraryTab catalog={promptsCatalog} />
 			</div>
 		</div>
 	)
 }
-
-const StyledTabButton = styled.button.withConfig({
-	shouldForwardProp: (prop: string) => !["isActive"].includes(prop),
-})<{ isActive: boolean; disabled?: boolean }>`
-	background: none;
-	border: none;
-	border-bottom: 2px solid ${(props: { isActive: boolean }) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
-	color: ${(props: { isActive: boolean }) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	padding: 8px 16px;
-	cursor: ${(props: { disabled?: boolean }) => (props.disabled ? "not-allowed" : "pointer")};
-	font-size: 13px;
-	margin-bottom: -1px;
-	font-family: inherit;
-	opacity: ${(props: { disabled?: boolean }) => (props.disabled ? 0.6 : 1)};
-	pointer-events: ${(props: { disabled?: boolean }) => (props.disabled ? "none" : "auto")};
-
-	&:hover {
-		color: ${(props: { disabled?: boolean }) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
-	}
-`
-
-export const TabButton = ({
-	children,
-	isActive,
-	onClick,
-	disabled,
-	style,
-}: {
-	children: React.ReactNode
-	isActive: boolean
-	onClick: () => void
-	disabled?: boolean
-	style?: React.CSSProperties
-}) => (
-	<StyledTabButton disabled={disabled} isActive={isActive} onClick={onClick} style={style}>
-		{children}
-	</StyledTabButton>
-)
 
 export default PromptsLibraryView

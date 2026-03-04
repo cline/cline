@@ -27,7 +27,6 @@ const AppContent = () => {
 		showAccount,
 		showWorktrees,
 		showPrompts,
-		promptsTab,
 		showAnnouncement,
 		onboardingModels,
 		setShowAnnouncement,
@@ -72,7 +71,7 @@ const AppContent = () => {
 			{showSettings && <SettingsView onDone={hideSettings} targetSection={settingsTargetSection} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
-			{showPrompts && <PromptsLibraryView initialTab={promptsTab} onDone={hidePrompts} />}
+			{showPrompts && <PromptsLibraryView onDone={hidePrompts} />}
 			{showAccount && (
 				<AccountView
 					activeOrganization={activeOrganization}

@@ -26,7 +26,7 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import type { PromptsCatalog, PromptsViewTab, TeamPromptsCatalog } from "../../../src/shared/prompts"
+import type { PromptsCatalog } from "../../../src/shared/prompts"
 import {
 	McpServiceClient,
 	ModelsServiceClient,
@@ -52,7 +52,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	promptsCatalog: PromptsCatalog
-	teamPromptsCatalog: TeamPromptsCatalog
 	totalTasksSize: number | null
 	lastDismissedCliBannerVersion: number
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
@@ -63,7 +62,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showMcp: boolean
 	mcpTab?: McpViewTab
 	showPrompts: boolean
-	promptsTab?: PromptsViewTab
 	showSettings: boolean
 	settingsTargetSection?: string
 	settingsInitialModelTab?: "recommended" | "free"
@@ -94,7 +92,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setPromptsCatalog: (value: PromptsCatalog) => void
-	setTeamPromptsCatalog: (value: TeamPromptsCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
@@ -114,7 +111,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToPrompts: (tab?: PromptsViewTab) => void
+	navigateToPrompts: () => void
 	navigateToSettings: (targetSection?: string) => void
 	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
 	navigateToHistory: () => void
@@ -248,24 +245,17 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowPrompts(false)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
 
-	const navigateToPrompts = useCallback(
-		(tab?: PromptsViewTab) => {
-			setShowSettings(false)
-			closeMcpView()
-			setShowHistory(false)
-			setShowAccount(false)
-			setShowWorktrees(false)
-			if (tab) {
-				setPromptsTab(tab)
-			}
-			setShowPrompts(true)
-		},
-		[closeMcpView],
-	)
+	const navigateToPrompts = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowWorktrees(false)
+		setShowPrompts(true)
+	}, [closeMcpView])
 
 	const hidePrompts = useCallback(() => {
 		setShowPrompts(false)
-		setPromptsTab(undefined)
 	}, [])
 
 	const [state, setState] = useState<ExtensionState>({
@@ -362,9 +352,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 	const [promptsCatalog, setPromptsCatalog] = useState<PromptsCatalog>({ items: [], lastUpdated: "" })
-	const [teamPromptsCatalog, setTeamPromptsCatalog] = useState<TeamPromptsCatalog>({ items: [], organizationId: "" })
 	const [showPrompts, setShowPrompts] = useState(false)
-	const [promptsTab, setPromptsTab] = useState<PromptsViewTab | undefined>(undefined)
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -378,7 +366,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const promptsCatalogUnsubscribeRef = useRef<(() => void) | null>(null)
-	const teamPromptsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const promptsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -623,27 +610,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Subscribe to team prompts updates
-		teamPromptsUnsubscribeRef.current = PromptsServiceClient.subscribeToTeamPrompts(EmptyRequest.create({}), {
-			onResponse: (protoCatalog) => {
-				// Convert proto types to shared types
-				const catalog = {
-					items: protoCatalog.items.map((item) => ({
-						...item,
-						type: item.type === 1 ? ("rule" as const) : ("workflow" as const),
-					})),
-					organizationId: protoCatalog.organizationId,
-				}
-				setTeamPromptsCatalog(catalog)
-			},
-			onError: (error) => {
-				console.error("Error in team prompts subscription:", error)
-			},
-			onComplete: () => {
-				console.log("Team prompts subscription completed")
-			},
-		})
-
 		// Subscribe to OpenRouter models updates
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
@@ -761,10 +727,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (promptsCatalogUnsubscribeRef.current) {
 				promptsCatalogUnsubscribeRef.current()
 				promptsCatalogUnsubscribeRef.current = null
-			}
-			if (teamPromptsUnsubscribeRef.current) {
-				teamPromptsUnsubscribeRef.current()
-				teamPromptsUnsubscribeRef.current = null
 			}
 			if (promptsButtonClickedSubscriptionRef.current) {
 				promptsButtonClickedSubscriptionRef.current()
@@ -905,13 +867,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpServers,
 		mcpMarketplaceCatalog,
 		promptsCatalog,
-		teamPromptsCatalog,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMcp,
 		mcpTab,
 		showPrompts,
-		promptsTab,
 		showSettings,
 		settingsTargetSection,
 		settingsInitialModelTab,
@@ -963,7 +923,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setPromptsCatalog: (catalog: PromptsCatalog) => setPromptsCatalog(catalog),
-		setTeamPromptsCatalog: (catalog: TeamPromptsCatalog) => setTeamPromptsCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
 		setGlobalClineRulesToggles: (toggles) =>
