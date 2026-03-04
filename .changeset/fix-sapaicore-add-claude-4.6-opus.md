@@ -1,5 +1,5 @@
 ---
-"cline": patch
+"cline": minor
 ---
 
 feat(sapaicore): add Claude 4.6 Opus model support
