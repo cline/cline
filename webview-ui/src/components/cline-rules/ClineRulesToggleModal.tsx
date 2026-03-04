@@ -19,7 +19,6 @@ import PopupModalContainer from "@/components/common/PopupModalContainer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
-import { isMacOSOrLinux } from "@/utils/platformUtils"
 import HookRow from "./HookRow"
 import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
@@ -58,8 +57,6 @@ const ClineRulesToggleModal: React.FC = () => {
 	>([])
 	const [globalSkills, setGlobalSkills] = useState<SkillInfo[]>([])
 	const [localSkills, setLocalSkills] = useState<SkillInfo[]>([])
-
-	const isWindows = !isMacOSOrLinux()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -680,9 +677,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							<>
 								<div className="text-xs text-description mb-4">
 									<p>
-										{isWindows
-											? "On Windows, hooks execute whenever the hook file exists."
-											: "Toggle to enable/disable (chmod +x/-x)."}{" "}
+										Toggle hooks on/off using persisted settings (with executable bit sync on Unix).{" "}
 										<VSCodeLink
 											className="text-xs"
 											href="https://docs.cline.bot/features/hooks"
@@ -692,17 +687,6 @@ const ClineRulesToggleModal: React.FC = () => {
 									</p>
 								</div>
 								{/* Hooks Tab */}
-								{/* Windows warning banner */}
-								{isWindows && (
-									<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-inputValidation-warningBackground border-l-[3px] border-vscode-inputValidation-warningBorder">
-										<i className="codicon codicon-warning text-sm" />
-										<span className="text-base">
-											Hook toggling is not yet supported on Windows in this foundation PR. Hooks can be created,
-											edited, and deleted, and execute whenever the hook file exists. Coming next: JSON-backed
-											hook enabled/disabled state across platforms.
-										</span>
-									</div>
-								)}
 
 								{/* Global Hooks */}
 								<div className="mb-3">
@@ -716,7 +700,6 @@ const ClineRulesToggleModal: React.FC = () => {
 													enabled={hook.enabled}
 													hookName={hook.name}
 													isGlobal={true}
-													isWindows={isWindows}
 													key={hook.name}
 													onDelete={(hooksToggles) => {
 														// Use response data directly, no need to refresh
@@ -753,7 +736,6 @@ const ClineRulesToggleModal: React.FC = () => {
 														enabled={hook.enabled}
 														hookName={hook.name}
 														isGlobal={false}
-														isWindows={isWindows}
 														key={hook.absolutePath}
 														onDelete={(hooksToggles) => {
 															// Use response data directly, no need to refresh

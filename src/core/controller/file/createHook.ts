@@ -47,6 +47,17 @@ export async function createHook(
 	const mode = 0o644
 	await fs.writeFile(hookPath, templateContent, { mode })
 
+	// Persist default disabled state (parity with rules/workflows/skills toggle maps)
+	if (isGlobal) {
+		const globalHooksToggles = controller.stateManager.getGlobalSettingsKey("globalHooksToggles") || {}
+		globalHooksToggles[hookPath] = false
+		controller.stateManager.setGlobalState("globalHooksToggles", globalHooksToggles)
+	} else {
+		const localHooksToggles = controller.stateManager.getWorkspaceStateKey("localHooksToggles") || {}
+		localHooksToggles[hookPath] = false
+		controller.stateManager.setWorkspaceState("localHooksToggles", localHooksToggles)
+	}
+
 	// Invalidate hook discovery cache
 	await HookDiscoveryCache.getInstance().invalidateAll()
 

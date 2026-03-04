@@ -20,8 +20,19 @@ describe("Tool Executor Hooks", () => {
 				if (key === "workspaceRoots") {
 					return []
 				}
+				if (key === "globalHooksToggles") {
+					return {}
+				}
 				return undefined
 			},
+			getWorkspaceStateKey: (key: string) => {
+				if (key === "localHooksToggles") {
+					return {}
+				}
+				return undefined
+			},
+			setGlobalState: () => {},
+			setWorkspaceState: () => {},
 		} as any)
 	})
 

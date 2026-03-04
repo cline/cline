@@ -21,14 +21,19 @@ export async function toggleHook(
 		throw new Error(`Hook ${hookName} does not exist in ${hooksDir}`)
 	}
 
-	// On Windows, we can't use chmod, so we just return the current state
-	// without modifying the file. The frontend will disable the toggle.
-	// TODO(PR-9552 follow-up): Replace this temporary behavior with a
-	// JSON-backed cross-platform enabled/disabled hook state.
+	// Persist toggles in StateManager (parity with rules/workflows/skills)
+	if (isGlobal) {
+		const globalHooksToggles = controller.stateManager.getGlobalSettingsKey("globalHooksToggles") || {}
+		globalHooksToggles[hookPath] = enabled
+		controller.stateManager.setGlobalState("globalHooksToggles", globalHooksToggles)
+	} else {
+		const localHooksToggles = controller.stateManager.getWorkspaceStateKey("localHooksToggles") || {}
+		localHooksToggles[hookPath] = enabled
+		controller.stateManager.setWorkspaceState("localHooksToggles", localHooksToggles)
+	}
+
+	// Keep Unix executable bit in sync for backward compatibility.
 	if (process.platform !== "win32") {
-		// Toggle executable bit (Unix-like systems only)
-		// TODO(PR-9552 follow-up): Revisit chmod-driven enablement semantics
-		// once cross-platform JSON-backed state is implemented.
 		await fs.chmod(hookPath, enabled ? 0o755 : 0o644)
 	}
 

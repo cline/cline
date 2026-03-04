@@ -9,11 +9,11 @@ import { createHook } from "../core/controller/file/createHook"
 import { deleteHook } from "../core/controller/file/deleteHook"
 import { refreshHooks } from "../core/controller/file/refreshHooks"
 import { toggleHook } from "../core/controller/file/toggleHook"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { StateManager } from "../core/storage/StateManager"
 import { HostProvider } from "../hosts/host-provider"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
-import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Integration tests for hook management
@@ -46,6 +46,12 @@ describe("Hook Management Integration", () => {
 			context: {
 				globalStorageUri: { fsPath: path.join(tempDir, "global") },
 			},
+			stateManager: {
+				getGlobalSettingsKey: (key: string) => (key === "globalHooksToggles" ? {} : undefined),
+				getWorkspaceStateKey: (key: string) => (key === "localHooksToggles" ? {} : undefined),
+				setGlobalState: () => {},
+				setWorkspaceState: () => {},
+			},
 		} as any
 
 		// Mock StateManager to return test workspace
@@ -54,8 +60,19 @@ describe("Hook Management Integration", () => {
 				if (key === "workspaceRoots") {
 					return [{ path: path.join(tempDir, "workspace") }]
 				}
+				if (key === "globalHooksToggles") {
+					return {}
+				}
 				return undefined
 			},
+			getWorkspaceStateKey: (key: string) => {
+				if (key === "localHooksToggles") {
+					return {}
+				}
+				return undefined
+			},
+			setGlobalState: () => {},
+			setWorkspaceState: () => {},
 		} as any)
 
 		// Mock HostProvider.workspace.getWorkspacePaths - need to stub the method directly

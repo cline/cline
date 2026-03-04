@@ -47,6 +47,12 @@ describe("Hook Management", () => {
 			context: {
 				globalStorageUri: { fsPath: path.join(tempDir, "global") },
 			},
+			stateManager: {
+				getGlobalSettingsKey: (key: string) => (key === "globalHooksToggles" ? {} : undefined),
+				getWorkspaceStateKey: (key: string) => (key === "localHooksToggles" ? {} : undefined),
+				setGlobalState: () => {},
+				setWorkspaceState: () => {},
+			},
 		} as any
 
 		// Mock StateManager to return test workspace
@@ -55,8 +61,19 @@ describe("Hook Management", () => {
 				if (key === "workspaceRoots") {
 					return [{ path: path.join(tempDir, "workspace") }]
 				}
+				if (key === "globalHooksToggles") {
+					return {}
+				}
 				return undefined
 			},
+			getWorkspaceStateKey: (key: string) => {
+				if (key === "localHooksToggles") {
+					return {}
+				}
+				return undefined
+			},
+			setGlobalState: () => {},
+			setWorkspaceState: () => {},
 		} as any)
 
 		// Mock HostProvider.workspace.getWorkspacePaths - need to stub the method directly

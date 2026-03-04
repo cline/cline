@@ -77,8 +77,19 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 			if (key === "primaryRootIndex") {
 				return 0
 			}
+			if (key === "globalHooksToggles") {
+				return {}
+			}
 			return undefined
 		},
+		getWorkspaceStateKey: (key: string) => {
+			if (key === "localHooksToggles") {
+				return {}
+			}
+			return undefined
+		},
+		setGlobalState: () => {},
+		setWorkspaceState: () => {},
 	} as any)
 
 	resetHookCache()

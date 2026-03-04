@@ -6,7 +6,6 @@ import { getDistinctId } from "../../services/logging/distinctId"
 import { telemetryService } from "../../services/telemetry"
 import {
 	HookInput,
-	HookModelContext,
 	HookOutput,
 	PostToolUseData,
 	PreCompactData,
@@ -197,11 +196,6 @@ export abstract class HookRunner<Name extends HookName> {
 				.getGlobalStateKey("workspaceRoots")
 				?.map((root) => root.path) || []
 
-		const model: HookModelContext = {
-			provider: params.model?.provider?.trim() || "unknown",
-			slug: params.model?.slug?.trim() || "unknown",
-		}
-
 		return {
 			clineVersion,
 			hookName: this.hookName,
@@ -209,7 +203,6 @@ export abstract class HookRunner<Name extends HookName> {
 			workspaceRoots,
 			userId: getDistinctId(), // Always available: Cline User ID, machine ID, or generated UUID
 			...params,
-			model,
 		}
 	}
 }
@@ -713,6 +706,23 @@ function isExpectedHookError(error: unknown): boolean {
 	return false
 }
 
+function isHookEnabledForPath(scriptPath: string): boolean {
+	const stateManager = StateManager.get()
+	const globalHooksToggles = stateManager.getGlobalSettingsKey("globalHooksToggles") || {}
+	const localHooksToggles = stateManager.getWorkspaceStateKey("localHooksToggles") || {}
+
+	if (scriptPath in globalHooksToggles) {
+		return globalHooksToggles[scriptPath] !== false
+	}
+
+	if (scriptPath in localHooksToggles) {
+		return localHooksToggles[scriptPath] !== false
+	}
+
+	// Backward compatibility for hooks that predate persisted toggle maps.
+	return true
+}
+
 export class HookFactory {
 	/**
 	 * Get information about discovered hooks including their script paths
@@ -945,7 +955,7 @@ export class HookFactory {
 		const powerShell = path.join(hooksDir, `${hookName}.ps1`)
 		const powerShellExists = await HookFactory.isHookFile(powerShell, hookName)
 
-		if (powerShellExists) {
+		if (powerShellExists && isHookEnabledForPath(powerShell)) {
 			return powerShell
 		}
 
@@ -977,6 +987,10 @@ export class HookFactory {
 	 */
 	private static async findUnixHook(hookName: HookName, hooksDir: string): Promise<string | undefined> {
 		const candidate = path.join(hooksDir, hookName)
+
+		if (!isHookEnabledForPath(candidate)) {
+			return undefined
+		}
 
 		try {
 			const [stat, _] = await Promise.all([fs.stat(candidate), fs.access(candidate, fs.constants.X_OK)])

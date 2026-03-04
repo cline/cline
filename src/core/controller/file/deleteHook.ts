@@ -24,6 +24,17 @@ export async function deleteHook(
 	// Delete the hook file
 	await fs.unlink(hookPath)
 
+	// Remove toggle entry
+	if (isGlobal) {
+		const globalHooksToggles = controller.stateManager.getGlobalSettingsKey("globalHooksToggles") || {}
+		delete globalHooksToggles[hookPath]
+		controller.stateManager.setGlobalState("globalHooksToggles", globalHooksToggles)
+	} else {
+		const localHooksToggles = controller.stateManager.getWorkspaceStateKey("localHooksToggles") || {}
+		delete localHooksToggles[hookPath]
+		controller.stateManager.setWorkspaceState("localHooksToggles", localHooksToggles)
+	}
+
 	// Invalidate hook discovery cache
 	await HookDiscoveryCache.getInstance().invalidateAll()
 

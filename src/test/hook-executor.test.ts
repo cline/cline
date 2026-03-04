@@ -4,13 +4,13 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import * as sinon from "sinon"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { ClineMessage } from "../shared/ExtensionMessage"
-import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Unit tests for the hook-executor module
@@ -84,8 +84,19 @@ setTimeout(() => {
 				if (key === "workspaceRoots") {
 					return [{ path: baseTempDir }]
 				}
+				if (key === "globalHooksToggles") {
+					return {}
+				}
 				return undefined
 			},
+			getWorkspaceStateKey: (key: string) => {
+				if (key === "localHooksToggles") {
+					return {}
+				}
+				return undefined
+			},
+			setGlobalState: () => {},
+			setWorkspaceState: () => {},
 		} as any)
 	})
 
