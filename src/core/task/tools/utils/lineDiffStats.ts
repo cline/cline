@@ -49,7 +49,7 @@ export function computeLineDiffStats(before: string, after: string): LineDiffSta
 
 		if (change.removed) {
 			const removedCount = countLines(change.value)
-			const next = changes[i + 1]
+			const next = i + 1 < changes.length ? changes[i + 1] : undefined
 
 			// Pair adjacent remove+add as "changed"
 			if (next?.added) {
