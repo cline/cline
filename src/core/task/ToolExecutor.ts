@@ -553,7 +553,7 @@ export class ToolExecutor {
 			return
 		}
 
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false

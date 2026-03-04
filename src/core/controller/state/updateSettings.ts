@@ -137,6 +137,18 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.strictPlanModeEnabled !== undefined) {
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
+
+		if (request.hooksEnabled !== undefined) {
+			controller.stateManager.setGlobalState("hooksEnabled", !!request.hooksEnabled)
+			if (controller.task) {
+				telemetryService.captureFeatureToggle(
+					controller.task.ulid,
+					"hooks",
+					!!request.hooksEnabled,
+					controller.task.api.getModel().id,
+				)
+			}
+		}
 		// Update yolo mode setting
 		if (request.yoloModeToggled !== undefined) {
 			if (controller.task) {
