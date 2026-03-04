@@ -1752,7 +1752,7 @@ export class Task {
 					postStateToWebview: this.postStateToWebview.bind(this),
 					taskState: this.taskState,
 					cancelTask: this.cancelTask.bind(this),
-					hooksEnabled: true,
+					hooksEnabled,
 				})
 			} catch (error) {
 				// If hook was cancelled, re-throw to stop compaction

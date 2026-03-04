@@ -461,6 +461,7 @@ export class ToolExecutor {
 		toolResult: any,
 		executionSuccess: boolean,
 		executionStartTime: number,
+		hooksEnabled: boolean,
 	): Promise<boolean> {
 		const { executeHook } = await import("../hooks/hook-executor")
 
@@ -483,7 +484,7 @@ export class ToolExecutor {
 			clearActiveHookExecution: this.clearActiveHookExecution,
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
-			hooksEnabled: true, // Already checked by caller
+			hooksEnabled,
 			model: getHookModelContext(this.api, this.stateManager),
 			toolName: block.name,
 		})
@@ -585,7 +586,13 @@ export class ToolExecutor {
 			// Run PostToolUse hook for successful tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
 			if (hooksEnabled && block.name !== "attempt_completion") {
-				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				const hookRequestedCancel = await this.runPostToolUseHook(
+					block,
+					toolResult,
+					executionSuccess,
+					executionStartTime,
+					hooksEnabled,
+				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true
@@ -603,7 +610,13 @@ export class ToolExecutor {
 			// Run PostToolUse hook for failed tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
 			if (toolWasExecuted && hooksEnabled && block.name !== "attempt_completion") {
-				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				const hookRequestedCancel = await this.runPostToolUseHook(
+					block,
+					toolResult,
+					executionSuccess,
+					executionStartTime,
+					hooksEnabled,
+				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true
