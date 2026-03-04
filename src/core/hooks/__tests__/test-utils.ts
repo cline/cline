@@ -3,10 +3,10 @@ import * as os from "os"
 import * as path from "path"
 import should from "should"
 import sinon from "sinon"
-import { StateManager } from "../../storage/StateManager"
-import * as diskModule from "../../storage/disk"
-import { HookDiscoveryCache } from "../HookDiscoveryCache"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
+import * as diskModule from "../../storage/disk"
+import { StateManager } from "../../storage/StateManager"
+import { HookDiscoveryCache } from "../HookDiscoveryCache"
 import { Hooks, NamedHookInput } from "../hook-factory"
 
 // Define HookName locally since it's not exported from hook-factory
@@ -17,6 +17,25 @@ export type HookTestEnv = {
 	hooksDir: string
 	sandbox: sinon.SinonSandbox
 	cleanup: () => Promise<void>
+}
+
+async function removeTempDirWithRetry(tempDir: string): Promise<void> {
+	const maxAttempts = process.platform === "win32" ? 5 : 1
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			await fs.rm(tempDir, { recursive: true, force: true })
+			return
+		} catch (error) {
+			const nodeError = error as NodeJS.ErrnoException
+			const isRetryableWindowsLock = process.platform === "win32" && nodeError?.code === "EBUSY"
+			if (!isRetryableWindowsLock || attempt === maxAttempts) {
+				throw error
+			}
+
+			// Give Windows a brief moment to release file handles from child processes.
+			await new Promise((resolve) => setTimeout(resolve, 100 * attempt))
+		}
+	}
 }
 
 export function resetHookCache(): void {
@@ -71,7 +90,7 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 		cleanup: async () => {
 			sandbox.restore()
 			resetHookCache()
-			await fs.rm(tempDir, { recursive: true, force: true })
+			await removeTempDirWithRetry(tempDir)
 		},
 	}
 }
