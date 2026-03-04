@@ -36,12 +36,16 @@ Usage:
 </execute_command>
 
 ## read_file
-Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Returned text lines are prefixed with line labels in the format `L<number>:`. Treat these labels as metadata and not part of the underlying file text. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.
+Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Returned text lines are prefixed with line labels (e.g. `L1:`, `L2:`). These labels are metadata, not part of the file content. For large files, output is automatically limited to 1000 lines. Use start_line and end_line to read specific sections. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory /test/project)
+- start_line: (optional) The 1-based line number to start reading from (inclusive). Defaults to 1.
+- end_line: (optional) The 1-based line number to stop reading at (inclusive). Defaults to start_line + 1000. Use with start_line to read specific sections of large files.
 Usage:
 <read_file>
 <path>File path here</path>
+<start_line>1</start_line>
+<end_line>1000</end_line>
 </read_file>
 
 ## write_to_file
