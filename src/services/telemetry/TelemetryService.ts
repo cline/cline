@@ -175,6 +175,7 @@ export class TelemetryService {
 			REJECTED_FILES_CREATED: "cline.ai_output.rejected.files_created.total",
 			REJECTED_FILES_DELETED: "cline.ai_output.rejected.files_deleted.total",
 			REJECTED_FILES_MOVED: "cline.ai_output.rejected.files_moved.total",
+		},
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
