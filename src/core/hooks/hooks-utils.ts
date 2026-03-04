@@ -9,6 +9,5 @@ export function getHooksEnabledSafe(userSetting: boolean | undefined): boolean {
 		return false
 	}
 
-	// Hooks are currently supported on all desktop platforms.
 	return true
 }

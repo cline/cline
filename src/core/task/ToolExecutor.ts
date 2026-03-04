@@ -591,7 +591,7 @@ export class ToolExecutor {
 					toolResult,
 					executionSuccess,
 					executionStartTime,
-					hooksEnabled,
+					hooksEnabled, // always true here - already checked by caller
 				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
@@ -615,7 +615,7 @@ export class ToolExecutor {
 					toolResult,
 					executionSuccess,
 					executionStartTime,
-					hooksEnabled,
+					hooksEnabled, // always true here - already checked by caller
 				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
