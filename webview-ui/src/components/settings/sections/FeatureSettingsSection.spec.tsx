@@ -30,9 +30,15 @@ vi.mock("../utils/settingsHandlers", () => ({
 
 describe("FeatureSettingsSection", () => {
 	it("renders Hooks feature toggle", () => {
-		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
 
 		expect(screen.getByText("Hooks")).toBeTruthy()
+
+		const advancedSection = container.querySelector("#advanced-features")
+		const agentSection = container.querySelector("#agent-features")
+
+		expect(advancedSection?.querySelector("#Hooks")).toBeTruthy()
+		expect(agentSection?.querySelector("#Hooks")).toBeNull()
 	})
 
 	it("calls updateSetting with hooksEnabled when toggled", () => {
