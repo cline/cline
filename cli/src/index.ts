@@ -64,6 +64,7 @@ interface TaskOptions {
 	yolo?: boolean
 	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
+	autoCondense?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
@@ -212,6 +213,10 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (options.doubleCheckCompletion) {
 		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
 		telemetryService.captureHostEvent("double_check_completion_flag", "true")
+	}
+
+	if (options.autoCondense) {
+		StateManager.get().setGlobalState("useAutoCondense", true)
 	}
 }
 
@@ -751,6 +756,7 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
@@ -920,6 +926,7 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
