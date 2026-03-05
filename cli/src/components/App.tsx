@@ -3,7 +3,7 @@
  * Routes between different views (task, history, config)
  */
 
-import { Box } from "ink"
+import { Box, useApp } from "ink"
 import React, { ReactNode, useCallback, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
@@ -11,6 +11,7 @@ import { useTerminalSize } from "../hooks/useTerminalSize"
 import { AuthView } from "./AuthView"
 import { ChatView } from "./ChatView"
 import { ConfigView } from "./ConfigView"
+import { ErrorBoundary } from "./ErrorBoundary"
 import { HistoryView } from "./HistoryView"
 import { TaskJsonView } from "./TaskJsonView"
 
@@ -133,6 +134,7 @@ export const App: React.FC<AppProps> = ({
 	isRawModeSupported = true,
 }) => {
 	const { resizeKey } = useTerminalSize()
+	const { exit } = useApp()
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
 
@@ -259,8 +261,10 @@ export const App: React.FC<AppProps> = ({
 	}
 
 	return (
-		<StdinProvider isRawModeSupported={isRawModeSupported}>
-			<Box key={resizeKey}>{content}</Box>
-		</StdinProvider>
+		<ErrorBoundary exit={exit}>
+			<StdinProvider isRawModeSupported={isRawModeSupported}>
+				<Box key={resizeKey}>{content}</Box>
+			</StdinProvider>
+		</ErrorBoundary>
 	)
 }

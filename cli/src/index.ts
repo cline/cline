@@ -329,6 +329,23 @@ export async function captureUnhandledException(reason: unknown) {
 	}
 }
 
+function onUnhandledException(reason: unknown) {
+	Logger.error("Unhandled exception:", reason)
+	const finalError = reason instanceof Error ? reason : new Error(String(reason))
+
+	restoreConsole()
+	console.error(finalError)
+
+	const EXIT_TIMEOUT_MS = 3000
+	const exitTimer = setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
+	// Allow the timer to be garbage-collected if reporting finishes first
+	if (exitTimer.unref) exitTimer.unref()
+
+	captureUnhandledException(finalError).finally(() => {
+		process.exit(1)
+	})
+}
+
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
 		if (isShuttingDown) {
@@ -391,19 +408,11 @@ function setupSignalHandlers() {
 
 		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
 		// This won't show in terminal but will be in log files for debugging
-		Logger.error("Unhandled rejection:", reason)
-		// Convert it into an unhandledException
-		throw reason
+		onUnhandledException(reason)
 	})
 
-	process.on("unhandledException", (error: unknown) => {
-		Logger.error("Unhandled exception:", error)
-		const finalError = error instanceof Error ? error : new Error(String(error))
-		captureUnhandledException(finalError).finally(() => {
-			restoreConsole()
-			console.error(finalError)
-			process.exit(1)
-		})
+	process.on("uncaughtException", (reason: unknown) => {
+		onUnhandledException(reason)
 	})
 }
 
