@@ -316,6 +316,17 @@ async function drainStdout(): Promise<void> {
 	})
 }
 
+async function handleUnhandledException(reason: unknown) {
+	try {
+		const errorService = ErrorService.get()
+		const finalError = reason instanceof Error ? reason : new Error(String(reason))
+		await errorService.captureException(finalError, { context: "unhandledRejection" })
+		return errorService.dispose()
+	} catch {
+		// Ignore errors during shutdown to avoid an infinite loop
+	}
+}
+
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
 		if (isShuttingDown) {
@@ -375,9 +386,15 @@ function setupSignalHandlers() {
 			Logger.info("Suppressed unhandled rejection due to abort:", message)
 			return
 		}
-		// For other unhandled rejections, log to file via Logger (if available)
+
+		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
 		// This won't show in terminal but will be in log files for debugging
 		Logger.error("Unhandled rejection:", reason)
+		handleUnhandledException(reason).finally(() => {
+			restoreConsole()
+			console.error(reason)
+			process.exit(1)
+		})
 	})
 }
 
