@@ -139,7 +139,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.hooksEnabled !== undefined) {
-			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? false
+			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? true
 			const isEnabled = !!request.hooksEnabled
 			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
 			if (controller.task && wasEnabled !== isEnabled) {
