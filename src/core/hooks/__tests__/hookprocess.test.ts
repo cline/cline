@@ -3,6 +3,17 @@ import "should"
 import { getHookLaunchConfig, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
 import { withPlatform } from "./test-utils"
 
+function createDeferred<T>() {
+	let resolve!: (value: T | PromiseLike<T>) => void
+	let reject!: (reason?: unknown) => void
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res
+		reject = rej
+	})
+
+	return { promise, resolve, reject }
+}
+
 describe("HookProcess", () => {
 	beforeEach(() => {
 		resetHookLaunchConfigCacheForTesting()
@@ -72,6 +83,37 @@ describe("HookProcess", () => {
 			config.command.should.equal(resolvedExecutable)
 			config.args.should.deepEqual(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ps1Path])
 			resolverCallCount.should.equal(1)
+		})
+	})
+
+	it("coalesces concurrent Windows launcher resolution into a single in-flight resolver call", async () => {
+		await withPlatform("win32", async () => {
+			const resolvedExecutable = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+			const resolverGate = createDeferred<void>()
+			let resolverCallCount = 0
+
+			const resolver = async () => {
+				resolverCallCount += 1
+				await resolverGate.promise
+				return resolvedExecutable
+			}
+
+			const launchRequests = [
+				getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\PreToolUse.ps1", resolver),
+				getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\PostToolUse.ps1", resolver),
+				getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\TaskResume.ps1", resolver),
+			]
+
+			await Promise.resolve()
+			resolverCallCount.should.equal(1)
+
+			resolverGate.resolve()
+
+			const configs = await Promise.all(launchRequests)
+
+			resolverCallCount.should.equal(1)
+			configs.map((config) => config.command).should.deepEqual([resolvedExecutable, resolvedExecutable, resolvedExecutable])
+			configs.map((config) => config.shell).should.deepEqual([false, false, false])
 		})
 	})
 
