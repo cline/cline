@@ -15,12 +15,25 @@ interface HookLaunchConfig {
 	detached: boolean
 }
 
+let resolvedHookLauncherCommandPromise: Promise<string> | null = null
+
+export function resetHookLaunchConfigCacheForTesting(): void {
+	resolvedHookLauncherCommandPromise = null
+}
+
 export async function getHookLaunchConfig(
 	scriptPath: string,
 	resolvePowerShellExecutable: () => Promise<string> = resolveWindowsPowerShellExecutable,
 ): Promise<HookLaunchConfig> {
 	if (process.platform === "win32") {
-		const powerShellExecutable = await resolvePowerShellExecutable()
+		if (!resolvedHookLauncherCommandPromise) {
+			resolvedHookLauncherCommandPromise = resolvePowerShellExecutable().catch((error) => {
+				resolvedHookLauncherCommandPromise = null
+				throw error
+			})
+		}
+
+		const powerShellExecutable = await resolvedHookLauncherCommandPromise
 		return {
 			command: powerShellExecutable,
 			args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath],

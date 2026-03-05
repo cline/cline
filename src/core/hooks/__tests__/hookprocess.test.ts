@@ -1,9 +1,17 @@
 import { describe, it } from "mocha"
 import "should"
-import { getHookLaunchConfig } from "../HookProcess"
+import { getHookLaunchConfig, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
 import { withPlatform } from "./test-utils"
 
 describe("HookProcess", () => {
+	beforeEach(() => {
+		resetHookLaunchConfigCacheForTesting()
+	})
+
+	afterEach(() => {
+		resetHookLaunchConfigCacheForTesting()
+	})
+
 	it("uses resolved PowerShell executable and expected Windows launch args", async () => {
 		const resolvedExecutable = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
 
@@ -46,6 +54,50 @@ describe("HookProcess", () => {
 			} catch (error: any) {
 				error.message.should.match(/resolver failed/)
 			}
+		})
+	})
+
+	it("uses PowerShell on Windows", async () => {
+		await withPlatform("win32", async () => {
+			const ps1Path = "C:\\workspace\\.clinerules\\hooks\\PreToolUse.ps1"
+			const resolvedExecutable = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+
+			let resolverCallCount = 0
+
+			const config = await getHookLaunchConfig(ps1Path, async () => {
+				resolverCallCount += 1
+				return resolvedExecutable
+			})
+
+			config.command.should.equal(resolvedExecutable)
+			config.args.should.deepEqual(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", ps1Path])
+			resolverCallCount.should.equal(1)
+		})
+	})
+
+	it("clears failed launcher cache so later calls can recover", async () => {
+		await withPlatform("win32", async () => {
+			let resolverCallCount = 0
+
+			const flakyResolver = async () => {
+				resolverCallCount += 1
+				if (resolverCallCount === 1) {
+					throw new Error("initial resolver failure")
+				}
+				return "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+			}
+
+			try {
+				await getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\PreToolUse.ps1", flakyResolver)
+				throw new Error("Expected first call to fail")
+			} catch (error: any) {
+				error.message.should.match(/initial resolver failure/)
+			}
+
+			const recoveredConfig = await getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\PreToolUse.ps1", flakyResolver)
+
+			recoveredConfig.command.should.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+			resolverCallCount.should.equal(2)
 		})
 	})
 })
