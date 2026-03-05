@@ -15,6 +15,8 @@
 import * as fs from "node:fs/promises"
 import { Project, SyntaxKind } from "ts-morph"
 
+// Env overrides are primarily used by isolated regression tests so the
+// generator can operate on temporary fixtures without touching repo files.
 const STATE_KEYS_PATH = process.env.STATE_KEYS_PATH ?? "src/shared/storage/state-keys.ts"
 const STATE_PROTO_PATH = process.env.STATE_PROTO_PATH ?? "proto/cline/state.proto"
 
@@ -261,6 +263,8 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 
 	// Match field definitions: optional/required/repeated type name = number;
 	// Includes proto map fields such as: map<string, string> open_ai_headers = 177;
+	// This parser is intentionally formatting-tolerant for the proto shapes we
+	// generate today, but still regex-based rather than a full proto parser.
 	const fieldRegex = /(?:optional|required|repeated)?\s*(map<[^>]+>|\w+)\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
