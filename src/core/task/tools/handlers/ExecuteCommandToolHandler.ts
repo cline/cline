@@ -100,7 +100,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		// Validate required parameters
 		if (!command) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "command")
+			await config.callbacks.say(
+				"error",
+				"Cline tried to use execute_command without value for required parameter 'command'. Retrying...",
+			)
+			return formatResponse.toolError(formatResponse.executeCommandMissingCommandError())
 		}
 
 		if (!requiresApprovalRaw) {

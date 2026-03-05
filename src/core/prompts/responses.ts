@@ -96,6 +96,33 @@ Otherwise, if you have not completed the task and do not need additional informa
 		)
 	},
 
+	replaceInFileMissingDiffError: (relPath: string): string => {
+		return (
+			`Failed to edit '${relPath}': The 'diff' parameter was empty.\n\n` +
+			`The diff parameter must contain SEARCH/REPLACE blocks in this format:\n` +
+			"<<<<<<< SEARCH\n" +
+			"exact lines to find\n" +
+			"=======\n" +
+			"replacement lines\n" +
+			">>>>>>> REPLACE\n\n" +
+			`Rules:\n` +
+			`- The SEARCH block must match existing file content exactly (including whitespace and indentation)\n` +
+			`- You can include multiple SEARCH/REPLACE blocks in a single diff parameter\n` +
+			`- If you're unsure of the exact content, use read_file first to see the current file`
+		)
+	},
+
+	executeCommandMissingCommandError: (): string => {
+		return (
+			"The 'command' parameter was empty. Provide the shell command to execute.\n\n" +
+			"Example:\n" +
+			"<execute_command>\n" +
+			"<command>cd /path && python -m pytest tests/</command>\n" +
+			"<requires_approval>false</requires_approval>\n" +
+			"</execute_command>"
+		)
+	},
+
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 
