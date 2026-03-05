@@ -65,7 +65,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 		return this
 	}
 
-	captureException(error: Error | ClineError, properties?: Record<string, unknown>): void {
+	captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void> {
 		const errorDetails = {
 			name: error.name,
 			extension_version: pkg.version,
@@ -73,7 +73,7 @@ export class PostHogErrorProvider implements IErrorProvider {
 			...properties,
 		}
 
-		this.client.captureException(error, this.distinctId, errorDetails)
+		return this.client.captureExceptionImmediate(error, this.distinctId, errorDetails)
 	}
 
 	public logException(error: Error | ClineError, properties: Record<string, unknown> = {}): void {
@@ -149,10 +149,6 @@ export class PostHogErrorProvider implements IErrorProvider {
 
 	private get distinctId(): string {
 		return getDistinctId()
-	}
-
-	flush(): Promise<void> {
-		return this.client.flush()
 	}
 
 	public async dispose(): Promise<void> {

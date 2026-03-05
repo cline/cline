@@ -27,7 +27,7 @@ export interface IErrorProvider {
 	 * @param error The error to log
 	 * @param properties  Optional additional properties to attach to the error
 	 */
-	captureException(error: Error | ClineError, properties?: Record<string, unknown>): void
+	captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void>
 
 	/**
 	 * Sends a log message an error and optional properties
@@ -57,8 +57,6 @@ export interface IErrorProvider {
 	 * Get current error logging settings
 	 */
 	getSettings(): ErrorSettings
-
-	flush(): Promise<void>
 
 	/**
 	 * Clean up resources when the provider is disposed

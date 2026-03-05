@@ -72,7 +72,7 @@ export class ErrorProviderFactory {
  * or for testing purposes
  */
 class NoOpErrorProvider implements IErrorProvider {
-	captureException(error: Error | ClineError, properties?: Record<string, unknown>): void {
+	async captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void> {
 		this.logException(error, properties)
 	}
 
@@ -103,9 +103,5 @@ class NoOpErrorProvider implements IErrorProvider {
 
 	public async dispose(): Promise<void> {
 		Logger.info("[NoOpErrorProvider] Disposing")
-	}
-
-	async flush(): Promise<void> {
-		// No-op flush
 	}
 }
