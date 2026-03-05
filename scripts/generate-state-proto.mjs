@@ -291,9 +291,13 @@ async function loadFieldNumbersFromProto() {
 		console.log(`  Found ${Object.keys(settings).length} existing Settings fields`)
 
 		return { Secrets: secrets, Settings: settings }
-	} catch {
+	} catch (error) {
 		// Proto file doesn't exist, start fresh
-		return { Secrets: {}, Settings: {} }
+		if (error?.code === "ENOENT") {
+			return { Secrets: {}, Settings: {} }
+		}
+
+		throw error
 	}
 }
 
