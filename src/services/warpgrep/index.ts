@@ -137,10 +137,11 @@ async function executeRipgrep(cwd: string, pattern: string, searchPath: string, 
 	const binPath = await getBinaryLocation("rg")
 	const absolutePath = path.isAbsolute(searchPath) ? searchPath : path.join(cwd, searchPath)
 
-	const args = ["--line-number", "--no-heading", "--color", "never", "-C", "1", pattern, absolutePath]
+	const args = ["--line-number", "--no-heading", "--color", "never", "-C", "1"]
 	if (glob) {
 		args.push("--glob", glob)
 	}
+	args.push(pattern, absolutePath)
 
 	return new Promise((resolve) => {
 		const rgProcess = childProcess.spawn(binPath, args)
@@ -193,24 +194,41 @@ async function readFile(cwd: string, filePath: string, lineRange?: string): Prom
 	}
 
 	const allLines = content.split("\n")
-	let startLine = 1
-	let endLine = allLines.length
+
+	// Collect (lineNum, lineText) pairs from all ranges
+	const selected: Array<[number, string]> = []
 
 	if (lineRange && lineRange !== "*") {
-		const rangeMatch = lineRange.match(/^(\d+)-(\d+)$/)
-		if (rangeMatch) {
-			startLine = Math.max(1, Number.parseInt(rangeMatch[1], 10))
-			endLine = Math.min(allLines.length, Number.parseInt(rangeMatch[2], 10))
+		// Handle comma-separated ranges like "1-50,75-100"
+		for (const part of lineRange.split(",")) {
+			const trimmed = part.trim()
+			if (!trimmed) continue
+			const rangeMatch = trimmed.match(/^(\d+)-(\d+)$/)
+			if (rangeMatch) {
+				const start = Math.max(1, Number.parseInt(rangeMatch[1], 10))
+				const end = Math.min(allLines.length, Number.parseInt(rangeMatch[2], 10))
+				for (let i = start; i <= end; i++) {
+					selected.push([i, allLines[i - 1]])
+				}
+			} else {
+				const lineNum = Number.parseInt(trimmed, 10)
+				if (!Number.isNaN(lineNum) && lineNum >= 1 && lineNum <= allLines.length) {
+					selected.push([lineNum, allLines[lineNum - 1]])
+				}
+			}
+		}
+	} else {
+		for (let i = 0; i < allLines.length; i++) {
+			selected.push([i + 1, allLines[i]])
 		}
 	}
 
-	const selectedLines = allLines.slice(startLine - 1, endLine)
-	if (selectedLines.length > MAX_READ_LINES) {
-		const truncated = selectedLines.slice(0, MAX_READ_LINES)
-		return `${truncated.map((line, i) => `${startLine + i}|${line}`).join("\n")}\n...(truncated)`
+	if (selected.length > MAX_READ_LINES) {
+		const truncated = selected.slice(0, MAX_READ_LINES)
+		return `${truncated.map(([num, line]) => `${num}|${line}`).join("\n")}\n...(truncated)`
 	}
 
-	return selectedLines.map((line, i) => `${startLine + i}|${line}`).join("\n")
+	return selected.map(([num, line]) => `${num}|${line}`).join("\n")
 }
 
 /**
