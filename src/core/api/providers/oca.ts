@@ -394,8 +394,6 @@ export class OcaHandler implements ApiHandler {
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
 			}))
 
-		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
-
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature
 		const maxOutputTokens: number | undefined = this.options.ocaModelInfo?.maxTokens
 
@@ -410,7 +408,7 @@ export class OcaHandler implements ApiHandler {
 		}
 
 		const responsesParams: OpenAI.Responses.ResponseCreateParamsStreaming = {
-			model: modelId,
+			model: this.options.ocaModelId || liteLlmDefaultModelId,
 			input,
 			stream: true,
 			tools: responseTools,
