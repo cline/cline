@@ -66,6 +66,10 @@ export class PostHogErrorProvider implements IErrorProvider {
 	}
 
 	captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void> {
+		if (!this.isEnabled() || this.errorSettings.level === "off") {
+			return Promise.resolve()
+		}
+
 		const errorDetails = {
 			name: error.name,
 			extension_version: pkg.version,
