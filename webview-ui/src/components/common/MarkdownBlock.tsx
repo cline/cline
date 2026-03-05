@@ -15,6 +15,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { WithCopyButton } from "./CopyButton"
+import UnsafeImage from "./UnsafeImage"
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
 	try {
@@ -73,6 +74,7 @@ const MemoizedMarkdownBlock = memo(
 
 						return <strong {...props} />
 					},
+					img: (props) => <UnsafeImage {...props} />,
 				}}
 				rehypePlugins={[[rehypeHighlight as any, {} as Options]]}
 				remarkPlugins={[
