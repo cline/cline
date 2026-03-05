@@ -1,0 +1,36 @@
+---
+title: "Avian"
+description: "Learn how to configure and use Avian's OpenAI-compatible inference API with Cline."
+---
+
+Cline supports accessing models through the Avian API, an OpenAI-compatible inference provider offering fast, affordable LLM access.
+
+**Website:** [https://avian.io](https://avian.io)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Go to [avian.io](https://avian.io). Create an account or sign in.
+2.  **Get API Key:** Navigate to your account settings to find or generate your API key.
+3.  **Copy the Key:** Copy the API key and store it securely.
+
+### Supported Models
+
+Cline supports the following Avian models:
+
+-   `deepseek/deepseek-v3.2` - General-purpose chat model with 163K context and 65K max output
+-   `moonshotai/kimi-k2.5` - 131K context window with tool calling support
+-   `z-ai/glm-5` - 131K context with 16K max output
+-   `minimax/minimax-m2.5` - 1M context window for long document processing
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon in the Cline panel.
+2.  **Select Provider:** Choose "OpenAI Compatible" from the "API Provider" dropdown.
+3.  **Enter Base URL:** Set the base URL to `https://api.avian.io/v1`
+4.  **Enter API Key:** Paste your Avian API key.
+5.  **Enter Model ID:** Type the model ID (e.g., `deepseek/deepseek-v3.2`).
+
+### Tips and Notes
+
+-   **Pricing:** Visit [avian.io](https://avian.io) for current model pricing.
+-   **OpenAI Compatible:** Avian follows the OpenAI API spec, so all standard features (streaming, tool calling) work out of the box.
