@@ -15,8 +15,8 @@
 import * as fs from "node:fs/promises"
 import { Project, SyntaxKind } from "ts-morph"
 
-const STATE_KEYS_PATH = "src/shared/storage/state-keys.ts"
-const STATE_PROTO_PATH = "proto/cline/state.proto"
+const STATE_KEYS_PATH = process.env.STATE_KEYS_PATH ?? "src/shared/storage/state-keys.ts"
+const STATE_PROTO_PATH = process.env.STATE_PROTO_PATH ?? "proto/cline/state.proto"
 
 /**
  * Convert field name to valid snake_case proto field name.
@@ -231,6 +231,18 @@ function snakeToCamel(str) {
 }
 
 /**
+ * Normalize a TypeScript/storage key so legacy hyphenated secret names can be
+ * matched against camelCase proto field names.
+ */
+function normalizeFieldLookupName(str) {
+	if (!str.includes("-")) {
+		return str
+	}
+
+	return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+}
+
+/**
  * Parse field numbers from an existing proto message definition
  * Returns a map of camelCase field names to their field numbers
  */
@@ -248,12 +260,13 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const messageBody = match[1]
 
 	// Match field definitions: optional/required/repeated type name = number;
-	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
+	// Includes proto map fields such as: map<string, string> open_ai_headers = 177;
+	const fieldRegex = /(?:optional|required|repeated)?\s*(map<[^>]+>|\w+)\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
-		const snakeName = fieldMatch[1]
-		const fieldNum = Number.parseInt(fieldMatch[2], 10)
+		const snakeName = fieldMatch[2]
+		const fieldNum = Number.parseInt(fieldMatch[3], 10)
 		const camelName = snakeToCamel(snakeName)
 		fieldNumbers[camelName] = fieldNum
 	}
@@ -296,8 +309,9 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 
 	// Preserve existing assignments
 	for (const field of fields) {
-		if (existingNumbers[field.name] !== undefined) {
-			result[field.name] = existingNumbers[field.name]
+		const normalizedName = normalizeFieldLookupName(field.name)
+		if (existingNumbers[normalizedName] !== undefined) {
+			result[field.name] = existingNumbers[normalizedName]
 		}
 	}
 
