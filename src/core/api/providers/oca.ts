@@ -395,9 +395,7 @@ export class OcaHandler implements ApiHandler {
 			}))
 
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
-		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
 
-		// Only include temperature when we have explicitly set a value AND the model is not in reasoning mode.
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature
 		const maxOutputTokens: number | undefined = this.options.ocaModelInfo?.maxTokens
 
@@ -417,10 +415,10 @@ export class OcaHandler implements ApiHandler {
 			stream: true,
 			tools: responseTools,
 			...(typeof temperature === "number" ? { temperature } : {}),
-			...(typeof maxOutputTokens === "number" ? { max_output_tokens: maxOutputTokens } : {}),
+			...(typeof maxOutputTokens === "number" && maxOutputTokens > 0 ? { max_output_tokens: maxOutputTokens } : {}),
 		}
 
-		if (ocaModelInfo.supportsReasoning) {
+		if (reasoningOn) {
 			responsesParams.reasoning = { effort: this.options.ocaReasoningEffort as any, summary: "auto" }
 		}
 
