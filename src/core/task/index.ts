@@ -2725,6 +2725,8 @@ export class Task {
 								redacted_data: chunk.redacted_data,
 							})
 
+							loopDetector.onReasoningActivity()
+
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
 								const thinkingBlock = reasonsHandler.getCurrentReasoning()

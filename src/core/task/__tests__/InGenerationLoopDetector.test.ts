@@ -88,6 +88,24 @@ describe("InGenerationLoopDetector", () => {
 		detector.isLooping().should.be.true()
 	})
 
+	it("should reset timer on reasoning activity without clearing char count", () => {
+		const { detector, advance } = createDetector()
+		detector.onTextChunk(16_000)
+		advance(90_000) // 90s of reasoning
+		detector.onReasoningActivity() // resets timer but keeps 16K chars
+		advance(30_000) // only 30s since reasoning reset
+		detector.isLooping().should.be.false()
+	})
+
+	it("should trigger after reasoning if text continues long enough", () => {
+		const { detector, advance } = createDetector()
+		advance(90_000) // 90s of reasoning
+		detector.onReasoningActivity()
+		detector.onTextChunk(16_000)
+		advance(61_000) // 61s since reasoning ended
+		detector.isLooping().should.be.true()
+	})
+
 	it("should not trigger at exact boundary values", () => {
 		const { detector, advance } = createDetector({
 			charThreshold: 100,

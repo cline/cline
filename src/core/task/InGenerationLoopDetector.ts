@@ -26,6 +26,11 @@ export class InGenerationLoopDetector {
 		this.textLengthSinceLastTool = 0
 	}
 
+	/** Reset the timer without clearing the char count — reasoning tokens aren't text, but shouldn't count toward elapsed time. */
+	onReasoningActivity(): void {
+		this.lastToolActivityTime = this.now()
+	}
+
 	onTextChunk(chunkLength: number): void {
 		this.textLengthSinceLastTool += chunkLength
 	}
