@@ -91,7 +91,17 @@ interface AppProps {
 	isRawModeSupported?: boolean
 }
 
-export const App: React.FC<AppProps> = ({
+export const App: React.FC<AppProps> = (props) => {
+	const { exit } = useApp()
+
+	return (
+		<ErrorBoundary exit={exit}>
+			<InternalApp {...props} />
+		</ErrorBoundary>
+	)
+}
+
+const InternalApp: React.FC<AppProps> = ({
 	view: initialView,
 	taskId,
 	verbose = false,
@@ -134,7 +144,6 @@ export const App: React.FC<AppProps> = ({
 	isRawModeSupported = true,
 }) => {
 	const { resizeKey } = useTerminalSize()
-	const { exit } = useApp()
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
 
@@ -261,10 +270,8 @@ export const App: React.FC<AppProps> = ({
 	}
 
 	return (
-		<ErrorBoundary exit={exit}>
-			<StdinProvider isRawModeSupported={isRawModeSupported}>
-				<Box key={resizeKey}>{content}</Box>
-			</StdinProvider>
-		</ErrorBoundary>
+		<StdinProvider isRawModeSupported={isRawModeSupported}>
+			<Box key={resizeKey}>{content}</Box>
+		</StdinProvider>
 	)
 }
