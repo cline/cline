@@ -19,8 +19,8 @@ describe("hooks-utils", () => {
 			}
 		})
 
-		it("returns false for undefined", () => {
-			getHooksEnabledSafe(undefined).should.be.false()
+		it("returns true for undefined", () => {
+			getHooksEnabledSafe(undefined).should.be.true()
 		})
 
 		it("does not depend on process.platform in current implementation", async () => {
