@@ -392,9 +392,16 @@ function setupSignalHandlers() {
 		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
 		// This won't show in terminal but will be in log files for debugging
 		Logger.error("Unhandled rejection:", reason)
-		captureUnhandledException(reason).finally(() => {
+		// Convert it into an unhandledException
+		throw reason
+	})
+
+	process.on("unhandledException", (error: unknown) => {
+		Logger.error("Unhandled exception:", error)
+		const finalError = error instanceof Error ? error : new Error(String(error))
+		captureUnhandledException(finalError).finally(() => {
 			restoreConsole()
-			console.error(reason)
+			console.error(finalError)
 			process.exit(1)
 		})
 	})
