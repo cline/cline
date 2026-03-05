@@ -114,6 +114,7 @@ import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
+import { InGenerationLoopDetector } from "./InGenerationLoopDetector"
 import { MessageStateHandler } from "./message-state"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
@@ -2700,6 +2701,7 @@ export class Task {
 				})
 
 				let shouldInterruptStream = false
+				const loopDetector = new InGenerationLoopDetector()
 
 				while (true) {
 					const chunk = await streamCoordinator.nextChunk()
@@ -2754,6 +2756,7 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							loopDetector.onToolActivity()
 							break
 						}
 						case "text": {
@@ -2780,6 +2783,11 @@ export class Task {
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+							}
+
+							loopDetector.onTextChunk(chunk.text.length)
+							if (this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")) {
+								loopDetector.onToolActivity()
 							}
 							break
 						}
@@ -2815,6 +2823,19 @@ export class Task {
 					if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
+						shouldInterruptStream = true
+						break
+					}
+
+					if (loopDetector.isLooping()) {
+						const truncated = assistantMessage.slice(0, 500)
+						assistantMessage =
+							truncated + "\n\n[Response interrupted: excessive text output without tool use detected]"
+						assistantTextOnly =
+							assistantTextOnly.slice(0, 500) +
+							"\n\n[Response interrupted: excessive text output without tool use detected]"
+						this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+						this.api.abort?.()
 						shouldInterruptStream = true
 						break
 					}
