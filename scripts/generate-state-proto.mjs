@@ -241,7 +241,7 @@ function normalizeFieldLookupName(str) {
 		return str
 	}
 
-	return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+	return str.replace(/-([a-zA-Z])/g, (_, letter) => letter.toUpperCase())
 }
 
 /**
@@ -378,7 +378,7 @@ function replaceMessage(protoContent, messageName, newMessageContent) {
 	}
 	// Message doesn't exist, append before the first message or at end
 	console.warn(`Warning: ${messageName} message not found in proto file, appending`)
-	return protoContent + "\n\n" + newMessageContent
+	return `${protoContent}\n\n${newMessageContent}`
 }
 
 async function main() {

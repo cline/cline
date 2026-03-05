@@ -3,11 +3,7 @@
 		"ts"
 	],
 	"spec": [
-		"src/**/__tests__/*.ts",
-		"src/test/**/*.test.ts"
-	],
-	"ignore": [
-		"src/test/e2e/**/*.ts"
+		"src/**/__tests__/*.ts"
 	],
 	"require": [
 		"ts-node/register",
