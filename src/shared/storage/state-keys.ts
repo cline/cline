@@ -257,9 +257,7 @@ const USER_SETTINGS_FIELDS = {
 	terminalOutputLineLimit: { default: 500 as number },
 	maxConsecutiveMistakes: { default: 3 as number },
 	strictPlanModeEnabled: { default: false as boolean },
-	// Hooks are intentionally default-off. Users can explicitly opt in/out via
-	// Feature Settings when they want to.
-	hooksEnabled: { default: false as boolean },
+	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
