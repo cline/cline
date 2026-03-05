@@ -1000,6 +1000,7 @@ export class Controller {
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,
+			warpGrepEnabled: this.stateManager.getGlobalSettingsKey("warpGrepEnabled"),
 		}
 	}
 

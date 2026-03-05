@@ -1869,6 +1869,7 @@ export class Task {
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			terminalExecutionMode: this.terminalExecutionMode,
+			warpGrepEnabled: this.stateManager.getGlobalSettingsKey("warpGrepEnabled"),
 		}
 
 		// Notify user if any conditional rules were applied for this request
