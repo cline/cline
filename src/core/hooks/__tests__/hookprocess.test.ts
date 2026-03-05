@@ -142,4 +142,36 @@ describe("HookProcess", () => {
 			resolverCallCount.should.equal(2)
 		})
 	})
+
+	it("refreshes cached Windows launcher resolution after cache TTL expires", async () => {
+		await withPlatform("win32", async () => {
+			const originalDateNow = Date.now
+			const fakeNowValues = [1_000, 301_005]
+			Date.now = () => fakeNowValues.shift() ?? 301_006
+
+			let resolverCallCount = 0
+			const resolvedExecutables = [
+				"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			]
+
+			try {
+				const firstConfig = await getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\PreToolUse.ps1", async () => {
+					resolverCallCount += 1
+					return resolvedExecutables.shift() || "unexpected"
+				})
+
+				const secondConfig = await getHookLaunchConfig("C:\\workspace\\.clinerules\\hooks\\TaskResume.ps1", async () => {
+					resolverCallCount += 1
+					return resolvedExecutables.shift() || "unexpected"
+				})
+
+				firstConfig.command.should.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+				secondConfig.command.should.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+				resolverCallCount.should.equal(2)
+			} finally {
+				Date.now = originalDateNow
+			}
+		})
+	})
 })

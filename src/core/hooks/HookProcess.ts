@@ -15,10 +15,18 @@ interface HookLaunchConfig {
 	detached: boolean
 }
 
+const WINDOWS_HOOK_LAUNCHER_CACHE_TTL_MS = 5 * 60 * 1000
+
 let resolvedHookLauncherCommandPromise: Promise<string> | null = null
+let resolvedHookLauncherCommandExpiresAt = 0
 
 export function resetHookLaunchConfigCacheForTesting(): void {
 	resolvedHookLauncherCommandPromise = null
+	resolvedHookLauncherCommandExpiresAt = 0
+}
+
+function shouldRefreshWindowsLauncherCache(now: number): boolean {
+	return !resolvedHookLauncherCommandPromise || now >= resolvedHookLauncherCommandExpiresAt
 }
 
 export async function getHookLaunchConfig(
@@ -26,14 +34,23 @@ export async function getHookLaunchConfig(
 	resolvePowerShellExecutable: () => Promise<string> = resolveWindowsPowerShellExecutable,
 ): Promise<HookLaunchConfig> {
 	if (process.platform === "win32") {
-		if (!resolvedHookLauncherCommandPromise) {
+		const now = Date.now()
+
+		if (shouldRefreshWindowsLauncherCache(now)) {
 			resolvedHookLauncherCommandPromise = resolvePowerShellExecutable().catch((error) => {
 				resolvedHookLauncherCommandPromise = null
+				resolvedHookLauncherCommandExpiresAt = 0
 				throw error
 			})
+			resolvedHookLauncherCommandExpiresAt = now + WINDOWS_HOOK_LAUNCHER_CACHE_TTL_MS
 		}
 
-		const powerShellExecutable = await resolvedHookLauncherCommandPromise
+		const powerShellExecutablePromise = resolvedHookLauncherCommandPromise
+		if (!powerShellExecutablePromise) {
+			throw new Error("Windows hook launcher cache was unexpectedly empty")
+		}
+
+		const powerShellExecutable = await powerShellExecutablePromise
 		return {
 			command: powerShellExecutable,
 			args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
