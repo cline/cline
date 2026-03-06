@@ -8,6 +8,7 @@ import {
 	HookInput,
 	HookModelContext,
 	HookOutput,
+	NotificationData,
 	PostToolUseData,
 	PreCompactData,
 	PreToolUseData,
@@ -119,6 +120,9 @@ export interface Hooks {
 	}
 	TaskComplete: {
 		taskComplete: TaskCompleteData
+	}
+	Notification: {
+		notification: NotificationData
 	}
 	PreCompact: {
 		preCompact: PreCompactData
