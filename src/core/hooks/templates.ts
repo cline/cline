@@ -17,7 +17,6 @@ export function getHookTemplate(hookName: string): string {
 		PreToolUse: getPreToolUseTemplate(),
 		PostToolUse: getPostToolUseTemplate(),
 		UserPromptSubmit: getUserPromptSubmitTemplate(),
-		Notification: getNotificationTemplate(),
 		PreCompact: getPreCompactTemplate(),
 	}
 
@@ -308,49 +307,6 @@ fi
 echo "[UserPromptSubmit] User submitted prompt (length: $PROMPT_LENGTH)" >&2
 
 # Return result
-echo "{"cancel":false,"contextModification":"","errorMessage":""}"
-`
-}
-
-function getNotificationTemplate(): string {
-	return `#!/bin/bash
-#
-# Notification Hook
-#
-# Executes when Cline reaches a user-attention boundary or emits lifecycle notifications.
-#
-# Input: {
-#   taskId,
-#   notification: {
-#     event: string,
-#     source: string,
-#     message: string,
-#     waitingForUserInput: boolean
-#   },
-#   clineVersion,
-#   timestamp,
-#   ...
-# }
-# Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
-#
-# Typical events:
-# - user_attention (ask prompt requiring user input)
-# - task_complete (task reached completion)
-
-INPUT=$(cat)
-
-if command -v jq &> /dev/null; then
-  EVENT=$(echo "$INPUT" | jq -r '.notification.event // "unknown"')
-  SOURCE=$(echo "$INPUT" | jq -r '.notification.source // "unknown"')
-  WAITING=$(echo "$INPUT" | jq -r '.notification.waitingForUserInput // false')
-else
-  EVENT="unknown"
-  SOURCE="unknown"
-  WAITING="false"
-fi
-
-echo "[Notification] event=$EVENT source=$SOURCE waitingForUserInput=$WAITING" >&2
-
 echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
