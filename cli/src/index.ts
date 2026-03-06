@@ -136,21 +136,21 @@ function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
 function applyTaskOptions(options: TaskOptions): void {
 	// Apply mode flag
 	if (options.plan) {
-		StateManager.get().setGlobalState("mode", "plan")
+		StateManager.get().setSessionOverride("mode", "plan")
 		telemetryService.captureHostEvent("mode_flag", "plan")
 	} else if (options.act) {
-		StateManager.get().setGlobalState("mode", "act")
+		StateManager.get().setSessionOverride("mode", "act")
 		telemetryService.captureHostEvent("mode_flag", "act")
 	}
 
 	// Apply model override if specified
 	if (options.model) {
-		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") ?? "act") as "act" | "plan"
 		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
 		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
 		if (modelKey) {
-			StateManager.get().setGlobalState(modelKey, options.model)
+			StateManager.get().setSessionOverride(modelKey, options.model)
 		}
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
@@ -173,7 +173,7 @@ function applyTaskOptions(options: TaskOptions): void {
 	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
 	setModeScopedState(currentMode, (mode) => {
 		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
+		StateManager.get().setSessionOverride(thinkingKey, thinkingBudget)
 	})
 	if (options.thinking) {
 		telemetryService.captureHostEvent("thinking_flag", "true")
@@ -183,14 +183,14 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (reasoningEffort !== undefined) {
 		setModeScopedState(currentMode, (mode) => {
 			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-			StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+			StateManager.get().setSessionOverride(reasoningKey, reasoningEffort)
 		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
 	const maxConsecutiveMistakes = normalizeMaxConsecutiveMistakes(options.maxConsecutiveMistakes)
 	if (maxConsecutiveMistakes !== undefined) {
-		StateManager.get().setGlobalState("maxConsecutiveMistakes", maxConsecutiveMistakes)
+		StateManager.get().setSessionOverride("maxConsecutiveMistakes", maxConsecutiveMistakes)
 		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
@@ -210,7 +210,7 @@ function applyTaskOptions(options: TaskOptions): void {
 
 	// Set double-check completion based on flag
 	if (options.doubleCheckCompletion) {
-		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
+		StateManager.get().setSessionOverride("doubleCheckCompletionEnabled", true)
 		telemetryService.captureHostEvent("double_check_completion_flag", "true")
 	}
 }
