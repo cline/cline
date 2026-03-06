@@ -326,11 +326,10 @@ async function drainStdout(): Promise<void> {
 	})
 }
 
-export async function captureUnhandledException(reason: unknown, context: string) {
+export async function captureUnhandledException(reason: Error, context: string) {
 	try {
 		const errorService = ErrorService.get()
-		const finalError = reason instanceof Error ? reason : new Error(String(reason))
-		await errorService.captureException(finalError, { context })
+		await errorService.captureException(reason, { context })
 		// dispose flushes any pending error captures to ensure they're sent before the process exits
 		return errorService.dispose()
 	} catch {

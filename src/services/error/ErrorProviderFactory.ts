@@ -73,7 +73,7 @@ export class ErrorProviderFactory {
  */
 class NoOpErrorProvider implements IErrorProvider {
 	async captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void> {
-		this.logException(error, properties)
+		Logger.error("[NoOpErrorProvider] captureException called", { error: error.message || String(error), properties })
 	}
 
 	public logException(error: Error | ClineError, _properties?: Record<string, unknown>): void {
