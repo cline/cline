@@ -31,13 +31,15 @@ export class PromptsService {
 		}
 
 		try {
-			// Fetch both directories in parallel for faster loading
-			const [rulesItems, workflowItems] = await Promise.all([
+			// Fetch all directories in parallel for faster loading
+			const [rulesItems, workflowItems, hookItems, skillItems] = await Promise.all([
 				this.fetchPromptsFromDirectory(".clinerules", "rule"),
 				this.fetchPromptsFromDirectory("workflows", "workflow"),
+				this.fetchPromptsFromDirectory("hooks", "hook"),
+				this.fetchPromptsFromDirectory("skills", "skill"),
 			])
 
-			const items: PromptItem[] = [...rulesItems, ...workflowItems]
+			const items: PromptItem[] = [...rulesItems, ...workflowItems, ...hookItems, ...skillItems]
 
 			const catalog: PromptsCatalog = {
 				items,
@@ -63,7 +65,10 @@ export class PromptsService {
 	 * Fetches prompts from a specific directory in the GitHub repo
 	 * Uses parallel fetching with batching for improved performance
 	 */
-	private async fetchPromptsFromDirectory(directory: string, type: "rule" | "workflow"): Promise<PromptItem[]> {
+	private async fetchPromptsFromDirectory(
+		directory: string,
+		type: "rule" | "workflow" | "hook" | "skill",
+	): Promise<PromptItem[]> {
 		try {
 			const url = `${this.PROMPTS_REPO_API}/${directory}`
 			const response = await this.httpGet(url)
@@ -163,7 +168,7 @@ export class PromptsService {
 	private parsePromptContent(
 		file: { name: string; html_url: string },
 		content: string,
-		type: "rule" | "workflow",
+		type: "rule" | "workflow" | "hook" | "skill",
 	): PromptItem | null {
 		try {
 			// Parse frontmatter (basic implementation)

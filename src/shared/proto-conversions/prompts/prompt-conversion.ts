@@ -3,21 +3,22 @@
  */
 
 import type { PromptItem, PromptsCatalog } from "@/shared/prompts"
-import type {
-	PromptItem as ProtoPromptItem,
-	PromptsCatalog as ProtoPromptsCatalog,
-} from "@/shared/proto/cline/prompts"
+import type { PromptItem as ProtoPromptItem, PromptsCatalog as ProtoPromptsCatalog } from "@/shared/proto/cline/prompts"
 import { PromptType as ProtoPromptType } from "@/shared/proto/cline/prompts"
 
 /**
  * Converts proto PromptType enum to TypeScript string literal
  */
-export function convertProtoPromptTypeToString(protoType: ProtoPromptType): "rule" | "workflow" {
+export function convertProtoPromptTypeToString(protoType: ProtoPromptType): "rule" | "workflow" | "hook" | "skill" {
 	switch (protoType) {
 		case ProtoPromptType.PROMPT_TYPE_RULE:
 			return "rule"
 		case ProtoPromptType.PROMPT_TYPE_WORKFLOW:
 			return "workflow"
+		case ProtoPromptType.PROMPT_TYPE_HOOK:
+			return "hook"
+		case ProtoPromptType.PROMPT_TYPE_SKILL:
+			return "skill"
 		case ProtoPromptType.PROMPT_TYPE_UNSPECIFIED:
 		default:
 			return "rule" // Default fallback
@@ -27,12 +28,16 @@ export function convertProtoPromptTypeToString(protoType: ProtoPromptType): "rul
 /**
  * Converts TypeScript string literal to proto PromptType enum
  */
-export function convertStringToProtoPromptType(type: "rule" | "workflow"): ProtoPromptType {
+export function convertStringToProtoPromptType(type: "rule" | "workflow" | "hook" | "skill"): ProtoPromptType {
 	switch (type) {
 		case "rule":
 			return ProtoPromptType.PROMPT_TYPE_RULE
 		case "workflow":
 			return ProtoPromptType.PROMPT_TYPE_WORKFLOW
+		case "hook":
+			return ProtoPromptType.PROMPT_TYPE_HOOK
+		case "skill":
+			return ProtoPromptType.PROMPT_TYPE_SKILL
 		default:
 			return ProtoPromptType.PROMPT_TYPE_UNSPECIFIED
 	}

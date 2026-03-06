@@ -8,6 +8,7 @@ const proxyquire = require("proxyquire")
 // Create stubs at module scope
 const getWorkspacePathStub = sinon.stub()
 const fsUnlinkStub = sinon.stub()
+const fsRmdirStub = sinon.stub()
 
 // Load module with proxyquire at module scope
 const { removePrompt } = proxyquire("../removePrompt", {
@@ -16,6 +17,7 @@ const { removePrompt } = proxyquire("../removePrompt", {
 	},
 	"node:fs/promises": {
 		unlink: fsUnlinkStub,
+		rmdir: fsRmdirStub,
 		"@noCallThru": true,
 	},
 })
@@ -28,6 +30,7 @@ describe("removePrompt", () => {
 		// Reset stubs before each test
 		getWorkspacePathStub.reset()
 		fsUnlinkStub.reset()
+		fsRmdirStub.reset()
 	})
 
 	afterEach(() => {
@@ -51,7 +54,7 @@ describe("removePrompt", () => {
 			assert.ok(fsUnlinkStub.calledWith(sinon.match(/\.clinerules.*test-prompt\.md$/)))
 		})
 
-		it("should remove file from workflows/ for WORKFLOW type", async () => {
+		it("should remove file from .clinerules/workflows/ for WORKFLOW type", async () => {
 			getWorkspacePathStub.resolves("/workspace")
 			fsUnlinkStub.resolves()
 
@@ -64,7 +67,72 @@ describe("removePrompt", () => {
 			const result = await removePrompt(mockController, request)
 
 			assert.strictEqual(result.value, true)
-			assert.ok(fsUnlinkStub.calledWith(sinon.match(/workflows.*test-workflow\.md$/)))
+			assert.ok(fsUnlinkStub.calledWith(sinon.match(/\.clinerules[/\\]workflows.*test-workflow\.md$/)))
+		})
+
+		it("should remove file from .clinerules/hooks/ for HOOK type", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsUnlinkStub.resolves()
+
+			const request = RemovePromptRequest.create({
+				promptId: "test-hook",
+				type: 3, // HOOK
+				name: "Test Hook",
+			})
+
+			const result = await removePrompt(mockController, request)
+
+			assert.strictEqual(result.value, true)
+			assert.ok(fsUnlinkStub.calledWith(sinon.match(/\.clinerules[/\\]hooks.*test-hook\.md$/)))
+		})
+
+		it("should remove SKILL.md from .clinerules/skills/{name}/ for SKILL type", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsUnlinkStub.resolves()
+			fsRmdirStub.resolves()
+
+			const request = RemovePromptRequest.create({
+				promptId: "test-skill",
+				type: 4, // SKILL
+				name: "Test Skill",
+			})
+
+			const result = await removePrompt(mockController, request)
+
+			assert.strictEqual(result.value, true)
+			assert.ok(fsUnlinkStub.calledWith(sinon.match(/\.clinerules[/\\]skills[/\\]test-skill[/\\]SKILL\.md$/)))
+		})
+
+		it("should try to clean up empty skill directory after removing SKILL.md", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsUnlinkStub.resolves()
+			fsRmdirStub.resolves()
+
+			const request = RemovePromptRequest.create({
+				promptId: "test-skill",
+				type: 4, // SKILL
+				name: "Test Skill",
+			})
+
+			await removePrompt(mockController, request)
+
+			assert.ok(fsRmdirStub.calledWith(sinon.match(/\.clinerules[/\\]skills[/\\]test-skill$/)))
+		})
+
+		it("should succeed even if skill directory cleanup fails (non-empty)", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsUnlinkStub.resolves()
+			fsRmdirStub.rejects(new Error("ENOTEMPTY"))
+
+			const request = RemovePromptRequest.create({
+				promptId: "test-skill",
+				type: 4, // SKILL
+				name: "Test Skill",
+			})
+
+			const result = await removePrompt(mockController, request)
+
+			assert.strictEqual(result.value, true)
 		})
 
 		it("should return success when file is deleted", async () => {

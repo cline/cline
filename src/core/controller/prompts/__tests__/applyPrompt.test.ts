@@ -56,7 +56,7 @@ describe("applyPrompt", () => {
 			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]workspace[/\\]\.clinerules$/)))
 		})
 
-		it("should create workflows/ directory for WORKFLOW type", async () => {
+		it("should create .clinerules/workflows/ directory for WORKFLOW type", async () => {
 			getWorkspacePathStub.resolves("/workspace")
 			fsMkdirStub.resolves()
 			fsWriteFileStub.resolves()
@@ -71,8 +71,61 @@ describe("applyPrompt", () => {
 			const result = await applyPrompt(mockController, request)
 
 			assert.strictEqual(result.value, true)
-			// Use regex to match both / and \ path separators (cross-platform)
-			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]workspace[/\\]workflows$/)))
+			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]\.clinerules[/\\]workflows$/)))
+		})
+
+		it("should create .clinerules/hooks/ directory for HOOK type", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsMkdirStub.resolves()
+			fsWriteFileStub.resolves()
+
+			const request = ApplyPromptRequest.create({
+				promptId: "test-hook",
+				type: 3, // HOOK
+				content: "# Hook content",
+				name: "Test Hook",
+			})
+
+			const result = await applyPrompt(mockController, request)
+
+			assert.strictEqual(result.value, true)
+			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]\.clinerules[/\\]hooks$/)))
+		})
+
+		it("should create .clinerules/skills/{name}/ directory for SKILL type", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsMkdirStub.resolves()
+			fsWriteFileStub.resolves()
+
+			const request = ApplyPromptRequest.create({
+				promptId: "test-skill",
+				type: 4, // SKILL
+				content: "# Skill content",
+				name: "Test Skill",
+			})
+
+			const result = await applyPrompt(mockController, request)
+
+			assert.strictEqual(result.value, true)
+			assert.ok(fsMkdirStub.calledWith(sinon.match(/[/\\]\.clinerules[/\\]skills[/\\]test-skill$/)))
+		})
+
+		it("should write SKILL.md for SKILL type", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsMkdirStub.resolves()
+			fsWriteFileStub.resolves()
+
+			const content = "# Skill content"
+			const request = ApplyPromptRequest.create({
+				promptId: "test-skill",
+				type: 4, // SKILL
+				content,
+				name: "Test Skill",
+			})
+
+			await applyPrompt(mockController, request)
+
+			assert.ok(fsWriteFileStub.calledWith(sinon.match(/[/\\]SKILL\.md$/), content, "utf-8"))
 		})
 
 		it("should write file with correct content", async () => {

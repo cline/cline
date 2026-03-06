@@ -12,7 +12,7 @@ type PromptsLibraryTabProps = {
 
 const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 	const [searchTerm, setSearchTerm] = useState("")
-	const [typeFilter, setTypeFilter] = useState<"all" | "rule" | "workflow">("all")
+	const [typeFilter, setTypeFilter] = useState<"all" | "rule" | "workflow" | "hook" | "skill">("all")
 	const [categoryFilter, setCategoryFilter] = useState("all")
 	const [applyingPromptId, setApplyingPromptId] = useState<string | null>(null)
 	const [removingPromptId, setRemovingPromptId] = useState<string | null>(null)
@@ -73,12 +73,42 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 		setToastMessage({ message, type })
 	}
 
-	const handleApplyPrompt = async (promptId: string, type: string, content: string, name: string) => {
-		setApplyingPromptId(promptId)
+	const promptTypeToProto = (type: string): number => {
+		switch (type) {
+			case "rule":
+				return 1
+			case "workflow":
+				return 2
+			case "hook":
+				return 3
+			case "skill":
+				return 4
+			default:
+				return 1
+		}
+	}
+
+	const promptTypeToDirectory = (type: string): string => {
+		switch (type) {
+			case "rule":
+				return ".clinerules"
+			case "workflow":
+				return ".clinerules/workflows"
+			case "hook":
+				return ".clinerules/hooks"
+			case "skill":
+				return ".clinerules/skills"
+			default:
+				return ".clinerules"
+		}
+	}
+
+	const handleApplyPrompt = async (compositeId: string, promptId: string, type: string, content: string, name: string) => {
+		setApplyingPromptId(compositeId)
 		try {
 			const request = ApplyPromptRequest.create({
 				promptId,
-				type: type === "rule" ? 1 : 2,
+				type: promptTypeToProto(type),
 				content,
 				name,
 			})
@@ -86,9 +116,8 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 			const result = await PromptsServiceClient.applyPrompt(request)
 
 			if (result.value) {
-				setAppliedPrompts((prev) => new Set(prev).add(promptId))
-				const directory = type === "rule" ? ".clinerules" : "workflows"
-				showToast(`✓ "${name}" added to ${directory}/`, "success")
+				setAppliedPrompts((prev) => new Set(prev).add(`${type}:${promptId}`))
+				showToast(`✓ "${name}" added to ${promptTypeToDirectory(type)}/`, "success")
 			} else {
 				showToast(`✗ Failed to apply "${name}"`, "error")
 			}
@@ -100,12 +129,12 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 		}
 	}
 
-	const handleRemovePrompt = async (promptId: string, type: string, name: string) => {
-		setRemovingPromptId(promptId)
+	const handleRemovePrompt = async (compositeId: string, promptId: string, type: string, name: string) => {
+		setRemovingPromptId(compositeId)
 		try {
 			const request = RemovePromptRequest.create({
 				promptId,
-				type: type === "rule" ? 1 : 2,
+				type: promptTypeToProto(type),
 				name,
 			})
 
@@ -114,7 +143,7 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 			if (result.value) {
 				setAppliedPrompts((prev) => {
 					const newSet = new Set(prev)
-					newSet.delete(promptId)
+					newSet.delete(`${type}:${promptId}`)
 					return newSet
 				})
 				showToast(`✓ "${name}" removed`, "success")
@@ -129,11 +158,18 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 		}
 	}
 
-	const handleToggle = (promptId: string, type: string, content: string, name: string, isCurrentlyApplied: boolean) => {
+	const handleToggle = (
+		compositeId: string,
+		promptId: string,
+		type: string,
+		content: string,
+		name: string,
+		isCurrentlyApplied: boolean,
+	) => {
 		if (isCurrentlyApplied) {
-			handleRemovePrompt(promptId, type, name)
+			handleRemovePrompt(compositeId, promptId, type, name)
 		} else {
-			handleApplyPrompt(promptId, type, content, name)
+			handleApplyPrompt(compositeId, promptId, type, content, name)
 		}
 	}
 
@@ -267,6 +303,8 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 							<VSCodeOption value="all">All Types</VSCodeOption>
 							<VSCodeOption value="rule">Rules</VSCodeOption>
 							<VSCodeOption value="workflow">Workflows</VSCodeOption>
+							<VSCodeOption value="hook">Hooks</VSCodeOption>
+							<VSCodeOption value="skill">Skills</VSCodeOption>
 						</VSCodeDropdown>
 					</div>
 
@@ -321,13 +359,14 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 			) : (
 				<div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 					{filteredPrompts.map((prompt) => {
-						const isApplied = appliedPrompts.has(prompt.promptId)
-						const isProcessing = applyingPromptId === prompt.promptId || removingPromptId === prompt.promptId
-						const isExpanded = expandedPromptIds.has(prompt.promptId)
+						const compositeId = `${prompt.type}:${prompt.promptId}`
+						const isApplied = appliedPrompts.has(compositeId)
+						const isProcessing = applyingPromptId === compositeId || removingPromptId === compositeId
+						const isExpanded = expandedPromptIds.has(compositeId)
 
 						return (
 							<div
-								key={prompt.promptId}
+								key={compositeId}
 								style={{
 									padding: "16px",
 									border: "1px solid var(--vscode-panel-border)",
@@ -349,7 +388,14 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 										checked={isApplied}
 										disabled={isProcessing}
 										onClick={() =>
-											handleToggle(prompt.promptId, prompt.type, prompt.content, prompt.name, isApplied)
+											handleToggle(
+												compositeId,
+												prompt.promptId,
+												prompt.type,
+												prompt.content,
+												prompt.name,
+												isApplied,
+											)
 										}
 										size="lg"
 									/>
@@ -397,16 +443,16 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 											border: "1px solid var(--vscode-descriptionForeground)",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										{prompt.type === "rule" ? "Rule" : "Workflow"}
+										{prompt.type.charAt(0).toUpperCase() + prompt.type.slice(1)}
 									</span>
 									<button
 										onClick={() =>
 											setExpandedPromptIds((prev) => {
 												const next = new Set(prev)
-												if (next.has(prompt.promptId)) {
-													next.delete(prompt.promptId)
+												if (next.has(compositeId)) {
+													next.delete(compositeId)
 												} else {
-													next.add(prompt.promptId)
+													next.add(compositeId)
 												}
 												return next
 											})

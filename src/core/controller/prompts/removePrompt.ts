@@ -7,6 +7,29 @@ import { getWorkspacePath } from "@/utils/path"
 import type { Controller } from ".."
 
 /**
+ * Returns the filesystem path for a prompt based on its type.
+ *
+ * Prompt types and their filesystem locations:
+ * - RULE (1):     .clinerules/{name}.md
+ * - WORKFLOW (2): .clinerules/workflows/{name}.md
+ * - HOOK (3):     .clinerules/hooks/{name}.md
+ * - SKILL (4):    .clinerules/skills/{name}/SKILL.md
+ */
+function getTargetPath(cwd: string, type: number, fileName: string): string {
+	switch (type) {
+		case 2: // PROMPT_TYPE_WORKFLOW
+			return path.join(cwd, ".clinerules", "workflows", fileName + ".md")
+		case 3: // PROMPT_TYPE_HOOK
+			return path.join(cwd, ".clinerules", "hooks", fileName + ".md")
+		case 4: // PROMPT_TYPE_SKILL
+			return path.join(cwd, ".clinerules", "skills", fileName, "SKILL.md")
+		case 1: // PROMPT_TYPE_RULE
+		default:
+			return path.join(cwd, ".clinerules", fileName + ".md")
+	}
+}
+
+/**
  * Removes a prompt from the workspace by deleting it from the appropriate directory
  */
 export async function removePrompt(_controller: Controller, request: RemovePromptRequest): Promise<Boolean> {
@@ -26,23 +49,23 @@ export async function removePrompt(_controller: Controller, request: RemovePromp
 			.replace(/[^a-z0-9]+/g, "-")
 			.replace(/^-+|-+$/g, "")
 
-		const fileExtension = ".md"
-		const fullFileName = fileName + fileExtension
-
-		let targetDirectory: string
-		if (type === 1) {
-			// RULE type (PROMPT_TYPE_RULE = 1) - remove from .clinerules/
-			targetDirectory = path.join(cwd, ".clinerules")
-		} else {
-			// WORKFLOW type (PROMPT_TYPE_WORKFLOW = 2) - remove from workflows/
-			targetDirectory = path.join(cwd, "workflows")
-		}
+		const targetPath = getTargetPath(cwd, type, fileName)
 
 		// Delete the file
-		const targetPath = path.join(targetDirectory, fullFileName)
 		try {
 			await fs.unlink(targetPath)
 			Logger.info(`Successfully removed prompt from ${targetPath}`)
+
+			// For skills, also try to remove the now-empty skill directory
+			if (type === 4) {
+				const skillDir = path.dirname(targetPath)
+				try {
+					await fs.rmdir(skillDir) // Only removes if empty
+				} catch {
+					// Directory not empty or doesn't exist, ignore
+				}
+			}
+
 			return { value: true }
 		} catch (error) {
 			// File might not exist, log but don't fail completely

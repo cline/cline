@@ -13,6 +13,8 @@ enum PromptType {
   PROMPT_TYPE_UNSPECIFIED = 0;
   PROMPT_TYPE_RULE = 1;
   PROMPT_TYPE_WORKFLOW = 2;
+  PROMPT_TYPE_HOOK = 3;
+  PROMPT_TYPE_SKILL = 4;
 }
 
 // Message for a single prompt item

@@ -31,7 +31,7 @@ export interface PromptItem {
 	description: string // short description
 	category: string // e.g., "Web Development", "Python", "Workflows"
 	tags: string[] // searchable tags
-	type: "rule" | "workflow" // distinguishes .clinerules from workflows
+	type: "rule" | "workflow" | "hook" | "skill" // distinguishes content types by target directory
 	content: string // the actual prompt/rule content (markdown)
 	version?: string // semver version if available
 	globs?: string[] // file patterns from frontmatter
@@ -43,4 +43,3 @@ export interface PromptsCatalog {
 	items: PromptItem[]
 	lastUpdated: string
 }
-
