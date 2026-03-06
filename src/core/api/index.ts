@@ -161,6 +161,7 @@ function createHandlerForProvider(
 			return new LmStudioHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				lmStudioBaseUrl: options.lmStudioBaseUrl,
+				lmStudioApiKey: options.lmStudioApiKey,
 				lmStudioModelId: mode === "plan" ? options.planModeLmStudioModelId : options.actModeLmStudioModelId,
 				lmStudioMaxTokens: options.lmStudioMaxTokens,
 			})
