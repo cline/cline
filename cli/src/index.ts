@@ -133,11 +133,6 @@ function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
  * Shared between runTask and resumeTask to avoid duplication.
  */
 function applyTaskOptions(options: TaskOptions): void {
-	// Set runtime hooks directory for hook discovery
-	if (options.hooksDir) {
-		setRuntimeHooksDir(options.hooksDir)
-	}
-
 	// Apply mode flag
 	if (options.plan) {
 		StateManager.get().setGlobalState("mode", "plan")
@@ -401,6 +396,7 @@ interface CliContext {
 interface InitOptions {
 	config?: string
 	cwd?: string
+	hooksDir?: string
 	verbose?: boolean
 	enableAuth?: boolean
 }
@@ -410,6 +406,7 @@ interface InitOptions {
  */
 async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const workspacePath = options.cwd || process.cwd()
+	setRuntimeHooksDir(options.hooksDir)
 	const { extensionContext, storageContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
 		clineDir: options.config,
 		workspaceDir: workspacePath,
@@ -922,6 +919,7 @@ program
 			await runAcpMode({
 				config: options.config,
 				cwd: options.cwd,
+				hooksDir: options.hooksDir,
 				verbose: options.verbose,
 			})
 			return
