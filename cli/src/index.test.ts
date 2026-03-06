@@ -1,5 +1,6 @@
 import { Command } from "commander"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { captureUnhandledException } from "."
 
 /**
  * Tests for CLI command parsing and structure
@@ -436,5 +437,44 @@ describe("getProviderModelIdKey", () => {
 
 	it("should return null for unknown providers", () => {
 		expect(getProviderModelIdKey("unknown-provider", "act")).toBeNull()
+	})
+})
+
+const mockCaptureException = vi.fn().mockResolvedValue(undefined)
+const mockDispose = vi.fn().mockResolvedValue(undefined)
+
+vi.mock("@/services/error/ErrorService", () => {
+	return {
+		ErrorService: {
+			get: () => ({
+				captureException: mockCaptureException,
+				dispose: mockDispose,
+			}),
+		},
+	}
+})
+
+describe("captureUnhandledException", () => {
+	beforeEach(() => {
+		vi.resetAllMocks()
+	})
+
+	it("captures unhandled exceptions", async () => {
+		const testError = new Error("Test unhandled exception")
+
+		await captureUnhandledException(testError, "unhandledRejection")
+
+		expect(mockCaptureException).toHaveBeenCalledWith(testError, { context: "unhandledRejection" })
+		expect(mockDispose).toHaveBeenCalled()
+	})
+
+	it("does not throw if captureException fails", async () => {
+		mockCaptureException.mockRejectedValueOnce(new Error("Capture failed"))
+
+		const testError = new Error("Test unhandled exception")
+
+		await expect(captureUnhandledException(testError, "unhandledRejection")).resolves.not.toThrow()
+		expect(mockCaptureException).toHaveBeenCalledWith(testError, { context: "unhandledRejection" })
+		expect(mockDispose).not.toHaveBeenCalled()
 	})
 })
