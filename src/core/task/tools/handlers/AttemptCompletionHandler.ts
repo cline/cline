@@ -217,6 +217,12 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
 		// At this point we know: task is complete, checkpoint saved, result shown to user
 		await this.runTaskCompleteHook(config, block)
+		await this.runNotificationHook(config, {
+			event: "task_complete",
+			source: "attempt_completion",
+			message: result,
+			waitingForUserInput: false,
+		})
 
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		const prefix = "[attempt_completion] Result: Done"
@@ -334,6 +340,45 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		} catch (error) {
 			// TaskComplete hook failed - non-fatal, just log
 			Logger.error("[TaskComplete Hook] Failed (non-fatal):", error)
+		}
+	}
+
+	private async runNotificationHook(
+		config: TaskConfig,
+		notification: {
+			event: string
+			source: string
+			message: string
+			waitingForUserInput: boolean
+		},
+	): Promise<void> {
+		const hooksEnabled = getHooksEnabledSafe()
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			const { executeHook } = await import("@core/hooks/hook-executor")
+
+			await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification: {
+						...notification,
+						message: notification.message.slice(0, TASK_PREVIEW_MAX_CHARS),
+					},
+				},
+				isCancellable: false,
+				say: async () => undefined,
+				setActiveHookExecution: undefined,
+				clearActiveHookExecution: undefined,
+				messageStateHandler: config.messageState,
+				taskId: config.taskId,
+				hooksEnabled,
+				model: getHookModelContext(config.api, config.services.stateManager),
+			})
+		} catch (error) {
+			Logger.error("[Notification Hook] Failed (non-fatal):", error)
 		}
 	}
 }

@@ -683,6 +683,14 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
+		// Notification hook marks that Cline is waiting for user input.
+		await this.runNotificationHook({
+			event: "user_attention",
+			source: type,
+			message: text || "",
+			waitingForUserInput: true,
+		})
+
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
 		})
@@ -700,6 +708,35 @@ export class Task {
 		this.taskState.askResponseImages = undefined
 		this.taskState.askResponseFiles = undefined
 		return result
+	}
+
+	private async runNotificationHook(notification: {
+		event: string
+		source: string
+		message: string
+		waitingForUserInput: boolean
+	}): Promise<void> {
+		const hooksEnabled = getHooksEnabledSafe()
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification,
+				},
+				isCancellable: false,
+				say: async () => undefined,
+				messageStateHandler: this.messageStateHandler,
+				taskId: this.taskId,
+				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
+			})
+		} catch (error) {
+			Logger.error("[Notification Hook] Failed (non-fatal):", error)
+		}
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
