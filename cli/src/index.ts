@@ -62,6 +62,7 @@ interface TaskOptions {
 	reasoningEffort?: string
 	maxConsecutiveMistakes?: string
 	yolo?: boolean
+	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
 	timeout?: string
 	json?: boolean
@@ -198,6 +199,13 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (options.yolo) {
 		StateManager.get().setSessionOverride("yoloModeToggled", true)
 		telemetryService.captureHostEvent("yolo_flag", "true")
+	}
+
+	// Set auto-approve-all as a session-scoped override so CLI flag does not
+	// persist user settings to disk.
+	if (options.autoApproveAll) {
+		StateManager.get().setSessionOverride("autoApproveAllToggled", true)
+		telemetryService.captureHostEvent("auto_approve_all_flag", "true")
 	}
 
 	// Set double-check completion based on flag
@@ -732,6 +740,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
+	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
 	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
@@ -900,6 +909,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
 	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
