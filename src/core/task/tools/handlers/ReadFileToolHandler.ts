@@ -15,6 +15,51 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+export const DEFAULT_MAX_LINES = 1000
+const FILE_TRUNCATED_MARKER = "\n\n---\n\n[FILE TRUNCATED:"
+
+/**
+ * Slice file content to the requested line range, add L-prefixed line labels,
+ * and append a continuation hint when the file has more lines to read.
+ */
+export function formatFileContentWithLineNumbers(content: string, startLine?: number, endLine?: number): string {
+	if (!content) {
+		return content
+	}
+
+	// Separate any byte-truncation notice appended by content-limits.ts
+	let body = content
+	let truncationSuffix = ""
+	const truncationIndex = content.indexOf(FILE_TRUNCATED_MARKER)
+	if (truncationIndex !== -1) {
+		body = content.slice(0, truncationIndex)
+		truncationSuffix = content.slice(truncationIndex)
+	}
+
+	const lines = body.split(/\r?\n/)
+	if (body.endsWith("\n") && lines.length > 0) {
+		lines.pop()
+	}
+	const totalLines = lines.length
+
+	const start = Math.max(1, startLine ?? 1)
+	const end = Math.min(totalLines, endLine ?? start + DEFAULT_MAX_LINES - 1)
+
+	const slice = lines.slice(start - 1, end)
+	const labeled = slice.map((line, i) => `L${start + i}: ${line}`).join("\n")
+
+	let suffix = truncationSuffix
+	if (!truncationSuffix) {
+		if (end < totalLines) {
+			suffix = `\n\n(Showing lines ${start}-${end} of ${totalLines} total. Use start_line=${end + 1} to continue reading.)`
+		} else {
+			suffix = `\n\n(File has ${totalLines} lines total.)`
+		}
+	}
+
+	return labeled + suffix
+}
+
 export class ReadFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_READ
 
@@ -179,8 +224,12 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
+			return fileContent.text
 		}
 
-		return fileContent.text
+		const startLine = block.params.start_line ? Number.parseInt(block.params.start_line, 10) : undefined
+		const endLine = block.params.end_line ? Number.parseInt(block.params.end_line, 10) : undefined
+
+		return formatFileContentWithLineNumbers(fileContent.text, startLine, endLine)
 	}
 }
