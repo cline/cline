@@ -236,19 +236,47 @@ export class GeminiHandler implements ApiHandler {
 					}
 					if (part.functionCall) {
 						const functionCall = part.functionCall
-						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
-						if (functionCall.args && args.length > 0) {
-							yield {
-								type: "tool_calls",
-								id: chunk.responseId,
-								tool_call: {
-									function: {
-										id: chunk.responseId,
-										name: functionCall.name,
-										arguments: JSON.stringify(functionCall.args),
+
+						if (functionCall.name === "multi_tool_use_parallel") {
+							// Expand the meta-tool into individual tool_call events so the
+							// normal parallel execution pipeline handles each sub-call.
+							const toolUses =
+								(functionCall.args?.tool_uses as Array<{
+									recipient_name: string
+									parameters: Record<string, unknown>
+								}>) || []
+							for (let i = 0; i < toolUses.length; i++) {
+								const use = toolUses[i]
+								if (!use?.recipient_name) continue
+								const innerName = use.recipient_name.replace(/^functions\./, "")
+								yield {
+									type: "tool_calls",
+									id: `${chunk.responseId}_mtu_${i}`,
+									tool_call: {
+										function: {
+											id: `${chunk.responseId}_mtu_${i}`,
+											name: innerName,
+											arguments: JSON.stringify(use.parameters ?? {}),
+										},
 									},
-								},
-								signature: part.thoughtSignature,
+									signature: part.thoughtSignature,
+								}
+							}
+						} else {
+							const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
+							if (functionCall.args && args.length > 0) {
+								yield {
+									type: "tool_calls",
+									id: chunk.responseId,
+									tool_call: {
+										function: {
+											id: chunk.responseId,
+											name: functionCall.name,
+											arguments: JSON.stringify(functionCall.args),
+										},
+									},
+									signature: part.thoughtSignature,
+								}
 							}
 						}
 					}

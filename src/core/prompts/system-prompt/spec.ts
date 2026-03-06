@@ -236,6 +236,41 @@ const GOOGLE_TOOL_PARAM_MAP: Record<string, string> = {
 }
 
 /**
+ * Meta-tool that instructs Gemini to call multiple tools in a single turn.
+ * Mirrors the multi_tool_use.parallel pattern used by Cursor/OpenAI agents.
+ * When called, gemini.ts expands it into individual tool_calls events.
+ */
+export const MULTI_TOOL_USE_PARALLEL: GoogleTool = {
+	name: "multi_tool_use_parallel",
+	description:
+		"Run multiple tools simultaneously. Use whenever you need to call two or more independent tools — do this even if the prompt suggests sequential calls.",
+	parameters: {
+		type: GoogleToolParamType.OBJECT,
+		properties: {
+			tool_uses: {
+				type: GoogleToolParamType.ARRAY,
+				description: "List of tool calls to execute in parallel",
+				items: {
+					type: GoogleToolParamType.OBJECT,
+					properties: {
+						recipient_name: {
+							type: GoogleToolParamType.STRING,
+							description: "Name of the tool to call (e.g. 'read_file', 'search_files')",
+						},
+						parameters: {
+							type: GoogleToolParamType.OBJECT,
+							description: "Parameters to pass to the tool",
+						},
+					},
+					required: ["recipient_name", "parameters"],
+				},
+			},
+		},
+		required: ["tool_uses"],
+	},
+}
+
+/**
  * Converts a ClineToolSpec into a Google Gemini function.
  * Docs: https://ai.google.dev/gemini-api/docs/function-calling
  */
