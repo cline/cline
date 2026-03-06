@@ -2,7 +2,13 @@ import { AgentConfigLoader } from "@core/task/tools/subagent/AgentConfigLoader"
 import { CLINE_MCP_TOOL_IDENTIFIER, McpServer } from "@/shared/mcp"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
-import { type ClineToolSpec, toolSpecFunctionDeclarations, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
+import {
+	type ClineToolSpec,
+	MULTI_TOOL_USE_PARALLEL,
+	toolSpecFunctionDeclarations,
+	toolSpecFunctionDefinition,
+	toolSpecInputSchema,
+} from "../spec"
 import { PromptVariant, SystemPromptContext } from "../types"
 
 export class ClineToolSet {
@@ -187,8 +193,16 @@ export class ClineToolSet {
 			(tool) => typeof tool.description === "string" && tool.description.trim().length > 0,
 		)
 		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
+		const tools = enabledTools.map((tool) => converter(tool, context))
 
-		return enabledTools.map((tool) => converter(tool, context))
+		// Append the multi_tool_use_parallel meta-tool for Gemini when parallel calling is on.
+		// Gives the model a concrete mechanism to batch independent calls in one turn.
+		const isGemini = context.providerInfo.providerId === "gemini" || context.providerInfo.providerId === "vertex"
+		if (isGemini && context.enableParallelToolCalling) {
+			tools.push(MULTI_TOOL_USE_PARALLEL)
+		}
+
+		return tools
 	}
 }
 
