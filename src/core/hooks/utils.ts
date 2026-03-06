@@ -16,6 +16,7 @@ export const VALID_HOOK_TYPES = [
 	"PreToolUse",
 	"PostToolUse",
 	"UserPromptSubmit",
+	"Notification",
 	"PreCompact",
 ] as const
 

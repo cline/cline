@@ -61,6 +61,12 @@ export function hookPath(hooksDir: string, hookName: string, platform: NodeJS.Pl
 }
 
 export function stubHookDirs(sandbox: sinon.SinonSandbox, dirs: string[]): sinon.SinonStub {
+	const existing = diskModule.getAllHooksDirs as unknown as sinon.SinonStub
+	if (existing && typeof existing.getCall === "function") {
+		existing.resolves(dirs)
+		return existing
+	}
+
 	return sandbox.stub(diskModule, "getAllHooksDirs").resolves(dirs)
 }
 
@@ -82,6 +88,7 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 	} as any)
 
 	resetHookCache()
+	stubHookDirs(sandbox, [hooksDir])
 
 	return {
 		tempDir,

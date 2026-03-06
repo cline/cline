@@ -104,7 +104,7 @@ export class GitOperations {
 		}
 
 		// Initial commit only on first repo creation
-		await git.commit("initial commit", { "--allow-empty": null })
+		await git.commit("initial commit", { "--allow-empty": null, "--no-verify": null })
 
 		const durationMs = Math.round(performance.now() - startTime)
 		telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)

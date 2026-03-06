@@ -69,6 +69,8 @@ export interface AcpModeOptions {
 	config?: string
 	/** Working directory (default: process.cwd()) */
 	cwd?: string
+	/** Additional runtime hooks directory */
+	hooksDir?: string
 	/** Enable verbose/debug logging to stderr */
 	verbose?: boolean
 }
@@ -96,6 +98,7 @@ export async function runAcpMode(options: AcpModeOptions = {}): Promise<void> {
 	new AgentSideConnection((conn) => {
 		agent = new AcpAgent(conn, {
 			debug: Boolean(options.verbose),
+			hooksDir: options.hooksDir,
 		})
 		return agent
 	}, stream)
