@@ -1,3 +1,4 @@
+// biome-ignore-all format: preserve quote escaping in shell hook templates
 /**
  * Hook script templates for all supported hook types.
  * On Unix, templates are Bash scripts with comprehensive examples.
