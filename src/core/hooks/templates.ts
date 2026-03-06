@@ -1,3 +1,4 @@
+// biome-ignore-all format: preserve quote escaping in shell hook templates
 /**
  * Hook script templates for all supported hook types.
  * On Unix, templates are Bash scripts with comprehensive examples.
@@ -85,7 +86,7 @@ TIMESTAMP_ISO=$(date -u -d @"$((TIMESTAMP/1000))" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/n
 CONTEXT_MOD="Note: Task started at $TIMESTAMP_ISO"
 
 # Return result as JSON
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"$CONTEXT_MOD\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"$CONTEXT_MOD","errorMessage":""}"
 `
 }
 
@@ -117,7 +118,7 @@ fi
 echo "[TaskResume] Resuming task: $TASK" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -149,7 +150,7 @@ fi
 echo "[TaskCancel] Task cancelled: $TASK" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -182,7 +183,7 @@ fi
 echo "[TaskComplete] Task completed: $TASK" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -216,7 +217,7 @@ fi
 
 # Example: Block dangerous operations
 if [[ "$TOOL" == "execute_command" ]] && [[ "$COMMAND" == *"rm -rf /"* ]]; then
-  echo ${String.raw`"{\"cancel\":true,\"errorMessage\":\"Dangerous command blocked by PreToolUse hook\"}"`}
+  echo "{"cancel":true,"errorMessage":"Dangerous command blocked by PreToolUse hook"}"
   exit 0
 fi
 
@@ -224,7 +225,7 @@ fi
 echo "[PreToolUse] Tool about to execute: $TOOL" >&2
 
 # Allow execution
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -274,7 +275,7 @@ STATUS="success"
 echo "[PostToolUse] Tool completed: $TOOL ($STATUS) in \${DURATION}ms" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -308,7 +309,7 @@ fi
 echo "[UserPromptSubmit] User submitted prompt (length: $PROMPT_LENGTH)" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -351,7 +352,7 @@ fi
 
 echo "[Notification] event=$EVENT source=$SOURCE waitingForUserInput=$WAITING" >&2
 
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -392,7 +393,7 @@ fi
 echo "[PreCompact] About to compact conversation (messages: $CONV_LENGTH, tokens: $EST_TOKENS)" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
 
@@ -418,6 +419,6 @@ fi
 echo "[${hookName}] Executed for task $TASK_ID" >&2
 
 # Return result
-echo ${String.raw`"{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"`}
+echo "{"cancel":false,"contextModification":"","errorMessage":""}"
 `
 }
