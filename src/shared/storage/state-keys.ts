@@ -116,7 +116,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	ollamaBaseUrl: { default: undefined as string | undefined },
 	ollamaApiOptionsCtxNum: { default: undefined as string | undefined },
 	lmStudioBaseUrl: { default: undefined as string | undefined },
-	lmStudioApiKey: { default: undefined as string | undefined },
 	lmStudioMaxTokens: { default: undefined as string | undefined },
 	geminiBaseUrl: { default: undefined as string | undefined },
 	requestyBaseUrl: { default: undefined as string | undefined },
