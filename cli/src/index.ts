@@ -316,11 +316,11 @@ async function drainStdout(): Promise<void> {
 	})
 }
 
-export async function captureUnhandledException(reason: unknown) {
+export async function captureUnhandledException(reason: unknown, context: string) {
 	try {
 		const errorService = ErrorService.get()
 		const finalError = reason instanceof Error ? reason : new Error(String(reason))
-		await errorService.captureException(finalError, { context: "unhandledRejection" })
+		await errorService.captureException(finalError, { context })
 		// dispose flushes any pending error captures to ensure they're sent before the process exits
 		return errorService.dispose()
 	} catch {
@@ -329,7 +329,7 @@ export async function captureUnhandledException(reason: unknown) {
 	}
 }
 
-function onUnhandledException(reason: unknown) {
+function onUnhandledException(reason: unknown, context: string) {
 	Logger.error("Unhandled exception:", reason)
 	const finalError = reason instanceof Error ? reason : new Error(String(reason))
 
@@ -341,7 +341,7 @@ function onUnhandledException(reason: unknown) {
 	// Allow the timer to be garbage-collected if reporting finishes first
 	if (exitTimer.unref) exitTimer.unref()
 
-	captureUnhandledException(finalError).finally(() => {
+	captureUnhandledException(finalError, context).finally(() => {
 		process.exit(1)
 	})
 }
@@ -408,11 +408,11 @@ function setupSignalHandlers() {
 
 		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
 		// This won't show in terminal but will be in log files for debugging
-		onUnhandledException(reason)
+		onUnhandledException(reason, "unhandledRejection")
 	})
 
 	process.on("uncaughtException", (reason: unknown) => {
-		onUnhandledException(reason)
+		onUnhandledException(reason, "uncaughtException")
 	})
 }
 
