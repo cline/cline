@@ -25,6 +25,7 @@ describe("CLI Commands", () => {
 			.option("-a, --act", "Run in act mode")
 			.option("-p, --plan", "Run in plan mode")
 			.option("-y, --yolo", "Enable yolo mode")
+			.option("--auto-approve-all", "Enable auto-approve all")
 			.option("-m, --model <model>", "Model to use")
 			.option("-i, --images <paths...>", "Image file paths")
 			.option("-v, --verbose", "Show verbose output")
@@ -74,6 +75,7 @@ describe("CLI Commands", () => {
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
 			.option("--hooks-dir <path>", "Additional hooks directory")
+			.option("--auto-approve-all", "Enable auto-approve all")
 			.action(() => {})
 	})
 
@@ -108,6 +110,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--yolo"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().yolo).toBe(true)
+		})
+
+		it("should parse --auto-approve-all flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--auto-approve-all"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().autoApproveAll).toBe(true)
 		})
 
 		it("should parse --model option", () => {
@@ -334,6 +343,11 @@ describe("CLI Commands", () => {
 		it("should parse --hooks-dir option", () => {
 			program.parse(["node", "cli", "--hooks-dir", "/tmp/hooks"])
 			expect(program.opts().hooksDir).toBe("/tmp/hooks")
+		})
+
+		it("should parse --auto-approve-all flag", () => {
+			program.parse(["node", "cli", "--auto-approve-all"])
+			expect(program.opts().autoApproveAll).toBe(true)
 		})
 	})
 
