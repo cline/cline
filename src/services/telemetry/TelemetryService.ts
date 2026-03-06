@@ -162,6 +162,20 @@ export class TelemetryService {
 			CONTEXT_MODIFICATIONS_TOTAL: "cline.hooks.context_modifications.total",
 			CACHE_ACCESSES_TOTAL: "cline.hooks.cache.accesses.total",
 		},
+		AI_OUTPUT: {
+			ACCEPTED_LINES_ADDED: "cline.ai_output.accepted.lines_added.total",
+			ACCEPTED_LINES_DELETED: "cline.ai_output.accepted.lines_deleted.total",
+			ACCEPTED_LINES_CHANGED: "cline.ai_output.accepted.lines_changed.total",
+			ACCEPTED_FILES_CREATED: "cline.ai_output.accepted.files_created.total",
+			ACCEPTED_FILES_DELETED: "cline.ai_output.accepted.files_deleted.total",
+			ACCEPTED_FILES_MOVED: "cline.ai_output.accepted.files_moved.total",
+			REJECTED_LINES_ADDED: "cline.ai_output.rejected.lines_added.total",
+			REJECTED_LINES_DELETED: "cline.ai_output.rejected.lines_deleted.total",
+			REJECTED_LINES_CHANGED: "cline.ai_output.rejected.lines_changed.total",
+			REJECTED_FILES_CREATED: "cline.ai_output.rejected.files_created.total",
+			REJECTED_FILES_DELETED: "cline.ai_output.rejected.files_deleted.total",
+			REJECTED_FILES_MOVED: "cline.ai_output.rejected.files_moved.total",
+		},
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
@@ -2175,6 +2189,108 @@ export class TelemetryService {
 				timestamp: new Date().toISOString(),
 			},
 		})
+	}
+
+	/**
+	 * Records when a file edit (write_to_file, replace_in_file, apply_patch) is accepted by the user
+	 * Tracks lines added, deleted, and changed for the accepted edit.
+	 *
+	 * @param args Properties for the accepted AI output event
+	 */
+	public captureAiOutputAccepted(args: {
+		ulid: string
+		tool: string
+		provider?: string
+		model?: string
+		source: "agent" | "human"
+		linesAdded: number
+		linesDeleted: number
+		linesChanged: number
+		filesCreated?: number
+		filesDeleted?: number
+		filesMoved?: number
+	}): void {
+		this.capture({
+			event: "task.ai_output.accepted",
+			properties: {
+				ulid: args.ulid,
+				tool: args.tool,
+				provider: args.provider,
+				model: args.model,
+				source: args.source,
+				linesAdded: args.linesAdded,
+				linesDeleted: args.linesDeleted,
+				linesChanged: args.linesChanged,
+				filesCreated: args.filesCreated ?? 0,
+				filesDeleted: args.filesDeleted ?? 0,
+				filesMoved: args.filesMoved ?? 0,
+			},
+		})
+
+		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_ADDED, args.linesAdded, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_DELETED, args.linesDeleted, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_CHANGED, args.linesChanged, attrs)
+		if (args.filesCreated) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_CREATED, args.filesCreated, attrs)
+		}
+		if (args.filesDeleted) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_DELETED, args.filesDeleted, attrs)
+		}
+		if (args.filesMoved) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_MOVED, args.filesMoved, attrs)
+		}
+	}
+
+	/**
+	 * Records when a file edit (write_to_file, replace_in_file, apply_patch) is rejected by the user
+	 * Tracks lines that would have been added, deleted, and changed.
+	 *
+	 * @param args Properties for the rejected AI output event
+	 */
+	public captureAiOutputRejected(args: {
+		ulid: string
+		tool: string
+		provider?: string
+		model?: string
+		source: "agent" | "human"
+		linesAdded: number
+		linesDeleted: number
+		linesChanged: number
+		filesCreated?: number
+		filesDeleted?: number
+		filesMoved?: number
+	}): void {
+		this.capture({
+			event: "task.ai_output.rejected",
+			properties: {
+				ulid: args.ulid,
+				tool: args.tool,
+				provider: args.provider,
+				model: args.model,
+				source: args.source,
+				linesAdded: args.linesAdded,
+				linesDeleted: args.linesDeleted,
+				linesChanged: args.linesChanged,
+				filesCreated: args.filesCreated ?? 0,
+				filesDeleted: args.filesDeleted ?? 0,
+				filesMoved: args.filesMoved ?? 0,
+			},
+		})
+
+		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_ADDED, args.linesAdded, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_DELETED, args.linesDeleted, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_CHANGED, args.linesChanged, attrs)
+		if (args.filesCreated) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_CREATED, args.filesCreated, attrs)
+		}
+		if (args.filesDeleted) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_DELETED, args.filesDeleted, attrs)
+		}
+		if (args.filesMoved) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_MOVED, args.filesMoved, attrs)
+		}
 	}
 
 	public captureHostEvent(name: string, content: string) {

@@ -1,5 +1,6 @@
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
@@ -483,6 +484,7 @@ export class ToolExecutor {
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
 			hooksEnabled: true, // Already checked by caller
+			model: getHookModelContext(this.api, this.stateManager),
 			toolName: block.name,
 		})
 

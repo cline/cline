@@ -25,6 +25,7 @@ describe("CLI Commands", () => {
 			.option("-a, --act", "Run in act mode")
 			.option("-p, --plan", "Run in plan mode")
 			.option("-y, --yolo", "Enable yolo mode")
+			.option("--auto-approve-all", "Enable auto-approve all")
 			.option("-m, --model <model>", "Model to use")
 			.option("-i, --images <paths...>", "Image file paths")
 			.option("-v, --verbose", "Show verbose output")
@@ -33,6 +34,7 @@ describe("CLI Commands", () => {
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
+			.option("--hooks-dir <path>", "Additional hooks directory")
 			.action(() => {})
 
 		program
@@ -72,6 +74,8 @@ describe("CLI Commands", () => {
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
+			.option("--hooks-dir <path>", "Additional hooks directory")
+			.option("--auto-approve-all", "Enable auto-approve all")
 			.action(() => {})
 	})
 
@@ -106,6 +110,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--yolo"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().yolo).toBe(true)
+		})
+
+		it("should parse --auto-approve-all flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--auto-approve-all"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().autoApproveAll).toBe(true)
 		})
 
 		it("should parse --model option", () => {
@@ -169,6 +180,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--max-consecutive-mistakes", "999"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().maxConsecutiveMistakes).toBe("999")
+		})
+
+		it("should parse --hooks-dir option", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--hooks-dir", "/tmp/hooks"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().hooksDir).toBe("/tmp/hooks")
 		})
 
 		it("should parse short flags", () => {
@@ -320,6 +338,16 @@ describe("CLI Commands", () => {
 		it("should parse --max-consecutive-mistakes option", () => {
 			program.parse(["node", "cli", "--max-consecutive-mistakes", "7"])
 			expect(program.opts().maxConsecutiveMistakes).toBe("7")
+		})
+
+		it("should parse --hooks-dir option", () => {
+			program.parse(["node", "cli", "--hooks-dir", "/tmp/hooks"])
+			expect(program.opts().hooksDir).toBe("/tmp/hooks")
+		})
+
+		it("should parse --auto-approve-all flag", () => {
+			program.parse(["node", "cli", "--auto-approve-all"])
+			expect(program.opts().autoApproveAll).toBe(true)
 		})
 	})
 
