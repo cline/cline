@@ -1,0 +1,86 @@
+[
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/flags/?v=2&config=true",
+		"status": 200,
+		"response": [
+			"1f8b0800000000000013cd56db6ee33610fd15639ea5fa262bb6de5c27691d64bb411a345bac17022d8e6dd614a992235f12f8df0b4ab22c67b3d9a0c002eb1783c34372ce99c3119f018dd1c63eae84c4894eb39c845a5e4bb6b4102d98b4e8c1a21c3d835673cd0c176a19a79aa32c826bdc43f4ca9407a8d85c2287884c8e1e6c98114c11442a97d20383cc6ae5764834478820d18a0b125ac529a364055e232214c71d441d0f38dac488cc4521820f0e89bc55235b16a9d58583072912e38c983b4170887a41ef62d0f76083c6168b83179b9569656c2f35e310c1f34ccd6806259d1944ad324033d8f94cb49746af7d97babf6096fc6e134133106aa1cf434530cbe9ce8804dd54c76bcee99cce268f7387130a568273546eba284d3951034067a85c6619f98322b5ddcba4b80b9c037fe91ea18d83144bb1847ecc508da751ebb7bb07876d4dbec2be9e94fb3bccd4010e0757eb5413fa5b94894ed19f33a5d034dcf38df99fcd4283e145d0e9342c14be6d213774f4b73827ad9bd7a58efc088addf751ecbd7a4bc251d81d3628f6df47319142a16f30d1698a8a23f7cb7be3e79925832c3d71ff3ef44788f292c73744095eadfba83f3c6b1dbdf789823b42e556c4a5c1e3cad831913ce9f126eae7bb02a351d0bc022fcdf6b28b0ec3a0e37e451fd86ab32683e8e32e6b5c8666b441b8fafc7c8fb1d2f1ff21fd876e1560a196e7c45fa3dd1ff5c260f07edaa5038acef76f8e96a64e8ace10c3ce3008fd61d8453fe885437f341a70bfdb1b2dfaf3e100fb61c7f1df309933423e2688ba1717fda01ff6fbfd51b7e3c10a19a52cb3473730c5e49e4452b416543cd3c229056dd1de74dad8765c2c5a97f33d26baf84097d229ab25deea651dbe3af7597333db2ed242450f462c9745ebfefcc50329d41ab97b2c1c0548995d17475443a1449aa797b9614ea60f424a61d1a96d8f1085e4ea7f572a376119e5064fb576c9a1f9eb283b6c7ae081656926f19e510d2c2b31d16a210a7ee51822c8b4a5955efac79d9c205492285cffb0cfea4d72237f953a594b61a924981bd9647cf080e5a49332c9ab5d8245f5eb6a584138ceb24a9dcc689e27f4a073737a4bad98bd46e696576fac7265b5e525323e9122599f165433776816daa44c25e8f855aac524d242ee72972dcee38d2026edd7919849a9b7c8e314c91486293cea6cbc60b9a42947456221907f54725ffbeb4437d619c53aa73ab3e2e1f86058b2ae4cf5a63667e8f10979d2b7aa649e65a6726c2ef1a8bbd4e513b45a35a9fd7b54cad555afd179245b25f1637829e4f4e9d3ed934e1e7fbf5c6fee82c5f4e653f8611cc8adbcfa5bdfdccc07b7d3ebfbdb47280fd58690bb1770753a449f61f9245c47727ffe3f16be147dc5f5005671aba4b0b9d9e0fe344689292ab29315136a6cff245357e9f01f2383f648720b0000"
+		],
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-test/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-test/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://s3.us-west-2.amazonaws.com:443",
+		"method": "PUT",
+		"path": "/cline-tasks/usr-test/taskid/api_conversation_history.json",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "POST",
+		"path": "/api/v1/chat/completions",
+		"status": 200,
+		"response": "data: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"! \"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"👋\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"toolu_01CXY1QHrosiSaDPb18EmhH7\",\"type\":\"function\",\"function\":{\"name\":\"attempt_completion\",\"arguments\":\"\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"r\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"esult\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\": \\\"Hello! \"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"👋\\\"\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\", \\\"\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"tas\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"k_p\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"rogress\\\":\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\" \\\"- [x] Sa\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"y hello\\\"}\"}}]},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_chcx0oicwa\"}\n\ndata: {\"id\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"object\":\"chat.completion.chunk\",\"created\":1773436341,\"model\":\"anthropic/claude-sonnet-4.6\",\"choices\":[{\"index\":0,\"delta\":{\"provider_metadata\":{\"anthropic\":{\"usage\":{\"input_tokens\":3,\"cache_creation_input_tokens\":4783,\"cache_read_input_tokens\":6697,\"cache_creation\":{\"ephemeral_5m_input_tokens\":4783,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":87,\"service_tier\":\"standard\",\"inference_geo\":\"global\"},\"cacheCreationInputTokens\":4783,\"stopSequence\":null,\"iterations\":null,\"container\":null,\"contextManagement\":null},\"gateway\":{\"routing\":{\"originalModelId\":\"anthropic/claude-sonnet-4.6\",\"resolvedProvider\":\"anthropic\",\"resolvedProviderApiModelId\":\"claude-sonnet-4-6\",\"internalResolvedModelId\":\"anthropic:claude-sonnet-4-6\",\"fallbacksAvailable\":[\"vertexAnthropic\",\"bedrock\"],\"internalReasoning\":\"Selected anthropic as preferred provider for claude-sonnet-4.6. 2 fallback(s) available: vertexAnthropic, bedrock\",\"planningReasoning\":\"BYOK credentials available for: anthropic. System credentials planned for: anthropic, vertexAnthropic, bedrock. Total execution order: anthropic(BYOK) → anthropic(system) → vertexAnthropic(system) → bedrock(system)\",\"canonicalSlug\":\"anthropic/claude-sonnet-4.6\",\"finalProvider\":\"anthropic\",\"attempts\":[{\"provider\":\"anthropic\",\"internalModelId\":\"anthropic:claude-sonnet-4-6\",\"providerApiModelId\":\"claude-sonnet-4-6\",\"credentialType\":\"byok\",\"success\":true,\"startTime\":1537548.401014,\"endTime\":1539863.488996,\"providerRequestId\":\"req_011CZ1mWWbxVSbrWritXQTk3\",\"statusCode\":200,\"providerResponseId\":\"msg_01FZdSewHoMoBewFacQg8jwh\"}],\"modelAttemptCount\":1,\"modelAttempts\":[{\"modelId\":\"anthropic:claude-sonnet-4-6\",\"canonicalSlug\":\"anthropic/claude-sonnet-4.6\",\"success\":true,\"providerAttemptCount\":1,\"providerAttempts\":[{\"provider\":\"anthropic\",\"internalModelId\":\"anthropic:claude-sonnet-4-6\",\"providerApiModelId\":\"claude-sonnet-4-6\",\"credentialType\":\"byok\",\"success\":true,\"startTime\":1537548.401014,\"endTime\":1539863.488996,\"providerRequestId\":\"req_011CZ1mWWbxVSbrWritXQTk3\",\"statusCode\":200,\"providerResponseId\":\"msg_01FZdSewHoMoBewFacQg8jwh\"}]}],\"totalProviderAttemptCount\":1},\"cost\":\"0\",\"marketCost\":\"0.02125935\",\"generationId\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\",\"billableWebSearchCalls\":0}}},\"logprobs\":null,\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":11483,\"completion_tokens\":87,\"total_tokens\":11570,\"cost\":0,\"is_byok\":true,\"prompt_tokens_details\":{\"cached_tokens\":6697,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":0.02125935,\"upstream_inference_prompt_cost\":0,\"upstream_inference_completions_cost\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"image_tokens\":0},\"cache_creation_input_tokens\":4783,\"market_cost\":0.02125935},\"system_fingerprint\":\"fp_chcx0oicwa\",\"generationId\":\"gen_01KKMGP1QFCVPX6GNZJBSE8VFP\"}\n\ndata: [DONE]\n\n",
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://s3.us-west-2.amazonaws.com:443",
+		"method": "PUT",
+		"path": "/cline-tasks/usr-test/taskid/api_conversation_history.json",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	}
+]

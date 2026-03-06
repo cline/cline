@@ -10,7 +10,7 @@
  *   CLINE_VCR_FILTER    - Substring to filter recorded/replayed request paths.
  *
  * Usage:
- *   # Record only inference requests (default filter)
+ *   # Record only inference requests
  *   CLINE_VCR=record CLINE_VCR_CASSETTE=./fixtures/my-test.json cline task "hello"
  *
  *   # Replay — auth/S3/etc. requests go through normally, only inference is mocked

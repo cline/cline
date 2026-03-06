@@ -58,5 +58,6 @@
 	"primaryRootIndex": 0,
 	"globalWorkflowToggles": {},
 	"globalClineRulesToggles": {},
-	"isNewUser": false
+	"isNewUser": false,
+	"subagentsEnabled": true
 }

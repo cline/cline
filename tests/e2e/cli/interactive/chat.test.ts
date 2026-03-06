@@ -17,17 +17,24 @@
 //   - Auto-approve all (Shift+Tab)
 // ---------------------------------------------------------------------------
 
-import { test } from "@microsoft/tui-test"
+import { expect, test } from "@microsoft/tui-test"
+import { unlinkSync, writeFileSync } from "fs"
+import path from "path"
 import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js"
 import { clineEnv } from "../helpers/env.js"
 import {
+	approveTool,
+	exitAfterTask,
 	openHistory,
 	openModels,
 	openSettings,
 	openSkills,
+	startNewTask,
 	toggleAutoApproveAll,
 	togglePlanAct,
+	waitForApproveReject,
 	waitForChatReady,
+	waitForTaskButtons,
 } from "../helpers/page-objects/chat.js"
 import {
 	assertApiTab,
@@ -36,11 +43,8 @@ import {
 	assertOtherTab,
 	goToSettingsTab,
 } from "../helpers/page-objects/settings.js"
-import { expectVisible } from "../helpers/terminal.js"
+import { expectNotVisible, expectVisible, gracefulShutdown, typeAndSubmit, waitForTerminalExit } from "../helpers/terminal.js"
 
-// ---------------------------------------------------------------------------
-// cline (unauthenticated) → shows interactive auth view
-// ---------------------------------------------------------------------------
 test.describe("cline (unauthenticated) — shows auth view", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -55,9 +59,6 @@ test.describe("cline (unauthenticated) — shows auth view", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline (authenticated) → shows main chat view
-// ---------------------------------------------------------------------------
 test.describe("cline (authenticated) — shows chat view", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -70,9 +71,6 @@ test.describe("cline (authenticated) — shows chat view", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// /settings — tab navigation
-// ---------------------------------------------------------------------------
 test.describe("/settings — tab navigation", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -110,9 +108,6 @@ test.describe("/settings — tab navigation", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// /models — browse models
-// ---------------------------------------------------------------------------
 test.describe("/models — model browser", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -133,9 +128,6 @@ test.describe("/models — model browser", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// /history — task history
-// ---------------------------------------------------------------------------
 test.describe("/history — task history", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -156,9 +148,6 @@ test.describe("/history — task history", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// /skills — skills view
-// ---------------------------------------------------------------------------
 test.describe("/skills — skills view", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -179,9 +168,6 @@ test.describe("/skills — skills view", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// Plan/Act mode toggle
-// ---------------------------------------------------------------------------
 test.describe("Plan/Act mode toggle", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -191,17 +177,12 @@ test.describe("Plan/Act mode toggle", () => {
 
 	test("pressing Tab toggles between Plan and Act mode", async ({ terminal }) => {
 		await waitForChatReady(terminal)
-		// Default should show Act
 		await expectVisible(terminal, "○ Plan ● Act")
 		await togglePlanAct(terminal)
-		// After toggle, the other mode should be active
 		await expectVisible(terminal, "● Plan ○ Act")
 	})
 })
 
-// ---------------------------------------------------------------------------
-// Auto-approve all (Shift+Tab)
-// ---------------------------------------------------------------------------
 test.describe("Auto-approve all — Shift+Tab toggle", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: [] },
@@ -213,7 +194,144 @@ test.describe("Auto-approve all — Shift+Tab toggle", () => {
 		await waitForChatReady(terminal)
 		await expectVisible(terminal, "Auto-approve all disabled")
 		await toggleAutoApproveAll(terminal)
-		// TODO: verify config store is updated
 		await expectVisible(terminal, "Auto-approve all enabled")
+		await toggleAutoApproveAll(terminal)
+	})
+})
+
+test.describe("Task completed — Start New Task button @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/task-complete-new-task.json" }),
+	})
+
+	test("pressing 1 (Start New Task) clears screen and shows fresh prompt", async ({ terminal }) => {
+		await waitForChatReady(terminal)
+		await typeAndSubmit(terminal, "just say hello")
+		await waitForTaskButtons(terminal)
+		startNewTask(terminal)
+		await expectNotVisible(terminal, "just say hello")
+		await gracefulShutdown(terminal)
+	})
+})
+
+test.describe("Task completed — Exit button @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/task-complete-exit.json" }),
+	})
+
+	test("pressing 2 (Exit) exits the app with code 0", async ({ terminal }) => {
+		await waitForChatReady(terminal)
+		await typeAndSubmit(terminal, "just say hello")
+		await waitForTaskButtons(terminal)
+		exitAfterTask(terminal)
+		const exitCode = await waitForTerminalExit(terminal)
+		expect(exitCode).toBe(0)
+	})
+})
+
+test.describe("read file outside cwd requires permission @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/read-file-outside-cwd.json" }),
+	})
+
+	test("reading file outside cwd requires permission when readFilesExternally is off", async ({ terminal }) => {
+		await waitForChatReady(terminal)
+		await typeAndSubmit(terminal, "read my ~/.wezterm.lua file")
+		await waitForApproveReject(terminal)
+		approveTool(terminal)
+		await waitForTaskButtons(terminal)
+		await gracefulShutdown(terminal)
+	})
+})
+
+test.describe("Auto-approve — safe command doesn't require permission @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/safe-command-no-permission.json" }),
+	})
+
+	test("executing 'date' bash command requires no permission", async ({ terminal }) => {
+		await waitForChatReady(terminal)
+		await typeAndSubmit(terminal, "run date bash command and show me the output")
+		await waitForTaskButtons(terminal)
+		await gracefulShutdown(terminal)
+	})
+})
+
+test.describe("Subagents @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/subagents.json" }),
+	})
+
+	test("shows subagent UI when using subagents", async ({ terminal }) => {
+		await waitForChatReady(terminal)
+		await typeAndSubmit(terminal, "tell 3 jokes using subagents")
+		await expectVisible(terminal, /subagent|running subagent/i, { timeout: 30_000 })
+		await waitForTaskButtons(terminal)
+		await gracefulShutdown(terminal)
+	})
+})
+
+test.describe("Web tools — web fetch", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/web-fetch.json" }),
+	})
+
+	test("uses the web fetch tool", async ({ terminal }) => {
+		await waitForChatReady(terminal)
+		await toggleAutoApproveAll(terminal)
+		await typeAndSubmit(terminal, "summarize this web page in one sentence: https://cline.bot/")
+		await waitForTaskButtons(terminal)
+		await gracefulShutdown(terminal)
+	})
+})
+
+test.describe("/settings — Account Tab organization editing", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default"),
+	})
+
+	test("can navigate to Account tab and see account info", async ({ terminal }) => {
+		await openSettings(terminal)
+		await goToSettingsTab(terminal, "Account")
+		await expectVisible(terminal, /sign in|account|organization/i)
+	})
+})
+
+test.describe("Auto-approve all — file edit requires no permission", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: [] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/file-edit-auto-approve.json" }),
+	})
+
+	test("with auto-approve-all enabled, file edit does not prompt for permission", async ({ terminal }) => {
+		const file = path.resolve("/tmp", "testFile.txt")
+		writeFileSync(file, "This is a test file with content")
+		try {
+			await waitForChatReady(terminal)
+			await toggleAutoApproveAll(terminal)
+			await expectVisible(terminal, "Auto-approve all enabled")
+			await typeAndSubmit(terminal, `append sup to ${file}`)
+			await waitForTaskButtons(terminal)
+			await gracefulShutdown(terminal)
+		} finally {
+			try {
+				unlinkSync(file)
+			} catch {}
+		}
 	})
 })

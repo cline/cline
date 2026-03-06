@@ -1,0 +1,101 @@
+[
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-test/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/flags/?v=2&config=true",
+		"status": 200,
+		"response": [
+			"1f8b0800000000000013cd566d6fe23810fe2b683e27c75bc24bbeb1b4bda36a6fab6e75ddd5b28a4c3c800fc7ced9130aadf8ef27270142dfae3a69a5e50bcacc63cf3c33cfd87e0234461b7bbf1412c73acd72126a7121d9c2423467d2a207f3f2eb09122914fa06139da6a838723fd51ca5f5f3cc9241963ad00ab7107d00ea012a3693c8212293a3076b6604530491caa5f4c020b35a15613547b7a5565c90d02a4e19254bf06a16a1386e20ea7ac0d1264664ce0a115c3b24f2c601d9b0488d00761ea4488c33622e82e01085c3ee20ec7ab046638bc59d679b9569656c2b35e3e5e76ee7f24c35a1ff8032d129fa33a6141a7bacc41bfe9f41bff531faed57e90ffa41ab55a3dffb18fd079c91d6b246f860f91914db1fa3d8798d62a737ecb507358acfe5f20645ad669a192ed4222e457ce4fad2f5abf5b51374fa27b20ede270d4f5335a5299474a610354a034d61e333d15c18bdf25deafe9c59f2db75044d41a8b93e3515c62ca71b231274ae9657f7e99c4e9c7bdfee8882a5e01c9573172752e938004067a85c6619f96191dae67952dc194e81bfb5f7d05a20c5522ca19f3354a349d4f8fde6ce611be317d8d793727fbba9da41311bdaacc820fab8c96af351b7d6e4529db6ffa517a5e3ff23993f75a3000bb53895cd6ba2e90e3bbd20ac89e6f9d8bd3129b821546e455c9e7a7175dac544f258807751bfdafc8483e130687dbc1430e8052df7835d793bfc93a3a589f3849d24e4836ec79f2518fa411006fe3068f5fd1eef0d8621efb6bbedbee3bf663267847c4410b5fbfd6ed0ed75fb61bfdff640eaea266619e506c75a592df14a1f6e6bd70477a1df1996ac845a3830cb49570bce37091679db7d794fd0a323f2ce88c5a2b8c84a8236cf3283d6d5e036976821fafe63e701534c6e49244556a878a685eb15344573dd6a62d395d40ac25196154bbc7a36b1ce28d6391db46fab0098e8e2502ddbbce778309f9f2aa41ed6368b0aa2a2230117550ab542eede357b4229b36581aa4fa1449aa767b961ae3ed7424a61d109e4500285e466f7a66cf5b8e470d4a54b0ecd5f7b9dc0ba031e589666126f191d80a574c65acd45c1affc8608326d69a917fe7e27573a2a49147abddb66874d72233f499daca4b05412cc8dac33de79b064f60299cbb17ace95d57a570daecbda1072f714acda0dd177583c0a7756b93fff6f0b3f3c20bd42c7325b26f17def4cc8c9e3d7ab479ddcff71b65adf04f3c9e5d7def528900ff2fc9bbebc9c8557938bdbab7b379e65f033647c2c45b23a3e3413addc98b12aa5ca8a12535464c74b26d4c87e2153b4ad4c78898c5296d50898356e8f8b39ce592e69c25191980be49f95dceec155263768e6daa44c25e81a52b5392691d6023de02c5e0b62d2beb4c44c4afd803c4e914c310bc581e8416634cf13bad3b9390ce8bf1cc01b20720b0000"
+		],
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-test/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://s3.us-west-2.amazonaws.com:443",
+		"method": "PUT",
+		"path": "/cline-tasks/usr-test/taskid/api_conversation_history.json",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "POST",
+		"path": "/api/v1/chat/completions",
+		"status": 404,
+		"response": {
+			"error": "model not found",
+			"success": false
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	}
+]

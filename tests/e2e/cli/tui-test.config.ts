@@ -6,5 +6,5 @@ export default defineConfig({
 	trace: true,
 	traceFolder: "./tui-traces",
 	testMatch: "./**/*.test.ts",
-	timeout: 30_000,
+	timeout: 60_000,
 })

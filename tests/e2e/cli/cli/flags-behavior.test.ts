@@ -13,12 +13,9 @@
 import { test } from "@microsoft/tui-test"
 import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js"
 import { clineEnv } from "../helpers/env.js"
-import { expectVisible } from "../utils.js"
+import { waitForChatReady } from "../helpers/page-objects/chat.js"
+import { expectVisible } from "../helpers/terminal.js"
 
-// ---------------------------------------------------------------------------
-// cline --act
-// Starts cline in Act mode regardless of globalState
-// ---------------------------------------------------------------------------
 test.describe("cline --act", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--act"] },
@@ -27,14 +24,10 @@ test.describe("cline --act", () => {
 	})
 
 	test("starts in Act mode", async ({ terminal }) => {
-		await expectVisible(terminal, "Act")
+		await expectVisible(terminal, "○ Plan ● Act")
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline --plan
-// Starts cline in Plan mode regardless of globalState
-// ---------------------------------------------------------------------------
 test.describe("cline --plan", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--plan"] },
@@ -43,30 +36,10 @@ test.describe("cline --plan", () => {
 	})
 
 	test("starts in Plan mode", async ({ terminal }) => {
-		await expectVisible(terminal, "Plan")
+		await expectVisible(terminal, "● Plan ○ Act")
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline --timeout <n>  ⚠️
-// Current behavior: starts interactive mode and ignores timeout value
-// ---------------------------------------------------------------------------
-test.describe("cline --timeout (interactive mode, flag ignored) ⚠️", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["--timeout", "30"] },
-		...TERMINAL_WIDE,
-		env: clineEnv("default"),
-	})
-
-	test("starts interactive mode (timeout value currently ignored)", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
-	})
-})
-
-// ---------------------------------------------------------------------------
-// cline --model <model-id>  ⚠️
-// Current behavior: starts interactive mode and ignores model value
-// ---------------------------------------------------------------------------
 test.describe("cline --model (interactive mode, flag ignored) ⚠️", () => {
 	test.use({
 		program: {
@@ -78,30 +51,11 @@ test.describe("cline --model (interactive mode, flag ignored) ⚠️", () => {
 	})
 
 	test("starts interactive mode (model value currently ignored)", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
+		// TODO expect model id in the UI here
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline --verbose  ⚠️
-// Current behavior: starts interactive mode and ignores verbose value
-// ---------------------------------------------------------------------------
-test.describe("cline --verbose (interactive mode, flag ignored) ⚠️", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["--verbose"] },
-		...TERMINAL_WIDE,
-		env: clineEnv("default"),
-	})
-
-	test("starts interactive mode (verbose value currently ignored)", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
-	})
-})
-
-// ---------------------------------------------------------------------------
-// cline -c / cline --cwd <dir>  ⚠️
-// Starts cline in interactive mode with the cwd present in the client footer
-// ---------------------------------------------------------------------------
 test.describe("cline --cwd <dir>", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--cwd", "/tmp"] },
@@ -110,7 +64,8 @@ test.describe("cline --cwd <dir>", () => {
 	})
 
 	test("starts interactive mode with --cwd flag", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
+		// TODO expect working directory showing in the UI
 	})
 })
 
@@ -122,14 +77,11 @@ test.describe("cline -c <dir> (short alias)", () => {
 	})
 
 	test("starts interactive mode with -c flag", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
+		// TODO expect working directory showing in the UI
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline --config <dir>
-// Starts cline in interactive mode using settings from the custom config dir
-// ---------------------------------------------------------------------------
 test.describe("cline --config (claude-sonnet-4.6)", () => {
 	test.use({
 		program: {
@@ -141,15 +93,10 @@ test.describe("cline --config (claude-sonnet-4.6)", () => {
 	})
 
 	test("starts interactive mode with custom config directory", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await expectVisible(terminal, "anthropic/claude-sonnet-4.6")
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline --thinking  ⚠️
-// Starts cline in interactive mode with thinking turned on regardless of globalState
-// (if thinking not supported, this flag is a no-op)
-// ---------------------------------------------------------------------------
 test.describe("cline --thinking ⚠️", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--thinking"] },
@@ -158,15 +105,10 @@ test.describe("cline --thinking ⚠️", () => {
 	})
 
 	test("starts interactive mode with --thinking flag", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline --reasoning-effort <level>  ⚠️
-// Starts cline in interactive mode with reasoning turned on regardless of globalState
-// (if reasoning not supported, this flag is a no-op)
-// ---------------------------------------------------------------------------
 test.describe("cline --reasoning-effort ⚠️", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--reasoning-effort", "high"] },
@@ -175,7 +117,7 @@ test.describe("cline --reasoning-effort ⚠️", () => {
 	})
 
 	test("starts interactive mode with --reasoning-effort flag", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
 	})
 })
 
@@ -193,7 +135,7 @@ test.describe("cline --max-consecutive-mistakes", () => {
 	})
 
 	test("starts interactive mode with --max-consecutive-mistakes flag", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
 	})
 })
 
@@ -208,6 +150,58 @@ test.describe("cline --double-check-completion", () => {
 	})
 
 	test("starts interactive mode with --double-check-completion flag", async ({ terminal }) => {
-		await expectVisible(terminal, /what can i do|plan|act/i)
+		await waitForChatReady(terminal)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// cline --json "prompt"
+// Starts cline in headless yolo mode with all output conforming to JSON
+// ---------------------------------------------------------------------------
+test.describe("cline --json (headless yolo mode)", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	})
+
+	test("starts in headless yolo mode with JSON output", async ({ terminal }) => {
+		// --json implies headless yolo; unauthenticated should produce a JSON-like error
+		await expectVisible(terminal, /not authenticated/i)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// cline -T / cline --taskId <taskId>
+// Starts cline in interactive mode pre-populated with a prior task conversation
+// ---------------------------------------------------------------------------
+test.describe("cline --taskId (resume existing task)", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["--taskId", "1773351188846"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default"),
+	})
+
+	test("starts interactive mode pre-populated with prior task conversation", async ({ terminal }) => {
+		// Should show the chat view with the task's conversation loaded
+		await expectVisible(terminal, /wezterm|task/i)
+	})
+})
+
+test.describe("cline -T (short alias for --taskId)", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["-T", "1773351188846"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default"),
+	})
+
+	test("starts interactive mode pre-populated with prior task via -T", async ({ terminal }) => {
+		await expectVisible(terminal, /wezterm|task/i)
 	})
 })

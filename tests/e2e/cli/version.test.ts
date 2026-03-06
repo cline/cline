@@ -1,6 +1,7 @@
 import { test } from "@microsoft/tui-test"
 import { CLINE_BIN } from "./helpers/constants.js"
-import { expectVisible, testEnv } from "./utils.js"
+import { clineEnv } from "./helpers/env.js"
+import { expectVisible } from "./helpers/terminal.js"
 
 // ---------------------------------------------------------------------------
 // cline --version  (root flag)
@@ -8,7 +9,7 @@ import { expectVisible, testEnv } from "./utils.js"
 test.describe("cline --version", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--version"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 	})
 
 	test("prints the version string", async ({ terminal }) => {
@@ -22,7 +23,7 @@ test.describe("cline --version", () => {
 test.describe("cline -V", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-V"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 	})
 
 	test("prints the version string with short flag", async ({ terminal }) => {
@@ -36,7 +37,7 @@ test.describe("cline -V", () => {
 test.describe("cline version subcommand", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["version"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 	})
 
 	test("prints 'Cline CLI version:' message", async ({ terminal }) => {

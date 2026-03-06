@@ -33,28 +33,44 @@ export async function waitForTaskCompleted(terminal: Terminal, timeout = 60_000)
 	await expectVisible(terminal, "Task completed", { timeout })
 }
 
+export async function waitForActing(terminal: Terminal, timeout = 60_000): Promise<void> {
+	await expectVisible(terminal, "Acting...", { timeout })
+}
+
 /** Wait for the "Start New Task (1)" and "Exit (2)" buttons */
 export async function waitForTaskButtons(terminal: Terminal, timeout = 60_000): Promise<void> {
 	await expectVisible(terminal, ["Start New Task", "Exit"], { timeout })
 }
 
+export async function waitForApproveReject(terminal: Terminal): Promise<void> {
+	await expectVisible(terminal, ["Approve (1)", "Reject (2)"])
+}
+
 /** Press "1" to start a new task after task completion */
-export async function startNewTask(terminal: Terminal): Promise<void> {
+export function startNewTask(terminal: Terminal) {
 	terminal.write("1")
 }
 
+export function approveTool(terminal: Terminal) {
+	terminal.write("1")
+}
+
+export function rejectTool(terminal: Terminal) {
+	terminal.write("2")
+}
+
 /** Press "2" to exit after task completion */
-export async function exitAfterTask(terminal: Terminal): Promise<void> {
+export function exitAfterTask(terminal: Terminal) {
 	terminal.write("2")
 }
 
 /** Wait for a permission prompt and approve it (press "1" / Save) */
-export async function approvePermission(terminal: Terminal): Promise<void> {
+export function approvePermission(terminal: Terminal) {
 	terminal.write("1")
 }
 
 /** Wait for a permission prompt and reject it (press "2" / Reject) */
-export async function rejectPermission(terminal: Terminal): Promise<void> {
+export function rejectPermission(terminal: Terminal) {
 	terminal.write("2")
 }
 
