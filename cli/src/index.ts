@@ -338,6 +338,7 @@ export async function captureUnhandledException(reason: Error, context: string) 
 	}
 }
 
+const EXIT_TIMEOUT_MS = 3000
 function onUnhandledException(reason: unknown, context: string) {
 	Logger.error("Unhandled exception:", reason)
 	const finalError = reason instanceof Error ? reason : new Error(String(reason))
@@ -345,10 +346,7 @@ function onUnhandledException(reason: unknown, context: string) {
 	restoreConsole()
 	console.error(finalError)
 
-	const EXIT_TIMEOUT_MS = 3000
-	const exitTimer = setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
-	// Allow the timer to be garbage-collected if reporting finishes first
-	if (exitTimer.unref) exitTimer.unref()
+	setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
 
 	captureUnhandledException(finalError, context).finally(() => {
 		process.exit(1)
