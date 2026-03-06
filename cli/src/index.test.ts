@@ -434,7 +434,7 @@ describe("captureUnhandledException", () => {
 	it("captures unhandled exceptions", async () => {
 		const testError = new Error("Test unhandled exception")
 
-		await captureUnhandledException(testError)
+		await captureUnhandledException(testError, "unhandledRejection")
 
 		expect(mockCaptureException).toHaveBeenCalledWith(testError, { context: "unhandledRejection" })
 		expect(mockDispose).toHaveBeenCalled()
@@ -445,7 +445,7 @@ describe("captureUnhandledException", () => {
 
 		const testError = new Error("Test unhandled exception")
 
-		await expect(captureUnhandledException(testError)).resolves.not.toThrow()
+		await expect(captureUnhandledException(testError, "unhandledRejection")).resolves.not.toThrow()
 		expect(mockCaptureException).toHaveBeenCalledWith(testError, { context: "unhandledRejection" })
 		expect(mockDispose).not.toHaveBeenCalled()
 	})
