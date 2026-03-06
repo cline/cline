@@ -19,9 +19,9 @@ export async function getToolUseSection(variant: PromptVariant, context: SystemP
 	})
 }
 
-const TOOL_USE_TEMPLATE_TEXT = (_context: SystemPromptContext) => `TOOL USE
+const TOOL_USE_TEMPLATE_TEXT = (context: SystemPromptContext) => `TOOL USE
 
-You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
+You have access to a set of tools that are executed upon the user's approval.${context.enableParallelToolCalling ? " When several independent reads, searches, or other non-conflicting actions would help, prefer batching them into a single message so the work can happen in parallel. For actions where one result determines the next step, use tools sequentially." : " You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use."}
 
 {{TOOL_USE_FORMATTING_SECTION}}
 

@@ -31,10 +31,12 @@
           "description": "The path of the file to read (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}"
         },
         "start_line": {
-          "type": "NUMBER"
+          "type": "NUMBER",
+          "description": "The 1-based line number to start reading from (inclusive). Defaults to 1."
         },
         "end_line": {
-          "type": "NUMBER"
+          "type": "NUMBER",
+          "description": "The 1-based line number to stop reading at (inclusive). Defaults to start_line + 1000. Use with start_line to read specific sections of large files."
         },
         "task_progress": {
           "type": "STRING",
@@ -83,7 +85,7 @@
         },
         "diff": {
           "type": "STRING",
-          "description": "One or more SEARCH/REPLACE blocks following this exact format:\n  ```\n  ------- SEARCH\n  [exact content to find]\n  =======\n  [new content to replace with]\n  +++++++ REPLACE\n  ```\n  Critical rules:\n  1. SEARCH content must match the associated file section to find EXACTLY:\n     * Match character-for-character including whitespace, indentation, line endings\n     * Include all comments, docstrings, etc.\n  2. SEARCH/REPLACE blocks will ONLY replace the first match occurrence.\n     * Including multiple unique SEARCH/REPLACE blocks if you need to make multiple changes.\n     * Include *just* enough lines in each SEARCH section to uniquely match each set of lines that need to change.\n     * When using multiple SEARCH/REPLACE blocks, list them in the order they appear in the file.\n  3. Keep SEARCH/REPLACE blocks concise:\n     * Break large SEARCH/REPLACE blocks into a series of smaller blocks that each change a small portion of the file.\n     * Include just the changing lines, and a few surrounding lines if needed for uniqueness.\n     * Do not include long runs of unchanging lines in SEARCH/REPLACE blocks.\n     * Each line must be complete. Never truncate lines mid-way through as this can cause matching failures.\n  4. Special operations:\n     * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)\n     * To delete code: Use empty REPLACE section"
+          "description": "One or more SEARCH/REPLACE blocks following this exact format:\n  ```\n  ------- SEARCH\n  [exact content to find]\n  =======\n  [new content to replace with]\n  +++++++ REPLACE\n  ```\n  Critical rules:\n  1. SEARCH content must match the associated file section to find EXACTLY:\n     * Match character-for-character including whitespace, indentation, line endings\n     * Include all comments, docstrings, etc.\n  2. SEARCH/REPLACE blocks will ONLY replace the first match occurrence.\n     * Including multiple unique SEARCH/REPLACE blocks if you need to make multiple changes.\n     * Include *just* enough lines in each SEARCH section to uniquely match each set of lines that need to change.\n     * When using multiple SEARCH/REPLACE blocks, list them in the order they appear in the file.\n  3. Keep SEARCH/REPLACE blocks concise:\n     * Break large SEARCH/REPLACE blocks into a series of smaller blocks that each change a small portion of the file.\n     * Include just the changing lines, and a few surrounding lines if needed for uniqueness.\n     * Do not include long runs of unchanging lines in SEARCH/REPLACE blocks.\n     * Each line must be complete. Never truncate lines mid-way through as this can cause matching failures.\n  4. Special operations:\n     * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)\n     * To delete code: Use empty REPLACE section\n  5. If your source context came from read_file and includes line labels (for example, \"L42: const x = 1\"), do NOT include the \"L42: \" prefix in SEARCH or REPLACE content. Match only the raw file text."
         },
         "task_progress": {
           "type": "STRING",
@@ -157,7 +159,7 @@
       "properties": {
         "path": {
           "type": "STRING",
-          "description": "The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for."
+          "description": "The path of a directory (not a file) relative to the current working directory {{CWD}}{{MULTI_ROOT_HINT}}. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead."
         },
         "task_progress": {
           "type": "STRING",
