@@ -8,7 +8,7 @@ const GEMINI_3_TOOL_USE_TEMPLATE = (context: SystemPromptContext) => `TOOL USE
 
 You have access to a set of tools that are executed upon the user's approval.${context.enableParallelToolCalling ? " When several independent operations would help, prefer calling them in the same response so they can run in parallel (for example reading several files, listing multiple directories, or running multiple searches). For dependent operations where one result informs the next, use tools sequentially." : " You should use a single tool at a time and wait for the result before proceeding."} You will receive the results of all tool uses in the user's response.
 
-When using tools, proceed directly with tool calls. Save explanations for the attempt_completion summary. Both attempt_completion and plan_mode_respond display to the user as assistant messages, so include your message content within the tool call itself rather than duplicating it outside.${context.yoloModeToggled ? " Keep user-facing text to the minimum needed to make progress. Do not narrate your plan, send periodic status updates, or summarize unless explicitly asked." : ""}`
+When using tools, proceed directly with tool calls. Save explanations for the attempt_completion summary. Both attempt_completion and plan_mode_respond display to the user as assistant messages, so include your message content within the tool call itself rather than duplicating it outside.${context.yoloModeToggled ? ' Every response must either call a tool or call attempt_completion — never generate prose narration between steps. Aim for fewer than 3 lines of plain text per response. Never open with "Okay", "I will now", "I have finished", "Let me", or similar preambles. Do not summarize steps you just completed.' : ""}`
 
 const GEMINI_3_OBJECTIVE_TEMPLATE = (context: SystemPromptContext) => `OBJECTIVE
 
@@ -141,7 +141,13 @@ const GEMINI_3_RULES_TEMPLATE = (context: SystemPromptContext) => `RULES
   - Using incomplete lines in SEARCH blocks (always include complete lines from start to end)
   - Forgetting the \`+++++++ REPLACE\` closing marker
   - Not listing multiple SEARCH/REPLACE blocks in the order they appear in the file
-  - Using the final auto-formatted file state (provided in tool responses) as the reference for subsequent edits is critical for success`
+  - Using the final auto-formatted file state (provided in tool responses) as the reference for subsequent edits is critical for success${
+		context.yoloModeToggled
+			? `
+- No chitchat: never open a response with phrases like "Okay", "Sure", "I will now", "I have finished", "Let me", or similar. These add tokens without value.
+- No repetition: do not restate what a tool result already shows. Do not write a summary of what you just did. Once a step is done, move to the next tool call or call attempt_completion.`
+			: ""
+  }`
 
 const GEMINI_3_FEEDBACK_TEMPLATE = (_context: SystemPromptContext) => `FEEDBACK
 
