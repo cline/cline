@@ -1,5 +1,18 @@
 # cline
 
+## [2.6.1]
+
+### Added
+
+- Added GPT-5.4 models for ChatGPT subscription users
+- Hooks: Added a `Notification` hook for attention and completion boundaries
+- Added `--hooks-dir` CLI flag for runtime hook injection
+- Added `--auto-approve-all` CLI flag for interactive mode
+
+### Fixed
+
+- Handle streamable HTTP MCP reconnects more reliably
+
 ## [2.6.0]
 
 ### Added
