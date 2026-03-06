@@ -4,13 +4,13 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import * as sinon from "sinon"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { ClineMessage } from "../shared/ExtensionMessage"
-import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Unit tests for the hook-executor module
@@ -578,6 +578,35 @@ setTimeout(() => {
 				hooksEnabled: true,
 			})
 
+			result.wasCancelled.should.equal(false)
+		})
+
+		it("should execute Notification hook with attention payload", async function () {
+			this.timeout(5000)
+
+			await createHookScript("Notification", {
+				cancel: false,
+				contextModification: "Notification received",
+			})
+
+			const result = await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification: {
+						event: "user_attention",
+						source: "tool",
+						message: "Approve this action",
+						waitingForUserInput: true,
+					},
+				},
+				isCancellable: false,
+				say: async () => Date.now(),
+				messageStateHandler: testHandler,
+				taskId: "test-task",
+				hooksEnabled: true,
+			})
+
+			result.contextModification!.should.equal("Notification received")
 			result.wasCancelled.should.equal(false)
 		})
 	})
