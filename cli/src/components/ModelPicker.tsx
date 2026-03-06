@@ -6,6 +6,7 @@
 import { Box, Text } from "ink"
 import Spinner from "ink-spinner"
 import React, { useEffect, useMemo, useState } from "react"
+import { refreshHicapModels } from "@/core/controller/models/refreshHicapModels"
 import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
 import {
@@ -110,7 +111,7 @@ export function hasStaticModels(provider: string): boolean {
 }
 
 export function hasModelPicker(provider: string): boolean {
-	return hasStaticModels(provider) || usesOpenRouterModels(provider) || provider === "oca"
+	return hasStaticModels(provider) || usesOpenRouterModels(provider) || provider === "oca" || provider === "hicap"
 }
 
 export function getDefaultModelId(provider: string): string {
@@ -137,7 +138,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 	const [isLoading, setIsLoading] = useState(false)
 	const [asyncModels, setAsyncModels] = useState<string[]>([])
 
-	// Fetch async models (OpenRouter or OCA) when needed
+	// Fetch async models (OpenRouter, OCA, or Hicap) when needed
 	useEffect(() => {
 		if (usesOpenRouterModels(provider)) {
 			setIsLoading(true)
@@ -162,11 +163,23 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 				.finally(() => {
 					setIsLoading(false)
 				})
+		} else if (provider === "hicap") {
+			setIsLoading(true)
+			refreshHicapModels(controller, StringRequest.create({ value: "" }))
+				.then((result) => {
+					if (result.models) {
+						const modelIds = Object.keys(result.models).sort((a, b) => a.localeCompare(b))
+						setAsyncModels(modelIds)
+					}
+				})
+				.finally(() => {
+					setIsLoading(false)
+				})
 		}
 	}, [provider, controller])
 
 	const modelList = useMemo(() => {
-		if (usesOpenRouterModels(provider) || provider === "oca") {
+		if (usesOpenRouterModels(provider) || provider === "oca" || provider === "hicap") {
 			return asyncModels
 		}
 		return getModelList(provider)
@@ -208,7 +221,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 	}
 
 	// If async fetch returned no models, render nothing
-	if ((usesOpenRouterModels(provider) || provider === "oca") && modelList.length === 0) {
+	if ((usesOpenRouterModels(provider) || provider === "oca" || provider === "hicap") && modelList.length === 0) {
 		return null
 	}
 
