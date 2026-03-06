@@ -10,14 +10,11 @@
 // ---------------------------------------------------------------------------
 
 import { test } from "@microsoft/tui-test"
-import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js"
+import { CLINE_BIN, EXIT_CODE_SUCCESS, TERMINAL_WIDE } from "../helpers/constants.js"
 import { clineEnv } from "../helpers/env.js"
 import { waitForAuthScreen } from "../helpers/page-objects/auth.js"
-import { expectVisible } from "../helpers/terminal.js"
+import { expectExitCode, expectVisible } from "../helpers/terminal.js"
 
-// ---------------------------------------------------------------------------
-// cline auth  (interactive screen — no flags)
-// ---------------------------------------------------------------------------
 test.describe("cline auth (interactive screen)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth"] },
@@ -33,14 +30,10 @@ test.describe("cline auth (interactive screen)", () => {
 		await waitForAuthScreen(terminal)
 		terminal.keyDown()
 		terminal.keyUp()
-		// Still on the auth screen after navigation
 		await expectVisible(terminal, "Sign in with Cline")
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline auth --help
-// ---------------------------------------------------------------------------
 test.describe("cline auth --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth", "--help"] },
@@ -49,11 +42,7 @@ test.describe("cline auth --help", () => {
 	})
 
 	test("shows auth help page", async ({ terminal }) => {
-		await expectVisible(terminal, "Usage:")
-		await expectVisible(terminal, "--provider")
-		await expectVisible(terminal, "--apikey")
-		await expectVisible(terminal, "--modelid")
-		await expectVisible(terminal, "--baseurl")
+		await expectVisible(terminal, ["Usage:", "--provider", "--apikey", "--modelid", "--baseurl"])
 	})
 })
 
@@ -132,10 +121,6 @@ test.describe("cline auth --verbose only (partial flags)", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline auth --cwd
-// User sees interactive auth screen; after authing, footer shows workspace dir
-// ---------------------------------------------------------------------------
 test.describe("cline auth --cwd", () => {
 	test.use({
 		program: {
@@ -151,11 +136,6 @@ test.describe("cline auth --cwd", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline auth --config <dir>
-// User sees interactive auth screen; after authing, custom config dir exists
-// with globalState.json and secrets.json; default ~/.cline does NOT exist
-// ---------------------------------------------------------------------------
 test.describe("cline auth --config", () => {
 	test.use({
 		program: {
@@ -171,10 +151,87 @@ test.describe("cline auth --config", () => {
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline auth -p <invalid-provider> -k <key> -m <model>
-// → should show "invalid provider" and exit 1
-// ---------------------------------------------------------------------------
+test.describe("cline auth -p -k -m (golden path)", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["auth", "--provider", "openai", "--apikey", "sk-test-key-12345", "--modelid", "gpt-4o"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	})
+
+	test("exits successfully with valid provider, key, and model", async ({ terminal }) => {
+		// Golden path: should not show interactive auth screen, should exit cleanly
+		await expectExitCode(terminal, EXIT_CODE_SUCCESS)
+	})
+})
+
+test.describe("cline auth with invalid key (still exits 0)", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["auth", "--provider", "openai", "--apikey", "invalid-key", "--modelid", "gpt-4o"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	})
+
+	test("accepts invalid key without error at auth time", async ({ terminal }) => {
+		await expectExitCode(terminal, EXIT_CODE_SUCCESS)
+	})
+})
+
+test.describe("cline auth -p -k -m -b (golden path with baseUrl)", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: [
+				"auth",
+				"--provider",
+				"openai",
+				"--apikey",
+				"sk-test-key-12345",
+				"--modelid",
+				"gpt-4o",
+				"--baseurl",
+				"https://api.example.com/v1",
+			],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	})
+
+	test("exits successfully with baseUrl for OpenAI provider", async ({ terminal }) => {
+		await expectExitCode(terminal, EXIT_CODE_SUCCESS)
+	})
+})
+
+test.describe("cline auth --baseurl with non-OpenAI-compatible provider", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: [
+				"auth",
+				"--provider",
+				"anthropic",
+				"--apikey",
+				"sk-ant-test",
+				"--modelid",
+				"claude-sonnet-4-20250514",
+				"--baseurl",
+				"https://api.example.com",
+			],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	})
+
+	test("shows error for baseUrl with non-OpenAI provider", async ({ terminal }) => {
+		await expectVisible(terminal, /only supported for openai|not supported|openai.compatible/i)
+	})
+})
+
 test.describe("cline auth with invalid provider", () => {
 	test.use({
 		program: {
@@ -186,6 +243,6 @@ test.describe("cline auth with invalid provider", () => {
 	})
 
 	test("shows invalid provider error", async ({ terminal }) => {
-		await expectVisible(terminal, /invalid provider/i, { timeout: 5000 })
+		await expectVisible(terminal, /invalid provider/i)
 	})
 })

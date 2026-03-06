@@ -38,5 +38,7 @@
 	"planModeClineModelId": "anthropic/claude-sonnet-4.6",
 	"openAiHeaders": {},
 	"sapAiCoreUseOrchestrationMode": true,
-	"ocaMode": "internal"
+	"ocaMode": "internal",
+	"globalClineRulesToggles": {},
+	"globalWorkflowToggles": {}
 }

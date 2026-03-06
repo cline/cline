@@ -53,6 +53,8 @@ test-results
 evals/smoke-tests/results/
 
 .tui-test
-secrets.json
 tui-traces
 tests/**/cache
+tests/**/state/
+tests/**/workspaces/
+tests/**/configs/**/tasks

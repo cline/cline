@@ -11,9 +11,6 @@ import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js"
 import { clineEnv } from "../helpers/env.js"
 import { expectVisible } from "../helpers/terminal.js"
 
-// ---------------------------------------------------------------------------
-// cline config --help
-// ---------------------------------------------------------------------------
 test.describe("cline config --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["config", "--help"] },
@@ -22,20 +19,20 @@ test.describe("cline config --help", () => {
 	})
 
 	test("shows config help page", async ({ terminal }) => {
-		await expectVisible(terminal, "Usage:")
-		await expectVisible(terminal, "--config")
+		await expectVisible(terminal, ["Usage:", "--config"])
 	})
 })
 
-// ---------------------------------------------------------------------------
-// cline config --config <dir>
-// Shows interactive config view for the specified directory
-// ---------------------------------------------------------------------------
 test.describe("cline config (default config)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["config"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
+	})
+
+	test("shows interactive config view for default config", async ({ terminal }) => {
+		// Config view should display provider/model settings from the default config
+		await expectVisible(terminal, /config|settings|provider|model/i)
 	})
 })
 
@@ -47,5 +44,10 @@ test.describe("cline config --config (claude-sonnet-4.6)", () => {
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("claude-sonnet-4.6"),
+	})
+
+	test("shows interactive config view for claude-sonnet-4.6 config", async ({ terminal }) => {
+		// Different config dir should show different configuration
+		await expectVisible(terminal, /config|settings|provider|model/i)
 	})
 })

@@ -461,7 +461,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.14",
 		"@bufbuild/buf": "^1.54.0",
-		"@microsoft/tui-test": "0.0.1",
+		"@microsoft/tui-test": "0.0.2",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/chai": "^5.0.1",
 		"@types/clone-deep": "^4.0.4",
