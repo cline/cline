@@ -352,7 +352,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			waitingForUserInput: boolean
 		},
 	): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (!hooksEnabled) {
 			return
 		}

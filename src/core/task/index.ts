@@ -716,7 +716,7 @@ export class Task {
 		message: string
 		waitingForUserInput: boolean
 	}): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (!hooksEnabled) {
 			return
 		}
