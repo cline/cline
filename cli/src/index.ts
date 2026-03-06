@@ -9,6 +9,7 @@ import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
 import type { Controller } from "@/core/controller"
+import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -65,6 +66,7 @@ interface TaskOptions {
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
+	hooksDir?: string
 }
 
 let telemetryDisposed = false
@@ -394,6 +396,7 @@ interface CliContext {
 interface InitOptions {
 	config?: string
 	cwd?: string
+	hooksDir?: string
 	verbose?: boolean
 	enableAuth?: boolean
 }
@@ -403,6 +406,7 @@ interface InitOptions {
  */
 async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const workspacePath = options.cwd || process.cwd()
+	setRuntimeHooksDir(options.hooksDir)
 	const { extensionContext, storageContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
 		clineDir: options.config,
 		workspaceDir: workspacePath,
@@ -738,6 +742,7 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
 		if (options.taskId) {
@@ -905,6 +910,7 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action(async (prompt, options) => {
@@ -913,6 +919,7 @@ program
 			await runAcpMode({
 				config: options.config,
 				cwd: options.cwd,
+				hooksDir: options.hooksDir,
 				verbose: options.verbose,
 			})
 			return
