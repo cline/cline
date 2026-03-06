@@ -142,7 +142,10 @@ export class ClineAgent implements acp.Agent {
 	constructor(options: ClineAgentOptions) {
 		this.options = options
 		setRuntimeHooksDir(options.hooksDir)
-		this.ctx = initializeCliContext({ clineDir: options.clineDir })
+		this.ctx = initializeCliContext({
+			clineDir: options.clineDir,
+			workspaceDir: options.cwd,
+		})
 	}
 
 	/**
