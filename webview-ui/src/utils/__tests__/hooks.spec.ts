@@ -7,7 +7,8 @@ describe("useShortcut", () => {
 		const callback = vi.fn()
 		renderHook(() => useShortcut("Meta+Shift+a", callback))
 
-		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, shiftKey: true })
+		// On non-Mac platforms, Meta maps to ctrlKey, so we include both to work cross-platform
+		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, ctrlKey: true, shiftKey: true })
 		window.dispatchEvent(event)
 
 		expect(callback).toHaveBeenCalled()
@@ -31,7 +32,8 @@ describe("useShortcut", () => {
 		document.body.appendChild(input)
 		input.focus()
 
-		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, shiftKey: true })
+		// On non-Mac platforms, Meta maps to ctrlKey, so we include both to work cross-platform
+		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, ctrlKey: true, shiftKey: true })
 		input.dispatchEvent(event)
 
 		expect(callback).not.toHaveBeenCalled()
