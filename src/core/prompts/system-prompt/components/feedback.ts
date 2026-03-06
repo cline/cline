@@ -11,7 +11,7 @@ When the user directly asks about Cline (eg 'can Cline do...', 'does Cline have.
   - Example: https://docs.cline.bot/features/auto-approve`
 
 export async function getFeedbackSection(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
-	if (!context.focusChainSettings?.enabled) {
+	if (!context.focusChainSettings?.enabled || context.isCliEnvironment) {
 		return undefined
 	}
 
