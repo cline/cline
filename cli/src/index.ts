@@ -10,6 +10,7 @@ import React from "react"
 import { ClineEndpoint } from "@/config"
 import type { Controller } from "@/core/controller"
 import { setRuntimeHooksDir } from "@/core/storage/disk"
+import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -640,7 +641,7 @@ async function showConfig(options: { config?: string }) {
 			dataDir: ctx.dataDir,
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
-			hooksEnabled: true,
+			hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 			skillsEnabled: true,
 			isRawModeSupported: checkRawModeSupport(),
 		}),
