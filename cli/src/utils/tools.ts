@@ -89,6 +89,7 @@ export const TOOL_DESCRIPTIONS: Record<string, { ask: string; say: string }> = {
 	attempt_completion: { ask: "wants to complete the task", say: "completed the task" },
 	new_task: { ask: "wants to create a new task", say: "created a new task" },
 	focus_chain: { ask: "wants to update the todo list", say: "updated the todo list" },
+	change_directory: { ask: "wants to change working directory", say: "changed working directory" },
 }
 
 /**

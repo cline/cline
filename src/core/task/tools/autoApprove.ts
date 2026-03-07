@@ -59,6 +59,7 @@ export class AutoApprove {
 				case ClineDefaultTool.WEB_SEARCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
+				case ClineDefaultTool.CHANGE_DIRECTORY:
 					return true
 			}
 		}
@@ -81,6 +82,7 @@ export class AutoApprove {
 				case ClineDefaultTool.WEB_SEARCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
+				case ClineDefaultTool.CHANGE_DIRECTORY:
 					return true
 			}
 		}
@@ -112,6 +114,8 @@ export class AutoApprove {
 			case ClineDefaultTool.MCP_ACCESS:
 			case ClineDefaultTool.MCP_USE:
 				return autoApprovalSettings.actions.useMcp
+			case ClineDefaultTool.CHANGE_DIRECTORY:
+				return autoApprovalSettings.actions.changeDirectory ?? false
 		}
 		return false
 	}

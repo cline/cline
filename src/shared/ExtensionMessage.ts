@@ -206,6 +206,7 @@ export interface ClineSayTool {
 		| "webSearch"
 		| "summarizeTask"
 		| "useSkill"
+		| "changeDirectory"
 	path?: string
 	diff?: string
 	content?: string

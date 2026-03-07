@@ -152,7 +152,7 @@ export class Task {
 	readonly taskId: string
 	readonly ulid: string
 	private taskIsFavorited?: boolean
-	private cwd: string
+	cwd: string
 	private taskInitializationStartTime: number
 
 	taskState: TaskState
@@ -566,7 +566,57 @@ export class Task {
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
+			this.changeCwd.bind(this),
 		)
+	}
+
+	/**
+	 * Change the current working directory mid-task (CLI-only).
+	 * This updates the Task's CWD and refreshes all dependent subsystems:
+	 * - ClineIgnoreController (reloads .clineignore from new directory)
+	 * - WorkspaceManager (rebuilds for new directory)
+	 * - Checkpoints (disabled after CWD change)
+	 *
+	 * Terminal commands will automatically use the new CWD since
+	 * CommandExecutor receives cwd per-call from TaskConfig.
+	 */
+	private async changeCwd(newCwd: string): Promise<void> {
+		const oldCwd = this.cwd
+
+		// Update the Task's CWD
+		this.cwd = newCwd
+
+		// Keep ToolExecutor's CWD in sync so AutoApprove uses the new CWD for path locality checks.
+		// This ensures files in the old directory require permission and files in the new directory don't.
+		this.toolExecutor.setCwd(newCwd)
+
+		// Refresh ClineIgnoreController for the new directory
+		this.clineIgnoreController.dispose()
+		this.clineIgnoreController = new ClineIgnoreController(newCwd)
+		await this.clineIgnoreController.initialize()
+
+		// Rebuild WorkspaceManager for the new directory
+		this.workspaceManager = await WorkspaceRootManager.fromLegacyCwd(newCwd)
+
+		await HostProvider.workspace.openFolder({ path: newCwd, newWindow: false })
+
+		// Reload workspace state (workflowToggles, localClineRulesToggles, etc.) for the new
+		// directory. Workspace state is keyed by a hash of the workspace path, so the
+		// StateManager's in-memory cache still reflects the old directory after a CWD change.
+		// Reinitializing it here ensures slash commands and rules pick up the correct toggles.
+		await this.stateManager.reinitializeWorkspaceState(newCwd).catch((err) => {
+			// Non-fatal: log and continue. Worst case, slash commands show stale toggles.
+			Logger.error("[Task] Failed to reinitialize workspace state after CWD change:", err)
+		})
+
+		// Disable checkpoints after CWD change (shadow git repo is tied to original CWD)
+		if (this.checkpointManager) {
+			this.checkpointManager = undefined
+			this.taskState.checkpointManagerErrorMessage = `Checkpoints disabled: working directory changed from ${oldCwd} to ${newCwd}`
+		}
+
+		// Notify the UI that the CWD has changed so the CLI footer updates immediately.
+		await this.postStateToWebview().catch(() => {})
 	}
 
 	// Communicate with webview

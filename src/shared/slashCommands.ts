@@ -1,11 +1,6 @@
-export interface SlashCommand {
-	name: string
-	description?: string
-	section?: "default" | "custom" | "mcp"
-	cliCompatible?: boolean
-}
+import { SlashCommandInfo } from "./proto/index.cline"
 
-export const BASE_SLASH_COMMANDS: SlashCommand[] = [
+export const BASE_SLASH_COMMANDS: SlashCommandInfo[] = [
 	{
 		name: "newtask",
 		description: "Create a new task with context from the current task",
@@ -39,16 +34,17 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 ]
 
 // VS Code-only slash commands
-export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
+export const VSCODE_ONLY_COMMANDS: SlashCommandInfo[] = [
 	{
 		name: "explain-changes",
 		description: "Explain code changes between git refs (PRs, commits, branches, etc.)",
 		section: "default",
+		cliCompatible: false,
 	},
 ]
 
 // CLI-only slash commands (handled locally, not sent to backend)
-export const CLI_ONLY_COMMANDS: SlashCommand[] = [
+export const CLI_ONLY_COMMANDS: SlashCommandInfo[] = [
 	{
 		name: "help",
 		description: "Learn how to use Cline CLI",

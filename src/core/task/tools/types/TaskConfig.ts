@@ -133,6 +133,9 @@ export interface TaskCallbacks {
 	clearActiveHookExecution: () => Promise<void>
 	getActiveHookExecution: () => Promise<HookExecution | undefined>
 
+	// CWD change callback (CLI-only)
+	changeCwd?: (newCwd: string) => Promise<void>
+
 	// User prompt hook callback
 	runUserPromptSubmitHook: (
 		userContent: ClineContent[],

@@ -121,6 +121,9 @@ export class ToolExecutor {
 			userContent: ClineContent[],
 			context: "initial_task" | "resume" | "feedback",
 		) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>,
+
+		// Optional callback for changing CWD (CLI-only)
+		private changeCwdCallback?: (newCwd: string) => Promise<void>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -184,6 +187,7 @@ export class ToolExecutor {
 				setActiveHookExecution: this.setActiveHookExecution,
 				clearActiveHookExecution: this.clearActiveHookExecution,
 				getActiveHookExecution: this.getActiveHookExecution,
+				changeCwd: this.changeCwdCallback,
 				runUserPromptSubmitHook: this.runUserPromptSubmitHook,
 			},
 			coordinator: this.coordinator,
@@ -210,6 +214,15 @@ export class ToolExecutor {
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
 		await this.execute(block)
+	}
+
+	/**
+	 * Update the current working directory.
+	 * Called by Task.changeCwd() after a change_directory tool execution.
+	 * This ensures AutoApprove uses the new CWD for path locality checks.
+	 */
+	public setCwd(newCwd: string): void {
+		this.cwd = newCwd
 	}
 
 	/**

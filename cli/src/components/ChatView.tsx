@@ -106,16 +106,13 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import type { SlashCommandInfo } from "@shared/proto/cline/slash"
-import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
+import { StringRequest } from "@shared/proto/cline/common"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
 import { Box, Static, Text, useApp, useInput } from "ink"
 // biome-ignore lint/style/useImportType: JSX requires React as a value (jsx: "react" in tsconfig)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
@@ -123,6 +120,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { COLORS } from "../constants/colors"
 import { useTaskContext, useTaskState } from "../context/TaskContext"
+import { useFilteredSlashCommands } from "../hooks/useFilteredSlashCommands"
 import { useHomeEndKeys } from "../hooks/useHomeEndKeys"
 import { useIsSpinnerActive } from "../hooks/useStateSubscriber"
 import { findWordEnd, findWordStart, useTextInput } from "../hooks/useTextInput"
@@ -137,7 +135,7 @@ import {
 } from "../utils/file-search"
 import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
-import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
+import { insertSlashCommand } from "../utils/slash-commands"
 import { waitFor } from "../utils/timeout"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { shutdownEvent } from "../vscode-shim"
@@ -403,14 +401,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
 
 	// Slash command state
-	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
 	const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
 	const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
 	const lastSlashIndexRef = useRef<number>(-1)
 
 	// Panel state
 	const [activePanel, setActivePanel] = useState<
-		| { type: "settings"; initialMode?: "model-picker" | "featured-models"; initialModelKey?: "actModelId" | "planModelId" }
+		| {
+				type: "settings"
+				initialMode?: "model-picker" | "featured-models"
+				initialModelKey?: "actModelId" | "planModelId"
+		  }
 		| { type: "history" }
 		| { type: "help" }
 		| { type: "skills" }
@@ -559,22 +560,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 	const { prompt, imagePaths } = parseImagesFromInput(textInput)
 	const mentionInfo = useMemo(() => extractMentionQuery(textInput), [textInput])
-	const slashInfo = useMemo(() => extractSlashQuery(textInput, cursorPos), [textInput, cursorPos])
-	const filteredCommands = useMemo(
-		() => filterCommands(availableCommands, slashInfo.query),
-		[availableCommands, slashInfo.query],
-	)
 
-	// Reset slash menu dismissed state when a new slash is typed
-	useEffect(() => {
-		if (slashInfo.slashIndex !== lastSlashIndexRef.current) {
-			lastSlashIndexRef.current = slashInfo.slashIndex
-			setSlashMenuDismissed(false)
-			setSelectedSlashIndex(0)
-		}
-	}, [slashInfo.slashIndex])
-
-	const workspacePath = useMemo(() => {
+	const initialWorkspacePath = useMemo(() => {
 		try {
 			const root = ctrl?.getWorkspaceManagerSync?.()?.getPrimaryRoot?.()
 			if (root?.path) {
@@ -585,6 +572,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		}
 		return process.cwd()
 	}, [ctrl])
+
+	// Track the current working directory - updated when change_directory tool is used
+	const [currentCwd, setCurrentCwd] = useState<string>(initialWorkspacePath)
+
+	// Sync currentCwd when initialWorkspacePath changes (e.g. task switch)
+	useEffect(() => {
+		setCurrentCwd(initialWorkspacePath)
+	}, [initialWorkspacePath])
+
+	const workspacePath = currentCwd
+
+	const { cmds: filteredCommands, allCmds: allCommands, slashInfo } = useFilteredSlashCommands(ctrl, textInput, cursorPos)
+
+	// Reset slash menu dismissed state when a new slash is typed
+	useEffect(() => {
+		if (slashInfo.slashIndex !== lastSlashIndexRef.current) {
+			lastSlashIndexRef.current = slashInfo.slashIndex
+			setSlashMenuDismissed(false)
+			setSelectedSlashIndex(0)
+		}
+	}, [slashInfo.slashIndex])
 
 	// Get git branch on mount
 	useEffect(() => {
@@ -607,28 +615,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		})
 	}, [taskId, ctrl, onError])
 
-	// Load available slash commands on mount
-	useEffect(() => {
-		const loadCommands = async () => {
-			if (!ctrl) return
-			try {
-				const response = await getAvailableSlashCommands(ctrl, EmptyRequest.create())
-				const cliCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
-				// Add CLI-only commands (like /settings) that are handled locally
-				const cliOnlyCommands: SlashCommandInfo[] = CLI_ONLY_COMMANDS.map((cmd) => ({
-					name: cmd.name,
-					description: cmd.description || "",
-					section: cmd.section || "default",
-					cliCompatible: true,
-				}))
-				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(cliCommands)])
-			} catch {
-				// Fallback: commands will be empty, menu won't show
-			}
-		}
-		loadCommands()
-	}, [ctrl])
-
 	// Get history items (limited to MAX_HISTORY_ITEMS, most recent first)
 	const getHistoryItems = useCallback(() => {
 		const history = StateManager.get().getGlobalStateKey("taskHistory")
@@ -642,6 +628,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	}, [])
 
 	const messages = taskState.clineMessages || []
+
+	// Watch for CWD changes from the change_directory tool.
+	// Task.changeCwd() updates task.cwd and then calls postStateToWebview(), which triggers
+	// a TaskContext state update and re-renders ChatView. At that point ctrl.task?.cwd has
+	// the new value — we just read it directly. This is clean and handles approval/denial
+	// correctly: if the user rejects the tool, changeCwd() is never called, so task.cwd
+	// stays unchanged and this effect is a no-op.
+	useEffect(() => {
+		const taskCwd = ctrl?.task?.cwd
+		if (taskCwd && taskCwd !== currentCwd) {
+			setCurrentCwd(taskCwd)
+		}
+	}, [taskState, ctrl?.task?.cwd])
 
 	// Refresh git diff stats when messages change (after file edits)
 	const lastMsg = messages[messages.length - 1]
@@ -1525,7 +1524,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						<Box>
 							{inputPrompt && <Text color={borderColor}>{inputPrompt} </Text>}
 							<HighlightedInput
-								availableCommands={availableCommands.map((c) => c.name)}
+								availableCommands={allCommands.map((c) => c.name)}
 								cursorPos={cursorPos}
 								text={textInput}
 							/>

@@ -50,6 +50,7 @@ export const config = createVariant(ModelFamily.XS)
 		ClineDefaultTool.ATTEMPT,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.USE_SUBAGENTS,
+		ClineDefaultTool.CHANGE_DIRECTORY,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.XS,
