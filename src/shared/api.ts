@@ -1612,7 +1612,7 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.2"
 export const openAiNativeModels = {
 	"gpt-5.4": {
-		maxTokens: 128_000,
+		maxTokens: 8_192,
 		contextWindow: 1_050_000,
 		supportsImages: true,
 		supportsPromptCache: true,
