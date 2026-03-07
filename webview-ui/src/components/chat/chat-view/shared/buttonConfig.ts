@@ -69,11 +69,11 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Command execution states
 	command: {
 		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Run Command",
-		secondaryText: "Reject",
-		primaryAction: "approve",
-		secondaryAction: "reject",
+		enableButtons: false, // Buttons are inline in the CommandOutputRow
+		primaryText: undefined,
+		secondaryText: undefined,
+		primaryAction: undefined,
+		secondaryAction: undefined,
 	},
 	command_output: {
 		sendingDisabled: false,
@@ -95,11 +95,11 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 	use_mcp_server: {
 		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Approve",
-		secondaryText: "Reject",
-		primaryAction: "approve",
-		secondaryAction: "reject",
+		enableButtons: false, // Buttons are inline in the MCP tool card
+		primaryText: undefined,
+		secondaryText: undefined,
+		primaryAction: undefined,
+		secondaryAction: undefined,
 	},
 	use_subagents: {
 		sendingDisabled: false,

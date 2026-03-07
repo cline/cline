@@ -10,6 +10,9 @@ import {
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import { AskResponseRequest } from "@shared/proto/cline/task"
+import { ToggleToolAutoApproveRequest } from "@shared/proto/cline/mcp"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
@@ -39,14 +42,13 @@ import {
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { WithCopyButton } from "@/components/common/CopyButton"
-import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
-import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, McpServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
@@ -148,10 +150,12 @@ export const ChatRowContent = memo(
 		responseStarted,
 	}: ChatRowContentProps) => {
 		const {
+			autoApprovalSettings,
 			backgroundEditEnabled,
 			mcpServers,
 			mcpMarketplaceCatalog,
 			onRelinquishControl,
+			setMcpServers,
 			vscodeTerminalExecutionMode,
 			clineMessages,
 		} = useExtensionState()
@@ -168,6 +172,9 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
+
+		// MCP tool card expanded state (default collapsed)
+		const [isMcpArgsExpanded, setIsMcpArgsExpanded] = useState(false)
 
 		const hasAutoExpandedRef = useRef(false)
 		const hasAutoCollapsedRef = useRef(false)
@@ -215,11 +222,10 @@ export const ChatRowContent = memo(
 		const type = message.type === "ask" ? message.ask : message.say
 
 		const isCommandMessage = type === "command"
-		// Check if command has output to determine if it's actually executing
 		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
-		// A command is executing if it has output but hasn't completed yet
-		const isCommandExecuting = isCommandMessage && !message.commandCompleted && commandHasOutput
-		// A command is pending if it hasn't started (no output) and hasn't completed
+		// A command is executing only if it's the last message, has output, and hasn't completed
+		const isCommandExecuting = isCommandMessage && isLast && !message.commandCompleted && commandHasOutput
+		// A command is pending if it's the last message, hasn't started (no output), and hasn't completed
 		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
 
@@ -751,7 +757,6 @@ export const ChatRowContent = memo(
 		if (message.ask === "command" || message.say === "command") {
 			return (
 				<CommandOutputRow
-					icon={icon}
 					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
 					isCommandCompleted={isCommandCompleted}
 					isCommandExecuting={isCommandExecuting}
@@ -760,7 +765,6 @@ export const ChatRowContent = memo(
 					message={message}
 					onCancelCommand={onCancelCommand}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
-					title={title}
 				/>
 			)
 		}
@@ -772,15 +776,16 @@ export const ChatRowContent = memo(
 		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
 			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
-			return (
-				<div>
-					<div className={HEADER_CLASSNAMES}>
-						{icon}
-						{title}
-					</div>
 
-					<div className="bg-code rounded-xs py-2 px-2.5 mt-2">
-						{useMcpServer.type === "access_mcp_resource" && (
+			// For access_mcp_resource, keep the old styling for now
+			if (useMcpServer.type === "access_mcp_resource") {
+				return (
+					<div>
+						<div className={HEADER_CLASSNAMES}>
+							{icon}
+							{title}
+						</div>
+						<div className="bg-code rounded-xs py-2 px-2.5 mt-2">
 							<McpResourceRow
 								item={{
 									...(findMatchingResourceOrTemplate(
@@ -795,37 +800,182 @@ export const ChatRowContent = memo(
 									uri: useMcpServer.uri || "",
 								}}
 							/>
-						)}
+						</div>
+					</div>
+				)
+			}
 
-						{useMcpServer.type === "use_mcp_tool" && (
-							<div>
-								<div onClick={(e) => e.stopPropagation()}>
-									<McpToolRow
-										serverName={useMcpServer.serverName}
-										tool={{
-											name: useMcpServer.toolName || "",
-											description:
-												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.description ||
-												"",
-											autoApprove:
-												server?.tools?.find((tool) => tool.name === useMcpServer.toolName)?.autoApprove ||
-												false,
-										}}
-									/>
-								</div>
-								{useMcpServer.arguments && useMcpServer.arguments !== "{}" && (
-									<div className="mt-2">
-										<div className="mb-1 opacity-80 uppercase">Arguments</div>
-										<CodeAccordian
-											code={useMcpServer.arguments}
-											isExpanded={true}
-											language="json"
-											onToggleExpand={handleToggle}
-										/>
-									</div>
-								)}
+			// For use_mcp_tool, use the new card design
+			const toolName = useMcpServer.toolName || ""
+			const toolInfo = server?.tools?.find((tool) => tool.name === toolName)
+			const autoApprove = toolInfo?.autoApprove ?? false
+			const hasArguments = useMcpServer.arguments && useMcpServer.arguments !== "{}"
+
+			const handleAutoApproveChange = (newValue: boolean) => {
+				if (!useMcpServer.serverName) return
+				McpServiceClient.toggleToolAutoApprove(
+					ToggleToolAutoApproveRequest.create({
+						serverName: useMcpServer.serverName,
+						toolNames: [toolName],
+						autoApprove: newValue,
+					}),
+				)
+					.then((response) => {
+						const mcpServersUpdated = convertProtoMcpServersToMcpServers(response.mcpServers)
+						setMcpServers(mcpServersUpdated)
+					})
+					.catch((error) => {
+						console.error("Error toggling tool auto-approve", error)
+					})
+			}
+
+			const getMcpState = () => {
+				// If it's an ask message, it's pending approval
+				if (message.ask === "use_mcp_server") {
+					return "pending"
+				}
+				if (isMcpServerResponding) {
+					return "running"
+				}
+				return "success"
+			}
+
+			const mcpState = getMcpState()
+
+			// Memoize the MCP response lookup to avoid searching clineMessages on every render
+			const mcpResponseText = useMemo(() => {
+				const messageIndex = clineMessages.findIndex((m) => m.ts === message.ts)
+				if (messageIndex >= 0) {
+					for (let i = messageIndex + 1; i < clineMessages.length; i++) {
+						const nextMsg = clineMessages[i]
+						if (nextMsg.say === "mcp_server_response" && nextMsg.text) {
+							return nextMsg.text
+						}
+						if (nextMsg.ask === "use_mcp_server" || nextMsg.say === "use_mcp_server") {
+							break
+						}
+					}
+				}
+				return null
+			}, [clineMessages, message.ts])
+
+			return (
+				<div className="rounded-sm border border-editor-group-border overflow-hidden">
+					{/* Header - clickable to collapse/expand */}
+					<button
+						className={cn(
+							"flex items-center gap-2 w-full px-3 py-3 text-left",
+							isMcpArgsExpanded && "border-b border-editor-group-border",
+						)}
+						onClick={() => setIsMcpArgsExpanded(!isMcpArgsExpanded)}
+						type="button">
+						<ChevronDownIcon
+							className={cn("text-description transition-transform", {
+								"rotate-0": isMcpArgsExpanded,
+								"-rotate-90": !isMcpArgsExpanded,
+							})}
+							size={14}
+						/>
+						<i className="codicon codicon-tools text-description" />
+						<span className="text-sm text-foreground font-azeret-mono">{toolName}</span>
+					</button>
+
+					{/* Content area - only visible when expanded */}
+					<div className={cn({ hidden: !isMcpArgsExpanded })}>
+						{/* Arguments section */}
+						{hasArguments && (
+							<div className="px-3 pt-2.5 pb-2">
+								<div className="text-sm text-description mb-1.5">Arguments</div>
+								<CodeAccordian
+									code={useMcpServer.arguments}
+									isExpanded={true}
+									language="json"
+									onToggleExpand={() => {}}
+									variant="subtle"
+									noBorder
+								/>
 							</div>
 						)}
+
+						{/* Response section */}
+						{mcpResponseText && (
+							<div className="px-3 pb-2">
+								<div className="text-sm text-description mb-1.5">Response</div>
+								<CodeAccordian
+									code={mcpResponseText}
+									isExpanded={true}
+									language="json"
+									onToggleExpand={() => {}}
+									variant="subtle"
+									noBorder
+								/>
+							</div>
+						)}
+					</div>
+
+					{/* Footer - always visible */}
+					<div className={cn("flex items-center justify-between px-3 h-10 bg-toolbar-hover/65", {
+						"mt-2": isMcpArgsExpanded,
+					})}>
+						<div className="flex items-center gap-2">
+							{autoApprovalSettings.actions.useMcp && (
+								<Select
+									value={(mcpState === "pending" ? false : autoApprove) ? "auto" : "ask"}
+									onValueChange={(value) => {
+										handleAutoApproveChange(value === "auto")
+									}}>
+									<SelectTrigger
+										className="h-7 border-0 bg-transparent px-0 shadow-none text-sm text-foreground hover:text-description [&_svg]:opacity-100 [&_svg]:text-description"
+										showIcon={true}>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem className="text-sm" value="ask">Ask Every Time</SelectItem>
+										<SelectItem className="text-sm" value="auto">Auto-approve</SelectItem>
+									</SelectContent>
+								</Select>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							{mcpState === "pending" && (
+								<>
+									<button
+										className="text-sm text-foreground hover:text-description transition-colors"
+										onClick={(e) => {
+											e.stopPropagation()
+											TaskServiceClient.askResponse(
+												AskResponseRequest.create({ responseType: "noButtonClicked" }),
+											)
+										}}
+										type="button">
+										Cancel
+									</button>
+									<button
+										className="px-2.5 py-1 text-sm bg-button-background text-button-foreground rounded-sm hover:bg-button-hover-background transition-colors"
+										onClick={(e) => {
+											e.stopPropagation()
+											TaskServiceClient.askResponse(
+												AskResponseRequest.create({ responseType: "yesButtonClicked" }),
+											)
+										}}
+										type="button">
+										Run
+									</button>
+								</>
+							)}
+							{mcpState === "running" && (
+								<>
+									<i className="codicon codicon-loading codicon-modifier-spin text-sm text-description" />
+									<span className="text-sm text-description">Cancel</span>
+								</>
+							)}
+							{mcpState === "success" && (
+								<>
+									<i className="codicon codicon-check text-sm text-success" />
+									<span className="text-sm text-success">Success</span>
+								</>
+							)}
+						</div>
 					</div>
 				</div>
 			)
@@ -852,7 +1002,8 @@ export const ChatRowContent = memo(
 					case "api_req_finished":
 						return <InvisibleSpacer /> // we should never see this message type
 					case "mcp_server_response":
-						return <McpResponseDisplay responseText={message.text || ""} />
+						// Response is now rendered inside the MCP tool card
+						return <InvisibleSpacer />
 					case "mcp_notification":
 						return (
 							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
