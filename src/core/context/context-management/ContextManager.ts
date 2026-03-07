@@ -9,6 +9,7 @@ import fs from "fs/promises"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { getContextWindowInfo } from "./context-window-utils"
+import { DoubleBufferManager } from "./DoubleBufferManager"
 
 enum EditType {
 	UNDEFINED = 0,
@@ -52,8 +53,11 @@ export class ContextManager {
 	// the above example would be how we update the first assistant message to indicate we truncated text
 	private contextHistoryUpdates: Map<number, [number, Map<number, ContextUpdate[]>]>
 
+	public readonly doubleBuffer: DoubleBufferManager
+
 	constructor() {
 		this.contextHistoryUpdates = new Map()
+		this.doubleBuffer = new DoubleBufferManager()
 	}
 
 	/**
@@ -172,6 +176,22 @@ export class ContextManager {
 			}
 		}
 		return false
+	}
+
+	/**
+	 * Check if double-buffer checkpoint should be triggered.
+	 * Called after each API response to potentially start background summarization.
+	 */
+	shouldDoubleBufferCheckpoint(clineMessages: ClineMessage[], api: ApiHandler, previousApiReqIndex: number): boolean {
+		return this.doubleBuffer.shouldCheckpoint(clineMessages, api, previousApiReqIndex)
+	}
+
+	/**
+	 * Check if double-buffer swap should be triggered.
+	 * When this returns true, use the pre-computed summary instead of stop-the-world compaction.
+	 */
+	shouldDoubleBufferSwap(clineMessages: ClineMessage[], api: ApiHandler, previousApiReqIndex: number): boolean {
+		return this.doubleBuffer.shouldSwap(clineMessages, api, previousApiReqIndex)
 	}
 
 	/**
