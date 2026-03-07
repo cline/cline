@@ -122,9 +122,16 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	// Map provider settings
 	const providers: ApiProvider[] = []
 
+	// Helper to check if a provider settings object has actual configuration.
+	// An empty object {} shouldn't force the provider, only allow it as an option.
+	// This prevents users from being forced to a provider when the admin only
+	// intended to enable it, not require it.
+	const hasProviderConfig = <T extends object>(settings: T | undefined): settings is T =>
+		settings !== undefined && Object.keys(settings).length > 0
+
 	// Map OpenAiCompatible provider settings
 	const openAiSettings = remoteConfig.providerSettings?.OpenAiCompatible
-	if (openAiSettings) {
+	if (hasProviderConfig(openAiSettings)) {
 		transformed.planModeApiProvider = "openai"
 		transformed.actModeApiProvider = "openai"
 		providers.push("openai")
@@ -145,7 +152,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	// Map AwsBedrock provider settings
 	const awsBedrockSettings = remoteConfig.providerSettings?.AwsBedrock
-	if (awsBedrockSettings) {
+	if (hasProviderConfig(awsBedrockSettings)) {
 		transformed.planModeApiProvider = "bedrock"
 		transformed.actModeApiProvider = "bedrock"
 		providers.push("bedrock")
@@ -168,7 +175,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	}
 
 	const clineSettings = remoteConfig.providerSettings?.Cline
-	if (clineSettings) {
+	if (hasProviderConfig(clineSettings)) {
 		transformed.planModeApiProvider = "cline"
 		transformed.actModeApiProvider = "cline"
 		providers.push("cline")
@@ -176,7 +183,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	// Map LiteLLM provider settings
 	const liteLlmSettings = remoteConfig.providerSettings?.LiteLLM
-	if (liteLlmSettings) {
+	if (hasProviderConfig(liteLlmSettings)) {
 		transformed.planModeApiProvider = "litellm"
 		transformed.actModeApiProvider = "litellm"
 		providers.push("litellm")
@@ -188,7 +195,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 	// Map Vertex provider settings
 	const vertexSettings = remoteConfig.providerSettings?.Vertex
-	if (vertexSettings) {
+	if (hasProviderConfig(vertexSettings)) {
 		transformed.planModeApiProvider = "vertex"
 		transformed.actModeApiProvider = "vertex"
 		providers.push("vertex")
