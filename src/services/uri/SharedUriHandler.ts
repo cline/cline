@@ -1,5 +1,6 @@
 import { WebviewProvider } from "@/core/webview"
 import { Logger } from "@/shared/services/Logger"
+import { migrateToCli } from "./migrateToCli"
 
 export const TASK_URI_PATH = "/task"
 
@@ -29,6 +30,11 @@ export class SharedUriHandler {
 					scheme: parsedUrl.protocol,
 				}),
 		)
+
+		// Routes that don't require a visible webview
+		if (path === "/migrate-to-cli") {
+			return migrateToCli()
+		}
 
 		const visibleWebview = WebviewProvider.getVisibleInstance()
 
