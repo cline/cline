@@ -35,6 +35,8 @@ describe("CLI Commands", () => {
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
+			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.action(() => {})
 
@@ -75,6 +77,8 @@ describe("CLI Commands", () => {
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
+			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.option("--auto-approve-all", "Enable auto-approve all")
 			.action(() => {})
@@ -188,6 +192,20 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--hooks-dir", "/tmp/hooks"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().hooksDir).toBe("/tmp/hooks")
+		})
+
+		it("should parse --double-check-completion flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--double-check-completion"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().doubleCheckCompletion).toBe(true)
+		})
+
+		it("should parse --auto-condense flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--auto-condense"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().autoCondense).toBe(true)
 		})
 
 		it("should parse short flags", () => {
