@@ -101,6 +101,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				placeholder="Default: http://localhost:1234"
 			/>
 
+			<VSCodeTextField
+				placeholder="Enter API key for authenticated LM Studio servers"
+				type="password"
+				value={apiConfiguration?.lmStudioApiKey || ""}
+				onChange={(e: any) => handleFieldChange("lmStudioApiKey", e.target.value)}>
+				<span style={{ fontWeight: 500 }}>API Key (optional)</span>
+			</VSCodeTextField>
+
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
 				<DropdownContainer className="dropdown-container" zIndex={10}>
