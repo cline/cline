@@ -72,6 +72,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.USE_SKILL,
 		ClineDefaultTool.USE_SUBAGENTS,
+		ClineDefaultTool.WARPGREP,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NATIVE_GPT_5_1,

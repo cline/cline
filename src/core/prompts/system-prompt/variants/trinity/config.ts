@@ -55,6 +55,7 @@ export const config = createVariant(ModelFamily.TRINITY)
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.USE_SKILL,
 		ClineDefaultTool.USE_SUBAGENTS,
+		ClineDefaultTool.WARPGREP,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.TRINITY,

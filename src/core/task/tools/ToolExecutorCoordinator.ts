@@ -23,6 +23,7 @@ import { UseSubagentsToolHandler } from "./handlers/SubagentToolHandler"
 import { SummarizeTaskHandler } from "./handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./handlers/UseMcpToolHandler"
 import { UseSkillToolHandler } from "./handlers/UseSkillToolHandler"
+import { WarpGrepToolHandler } from "./handlers/WarpGrepToolHandler"
 import { WebFetchToolHandler } from "./handlers/WebFetchToolHandler"
 import { WebSearchToolHandler } from "./handlers/WebSearchToolHandler"
 import { WriteToFileToolHandler } from "./handlers/WriteToFileToolHandler"
@@ -106,6 +107,7 @@ export class ToolExecutorCoordinator {
 		[ClineDefaultTool.GENERATE_EXPLANATION]: (_v: ToolValidator) => new GenerateExplanationToolHandler(),
 		[ClineDefaultTool.USE_SKILL]: (_v: ToolValidator) => new UseSkillToolHandler(),
 		[ClineDefaultTool.USE_SUBAGENTS]: (_v: ToolValidator) => new UseSubagentsToolHandler(),
+		[ClineDefaultTool.WARPGREP]: (_v: ToolValidator) => new WarpGrepToolHandler(),
 	}
 
 	/**

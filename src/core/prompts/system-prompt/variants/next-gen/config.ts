@@ -68,6 +68,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.USE_SKILL,
 		ClineDefaultTool.USE_SUBAGENTS,
+		ClineDefaultTool.WARPGREP,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NEXT_GEN,

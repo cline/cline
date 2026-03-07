@@ -272,6 +272,7 @@ const USER_SETTINGS_FIELDS = {
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	doubleCheckCompletionEnabled: { default: false as boolean },
+	warpGrepEnabled: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },
@@ -345,6 +346,7 @@ const SECRETS_KEYS = [
 	"ocaRefreshToken",
 	"mcpOAuthSecrets",
 	"openai-codex-oauth-credentials", // JSON blob containing OAuth tokens for OpenAI Codex (ChatGPT subscription)
+	"warpGrepApiKey",
 ] as const
 
 // WARNING, these are not ALL of the local state keys in practice. For example, FileContextTracker
