@@ -9,8 +9,8 @@ import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
 import type { Controller } from "@/core/controller"
-import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
+import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -907,11 +907,16 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
  * Show welcome prompt and wait for user input
  * If auth is not configured, show auth flow first
  */
-async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
+async function showWelcome(options: TaskOptions) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
+
+	// Apply CLI task options in interactive startup too, so flags like
+	// --auto-approve-all and --yolo affect the initial TUI state.
+	applyTaskOptions(options)
+	await StateManager.get().flushPendingState()
 
 	let hadError = false
 
