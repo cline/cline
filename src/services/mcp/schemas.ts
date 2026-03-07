@@ -64,7 +64,7 @@ const createServerTypeSchema = () => {
 			.refine((data) => data.type === "sse", { message: TYPE_ERROR_MESSAGE }),
 		// Streamable HTTP config (has url field)
 		BaseConfigSchema.extend({
-			type: z.literal("streamableHttp").optional(),
+			type: z.union([z.literal("streamableHttp"), z.literal("http")]).optional(),
 			transportType: z.string().optional(), // Support legacy field
 			url: z.string().url("URL must be a valid URL format"),
 			headers: z.record(z.string()).optional(),
@@ -76,7 +76,11 @@ const createServerTypeSchema = () => {
 			.transform((data) => {
 				// Support both type and transportType fields
 				// Note: legacy transportType was "http" not "streamableHttp"
-				const finalType = data.type || (data.transportType === "http" ? "streamableHttp" : undefined) || "streamableHttp"
+				// Also accept "http" as type for VS Code compatibility
+				const finalType =
+					(data.type === "http" ? "streamableHttp" : data.type) ||
+					(data.transportType === "http" ? "streamableHttp" : undefined) ||
+					"streamableHttp"
 				return {
 					...data,
 					type: finalType as "streamableHttp",
