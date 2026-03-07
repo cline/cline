@@ -14,7 +14,24 @@ import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { getCurrentPlatform } from "@/utils/platformUtils"
 import { WithCopyButton } from "./CopyButton"
+
+/**
+ * Returns the platform-specific keyboard shortcut for toggling Plan/Act mode.
+ * Mac: ⌘⇧A, Windows: Win+Shift+A, Linux: Alt+Shift+A
+ */
+export function getPlanActShortcut(): string {
+	const platform = getCurrentPlatform()
+	switch (platform) {
+		case "mac":
+			return "⌘⇧A"
+		case "windows":
+			return "Win+Shift+A"
+		default:
+			return "Alt+Shift+A"
+	}
+}
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
 	try {
@@ -64,10 +81,11 @@ const MemoizedMarkdownBlock = memo(
 							})
 							.join("")
 
-						// Case-insensitive check for "Act Mode (⌘⇧A)" pattern
+						// Case-insensitive check for "Act Mode (<shortcut>)" pattern
 						// This ensures we only style the exact "Act Mode" mentions with keyboard shortcut
 						// Using case-insensitive flag to catch all capitalization variations
-						if (/^act mode\s*\(⌘⇧A\)$/i.test(childrenText)) {
+						const shortcutPattern = getPlanActShortcut().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+						if (new RegExp(`^act mode\\s*\\(${shortcutPattern}\\)$`, "i").test(childrenText)) {
 							return <ActModeHighlight />
 						}
 
@@ -138,7 +156,7 @@ const ActModeHighlight: React.FC = () => {
 			<div className="p-1 rounded-md bg-code flex items-center justify-end w-7 border border-input-border">
 				<div className="rounded-full bg-link w-2 h-2" />
 			</div>
-			Act Mode (⌘⇧A)
+			Act Mode ({getPlanActShortcut()})
 		</span>
 	)
 }
@@ -202,7 +220,8 @@ const remarkHighlightActMode = () => {
 			// Case-insensitive regex to match "to Act Mode" in various capitalizations
 			// Using word boundaries to avoid matching within words
 			// Added negative lookahead to avoid matching if already followed by the shortcut
-			const actModeRegex = /\bto\s+Act\s+Mode\b(?!\s*\(⌘⇧A\))/i
+			const shortcut = getPlanActShortcut().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+			const actModeRegex = new RegExp(`\\bto\\s+Act\\s+Mode\\b(?!\\s*\\(${shortcut}\\))`, "i")
 
 			if (!node.value.match(actModeRegex)) {
 				return
@@ -240,14 +259,14 @@ const remarkHighlightActMode = () => {
 						const actModePart = matchText.substring(actModeIndex)
 						children.push({
 							type: "strong",
-							children: [{ type: "text", value: `${actModePart} (⌘⇧A)` }],
+							children: [{ type: "text", value: `${actModePart} (${getPlanActShortcut()})` }],
 						})
 					} else {
 						// Fallback if we can't parse it correctly
 						children.push({ type: "text", value: matchText + " " })
 						children.push({
 							type: "strong",
-							children: [{ type: "text", value: `(⌘⇧A)` }],
+							children: [{ type: "text", value: `(${getPlanActShortcut()})` }],
 						})
 					}
 				}
