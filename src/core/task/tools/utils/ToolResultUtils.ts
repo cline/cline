@@ -144,6 +144,16 @@ export class ToolResultUtils {
 			config.taskState.didRejectTool = true // Prevent further tool uses in this message
 			return false
 		}
+
+		// After approval, convert the ask message to a say message to prevent button state issues
+		// This is especially important in Plan Mode where message state can cause UI to hang
+		// The ask message served its purpose (getting approval) and should be replaced with a say message
+		// to prevent the webview from rendering disabled buttons due to stale ask state
+		await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", type)
+
+		// Use "tool" as the say type for tool approval messages
+		await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+
 		// User hit the approve button, and may have provided feedback
 		return true
 	}
