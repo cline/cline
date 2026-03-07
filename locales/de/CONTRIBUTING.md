@@ -14,7 +14,7 @@ Fehlermeldungen helfen, Cline für alle zu verbessern! Bevor du ein neues Proble
 
 Suchst du nach einem guten ersten Beitrag? Schau dir die mit ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) oder ["help wanted"](https://github.com/cline/cline/labels/help%20wanted) gekennzeichneten Issues an. Diese sind speziell für neue Mitwirkende ausgewählt und Bereiche, in denen wir gerne Hilfe erhalten würden!
 
-Wir begrüßen auch Beiträge zu unserer [Dokumentation](https://github.com/cline/cline/tree/main/docs). Ob du Tippfehler korrigierst, bestehende Anleitungen verbesserst oder neue Bildungsinhalte erstellst – wir möchten ein von der Community verwaltetes Ressourcen-Repository aufbauen, das allen hilft, das Beste aus Cline herauszuholen. Du kannst beginnen, indem du `/docs` erkundest und nach Bereichen suchst, die verbessert werden müssen.
+Wir begrüßen auch Beiträge zu unserer [Dokumentation](https://github.com/cline/cline/tree/main/docs). Ob du Tippfehler korrigierst, bestehende Anleitungen verbesserst oder neue Bildungsinhalte erstellst – wir möchten ein von der Community verwaltetes Ressourcen-Repository aufbauen, das allen hilft, das Beste aus Cline herauszuholen. Du kannst beginnen, indem du `docs/` erkundest und nach Bereichen suchst, die verbessert werden müssen.
 
 Wenn du planst, an einer größeren Funktion zu arbeiten, erstelle bitte zuerst eine [Funktionsanfrage](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop), damit wir besprechen können, ob sie mit der Vision von Cline übereinstimmt.
 
