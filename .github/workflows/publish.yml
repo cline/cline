@@ -11,8 +11,13 @@ on:
                 options:
                     - pre-release
                     - release
+            auto_create_tag_from_main:
+                description: "Auto-create and push the provided tag from the tested main commit (recommended)"
+                required: true
+                default: true
+                type: boolean
             tag:
-                description: "Enter existing tag to publish (e.g., v3.1.2)"
+                description: "Tag to publish (required in both modes, e.g., v3.1.2)"
                 required: true
                 type: string
 
@@ -35,37 +40,78 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.tag }}
+                  ref: main
                   fetch-depth: 0
                   fetch-tags: true
+
+            - name: Resolve Release Tag
+              id: resolve_tag
+              run: |
+                  TAG="${{ github.event.inputs.tag }}"
+                  AUTO_CREATE="${{ github.event.inputs.auto_create_tag_from_main }}"
+                  TESTED_SHA="${{ github.sha }}"
+                  WORKFLOW_REF="${{ github.ref }}"
+
+                  if [[ -z "$TAG" ]]; then
+                    echo "Error: tag input is required"
+                    exit 1
+                  fi
+
+                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+                    echo "Error: tag must match vX.Y.Z (optionally with -suffix or .suffix)"
+                    exit 1
+                  fi
+                  TAG_REF="refs/tags/$TAG"
+
+                  git fetch origin main --tags
+
+                  if [[ "$AUTO_CREATE" == "true" ]]; then
+                    if [[ "$WORKFLOW_REF" != "refs/heads/main" ]]; then
+                      echo "Error: auto-create mode requires dispatching from main (current ref: $WORKFLOW_REF)"
+                      exit 1
+                    fi
+                    echo "Auto-create enabled. Using tested workflow SHA: $TESTED_SHA"
+
+                    if ! git merge-base --is-ancestor "$TESTED_SHA" origin/main; then
+                      echo "Error: tested SHA $TESTED_SHA is not on origin/main"
+                      exit 1
+                    fi
+
+                    if git show-ref --verify --quiet "$TAG_REF"; then
+                      TAG_SHA=$(git rev-list -n 1 "$TAG_REF^{commit}")
+                      if [[ "$TAG_SHA" != "$TESTED_SHA" ]]; then
+                        echo "Error: tag '$TAG' already exists at $TAG_SHA, not at tested SHA ($TESTED_SHA)"
+                        exit 1
+                      fi
+                      echo "Tag '$TAG' already exists at tested SHA. Continuing."
+                    else
+                      git config user.name "github-actions[bot]"
+                      git config user.email "github-actions[bot]@users.noreply.github.com"
+                      git tag "$TAG" "$TESTED_SHA"
+                      git push origin "$TAG_REF"
+                      echo "Created and pushed tag '$TAG' from tested SHA $TESTED_SHA."
+                    fi
+                  else
+                    if ! git show-ref --verify --quiet "$TAG_REF"; then
+                      echo "Error: tag '$TAG' does not exist in the repository"
+                      exit 1
+                    fi
+                    echo "Using existing tag '$TAG'."
+                  fi
+
+                  git checkout --detach "$TAG_REF^{commit}"
+                  echo "tag=$TAG" >> $GITHUB_OUTPUT
+                  echo "resolved_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: "lts/*"
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  node-version: 22
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm install --include=optional
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm install --include=optional
 
             - name: Install Publishing Tools
@@ -77,20 +123,15 @@ jobs:
                   VERSION=$(node -p "require('./package.json').version")
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-            - name: Validate Tag
-              id: validate_tag
+            - name: Verify Tag Matches Package Version
               run: |
-                  TAG="${{ github.event.inputs.tag }}"
-                  echo "tag=$TAG" >> $GITHUB_OUTPUT
-                  echo "Using existing tag: $TAG"
-
-                  # Verify the tag exists
-                  if ! git rev-parse "$TAG" >/dev/null 2>&1; then
-                    echo "Error: Tag '$TAG' does not exist in the repository"
+                  TAG="${{ steps.resolve_tag.outputs.tag }}"
+                  VERSION="v${{ steps.get_version.outputs.version }}"
+                  if [[ "$TAG" != "$VERSION" ]]; then
+                    echo "Error: tag '$TAG' does not match package version '$VERSION'"
                     exit 1
                   fi
-
-                  echo "Tag '$TAG' validated successfully"
+                  echo "Tag and package version match: $TAG"
 
             - name: Package and Publish Extension
               env:
@@ -121,7 +162,7 @@ jobs:
             - name: Get Previous Tag
               id: prev_tag
               run: |
-                  CURRENT_TAG="${{ steps.validate_tag.outputs.tag }}"
+                  CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
                   PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || echo "")
                   echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
@@ -137,12 +178,12 @@ jobs:
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: ${{ steps.validate_tag.outputs.tag }}
+                  tag_name: ${{ steps.resolve_tag.outputs.tag }}
                   files: "*.vsix"
                   body: |
                       ${{ steps.changelog.outputs.content }}
 
-                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.validate_tag.outputs.tag }}
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.resolve_tag.outputs.tag }}
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -19,6 +19,10 @@ service ModelsService {
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
   rpc refreshOpenRouterModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns recommended and free Cline models
+  rpc refreshClineRecommendedModelsRpc(EmptyRequest) returns (ClineRecommendedModelsResponse);
+  // Refreshes and returns Cline provider models
+  rpc refreshClineModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
@@ -49,6 +53,8 @@ service ModelsService {
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
   // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Vercel AI Gateway models
+  rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -109,6 +115,18 @@ message OpenRouterModelInfo {
 // Shared response message for model information
 message OpenRouterCompatibleModelInfo {
   map<string, OpenRouterModelInfo> models = 1;
+}
+
+message ClineRecommendedModel {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string tags = 4;
+}
+
+message ClineRecommendedModelsResponse {
+  repeated ClineRecommendedModel recommended = 1;
+  repeated ClineRecommendedModel free = 2;
 }
 
 // Request for fetching OpenAI models
@@ -267,6 +285,8 @@ message ModelsApiOptions {
   optional OcaModelInfo plan_mode_oca_model_info = 132;
   optional string plan_mode_aihubmix_model_id = 133;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
+  optional string plan_mode_cline_model_id = 135;
+  optional OpenRouterModelInfo plan_mode_cline_model_info = 136;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -304,6 +324,8 @@ message ModelsApiOptions {
   optional OcaModelInfo act_mode_oca_model_info = 232;
   optional string act_mode_aihubmix_model_id = 233;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
+  optional string act_mode_cline_model_id = 235;
+  optional OpenRouterModelInfo act_mode_cline_model_info = 236;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -437,6 +459,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  OPENAI_CODEX = 40;
 }
 
 enum ApiFormat {
@@ -445,6 +468,7 @@ enum ApiFormat {
   OPENAI_CHAT = 2;
   R1_CHAT = 3;
   OPENAI_RESPONSES = 4;
+  OPENAI_RESPONSES_WEBSOCKET_MODE = 5;
 }
 
 // Model info for OpenAI-compatible models
@@ -482,6 +506,7 @@ message LiteLLMModelInfo {
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
   optional ApiFormat api_format = 14;
+  optional bool supports_reasoning = 15;
 }
 
 // Main ApiConfiguration message
@@ -615,6 +640,8 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 137;
   optional string plan_mode_nous_research_model_id = 138;
   optional string gemini_plan_mode_thinking_level = 139;
+  optional string plan_mode_cline_model_id = 140;
+  optional OpenRouterModelInfo plan_mode_cline_model_info = 141;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -657,4 +684,6 @@ message ModelsApiConfiguration {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 237;
   optional string act_mode_nous_research_model_id = 238;
   optional string gemini_act_mode_thinking_level = 239;
+  optional string act_mode_cline_model_id = 240;
+  optional OpenRouterModelInfo act_mode_cline_model_info = 241;
 }

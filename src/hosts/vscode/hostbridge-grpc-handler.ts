@@ -1,6 +1,7 @@
 import { GrpcRequestRegistry } from "@core/controller/grpc-request-registry"
 import { hostServiceHandlers } from "@generated/hosts/vscode/hostbridge-grpc-service-config"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Type definition for a streaming response handler
@@ -62,7 +63,7 @@ export class GrpcHandler {
 		requestRegistry.registerRequest(
 			requestId,
 			() => {
-				console.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
+				Logger.log(`[DEBUG] Cleaning up streaming request: ${requestId}`)
 				if (streamingCallbacks.onComplete && !completionCalled) {
 					completionCalled = true
 					streamingCallbacks.onComplete()
@@ -83,7 +84,7 @@ export class GrpcHandler {
 
 		// Return a function to cancel the stream
 		return () => {
-			console.log(`[DEBUG] Cancelling streaming request: ${requestId}`)
+			Logger.log(`[DEBUG] Cancelling streaming request: ${requestId}`)
 			this.cancelRequest(requestId)
 		}
 	}
@@ -107,7 +108,7 @@ export class GrpcHandler {
 
 		const cancelled = requestRegistry.cancelRequest(requestId)
 		if (!cancelled) {
-			console.log(`[DEBUG] Request not found for cancellation: ${requestId}`)
+			Logger.log(`[DEBUG] Request not found for cancellation: ${requestId}`)
 			return false
 		}
 		if (requestInfo.responseStream) {
@@ -115,7 +116,7 @@ export class GrpcHandler {
 				// Send cancellation confirmation using the registered response handler
 				await requestInfo.responseStream({ cancelled: true }, true /* isLast */)
 			} catch (e) {
-				console.error(`Error sending cancellation response for ${requestId}:`, e)
+				Logger.error(`Error sending cancellation response for ${requestId}:`, e)
 			}
 		}
 		return true

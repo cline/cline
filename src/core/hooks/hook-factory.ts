@@ -1,11 +1,14 @@
 import fs from "fs/promises"
 import path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
 import { telemetryService } from "../../services/telemetry"
 import {
 	HookInput,
+	HookModelContext,
 	HookOutput,
+	NotificationData,
 	PostToolUseData,
 	PreCompactData,
 	PreToolUseData,
@@ -118,9 +121,17 @@ export interface Hooks {
 	TaskComplete: {
 		taskComplete: TaskCompleteData
 	}
+	Notification: {
+		notification: NotificationData
+	}
 	PreCompact: {
 		preCompact: PreCompactData
 	}
+}
+
+export interface HookModelInputContext {
+	provider?: string
+	slug?: string
 }
 
 // The names of all supported hooks. Hooks[N] is the type of data the hook takes as input.
@@ -133,6 +144,7 @@ type HookName = keyof Hooks
  */
 export type NamedHookInput<Name extends HookName> = {
 	taskId: string
+	model?: HookModelInputContext
 } & Hooks[Name]
 
 // We look up HookRunner.exec via symbol so that the combined hook runner can call
@@ -188,6 +200,12 @@ export abstract class HookRunner<Name extends HookName> {
 			StateManager.get()
 				.getGlobalStateKey("workspaceRoots")
 				?.map((root) => root.path) || []
+
+		const model: HookModelContext = {
+			provider: params.model?.provider?.trim() || "unknown",
+			slug: params.model?.slug?.trim() || "unknown",
+		}
+
 		return {
 			clineVersion,
 			hookName: this.hookName,
@@ -195,6 +213,7 @@ export abstract class HookRunner<Name extends HookName> {
 			workspaceRoots,
 			userId: getDistinctId(), // Always available: Cline User ID, machine ID, or generated UUID
 			...params,
+			model,
 		}
 	}
 }
@@ -262,6 +281,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		private readonly abortSignal?: AbortSignal,
 		private readonly taskId?: string,
 		private readonly toolName?: string,
+		private readonly cwd?: string,
 	) {
 		super(hookName)
 	}
@@ -301,7 +321,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		const inputJson = JSON.stringify(jsonObj)
 
 		// Create HookProcess for execution with streaming
-		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal)
+		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal, this.cwd)
 
 		// Set up streaming if callback is provided
 		if (this.streamCallback) {
@@ -341,7 +361,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					// Validate and truncate context modification if too large
 					if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
-						console.warn(
+						Logger.warn(
 							`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
 								`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
 						)
@@ -408,7 +428,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 							// Validate and truncate context modification if too large
 							if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
-								console.warn(
+								Logger.warn(
 									`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
 										`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
 								)
@@ -437,9 +457,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 				// Log warning if non-zero exit but valid JSON (for developers)
 				if (exitCode !== 0) {
-					console.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
+					Logger.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
 					if (stderr) {
-						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
+						Logger.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
 					}
 				}
 
@@ -482,7 +502,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			// No valid JSON found
 			if (exitCode === 0) {
 				// Hook succeeded but didn't provide JSON - allow execution (no cancellation)
-				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
+				Logger.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
 				const durationMs = performance.now() - startTime
 
 				// Capture success telemetry even without JSON
@@ -504,10 +524,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 				return HookOutput.create({
 					cancel: false,
 				})
-			} else {
-				// Hook failed with non-zero exit - include hook name in error
-				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
+			// Hook failed with non-zero exit - include hook name in error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		} catch (error) {
 			const durationMs = performance.now() - startTime
 
@@ -774,10 +793,19 @@ export class HookFactory {
 			)
 		}
 
-		// Create runners with source determination for each script
+		// Get workspace roots for cwd determination
+		const stateManager = StateManager.get()
+		const workspaceRoots = stateManager.getGlobalStateKey("workspaceRoots")
+		const primaryRootIndex = stateManager.getGlobalStateKey("primaryRootIndex") ?? 0
+		const primaryCwd = workspaceRoots?.[primaryRootIndex]?.path
+
+		// Create runners with source and cwd determination for each script
+		// Global hooks run from primary workspace root
+		// Workspace-specific hooks run from their respective workspace root
 		const runners = scripts.map((script) => {
 			const source = this.determineScriptSource(script, hooksDirs)
-			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName)
+			const cwd = this.determineHookCwd(script, hooksDirs, workspaceRoots, primaryCwd)
+			return new StdioHookRunner(hookName, script, source, streamCallback, abortSignal, taskId, toolName, cwd)
 		})
 
 		if (runners.length === 0) {
@@ -803,6 +831,48 @@ export class HookFactory {
 			return "global"
 		}
 		return "workspace" // Default to workspace if uncertain
+	}
+
+	/**
+	 * Determines the working directory for a hook script based on its location.
+	 *
+	 * - Global hooks (from ~/Documents/Cline/Hooks/): run from the primary workspace root
+	 * - Workspace hooks (from workspaceRoot/.clinerules/hooks/): run from that specific workspace root
+	 *
+	 * This ensures workspace-specific hooks can use relative paths that are meaningful
+	 * within their own workspace context.
+	 *
+	 * @param scriptPath The full path to the hook script
+	 * @param hooksDirs Array of all hooks directories
+	 * @param workspaceRoots Array of workspace root objects
+	 * @param primaryCwd The primary workspace root path (fallback)
+	 * @returns The working directory to use for this hook
+	 */
+	private determineHookCwd(
+		scriptPath: string,
+		hooksDirs: string[],
+		workspaceRoots: Array<{ path: string }> | undefined,
+		primaryCwd: string | undefined,
+	): string | undefined {
+		const containingDir = hooksDirs.find((dir) => scriptPath.startsWith(dir))
+
+		// If global hook, use primary workspace root
+		if (containingDir && HookFactory.isGlobalHooksDir(containingDir)) {
+			return primaryCwd
+		}
+
+		// If workspace hook, find which workspace root it belongs to
+		// Workspace hooks are at: workspaceRoot/.clinerules/hooks/
+		// So find the workspace root whose path is a prefix of the containing hooks dir
+		if (containingDir && workspaceRoots) {
+			const workspaceRoot = workspaceRoots.find((root) => containingDir.startsWith(root.path))
+			if (workspaceRoot) {
+				return workspaceRoot.path
+			}
+		}
+
+		// Fallback to primary cwd
+		return primaryCwd
 	}
 
 	/**
@@ -863,9 +933,12 @@ export class HookFactory {
 	}
 
 	/**
-	 * Finds a hook on Windows using git-style hook discovery.
-	 * Like git, we look for a file with the hook name (no extension) and execute it
-	 * through the shell, which handles shebangs and script interpretation.
+	 * Finds a hook on Windows by checking for a PowerShell hook file (`<HookName>.ps1`).
+	 *
+	 * Extensionless hooks are intentionally ignored on Windows.
+	 *
+	 * Why: Windows hooks execute via PowerShell (`powershell -File ...`).
+	 * The supported contract is an explicit PowerShell script file per hook type.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the hooks directory path to search
@@ -873,20 +946,33 @@ export class HookFactory {
 	 * @throws Error if an unexpected file system error occurs
 	 */
 	private static async findWindowsHook(hookName: HookName, hooksDir: string): Promise<string | undefined> {
-		const candidate = path.join(hooksDir, hookName)
+		const powerShell = path.join(hooksDir, `${hookName}.ps1`)
+		const powerShellExists = await HookFactory.isHookFile(powerShell, hookName)
 
+		if (powerShellExists) {
+			return powerShell
+		}
+
+		return undefined
+	}
+
+	private static async isHookFile(candidate: string, hookName: HookName): Promise<boolean> {
 		try {
 			const stat = await fs.stat(candidate)
-			return stat.isFile() ? candidate : undefined
+			return stat.isFile()
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected error (file doesn't exist), return undefined
-			return undefined
+			return false
 		}
 	}
 
 	/**
 	 * Finds a hook on Unix-like systems (Linux, macOS) by checking for an executable file.
+	 *
+	 * `.ps1` hook files are intentionally ignored on Unix platforms.
+	 *
+	 * Why: Unix hooks use executable-file semantics (bash scripts, binaries, etc.)
+	 * with canonical extensionless hook names.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the .clinerules directory path to search
@@ -901,7 +987,7 @@ export class HookFactory {
 			return stat.isFile() ? candidate : undefined
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected error (file doesn't exist or not executable), return undefined
+			// Expected errors (missing/non-executable hook) return no match.
 			return undefined
 		}
 	}

@@ -86,3 +86,8 @@ img[alt="JetBrains logo"]:hover {
 	transform: scale(1.02);
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
+/* Reduce list margin-top */
+.steps {
+	margin-top: 5px !important;
+}

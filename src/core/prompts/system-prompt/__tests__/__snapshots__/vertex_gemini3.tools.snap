@@ -296,7 +296,7 @@
   },
   {
     "name": "act_mode_respond",
-    "description": "Provide a progress update or preamble to the user during ACT MODE execution. This tool allows you to communicate your thought process and planned actions without interrupting the execution flow. After displaying your message, execution automatically continues, allowing you to proceed with subsequent tool calls immediately. This tool is only available in ACT MODE. This tool may not be called immediately after a previous act_mode_respond call.\n\nIMPORTANT: Use this tool frequently to create a better user experience. Since it's non-blocking, there's no performance penalty for frequent use.\n\nUse this tool when:\n- After reading files and before making any edits - explain your analysis and what changes you plan to make\n- When starting a new phase of work (e.g., transitioning from backend to frontend, or from one feature to another)\n- During long sequences of operations to provide progress updates\n- When your approach or strategy changes mid-task\n- Before executing complex or potentially risky operations\n- To explain why you're choosing one approach over another\n\nDo NOT use this tool when you have completed all required actions and are ready to present the final output; in that case, use the attempt_completion tool instead.\n\nCRITICAL CONSTRAINT: You MUST NOT call this tool more than once in a row. After using act_mode_respond, your next assistant message MUST either call a different tool or perform additional work without using act_mode_respond again. If you attempt to call act_mode_respond consecutively, the tool call will fail with an explicit error.",
+    "description": "Provide a progress update or preamble to the user during ACT MODE execution. This tool allows you to communicate your thought process and planned actions without interrupting the execution flow. After displaying your message, execution automatically continues, allowing you to proceed with subsequent tool calls immediately. This tool is only available in ACT MODE. This tool may not be called immediately after a previous act_mode_respond call.\n\nIMPORTANT: Use this tool when it adds value to the user experience, but always follow it with an actual tool call - never call it twice in a row.\n\nUse this tool when:\n- After reading files and before making any edits - explain your analysis and what changes you plan to make\n- When starting a new phase of work (e.g., transitioning from backend to frontend, or from one feature to another)\n- During long sequences of operations to provide progress updates\n- When your approach or strategy changes mid-task\n- Before executing complex or potentially risky operations\n- To explain why you're choosing one approach over another\n\nDo NOT use this tool when you have completed all required actions and are ready to present the final output; in that case, use the attempt_completion tool instead.\n\nCRITICAL CONSTRAINT: You MUST NOT call this tool more than once in a row. After using act_mode_respond, your next assistant message MUST either call a different tool or perform additional work without using act_mode_respond again. If you attempt to call act_mode_respond consecutively, the tool call will fail with an explicit error.",
     "parameters": {
       "type": "OBJECT",
       "properties": {
@@ -322,15 +322,6 @@
     }
   },
   {
-    "name": "focus_chain",
-    "description": "",
-    "parameters": {
-      "type": "OBJECT",
-      "properties": {},
-      "required": []
-    }
-  },
-  {
     "name": "generate_explanation",
     "description": "Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
     "parameters": {
@@ -349,6 +340,33 @@
       "required": [
         "title",
         "from_ref"
+      ]
+    }
+  },
+  {
+    "name": "use_subagents",
+    "description": "Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window. You do not need to launch multiple subagents every time; using one subagent is valid when it avoids unnecessary context usage for light discovery work.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "prompt_1": {
+          "type": "STRING"
+        },
+        "prompt_2": {
+          "type": "STRING"
+        },
+        "prompt_3": {
+          "type": "STRING"
+        },
+        "prompt_4": {
+          "type": "STRING"
+        },
+        "prompt_5": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "prompt_1"
       ]
     }
   },

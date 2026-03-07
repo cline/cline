@@ -5,6 +5,7 @@
  * functionality to create, retrieve, update, and remove terminals.
  */
 
+import { Logger } from "@/shared/services/Logger"
 import type { ITerminal, StandaloneTerminalOptions, TerminalInfo } from "../types"
 import { StandaloneTerminal } from "./StandaloneTerminal"
 
@@ -40,7 +41,7 @@ export class StandaloneTerminalRegistry {
 		}
 
 		this.terminals.set(id, terminalInfo)
-		console.log(`[StandaloneTerminalRegistry] Created terminal ${id}`)
+		Logger.log(`[StandaloneTerminalRegistry] Created terminal ${id}`)
 		return terminalInfo
 	}
 
@@ -70,7 +71,7 @@ export class StandaloneTerminalRegistry {
 		if (terminalInfo) {
 			terminalInfo.terminal.dispose()
 			this.terminals.delete(id)
-			console.log(`[StandaloneTerminalRegistry] Removed terminal ${id}`)
+			Logger.log(`[StandaloneTerminalRegistry] Removed terminal ${id}`)
 		}
 	}
 
@@ -95,7 +96,7 @@ export class StandaloneTerminalRegistry {
 		}
 		this.terminals.clear()
 		this.nextId = 1
-		console.log(`[StandaloneTerminalRegistry] Cleared all terminals`)
+		Logger.log(`[StandaloneTerminalRegistry] Cleared all terminals`)
 	}
 
 	/**

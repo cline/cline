@@ -18,16 +18,6 @@ export enum BannerActionType {
 }
 
 /**
- * Backend banner format returned from server API
- */
-export interface BackendBanner {
-	id: string
-	titleMd: string
-	bodyMd: string
-	rulesJson: string
-}
-
-/**
  * Banner data structure for backend-to-frontend communication.
  * Backend constructs this JSON, frontend renders it via BannerCarousel.
  */
@@ -84,70 +74,76 @@ export interface BannerAction {
 	 * - Others: generally unused
 	 */
 	arg?: string
+
+	/**
+	 * Optional model picker tab to open when using SetModel action
+	 */
+	tab?: "recommended" | "free"
 }
 
 /**
  * The list of predefined banner config rendered by the Welcome Section UI.
  * TODO: Backend would return a similar JSON structure in the future which we will replace this with.
  */
+
 export const BANNER_DATA: BannerCardData[] = [
-	// Info banner with inline link
+	// Sonnet 4.6 banner
 	{
-		id: "info-banner-v1",
-		icon: "lightbulb",
-		title: "Use Cline in Right Sidebar",
-		description:
-			"For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in real-time. [See how →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)",
-	},
-
-	// Announcement with conditional actions based on user auth state
-	{
-		id: "new-model-opus-4-5-cline-users",
-		icon: "megaphone",
-		title: "Claude Opus 4.5 Now Available",
-		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "claude-sonnet-4-6-2026-feb-18",
+		icon: "sparkles",
+		title: "Try Claude Sonnet 4.6",
+		description: "Anthropic's latest model with strong reasoning and coding performance.",
 		actions: [
 			{
-				title: "Try Now",
+				title: "Use Sonnet 4.6",
 				action: BannerActionType.SetModel,
-				arg: "anthropic/claude-opus-4.5",
+				arg: "anthropic/claude-sonnet-4.6",
+				tab: "recommended",
 			},
 		],
-		isClineUserOnly: true, // Only Cline users see this
 	},
 
+	// Minimax free promo banner
 	{
-		id: "new-model-opus-4-5-non-cline-users",
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "minimax-m2.5-free-2026-feb-18",
+		icon: "zap",
+		title: "Try MiniMax M2.5 Free",
+		description: "SOTA coding capability with lightning fast inference, free in Cline.",
+		actions: [
+			{
+				title: "Try now",
+				action: BannerActionType.SetModel,
+				arg: "minimax/minimax-m2.5",
+				tab: "free",
+			},
+		],
+	},
+
+	// ChatGPT integration banner
+	{
+		id: "chatgpt-integration-v1",
 		icon: "megaphone",
-		title: "Claude Opus 4.5 Now Available",
-		description: "State-of-the-art performance at 3x lower cost than Opus 4.1. Available now in the Cline provider.",
+		title: "Use ChatGPT with Cline",
+		description:
+			"Bring your ChatGPT subscription to Cline! Use your existing plan directly with no per token costs or API keys to manage.",
 		actions: [
 			{
-				title: "Get Started",
-				action: BannerActionType.ShowAccount,
+				title: "Connect",
+				action: BannerActionType.ShowApiSettings,
+				arg: "openai-codex", // Pre-select OpenAI Codex provider
 			},
 		],
-		isClineUserOnly: false, // Only non-Cline users see this
 	},
 
-	// Platform-specific banner (macOS/Linux)
+	// Jupyter Notebooks banner
 	{
-		id: "cli-install-unix-v1",
-		icon: "terminal",
-		title: "CLI & Subagents Available",
-		platforms: ["mac", "linux"] satisfies BannerCardData["platforms"],
+		id: "jupyter-notebooks-v1",
+		icon: "book-open",
+		title: "Jupyter Notebooks",
 		description:
-			"Use Cline in your terminal and enable subagent capabilities. [Learn more](https://docs.cline.bot/cline-cli/overview)",
-		actions: [
-			{
-				title: "Install",
-				action: BannerActionType.InstallCli,
-			},
-			{
-				title: "Enable Subagents",
-				action: BannerActionType.ShowFeatureSettings,
-			},
-		],
+			"Comprehensive AI-assisted editing of `.ipynb` files with full cell-level context awareness. [Learn More →](https://docs.cline.bot/features/jupyter-notebooks)",
 	},
 
 	// Platform-specific banner (Windows)
@@ -158,5 +154,14 @@ export const BANNER_DATA: BannerCardData[] = [
 		platforms: ["windows"] satisfies BannerCardData["platforms"],
 		description:
 			"Available for macOS and Linux. Coming soon to other platforms. [Learn more](https://docs.cline.bot/cline-cli/overview)",
+	},
+
+	// Info banner with inline link
+	{
+		id: "info-banner-v1",
+		icon: "lightbulb",
+		title: "Use Cline in Right Sidebar",
+		description:
+			"For the best experience, drag the Cline icon to your right sidebar. This keeps your file explorer and editor visible while you chat with Cline, making it easier to navigate your codebase and see changes in real-time. [See how →](https://docs.cline.bot/features/customization/opening-cline-in-sidebar)",
 	},
 ]

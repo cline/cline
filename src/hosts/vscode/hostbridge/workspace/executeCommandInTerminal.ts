@@ -1,5 +1,6 @@
 import { ExecuteCommandInTerminalRequest, ExecuteCommandInTerminalResponse } from "@shared/proto/host/workspace"
 import * as vscode from "vscode"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Executes a command in a new terminal
@@ -32,7 +33,7 @@ export async function executeCommandInTerminal(
 			success: true,
 		})
 	} catch (error) {
-		console.error("Error executing command in terminal:", error)
+		Logger.error("Error executing command in terminal:", error)
 		return ExecuteCommandInTerminalResponse.create({
 			success: false,
 		})

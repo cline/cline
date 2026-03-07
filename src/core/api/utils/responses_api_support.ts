@@ -1,6 +1,6 @@
 import OpenAI from "openai"
-import { Logger } from "@/services/logging/Logger"
 import { ModelInfo } from "@/shared/api"
+import { Logger } from "@/shared/services/Logger"
 
 // Type that represents the OpenAI ResponseStream with its private properties
 // The #private property issue can be resolved by using the AsyncIterable interface
@@ -143,11 +143,11 @@ export async function* handleResponsesApiStreamResponse(
 			chunk.response?.status === "incomplete" &&
 			chunk.response?.incomplete_details?.reason === "max_output_tokens"
 		) {
-			console.log("Ran out of tokens")
+			Logger.log("Ran out of tokens")
 			if (chunk.response?.output_text?.length > 0) {
-				console.log("Partial output:", chunk.response.output_text)
+				Logger.log("Partial output:", chunk.response.output_text)
 			} else {
-				console.log("Ran out of tokens during reasoning")
+				Logger.log("Ran out of tokens during reasoning")
 			}
 		}
 

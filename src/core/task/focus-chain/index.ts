@@ -2,6 +2,7 @@ import { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { ClineSay } from "../../../shared/ExtensionMessage"
 import { Mode } from "../../../shared/storage/types"
 import { writeFile } from "../../../utils/fs"
@@ -87,12 +88,12 @@ export class FocusChainManager {
 					await this.postStateToWebview()
 				})
 				.on("error", (error) => {
-					console.error(`[Task ${this.taskId}] Failed to watch focus chain file:`, error)
+					Logger.error(`[Task ${this.taskId}] Failed to watch focus chain file:`, error)
 				})
 
-			console.log(`[Task ${this.taskId}] Todo file watcher initialized`)
+			Logger.log(`[Task ${this.taskId}] Todo file watcher initialized`)
 		} catch (error) {
-			console.error(`[Task ${this.taskId}] Failed to setup todo file watcher:`, error)
+			Logger.error(`[Task ${this.taskId}] Failed to setup todo file watcher:`, error)
 		}
 	}
 
@@ -122,13 +123,13 @@ export class FocusChainManager {
 						await this.postStateToWebview()
 						telemetryService.captureFocusChainListWritten(this.taskId)
 					} else {
-						console.log(
+						Logger.log(
 							`[Task ${this.taskId}] Focus Chain List: File watcher triggered but content unchanged, skipping update`,
 						)
 					}
 				}
 			} catch (error) {
-				console.error(`[Task ${this.taskId}] Error updating focuss chain list from markdown file:`, error)
+				Logger.error(`[Task ${this.taskId}] Error updating focuss chain list from markdown file:`, error)
 			}
 		}, 300)
 	}
@@ -236,7 +237,7 @@ export class FocusChainManager {
 			return null
 		} catch (error) {
 			// File doesn't exist or can't be read, return null
-			console.log(`[Task ${this.taskId}] focus chain list: Could not load from markdown file: ${error}`)
+			Logger.log(`[Task ${this.taskId}] focus chain list: Could not load from markdown file: ${error}`)
 			return null
 		}
 	}
@@ -256,7 +257,7 @@ export class FocusChainManager {
 			const fileContent = createFocusChainMarkdownContent(this.taskId, todoList)
 			await writeFile(todoFilePath, fileContent, "utf8")
 		} catch (error) {
-			console.error(`[Task ${this.taskId}] focus chain list: FILE WRITE FAILED - Error:`, error)
+			Logger.error(`[Task ${this.taskId}] focus chain list: FILE WRITE FAILED - Error:`, error)
 			throw error
 		}
 	}
@@ -280,7 +281,7 @@ export class FocusChainManager {
 			if (taskProgress && taskProgress.trim()) {
 				const previousList = this.taskState.currentFocusChainChecklist
 				this.taskState.currentFocusChainChecklist = taskProgress.trim()
-				console.debug(
+				Logger.debug(
 					`[Task ${this.taskId}] focus chain list: LLM provided focus chain list update via task_progress parameter. Length ${previousList?.length || 0} > ${this.taskState.currentFocusChainChecklist.length}`,
 				)
 
@@ -304,10 +305,10 @@ export class FocusChainManager {
 					// Send the task_progress message to the UI immediately
 					await this.say("task_progress", taskProgress.trim())
 				} catch (error) {
-					console.error(`[Task ${this.taskId}] focus chain list: Failed to write to markdown file:`, error)
+					Logger.error(`[Task ${this.taskId}] focus chain list: Failed to write to markdown file:`, error)
 					// Fall back to creating a task_progress message directly if file write fails
 					await this.say("task_progress", taskProgress.trim())
-					console.log(`[Task ${this.taskId}] focus chain list: Sent fallback task_progress message to UI`)
+					Logger.log(`[Task ${this.taskId}] focus chain list: Sent fallback task_progress message to UI`)
 				}
 			} else {
 				// No model update provided, check if markdown file exists and load it
@@ -319,11 +320,11 @@ export class FocusChainManager {
 					// Create a task_progress message to display the focus chain list in the UI
 					await this.say("task_progress", markdownTodoList)
 				} else {
-					console.debug(`[Task ${this.taskId}] focus chain list: No valid task progress to update with`)
+					Logger.debug(`[Task ${this.taskId}] focus chain list: No valid task progress to update with`)
 				}
 			}
 		} catch (error) {
-			console.error(`[Task ${this.taskId}] focus chain list: Error in updateFCListFromToolResponse:`, error)
+			Logger.error(`[Task ${this.taskId}] focus chain list: Error in updateFCListFromToolResponse:`, error)
 		}
 	}
 

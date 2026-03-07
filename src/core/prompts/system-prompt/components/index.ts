@@ -2,12 +2,12 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { getActVsPlanModeSection } from "./act_vs_plan_mode"
 import { getAgentRoleSection } from "./agent_role"
 import { getCapabilitiesSection } from "./capabilities"
-import { getCliSubagentsSection } from "./cli_subagents"
 import { getEditingFilesSection } from "./editing_files"
 import { getFeedbackSection } from "./feedback"
 import { getMcp } from "./mcp"
 import { getObjectiveSection } from "./objective"
 import { getRulesSection } from "./rules"
+import { getSkillsSection } from "./skills"
 import { getSystemInfo } from "./system_info"
 import { getUpdatingTaskProgress } from "./task_progress"
 import { getToolUseSection } from "./tool_use"
@@ -36,15 +36,12 @@ export function getSystemPromptComponents() {
 			id: SystemPromptSection.CAPABILITIES,
 			fn: getCapabilitiesSection,
 		},
+		{ id: SystemPromptSection.SKILLS, fn: getSkillsSection },
 		{ id: SystemPromptSection.RULES, fn: getRulesSection },
 		{ id: SystemPromptSection.OBJECTIVE, fn: getObjectiveSection },
 		{
 			id: SystemPromptSection.ACT_VS_PLAN,
 			fn: getActVsPlanModeSection,
-		},
-		{
-			id: SystemPromptSection.CLI_SUBAGENTS,
-			fn: getCliSubagentsSection,
 		},
 		{
 			id: SystemPromptSection.FEEDBACK,

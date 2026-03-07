@@ -2,6 +2,8 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
+import { NotebookDiffView } from "@/hosts/vscode/NotebookDiffView"
+import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual } from "@/utils/path"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
@@ -11,6 +13,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
+	private notebookDiffView?: NotebookDiffView
 
 	override async openDiffEditor(): Promise<void> {
 		if (!this.absolutePath) {
@@ -28,7 +31,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				try {
 					await vscode.window.tabGroups.close(tab)
 				} catch (error) {
-					console.warn("Tab close retry failed:", error.message)
+					Logger.warn("Tab close retry failed:", error.message)
 				}
 			}
 			this.documentWasOpen = true
@@ -63,9 +66,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				})
 				vscode.commands.executeCommand(
 					"vscode.diff",
-					vscode.Uri.from({
-						scheme: DIFF_VIEW_URI_SCHEME,
-						path: fileName,
+					vscode.Uri.parse(
+						`${DIFF_VIEW_URI_SCHEME}:${fileName.replace(/%/g, "%25").replace(/#/g, "%23").replace(/\?/g, "%3F")}`,
+					).with({
 						query: Buffer.from(this.originalContent ?? "").toString("base64"),
 					}),
 					uri,
@@ -102,26 +105,30 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		this.activeDiffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
 
 		// Replace the text in the diff editor document.
-		const document = this.activeDiffEditor.document
+		const document = this.activeDiffEditor?.document
+		const replacingToEnd = rangeToReplace.endLine >= document.lineCount
 		const edit = new vscode.WorkspaceEdit()
-
-		// IMPORTANT: VS Code may treat an out-of-bounds end position as an insertion instead of a
-		// replacement. Always validate the range against the current document to keep edits
-		// strictly within the real end-of-file.
-		const startLine = Math.max(0, Math.min(rangeToReplace.startLine, document.lineCount - 1))
-		const desiredEndLine = Math.max(rangeToReplace.startLine, rangeToReplace.endLine)
-		const validatedRange = document.validateRange(
-			new vscode.Range(new vscode.Position(startLine, 0), new vscode.Position(desiredEndLine, 0)),
-		)
-
-		edit.replace(document.uri, validatedRange, content)
+		const range = new vscode.Range(rangeToReplace.startLine, 0, rangeToReplace.endLine, 0)
+		edit.replace(document.uri, range, content)
 		await vscode.workspace.applyEdit(edit)
 
-		// Preserve trailing newline: if content ends with newline, ensure document does too
-		if (content.endsWith("\n") && !document.getText().endsWith("\n")) {
-			const fixEdit = new vscode.WorkspaceEdit()
-			fixEdit.insert(document.uri, document.lineAt(Math.max(0, document.lineCount - 1)).range.end, "\n")
-			await vscode.workspace.applyEdit(fixEdit)
+		// VS Code can normalize trailing newlines on full-document replacements.
+		// Only fix up when replacing to the end to avoid touching untouched content.
+		if (replacingToEnd) {
+			const desiredTrailingNewlines = countTrailingNewlines(content)
+			const actualTrailingNewlines = countTrailingNewlines(document.getText())
+			const newlineDelta = desiredTrailingNewlines - actualTrailingNewlines
+
+			if (newlineDelta > 0) {
+				const fixEdit = new vscode.WorkspaceEdit()
+				fixEdit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, "\n".repeat(newlineDelta))
+				await vscode.workspace.applyEdit(fixEdit)
+			} else if (newlineDelta < 0) {
+				const fixEdit = new vscode.WorkspaceEdit()
+				const startLine = Math.max(0, document.lineCount + newlineDelta)
+				fixEdit.delete(document.uri, new vscode.Range(startLine, 0, document.lineCount, 0))
+				await vscode.workspace.applyEdit(fixEdit)
+			}
 		}
 
 		if (currentLine !== undefined) {
@@ -164,9 +171,16 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			edit.delete(document.uri, new vscode.Range(lineNumber, 0, document.lineCount, 0))
 			await vscode.workspace.applyEdit(edit)
 		}
-		// Clear all decorations at the end (before applying final edit)
+	}
+
+	protected override async onFinalUpdate(): Promise<void> {
+		// Clear all decorations at the end of streaming
 		this.fadedOverlayController?.clear()
 		this.activeLineController?.clear()
+	}
+
+	protected override async getDocumentLineCount(): Promise<number> {
+		return this.activeDiffEditor?.document.lineCount ?? 0
 	}
 
 	protected override async getDocumentText(): Promise<string | undefined> {
@@ -198,15 +212,57 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				try {
 					await vscode.window.tabGroups.close(tab)
 				} catch (error) {
-					console.warn("Tab close retry failed:", error.message)
+					Logger.warn("Tab close retry failed:", error.message)
 				}
 			}
 		}
 	}
 
 	protected override async resetDiffView(): Promise<void> {
+		if (this.notebookDiffView) {
+			await this.notebookDiffView.cleanup()
+			this.notebookDiffView = undefined
+		}
+
 		this.activeDiffEditor = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
 	}
+
+	protected override async switchToSpecializedEditor(): Promise<void> {
+		if (!this.isNotebookFile() || !this.activeDiffEditor || !this.absolutePath) {
+			return
+		}
+
+		try {
+			this.notebookDiffView = new NotebookDiffView()
+			await this.notebookDiffView.open(this.absolutePath, this.activeDiffEditor)
+		} catch (error) {
+			Logger.error("Failed to create notebook diff view:", error)
+		}
+	}
+
+	override async showFile(absolutePath: string): Promise<void> {
+		const uri = vscode.Uri.file(absolutePath)
+
+		if (this.isNotebookFile()) {
+			// Open with Jupyter notebook editor if available
+			const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
+			if (jupyterExtension) {
+				await vscode.commands.executeCommand("vscode.openWith", uri, "jupyter-notebook")
+				return
+			}
+		}
+
+		// Default: open as text
+		await vscode.window.showTextDocument(uri, { preview: false })
+	}
+}
+
+function countTrailingNewlines(text: string): number {
+	let count = 0
+	for (let i = text.length - 1; i >= 0 && text[i] === "\n"; i -= 1) {
+		count += 1
+	}
+	return count
 }

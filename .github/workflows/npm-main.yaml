@@ -1,0 +1,93 @@
+name: Publish NPM Release
+
+on:
+  workflow_call:
+    inputs:
+      confirm_publish:
+        description: 'Type "publish" to confirm you want to publish to NPM'
+        required: true
+        type: string
+
+permissions:
+  contents: write # Required for pushing tags
+  id-token: write # Required for npm trusted publishing (OIDC)
+  checks: write # Required by test workflow
+  pull-requests: write # Required by test workflow
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  publish-npm-release:
+    needs: test
+    name: Publish Cline CLI to NPM
+    if: github.repository == 'cline/cline' && github.ref == 'refs/heads/main' && inputs.confirm_publish == 'publish'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install root dependencies and CLI dependencies
+        run: npm ci --include=optional # this will also install cli deps because "cli" in included in root package.json workspaces field
+
+      - name: Generate Protos
+        run: npm run protos
+
+      - name: Read release version
+        id: version
+        run: |
+          # Read version from cli/package.json
+          VERSION=$(node -p "require('./cli/package.json').version")
+          echo "Release version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build standalone NPM package
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ENVIRONMENT: production
+          OTEL_TELEMETRY_ENABLED: "1"
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        run: node scripts/package-npm.mjs
+
+      - name: Verify build output
+        run: |
+          echo "Checking dist-standalone directory..."
+          ls -la dist-standalone/
+
+          echo "Verifying CLI binaries..."
+          ls -lh cli/bin/cline-* || echo "Warning: CLI binaries not found"
+
+          echo "Checking package.json in dist-standalone..."
+          cat dist-standalone/package.json | grep version
+
+      - name: Publish to NPM with latest tag
+        run: |
+          echo "Publishing version ${{ steps.version.outputs.version }} to NPM with tag 'latest'..."
+          cd dist-standalone
+          npm publish --tag latest --access public
+
+      - name: Tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}-cli"
+          git push origin "v${{ steps.version.outputs.version }}-cli"
+
+      - name: Summary
+        run: |
+          echo "✅ Successfully published cline@${{ steps.version.outputs.version }} to NPM with tag 'latest'"
+          echo ""
+          echo "📦 Install with: npm install -g cline"
+          echo "🔗 NPM: https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}"

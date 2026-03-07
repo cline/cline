@@ -1,5 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { AskResponseRequest } from "@shared/proto/cline/task"
+import { Logger } from "@/shared/services/Logger"
 import { ClineAskResponse } from "../../../shared/WebviewMessage"
 import { Controller } from ".."
 
@@ -13,7 +14,7 @@ import { Controller } from ".."
 export async function askResponse(controller: Controller, request: AskResponseRequest): Promise<Empty> {
 	try {
 		if (!controller.task) {
-			console.warn("askResponse: No active task to receive response")
+			Logger.warn("askResponse: No active task to receive response")
 			return Empty.create()
 		}
 
@@ -30,7 +31,7 @@ export async function askResponse(controller: Controller, request: AskResponseRe
 				responseType = "messageResponse"
 				break
 			default:
-				console.warn(`askResponse: Unknown response type: ${request.responseType}`)
+				Logger.warn(`askResponse: Unknown response type: ${request.responseType}`)
 				return Empty.create()
 		}
 
@@ -39,7 +40,7 @@ export async function askResponse(controller: Controller, request: AskResponseRe
 
 		return Empty.create()
 	} catch (error) {
-		console.error("Error in askResponse handler:", error)
+		Logger.error("Error in askResponse handler:", error)
 		throw error
 	}
 }

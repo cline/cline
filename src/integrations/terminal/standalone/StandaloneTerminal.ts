@@ -6,7 +6,7 @@
  */
 
 import type { ChildProcess } from "child_process"
-
+import { Logger } from "@/shared/services/Logger"
 import type { ITerminal, StandaloneTerminalOptions } from "../types"
 
 /**
@@ -72,7 +72,7 @@ export class StandaloneTerminal implements ITerminal {
 			},
 		}
 
-		console.log(`[StandaloneTerminal] Created terminal: ${this.name} in ${this._cwd}`)
+		Logger.log(`[StandaloneTerminal] Created terminal: ${this.name} in ${this._cwd}`)
 	}
 
 	/**
@@ -81,18 +81,18 @@ export class StandaloneTerminal implements ITerminal {
 	 * @param addNewLine Whether to add a newline (default: true)
 	 */
 	sendText(text: string, addNewLine: boolean = true): void {
-		console.log(`[StandaloneTerminal] sendText: ${text}`)
+		Logger.log(`[StandaloneTerminal] sendText: ${text}`)
 
 		// If we have an active process, send input to it
 		if (this._process && !this._process.killed) {
 			try {
 				this._process.stdin?.write(text + (addNewLine ? "\n" : ""))
 			} catch (error) {
-				console.error(`[StandaloneTerminal] Error sending text to process:`, error)
+				Logger.error(`[StandaloneTerminal] Error sending text to process:`, error)
 			}
 		} else {
 			// For compatibility with old behavior, we could spawn a new process
-			console.log(`[StandaloneTerminal] No active process to send text to`)
+			Logger.log(`[StandaloneTerminal] No active process to send text to`)
 		}
 	}
 
@@ -100,7 +100,7 @@ export class StandaloneTerminal implements ITerminal {
 	 * Show the terminal (no-op in standalone mode).
 	 */
 	show(): void {
-		console.log(`[StandaloneTerminal] show: ${this.name}`)
+		Logger.log(`[StandaloneTerminal] show: ${this.name}`)
 		this.state.isInteractedWith = true
 	}
 
@@ -108,14 +108,14 @@ export class StandaloneTerminal implements ITerminal {
 	 * Hide the terminal (no-op in standalone mode).
 	 */
 	hide(): void {
-		console.log(`[StandaloneTerminal] hide: ${this.name}`)
+		Logger.log(`[StandaloneTerminal] hide: ${this.name}`)
 	}
 
 	/**
 	 * Dispose of the terminal and kill any running process.
 	 */
 	dispose(): void {
-		console.log(`[StandaloneTerminal] dispose: ${this.name}`)
+		Logger.log(`[StandaloneTerminal] dispose: ${this.name}`)
 		if (this._process && !this._process.killed) {
 			this._process.kill("SIGTERM")
 		}

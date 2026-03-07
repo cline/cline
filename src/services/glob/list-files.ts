@@ -3,6 +3,7 @@ import { arePathsEqual } from "@utils/path"
 import { globby, Options } from "globby"
 import * as os from "os"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 
 // Constants
 const DEFAULT_IGNORE_DIRECTORIES = [
@@ -127,7 +128,7 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 	try {
 		return await Promise.race([globbingProcess(), timeoutPromise])
 	} catch (_error) {
-		console.warn("Globbing timed out, returning partial results")
+		Logger.warn("Globbing timed out, returning partial results")
 		return Array.from(results)
 	}
 }

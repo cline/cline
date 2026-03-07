@@ -1,6 +1,7 @@
 import getFolderSize from "get-folder-size"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Gets the total size of tasks and checkpoints directories
@@ -15,7 +16,7 @@ export async function getTotalTasksSize(): Promise<number | null> {
 		const checkpointsSize = await getFolderSize.loose(checkpointsDir)
 		return tasksSize + checkpointsSize
 	} catch (error) {
-		console.error("Failed to calculate total task size:", error)
+		Logger.error("Failed to calculate total task size:", error)
 		return null
 	}
 }

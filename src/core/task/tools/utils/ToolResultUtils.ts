@@ -1,10 +1,9 @@
-import { ApiHandler } from "@core/api"
 import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
-import { Logger } from "@/services/logging/Logger"
 import { ClineAsk } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
@@ -20,7 +19,6 @@ export class ToolResultUtils {
 		block: ToolUse,
 		userMessageContent: any[],
 		toolDescription: (block: ToolUse) => string,
-		_api: ApiHandler,
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {
@@ -125,6 +123,10 @@ export class ToolResultUtils {
 	 * Handles tool approval flow and processes any user feedback
 	 */
 	static async askApprovalAndPushFeedback(type: ClineAsk, completeMessage: string, config: TaskConfig) {
+		if (config.isSubagentExecution) {
+			return true
+		}
+
 		const { response, text, images, files } = await config.callbacks.ask(type, completeMessage, false)
 
 		if (text || (images && images.length > 0) || (files && files.length > 0)) {
@@ -141,9 +143,8 @@ export class ToolResultUtils {
 			// User pressed reject button or responded with a message, which we treat as a rejection
 			config.taskState.didRejectTool = true // Prevent further tool uses in this message
 			return false
-		} else {
-			// User hit the approve button, and may have provided feedback
-			return true
 		}
+		// User hit the approve button, and may have provided feedback
+		return true
 	}
 }

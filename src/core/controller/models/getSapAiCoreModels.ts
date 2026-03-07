@@ -1,6 +1,7 @@
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
 import { SapAiCoreModelDeployment, SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 interface Token {
@@ -92,7 +93,7 @@ async function fetchAiCoreDeploymentsAndOrchestration(
 
 		return { deployments, orchestrationAvailable }
 	} catch (error) {
-		console.error("Error fetching deployments:", error)
+		Logger.error("Error fetching deployments:", error)
 		throw new Error("Failed to fetch deployments")
 	}
 }
@@ -141,7 +142,7 @@ export async function getSapAiCoreModels(
 			orchestrationAvailable,
 		})
 	} catch (error) {
-		console.error("Error fetching SAP AI Core models:", error)
+		Logger.error("Error fetching SAP AI Core models:", error)
 		return SapAiCoreModelsResponse.create({
 			deployments: [],
 			orchestrationAvailable: false,

@@ -1,0 +1,15 @@
+{
+	"name": "Create a simple file",
+	"description": "Tests basic file creation with write_to_file tool",
+	"prompt": "Create a file called hello.txt that contains the text 'Hello, World!'",
+	"expectedFiles": [
+		"hello.txt"
+	],
+	"expectedContent": [
+		{
+			"file": "hello.txt",
+			"contains": "Hello"
+		}
+	],
+	"timeout": 120
+}

@@ -16,6 +16,7 @@ import {
 	ModelInfo,
 	OcaModelInfo,
 } from "../../api"
+import { OpenaiReasoningEffort } from "../../storage/types"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {
@@ -160,6 +161,7 @@ function convertLiteLLMModelInfoToProto(info: AppLiteLLMModelInfo | undefined): 
 		description: info.description,
 		tiers: info.tiers || [],
 		temperature: info.temperature,
+		supportsReasoning: info.supportsReasoning,
 	}
 }
 
@@ -183,6 +185,7 @@ function convertProtoToLiteLLMModelInfo(info: LiteLLMModelInfo | undefined): App
 		description: info.description,
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
+		supportsReasoning: info.supportsReasoning,
 	}
 }
 
@@ -321,6 +324,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "openai-codex":
+			return ProtoApiProvider.OPENAI_CODEX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -409,6 +414,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.OPENAI_CODEX:
+			return "openai-codex"
 		default:
 			return "anthropic"
 	}
@@ -495,6 +502,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
 		nousResearchApiKey: config.nousResearchApiKey,
+		clineApiKey: config.clineApiKey,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
 		aihubmixBaseUrl: config.aihubmixBaseUrl,
@@ -513,6 +521,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeAwsBedrockCustomModelBaseId: config.planModeAwsBedrockCustomModelBaseId as string | undefined,
 		planModeOpenRouterModelId: config.planModeOpenRouterModelId,
 		planModeOpenRouterModelInfo: convertModelInfoToProtoOpenRouter(config.planModeOpenRouterModelInfo),
+		planModeClineModelId: config.planModeClineModelId,
+		planModeClineModelInfo: convertModelInfoToProtoOpenRouter(config.planModeClineModelInfo),
 		planModeOpenAiModelId: config.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeOpenAiModelInfo),
 		planModeOllamaModelId: config.planModeOllamaModelId,
@@ -541,6 +551,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
+		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -553,6 +565,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeAwsBedrockCustomModelBaseId: config.actModeAwsBedrockCustomModelBaseId as string | undefined,
 		actModeOpenRouterModelId: config.actModeOpenRouterModelId,
 		actModeOpenRouterModelInfo: convertModelInfoToProtoOpenRouter(config.actModeOpenRouterModelInfo),
+		actModeClineModelId: config.actModeClineModelId,
+		actModeClineModelInfo: convertModelInfoToProtoOpenRouter(config.actModeClineModelInfo),
 		actModeOpenAiModelId: config.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeOpenAiModelInfo),
 		actModeOllamaModelId: config.actModeOllamaModelId,
@@ -581,6 +595,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
+		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 	}
 }
 
@@ -671,6 +687,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		clineApiKey: protoConfig.clineApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -680,12 +697,14 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeApiModelId: protoConfig.planModeApiModelId,
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: protoConfig.geminiPlanModeThinkingLevel,
-		planModeReasoningEffort: protoConfig.planModeReasoningEffort,
+		planModeReasoningEffort: protoConfig.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		planModeVsCodeLmModelSelector: protoConfig.planModeVsCodeLmModelSelector,
 		planModeAwsBedrockCustomSelected: protoConfig.planModeAwsBedrockCustomSelected,
 		planModeAwsBedrockCustomModelBaseId: protoConfig.planModeAwsBedrockCustomModelBaseId as BedrockModelId | undefined,
 		planModeOpenRouterModelId: protoConfig.planModeOpenRouterModelId,
 		planModeOpenRouterModelInfo: convertProtoToModelInfo(protoConfig.planModeOpenRouterModelInfo),
+		planModeClineModelId: protoConfig.planModeClineModelId,
+		planModeClineModelInfo: convertProtoToModelInfo(protoConfig.planModeClineModelInfo),
 		planModeOpenAiModelId: protoConfig.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeOpenAiModelInfo),
 		planModeOllamaModelId: protoConfig.planModeOllamaModelId,
@@ -714,6 +733,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
+		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
+		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -721,12 +742,14 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeApiModelId: protoConfig.actModeApiModelId,
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: protoConfig.geminiActModeThinkingLevel,
-		actModeReasoningEffort: protoConfig.actModeReasoningEffort,
+		actModeReasoningEffort: protoConfig.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		actModeVsCodeLmModelSelector: protoConfig.actModeVsCodeLmModelSelector,
 		actModeAwsBedrockCustomSelected: protoConfig.actModeAwsBedrockCustomSelected,
 		actModeAwsBedrockCustomModelBaseId: protoConfig.actModeAwsBedrockCustomModelBaseId as BedrockModelId | undefined,
 		actModeOpenRouterModelId: protoConfig.actModeOpenRouterModelId,
 		actModeOpenRouterModelInfo: convertProtoToModelInfo(protoConfig.actModeOpenRouterModelInfo),
+		actModeClineModelId: protoConfig.actModeClineModelId,
+		actModeClineModelInfo: convertProtoToModelInfo(protoConfig.actModeClineModelInfo),
 		actModeOpenAiModelId: protoConfig.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeOpenAiModelInfo),
 		actModeOllamaModelId: protoConfig.actModeOllamaModelId,
@@ -755,5 +778,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
+		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
+		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 	}
 }

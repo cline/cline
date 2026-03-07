@@ -1,5 +1,6 @@
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -10,7 +11,7 @@ import { Controller } from ".."
  */
 export async function taskFeedback(controller: Controller, request: StringRequest): Promise<Empty> {
 	if (!request.value) {
-		console.warn("taskFeedback: Missing feedback type value")
+		Logger.warn("taskFeedback: Missing feedback type value")
 		return Empty.create()
 	}
 
@@ -18,10 +19,10 @@ export async function taskFeedback(controller: Controller, request: StringReques
 		if (controller.task?.ulid) {
 			telemetryService.captureTaskFeedback(controller.task.ulid, request.value as any)
 		} else {
-			console.warn("taskFeedback: No active task to receive feedback")
+			Logger.warn("taskFeedback: No active task to receive feedback")
 		}
 	} catch (error) {
-		console.error("Error in taskFeedback handler:", error)
+		Logger.error("Error in taskFeedback handler:", error)
 	}
 
 	return Empty.create()

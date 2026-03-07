@@ -1,5 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { OnboardingProgressRequest } from "@shared/proto/cline/state"
+import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import type { Controller } from "../index"
 
@@ -19,7 +20,7 @@ export async function captureOnboardingProgress(_controller: Controller, request
 		})
 		return Empty.create({})
 	} catch (error) {
-		console.error("Failed to set welcome view completed:", error)
+		Logger.error("Failed to set welcome view completed:", error)
 		throw error
 	}
 }

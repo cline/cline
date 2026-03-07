@@ -32,6 +32,12 @@
 		font-size: inherit;
 		color: inherit;
 	}
+	pre {
+		@apply bg-code;
+	}
+	code {
+		@apply bg-code;
+	}
 	h1 {
 		font-size: var(--text-lg);
 		font-weight: var(--font-weight-semibold);
@@ -50,6 +56,7 @@
 	}
 	a {
 		@apply text-link hover:text-link-hover;
+		font-size: inherit;
 	}
 	ol {
 		@apply list-decimal pl-3;

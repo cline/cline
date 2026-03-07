@@ -1,18 +1,39 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
+import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
+import { Logger } from "@shared/services/Logger"
 import { ClineDefaultTool } from "@shared/tools"
 import type { ToolResponse } from "../../index"
+import { showNotificationForApproval } from "../../utils"
 import { buildUserFeedbackContent } from "../../utils/buildUserFeedbackContent"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { getTaskCompletionTelemetry } from "../utils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+const TASK_PREVIEW_MAX_CHARS = 8000
+
+function getInitialTaskPreview(config: TaskConfig): string | undefined {
+	const firstTaskMessage = config.messageState
+		.getClineMessages()
+		.find((message) => message.say === "task")
+		?.text?.trim()
+	if (!firstTaskMessage) {
+		return undefined
+	}
+	if (firstTaskMessage.length <= TASK_PREVIEW_MAX_CHARS) {
+		return firstTaskMessage
+	}
+	return `${firstTaskMessage.slice(0, TASK_PREVIEW_MAX_CHARS)}\n...[truncated]`
+}
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ATTEMPT
@@ -23,22 +44,13 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 	/**
 	 * Handle partial block streaming for attempt_completion
-	 * Matches the original conditional logic structure for command vs no-command cases
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const result = block.params.result
-		const command = block.params.command
-
-		if (!command) {
-			// no command, still outputting partial result
-			await uiHelpers.say(
-				"completion_result",
-				uiHelpers.removeClosingTag(block, "result", result),
-				undefined,
-				undefined,
-				block.partial,
-			)
+		const result = uiHelpers.removeClosingTag(block, "result", block.params.result)
+		if (result) {
+			await uiHelpers.say("completion_result", result, undefined, undefined, block.partial)
 		}
+		// We will handle command in the final execution step
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -52,6 +64,30 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		// Double-check completion: reject attempt_completion calls that haven't been re-verified
+		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionPending) {
+			config.taskState.doubleCheckCompletionPending = true
+			// Remove the partial completion_result message that was shown during streaming
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
+
+			const taskPreview = getInitialTaskPreview(config)
+			const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
+
+			return formatResponse.toolError(
+				"Before completing, re-verify your work against the original task requirements. Check that:\n" +
+					"1. All requested changes have been made\n" +
+					"2. No steps were skipped or partially completed\n" +
+					"3. Edge cases and error handling are addressed\n" +
+					"4. The solution matches what was asked for, not just what was convenient\n" +
+					"5. Output files contain exactly what was specified--no extra columns, fields, debug output, or commentary\n" +
+					"6. If the task specifies numerical thresholds or accuracy targets, verify your result meets the criteria. If close but not passing, iterate rather than declaring completion" +
+					taskSection +
+					"\n\nIf everything checks out, call attempt_completion again with your final result.",
+			)
+		}
+		// Reset so the next attempt_completion pair triggers double-check again
+		config.taskState.doubleCheckCompletionPending = false
 
 		// Run PreToolUse hook before execution
 		try {
@@ -118,7 +154,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				const completionMessageTs = await config.callbacks.say("completion_result", result, undefined, undefined, false)
 				await config.callbacks.saveCheckpoint(true, completionMessageTs)
 				await addNewChangesFlagToLastCompletionResultMessage()
-				telemetryService.captureTaskCompleted(config.ulid)
+				telemetryService.captureTaskCompleted(config.ulid, getTaskCompletionTelemetry(config))
 			} else {
 				// we already sent a command message, meaning the complete completion message has also been sent
 				await config.callbacks.saveCheckpoint(true)
@@ -129,14 +165,31 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 			}
 
-			// complete command message - need to ask for approval
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
-			if (!didApprove) {
-				return formatResponse.toolDenied()
+			// Check if command should be auto-approved
+			// attempt_completion commands don't have requires_approval param, so we treat them as safe commands
+			const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(ClineDefaultTool.BASH)
+			const autoApproveSafe = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
+
+			if (autoApproveSafe) {
+				// Auto-approve flow - show command as 'say' instead of 'ask'
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
+				await config.callbacks.say("command", command, undefined, undefined, false)
+			} else {
+				// Manual approval flow - need to ask for approval
+				showNotificationForApproval(
+					`Cline wants to execute a command: ${command}`,
+					config.autoApprovalSettings.enableNotifications,
+				)
+
+				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+				if (!didApprove) {
+					return formatResponse.toolDenied()
+				}
 			}
 
-			// User approved, execute the command
+			// Execute the command
 			const [userRejected, execCommandResult] = await config.callbacks.executeCommandTool(command!, undefined) // no timeout for attempt_completion command
+
 			if (userRejected) {
 				config.taskState.didRejectTool = true
 				return execCommandResult
@@ -148,7 +201,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			const completionMessageTs = await config.callbacks.say("completion_result", result, undefined, undefined, false)
 			await config.callbacks.saveCheckpoint(true, completionMessageTs)
 			await addNewChangesFlagToLastCompletionResultMessage()
-			telemetryService.captureTaskCompleted(config.ulid)
+			telemetryService.captureTaskCompleted(config.ulid, getTaskCompletionTelemetry(config))
 		}
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
@@ -164,6 +217,12 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
 		// At this point we know: task is complete, checkpoint saved, result shown to user
 		await this.runTaskCompleteHook(config, block)
+		await this.runNotificationHook(config, {
+			event: "task_complete",
+			source: "attempt_completion",
+			message: result,
+			waitingForUserInput: false,
+		})
 
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		const prefix = "[attempt_completion] Result: Done"
@@ -249,7 +308,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	 * Errors are logged but do not affect task completion.
 	 */
 	private async runTaskCompleteHook(config: TaskConfig, block: ToolUse): Promise<void> {
-		const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (!hooksEnabled) {
 			return
 		}
@@ -276,10 +335,50 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				messageStateHandler: config.messageState,
 				taskId: config.taskId,
 				hooksEnabled,
+				model: getHookModelContext(config.api, config.services.stateManager),
 			})
 		} catch (error) {
 			// TaskComplete hook failed - non-fatal, just log
-			console.error("[TaskComplete Hook] Failed (non-fatal):", error)
+			Logger.error("[TaskComplete Hook] Failed (non-fatal):", error)
+		}
+	}
+
+	private async runNotificationHook(
+		config: TaskConfig,
+		notification: {
+			event: string
+			source: string
+			message: string
+			waitingForUserInput: boolean
+		},
+	): Promise<void> {
+		const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			const { executeHook } = await import("@core/hooks/hook-executor")
+
+			await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification: {
+						...notification,
+						message: notification.message.slice(0, TASK_PREVIEW_MAX_CHARS),
+					},
+				},
+				isCancellable: false,
+				say: async () => undefined,
+				setActiveHookExecution: undefined,
+				clearActiveHookExecution: undefined,
+				messageStateHandler: config.messageState,
+				taskId: config.taskId,
+				hooksEnabled,
+				model: getHookModelContext(config.api, config.services.stateManager),
+			})
+		} catch (error) {
+			Logger.error("[Notification Hook] Failed (non-fatal):", error)
 		}
 	}
 }

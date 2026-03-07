@@ -1,5 +1,6 @@
 import axios from "axios"
 import * as net from "net"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Check if a port is open on a given host
@@ -93,7 +94,7 @@ export async function testBrowserConnection(host: string): Promise<{ success: bo
 			endpoint: browserWSEndpoint,
 		}
 	} catch (error) {
-		console.error(`Failed to connect to remote browser: ${error}`)
+		Logger.error(`Failed to connect to remote browser: ${error}`)
 		return {
 			success: false,
 			message: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,

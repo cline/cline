@@ -1,10 +1,79 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { Logger } from "@/shared/services/Logger"
+import { resolveWindowsPowerShellExecutable } from "@/utils/powershell"
 import { HookProcessRegistry } from "./HookProcessRegistry"
 import { escapeShellPath } from "./shell-escape"
 
 // Maximum total output size (stdout + stderr combined)
 const MAX_HOOK_OUTPUT_SIZE = 1024 * 1024 // 1MB
+
+interface HookLaunchConfig {
+	command: string
+	args: string[]
+	shell: boolean
+	detached: boolean
+}
+
+const WINDOWS_HOOK_LAUNCHER_CACHE_TTL_MS = 5 * 60 * 1000
+
+let resolvedHookLauncherCommandPromise: Promise<string> | null = null
+let resolvedHookLauncherCommandExpiresAt = 0
+
+export function resetHookLaunchConfigCacheForTesting(): void {
+	resolvedHookLauncherCommandPromise = null
+	resolvedHookLauncherCommandExpiresAt = 0
+}
+
+function shouldRefreshWindowsLauncherCache(now: number): boolean {
+	return !resolvedHookLauncherCommandPromise || now >= resolvedHookLauncherCommandExpiresAt
+}
+
+/**
+ * Returns the process launch configuration for a hook script.
+ *
+ * On Windows, the PowerShell executable lookup is cached briefly so concurrent
+ * hook launches share the same in-flight resolution and avoid repeated process
+ * spawning.
+ *
+ * @param scriptPath Path to the hook script to launch.
+ * @param resolvePowerShellExecutable Windows only. Called at most once per
+ *   `WINDOWS_HOOK_LAUNCHER_CACHE_TTL_MS` window; subsequent concurrent or cached
+ *   calls reuse the shared result and ignore this parameter.
+ */
+export async function getHookLaunchConfig(
+	scriptPath: string,
+	resolvePowerShellExecutable: () => Promise<string> = resolveWindowsPowerShellExecutable,
+): Promise<HookLaunchConfig> {
+	if (process.platform === "win32") {
+		const now = Date.now()
+
+		if (shouldRefreshWindowsLauncherCache(now)) {
+			resolvedHookLauncherCommandPromise = resolvePowerShellExecutable().catch((error) => {
+				resolvedHookLauncherCommandPromise = null
+				resolvedHookLauncherCommandExpiresAt = 0
+				throw error
+			})
+			resolvedHookLauncherCommandExpiresAt = now + WINDOWS_HOOK_LAUNCHER_CACHE_TTL_MS
+		}
+
+		const powerShellExecutable = await resolvedHookLauncherCommandPromise!
+		return {
+			command: powerShellExecutable,
+			args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
+			shell: false,
+			detached: false,
+		}
+	}
+
+	const escapedScriptPath = escapeShellPath(scriptPath)
+	return {
+		command: escapedScriptPath,
+		args: [],
+		shell: true,
+		detached: true,
+	}
+}
 
 /**
  * HookProcess manages the execution of a hook script with streaming output capabilities.
@@ -42,6 +111,7 @@ export class HookProcess extends EventEmitter {
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
 		private readonly abortSignal?: AbortSignal,
+		private readonly cwd?: string,
 	) {
 		super()
 	}
@@ -98,106 +168,116 @@ export class HookProcess extends EventEmitter {
 					this.abortSignal.addEventListener("abort", abortHandler, { once: true })
 				}
 
-				// Spawn the hook process through shell on all platforms
-				// This is the git-style approach: the shell interprets the shebang line
-				// and executes the appropriate interpreter (bash, node, python, etc.)
-				// On Unix: detached=true creates a process group, allowing us to kill all children
-				const escapedScriptPath = escapeShellPath(this.scriptPath)
-				this.childProcess = spawn(escapedScriptPath, [], {
-					stdio: ["pipe", "pipe", "pipe"],
-					shell: true, // Use shell on all platforms for shebang interpretation
-					detached: process.platform !== "win32", // Create process group on Unix
-				})
+				// Windows executes hooks with PowerShell directly.
+				// Unix executes hook files through the shell for shebang support.
+				void (async () => {
+					try {
+						const launchConfig = await getHookLaunchConfig(this.scriptPath)
+						this.childProcess = spawn(launchConfig.command, launchConfig.args, {
+							stdio: ["pipe", "pipe", "pipe"],
+							shell: launchConfig.shell,
+							detached: launchConfig.detached,
+							cwd: this.cwd, // Execute from the determined workspace root
+							windowsHide: true,
+						})
 
-				let didEmitEmptyLine = false
+						let didEmitEmptyLine = false
 
-				// Set up timeout
-				this.timeoutHandle = setTimeout(() => {
-					if (this.childProcess && !this.isCompleted) {
-						this.childProcess.kill("SIGTERM")
-						reject(
-							new Error(
-								`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
-							),
-						)
+						// Set up timeout
+						this.timeoutHandle = setTimeout(() => {
+							if (this.childProcess && !this.isCompleted) {
+								this.childProcess.kill("SIGTERM")
+								reject(
+									new Error(
+										`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
+									),
+								)
+							}
+						}, this.timeoutMs)
+
+						// Handle stdout
+						this.childProcess.stdout?.on("data", (data) => {
+							const output = data.toString()
+							this.stdoutBuffer += output
+							this.handleOutput(output, didEmitEmptyLine, "stdout")
+							if (!didEmitEmptyLine && output) {
+								this.emit("line", "", "stdout") // Signal start of output
+								didEmitEmptyLine = true
+							}
+						})
+
+						// Handle stderr
+						this.childProcess.stderr?.on("data", (data) => {
+							const output = data.toString()
+							this.stderrBuffer += output
+							this.handleOutput(output, didEmitEmptyLine, "stderr")
+							if (!didEmitEmptyLine && output) {
+								this.emit("line", "", "stderr") // Signal start of output
+								didEmitEmptyLine = true
+							}
+						})
+
+						// Handle process completion
+						this.childProcess.on("close", (code, signal) => {
+							this.exitCode = code
+							this.isCompleted = true
+							this.emitRemainingBuffer()
+
+							// Unregister from active processes
+							this.safeUnregister()
+
+							// Clear execution timeout timer
+							if (this.timeoutHandle) {
+								clearTimeout(this.timeoutHandle)
+								this.timeoutHandle = null
+							}
+
+							// Remove abort listener
+							if (this.abortSignal) {
+								this.abortSignal.removeEventListener("abort", abortHandler)
+							}
+
+							this.emit("completed", code, signal)
+
+							if (code === 0) {
+								resolve()
+							} else {
+								reject(new Error(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`))
+							}
+						})
+
+						// Handle process errors
+						this.childProcess.on("error", (error) => {
+							// Unregister from active processes
+							this.safeUnregister()
+
+							if (this.timeoutHandle) {
+								clearTimeout(this.timeoutHandle)
+								this.timeoutHandle = null
+							}
+							// Remove abort listener
+							if (this.abortSignal) {
+								this.abortSignal.removeEventListener("abort", abortHandler)
+							}
+							this.emit("error", error)
+							reject(error)
+						})
+
+						// Send input to the process
+						try {
+							this.childProcess.stdin?.write(inputJson)
+							this.childProcess.stdin?.end()
+						} catch (error) {
+							reject(new Error(`Failed to write input to hook: ${error}`))
+						}
+					} catch (error) {
+						this.safeUnregister()
+						if (this.abortSignal) {
+							this.abortSignal.removeEventListener("abort", abortHandler)
+						}
+						reject(error)
 					}
-				}, this.timeoutMs)
-
-				// Handle stdout
-				this.childProcess.stdout?.on("data", (data) => {
-					const output = data.toString()
-					this.stdoutBuffer += output
-					this.handleOutput(output, didEmitEmptyLine, "stdout")
-					if (!didEmitEmptyLine && output) {
-						this.emit("line", "", "stdout") // Signal start of output
-						didEmitEmptyLine = true
-					}
-				})
-
-				// Handle stderr
-				this.childProcess.stderr?.on("data", (data) => {
-					const output = data.toString()
-					this.stderrBuffer += output
-					this.handleOutput(output, didEmitEmptyLine, "stderr")
-					if (!didEmitEmptyLine && output) {
-						this.emit("line", "", "stderr") // Signal start of output
-						didEmitEmptyLine = true
-					}
-				})
-
-				// Handle process completion
-				this.childProcess.on("close", (code, signal) => {
-					this.exitCode = code
-					this.isCompleted = true
-					this.emitRemainingBuffer()
-
-					// Unregister from active processes
-					this.safeUnregister()
-
-					// Clear execution timeout timer
-					if (this.timeoutHandle) {
-						clearTimeout(this.timeoutHandle)
-						this.timeoutHandle = null
-					}
-
-					// Remove abort listener
-					if (this.abortSignal) {
-						this.abortSignal.removeEventListener("abort", abortHandler)
-					}
-
-					this.emit("completed", code, signal)
-
-					if (code === 0) {
-						resolve()
-					} else {
-						reject(new Error(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`))
-					}
-				})
-
-				// Handle process errors
-				this.childProcess.on("error", (error) => {
-					// Unregister from active processes
-					this.safeUnregister()
-
-					if (this.timeoutHandle) {
-						clearTimeout(this.timeoutHandle)
-						this.timeoutHandle = null
-					}
-					// Remove abort listener
-					if (this.abortSignal) {
-						this.abortSignal.removeEventListener("abort", abortHandler)
-					}
-					this.emit("error", error)
-					reject(error)
-				})
-
-				// Send input to the process
-				try {
-					this.childProcess.stdin?.write(inputJson)
-					this.childProcess.stdin?.end()
-				} catch (error) {
-					reject(new Error(`Failed to write input to hook: ${error}`))
-				}
+				})()
 			})
 		} finally {
 			// Guaranteed cleanup even if process setup fails or throws
@@ -230,7 +310,7 @@ export class HookProcess extends EventEmitter {
 				this.outputTruncated = true
 				const truncationMsg = "\n\n[Output truncated: exceeded 1MB limit]"
 				this.emit("line", truncationMsg, stream)
-				console.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
+				Logger.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
 			}
 			return // Drop further output
 		}
@@ -362,7 +442,7 @@ export class HookProcess extends EventEmitter {
 			}
 		} catch (error) {
 			// Process might already be dead, which is fine
-			console.debug(`[HookProcess] Error during termination: ${error}`)
+			Logger.debug(`[HookProcess] Error during termination: ${error}`)
 		} finally {
 			// Clear timeout regardless
 			if (this.timeoutHandle) {

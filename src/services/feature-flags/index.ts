@@ -19,9 +19,7 @@ let _featureFlagsServiceInstance: FeatureFlagsService | null = null
  */
 export function getFeatureFlagsService(): FeatureFlagsService {
 	if (!_featureFlagsServiceInstance) {
-		const provider = FeatureFlagsProviderFactory.createProvider({
-			type: "posthog",
-		})
+		const provider = FeatureFlagsProviderFactory.createProvider(FeatureFlagsProviderFactory.getDefaultConfig())
 		_featureFlagsServiceInstance = new FeatureFlagsService(provider)
 	}
 	return _featureFlagsServiceInstance
@@ -37,6 +35,11 @@ export function resetFeatureFlagsService(): void {
 export const featureFlagsService = new Proxy({} as FeatureFlagsService, {
 	get(_target, prop, _receiver) {
 		const service = getFeatureFlagsService()
-		return Reflect.get(service, prop, service)
+		const value = Reflect.get(service, prop, service)
+		// Bind methods to the service instance to preserve `this` context
+		if (typeof value === "function") {
+			return value.bind(service)
+		}
+		return value
 	},
 })

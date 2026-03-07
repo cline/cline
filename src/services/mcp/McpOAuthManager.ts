@@ -3,8 +3,10 @@ import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
 import crypto from "crypto"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { getMcpServerCallbackPath, getServerAuthHash } from "@/utils/mcpAuth"
+import { McpOAuthRedirectResolver } from "./McpOAuthRedirectResolver"
 
 /**
  * Structure for all OAuth data stored in the single mcpOAuthSecrets JSON
@@ -14,6 +16,7 @@ interface McpOAuthSecrets {
 		tokens?: OAuthTokens
 		tokens_saved_at?: number
 		client_info?: OAuthClientInformationFull
+		redirect_url_at_registration?: string
 		code_verifier?: string
 		oauth_state?: string
 		oauth_state_timestamp?: number
@@ -33,7 +36,7 @@ function getMcpOAuthSecrets(): McpOAuthSecrets {
 	try {
 		return JSON.parse(secretsJson) as McpOAuthSecrets
 	} catch (error) {
-		console.error("[McpOAuth] Failed to parse MCP OAuth secrets:", error)
+		Logger.error("[McpOAuth] Failed to parse MCP OAuth secrets:", error)
 		return {}
 	}
 }
@@ -54,6 +57,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	private serverName: string
 	private serverUrl: string
 	private _redirectUrl: string
+	private isRegistrationValid: boolean
 	private serverHash: string
 
 	constructor(serverName: string, serverUrl: string) {
@@ -61,15 +65,26 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		this.serverUrl = serverUrl
 		this.serverHash = getServerAuthHash(serverName, serverUrl)
 
-		// Redirect URL will be set when initialize() is called
+		// Redirect URL and registration validity will be set when initialize() is called
 		this._redirectUrl = ""
+		this.isRegistrationValid = false
 	}
 
 	async initialize(): Promise<void> {
-		// Get the base callback URL and construct full redirect URL
-		const baseCallbackUrl = await HostProvider.get().getCallbackUrl()
+		// Get the full callback URL with the MCP server-specific path,
+		// attempting to reuse the previously-registered port to preserve the OAuth client registration.
 		const callbackPath = getMcpServerCallbackPath(this.serverName, this.serverUrl)
-		this._redirectUrl = `${baseCallbackUrl}${callbackPath}`
+		const secrets = getMcpOAuthSecrets()
+		const savedRedirectUrl = secrets[this.serverHash]?.redirect_url_at_registration
+
+		const resolution = await McpOAuthRedirectResolver.resolve(
+			savedRedirectUrl,
+			callbackPath,
+			HostProvider.get().getCallbackUrl,
+		)
+
+		this._redirectUrl = resolution.redirectUrl
+		this.isRegistrationValid = resolution.isRegistrationValid
 	}
 
 	get redirectUrl(): string {
@@ -94,6 +109,24 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	async clientInformation(): Promise<OAuthClientInformationFull | undefined> {
+		// If the redirect URL has changed since the client was registered
+		// (e.g., different port bound, platform migration), the saved client_info
+		// is stale — the OAuth server will reject requests with the old redirect_uri.
+		// Return undefined to force the SDK to re-register a new client.
+		if (!this.isRegistrationValid) {
+			const secrets = getMcpOAuthSecrets()
+			if (secrets[this.serverHash]?.client_info) {
+				Logger.log(`[McpOAuth] Discarding stale client registration for ${this.serverName} — redirect URL changed`)
+				// Clear the stale client_info and tokens (tokens are bound to the old client_id)
+				delete secrets[this.serverHash].client_info
+				delete secrets[this.serverHash].redirect_url_at_registration
+				delete secrets[this.serverHash].tokens
+				delete secrets[this.serverHash].tokens_saved_at
+				saveMcpOAuthSecrets(secrets)
+			}
+			return undefined
+		}
+
 		const secrets = getMcpOAuthSecrets()
 		return secrets[this.serverHash]?.client_info
 	}
@@ -104,7 +137,13 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			secrets[this.serverHash] = {}
 		}
 		secrets[this.serverHash].client_info = clientInformation
+		// Track the redirect URL used for this registration so we can detect
+		// when it changes and force re-registration (see clientInformation())
+		secrets[this.serverHash].redirect_url_at_registration = this._redirectUrl
 		saveMcpOAuthSecrets(secrets)
+
+		// After a successful registration, the current redirect URL is now the registered one
+		this.isRegistrationValid = true
 	}
 
 	async tokens(): Promise<OAuthTokens | undefined> {
@@ -134,11 +173,10 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 				// If we have a refresh_token, return the expired tokens so SDK can refresh
 				// Otherwise return undefined to trigger full re-authentication
 				if (serverData.tokens.refresh_token) {
-					console.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
+					Logger.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
 					return serverData.tokens
-				} else {
-					return undefined
 				}
+				return undefined
 			}
 		}
 
@@ -149,7 +187,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		// Called by the SDK after successful token exchange
 		// Flow: finishAuth(code) → SDK's auth() → exchangeAuthorization() → THIS METHOD
 		// Stores tokens in the single mcpOAuthSecrets JSON for persistence
-		console.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
+		Logger.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
 
 		const secrets = getMcpOAuthSecrets()
 		if (!secrets[this.serverHash]) {
@@ -188,7 +226,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		// But if it is called, don't overwrite existing auth state
 		const existingTokens = await this.tokens()
 		if (existingTokens && existingTokens.access_token) {
-			console.warn(`[McpOAuth] Preserving existing tokens for ${this.serverName}`)
+			Logger.warn(`[McpOAuth] Preserving existing tokens for ${this.serverName}`)
 			return
 		}
 
@@ -208,7 +246,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		secrets[this.serverHash].pending_auth_url = authorizationUrl.toString()
 		saveMcpOAuthSecrets(secrets)
 
-		console.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate button`)
+		Logger.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate button`)
 	}
 
 	async saveCodeVerifier(codeVerifier: string): Promise<void> {
@@ -289,14 +327,14 @@ export class McpOAuthManager {
 		const serverData = secrets[serverHash]
 
 		if (!serverData?.oauth_state) {
-			console.error(`No stored state found for server hash: ${serverHash}`)
+			Logger.error(`No stored state found for server hash: ${serverHash}`)
 			return false
 		}
 
 		// Check if state has expired
 		if (serverData.oauth_state_timestamp) {
 			if (Date.now() - serverData.oauth_state_timestamp > this.STATE_EXPIRY_MS) {
-				console.error(`OAuth state expired for server hash: ${serverHash}`)
+				Logger.error(`OAuth state expired for server hash: ${serverHash}`)
 				// Clear expired state
 				delete serverData.oauth_state
 				delete serverData.oauth_state_timestamp

@@ -1,4 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isHermesModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -25,7 +26,6 @@ export const config = createVariant(ModelFamily.HERMES)
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.RULES,
 		SystemPromptSection.ACT_VS_PLAN,
-		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.TODO,
@@ -34,6 +34,7 @@ export const config = createVariant(ModelFamily.HERMES)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
+		SystemPromptSection.SKILLS,
 	)
 	.tools(
 		ClineDefaultTool.BASH,
@@ -53,6 +54,8 @@ export const config = createVariant(ModelFamily.HERMES)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.USE_SKILL,
+		ClineDefaultTool.USE_SUBAGENTS,
 	)
 	.placeholders({
 		MODEL_FAMILY: "hermes",
@@ -70,12 +73,12 @@ export const config = createVariant(ModelFamily.HERMES)
 // Compile-time validation
 const validationResult = validateVariant({ ...config, id: "hermes" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Hermes variant configuration validation failed:", validationResult.errors)
+	Logger.error("Hermes variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid Hermes variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Hermes variant configuration warnings:", validationResult.warnings)
+	Logger.warn("Hermes variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support

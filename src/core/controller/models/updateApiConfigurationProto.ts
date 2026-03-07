@@ -7,7 +7,9 @@ import {
 	fromProtobufOcaModelInfo,
 	fromProtobufOpenAiCompatibleModelInfo,
 } from "@shared/proto-conversions/models/typeConversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { buildApiHandler } from "@/core/api"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -22,7 +24,7 @@ export async function updateApiConfigurationProto(
 ): Promise<Empty> {
 	try {
 		if (!request.apiConfiguration) {
-			console.log("[APICONFIG: updateApiConfigurationProto] API configuration is required")
+			Logger.log("[APICONFIG: updateApiConfigurationProto] API configuration is required")
 			throw new Error("API configuration is required")
 		}
 
@@ -44,6 +46,9 @@ export async function updateApiConfigurationProto(
 			// Plan Mode
 			planModeOpenRouterModelInfo: protoApiConfiguration.planModeOpenRouterModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.planModeOpenRouterModelInfo)
+				: undefined,
+			planModeClineModelInfo: protoApiConfiguration.planModeClineModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeClineModelInfo)
 				: undefined,
 			planModeOpenAiModelInfo: protoApiConfiguration.planModeOpenAiModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeOpenAiModelInfo)
@@ -80,6 +85,9 @@ export async function updateApiConfigurationProto(
 			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.actModeOpenRouterModelInfo)
 				: undefined,
+			actModeClineModelInfo: protoApiConfiguration.actModeClineModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeClineModelInfo)
+				: undefined,
 			actModeOpenAiModelInfo: protoApiConfiguration.actModeOpenAiModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeOpenAiModelInfo)
 				: undefined,
@@ -112,6 +120,8 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			geminiPlanModeThinkingLevel: protoApiConfiguration.geminiPlanModeThinkingLevel,
 			geminiActModeThinkingLevel: protoApiConfiguration.geminiActModeThinkingLevel,
+			planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
+			actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 		}
 
 		// Update the API configuration in storage
@@ -131,7 +141,7 @@ export async function updateApiConfigurationProto(
 
 		return Empty.create()
 	} catch (error) {
-		console.error(`Failed to update API configuration: ${error}`)
+		Logger.error(`Failed to update API configuration: ${error}`)
 		throw error
 	}
 }

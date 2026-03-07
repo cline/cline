@@ -1,9 +1,11 @@
 import { fileExistsAtPath } from "@utils/fs"
+import { retryWithBackoff } from "@utils/retry"
 import fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
 import simpleGit, { type SimpleGit } from "simple-git"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
 
 interface CheckpointAddResult {
@@ -55,7 +57,12 @@ export class GitOperations {
 	 * - LFS pattern setup fails
 	 */
 	public async initShadowGit(gitPath: string, cwd: string, taskId: string): Promise<string> {
-		console.info(`Initializing shadow git`)
+		Logger.info(`Initializing shadow git`)
+		// Clean up any leftover .git_disabled directories from a previous crash/interruption.
+		// If addCheckpointFiles() was interrupted mid disable/enable cycle, nested repos may still be disabled.
+		await this.renameNestedGitRepos(false).catch((error) => {
+			Logger.warn("CheckpointTracker failed best-effort nested git cleanup during shadow git init:", error)
+		})
 
 		// If repo exists, just verify worktree
 		if (await fileExistsAtPath(gitPath)) {
@@ -64,7 +71,7 @@ export class GitOperations {
 			if (worktree.value !== cwd) {
 				throw new Error("Checkpoints can only be used in the original workspace: " + worktree.value)
 			}
-			console.warn(`Using existing shadow git at ${gitPath}`)
+			Logger.warn(`Using existing shadow git at ${gitPath}`)
 
 			// shadow git repo already exists, but update the excludes just in case
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
@@ -75,7 +82,7 @@ export class GitOperations {
 		// Initialize new repo
 		const startTime = performance.now()
 		const checkpointsDir = path.dirname(gitPath)
-		console.warn(`Creating new shadow git in ${checkpointsDir}`)
+		Logger.warn(`Creating new shadow git in ${checkpointsDir}`)
 
 		const git = simpleGit(checkpointsDir)
 		await git.init()
@@ -92,17 +99,17 @@ export class GitOperations {
 
 		const addFilesResult = await this.addCheckpointFiles(git)
 		if (!addFilesResult.success) {
-			console.error("Failed to add at least one file(s) to checkpoints shadow git")
+			Logger.error("Failed to add at least one file(s) to checkpoints shadow git")
 			throw new Error("Failed to add at least one file(s) to checkpoints shadow git")
 		}
 
 		// Initial commit only on first repo creation
-		await git.commit("initial commit", { "--allow-empty": null })
+		await git.commit("initial commit", { "--allow-empty": null, "--no-verify": null })
 
 		const durationMs = Math.round(performance.now() - startTime)
 		telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
 
-		console.warn(`Shadow git initialization completed`)
+		Logger.warn(`Shadow git initialization completed`)
 
 		return gitPath
 	}
@@ -122,7 +129,7 @@ export class GitOperations {
 			const worktree = await git.getConfig("core.worktree")
 			return worktree.value || undefined
 		} catch (error) {
-			console.error("Failed to get shadow git config worktree:", error)
+			Logger.error("Failed to get shadow git config worktree:", error)
 			return undefined
 		}
 	}
@@ -143,7 +150,7 @@ export class GitOperations {
 		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
 			cwd: this.cwd,
 			onlyDirectories: true,
-			ignore: [".git"], // Ignore root level .git
+			ignore: [".git", "**/node_modules/**"], // Ignore root level .git and node_modules (can contain recursive .git dirs that cause 10s+ scans)
 			dot: true,
 			markDirectories: false,
 			suppressErrors: true,
@@ -161,9 +168,14 @@ export class GitOperations {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
+				Logger.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
-				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				Logger.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				throw new Error(
+					`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
 			}
 		}
 	}
@@ -193,14 +205,14 @@ export class GitOperations {
 		try {
 			// Update exclude patterns before each commit
 			await this.renameNestedGitRepos(true)
-			console.info("Starting checkpoint add operation...")
+			Logger.info("Starting checkpoint add operation...")
 
 			// Attempt to add all files. Any files with permissions errors will not be added,
 			// but the process will proceed and add the rest (--ignore-errors).
 			try {
 				await git.add([".", "--ignore-errors"])
 				const durationMs = Math.round(performance.now() - startTime)
-				console.debug(`Checkpoint add operation completed in ${durationMs}ms`)
+				Logger.debug(`Checkpoint add operation completed in ${durationMs}ms`)
 				return { success: true }
 			} catch (_error) {
 				return { success: false }
@@ -208,7 +220,18 @@ export class GitOperations {
 		} catch (_error) {
 			return { success: false }
 		} finally {
-			await this.renameNestedGitRepos(false)
+			await retryWithBackoff(() => this.renameNestedGitRepos(false), {
+				operationName: "CheckpointTracker re-enable nested git repos",
+				maxAttempts: 3,
+				baseDelayMs: 50,
+				onRetry: (_error, attempt, maxAttempts, delayMs) => {
+					Logger.warn(
+						`CheckpointTracker re-enable nested git repos failed on attempt ${attempt}/${maxAttempts}. Retrying in ${delayMs}ms`,
+					)
+				},
+			}).catch((error) => {
+				Logger.error("CheckpointTracker failed to re-enable nested git repos after retries:", error)
+			})
 		}
 	}
 }

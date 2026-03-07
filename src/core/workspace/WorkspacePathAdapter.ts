@@ -8,6 +8,7 @@
  */
 
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { resolveWorkspacePath } from "./WorkspaceResolver"
 import type { WorkspaceRootManager } from "./WorkspaceRootManager"
 
@@ -42,7 +43,7 @@ export class WorkspacePathAdapter {
 			const root = manager.resolvePathToRoot(relativePath)
 			if (!root) {
 				// Path doesn't belong to any workspace, but return it anyway
-				console.warn(`[WorkspacePathAdapter] Absolute path ${relativePath} doesn't belong to any workspace`)
+				Logger.warn(`[WorkspacePathAdapter] Absolute path ${relativePath} doesn't belong to any workspace`)
 			}
 			return relativePath
 		}
@@ -66,7 +67,7 @@ export class WorkspacePathAdapter {
 				return path.join(root.path, relativePath)
 			}
 
-			console.warn(`[WorkspacePathAdapter] Workspace hint '${workspaceHint}' not found, using primary workspace`)
+			Logger.warn(`[WorkspacePathAdapter] Workspace hint '${workspaceHint}' not found, using primary workspace`)
 		}
 
 		// Default to primary workspace
@@ -80,7 +81,7 @@ export class WorkspacePathAdapter {
 		}
 
 		// Fallback to cwd if no roots (shouldn't happen, but defensive)
-		console.warn(`[WorkspacePathAdapter] No workspace roots found, falling back to cwd`)
+		Logger.warn(`[WorkspacePathAdapter] No workspace roots found, falling back to cwd`)
 		return resolveWorkspacePath(this.config.cwd, relativePath, "WorkspacePathAdapter-fallback") as string
 	}
 

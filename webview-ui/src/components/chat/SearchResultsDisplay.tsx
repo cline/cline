@@ -1,3 +1,4 @@
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useMemo } from "react"
 import CodeAccordian from "../common/CodeAccordian"
 
@@ -121,12 +122,11 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					{path + (filePattern ? `/(${filePattern})` : "")}
 				</span>
 				<div style={{ flexGrow: 1 }}></div>
-				<span
-					className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}
-					style={{
-						fontSize: 13.5,
-						margin: "1px 0",
-					}}></span>
+				{isExpanded ? (
+					<ChevronDownIcon size={16} style={{ margin: "1px 0" }} />
+				) : (
+					<ChevronRightIcon size={16} style={{ margin: "1px 0" }} />
+				)}
 			</div>
 
 			{isExpanded && (

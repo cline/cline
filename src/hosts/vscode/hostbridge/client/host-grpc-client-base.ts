@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
 import { GrpcHandler } from "@/hosts/vscode/hostbridge-grpc-handler"
+import { Logger } from "@/shared/services/Logger"
 
 // Generic type for any protobuf service definition
 export type ProtoService = {
@@ -62,11 +63,11 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 							return result
 						} else {
 							// This shouldn't happen, but just in case
-							console.error(`Expected cancel function but got response object for streaming request: ${requestId}`)
+							Logger.error(`Expected cancel function but got response object for streaming request: ${requestId}`)
 							return () => {}
 						}
 					} catch (error) {
-						console.error(`Error in streaming request: ${error}`)
+						Logger.error(`Error in streaming request: ${error}`)
 						if (options.onError) {
 							options.onError(error instanceof Error ? error : new Error(String(error)))
 						}
@@ -89,7 +90,7 @@ export function createGrpcClient<T extends ProtoService>(service: T): GrpcClient
 						}
 						resolve(response)
 					} catch (e) {
-						console.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
+						Logger.log(`[DEBUG] gRPC host ERR to ${service.fullName}.${methodKey} req:${requestId} err:${e}`)
 						reject(e)
 					}
 				})

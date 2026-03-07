@@ -2,10 +2,12 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
+import { refreshClineModels } from "../models/refreshClineModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
 import { refreshLiteLlmModels } from "../models/refreshLiteLlmModels"
@@ -58,6 +60,48 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					// Update act mode model info if we have a model ID
 					if (actModelId && models[actModelId]) {
 						updates.actModeOpenRouterModelInfo = models[actModelId]
+					}
+
+					// Post state update if we updated any model info
+					if (Object.keys(updates).length > 0) {
+						controller.stateManager.setGlobalStateBatch(updates)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		refreshClineModels(controller).then(async (models) => {
+			if (models && Object.keys(models).length > 0) {
+				// Update model info in state for Cline (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+
+				if (planActSeparateModelsSetting) {
+					// Separate models: update only current mode
+					const modelIdField = currentMode === "plan" ? "planModeClineModelId" : "actModeClineModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeClineModelInfo" : "actModeClineModelInfo"
+					const modelId = apiConfiguration[modelIdField]
+
+					if (modelId && models[modelId]) {
+						controller.stateManager.setGlobalState(modelInfoField, models[modelId])
+						await controller.postStateToWebview()
+					}
+				} else {
+					// Shared models: update both plan and act modes
+					const planModelId = apiConfiguration.planModeClineModelId
+					const actModelId = apiConfiguration.actModeClineModelId
+					const updates: Partial<GlobalStateAndSettings> = {}
+
+					// Update plan mode model info if we have a model ID
+					if (planModelId && models[planModelId]) {
+						updates.planModeClineModelInfo = models[planModelId]
+					}
+
+					// Update act mode model info if we have a model ID
+					if (actModelId && models[actModelId]) {
+						updates.actModeClineModelInfo = models[actModelId]
 					}
 
 					// Post state update if we updated any model info
@@ -225,7 +269,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 		return Empty.create({})
 	} catch (error) {
-		console.error("Failed to initialize webview:", error)
+		Logger.error("Failed to initialize webview:", error)
 		// Return empty response even on error to not break the frontend
 		return Empty.create({})
 	}

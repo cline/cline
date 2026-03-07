@@ -93,7 +93,9 @@
  * ```
  */
 
+import OpenAI, { ClientOptions as OpenAIClientOptions } from "openai"
 import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 
 let mockFetch: typeof globalThis.fetch | undefined
 
@@ -174,4 +176,21 @@ export function getAxiosSettings(): { adapter?: any; fetch?: typeof globalThis.f
 		adapter: "fetch" as any,
 		fetch, // Use our configured fetch
 	}
+}
+
+/**
+ * Creates an OpenAI client with proper proxy support and external headers.
+ * Use this instead of creating OpenAI clients directly to ensure consistent
+ * configuration across all providers.
+ */
+export function createOpenAIClient(options: OpenAIClientOptions): OpenAI {
+	const externalHeaders = buildExternalBasicHeaders()
+	return new OpenAI({
+		...options,
+		defaultHeaders: {
+			...externalHeaders,
+			...options.defaultHeaders,
+		},
+		fetch, // Use configured fetch with proxy support
+	})
 }

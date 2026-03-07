@@ -2,6 +2,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -15,7 +16,7 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 		const response = await axios.get("https://aihubmix.com/call/mdl_info_platform?tag=coding", getAxiosSettings())
 
 		if (!response.data?.success || !Array.isArray(response.data?.data)) {
-			console.error("Invalid response from AIhubmix API:", response.data)
+			Logger.error("Invalid response from AIhubmix API:", response.data)
 			return OpenRouterCompatibleModelInfo.create({ models: {} })
 		}
 		// 原始数据为数组，不能直接复用为 map；需构造独立的 modelsMap
@@ -64,10 +65,10 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 			})
 		}
 
-		console.log(`Fetched ${Object.keys(modelsMap).length} AIhubmix models`)
+		Logger.log(`Fetched ${Object.keys(modelsMap).length} AIhubmix models`)
 		return OpenRouterCompatibleModelInfo.create({ models: modelsMap })
 	} catch (error) {
-		console.error("Failed to fetch AIhubmix models:", error)
+		Logger.error("Failed to fetch AIhubmix models:", error)
 		return OpenRouterCompatibleModelInfo.create({ models: {} })
 	}
 }

@@ -2,6 +2,7 @@ import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -51,7 +52,7 @@ export async function updateApiConfigurationPartial(
 
 		return Empty.create()
 	} catch (error) {
-		console.error(`Failed to update API configuration (partial): ${error}`)
+		Logger.error(`Failed to update API configuration (partial): ${error}`)
 		throw error
 	}
 }

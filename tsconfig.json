@@ -4,6 +4,7 @@
 		"experimentalDecorators": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
+		"jsx": "react",
 		"lib": [
 			"es2022",
 			"DOM"
@@ -22,47 +23,48 @@
 		"target": "es2022",
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
-		"baseUrl": ".",
 		"paths": {
 			"@/*": [
-				"src/*"
+				"./src/*"
 			],
 			"@api/*": [
-				"src/core/api/*"
+				"./src/core/api/*"
 			],
 			"@core/*": [
-				"src/core/*"
+				"./src/core/*"
 			],
 			"@generated/*": [
-				"src/generated/*"
+				"./src/generated/*"
 			],
 			"@hosts/*": [
-				"src/hosts/*"
+				"./src/hosts/*"
 			],
 			"@integrations/*": [
-				"src/integrations/*"
+				"./src/integrations/*"
 			],
 			"@packages/*": [
-				"src/packages/*"
+				"./src/packages/*"
 			],
 			"@services/*": [
-				"src/services/*"
+				"./src/services/*"
 			],
 			"@shared/*": [
-				"src/shared/*"
+				"./src/shared/*"
 			],
 			"@utils/*": [
-				"src/utils/*"
+				"./src/utils/*"
 			]
 		}
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"cli/src/**/*"
 	],
 	"exclude": [
 		"node_modules",
 		".vscode-test",
 		"webview-ui",
-		"src/test/e2e/**/*"
+		"src/test/e2e/**/*",
+		"src/test/scenarios/**/*"
 	]
 }

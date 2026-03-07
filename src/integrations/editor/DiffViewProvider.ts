@@ -8,7 +8,9 @@ import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
 import { detectEncoding } from "../misc/extract-text"
+import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
 
 export abstract class DiffViewProvider {
@@ -97,6 +99,24 @@ export abstract class DiffViewProvider {
 	protected abstract truncateDocument(lineNumber: number): Promise<void>
 
 	/**
+	 * Returns the current line count of the document being edited.
+	 * Used for boundary validation before calling truncateDocument.
+	 */
+	protected abstract getDocumentLineCount(): Promise<number>
+
+	/**
+	 * Safely truncates the document, ensuring the line number is within bounds.
+	 * This prevents errors on hosts that strictly validate line numbers (e.g., JetBrains via gRPC).
+	 */
+	private async safelyTruncateDocument(lineNumber: number): Promise<void> {
+		const lineCount = await this.getDocumentLineCount()
+		// Only truncate if there's content beyond the specified line
+		if (lineNumber < lineCount) {
+			await this.truncateDocument(lineNumber)
+		}
+	}
+
+	/**
 	 * Get the contents of the diff editor document.
 	 *
 	 * Returns undefined if the diff editor was closed.
@@ -150,6 +170,23 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
+	/**
+	 * Switches to a specialized editor for specific file types after final content is available.
+	 * Called automatically by the `update` method when `isFinal` is true.
+	 *
+	 * For example, switches to Jupyter notebook editor for .ipynb files to provide
+	 * enhanced editing experience with proper notebook cell rendering.
+	 *
+	 * Default is no-op. Subclasses can override to provide specialized behavior.
+	 */
+	protected async switchToSpecializedEditor(): Promise<void> {
+		// Default no-op - subclasses can override if needed
+	}
+
+	private lastUpdateContentLength = -1
+	private lastUpdateTime = 0
+	private static readonly UPDATE_THROTTLE_MS = 100 // Throttle updates to max 10/second during streaming
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -157,6 +194,25 @@ export abstract class DiffViewProvider {
 	) {
 		if (!this.isEditing) {
 			throw new Error("Not editing any file")
+		}
+
+		// Throttle updates during streaming to prevent performance issues with large files
+		// This is especially important for notebooks where streaming can trigger thousands of calls
+		if (!isFinal) {
+			const now = Date.now()
+			const contentLength = accumulatedContent.length
+			const timeSinceLastUpdate = now - this.lastUpdateTime
+
+			// Skip if: no content, content unchanged, or throttle period not elapsed
+			if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
+				return
+			}
+			if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
+				return // Throttle: too soon since last update
+			}
+
+			this.lastUpdateContentLength = contentLength
+			this.lastUpdateTime = now
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -188,7 +244,14 @@ export abstract class DiffViewProvider {
 				contentToReplace += "\n"
 			}
 
-			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
+			// For the final update, replace the entire document to prevent concatenation
+			// when content doesn't end with a newline. Without this, replacing lines 0-N
+			// with content lacking a trailing newline causes line N+1's content to be
+			// directly appended to our content (e.g., "Hello World" + "# Old Header" becomes
+			// "Hello World# Old Header").
+			const endLine = isFinal ? await this.getDocumentLineCount() : currentLine + 1
+
+			const rangeToReplace = { startLine: 0, endLine }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
 
 			// Scroll to the actual change location if provided.
@@ -216,8 +279,19 @@ export abstract class DiffViewProvider {
 		this.streamedLines = accumulatedLines
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			await this.truncateDocument(this.streamedLines.length)
+			await this.safelyTruncateDocument(this.streamedLines.length)
+			// Allow subclasses to perform cleanup (e.g., clearing decorations)
+			await this.onFinalUpdate()
+			// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
+			await this.switchToSpecializedEditor()
 		}
+	}
+
+	/**
+	 * Called after the final update is complete. Subclasses can override to perform cleanup.
+	 */
+	protected async onFinalUpdate(): Promise<void> {
+		// Default no-op
 	}
 
 	async showFile(absolutePath: string): Promise<void> {
@@ -241,6 +315,24 @@ export abstract class DiffViewProvider {
 		rangeToReplace: { startLine: number; endLine: number },
 		currentLine: number | undefined,
 	): Promise<void>
+
+	/**
+	 * Checks if the current file is a Jupyter notebook file.
+	 *
+	 * @returns true if the file has .ipynb extension
+	 */
+	protected isNotebookFile(): boolean {
+		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
+	}
+
+	/**
+	 * Returns the original content sanitized for LLM context.
+	 * For notebooks, strips all outputs since they aren't needed for editing.
+	 */
+	getOriginalContentForLLM(): string | undefined {
+		if (this.originalContent === undefined) return undefined
+		return this.isNotebookFile() ? sanitizeNotebookForLLM(this.originalContent, true) : this.originalContent
+	}
 
 	async saveChanges(): Promise<{
 		newProblemsMessage: string | undefined
@@ -273,10 +365,10 @@ export abstract class DiffViewProvider {
 
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL)
-		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL) // this is the final content we return to the model to use as the new baseline for future edits
+		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
-		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL)
+		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
 
 		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
@@ -298,11 +390,16 @@ export abstract class DiffViewProvider {
 			)
 		}
 
+		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
+		const finalContent = this.isNotebookFile()
+			? sanitizeNotebookForLLM(normalizedPostSaveContent, true)
+			: normalizedPostSaveContent
+
 		return {
 			newProblemsMessage,
 			userEdits,
 			autoFormattingEdits,
-			finalContent: normalizedPostSaveContent,
+			finalContent,
 		}
 	}
 
@@ -318,15 +415,15 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
-			console.log(`File ${this.absolutePath} has been deleted.`)
+			Logger.log(`File ${this.absolutePath} has been deleted.`)
 
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				try {
 					await fs.rmdir(this.createdDirs[i])
-					console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+					Logger.log(`Directory ${this.createdDirs[i]} has been deleted.`)
 				} catch (error) {
-					console.log(`Could not delete directory ${this.createdDirs[i]}`, error)
+					Logger.log(`Could not delete directory ${this.createdDirs[i]}`, error)
 				}
 			}
 		} else {
@@ -338,7 +435,7 @@ export abstract class DiffViewProvider {
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
-			console.log(`File ${this.absolutePath} has been reverted to its original content.`)
+			Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
 				openFile(this.absolutePath, true)
 			}
@@ -380,9 +477,9 @@ export abstract class DiffViewProvider {
 		// Delete the file
 		try {
 			await fs.rm(fileLocation, { force: true })
-			console.log(`File ${fileLocation} has been deleted.`)
+			Logger.log(`File ${fileLocation} has been deleted.`)
 		} catch (error) {
-			console.error(`Failed to delete file ${fileLocation}:`, error)
+			Logger.error(`Failed to delete file ${fileLocation}:`, error)
 		}
 
 		this.isEditing = false
@@ -404,6 +501,8 @@ export abstract class DiffViewProvider {
 		this.streamedLines = []
 		this.createdDirs = []
 		this.newContent = undefined
+		this.lastUpdateContentLength = -1
+		this.lastUpdateTime = 0
 
 		await this.resetDiffView()
 	}

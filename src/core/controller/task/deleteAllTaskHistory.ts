@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { Controller } from ".."
 
@@ -57,7 +58,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 				try {
 					await controller.postStateToWebview()
 				} catch (webviewErr) {
-					console.error("Error posting to webview:", webviewErr)
+					Logger.error("Error posting to webview:", webviewErr)
 				}
 
 				return DeleteAllTaskHistoryCount.create({
@@ -112,14 +113,14 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		try {
 			await controller.postStateToWebview()
 		} catch (webviewErr) {
-			console.error("Error posting to webview:", webviewErr)
+			Logger.error("Error posting to webview:", webviewErr)
 		}
 
 		return DeleteAllTaskHistoryCount.create({
 			tasksDeleted: totalTasks,
 		})
 	} catch (error) {
-		console.error("Error in deleteAllTaskHistory:", error)
+		Logger.error("Error in deleteAllTaskHistory:", error)
 		throw error
 	}
 }
@@ -133,7 +134,7 @@ async function cleanupTaskFiles(preserveTaskIds: string[]) {
 	try {
 		if (await fileExistsAtPath(taskDirPath)) {
 			const taskDirs = await fs.readdir(taskDirPath)
-			console.debug(`[cleanupTaskFiles] Found ${taskDirs.length} task directories`)
+			Logger.debug(`[cleanupTaskFiles] Found ${taskDirs.length} task directories`)
 
 			// Delete only non-preserved task directories
 			for (const dir of taskDirs) {
@@ -147,7 +148,7 @@ async function cleanupTaskFiles(preserveTaskIds: string[]) {
 			}
 		}
 	} catch (error) {
-		console.error("Error cleaning up task files:", error)
+		Logger.error("Error cleaning up task files:", error)
 	}
 
 	return true

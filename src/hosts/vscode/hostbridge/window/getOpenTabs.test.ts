@@ -28,20 +28,34 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		})
 	}
 
-	beforeEach(async () => {
-		// Clean up any existing editors
+	async function waitForAllTabsClosed(): Promise<void> {
 		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
+		// Wait for tabs to actually close (Windows can be slow to process this)
+		await pWaitFor(
+			async () => {
+				const request = GetOpenTabsRequest.create({})
+				const response = await getOpenTabs(request)
+				return response.paths.length === 0
+			},
+			{
+				timeout: 5000,
+				interval: 50,
+			},
+		)
+	}
+
+	beforeEach(async () => {
+		// Clean up any existing editors and wait for cleanup to complete
+		await waitForAllTabsClosed()
 	})
 
 	afterEach(async () => {
 		// Clean up test documents and editors
-		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
+		await waitForAllTabsClosed()
 	})
 
 	it("should return empty array when no tabs are open", async () => {
-		// Ensure no tabs are open
-		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
-
+		// beforeEach already ensures no tabs are open
 		const request = GetOpenTabsRequest.create({})
 		const response = await getOpenTabs(request)
 

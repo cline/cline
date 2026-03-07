@@ -38,6 +38,16 @@ coverage-unit
 src/generated/
 src/shared/proto/
 webview-ui/src/services/grpc-client.ts
+*.tsbuildinfo
 
 # E2E Tests
 test-results
+
+/.github/act
+/pkg
+.secrets
+
+*.tsbuildinfo
+
+# Smoke test results (generated)
+evals/smoke-tests/results/

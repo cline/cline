@@ -82,21 +82,11 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						The VS Code Language Model API allows you to run models provided by other VS Code extensions (including
-						but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot extension
-						from the VS Marketplace and enabling Claude 4 Sonnet.
+						Use models from your GitHub Copilot subscription. Install the{" "}
+						<a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot">Copilot extension</a> and
+						enable Claude models in Copilot settings to get started.
 					</p>
 				)}
-
-				<p
-					style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-errorForeground)",
-						fontWeight: 500,
-					}}>
-					Note: This is a very experimental integration and may not work as expected.
-				</p>
 			</DropdownContainer>
 		</div>
 	)

@@ -207,6 +207,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						role="combobox"
 						style={{
 							width: "100%",
 							zIndex: BASETEN_MODEL_PICKER_Z_INDEX,
@@ -229,6 +230,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 						<div
 							className="absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)] max-h-[200px] overflow-y-auto border border-(--vscode-list-activeSelectionBackground) rounded-b-[3px]"
 							ref={dropdownListRef}
+							role="listbox"
 							style={{
 								backgroundColor: "var(--vscode-dropdown-background)",
 								zIndex: BASETEN_MODEL_PICKER_Z_INDEX - 1,
@@ -246,7 +248,8 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 									onMouseEnter={() => setSelectedIndex(index)}
 									ref={(el: HTMLDivElement | null) => {
 										itemRefs.current[index] = el
-									}}>
+									}}
+									role="option">
 									{parseHighlightedText(item.html)}
 								</div>
 							))}

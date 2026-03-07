@@ -1,4 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
+import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError } from "@core/hooks/precompact-executor"
 import { continuationPrompt } from "@core/prompts/contextManagement"
 import { formatResponse } from "@core/prompts/responses"
@@ -8,6 +10,7 @@ import { resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
@@ -40,7 +43,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			let hookContextModification: string | undefined
 
 			// Run PreCompact hook right before showing the condensing message
-			const hooksEnabled = StateManager.get().getGlobalSettingsKey("hooksEnabled")
+			const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
 			if (hooksEnabled) {
 				try {
 					// Determine compaction strategy
@@ -52,6 +55,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					const result = await executePreCompactHookWithCleanup({
 						taskId: config.taskId,
 						ulid: config.ulid,
+						modelContext: getHookModelContext(config.api, config.services.stateManager),
 						apiConversationHistory: apiHistory,
 						conversationHistoryDeletedRange: config.taskState.conversationHistoryDeletedRange,
 						contextManager: config.services.contextManager,
@@ -74,7 +78,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					// Hook completed successfully - capture context modification if provided
 					if (result.contextModification) {
 						hookContextModification = result.contextModification
-						console.log(`[PreCompact] Hook provided context modification for task ${config.taskId}`)
+						Logger.log(`[PreCompact] Hook provided context modification for task ${config.taskId}`)
 					}
 				} catch (error) {
 					// Check if this is a hook cancellation error
@@ -94,7 +98,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						"error",
 						`PreCompact hook failed, continuing with compaction: ${error instanceof Error ? error.message : String(error)}`,
 					)
-					console.error("[PreCompact] Hook execution failed, continuing with compaction:", error)
+					Logger.error("[PreCompact] Hook execution failed, continuing with compaction:", error)
 				}
 			}
 
@@ -190,7 +194,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 							}
 						} catch (error) {
 							// File read failed - log but continue with other files
-							console.error(`Failed to read ${relPath} during summarization:`, error)
+							Logger.error(`Failed to read ${relPath} during summarization:`, error)
 						}
 					}
 					// If not auto-approved, skip silently

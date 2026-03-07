@@ -1,5 +1,6 @@
 import type { StringRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -20,7 +21,7 @@ export async function authenticateMcpServer(controller: Controller, request: Str
 
 		return Empty.create()
 	} catch (error) {
-		console.error(`Failed to initiate OAuth for MCP server:`, error)
+		Logger.error(`Failed to initiate OAuth for MCP server:`, error)
 		throw error
 	}
 }

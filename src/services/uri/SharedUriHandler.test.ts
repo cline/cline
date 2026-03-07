@@ -2,8 +2,8 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { WebviewProvider } from "@/core/webview"
+import { Logger } from "@/shared/services/Logger"
 import { ErrorService } from "../error"
-import { Logger } from "../logging/Logger"
 import { SharedUriHandler } from "./SharedUriHandler"
 
 describe("SharedUriHandler", () => {

@@ -71,7 +71,31 @@ import { ClineStorageMessage } from "@/shared/messages/content"
  * @param messages - Array of ClineStorageMessage objects to be converted
  * @returns ResponseInput array containing the transformed messages with proper reasoning pairing
  */
-export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): ResponseInput {
+export function convertToOpenAIResponsesInput(
+	_messages: ClineStorageMessage[],
+	options?: { usePreviousResponseId?: boolean },
+): {
+	input: ResponseInput
+	previousResponseId?: string
+} {
+	// Chain from the latest stored Responses API assistant message when available.
+	// When chaining, only send new items after that assistant turn.
+	let previousResponseId: string | undefined
+	let messages = _messages
+	if (options?.usePreviousResponseId) {
+		for (let i = _messages.length - 1; i >= 0; i--) {
+			const msg = _messages[i]
+			// Must be less than 24 hours old to be considered for chaining as the previous Id is only valid for 24 hours.
+			// Set to 23 hours to account for any potential delays in processing.
+			const isLessThan23HoursOld = msg.ts ? Date.now() - msg.ts < 23 * 60 * 60 * 1000 : false
+			if (msg.role === "assistant" && msg.id && isLessThan23HoursOld) {
+				previousResponseId = msg.id
+				messages = _messages.slice(i + 1)
+				break
+			}
+		}
+	}
+
 	const allItems: any[] = []
 	const toolUseIdToCallId = new Map<string, string>()
 
@@ -170,7 +194,8 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 						assistantItems.push({
 							type: "function_call",
 							call_id,
-							id: part.id,
+							// MAX 53 characters for OpenAI Responses API tool IDs
+							id: !part.id.startsWith("fc_") ? `fc_${part.id.slice(0, 50)}` : part.id,
 							name: part.name,
 							arguments: JSON.stringify(part.input ?? {}),
 						})
@@ -220,5 +245,5 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 		}
 	}
 
-	return allItems
+	return { input: allItems, previousResponseId }
 }

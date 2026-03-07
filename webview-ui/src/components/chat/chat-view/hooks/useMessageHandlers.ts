@@ -1,7 +1,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import type { ButtonActionType } from "../shared/buttonConfig"
@@ -24,6 +24,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		clineAsk,
 		lastMessage,
 	} = chatState
+	const cancelInFlightRef = useRef(false)
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
@@ -75,6 +76,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "command":
 							case "command_output":
 							case "use_mcp_server":
+							case "use_subagents":
 							case "completion_result":
 							case "mistake_limit_reached":
 							case "api_req_failed":
@@ -248,16 +250,28 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 					break
 
-				case "cancel":
-					if (backgroundCommandRunning) {
-						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
-					} else {
-						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
+				case "cancel": {
+					if (cancelInFlightRef.current) {
+						return
 					}
-					// Clear any pending state that might interfere with resume
-					setSendingDisabled(false)
-					setEnableButtons(true)
+					cancelInFlightRef.current = true
+					setSendingDisabled(true)
+					setEnableButtons(false)
+					try {
+						if (backgroundCommandRunning) {
+							await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({})).catch((err) =>
+								console.error("Failed to cancel background command:", err),
+							)
+						}
+						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
+					} finally {
+						cancelInFlightRef.current = false
+						// Clear any pending state that might interfere with resume
+						setSendingDisabled(false)
+						setEnableButtons(true)
+					}
 					break
+				}
 
 				case "utility":
 					switch (clineAsk) {

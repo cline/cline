@@ -19,10 +19,12 @@ import { RefreshCcwIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { McpServiceClient } from "@/services/grpc-client"
 import { getMcpServerDisplayName } from "@/utils/mcp"
+import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 
@@ -49,11 +51,29 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
-	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
 	const [isRestarting, setIsRestarting] = useState(false)
+
+	// Check if user is managed by remote config and if this server is remote-managed.
+	// Remote MCP servers from enterprise config are always URL-based (SSE/HTTP).
+	// stdio-based local servers are never in remoteMCPServers, so URL matching is sufficient.
+	const isRemoteManagedServer = (() => {
+		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers
+		if (!remoteMCPServers || remoteMCPServers.length === 0) {
+			return false
+		}
+		try {
+			const serverConfig = JSON.parse(server.config)
+			return remoteMCPServers.some(
+				(remoteServer: { url: string }) => serverConfig.url && serverConfig.url === remoteServer.url,
+			)
+		} catch {
+			return false
+		}
+	})()
 
 	const handleRowClick = () => {
 		if (!server.error && isExpandable) {
@@ -163,6 +183,26 @@ const ServerRow = ({
 			})
 	}
 
+	// Helper to extract server URL from config
+	const getServerUrl = (server: McpServer): string | null => {
+		try {
+			const config = JSON.parse(server.config)
+			return config.url || null
+		} catch {
+			return null
+		}
+	}
+
+	// Check if this server is always-enabled via remote config
+	const isAlwaysEnabled = (() => {
+		const remoteMCPServers = remoteConfigSettings?.remoteMCPServers || []
+		const serverUrl = getServerUrl(server)
+		if (!serverUrl) return false
+
+		const remoteServer = remoteMCPServers.find((remote) => remote.url === serverUrl)
+		return remoteServer?.alwaysEnabled === true
+	})()
+
 	return (
 		<div className="mb-2.5">
 			<div
@@ -209,14 +249,25 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<Switch
-					checked={!server.disabled}
-					key={server.name}
-					onClick={(e) => {
-						e.stopPropagation()
-						handleToggleMcpServer()
-					}}
-				/>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div className="flex items-center gap-2">
+							<Switch
+								checked={!server.disabled}
+								disabled={isAlwaysEnabled}
+								key={server.name}
+								onClick={(e) => {
+									e.stopPropagation()
+									handleToggleMcpServer()
+								}}
+							/>
+							{isAlwaysEnabled && <i className="codicon codicon-lock text-description text-sm" />}
+						</div>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xs" hidden={!isAlwaysEnabled} side="top">
+						This server can't be disabled because it is enabled by your organization
+					</TooltipContent>
+				</Tooltip>
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
@@ -249,13 +300,15 @@ const ServerRow = ({
 						</Button>
 					)}
 
-					<Button
-						className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
-						disabled={isDeleting}
-						onClick={handleDelete}
-						variant="danger">
-						{isDeleting ? "Deleting..." : "Delete Server"}
-					</Button>
+					{!isRemoteManagedServer && (
+						<Button
+							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"
+							disabled={isDeleting}
+							onClick={handleDelete}
+							variant="danger">
+							{isDeleting ? "Deleting..." : "Delete Server"}
+						</Button>
+					)}
 				</div>
 			) : (
 				isExpanded && (
@@ -265,6 +318,7 @@ const ServerRow = ({
 							<VSCodePanelTab id="resources">
 								Resources ({[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
 							</VSCodePanelTab>
+							<VSCodePanelTab id="prompts">Prompts ({server.prompts?.length || 0})</VSCodePanelTab>
 
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
@@ -302,6 +356,31 @@ const ServerRow = ({
 									<div className="py-2.5 text-description">No resources found</div>
 								)}
 							</VSCodePanelView>
+
+							<VSCodePanelView id="prompts-view">
+								{server.prompts && server.prompts.length > 0 ? (
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											gap: "8px",
+											width: "100%",
+											paddingTop: "8px",
+										}}>
+										{server.prompts.map((prompt) => (
+											<McpPromptRow key={prompt.name} prompt={prompt} serverName={server.name} />
+										))}
+									</div>
+								) : (
+									<div
+										style={{
+											padding: "10px 0",
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										No prompts found
+									</div>
+								)}
+							</VSCodePanelView>
 						</VSCodePanels>
 
 						<div className="my-2.5 mx-1.5">
@@ -318,13 +397,15 @@ const ServerRow = ({
 							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
 						</Button>
 
-						<Button
-							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
-							disabled={isDeleting}
-							onClick={handleDelete}
-							variant="danger">
-							{isDeleting ? "Deleting..." : "Delete Server"}
-						</Button>
+						{!isRemoteManagedServer && (
+							<Button
+								className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"
+								disabled={isDeleting}
+								onClick={handleDelete}
+								variant="danger">
+								{isDeleting ? "Deleting..." : "Delete Server"}
+							</Button>
+						)}
 					</div>
 				)
 			)}

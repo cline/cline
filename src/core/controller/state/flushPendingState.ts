@@ -1,5 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -11,7 +12,7 @@ export async function flushPendingState(controller: Controller, request: EmptyRe
 		await controller.stateManager.flushPendingState()
 		return Empty.create({})
 	} catch (error) {
-		console.error("[flushPendingState] Error flushing pending state:", error)
+		Logger.error("[flushPendingState] Error flushing pending state:", error)
 		throw error
 	}
 }

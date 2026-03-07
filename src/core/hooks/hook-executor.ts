@@ -1,8 +1,10 @@
 import type { HookOutputStreamMeta } from "@shared/ExtensionMessage"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import type { HookOutput } from "@shared/proto/cline/hooks"
+import { Logger } from "@/shared/services/Logger"
 import { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
+import type { HookModelInputContext } from "./hook-factory"
 import { HookFactory } from "./hook-factory"
 
 export interface HookExecutionOptions<Name extends keyof Hooks = any> {
@@ -20,6 +22,7 @@ export interface HookExecutionOptions<Name extends keyof Hooks = any> {
 	messageStateHandler: MessageStateHandler
 	taskId: string
 	hooksEnabled: boolean
+	model?: HookModelInputContext
 	toolName?: string // Optional tool name for PreToolUse/PostToolUse hooks
 	pendingToolInfo?: any // Optional metadata about pending tool execution for PreToolUse
 }
@@ -149,9 +152,10 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		const result = await hook.run({
 			taskId,
 			...hookInput,
+			model: options.model,
 		})
 
-		console.log(`[${hookName} Hook]`, result)
+		Logger.log(`[${hookName} Hook]`, result)
 
 		// NoOp hooks return proto defaults; preserve the minimal legacy return shape.
 		if (result.cancel === false && result.contextModification === "" && result.errorMessage === "") {
@@ -240,7 +244,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 
 		// Log error for non-cancellable hooks or unexpected errors
-		console.error(`${hookName} hook failed:`, hookError)
+		Logger.error(`${hookName} hook failed:`, hookError)
 
 		// Return safe defaults for all fields to avoid undefined property access
 		return {

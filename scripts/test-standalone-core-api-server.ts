@@ -105,7 +105,7 @@ async function main(): Promise<void> {
 	console.log("Extracting standalone.zip to extensions directory...")
 	try {
 		if (!fs.existsSync(extensionsDir)) {
-			execSync(`unzip -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
+			execSync(`unzip -o -q "${standaloneZipPath}" -d "${extensionsDir}"`, { stdio: "inherit" })
 		}
 		console.log(`Successfully extracted standalone.zip to: ${extensionsDir}`)
 	} catch (error) {

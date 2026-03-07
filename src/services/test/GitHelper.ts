@@ -1,6 +1,6 @@
-import { Logger } from "@services/logging/Logger"
 import { execa } from "execa"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 
 /**
  * Validates that the workspace path is valid and writable for Git operations

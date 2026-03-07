@@ -2,6 +2,7 @@ import { workspaceResolver } from "@core/workspace"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { getWorkspacePath } from "@utils/path"
+import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
 
 /**
@@ -14,7 +15,7 @@ export async function openFileRelativePath(_controller: Controller, request: Str
 	const workspacePath = await getWorkspacePath()
 
 	if (!workspacePath) {
-		console.error("Error in openFileRelativePath: No workspace path available")
+		Logger.error("Error in openFileRelativePath: No workspace path available")
 		return Empty.create()
 	}
 

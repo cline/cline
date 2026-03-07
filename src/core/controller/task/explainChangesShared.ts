@@ -4,6 +4,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { formatContentBlockToMarkdown } from "@/integrations/misc/export-markdown"
 import { ApiConfiguration } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 
 export interface ChangedFile {
 	relativePath: string
@@ -277,7 +278,7 @@ Output your explanation comments now using the @@@ format:`
 
 		return commentCount
 	} catch (error) {
-		console.error("Error streaming AI explanation comments:", error)
+		Logger.error("Error streaming AI explanation comments:", error)
 		if (inComment) {
 			onCommentEnd()
 		}
@@ -306,8 +307,8 @@ async function handleCommentReply(
 		planModeThinkingBudgetTokens: 0,
 	}
 
-	// Find the relevant file
-	const file = changedFiles.find((f) => f.absolutePath === filePath)
+	// Find the relevant file - check both absolutePath and relativePath for robustness
+	const file = changedFiles.find((f) => f.absolutePath === filePath || f.relativePath === filePath)
 	if (!file) {
 		onChunk("Error: Could not find the file context")
 		return
@@ -352,7 +353,7 @@ Please respond to the user's question about this code.`
 			}
 		}
 	} catch (error) {
-		console.error("Error getting reply:", error)
+		Logger.error("Error getting reply:", error)
 		onChunk(`Error: ${error instanceof Error ? error.message : "Unknown error"}`)
 	}
 }

@@ -3,17 +3,27 @@
  */
 
 export type BannerSeverity = "info" | "success" | "warning"
-export type BannerPlacement = "top" | "bottom"
+export type BannerPlacement = "top" | "bottom" | "welcome"
 
 export interface Banner {
 	id: string
 	titleMd: string
 	bodyMd: string
-	severity: BannerSeverity
-	placement: BannerPlacement
+	icon?: string
+	actions?: BannerAction[]
+
 	rulesJson: string
 	activeFrom?: string
 	activeTo?: string
+
+	severity?: BannerSeverity
+	placement?: BannerPlacement
+}
+
+export interface BannerAction {
+	action?: string
+	arg?: string
+	title?: string
 }
 
 export interface BannersResponse {
@@ -47,6 +57,8 @@ export interface BannerRules {
 	org_type?: "all" | "team_only" | "enterprise_only" | ""
 	/** Minimum extension version required (e.g., "3.39.2") */
 	min_extension_version?: string
+	/** Optional actions embedded in rules JSON for banners */
+	actions?: BannerAction[]
 }
 
 /**

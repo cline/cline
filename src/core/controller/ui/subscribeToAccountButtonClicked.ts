@@ -1,4 +1,5 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
@@ -18,8 +19,6 @@ export async function subscribeToAccountButtonClicked(
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	console.log(`[DEBUG] set up accountButtonClicked subscription`)
-
 	// Add this subscription to the active subscriptions
 	activeAccountButtonClickedSubscriptions.add(responseStream)
 
@@ -47,7 +46,7 @@ export async function sendAccountButtonClickedEvent(): Promise<void> {
 				false, // Not the last message
 			)
 		} catch (error) {
-			console.error("Error sending accountButtonClicked event:", error)
+			Logger.error("Error sending accountButtonClicked event:", error)
 			// Remove the subscription if there was an error
 			activeAccountButtonClickedSubscriptions.delete(responseStream)
 		}

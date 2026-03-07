@@ -6,6 +6,7 @@ import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
 import * as sinon from "sinon"
+import { Logger } from "@/shared/services/Logger"
 import { openFileRelativePath } from "../openFileRelativePath"
 
 describe("openFileRelativePath", () => {
@@ -28,7 +29,7 @@ describe("openFileRelativePath", () => {
 		getWorkspacePathStub = sandbox.stub(pathUtils, "getWorkspacePath")
 
 		// Stub console.error to prevent test output pollution
-		consoleErrorStub = sandbox.stub(console, "error")
+		consoleErrorStub = sandbox.stub(Logger, "error")
 	})
 
 	afterEach(() => {

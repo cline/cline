@@ -11,6 +11,8 @@ import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { StandaloneTerminalManager } from "@/integrations/terminal"
+import { Logger } from "@/shared/services/Logger"
+import { createStorageContext } from "@/shared/storage/storage-context"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
 import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
@@ -59,7 +61,9 @@ async function main() {
 		// The host bridge should be available before creating the host provider because it depends on the host bridge.
 		setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
 
-		const webviewProvider = await initialize(extensionContext)
+		// Create shared file-backed storage
+		const storageContext = createStorageContext()
+		const webviewProvider = await initialize(storageContext)
 
 		// Enable the localhost HTTP server that handles auth redirects.
 		AuthHandler.getInstance().setEnabled(true)
@@ -106,8 +110,8 @@ function setupHostProvider(extensionContext: any, extensionDir: string, dataDir:
 	}
 	const createCommentReview = () => new ExternalCommentReviewController()
 	const createTerminalManager = () => new StandaloneTerminalManager()
-	const getCallbackUrl = (): Promise<string> => {
-		return AuthHandler.getInstance().getCallbackUrl()
+	const getCallbackUrl = (path: string, preferredPort?: number): Promise<string> => {
+		return AuthHandler.getInstance().getCallbackUrl(path, preferredPort)
 	}
 	// cline-core expects the binaries to be unpacked in the directory where it is running.
 	const getBinaryLocation = async (name: string): Promise<string> => path.join(process.cwd(), name)
@@ -251,10 +255,10 @@ function parseArgs(): CliArgs {
 		switch (arg) {
 			case "--port":
 			case "-p":
-				args.port = parseInt(argv[++i], 10)
+				args.port = Number.parseInt(argv[++i], 10)
 				break
 			case "--host-bridge-port":
-				args.hostBridgePort = parseInt(argv[++i], 10)
+				args.hostBridgePort = Number.parseInt(argv[++i], 10)
 				break
 			case "--config":
 			case "-c":
@@ -271,7 +275,7 @@ function parseArgs(): CliArgs {
 }
 
 function showHelp() {
-	console.log(`
+	Logger.log(`
 Cline Core - Standalone Server
 
 Usage: node cline-core.js [options]

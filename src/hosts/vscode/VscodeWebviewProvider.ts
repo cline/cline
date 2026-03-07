@@ -1,10 +1,11 @@
-import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
+import { sendShowWebviewEvent } from "@core/controller/ui/subscribeToShowWebview"
 import { WebviewProvider } from "@core/webview"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { WebviewMessage } from "@/shared/WebviewMessage"
 
 /*
@@ -68,7 +69,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		this.setWebviewMessageListener(webviewView.webview)
 
 		// Logs show up in bottom panel > Debug Console
-		//console.log("registering listener")
+		//Logger.log("registering listener")
 
 		// Listen for when the sidebar becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
@@ -79,7 +80,8 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		webviewView.onDidChangeVisibility(
 			async () => {
 				if (this.webview?.visible) {
-					await sendDidBecomeVisibleEvent()
+					// View becoming visible should not steal editor focus.
+					await sendShowWebviewEvent(true)
 				}
 			},
 			null,
@@ -111,7 +113,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// if the extension is starting a new session, clear previous task state
 		this.controller.clearTask()
 
-		HostProvider.get().logToChannel("Webview view resolved")
+		Logger.log("[VscodeWebviewProvider] Webview view resolved")
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
 	}
@@ -173,7 +175,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				break
 			}
 			default: {
-				console.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
+				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}
 		}
 	}

@@ -5,6 +5,9 @@ import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
 import { Controller } from "@/core/controller"
+import { Logger } from "@/shared/services/Logger"
+import { parseYamlFrontmatter } from "./frontmatter"
+import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
@@ -28,7 +31,7 @@ export async function readDirectoryRecursive(
 		}
 		return results
 	} catch (error) {
-		console.error(`Error reading directory ${directoryPath}: ${error}`)
+		Logger.error(`Error reading directory ${directoryPath}: ${error}`)
 		return []
 	}
 }
@@ -96,7 +99,7 @@ export async function synchronizeRuleToggles(
 			}
 		}
 	} catch (error) {
-		console.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
+		Logger.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
 	}
 
 	return updatedToggles
@@ -143,19 +146,132 @@ export function combineRuleToggles(toggles1: ClineRulesToggles, toggles2: ClineR
  * Read the content of rules files
  */
 export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
-	const ruleFilesTotalContent = await Promise.all(
+	return (await getRuleFilesTotalContentWithMetadata(rulesFilePaths, basePath, toggles)).content
+}
+
+export type ActivatedConditionalRule = {
+	name: string
+	matchedConditions: Record<string, string[]>
+}
+
+// Prefixes used to make activated conditional rule identifiers self-explanatory in the UI.
+// NOTE: These are display identifiers (not toggle keys).
+export const RULE_SOURCE_PREFIX = {
+	workspace: "workspace",
+	global: "global",
+	remote: "remote",
+} as const
+
+export type RuleLoadResult = {
+	content: string
+	activatedConditionalRules: ActivatedConditionalRule[]
+}
+
+/**
+ * Result type for rule loading functions that return formatted instructions.
+ * Used by getGlobalClineRules and getLocalClineRules.
+ */
+export type RuleLoadResultWithInstructions = {
+	instructions?: string
+	activatedConditionalRules: ActivatedConditionalRule[]
+}
+
+export const getRuleFilesTotalContentWithMetadata = async (
+	rulesFilePaths: string[],
+	basePath: string,
+	toggles: ClineRulesToggles,
+	opts?: { evaluationContext?: RuleEvaluationContext; ruleNamePrefix?: keyof typeof RULE_SOURCE_PREFIX },
+): Promise<RuleLoadResult> => {
+	const evaluationContext = opts?.evaluationContext ?? {}
+	const prefix = RULE_SOURCE_PREFIX[opts?.ruleNamePrefix ?? "global"]
+
+	type RuleLoadPart = {
+		contentPart: string | null
+		activatedRule: ActivatedConditionalRule | null
+	}
+
+	const parts = await Promise.all(
 		rulesFilePaths.map(async (filePath) => {
 			const ruleFilePath = path.resolve(basePath, filePath)
 			const ruleFilePathRelative = path.relative(basePath, ruleFilePath)
 
 			if (ruleFilePath in toggles && toggles[ruleFilePath] === false) {
-				return null
+				return { contentPart: null, activatedRule: null }
 			}
 
-			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+			const raw = (await fs.readFile(ruleFilePath, "utf8")).trim()
+			if (!raw) {
+				return { contentPart: null, activatedRule: null }
+			}
+			const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
+			// YAML parse errors are treated as fail-open.
+			// NOTE: We intentionally preserve the raw frontmatter fence/content here so the LLM can still
+			// see the author's intended scoping (e.g., `paths:`) and reason about it, even if it cannot be
+			// evaluated reliably due to invalid YAML.
+			if (hadFrontmatter && parseError) {
+				return { contentPart: `${ruleFilePathRelative}\n${raw}`, activatedRule: null }
+			}
+
+			const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
+			if (!passed) {
+				return { contentPart: null, activatedRule: null }
+			}
+			const activatedRule =
+				hadFrontmatter && Object.keys(matchedConditions).length > 0
+					? { name: `${prefix}:${ruleFilePathRelative}`, matchedConditions }
+					: null
+
+			return { contentPart: `${ruleFilePathRelative}\n${body.trim()}`, activatedRule }
 		}),
-	).then((contents) => contents.filter(Boolean).join("\n\n"))
-	return ruleFilesTotalContent
+	)
+
+	return {
+		content: parts
+			.map((p) => p.contentPart)
+			.filter(Boolean)
+			.join("\n\n"),
+		activatedConditionalRules: parts
+			.map((p) => p.activatedRule)
+			.filter((rule): rule is ActivatedConditionalRule => rule !== null),
+	}
+}
+
+export function getRemoteRulesTotalContentWithMetadata(
+	remoteRules: GlobalInstructionsFile[],
+	remoteToggles: ClineRulesToggles,
+	opts?: { evaluationContext?: RuleEvaluationContext },
+): RuleLoadResult {
+	const activatedConditionalRules: ActivatedConditionalRule[] = []
+	const evaluationContext = opts?.evaluationContext ?? {}
+	let combinedContent = ""
+
+	for (const rule of remoteRules) {
+		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
+		if (!isEnabled) continue
+
+		const raw = (rule.contents || "").trim()
+		if (!raw) continue
+
+		const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(raw)
+		if (hadFrontmatter && parseError) {
+			// Fail open: include entire raw contents
+			if (combinedContent) combinedContent += "\n\n"
+			combinedContent += `${rule.name}\n${raw}`
+			continue
+		}
+
+		const { passed, matchedConditions } = evaluateRuleConditionals(data, evaluationContext)
+		if (!passed) continue
+
+		if (hadFrontmatter && Object.keys(matchedConditions).length > 0) {
+			activatedConditionalRules.push({ name: `${RULE_SOURCE_PREFIX.remote}:${rule.name}`, matchedConditions })
+		}
+
+		if (combinedContent) combinedContent += "\n\n"
+		combinedContent += `${rule.name}\n${body.trim()}`
+	}
+
+	return { content: combinedContent, activatedConditionalRules }
 }
 
 /**
@@ -316,7 +432,7 @@ export async function deleteRuleFile(
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
-		console.error(`Error deleting file: ${errorMessage}`, error)
+		Logger.error(`Error deleting file: ${errorMessage}`, error)
 		return {
 			success: false,
 			message: `Failed to delete file.`,

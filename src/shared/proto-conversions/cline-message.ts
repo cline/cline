@@ -1,5 +1,4 @@
 import { ClineAsk as AppClineAsk, ClineMessage as AppClineMessage, ClineSay as AppClineSay } from "@shared/ExtensionMessage"
-
 import { ClineAsk, ClineMessageType, ClineSay, ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
 
 // Helper function to convert ClineAsk string to enum
@@ -26,11 +25,11 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		condense: ClineAsk.CONDENSE,
 		summarize_task: ClineAsk.SUMMARIZE_TASK,
 		report_bug: ClineAsk.REPORT_BUG,
+		use_subagents: ClineAsk.USE_SUBAGENTS,
 	}
 
 	const result = mapping[ask]
 	if (result === undefined) {
-		console.warn(`Unknown ClineAsk value: ${ask}`)
 	}
 	return result
 }
@@ -38,7 +37,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 // Helper function to convert ClineAsk enum to string
 function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 	if (ask === ClineAsk.UNRECOGNIZED) {
-		console.warn("Received UNRECOGNIZED ClineAsk enum value")
 		return undefined
 	}
 
@@ -60,6 +58,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.CONDENSE]: "condense",
 		[ClineAsk.SUMMARIZE_TASK]: "summarize_task",
 		[ClineAsk.REPORT_BUG]: "report_bug",
+		[ClineAsk.USE_SUBAGENTS]: "use_subagents",
 	}
 
 	return mapping[ask]
@@ -105,20 +104,21 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		error_retry: ClineSay.ERROR_RETRY,
 		hook_status: ClineSay.HOOK_STATUS,
 		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
+		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
+		subagent: ClineSay.SUBAGENT_STATUS,
+		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
+		subagent_usage: ClineSay.SUBAGENT_USAGE,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
 	const result = mapping[say]
-	if (result === undefined) {
-		console.warn(`Unknown ClineSay value: ${say}`)
-	}
+
 	return result
 }
 
 // Helper function to convert ClineSay enum to string
 function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 	if (say === ClineSay.UNRECOGNIZED) {
-		console.warn("Received UNRECOGNIZED ClineSay enum value")
 		return undefined
 	}
 
@@ -156,6 +156,10 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
+		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
+		[ClineSay.SUBAGENT_STATUS]: "subagent",
+		[ClineSay.USE_SUBAGENTS_SAY]: "use_subagents",
+		[ClineSay.SUBAGENT_USAGE]: "subagent_usage",
 	}
 
 	return mapping[say]

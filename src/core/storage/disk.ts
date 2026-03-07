@@ -13,6 +13,8 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { Logger } from "@/shared/services/Logger"
+import { syncWorker } from "@/shared/services/worker/sync"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
 import { StateManager } from "./StateManager"
 
@@ -43,6 +45,8 @@ export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
+	clineRecommendedModels: "cline_recommended_models.json",
+	clineModels: "cline_models.json",
 	openRouterModels: "openrouter_models.json",
 	vercelAiGatewayModels: "vercel_ai_gateway_models.json",
 	groqModels: "groq_models.json",
@@ -52,6 +56,10 @@ export const GlobalFileNames = {
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
 	hooksDir: ".clinerules/hooks",
+	clineruleSkillsDir: ".clinerules/skills",
+	clineSkillsDir: ".cline/skills",
+	claudeSkillsDir: ".claude/skills",
+	agentsSkillsDir: ".agents/skills",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
@@ -74,7 +82,7 @@ export async function getDocumentsPath(): Promise<string> {
 				return trimmedPath
 			}
 		} catch (_err) {
-			console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
+			Logger.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
 		}
 	} else if (process.platform === "linux") {
 		try {
@@ -89,12 +97,25 @@ export async function getDocumentsPath(): Promise<string> {
 			}
 		} catch {
 			// Log error but continue to fallback
-			console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
+			Logger.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
 		}
 	}
 
 	// Default fallback for all platforms
 	return path.join(os.homedir(), "Documents")
+}
+
+/**
+ * Returns the cross-platform path to the Cline home directory (~/.cline).
+ * This works on macOS, Linux, and Windows:
+ * - macOS: /Users/username/.cline
+ * - Linux: /home/username/.cline
+ * - Windows: C:\Users\username\.cline
+ *
+ * This is intended to eventually replace ~/Documents/Cline as the global config location.
+ */
+export function getClineHomePath(): string {
+	return path.join(os.homedir(), ".cline")
 }
 
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
@@ -145,8 +166,71 @@ export async function ensureHooksDirectoryExists(): Promise<string> {
 	return clineHooksDir
 }
 
+/**
+ * Returns the global skills directory path (~/.cline/skills) without creating it.
+ */
+function getClineSkillsDirectoryPath(): string {
+	return path.join(getClineHomePath(), "skills")
+}
+
+function getAgentSkillsDirectoryPath(): string {
+	return path.join(os.homedir(), ".agents", "skills")
+}
+
+/**
+ * Returns the global agent skills directory path (~/.agents/skills).
+ * Creates the directory if it doesn't exist.
+ * This is the opinionated location for new global skills.
+ */
+export async function ensureAgentSkillsDirectoryExists(options: { isGlobal: boolean; workspacePath?: string }): Promise<string> {
+	const agentSkillsDir = options.isGlobal
+		? getAgentSkillsDirectoryPath()
+		: path.join(options.workspacePath ?? "", GlobalFileNames.agentsSkillsDir)
+	try {
+		await fs.mkdir(agentSkillsDir, { recursive: true })
+	} catch (_error) {
+		// Fallback - return the path even if mkdir fails, we'll fail gracefully later
+		return agentSkillsDir
+	}
+	return agentSkillsDir
+}
+
+export type SkillsScanDirectory = {
+	path: string
+	source: "project" | "global"
+}
+
+/**
+ * Returns the list of skills directories to scan without creating them.
+ * Order is project directories first, then global directories.
+ */
+export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] {
+	return [
+		{ path: path.join(cwd, GlobalFileNames.clineruleSkillsDir), source: "project" },
+		{ path: path.join(cwd, GlobalFileNames.clineSkillsDir), source: "project" },
+		{ path: path.join(cwd, GlobalFileNames.claudeSkillsDir), source: "project" },
+		{ path: path.join(cwd, GlobalFileNames.agentsSkillsDir), source: "project" },
+		{ path: getClineSkillsDirectoryPath(), source: "global" },
+		{ path: getAgentSkillsDirectoryPath(), source: "global" },
+	]
+}
+
 export async function ensureSettingsDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("settings")
+}
+
+/**
+ * Gets the path to the MCP settings file, creating it if it doesn't exist
+ * @param settingsDirectoryPath Path to the settings directory
+ * @returns Path to the MCP settings file
+ */
+export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
+	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
+	const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
+	if (!fileExists) {
+		await fs.writeFile(mcpSettingsFilePath, JSON.stringify({ mcpServers: {} }, null, 2))
+	}
+	return mcpSettingsFilePath
 }
 
 export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
@@ -160,11 +244,18 @@ export async function getSavedApiConversationHistory(taskId: string): Promise<An
 
 export async function saveApiConversationHistory(taskId: string, apiConversationHistory: Anthropic.MessageParam[]) {
 	try {
-		const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
-		await atomicWriteFile(filePath, JSON.stringify(apiConversationHistory))
+		if (apiConversationHistory.length > 0) {
+			const fileName = GlobalFileNames.apiConversationHistory
+			const data = JSON.stringify(apiConversationHistory)
+			// Queue for remote sync without blocking
+			syncWorker().enqueue(taskId, fileName, data)
+			// Store locally
+			const filePath = path.join(await ensureTaskDirectoryExists(taskId), fileName)
+			await atomicWriteFile(filePath, data)
+		}
 	} catch (error) {
 		// in the off chance this fails, we don't want to stop the task
-		console.error("Failed to save API conversation history:", error)
+		Logger.error("Failed to save API conversation history:", error)
 	}
 }
 
@@ -172,14 +263,13 @@ export async function getSavedClineMessages(taskId: string): Promise<ClineMessag
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.uiMessages)
 	if (await fileExistsAtPath(filePath)) {
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
-	} else {
-		// check old location
-		const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
-		if (await fileExistsAtPath(oldPath)) {
-			const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
-			await fs.unlink(oldPath) // remove old file
-			return data
-		}
+	}
+	// check old location
+	const oldPath = path.join(await ensureTaskDirectoryExists(taskId), "claude_messages.json")
+	if (await fileExistsAtPath(oldPath)) {
+		const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+		await fs.unlink(oldPath) // remove old file
+		return data
 	}
 	return []
 }
@@ -190,7 +280,7 @@ export async function saveClineMessages(taskId: string, uiMessages: ClineMessage
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
-		console.error("Failed to save ui messages:", error)
+		Logger.error("Failed to save ui messages:", error)
 	}
 }
 
@@ -212,7 +302,7 @@ export async function collectEnvironmentMetadata(): Promise<Omit<EnvironmentMeta
 			cline_version: ExtensionRegistryInfo.version,
 		}
 	} catch (error) {
-		console.error("Failed to collect environment metadata:", error)
+		Logger.error("Failed to collect environment metadata:", error)
 		// Return fallback values if collection fails
 		return {
 			os_name: os.platform(),
@@ -232,7 +322,7 @@ export async function getTaskMetadata(taskId: string): Promise<TaskMetadata> {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		}
 	} catch (error) {
-		console.error("Failed to read task metadata:", error)
+		Logger.error("Failed to read task metadata:", error)
 	}
 	return { files_in_context: [], model_usage: [], environment_history: [] }
 }
@@ -243,7 +333,7 @@ export async function saveTaskMetadata(taskId: string, metadata: TaskMetadata) {
 		const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
 		await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
 	} catch (error) {
-		console.error("Failed to save task metadata:", error)
+		Logger.error("Failed to save task metadata:", error)
 	}
 }
 
@@ -265,7 +355,7 @@ export async function readMcpMarketplaceCatalogFromCache(): Promise<McpMarketpla
 		}
 		return undefined
 	} catch (error) {
-		console.error("Failed to read MCP marketplace catalog from cache:", error)
+		Logger.error("Failed to read MCP marketplace catalog from cache:", error)
 		return undefined
 	}
 }
@@ -275,7 +365,7 @@ export async function writeMcpMarketplaceCatalogToCache(catalog: McpMarketplaceC
 		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
 		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
 	} catch (error) {
-		console.error("Failed to write MCP marketplace catalog to cache:", error)
+		Logger.error("Failed to write MCP marketplace catalog to cache:", error)
 	}
 }
 
@@ -331,7 +421,7 @@ export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<voi
 		const filePath = await getTaskHistoryStateFilePath()
 		await atomicWriteFile(filePath, JSON.stringify(items))
 	} catch (error) {
-		console.error("[Disk] Failed to write task history:", error)
+		Logger.error("[Disk] Failed to write task history:", error)
 		throw error
 	}
 }
@@ -349,7 +439,7 @@ export async function readTaskSettingsFromStorage(taskId: string): Promise<Parti
 		// Return empty object if settings file doesn't exist (new task)
 		return {}
 	} catch (error) {
-		console.error("[Disk] Failed to read task settings:", error)
+		Logger.error("[Disk] Failed to read task settings:", error)
 		throw error
 	}
 }
@@ -368,7 +458,7 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 		const updatedSettings = { ...existingSettings, ...settings }
 		await fs.writeFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
 	} catch (error) {
-		console.error("[Disk] Failed to write task settings:", error)
+		Logger.error("[Disk] Failed to write task settings:", error)
 		throw error
 	}
 }
@@ -383,7 +473,7 @@ export async function readRemoteConfigFromCache(organizationId: string): Promise
 		}
 		return undefined
 	} catch (error) {
-		console.error("Failed to read remote config from cache:", error)
+		Logger.error("Failed to read remote config from cache:", error)
 		return undefined
 	}
 }
@@ -393,7 +483,7 @@ export async function writeRemoteConfigToCache(organizationId: string, config: R
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))
 	} catch (error) {
-		console.error("Failed to write remote config to cache:", error)
+		Logger.error("Failed to write remote config to cache:", error)
 	}
 }
 
@@ -405,7 +495,7 @@ export async function deleteRemoteConfigFromCache(organizationId: string): Promi
 			await fs.unlink(remoteConfigFilePath)
 		}
 	} catch (error) {
-		console.error("Failed to delete remote config from cache:", error)
+		Logger.error("Failed to delete remote config from cache:", error)
 	}
 }
 
@@ -418,10 +508,22 @@ export async function getGlobalHooksDir(): Promise<string | undefined> {
 	return (await isDirectory(globalHooksDir)) ? globalHooksDir : undefined
 }
 
+let runtimeHooksDir: string | undefined
+
+/**
+ * Sets a runtime hooks directory, typically passed via the --hooks-dir CLI flag.
+ * This directory is included alongside global and workspace hooks directories
+ * when discovering hooks.
+ */
+export function setRuntimeHooksDir(dir: string | undefined): void {
+	runtimeHooksDir = dir
+}
+
 /**
  * Gets the paths to all hooks directories to search for hooks, including:
- * 1. The global hooks directory (if it exists)
- * 2. Each workspace root's .clinerules/hooks directory (if they exist)
+ * 1. The runtime hooks directory (if set via --hooks-dir CLI flag)
+ * 2. The global hooks directory (if it exists)
+ * 3. Each workspace root's .clinerules/hooks directory (if they exist)
  *
  * Note: Hooks from different directories may be executed concurrently.
  * No execution order is guaranteed between hooks from different directories.
@@ -430,6 +532,11 @@ export async function getGlobalHooksDir(): Promise<string | undefined> {
  */
 export async function getAllHooksDirs(): Promise<string[]> {
 	const hooksDirs: string[] = []
+
+	// Add runtime hooks directory (set by --hooks-dir CLI flag)
+	if (runtimeHooksDir && (await isDirectory(runtimeHooksDir))) {
+		hooksDirs.push(runtimeHooksDir)
+	}
 
 	// Add global hooks directory (if it exists)
 	const globalHooksDir = await getGlobalHooksDir()
@@ -490,7 +597,7 @@ export async function writeConversationHistoryJson(
 		await atomicWriteFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
 		return tempFilePath
 	} catch (error) {
-		console.error("Failed to write conversation history JSON for hook:", error)
+		Logger.error("Failed to write conversation history JSON for hook:", error)
 		throw error
 	}
 }
@@ -508,7 +615,7 @@ export async function cleanupConversationHistoryFile(filePath: string): Promise<
 		}
 	} catch (error) {
 		// Silently handle errors - this is cleanup, not critical
-		console.debug("Failed to cleanup conversation history file:", filePath, error)
+		Logger.debug("Failed to cleanup conversation history file:", filePath, error)
 	}
 }
 
@@ -579,7 +686,7 @@ export async function writeConversationHistoryText(
 		await atomicWriteFile(tempFilePath, fullContext)
 		return tempFilePath
 	} catch (error) {
-		console.error("Failed to write conversation history text for hook:", error)
+		Logger.error("Failed to write conversation history text for hook:", error)
 		throw error
 	}
 }

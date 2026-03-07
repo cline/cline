@@ -1,10 +1,13 @@
 import { userInfo } from "os"
 import * as vscode from "vscode"
 
+export const WINDOWS_POWERSHELL_7_PATH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+export const WINDOWS_POWERSHELL_LEGACY_PATH = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+
 const SHELL_PATHS = {
 	// Windows paths
-	POWERSHELL_7: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-	POWERSHELL_LEGACY: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+	POWERSHELL_7: WINDOWS_POWERSHELL_7_PATH,
+	POWERSHELL_LEGACY: WINDOWS_POWERSHELL_LEGACY_PATH,
 	CMD: "C:\\Windows\\System32\\cmd.exe",
 	WSL_BASH: "/bin/bash",
 	GIT_BASH: "C:\\Program Files\\Git\\bin\\bash.exe",

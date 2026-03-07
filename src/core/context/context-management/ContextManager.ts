@@ -7,6 +7,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import * as path from "path"
+import { Logger } from "@/shared/services/Logger"
 import { getContextWindowInfo } from "./context-window-utils"
 
 enum EditType {
@@ -119,7 +120,7 @@ export class ContextManager {
 				)
 			}
 		} catch (error) {
-			console.error("Failed to load context history:", error)
+			Logger.error("Failed to load context history:", error)
 		}
 		return new Map()
 	}
@@ -139,7 +140,7 @@ export class ContextManager {
 				"utf8",
 			)
 		} catch (error) {
-			console.error("Failed to save context history:", error)
+			Logger.error("Failed to save context history:", error)
 		}
 	}
 
@@ -153,15 +154,21 @@ export class ContextManager {
 		thresholdPercentage?: number,
 	): boolean {
 		if (previousApiReqIndex >= 0) {
-			const previousRequest = clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+			const previousRequestText = clineMessages[previousApiReqIndex]?.text
+			if (previousRequestText) {
+				try {
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequestText)
+					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
-				const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-				const roundedThreshold = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
-				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
-				return totalTokens >= thresholdTokens
+					const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
+					const roundedThreshold = thresholdPercentage
+						? Math.floor(contextWindow * thresholdPercentage)
+						: maxAllowedSize
+					const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+					return totalTokens >= thresholdTokens
+				} catch {
+					return false
+				}
 			}
 		}
 		return false
@@ -194,10 +201,10 @@ export class ContextManager {
 		}
 
 		if (targetIndex >= 0) {
-			const targetRequest = clineMessages[targetIndex]
-			if (targetRequest && targetRequest.text) {
+			const targetRequestText = clineMessages[targetIndex]?.text
+			if (targetRequestText) {
 				try {
-					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(targetRequest.text)
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(targetRequestText)
 					const tokensUsed = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
 					const { contextWindow } = getContextWindowInfo(api)
@@ -207,7 +214,7 @@ export class ContextManager {
 						maxContextWindow: contextWindow,
 					}
 				} catch (error) {
-					console.error("Error parsing API request info for context telemetry:", error)
+					Logger.error("Error parsing API request info for context telemetry:", error)
 				}
 			}
 		}
@@ -231,10 +238,10 @@ export class ContextManager {
 		if (!useAutoCondense) {
 			// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 			if (previousApiReqIndex >= 0) {
-				const previousRequest = clineMessages[previousApiReqIndex]
-				if (previousRequest && previousRequest.text) {
-					const timestamp = previousRequest.ts
-					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
+				const previousRequestText = clineMessages[previousApiReqIndex]?.text
+				if (previousRequestText) {
+					const timestamp = clineMessages[previousApiReqIndex].ts
+					const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequestText)
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 					const { maxAllowedSize } = getContextWindowInfo(api)
 
@@ -357,7 +364,7 @@ export class ContextManager {
 		// Validate and fix tool_use/tool_result pairing
 		this.ensureToolResultsFollowToolUse(updatedMessages)
 
-		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
+		// OLD NOTE: if you try to Logger log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return updatedMessages
 	}
 
@@ -684,6 +691,39 @@ export class ContextManager {
 	}
 
 	/**
+	 * Public helper that attempts file read optimization in memory without persisting context history.
+	 */
+	public attemptFileReadOptimizationInMemory(
+		apiConversationHistory: Anthropic.Messages.MessageParam[],
+		conversationHistoryDeletedRange: [number, number] | undefined,
+		timestamp: number,
+	): {
+		anyContextUpdates: boolean
+		needToTruncate: boolean
+		optimizedConversationHistory: Anthropic.Messages.MessageParam[]
+	} {
+		const { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
+			apiConversationHistory,
+			conversationHistoryDeletedRange,
+			timestamp,
+		)
+
+		if (!anyContextUpdates) {
+			return {
+				anyContextUpdates: false,
+				needToTruncate: true,
+				optimizedConversationHistory: apiConversationHistory,
+			}
+		}
+
+		return {
+			anyContextUpdates: true,
+			needToTruncate,
+			optimizedConversationHistory: this.getTruncatedMessages(apiConversationHistory, conversationHistoryDeletedRange),
+		}
+	}
+
+	/**
 	 * Public function for triggering potentially setting the truncation message
 	 * If the truncation message already exists, does nothing, otherwise adds the message
 	 */
@@ -743,7 +783,7 @@ export class ContextManager {
 					return true
 				}
 			} catch (error) {
-				console.error("applyFirstUserMessageReplacement:", error)
+				Logger.error("applyFirstUserMessageReplacement:", error)
 			}
 		}
 		return false
@@ -812,9 +852,8 @@ export class ContextManager {
 							}
 							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
 							// to do so we need to keep track of which files we've already replaced so we don't replace them again
-							else {
-								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-							}
+
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again

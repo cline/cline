@@ -1,5 +1,6 @@
 import type { ToggleAgentsRuleRequest } from "@shared/proto/cline/file"
 import { ClineRulesToggles } from "@shared/proto/cline/file"
+import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
 /**
@@ -12,7 +13,7 @@ export async function toggleAgentsRule(controller: Controller, request: ToggleAg
 	const { rulePath, enabled } = request
 
 	if (!rulePath || typeof enabled !== "boolean") {
-		console.error("toggleAgentsRule: Missing or invalid parameters", {
+		Logger.error("toggleAgentsRule: Missing or invalid parameters", {
 			rulePath,
 			enabled: typeof enabled === "boolean" ? enabled : `Invalid: ${typeof enabled}`,
 		})

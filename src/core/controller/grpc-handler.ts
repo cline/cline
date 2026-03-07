@@ -3,6 +3,7 @@ import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
 import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { Logger } from "@/shared/services/Logger"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
 
 /**
@@ -28,7 +29,7 @@ function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: 
 					response.grpc_response,
 				)
 			} catch (e) {
-				console.warn("Failed to record gRPC response:", e)
+				Logger.warn("Failed to record gRPC response:", e)
 			}
 		}
 		return postMessage(response)
@@ -42,7 +43,7 @@ function recordRequest(request: GrpcRequest, controller: Controller): void {
 	try {
 		GrpcRecorderBuilder.getRecorder(controller).recordRequest(request)
 	} catch (e) {
-		console.warn("Failed to record gRPC request:", e)
+		Logger.warn("Failed to record gRPC request:", e)
 	}
 }
 
@@ -91,7 +92,7 @@ async function handleUnaryRequest(
 		})
 	} catch (error) {
 		// Send error response
-		console.log("Protobus error:", error)
+		Logger.log("Protobus error:", error)
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -142,7 +143,7 @@ async function handleStreamingRequest(
 		// The stream will be closed when the client disconnects or when the service explicitly ends it
 	} catch (error) {
 		// Send error response
-		console.log("Protobus error:", error)
+		Logger.log("Protobus error:", error)
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -173,7 +174,7 @@ export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageT
 			},
 		})
 	} else {
-		console.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
+		Logger.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
 }
 

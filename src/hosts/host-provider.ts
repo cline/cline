@@ -29,7 +29,10 @@ export class HostProvider {
 	logToChannel: LogToChannel
 
 	// Returns a callback URL that will redirect to Cline.
-	getCallbackUrl: () => Promise<string>
+	// The path parameter specifies the route for the callback (e.g., "/auth", "/openrouter").
+	// The optional preferredPort parameter hints that the provider should try to bind
+	// this specific port first (used to preserve OAuth client registrations across sessions).
+	getCallbackUrl: (path: string, preferredPort?: number) => Promise<string>
 
 	// Returns the location of the binary `name`.
 	// Use `getBinaryLocation()` from utils/ts.ts instead of using
@@ -52,7 +55,7 @@ export class HostProvider {
 		createTerminalManager: TerminalManagerCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUrl: () => Promise<string>,
+		getCallbackUrl: (path: string, preferredPort?: number) => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
 		extensionFsPath: string,
 		globalStorageFsPath: string,
@@ -76,7 +79,7 @@ export class HostProvider {
 		terminalManagerCreator: TerminalManagerCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUrl: () => Promise<string>,
+		getCallbackUrl: (path: string, preferredPort?: number) => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
 		extensionFsPath: string,
 		globalStorageFsPath: string,

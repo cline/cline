@@ -2,10 +2,12 @@ import { Meter } from "@opentelemetry/api"
 import type { Logger as OTELLogger } from "@opentelemetry/api-logs"
 import { LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
+import { Logger } from "@/shared/services/Logger"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 
@@ -24,6 +26,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
 	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
+	private meterProvider: MeterProvider | null = null
+	private loggerProvider: LoggerProvider | null = null
+
 	readonly name: string
 	private bypassUserSettings: boolean
 
@@ -37,24 +42,25 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		// Initialize telemetry settings
 		this.telemetrySettings = {
-			extensionEnabled: true,
 			hostEnabled: true,
 			level: "all",
 		}
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
+			this.meterProvider = meterProvider
 		}
 
 		if (loggerProvider) {
 			this.logger = loggerProvider.getLogger("cline")
+			this.loggerProvider = loggerProvider
 		}
 
 		// Log initialization status
 		const loggerReady = !!this.logger
 		const meterReady = !!this.meter
 		if (loggerReady || meterReady) {
-			console.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
+			Logger.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
 		}
 	}
 
@@ -82,6 +88,10 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		this.telemetrySettings.level = await this.getTelemetryLevel()
 		return this
+	}
+
+	async forceFlush() {
+		await Promise.all([this.meterProvider?.forceFlush(), this.loggerProvider?.forceFlush()])
 	}
 
 	public log(event: string, properties?: TelemetryProperties): void {
@@ -127,17 +137,20 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public identifyUser(userInfo: ClineAccountUserInfo, properties: TelemetryProperties = {}): void {
-		const distinctId = getDistinctId()
-		// Only identify user if telemetry is enabled and user ID is different than the currently set distinct ID
-		if (this.isEnabled() && userInfo && userInfo?.id !== distinctId) {
-			// Store user attributes for future events
-			this.userAttributes = {
-				user_id: userInfo.id,
-				user_name: userInfo.displayName || "",
-				...this.flattenProperties(properties),
-			}
+		if (!this.isEnabled() || !userInfo) {
+			return
+		}
 
-			// Emit identification event
+		// Always refresh cached user/org attributes so subsequent logs
+		// include up-to-date organization context (e.g. after org switch
+		// or extension restart with the same user ID).
+		this.userAttributes = this.buildUserAttributes(userInfo, properties)
+
+		const distinctId = getDistinctId()
+
+		// Only emit identification event and update distinct ID when the
+		// user ID actually changes (first login or user switch).
+		if (userInfo.id !== distinctId) {
 			if (this.logger) {
 				this.logger.emit({
 					severityText: "INFO",
@@ -154,13 +167,32 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
-	// Set extension-specific telemetry setting - opt-in/opt-out via UI
-	public setOptIn(optIn: boolean): void {
-		this.telemetrySettings.extensionEnabled = optIn
+	/**
+	 * Build a flat record of user and organization attributes for use as
+	 * OpenTelemetry log/event attributes.
+	 */
+	private buildUserAttributes(userInfo: ClineAccountUserInfo, properties: TelemetryProperties = {}): Record<string, string> {
+		const activeOrg = userInfo.organizations?.find((org) => org.active)
+
+		return {
+			user_id: userInfo.id,
+			user_name: userInfo.displayName || "",
+
+			...(activeOrg && {
+				organization_id: activeOrg.organizationId,
+				organization_name: activeOrg.name,
+				member_id: activeOrg.memberId,
+				member_role: activeOrg.roles[0] || "member",
+			}),
+			...this.flattenProperties(properties),
+		}
 	}
 
 	public isEnabled(): boolean {
-		return this.bypassUserSettings || (this.telemetrySettings.extensionEnabled && this.telemetrySettings.hostEnabled)
+		return (
+			this.bypassUserSettings ||
+			(StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled" && this.telemetrySettings.hostEnabled)
+		)
 	}
 
 	public getSettings(): TelemetrySettings {
@@ -187,7 +219,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const options = description ? { description } : undefined
 			counter = this.meter.createCounter(name, options)
 			this.counters.set(name, counter)
-			console.log(`[OTEL] Created counter: ${name}`)
+			Logger.log(`[OTEL] Created counter: ${name}`)
 		}
 
 		counter.add(value, this.flattenProperties(attributes))
@@ -213,7 +245,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const options = description ? { description } : undefined
 			histogram = this.meter.createHistogram(name, options)
 			this.histograms.set(name, histogram)
-			console.log(`[OTEL] Created histogram: ${name}`)
+			Logger.log(`[OTEL] Created histogram: ${name}`)
 		}
 
 		histogram.record(value, this.flattenProperties(attributes))
@@ -270,7 +302,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			})
 
 			this.gauges.set(name, gauge)
-			console.log(`[OTEL] Created gauge: ${name}`)
+			Logger.log(`[OTEL] Created gauge: ${name}`)
 		}
 
 		series.set(attrKey, { value, attributes })
@@ -300,6 +332,10 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Get the current telemetry level from VS Code settings
 	 */
 	private async getTelemetryLevel(): Promise<TelemetrySettings["level"]> {
+		if (this.bypassUserSettings) {
+			return "all"
+		}
+
 		const hostSettings = await HostProvider.env.getTelemetrySettings({})
 		if (hostSettings.isEnabled === Setting.DISABLED) {
 			return "off"

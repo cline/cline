@@ -5,9 +5,14 @@ import { ANTHROPIC_MAX_THINKING_BUDGET, ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
+import { StateManager } from "@/core/storage/StateManager"
 import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
 import { basetenModels } from "../../../shared/api"
 import { Controller } from ".."
+
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
 
 /**
  * Core function: Refreshes the Baseten models and returns application types
@@ -15,6 +20,31 @@ import { Controller } from ".."
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshBasetenModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
+	const cache = StateManager.get().getModelsCache("baseten")
+	if (cache) {
+		return cache
+	}
+
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels(controller)
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
@@ -83,7 +113,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 			throw new Error("No Baseten API key set or no models fetched")
 		}
 	} catch (error) {
-		console.error("Error fetching Baseten models:", error)
+		Logger.error("Error fetching Baseten models:", error)
 
 		// Provide more specific error messages
 		let errorMessage = "Unknown error occurred"
@@ -103,7 +133,7 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 			errorMessage = error.message
 		}
 
-		console.error("Baseten API Error:", errorMessage)
+		Logger.error("Baseten API Error:", errorMessage)
 
 		// If we failed to fetch models, try to read cached models first
 		const cachedModels = await readBasetenModels()
@@ -152,6 +182,9 @@ export async function refreshBasetenModels(controller: Controller): Promise<Reco
 		}
 	}
 
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("baseten", typedModels)
+
 	return typedModels
 }
 
@@ -166,7 +199,7 @@ async function readBasetenModels(): Promise<Record<string, Partial<ModelInfo>> |
 			const fileContents = await fs.readFile(basetenModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		} catch (error) {
-			console.error("Error reading cached Baseten models:", error)
+			Logger.error("Error reading cached Baseten models:", error)
 			return undefined
 		}
 	}

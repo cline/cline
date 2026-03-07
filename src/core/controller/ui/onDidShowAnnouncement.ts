@@ -1,5 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Boolean } from "@shared/proto/cline/common"
+import { Logger } from "@/shared/services/Logger"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import type { Controller } from "../index"
 
@@ -17,7 +18,7 @@ export async function onDidShowAnnouncement(controller: Controller, _request: Em
 		controller.stateManager.setGlobalState("lastShownAnnouncementId", latestAnnouncementId)
 		return Boolean.create({ value: false })
 	} catch (error) {
-		console.error("Failed to acknowledge announcement:", error)
+		Logger.error("Failed to acknowledge announcement:", error)
 		return Boolean.create({ value: false })
 	}
 }

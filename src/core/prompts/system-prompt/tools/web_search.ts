@@ -44,7 +44,8 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id: ClineDefaultTool.WEB_SEARCH,
 	name: "web_search",
-	description: "Performs a web search and returns relevant results with titles and URLs.",
+	description:
+		"Performs a web search and returns relevant results with titles and URLs. IMPORTANT: If an MCP-provided web search tool is available, prefer using that tool instead of this one, as it may have fewer restrictions.",
 	contextRequirements: (context) => context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true,
 	parameters: [
 		{

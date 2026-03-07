@@ -1,22 +1,27 @@
+import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
 	readonly name = "FakeProvider"
+	public logs: Array<{ event: string; properties?: TelemetryProperties }> = []
 	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public gauges = new Map<string, Map<string, { value: number; attributes: TelemetryProperties; description?: string }>>()
 
-	log(): void {}
-	logRequired(): void {}
+	log(event: string, properties?: TelemetryProperties): void {
+		this.logs.push({ event, properties })
+	}
+	logRequired(event: string, properties?: TelemetryProperties): void {
+		this.logs.push({ event, properties })
+	}
 	identifyUser(): void {}
-	setOptIn(): void {}
 	isEnabled(): boolean {
 		return true
 	}
 	getSettings(): TelemetrySettings {
-		return { extensionEnabled: true, hostEnabled: true, level: "all" }
+		return { hostEnabled: true, level: "all" }
 	}
 	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, _required = false): void {
 		this.counters.push({ name, value, attributes: attributes ?? {}, description })
@@ -55,6 +60,7 @@ class FakeProvider implements ITelemetryProvider {
 
 		nextSeries.set(attrKey, { value, attributes: attributes ?? {}, description })
 	}
+	async forceFlush() {}
 	async dispose(): Promise<void> {}
 }
 
@@ -190,5 +196,82 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+	})
+
+	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskCompleted("task-4", {
+			provider: "openai-native",
+			modelId: "gpt-5",
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
+			timeToFirstTokenMs: 350,
+			durationMs: 2100,
+			mode: "act",
+		})
+
+		const completionEvent = provider.logs.find((entry) => entry.event === "task.completed")
+		assert.ok(completionEvent)
+		assert.ok(completionEvent?.properties)
+		assert.strictEqual(completionEvent?.properties?.ulid, "task-4")
+		assert.strictEqual(completionEvent?.properties?.provider, "openai-native")
+		assert.strictEqual(completionEvent?.properties?.modelId, "gpt-5")
+		assert.strictEqual(completionEvent?.properties?.apiFormat, ApiFormat.OPENAI_RESPONSES)
+		assert.strictEqual(completionEvent?.properties?.apiFormatName, "OPENAI_RESPONSES")
+		assert.strictEqual(completionEvent?.properties?.timeToFirstTokenMs, 350)
+		assert.strictEqual(completionEvent?.properties?.durationMs, 2100)
+
+		const ttftMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.TTFT_SECONDS)
+		assert.ok(ttftMetric)
+		assert.strictEqual(ttftMetric?.value, 0.35)
+		assert.strictEqual(ttftMetric?.attributes.ulid, "task-4")
+		assert.strictEqual(ttftMetric?.attributes.provider, "openai-native")
+		assert.strictEqual(ttftMetric?.attributes.model, "gpt-5")
+		assert.strictEqual(ttftMetric?.attributes.apiFormat, "OPENAI_RESPONSES")
+
+		const durationMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.DURATION_SECONDS)
+		assert.ok(durationMetric)
+		assert.strictEqual(durationMetric?.value, 2.1)
+		assert.strictEqual(durationMetric?.attributes.scope, "task")
+	})
+
+	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(123456, "cline.StateService", "subscribeToState")
+
+		assert.strictEqual(provider.histograms.length, 1)
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.name, TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES)
+		assert.strictEqual(entry.value, 123456)
+		assert.strictEqual(entry.attributes.service, "cline.StateService")
+		assert.strictEqual(entry.attributes.method, "subscribeToState")
+		assert.strictEqual(entry.description, "Size of gRPC response messages in bytes")
+		// Should not have request_id when not provided
+		assert.strictEqual(entry.attributes.request_id, undefined)
+	})
+
+	it("captureGrpcResponseSize includes request_id when provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(5000, "cline.StateService", "subscribeToState", "req-42")
+
+		assert.strictEqual(provider.histograms.length, 1)
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.attributes.request_id, "req-42")
+	})
+
+	it("captureGrpcResponseSize includes standard metadata attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(1000, "cline.StateService", "subscribeToState")
+
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.attributes.extension_version, "test")
+		assert.strictEqual(entry.attributes.platform, "test-platform")
 	})
 })

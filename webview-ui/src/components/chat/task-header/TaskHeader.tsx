@@ -26,6 +26,7 @@ interface TaskHeaderProps {
 	totalCost: number
 	lastApiReqTotalTokens?: number
 	lastProgressMessageText?: string
+	showFocusChainPlaceholder?: boolean
 	onClose: () => void
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
@@ -41,6 +42,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	lastApiReqTotalTokens,
 	lastProgressMessageText,
+	showFocusChainPlaceholder,
 	onClose,
 	onSendMessage,
 }) => {
@@ -48,6 +50,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		apiConfiguration,
 		currentTaskItem,
 		checkpointManagerErrorMessage,
+		focusChainSettings,
 		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
@@ -95,7 +98,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			modeFields.apiProvider === "openai" &&
 			modeFields.openAiModelInfo?.inputPrice &&
 			modeFields.openAiModelInfo?.outputPrice) ||
-		(modeFields.apiProvider !== "vscode-lm" && modeFields.apiProvider !== "ollama" && modeFields.apiProvider !== "lmstudio")
+		(modeFields.apiProvider !== "vscode-lm" &&
+			modeFields.apiProvider !== "ollama" &&
+			modeFields.apiProvider !== "lmstudio" &&
+			modeFields.apiProvider !== "openai-codex") // Subscription-based, no per-token costs
 
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
@@ -107,7 +113,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
-		<div className="pt-2 pb-2 pl-[15px] pr-[14px] flex flex-col gap-2">
+		<div className="py-2 px-4 flex flex-col gap-2">
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -119,7 +125,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/65",
 					{
 						"opacity-100 border-1": isTaskExpanded, // No hover effects when expanded, add border
-						"hover:bg-(--vscode-toolbar-hoverBackground) border-1": !isTaskExpanded, // Hover effects only when collapsed
+						"hover:bg-toolbar-hover border-1": !isTaskExpanded, // Hover effects only when collapsed
 					},
 				)}
 				style={{
@@ -218,7 +224,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			</div>
 
 			{/* Display Focus Chain To-Do List */}
-			<FocusChain currentTaskItemId={currentTaskItem?.id} lastProgressMessageText={lastProgressMessageText} />
+			{focusChainSettings.enabled && (
+				<FocusChain
+					currentTaskItemId={currentTaskItem?.id}
+					lastProgressMessageText={lastProgressMessageText}
+					showPlaceholderWhenEmpty={showFocusChainPlaceholder}
+				/>
+			)}
 		</div>
 	)
 }
