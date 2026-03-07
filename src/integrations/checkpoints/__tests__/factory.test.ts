@@ -22,7 +22,6 @@ describe("shouldUseMultiRoot", () => {
 			multiRootEnabledOverride: true,
 			workspaceManager: wr,
 			enableCheckpoints: true,
-			stateManager: makeStateManager(),
 		})
 		expect(result).to.equal(true)
 	})
@@ -33,7 +32,6 @@ describe("shouldUseMultiRoot", () => {
 			multiRootEnabledOverride: false,
 			workspaceManager: wr,
 			enableCheckpoints: true,
-			stateManager: makeStateManager(),
 		})
 
 		expect(result).to.equal(false)
@@ -45,7 +43,6 @@ describe("shouldUseMultiRoot", () => {
 			multiRootEnabledOverride: true,
 			workspaceManager: wr,
 			enableCheckpoints: false,
-			stateManager: makeStateManager(),
 		})
 		expect(result).to.equal(false)
 	})
@@ -55,7 +52,6 @@ describe("shouldUseMultiRoot", () => {
 			multiRootEnabledOverride: true,
 			workspaceManager: undefined,
 			enableCheckpoints: true,
-			stateManager: makeStateManager(),
 		})
 		expect(result).to.equal(false)
 	})
@@ -66,7 +62,6 @@ describe("shouldUseMultiRoot", () => {
 			multiRootEnabledOverride: true,
 			workspaceManager: wr,
 			enableCheckpoints: true,
-			stateManager: makeStateManager(),
 		})
 		expect(result).to.equal(false)
 	})
@@ -77,7 +72,6 @@ describe("shouldUseMultiRoot", () => {
 			multiRootEnabledOverride: true,
 			workspaceManager: wr,
 			enableCheckpoints: true,
-			stateManager: makeStateManager(),
 		})
 		expect(result).to.equal(false)
 	})
