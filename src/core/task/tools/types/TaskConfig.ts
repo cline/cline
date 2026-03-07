@@ -136,7 +136,7 @@ export interface TaskCallbacks {
 	// User prompt hook callback
 	runUserPromptSubmitHook: (
 		userContent: ClineContent[],
-		context: "initial_task" | "resume" | "feedback",
+		context: "initial_task" | "resume" | "feedback" | "retry",
 	) => Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }>
 }
 

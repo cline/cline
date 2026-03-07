@@ -928,7 +928,7 @@ export class Task {
 
 	private async runUserPromptSubmitHook(
 		userContent: ClineContent[],
-		_context: "initial_task" | "resume" | "feedback",
+		_context: "initial_task" | "resume" | "feedback" | "retry",
 	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
 		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
@@ -1784,6 +1784,56 @@ export class Task {
 		this.taskState.didAutomaticallyRetryFailedApiRequest = true
 	}
 
+	private async handleApiReqFailedMessageResponse(askResult: {
+		response: ClineAskResponse
+		text?: string
+		images?: string[]
+		files?: string[]
+	}): Promise<ClineAskResponse> {
+		if (askResult.response !== "messageResponse") {
+			return askResult.response
+		}
+
+		const retryUserContent = await buildUserFeedbackContent(askResult.text, askResult.images, askResult.files)
+
+		if (retryUserContent.length > 0) {
+			await this.say("user_feedback", askResult.text, askResult.images, askResult.files)
+
+			// Run UserPromptSubmit hook for retry feedback
+			const hookResult = await this.runUserPromptSubmitHook(retryUserContent, "retry")
+
+			if (this.taskState.abort) {
+				return "messageResponse" // will be caught by abort check in caller
+			}
+
+			if (hookResult.cancel === true) {
+				await this.handleHookCancellation("UserPromptSubmit", hookResult.wasCancelled ?? false)
+				await this.cancelTask()
+				return "messageResponse" // will be caught by abort check in caller
+			}
+
+			// Always add as a new user message for clean conversation semantics
+			const contentToAdd = [...retryUserContent]
+
+			// Add hook context if provided
+			if (hookResult.contextModification) {
+				contentToAdd.push({
+					type: "text",
+					text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
+				})
+			}
+
+			await this.messageStateHandler.addToApiConversationHistory({
+				role: "user",
+				content: contentToAdd,
+				ts: Date.now(),
+			})
+		}
+
+		// this will simulate user attempted to retry the failed api request
+		return "yesButtonClicked"
+	}
+
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
 		await pWaitFor(() => this.mcpHub.isConnecting !== true, {
@@ -2076,7 +2126,7 @@ export class Task {
 						)
 					}
 					const askResult = await this.ask("api_req_failed", streamingFailedMessage)
-					response = askResult.response
+					response = await this.handleApiReqFailedMessageResponse(askResult)
 					if (response === "yesButtonClicked") {
 						this.taskState.autoRetryAttempts = 0
 					}
@@ -3160,7 +3210,7 @@ export class Task {
 						}),
 					)
 					const askResult = await this.ask("api_req_failed", noResponseErrorMessage)
-					response = askResult.response
+					response = await this.handleApiReqFailedMessageResponse(askResult)
 					// Reset retry counter if user chooses to manually retry
 					if (response === "yesButtonClicked") {
 						this.taskState.autoRetryAttempts = 0
