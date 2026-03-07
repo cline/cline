@@ -1,4 +1,4 @@
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+﻿import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
@@ -70,7 +70,7 @@ export class McpHub {
 	 *
 	 * Timeline:
 	 *   0ms:    flag = true, write file
-	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
+	 *   ~100ms: file watcher fires "change" -> sees flag=true -> skips
 	 *   300ms:  flag = false (ready for external file changes)
 	 */
 	private isUpdatingClineSettings = false
@@ -674,6 +674,22 @@ export class McpHub {
 		connection.server.error = newError //.slice(0, 800)
 	}
 
+	private getTimeout(serverName: string): number {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (connection) {
+			try {
+				const config = JSON.parse(connection.server.config)
+				if (Object.hasOwn(config, "timeout")) {
+					const timeoutInSeconds = z.number().parse((config as { timeout: unknown }).timeout)
+					return secondsToMs(timeoutInSeconds)
+				}
+			} catch (error) {
+				Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+			}
+		}
+		return DEFAULT_REQUEST_TIMEOUT_MS
+	}
+
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -688,7 +704,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeout(serverName),
 			})
 
 			// Get autoApprove settings
@@ -720,7 +736,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeout(serverName),
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -742,7 +758,7 @@ export class McpHub {
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: this.getTimeout(serverName),
 				},
 			)
 
@@ -763,7 +779,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeout(serverName),
 			})
 
 			return (response?.prompts || []).map((prompt) => ({
@@ -1217,7 +1233,7 @@ export class McpHub {
 			},
 			GetPromptResultSchema,
 			{
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeout(serverName),
 			},
 		)
 
