@@ -67,9 +67,9 @@ import {
 	vertexModels,
 	xaiDefaultModelId,
 	xaiModels,
-} from "@shared/api"
-import { Mode } from "@shared/storage/types"
-import * as reasoningSupport from "@shared/utils/reasoning-support"
+} from "@shared/api";
+import { Mode } from "@shared/storage/types";
+import * as reasoningSupport from "@shared/utils/reasoning-support";
 
 export function supportsReasoningEffortForModelId(modelId?: string, _allowShortOpenAiIds = false): boolean {
 	return reasoningSupport.supportsReasoningEffortForModel(modelId)
@@ -299,6 +299,20 @@ export function normalizeApiConfiguration(
 				selectedModelId: openAiModelId || "",
 				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
 			}
+		case "openai-oauth":
+			const openAiOAuthModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeOpenAiOAuthModelId
+					: apiConfiguration?.actModeOpenAiOAuthModelId
+			const openAiOAuthModelInfo =
+				currentMode === "plan"
+					? apiConfiguration?.planModeOpenAiOAuthModelInfo
+					: apiConfiguration?.actModeOpenAiOAuthModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: openAiOAuthModelId || "",
+				selectedModelInfo: openAiOAuthModelInfo || openAiModelInfoSaneDefaults,
+			}
 		case "hicap":
 			const hicapModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeHicapModelId : apiConfiguration?.actModeHicapModelId
@@ -524,6 +538,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			liteLlmModelId: undefined,
 			requestyModelId: undefined,
 			openAiModelId: undefined,
+			openAiOAuthModelId: undefined,
 			openRouterModelId: undefined,
 			clineModelId: undefined,
 			groqModelId: undefined,
@@ -537,6 +552,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 
 			// Model info objects
 			openAiModelInfo: undefined,
+			openAiOAuthModelInfo: undefined,
 			liteLlmModelInfo: undefined,
 			openRouterModelInfo: undefined,
 			clineModelInfo: undefined,
@@ -600,9 +616,13 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
-
+        openAiOAuthModelId:
+			mode === "plan" ? apiConfiguration.planModeOpenAiOAuthModelId : apiConfiguration.actModeOpenAiOAuthModelId,
+		
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
+		openAiOAuthModelInfo:
+			mode === "plan" ? apiConfiguration.planModeOpenAiOAuthModelInfo : apiConfiguration.actModeOpenAiOAuthModelInfo,
 		liteLlmModelInfo: mode === "plan" ? apiConfiguration.planModeLiteLlmModelInfo : apiConfiguration.actModeLiteLlmModelInfo,
 		openRouterModelInfo,
 		clineModelInfo,
@@ -706,6 +726,13 @@ export async function syncModeConfigurations(
 			updates.actModeOpenAiModelId = sourceFields.openAiModelId
 			updates.planModeOpenAiModelInfo = sourceFields.openAiModelInfo
 			updates.actModeOpenAiModelInfo = sourceFields.openAiModelInfo
+			break
+
+		case "openai-oauth":
+			updates.planModeOpenAiOAuthModelId = sourceFields.openAiOAuthModelId
+			updates.actModeOpenAiOAuthModelId = sourceFields.openAiOAuthModelId
+			updates.planModeOpenAiOAuthModelInfo = sourceFields.openAiOAuthModelInfo
+			updates.actModeOpenAiOAuthModelInfo = sourceFields.openAiOAuthModelInfo
 			break
 
 		case "ollama":
