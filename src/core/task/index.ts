@@ -2696,6 +2696,14 @@ export class Task {
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 			let didFinalizeReasoningForUi = false
+			const presentAssistantMessageTimeoutMs = (() => {
+				const raw = process.env.CLINE_PRESENT_ASSISTANT_MESSAGE_TIMEOUT_MS
+				if (raw === undefined) {
+					return 1000
+				}
+				const parsed = Number.parseInt(raw, 10)
+				return Number.isFinite(parsed) && parsed > 0 ? parsed : 1000
+			})()
 
 			const finalizePendingReasoningMessage = async (thinking: string): Promise<boolean> => {
 				const pendingReasoningIndex = findLastIndex(
@@ -2824,9 +2832,35 @@ export class Task {
 
 					// Present content once per chunk. Calling this from multiple case branches can
 					// race partial updates and duplicate text rows in the chat.
-					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
+					const presentStartedAt = Date.now()
+					const presentPromise = this.presentAssistantMessage().catch((error) => {
+						Logger.debug(`[Task] Failed to present message: ${error}`)
+					})
+					const pendingBlocks = this.taskState.assistantMessageContent.slice(
+						this.taskState.currentStreamingContentIndex,
 					)
+					const hasPendingToolUseBlock = pendingBlocks.some((block) => block.type === "tool_use")
+					const shouldTimeboxPresent =
+						presentAssistantMessageTimeoutMs > 0 && (!hasPendingToolUseBlock || this.isParallelToolCallingEnabled())
+					if (shouldTimeboxPresent) {
+						const presentResult = await Promise.race([
+							presentPromise.then(() => "done" as const),
+							setTimeoutPromise(presentAssistantMessageTimeoutMs).then(() => "timeout" as const),
+						])
+						if (presentResult === "timeout") {
+							Logger.warn(
+								`[Task ${this.taskId}] presentAssistantMessage timed out after ${presentAssistantMessageTimeoutMs}ms; continuing stream consumption`,
+							)
+							void presentPromise.then(() => {
+								const elapsedMs = Date.now() - presentStartedAt
+								Logger.debug(
+									`[Task ${this.taskId}] presentAssistantMessage settled after timeout elapsedMs=${elapsedMs}`,
+								)
+							})
+						}
+					} else {
+						await presentPromise
+					}
 
 					if (this.taskState.abort) {
 						this.api.abort?.()
