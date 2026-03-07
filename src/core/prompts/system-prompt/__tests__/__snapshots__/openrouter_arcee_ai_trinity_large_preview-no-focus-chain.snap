@@ -45,7 +45,7 @@ Usage:
 </execute_command>
 
 ## read_file
-Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.
+Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Returned text lines are prefixed with line labels in the format `L<number>:`. Treat these labels as metadata and not part of the underlying file text. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory /test/project)
 Usage:
@@ -92,6 +92,7 @@ Parameters:
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
      * To delete code: Use empty REPLACE section
+  5. If your source context came from read_file and includes line labels (for example, "L42: const x = 1"), do NOT include the "L42: " prefix in SEARCH or REPLACE content. Match only the raw file text.
 Usage:
 <replace_in_file>
 <path>File path here</path>
