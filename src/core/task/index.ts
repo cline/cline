@@ -2737,6 +2737,8 @@ export class Task {
 				})
 
 				let shouldInterruptStream = false
+				const streamStartTime = Date.now()
+				const PER_RESPONSE_TIMEOUT_MS = 120_000
 
 				while (true) {
 					const chunk = await streamCoordinator.nextChunk()
@@ -2842,6 +2844,14 @@ export class Task {
 						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
 						assistantMessage += "\n\n[Response interrupted by user feedback]"
 						// this.userMessageContentReady = true // instead of setting this preemptively, we allow the present iterator to finish and set userMessageContentReady when its ready
+						shouldInterruptStream = true
+						break
+					}
+
+					if (PER_RESPONSE_TIMEOUT_MS > 0 && Date.now() - streamStartTime > PER_RESPONSE_TIMEOUT_MS) {
+						Logger.info(`[Task] Aborting stream: exceeded ${PER_RESPONSE_TIMEOUT_MS / 1000}s per-response timeout`)
+						assistantMessage += "\n\n[Response interrupted: exceeded per-response time limit]"
+						this.api.abort?.()
 						shouldInterruptStream = true
 						break
 					}
