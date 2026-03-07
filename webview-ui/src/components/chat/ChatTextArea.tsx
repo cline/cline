@@ -1011,13 +1011,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
-					if (response.value) {
-						setInputValue("")
-					}
 					textAreaRef.current?.focus()
 				}, 100)
 			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue])
+		}, [mode, inputValue, selectedImages, selectedFiles])
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
