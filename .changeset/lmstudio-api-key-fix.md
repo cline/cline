@@ -1,9 +1,12 @@
 ---
-"@roo-cline/core": patch
+"cline": patch
 ---
 
-feat(lmstudio): fix API key field - add proto-conversion and remove from plain-text settings
+feat(lmstudio): add API key field for authenticated servers
 
-- Add lmStudioApiKey to proto-conversion (serialization/deserialization)
-- Remove lmStudioApiKey from API_HANDLER_SETTINGS_FIELDS (keep only in SECRETS_KEYS)
-- Follows same pattern as ollamaApiKey for proper security and gRPC handling
+- Add lmStudioApiKey to secrets storage (VSCode encrypted storage)
+- Wire API key through handler factory to LM Studio provider
+- Add password-masked UI field in provider settings
+- Add proto-conversion for gRPC serialization
+- Key sent as Authorization: Bearer header via OpenAI SDK
+- Backward compatible: field optional, falls back to 'noop' if not provided
