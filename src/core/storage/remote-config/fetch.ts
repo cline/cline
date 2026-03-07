@@ -89,55 +89,6 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 }
 
 /**
- * Fetches remote configuration for a specific organization from the API.
- * Falls back to cached config if the request fails.
- *
- * @param organizationId The organization ID to fetch config for
- * @returns RemoteConfig if enabled, undefined if disabled or not found
- */
-async function fetchRemoteConfigForOrganization(organizationId: string): Promise<RemoteConfig | undefined> {
-	try {
-		// Fetch config data using helper
-		const configData = await makeAuthenticatedRequest<{ value: string; enabled: boolean }>(
-			CLINE_API_ENDPOINT.REMOTE_CONFIG,
-			organizationId,
-		)
-
-		// Check if config is enabled
-		if (!configData.enabled) {
-			// Clear the remote config from the on-disk cache if it exists
-			await deleteRemoteConfigFromCache(organizationId)
-			return undefined
-		}
-
-		// Parse the JSON-encoded Value field
-		const parsedConfig = JSON.parse(configData.value)
-
-		// Validate against schema
-		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
-
-		return validatedConfig
-	} catch (error) {
-		Logger.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
-
-		// Try to fall back to cached config
-		const cachedConfig = await readRemoteConfigFromCache(organizationId)
-		if (cachedConfig) {
-			try {
-				// Validate cached config against schema
-				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
-				return validatedCachedConfig
-			} catch (validationError) {
-				// Cache validation failed - log and continue
-				Logger.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
-			}
-		}
-
-		return undefined
-	}
-}
-
-/**
  * Fetches API keys for a specific organization from the API.
  *
  * @param organizationId The organization ID to fetch API keys for
@@ -157,37 +108,109 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<APIK
 }
 
 /**
- * Scans all user organizations to find the first one with an enabled remote configuration.
+ * Finds the user's organization with remote config enabled.
+ * Uses the user-level endpoint which always returns the latest state from the server,
+ * including newly created organizations. Falls back to disk cache on failure.
  *
  * @returns Object containing the organization ID and config, or undefined if none found
  */
 async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: string; config: RemoteConfig } | undefined> {
+	try {
+		const result = await fetchUserRemoteConfig()
+
+		if (!result) {
+			return undefined
+		}
+
+		// Respect user opt-out of remote config
+		if (!isRemoteConfigEnabled(result.organizationId)) {
+			return undefined
+		}
+
+		return result
+	} catch (error) {
+		Logger.error("Failed to fetch user remote config, trying cache fallback:", error)
+
+		// Fall back to disk cache using the currently active org
+		const authService = AuthService.getInstance()
+		const activeOrgId = authService.getActiveOrganizationId()
+		if (activeOrgId) {
+			const cachedConfig = await readRemoteConfigFromCache(activeOrgId)
+			if (cachedConfig) {
+				try {
+					const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
+					if (isRemoteConfigEnabled(activeOrgId)) {
+						return { organizationId: activeOrgId, config: validatedCachedConfig }
+					}
+				} catch (validationError) {
+					Logger.error(`Cached config validation failed for organization ${activeOrgId}:`, validationError)
+				}
+			}
+		}
+
+		return undefined
+	}
+}
+
+/**
+ * Fetches remote configuration across all user organizations using the user-level endpoint.
+ * Unlike the per-org endpoint, this does not depend on the cached organization list,
+ * so it immediately discovers newly created organizations with remote config.
+ *
+ * @returns Object containing the organization ID and config, or undefined if none found
+ */
+async function fetchUserRemoteConfig(): Promise<{ organizationId: string; config: RemoteConfig } | undefined> {
 	const authService = AuthService.getInstance()
 
-	// Get all user organizations from cached auth info
-	const userOrganizations = authService.getUserOrganizations()
-
-	if (!userOrganizations || userOrganizations.length === 0) {
+	const authToken = await authService.getAuthToken()
+	if (!authToken) {
 		return undefined
 	}
 
-	// Scan each organization for remote config
-	for (const org of userOrganizations) {
-		if (!isRemoteConfigEnabled(org.organizationId)) {
-			continue
-		}
+	const url = new URL(CLINE_API_ENDPOINT.USER_REMOTE_CONFIG, ClineEnv.config().apiBaseUrl).toString()
 
-		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
-
-		if (remoteConfig) {
-			return {
-				organizationId: org.organizationId,
-				config: remoteConfig,
-			}
-		}
+	const requestConfig: AxiosRequestConfig = {
+		headers: {
+			Authorization: `Bearer ${authToken}`,
+			"Content-Type": "application/json",
+			...(await buildBasicClineHeaders()),
+		},
+		...getAxiosSettings(),
 	}
 
-	return undefined
+	const response: AxiosResponse<{
+		data?: { organizationId: string; value: string; enabled: boolean }
+		error?: string
+		success: boolean
+	}> = await axios.request({
+		url,
+		method: "GET",
+		...requestConfig,
+	})
+
+	const status = response.status
+	if (status < 200 || status >= 300) {
+		throw new Error(`Request to ${CLINE_API_ENDPOINT.USER_REMOTE_CONFIG} failed with status ${status}`)
+	}
+
+	if (!response.data?.success || !response.data?.data) {
+		return undefined
+	}
+
+	const { organizationId, value, enabled } = response.data.data
+
+	if (!enabled || !value || !organizationId) {
+		// Config exists but is disabled — clear any stale cache
+		if (organizationId) {
+			await deleteRemoteConfigFromCache(organizationId)
+		}
+		return undefined
+	}
+
+	const parsedConfig = JSON.parse(value)
+	const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
+
+	return { organizationId, config: validatedConfig }
 }
 
 /**
