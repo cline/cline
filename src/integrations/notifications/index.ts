@@ -1,11 +1,13 @@
 import { execa } from "execa"
 import { platform } from "os"
+import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 
 interface NotificationOptions {
 	title?: string
 	subtitle?: string
 	message: string
+	iconPath?: string
 }
 
 async function showMacOSNotification(options: NotificationOptions): Promise<void> {
@@ -21,7 +23,9 @@ async function showMacOSNotification(options: NotificationOptions): Promise<void
 }
 
 async function showWindowsNotification(options: NotificationOptions): Promise<void> {
-	const { subtitle, message } = options
+	const { subtitle, message, iconPath } = options
+
+	const imageElement = iconPath ? `<image placement="appLogoOverride" src="file:///${iconPath.replace(/\\/g, "/")}" />` : ""
 
 	const script = `
     [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
@@ -30,9 +34,10 @@ async function showWindowsNotification(options: NotificationOptions): Promise<vo
     $template = @"
     <toast>
         <visual>
-            <binding template="ToastText02">
-                <text id="1">${subtitle}</text>
-                <text id="2">${message}</text>
+            <binding template="ToastGeneric">
+                <text>${subtitle}</text>
+                <text>${message}</text>
+                ${imageElement}
             </binding>
         </visual>
     </toast>
@@ -52,15 +57,29 @@ async function showWindowsNotification(options: NotificationOptions): Promise<vo
 }
 
 async function showLinuxNotification(options: NotificationOptions): Promise<void> {
-	const { title = "", subtitle = "", message } = options
+	const { title = "", subtitle = "", message, iconPath } = options
 
 	// Combine subtitle and message if subtitle exists
 	const fullMessage = subtitle ? `${subtitle}\n${message}` : message
 
 	try {
-		await execa("notify-send", [title, fullMessage])
+		const args = iconPath ? ["-i", iconPath, title, fullMessage] : [title, fullMessage]
+		await execa("notify-send", args)
 	} catch (error) {
 		throw new Error(`Failed to show Linux notification: ${error}`)
+	}
+}
+
+/**
+ * Resolves the path to the Cline extension icon.
+ * The icon is at `assets/icons/icon.png` relative to the extension root.
+ * At runtime, this module is bundled into `dist/`, so the extension root is one level up.
+ */
+function getIconPath(): string | undefined {
+	try {
+		return path.join(__dirname, "..", "assets", "icons", "icon.png")
+	} catch {
+		return undefined
 	}
 }
 
@@ -77,6 +96,7 @@ export async function showSystemNotification(options: NotificationOptions): Prom
 			title: title.replace(/"/g, '\\"'),
 			message: message.replace(/"/g, '\\"'),
 			subtitle: options.subtitle?.replace(/"/g, '\\"') || "",
+			iconPath: options.iconPath || getIconPath(),
 		}
 
 		switch (platform()) {
