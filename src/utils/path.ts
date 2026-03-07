@@ -3,6 +3,8 @@ import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 
+const WINDOWS_EXTENDED_PATH_PREFIX = "\\\\?\\"
+
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
 - On Windows, it uses backslashes (\) as the default path separator.
@@ -152,8 +154,20 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 		return false
 	}
 	// Handle long paths in Windows
-	if (dirPath.startsWith("\\\\?\\") || pathToCheck.startsWith("\\\\?\\")) {
-		return pathToCheck.startsWith(dirPath)
+	if (dirPath.startsWith(WINDOWS_EXTENDED_PATH_PREFIX) || pathToCheck.startsWith(WINDOWS_EXTENDED_PATH_PREFIX)) {
+		const normalizedDir = normalizeExtendedLengthPath(dirPath)
+		const normalizedPathToCheck = normalizeExtendedLengthPath(pathToCheck)
+		const shouldUseCaseInsensitiveComparison = isWindowsStylePath(normalizedDir) && isWindowsStylePath(normalizedPathToCheck)
+		const comparableDir = shouldUseCaseInsensitiveComparison ? normalizedDir.toLowerCase() : normalizedDir
+		const comparablePathToCheck = shouldUseCaseInsensitiveComparison
+			? normalizedPathToCheck.toLowerCase()
+			: normalizedPathToCheck
+
+		if (comparablePathToCheck === comparableDir) {
+			return true
+		}
+		const dirWithSeparator = comparableDir.endsWith("\\") ? comparableDir : `${comparableDir}\\`
+		return comparablePathToCheck.startsWith(dirWithSeparator)
 	}
 
 	const resolvedDirResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Utils.path.isLocatedInPath")
@@ -170,6 +184,27 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 		return false
 	}
 	return true
+}
+
+function isWindowsStylePath(p: string): boolean {
+	return /^[a-zA-Z]:\\/.test(p) || p.startsWith("\\\\")
+}
+
+function normalizeExtendedLengthPath(rawPath: string): string {
+	let normalizedPath = rawPath.replace(/\//g, "\\")
+	if (normalizedPath.startsWith(WINDOWS_EXTENDED_PATH_PREFIX)) {
+		normalizedPath = normalizedPath.slice(WINDOWS_EXTENDED_PATH_PREFIX.length)
+		if (normalizedPath.toUpperCase().startsWith("UNC\\")) {
+			normalizedPath = `\\\\${normalizedPath.slice(4)}`
+		}
+	}
+
+	normalizedPath = path.win32.normalize(normalizedPath)
+	const parsedPath = path.win32.parse(normalizedPath)
+	if (normalizedPath.length > parsedPath.root.length && normalizedPath.endsWith("\\")) {
+		normalizedPath = normalizedPath.slice(0, -1)
+	}
+	return normalizedPath
 }
 
 export async function asRelativePath(filePath: string): Promise<string> {
