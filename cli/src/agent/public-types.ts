@@ -106,8 +106,6 @@ export interface ClineAcpSession {
 	createdAt: number
 	/** Timestamp of last activity */
 	lastActivityAt: number
-	/** Whether this session was loaded from history (needs resume on first prompt) */
-	isLoadedFromHistory?: boolean
 	/** Model ID override for plan mode (format: "provider/modelId") */
 	planModeModelId?: string
 	/** Model ID override for act mode (format: "provider/modelId") */
