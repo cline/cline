@@ -7,7 +7,8 @@ describe("useShortcut", () => {
 		const callback = vi.fn()
 		renderHook(() => useShortcut("Meta+Shift+a", callback))
 
-		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, shiftKey: true })
+		// On non-Mac platforms, Meta maps to ctrlKey, so we include both to work cross-platform
+		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, ctrlKey: true, shiftKey: true })
 		window.dispatchEvent(event)
 
 		expect(callback).toHaveBeenCalled()
@@ -31,7 +32,8 @@ describe("useShortcut", () => {
 		document.body.appendChild(input)
 		input.focus()
 
-		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, shiftKey: true })
+		// On non-Mac platforms, Meta maps to ctrlKey, so we include both to work cross-platform
+		const event = new KeyboardEvent("keydown", { key: "a", metaKey: true, ctrlKey: true, shiftKey: true })
 		input.dispatchEvent(event)
 
 		expect(callback).not.toHaveBeenCalled()
@@ -45,7 +47,7 @@ describe("useMetaKeyDetection", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("win32"))
 		expect(result.current[0]).toBe("windows")
-		expect(result.current[1]).toBe("Win")
+		expect(result.current[1]).toBe("Ctrl")
 	})
 
 	it("should detect Mac OS and metaKey from platform", () => {
@@ -59,6 +61,6 @@ describe("useMetaKeyDetection", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("linux"))
 		expect(result.current[0]).toBe("linux")
-		expect(result.current[1]).toBe("Alt")
+		expect(result.current[1]).toBe("Ctrl")
 	})
 })
