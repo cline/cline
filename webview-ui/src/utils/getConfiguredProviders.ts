@@ -186,6 +186,11 @@ export function getConfiguredProviders(
 		configured.push("nousResearch")
 	}
 
+	// Brainiall - requires API key
+	if (apiConfiguration.brainiallApiKey) {
+		configured.push("brainiall")
+	}
+
 	// OpenAI Compatible - requires base URL and API key, OR has model configured
 	if (
 		(apiConfiguration.openAiBaseUrl && apiConfiguration.openAiApiKey) ||

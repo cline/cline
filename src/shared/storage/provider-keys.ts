@@ -16,6 +16,7 @@ import {
 	liteLlmDefaultModelId,
 	minimaxDefaultModelId,
 	moonshotDefaultModelId,
+	brainiallDefaultModelId,
 	nousResearchDefaultModelId,
 	openAiNativeDefaultModelId,
 	openRouterDefaultModelId,
@@ -82,6 +83,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	minimax: "minimaxApiKey",
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
+	brainiall: "brainiallApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
 } as const
 
@@ -106,6 +108,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	bedrock: bedrockDefaultModelId,
 	hicap: "",
 	nousResearch: nousResearchDefaultModelId,
+	brainiall: brainiallDefaultModelId,
 	"vercel-ai-gateway": openRouterDefaultModelId,
 	xai: xaiDefaultModelId,
 	gemini: geminiDefaultModelId,

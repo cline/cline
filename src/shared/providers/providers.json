@@ -161,6 +161,10 @@
 			"label": "AIhubmix"
 		},
 		{
+			"value": "brainiall",
+			"label": "Brainiall"
+		},
+		{
 			"value": "nousResearch",
 			"label": "NousResearch"
 		}
