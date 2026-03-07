@@ -3797,6 +3797,13 @@ export const sapAiCoreModels = {
 		supportsPromptCache: true,
 		description: sapAiCoreModelDescription,
 	},
+	"anthropic--claude-4.6-opus": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4.5-opus": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
