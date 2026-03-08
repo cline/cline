@@ -40,7 +40,7 @@ export class AuthHandler {
 		this.enabled = enabled
 	}
 
-	public async getCallbackUrl(path = ""): Promise<string> {
+	public async getCallbackUrl(path = "", preferredPort?: number): Promise<string> {
 		if (!this.enabled) {
 			throw Error("AuthHandler was not enabled")
 		}
@@ -51,7 +51,8 @@ export class AuthHandler {
 				await this.serverCreationPromise
 			} else {
 				// Start server creation and track the promise
-				this.serverCreationPromise = this.createServer()
+				// Pass preferred port so we try to bind it first (preserves OAuth client registrations)
+				this.serverCreationPromise = this.createServer(preferredPort)
 				await this.serverCreationPromise
 			}
 		} else {
@@ -61,13 +62,16 @@ export class AuthHandler {
 		return `http://127.0.0.1:${this.port}${path}`
 	}
 
-	private async createServer(): Promise<void> {
+	private async createServer(preferredPort?: number): Promise<void> {
 		return new Promise(async (resolve, reject) => {
 			try {
 				const server = http.createServer(this.handleRequest.bind(this))
 
-				// Try to bind on a port from the allowed range
-				for (const port of PORTS) {
+				// Build the port list: try preferred port first (if provided), then the normal range
+				const portsToTry = preferredPort ? [preferredPort, ...PORTS.filter((p) => p !== preferredPort)] : PORTS
+
+				// Try to bind on a port from the list
+				for (const port of portsToTry) {
 					try {
 						await this.tryListenOnPort(server, port)
 

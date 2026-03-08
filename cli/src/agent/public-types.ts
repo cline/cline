@@ -71,6 +71,8 @@ export interface ClineAgentOptions {
 	debug?: boolean
 	/** Cline Config Directory (defaults to ~/.cline) */
 	clineDir?: string
+	/** Additional runtime hooks directory */
+	hooksDir?: string
 }
 
 /**
@@ -79,6 +81,8 @@ export interface ClineAgentOptions {
 export interface AcpAgentOptions {
 	/** Whether debug logging is enabled */
 	debug?: boolean
+	/** Additional runtime hooks directory */
+	hooksDir?: string
 }
 
 // ============================================================

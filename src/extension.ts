@@ -602,7 +602,7 @@ function setupHostProvider(context: ExtensionContext) {
 	const createCommentReview = () => getVscodeCommentReviewController()
 	const createTerminalManager = () => new VscodeTerminalManager()
 
-	const getCallbackUrl = async (path: string) => {
+	const getCallbackUrl = async (path: string, _preferredPort?: number) => {
 		const scheme = vscode.env.uriScheme || "vscode"
 		const callbackUri = vscode.Uri.parse(`${scheme}://${context.extension.id}${path}`)
 

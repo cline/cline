@@ -5,24 +5,30 @@ import { withPlatform } from "./test-utils"
 
 describe("hooks-utils", () => {
 	describe("getHooksEnabledSafe", () => {
-		// If hooks-enabled logic becomes platform/config dependent in the future,
-		// expand this suite with behavior-specific cases at that time.
-		it("returns true", () => {
-			getHooksEnabledSafe().should.be.true()
+		it("returns false when user setting is false", () => {
+			getHooksEnabledSafe(false).should.be.false()
+		})
+
+		it("returns true when user setting is true", () => {
+			getHooksEnabledSafe(true).should.be.true()
 		})
 
 		it("is stable across repeated calls", () => {
 			for (let i = 0; i < 5; i++) {
-				getHooksEnabledSafe().should.be.true()
+				getHooksEnabledSafe(true).should.be.true()
 			}
+		})
+
+		it("returns true for undefined", () => {
+			getHooksEnabledSafe(undefined).should.be.true()
 		})
 
 		it("does not depend on process.platform in current implementation", async () => {
 			await withPlatform("win32", () => {
-				getHooksEnabledSafe().should.be.true()
+				getHooksEnabledSafe(true).should.be.true()
 			})
 			await withPlatform("linux", () => {
-				getHooksEnabledSafe().should.be.true()
+				getHooksEnabledSafe(true).should.be.true()
 			})
 		})
 	})
