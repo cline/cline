@@ -572,8 +572,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			onError: (error) => {
 				console.error("Error in partialMessage subscription:", error)
 			},
-			onComplete: () => {
-			},
+			onComplete: () => {},
 		})
 
 		// Subscribe to MCP marketplace catalog updates
@@ -643,8 +642,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Initialize webview using gRPC
 		UiServiceClient.initializeWebview(EmptyRequest.create({}))
-			.then(() => {
-			})
+			.then(() => {})
 			.catch((error) => {
 				console.error("Failed to initialize webview via gRPC:", error)
 			})
@@ -916,13 +914,13 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
-		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
-		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
-		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
-		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
-		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
-		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
-		setPromptsCatalog: (catalog: PromptsCatalog) => setPromptsCatalog(catalog),
+		setMcpServers,
+		setRequestyModels,
+		setGroqModels,
+		setBasetenModels,
+		setHuggingFaceModels,
+		setMcpMarketplaceCatalog,
+		setPromptsCatalog,
 		setShowMcp,
 		closeMcpView,
 		setGlobalClineRulesToggles: (toggles) =>
