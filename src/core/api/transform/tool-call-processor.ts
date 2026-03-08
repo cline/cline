@@ -48,6 +48,7 @@ export class ToolCallProcessor {
 					type: "tool_calls",
 					tool_call: {
 						...toolCallDelta,
+						call_id: this.lastToolCall.id,
 						function: {
 							...toolCallDelta.function,
 							id: this.lastToolCall.id,
@@ -74,7 +75,7 @@ export class ToolCallProcessor {
 	}
 }
 
-export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls: boolean = false) {
+export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCalls = false) {
 	return tools?.length
 		? {
 				tools,
