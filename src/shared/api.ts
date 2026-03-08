@@ -291,24 +291,8 @@ export const anthropicModels = {
 		outputPrice: 150.0,
 		cacheWritesPrice: 37.5,
 		cacheReadsPrice: 3.0,
-		tiers: [
-			{
-				contextWindow: 200000,
-				inputPrice: 30.0,
-				outputPrice: 150,
-				cacheWritesPrice: 37.5,
-				cacheReadsPrice: 3.0,
-			},
-			{
-				contextWindow: Number.MAX_SAFE_INTEGER,
-				inputPrice: 60,
-				outputPrice: 225,
-				cacheWritesPrice: 75,
-				cacheReadsPrice: 6.0,
-			},
-		],
 		description:
-			"Anthropic fast mode preview for Claude Opus 4.6 with the 1M context beta enabled. Same model and capabilities with higher output token speed at premium pricing. Requires both fast mode and 1M context access on your Anthropic account.",
+			"Anthropic fast mode preview for Claude Opus 4.6 with the 1M context beta enabled. Same model and capabilities with higher output token speed at premium pricing across the full 1M context window. Requires both fast mode and 1M context access on your Anthropic account.",
 	},
 	"claude-opus-4-5-20251101": {
 		maxTokens: 64_000,
