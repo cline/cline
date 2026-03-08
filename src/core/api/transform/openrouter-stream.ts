@@ -116,8 +116,6 @@ export async function createOpenRouterStream(
 			break
 	}
 
-	const maxTokens = model.info.maxTokens || undefined
-
 	let temperature: number | undefined = 0
 	let topP: number | undefined
 	if (
@@ -185,7 +183,6 @@ export async function createOpenRouterStream(
 
 	const requestPayload: Record<string, unknown> = {
 		model: model.id,
-		max_tokens: maxTokens,
 		temperature: temperature,
 		top_p: topP,
 		messages: openAiMessages,

@@ -20,6 +20,7 @@ import {
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
@@ -114,6 +115,7 @@ import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
+import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
@@ -681,6 +683,14 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
+		// Notification hook marks that Cline is waiting for user input.
+		await this.runNotificationHook({
+			event: "user_attention",
+			source: type,
+			message: text || "",
+			waitingForUserInput: true,
+		})
+
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
 		})
@@ -698,6 +708,35 @@ export class Task {
 		this.taskState.askResponseImages = undefined
 		this.taskState.askResponseFiles = undefined
 		return result
+	}
+
+	private async runNotificationHook(notification: {
+		event: string
+		source: string
+		message: string
+		waitingForUserInput: boolean
+	}): Promise<void> {
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
+		if (!hooksEnabled) {
+			return
+		}
+
+		try {
+			await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification,
+				},
+				isCancellable: false,
+				say: async () => undefined,
+				messageStateHandler: this.messageStateHandler,
+				taskId: this.taskId,
+				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
+			})
+		} catch (error) {
+			Logger.error("[Notification Hook] Failed (non-fatal):", error)
+		}
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
@@ -891,7 +930,7 @@ export class Task {
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
 	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		if (!hooksEnabled) {
 			return {}
@@ -917,6 +956,7 @@ export class Task {
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
 			hooksEnabled,
+			model: getHookModelContext(this.api, this.stateManager),
 		})
 
 		// Handle cancellation from hook
@@ -977,7 +1017,7 @@ export class Task {
 		}
 
 		// Add TaskStart hook context to the conversation if provided
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			const taskStartResult = await executeHook({
 				hookName: "TaskStart",
@@ -997,6 +1037,7 @@ export class Task {
 				messageStateHandler: this.messageStateHandler,
 				taskId: this.taskId,
 				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
 			})
 
 			// Handle cancellation from hook
@@ -1125,7 +1166,7 @@ export class Task {
 		const newUserContent: ClineContent[] = []
 
 		// Run TaskResume hook AFTER user clicks resume button
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const taskResumeResult = await executeHook({
@@ -1150,6 +1191,7 @@ export class Task {
 				messageStateHandler: this.messageStateHandler,
 				taskId: this.taskId,
 				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
 			})
 
 			// Handle cancellation from hook
@@ -1449,7 +1491,7 @@ export class Task {
 			// PHASE 4: Run TaskCancel hook
 			// This allows the hook UI to appear in the webview
 			// Use the shouldRunTaskCancelHook value we captured in Phase 1
-			const hooksEnabled = getHooksEnabledSafe()
+			const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
 					await executeHook({
@@ -1469,6 +1511,7 @@ export class Task {
 						messageStateHandler: this.messageStateHandler,
 						taskId: this.taskId,
 						hooksEnabled,
+						model: getHookModelContext(this.api, this.stateManager),
 					})
 
 					// TaskCancel completed successfully
@@ -1681,7 +1724,7 @@ export class Task {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
 		// Run PreCompact hook before truncation
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			try {
 				// Calculate what the new deleted range will be
@@ -1691,6 +1734,7 @@ export class Task {
 				await executePreCompactHookWithCleanup({
 					taskId: this.taskId,
 					ulid: this.ulid,
+					modelContext: getHookModelContext(this.api, this.stateManager),
 					apiConversationHistory,
 					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 					contextManager: this.contextManager,
@@ -1708,7 +1752,7 @@ export class Task {
 					postStateToWebview: this.postStateToWebview.bind(this),
 					taskState: this.taskState,
 					cancelTask: this.cancelTask.bind(this),
-					hooksEnabled: true,
+					hooksEnabled,
 				})
 			} catch (error) {
 				// If hook was cancelled, re-throw to stop compaction
@@ -2515,6 +2559,55 @@ export class Task {
 				outputTokens: number
 				totalCost: number | undefined
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
+			let didFinalizeApiReqMsg = false
+			let usageChunkSideEffectsQueue = Promise.resolve()
+			/*
+				Usage side effects run as soon as a usage chunk arrives.
+				queueUsageChunkSideEffects() appends work to this promise chain, and each appended step starts immediately
+				(once the previous step finishes). We only await usageChunkSideEffectsQueue at stream end to flush any in-flight
+				updates before finalizing api_req_started, not to start processing.
+			*/
+
+			const updateApiReqMsgFromMetrics = async (
+				cancelReason?: ClineApiReqCancelReason,
+				streamingFailedMessage?: string,
+			) => {
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens: taskMetrics.inputTokens,
+					outputTokens: taskMetrics.outputTokens,
+					cacheWriteTokens: taskMetrics.cacheWriteTokens,
+					cacheReadTokens: taskMetrics.cacheReadTokens,
+					api: this.api,
+					totalCost: taskMetrics.totalCost,
+					cancelReason,
+					streamingFailedMessage,
+				})
+			}
+
+			const queueUsageChunkSideEffects = (usageInputTokens: number, usageOutputTokens: number) => {
+				usageChunkSideEffectsQueue = usageChunkSideEffectsQueue
+					// This executes immediately after enqueue (microtask if already resolved), not at stream end.
+					.then(async () => {
+						if (didFinalizeApiReqMsg || this.taskState.abort) {
+							return
+						}
+
+						await updateApiReqMsgFromMetrics()
+						await this.postStateToWebview()
+						await telemetryService.captureTokenUsage(this.ulid, usageInputTokens, usageOutputTokens, model.id)
+					})
+					.catch((error) => {
+						Logger.debug(`[Task ${this.taskId}] Failed to process usage chunk side effects: ${error}`)
+					})
+			}
+
+			const finalizeApiReqMsg = async (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				didFinalizeApiReqMsg = true
+				await usageChunkSideEffectsQueue
+				await updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
+			}
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				Session.get().finalizeRequest()
@@ -2533,18 +2626,7 @@ export class Task {
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
-				await updateApiReqMsg({
-					messageStateHandler: this.messageStateHandler,
-					lastApiReqIndex,
-					inputTokens: taskMetrics.inputTokens,
-					outputTokens: taskMetrics.outputTokens,
-					cacheWriteTokens: taskMetrics.cacheWriteTokens,
-					cacheReadTokens: taskMetrics.cacheReadTokens,
-					totalCost: taskMetrics.totalCost,
-					api: this.api,
-					cancelReason,
-					streamingFailedMessage,
-				})
+				await finalizeApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				// Let assistant know their response was interrupted for when task is resumed
@@ -2580,13 +2662,7 @@ export class Task {
 					modelInfo.modelId,
 					"assistant",
 					modelInfo.mode,
-					{
-						tokensIn: taskMetrics.inputTokens,
-						tokensOut: taskMetrics.outputTokens,
-						cacheWriteTokens: taskMetrics.cacheWriteTokens,
-						cacheReadTokens: taskMetrics.cacheReadTokens,
-						totalCost: taskMetrics.totalCost,
-					},
+					undefined,
 					this.useNativeToolCalls, // For assistant turn only.
 				)
 
@@ -2644,26 +2720,34 @@ export class Task {
 
 			// Track API call time for session statistics
 			Session.get().startApiCall()
+			let streamCoordinator: StreamChunkCoordinator | undefined
 
 			try {
-				for await (const chunk of stream) {
-					if (
-						!this.taskState.taskFirstTokenTimeMs &&
-						(chunk.type === "text" || chunk.type === "reasoning" || chunk.type === "tool_calls")
-					) {
+				streamCoordinator = new StreamChunkCoordinator(stream, {
+					onUsageChunk: (chunk) => {
+						this.streamHandler.setRequestId(chunk.id)
+						didReceiveUsageChunk = true
+						taskMetrics.inputTokens += chunk.inputTokens
+						taskMetrics.outputTokens += chunk.outputTokens
+						taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+						taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
+						taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
+						queueUsageChunkSideEffects(chunk.inputTokens, chunk.outputTokens)
+					},
+				})
+
+				let shouldInterruptStream = false
+
+				while (true) {
+					const chunk = await streamCoordinator.nextChunk()
+					if (!chunk) {
+						break
+					}
+					if (!this.taskState.taskFirstTokenTimeMs) {
 						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
 					}
 
 					switch (chunk.type) {
-						case "usage":
-							this.streamHandler.setRequestId(chunk.id)
-							didReceiveUsageChunk = true
-							taskMetrics.inputTokens += chunk.inputTokens
-							taskMetrics.outputTokens += chunk.outputTokens
-							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
-							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
-							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
 							// Ensure details is always an array
@@ -2750,6 +2834,7 @@ export class Task {
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
+						shouldInterruptStream = true
 						break // aborts the stream
 					}
 
@@ -2757,6 +2842,7 @@ export class Task {
 						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
 						assistantMessage += "\n\n[Response interrupted by user feedback]"
 						// this.userMessageContentReady = true // instead of setting this preemptively, we allow the present iterator to finish and set userMessageContentReady when its ready
+						shouldInterruptStream = true
 						break
 					}
 
@@ -2766,9 +2852,18 @@ export class Task {
 					if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
+						shouldInterruptStream = true
 						break
 					}
 				}
+
+				if (shouldInterruptStream) {
+					await streamCoordinator.stop()
+				} else {
+					await streamCoordinator.waitForCompletion()
+				}
+				// Flush any usage updates that were already executing/queued during streaming.
+				await usageChunkSideEffectsQueue
 
 				if (!this.taskState.abort && !didFinalizeReasoningForUi) {
 					const finalReasoning = reasonsHandler.getCurrentReasoning()
@@ -2781,6 +2876,7 @@ export class Task {
 					}
 				}
 			} catch (error) {
+				await streamCoordinator?.stop()
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
@@ -2843,28 +2939,19 @@ export class Task {
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
 			// (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
 			if (!didReceiveUsageChunk) {
-				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
-					if (apiStreamUsage) {
-						taskMetrics.inputTokens += apiStreamUsage.inputTokens
-						taskMetrics.outputTokens += apiStreamUsage.outputTokens
-						taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-						taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
-						taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
-					}
-				})
+				const apiStreamUsage = await this.api.getApiStreamUsage?.()
+				if (apiStreamUsage) {
+					taskMetrics.inputTokens += apiStreamUsage.inputTokens
+					taskMetrics.outputTokens += apiStreamUsage.outputTokens
+					taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
+					taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+					taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
+					queueUsageChunkSideEffects(apiStreamUsage.inputTokens, apiStreamUsage.outputTokens)
+				}
 			}
 
 			// Update the api_req_started message with final usage and cost details
-			await updateApiReqMsg({
-				messageStateHandler: this.messageStateHandler,
-				lastApiReqIndex,
-				inputTokens: taskMetrics.inputTokens,
-				outputTokens: taskMetrics.outputTokens,
-				cacheWriteTokens: taskMetrics.cacheWriteTokens,
-				cacheReadTokens: taskMetrics.cacheReadTokens,
-				api: this.api,
-				totalCost: taskMetrics.totalCost,
-			})
+			await finalizeApiReqMsg()
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
@@ -2882,13 +2969,7 @@ export class Task {
 					model.id,
 					"assistant",
 					modelInfo.mode,
-					{
-						tokensIn: taskMetrics.inputTokens,
-						tokensOut: taskMetrics.outputTokens,
-						cacheWriteTokens: taskMetrics.cacheWriteTokens,
-						cacheReadTokens: taskMetrics.cacheReadTokens,
-						totalCost: taskMetrics.totalCost,
-					},
+					undefined,
 					this.useNativeToolCalls,
 				)
 
