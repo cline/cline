@@ -111,7 +111,6 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"
 export const ANTHROPIC_FAST_MODE_SUFFIX = ":fast"
-export const ANTHROPIC_FAST_MODE_BETA = "fast-mode-2026-02-01"
 export const CLAUDE_SONNET_1M_TIERS = [
 	{
 		contextWindow: 200000,

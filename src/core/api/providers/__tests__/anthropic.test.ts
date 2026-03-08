@@ -1,8 +1,8 @@
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import "should"
-import { ANTHROPIC_FAST_MODE_BETA, anthropicModels } from "@shared/api"
-import { AnthropicHandler } from "../anthropic"
+import { anthropicModels } from "@shared/api"
+import { ANTHROPIC_FAST_MODE_BETA, AnthropicHandler } from "../anthropic"
 
 describe("AnthropicHandler", () => {
 	afterEach(() => {

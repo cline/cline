@@ -7,7 +7,6 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import type { MessageCreateParamsStreaming as AnthropicMessageCreateParamsStreaming } from "@anthropic-ai/sdk/resources/messages/messages"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import {
-	ANTHROPIC_FAST_MODE_BETA,
 	ANTHROPIC_FAST_MODE_SUFFIX,
 	AnthropicModelId,
 	anthropicDefaultModelId,
@@ -22,6 +21,8 @@ import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
+
+export const ANTHROPIC_FAST_MODE_BETA = "fast-mode-2026-02-01"
 
 interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
