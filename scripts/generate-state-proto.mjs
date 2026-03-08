@@ -224,15 +224,16 @@ function parseFieldDefinitions(sourceFile, variableName) {
 }
 
 /**
- * Convert snake_case to camelCase for mapping proto fields back to TS keys
- */
-function snakeToCamel(str) {
-	return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
-}
-
-/**
  * Parse field numbers from an existing proto message definition
- * Returns a map of camelCase field names to their field numbers
+ * Returns a map of snake_case proto field names to their field numbers.
+ *
+ * We key by the proto field name (snake_case) rather than converting back
+ * to camelCase, because the reverse conversion via snakeToCamel() cannot
+ * reconstruct the original key when it contains hyphens (e.g.,
+ * "openai-codex-oauth-credentials" -> proto "openai_codex_oauth_credentials"
+ * -> snakeToCamel gives "openaiCodexOauthCredentials", which doesn't match
+ * the original hyphenated key). Using the proto field name avoids this
+ * ambiguity since toProtoFieldName() is the canonical forward conversion.
  */
 function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const fieldNumbers = {}
@@ -248,14 +249,15 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const messageBody = match[1]
 
 	// Match field definitions: optional/required/repeated type name = number;
-	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
+	// Use \w+(?:<[^>]+>)? for the type to handle map<K, V> parameterized types
+	const fieldRegex = /(?:optional|required|repeated)?\s*\w+(?:<[^>]+>)?\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
 		const snakeName = fieldMatch[1]
 		const fieldNum = Number.parseInt(fieldMatch[2], 10)
-		const camelName = snakeToCamel(snakeName)
-		fieldNumbers[camelName] = fieldNum
+		// Store by proto field name (snake_case) for unambiguous lookup
+		fieldNumbers[snakeName] = fieldNum
 	}
 
 	return fieldNumbers
@@ -281,7 +283,12 @@ async function loadFieldNumbersFromProto() {
 }
 
 /**
- * Assign field numbers, preserving existing assignments and adding new ones
+ * Assign field numbers, preserving existing assignments and adding new ones.
+ *
+ * existingNumbers is keyed by proto field name (snake_case), so we convert
+ * each field's name to its proto field name via toProtoFieldName() for lookup.
+ * This correctly handles keys with hyphens (e.g., "openai-codex-oauth-credentials")
+ * that become "openai_codex_oauth_credentials" in the proto file.
  */
 function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 	const result = {}
@@ -296,8 +303,9 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 
 	// Preserve existing assignments
 	for (const field of fields) {
-		if (existingNumbers[field.name] !== undefined) {
-			result[field.name] = existingNumbers[field.name]
+		const protoName = toProtoFieldName(field.name)
+		if (existingNumbers[protoName] !== undefined) {
+			result[field.name] = existingNumbers[protoName]
 		}
 	}
 
