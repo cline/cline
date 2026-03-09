@@ -9,6 +9,8 @@ import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
 import type { Controller } from "@/core/controller"
+import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
+import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -39,6 +41,7 @@ import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
+import { findMostRecentTaskForWorkspace } from "./utils/task-history"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
@@ -56,15 +59,19 @@ interface TaskOptions {
 	model?: string
 	verbose?: boolean
 	cwd?: string
+	continue?: boolean
 	config?: string
 	thinking?: boolean | string
 	reasoningEffort?: string
 	maxConsecutiveMistakes?: string
 	yolo?: boolean
+	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
+	autoCondense?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
+	hooksDir?: string
 }
 
 let telemetryDisposed = false
@@ -133,46 +140,43 @@ function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
 function applyTaskOptions(options: TaskOptions): void {
 	// Apply mode flag
 	if (options.plan) {
-		StateManager.get().setGlobalState("mode", "plan")
+		StateManager.get().setSessionOverride("mode", "plan")
 		telemetryService.captureHostEvent("mode_flag", "plan")
 	} else if (options.act) {
-		StateManager.get().setGlobalState("mode", "act")
+		StateManager.get().setSessionOverride("mode", "act")
 		telemetryService.captureHostEvent("mode_flag", "act")
 	}
 
 	// Apply model override if specified
 	if (options.model) {
-		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") ?? "act") as "act" | "plan"
 		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
 		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
 		if (modelKey) {
-			StateManager.get().setGlobalState(modelKey, options.model)
+			StateManager.get().setSessionOverride(modelKey, options.model)
 		}
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
+	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+
 	// Set thinking budget based on --thinking flag (boolean or number)
-	let thinkingBudget = 0
-	if (options.thinking) {
+	if (options.thinking !== undefined) {
+		let thinkingBudget = 1024
 		if (typeof options.thinking === "string") {
 			const parsed = Number.parseInt(options.thinking, 10)
 			if (Number.isNaN(parsed) || parsed < 0) {
 				printWarning(`Invalid --thinking value '${options.thinking}'. Using default 1024.`)
-				thinkingBudget = 1024
 			} else {
 				thinkingBudget = parsed
 			}
-		} else {
-			thinkingBudget = 1024
 		}
-	}
-	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
-	setModeScopedState(currentMode, (mode) => {
-		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-	})
-	if (options.thinking) {
+
+		setModeScopedState(currentMode, (mode) => {
+			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+			StateManager.get().setSessionOverride(thinkingKey, thinkingBudget)
+		})
 		telemetryService.captureHostEvent("thinking_flag", "true")
 	}
 
@@ -180,14 +184,14 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (reasoningEffort !== undefined) {
 		setModeScopedState(currentMode, (mode) => {
 			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-			StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+			StateManager.get().setSessionOverride(reasoningKey, reasoningEffort)
 		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
 	const maxConsecutiveMistakes = normalizeMaxConsecutiveMistakes(options.maxConsecutiveMistakes)
 	if (maxConsecutiveMistakes !== undefined) {
-		StateManager.get().setGlobalState("maxConsecutiveMistakes", maxConsecutiveMistakes)
+		StateManager.get().setSessionOverride("maxConsecutiveMistakes", maxConsecutiveMistakes)
 		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
@@ -198,10 +202,21 @@ function applyTaskOptions(options: TaskOptions): void {
 		telemetryService.captureHostEvent("yolo_flag", "true")
 	}
 
+	// Set auto-approve-all as a session-scoped override so CLI flag does not
+	// persist user settings to disk.
+	if (options.autoApproveAll) {
+		StateManager.get().setSessionOverride("autoApproveAllToggled", true)
+		telemetryService.captureHostEvent("auto_approve_all_flag", "true")
+	}
+
 	// Set double-check completion based on flag
 	if (options.doubleCheckCompletion) {
-		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
+		StateManager.get().setSessionOverride("doubleCheckCompletionEnabled", true)
 		telemetryService.captureHostEvent("double_check_completion_flag", "true")
+	}
+
+	if (options.autoCondense) {
+		StateManager.get().setSessionOverride("useAutoCondense", true)
 	}
 }
 
@@ -316,6 +331,33 @@ async function drainStdout(): Promise<void> {
 	})
 }
 
+export async function captureUnhandledException(reason: Error, context: string) {
+	try {
+		const errorService = ErrorService.get()
+		await errorService.captureException(reason, { context })
+		// dispose flushes any pending error captures to ensure they're sent before the process exits
+		return errorService.dispose()
+	} catch {
+		// Ignore errors during shutdown to avoid an infinite loop
+		Logger.info("Error capturing unhandled exception. Proceeding with shutdown.")
+	}
+}
+
+const EXIT_TIMEOUT_MS = 3000
+function onUnhandledException(reason: unknown, context: string) {
+	Logger.error("Unhandled exception:", reason)
+	const finalError = reason instanceof Error ? reason : new Error(String(reason))
+
+	restoreConsole()
+	console.error(finalError)
+
+	setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
+
+	captureUnhandledException(finalError, context).finally(() => {
+		process.exit(1)
+	})
+}
+
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
 		if (isShuttingDown) {
@@ -375,9 +417,14 @@ function setupSignalHandlers() {
 			Logger.info("Suppressed unhandled rejection due to abort:", message)
 			return
 		}
-		// For other unhandled rejections, log to file via Logger (if available)
+
+		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
 		// This won't show in terminal but will be in log files for debugging
-		Logger.error("Unhandled rejection:", reason)
+		onUnhandledException(reason, "unhandledRejection")
+	})
+
+	process.on("uncaughtException", (reason: unknown) => {
+		onUnhandledException(reason, "uncaughtException")
 	})
 }
 
@@ -394,6 +441,7 @@ interface CliContext {
 interface InitOptions {
 	config?: string
 	cwd?: string
+	hooksDir?: string
 	verbose?: boolean
 	enableAuth?: boolean
 }
@@ -403,6 +451,7 @@ interface InitOptions {
  */
 async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const workspacePath = options.cwd || process.cwd()
+	setRuntimeHooksDir(options.hooksDir)
 	const { extensionContext, storageContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
 		clineDir: options.config,
 		workspaceDir: workspacePath,
@@ -596,7 +645,7 @@ async function showConfig(options: { config?: string }) {
 			dataDir: ctx.dataDir,
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
-			hooksEnabled: true,
+			hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 			skillsEnabled: true,
 			isRawModeSupported: checkRawModeSupport(),
 		}),
@@ -728,6 +777,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
+	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
 	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
@@ -738,6 +788,8 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
 		if (options.taskId) {
@@ -808,8 +860,8 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  * Resume an existing task by ID
  * Loads the task and optionally prefills the input with a prompt
  */
-async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
-	const ctx = await initializeCli({ ...options, enableAuth: true })
+async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }, existingContext?: CliContext) {
+	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Validate task exists
 	const historyItem = findTaskInHistory(taskId)
@@ -856,15 +908,34 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 	)
 }
 
+async function continueTask(options: TaskOptions) {
+	const ctx = await initializeCli({ ...options, enableAuth: true })
+	const historyItem = findMostRecentTaskForWorkspace(StateManager.get().getGlobalStateKey("taskHistory"), ctx.workspacePath)
+
+	if (!historyItem) {
+		printWarning(`No previous task found for ${ctx.workspacePath}`)
+		printInfo("Start a new task or use 'cline history' to browse previous tasks.")
+		await disposeCliContext(ctx)
+		exit(1)
+	}
+
+	return resumeTask(historyItem.id, options, ctx)
+}
+
 /**
  * Show welcome prompt and wait for user input
  * If auth is not configured, show auth flow first
  */
-async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
+async function showWelcome(options: TaskOptions) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
+
+	// Apply CLI task options in interactive startup too, so flags like
+	// --auto-approve-all and --yolo affect the initial TUI state.
+	applyTaskOptions(options)
+	await StateManager.get().flushPendingState()
 
 	let hadError = false
 
@@ -895,6 +966,7 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
 	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
@@ -905,14 +977,18 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
+	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
 			await runAcpMode({
 				config: options.config,
 				cwd: options.cwd,
+				hooksDir: options.hooksDir,
 				verbose: options.verbose,
 			})
 			return
@@ -926,6 +1002,25 @@ program
 		// stdinInput === "" means stdin was piped but empty
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
+
+		if (options.taskId && options.continue) {
+			printWarning("Use either --taskId or --continue, not both.")
+			exit(1)
+		}
+
+		if (options.continue) {
+			if (prompt) {
+				printWarning("Use --continue without a prompt.")
+				exit(1)
+			}
+			if (stdinWasPiped) {
+				printWarning("Use --continue without piped input.")
+				exit(1)
+			}
+
+			await continueTask(options)
+			return
+		}
 
 		// Error if stdin was piped but empty AND no prompt was provided
 		// This handles:

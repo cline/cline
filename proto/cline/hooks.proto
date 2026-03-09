@@ -24,6 +24,7 @@ message HookInput {
     TaskCancelData task_cancel = 15;
     TaskCompleteData task_complete = 16;
     PreCompactData pre_compact = 17;
+    NotificationData notification = 18;
   }
 }
 
@@ -58,6 +59,14 @@ message PostToolUseData {
 message UserPromptSubmitData {
   string prompt = 1;
   repeated string attachments = 2;
+}
+
+// Data for Notification hook
+message NotificationData {
+  string event = 1;
+  string source = 2;
+  string message = 3;
+  bool waiting_for_user_input = 4;
 }
 
 // Data for TaskStart hook

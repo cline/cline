@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.71.0]
+
+### Added
+
+- Added GPT-5.4 models for ChatGPT subscription users
+- Hooks: Added a `Notification` hook for attention and completion boundaries
+
+### Fixed
+
+- Handle streamable HTTP MCP reconnects more reliably after disconnects
+
 ## [3.70.0]
 
 ### Added

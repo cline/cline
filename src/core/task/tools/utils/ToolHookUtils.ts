@@ -21,7 +21,7 @@ export class ToolHookUtils {
 	 */
 	static async runPreToolUseIfEnabled(config: TaskConfig, block: ToolUse): Promise<boolean> {
 		// Check if hooks are enabled via user setting
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		if (!hooksEnabled) {
 			return true // Hooks disabled, continue execution

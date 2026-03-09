@@ -23,7 +23,14 @@ export interface ErrorSettings {
  */
 export interface IErrorProvider {
 	/**
-	 * Log an exception with error details
+	 * Logs an error with its stack trace and additional properties
+	 * @param error The error to log
+	 * @param properties  Optional additional properties to attach to the error
+	 */
+	captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void>
+
+	/**
+	 * Sends a log message an error and optional properties
 	 * @param error The error to log (Error or ClineError)
 	 * @param properties Optional additional properties to attach
 	 */
