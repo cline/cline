@@ -162,7 +162,7 @@ When running **cline** with just a prompt (no subcommand), these options are ava
 
 **-T**, **\--taskId** *id* :   Resume an existing task by ID instead of starting a new one. The prompt becomes an optional follow-up message.
 
-\--continue :   Resume the most recent task from the current working directory instead of starting a new one.
+**\--continue** :   Resume the most recent task from the current working directory instead of starting a new one.
 
 # JSON OUTPUT FORMAT
 
