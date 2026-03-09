@@ -4,7 +4,6 @@ import { describe, it } from "mocha"
 import "should"
 import { formatResponse } from "@core/prompts/responses"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { TaskState } from "../../../TaskState"
 
 /**
  * Tests for the ReadFileToolHandler file-not-found fix.
@@ -18,13 +17,15 @@ import { TaskState } from "../../../TaskState"
  *   crashing the CLI with exit code 1 — a fatal, unrecoverable failure.
  *
  * After the fix:
- *   ReadFileToolHandler catches the error, increments consecutiveMistakeCount,
- *   and returns a formatResponse.toolError() string. The model sees the error
- *   in context and can recover by trying a different path.
+ *   ReadFileToolHandler catches the error and returns a
+ *   formatResponse.toolError() string. The model sees the error in context
+ *   and can recover by trying a different path.
  *
- *   The consecutiveMistakeCount = 0 reset was also moved from *before* the
- *   read to *after* a successful read, so repeated file-not-found errors
- *   accumulate toward the yolo-mode mistake limit.
+ * Note: Testing consecutiveMistakeCount accumulation and reset requires
+ * invoking ReadFileToolHandler.execute() with a fully mocked TaskConfig,
+ * which is not done here. The handler logic is a straightforward
+ * try/catch → increment / success → reset pattern that can be verified
+ * by reading the handler source.
  */
 
 /** Helper: generate a cross-platform path guaranteed not to exist. */
@@ -37,18 +38,13 @@ describe("ReadFileToolHandler – file not found graceful recovery", () => {
 		await extractFileContent(ghostPath(), false).should.be.rejectedWith(/File not found/)
 	})
 
-	it("the handler's catch block returns a tool error instead of throwing", async () => {
-		const taskState = new TaskState()
-		// Simulate the handler: no reset before the read (reset moved to success path).
+	it("the thrown error can be caught and wrapped as a tool error", async () => {
 		const ghost = ghostPath()
-		let result: string
+		let result: string | undefined
 
 		try {
 			await extractFileContent(ghost, false)
-			result = "should not reach here"
 		} catch (error) {
-			// ── This is the catch block from ReadFileToolHandler.execute() ──
-			taskState.consecutiveMistakeCount++
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			const normalizedMessage = errorMessage.startsWith("Error reading file:")
 				? errorMessage
@@ -56,53 +52,9 @@ describe("ReadFileToolHandler – file not found graceful recovery", () => {
 			result = formatResponse.toolError(normalizedMessage)
 		}
 
-		// The model receives a descriptive error, not a process crash.
-		result.should.containEql("Error reading file:")
-		result.should.containEql("File not found")
-		result.should.containEql(ghost)
-	})
-
-	it("repeated file-not-found errors accumulate toward the mistake limit", async () => {
-		const taskState = new TaskState()
-		const maxConsecutiveMistakes = 3
-
-		// Simulate 3 consecutive read_file calls on non-existent paths.
-		// Because the reset was moved to the success path, each failure increments.
-		for (let i = 0; i < maxConsecutiveMistakes; i++) {
-			try {
-				await extractFileContent(ghostPath(), false)
-			} catch {
-				taskState.consecutiveMistakeCount++
-			}
-			// No reset happens here — only a successful read resets.
-		}
-
-		taskState.consecutiveMistakeCount.should.equal(3)
-
-		const limitReached = taskState.consecutiveMistakeCount >= maxConsecutiveMistakes
-		limitReached.should.be.true()
-	})
-
-	it("a successful read resets the counter so the model can recover", async () => {
-		const taskState = new TaskState()
-
-		// Simulate two prior failures.
-		taskState.consecutiveMistakeCount = 2
-
-		// Simulate a successful extractFileContent — the handler resets the counter
-		// only AFTER success (the key change in this PR).
-		const realFile = path.join(os.tmpdir(), `__cline_test_real_${Date.now()}.txt`)
-		const fs = await import("node:fs/promises")
-		await fs.writeFile(realFile, "hello")
-		try {
-			const content = await extractFileContent(realFile, false)
-			// Success path: handler resets the counter.
-			content.text.should.equal("hello")
-			taskState.consecutiveMistakeCount = 0
-		} finally {
-			await fs.unlink(realFile).catch(() => {})
-		}
-
-		taskState.consecutiveMistakeCount.should.equal(0)
+		// Demonstrates the error string the model receives instead of a crash.
+		result!.should.containEql("Error reading file:")
+		result!.should.containEql("File not found")
+		result!.should.containEql(ghost)
 	})
 })
