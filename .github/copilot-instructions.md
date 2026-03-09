@@ -14,7 +14,6 @@ This is a VS Code extension. Read `.clinerules/general.md` for tribal knowledge 
 - **Watch**: `npm run watch` (extension + webview).
 - **Protos**: `npm run protos` — run **immediately** after any `.proto` change. Generates into `src/shared/proto/`, `src/generated/`.
 - **Tests**: `npm run test:unit`. After prompt/tool changes: `UPDATE_SNAPSHOTS=true npm run test:unit`.
-- **Changesets**: `npm run changeset` for user-facing changes (patch only, never minor/major).
 
 ## Protobuf RPC Workflow (4 steps)
 1. **Define** in `proto/cline/*.proto`. Naming: `PascalCaseService`, `camelCase` RPCs, `PascalCase` Messages. Use `common.proto` shared types for simple data.
