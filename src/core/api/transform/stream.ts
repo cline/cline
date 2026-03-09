@@ -118,7 +118,7 @@ export function parseOpenAIStreamingUsage(usage: {
 	return {
 		cacheWriteTokens,
 		cacheReadTokens,
-		inputTokens: (usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens,
+		inputTokens: Math.max(0, (usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens),
 		outputTokens: usage.completion_tokens || 0,
 	}
 }
