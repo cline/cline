@@ -41,6 +41,7 @@ import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
+import { findMostRecentTaskForWorkspace } from "./utils/task-history"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
@@ -58,6 +59,7 @@ interface TaskOptions {
 	model?: string
 	verbose?: boolean
 	cwd?: string
+	continue?: boolean
 	config?: string
 	thinking?: boolean | string
 	reasoningEffort?: string
@@ -861,8 +863,8 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  * Resume an existing task by ID
  * Loads the task and optionally prefills the input with a prompt
  */
-async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
-	const ctx = await initializeCli({ ...options, enableAuth: true })
+async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }, existingContext?: CliContext) {
+	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Validate task exists
 	const historyItem = findTaskInHistory(taskId)
@@ -907,6 +909,20 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 		}),
 		createInkCleanup(ctx, () => taskError),
 	)
+}
+
+async function continueTask(options: TaskOptions) {
+	const ctx = await initializeCli({ ...options, enableAuth: true })
+	const historyItem = findMostRecentTaskForWorkspace(StateManager.get().getGlobalStateKey("taskHistory"), ctx.workspacePath)
+
+	if (!historyItem) {
+		printWarning(`No previous task found for ${ctx.workspacePath}`)
+		printInfo("Start a new task or use 'cline history' to browse previous tasks.")
+		await disposeCliContext(ctx)
+		exit(1)
+	}
+
+	return resumeTask(historyItem.id, options, ctx)
 }
 
 /**
@@ -968,6 +984,7 @@ program
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
+	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
@@ -988,6 +1005,25 @@ program
 		// stdinInput === "" means stdin was piped but empty
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
+
+		if (options.taskId && options.continue) {
+			printWarning("Use either --taskId or --continue, not both.")
+			exit(1)
+		}
+
+		if (options.continue) {
+			if (prompt) {
+				printWarning("Use --continue without a prompt.")
+				exit(1)
+			}
+			if (stdinWasPiped) {
+				printWarning("Use --continue without piped input.")
+				exit(1)
+			}
+
+			await continueTask(options)
+			return
+		}
 
 		// Error if stdin was piped but empty AND no prompt was provided
 		// This handles:

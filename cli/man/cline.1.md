@@ -162,6 +162,8 @@ When running **cline** with just a prompt (no subcommand), these options are ava
 
 **-T**, **\--taskId** *id* :   Resume an existing task by ID instead of starting a new one. The prompt becomes an optional follow-up message.
 
+\--continue :   Resume the most recent task from the current working directory instead of starting a new one.
+
 # JSON OUTPUT FORMAT
 
 When using **\--json**, each message is output as a JSON object with these fields:
@@ -267,6 +269,9 @@ cline -T abc123def
 
 # Resume a task with a follow-up message
 cline -T abc123def "Now add unit tests for the changes"
+
+# Resume the most recent task from the current directory
+cline --continue
 
 # Resume in plan mode to review before continuing
 cline -T abc123def -p "What's left to do?"
