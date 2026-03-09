@@ -12,7 +12,9 @@ import { main as generateHostBridgeClient } from "./generate-host-bridge-client.
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const isWindows = process.platform === "win32"
+const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const PROTOC = isWindows ? path.resolve("tmp-protoc/bin/protoc.exe") : GRPC_TOOLS_PROTOC
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
@@ -20,7 +22,6 @@ const GRPC_JS_OUT_DIR = path.resolve("src/generated/grpc-js")
 const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
 
-const isWindows = process.platform === "win32"
 const TS_PROTO_PLUGIN = isWindows
 	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
 	: require.resolve("ts-proto/protoc-gen-ts_proto")
@@ -94,7 +95,7 @@ async function tsProtoc(outDir, protoFiles, protoOptions) {
 	try {
 		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
 		log_verbose(command)
-		execSync(command, { stdio: "inherit" })
+		execSync(command, { stdio: "inherit", shell: true })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
