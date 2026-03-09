@@ -2,6 +2,7 @@
 
 import chalk from "chalk"
 import { execSync } from "child_process"
+import fsSync from "fs"
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import { createRequire } from "module"
@@ -15,6 +16,15 @@ const require = createRequire(import.meta.url)
 const isWindows = process.platform === "win32"
 const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
 const PROTOC = isWindows ? path.resolve("tmp-protoc/bin/protoc.exe") : GRPC_TOOLS_PROTOC
+
+if (isWindows && !fsSync.existsSync(PROTOC)) {
+	console.error(
+		chalk.red(
+			`protoc not found at ${PROTOC}. Please provision tmp-protoc/bin/protoc.exe before running npm run protos on Windows.`,
+		),
+	)
+	process.exit(1)
+}
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")

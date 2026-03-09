@@ -5,6 +5,9 @@ import * as sinon from "sinon"
 describe("notifications", () => {
 	afterEach(() => {
 		sinon.restore()
+		const mod = require("../integrations/notifications") as typeof import("../integrations/notifications")
+		mod.setNotificationExecaForTesting(null)
+		mod.setNotificationPlatformForTesting(null)
 	})
 
 	it("builds a Windows toast script using single-quoted literals and DOM text assignment", () => {
@@ -40,7 +43,5 @@ describe("notifications", () => {
 		const args = execaStub.firstCall.args[1] as string[]
 		expect(args.slice(0, 3)).to.deep.equal(["-NoProfile", "-NonInteractive", "-Command"])
 		expect(args[3]).to.be.a("string")
-		notificationsModule.setNotificationExecaForTesting(null)
-		notificationsModule.setNotificationPlatformForTesting(null)
 	})
 })
