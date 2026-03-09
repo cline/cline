@@ -1,11 +1,17 @@
 import { execa } from "execa"
 import { platform } from "os"
+import { COMMAND_REQ_APP_STRING } from "@/shared/combineCommandSequences"
 import { Logger } from "@/shared/services/Logger"
 
 interface NotificationOptions {
 	title?: string
 	subtitle?: string
 	message: string
+}
+
+export interface ApprovalNotificationOptions {
+	message: string
+	requiresExplicitApproval?: boolean
 }
 
 type ExecaFn = typeof execa
@@ -26,6 +32,10 @@ function escapeAppleScriptString(value: string): string {
 
 export function escapePowerShellSingleQuotedString(value: string): string {
 	return value.replace(/'/g, "''")
+}
+
+export function createApprovalNotificationMessage(options: ApprovalNotificationOptions): string {
+	return options.requiresExplicitApproval ? `${options.message}${COMMAND_REQ_APP_STRING}` : options.message
 }
 
 export function buildWindowsToastNotificationScript(options: NotificationOptions): string {
@@ -117,4 +127,15 @@ export async function showSystemNotification(options: NotificationOptions): Prom
 	} catch (error) {
 		Logger.error("Could not show system notification", error)
 	}
+}
+
+export function showApprovalNotification(options: ApprovalNotificationOptions, notificationsEnabled: boolean): void {
+	if (!notificationsEnabled) {
+		return
+	}
+
+	void showSystemNotification({
+		subtitle: "Approval Required",
+		message: createApprovalNotificationMessage(options),
+	})
 }

@@ -15,6 +15,8 @@ import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 const require = createRequire(import.meta.url)
 const isWindows = process.platform === "win32"
 const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin", isWindows ? "protoc.exe" : "protoc")
+// Legacy compatibility: some older/local Windows setups provision protoc into tmp-protoc.
+// Prefer that path when present, but fall back to the grpc-tools bundled binary used by CI/npm installs.
 const LEGACY_WINDOWS_PROTOC = path.resolve("tmp-protoc/bin/protoc.exe")
 const PROTOC = isWindows && fsSync.existsSync(LEGACY_WINDOWS_PROTOC) ? LEGACY_WINDOWS_PROTOC : GRPC_TOOLS_PROTOC
 

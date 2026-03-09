@@ -1,17 +1,12 @@
 import { ApiHandler } from "@core/api"
 import { execSync } from "child_process"
-import { showSystemNotification } from "@/integrations/notifications"
+import { showApprovalNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
 export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
-	if (notificationsEnabled) {
-		showSystemNotification({
-			subtitle: "Approval Required",
-			message,
-		})
-	}
+	showApprovalNotification({ message }, notificationsEnabled)
 }
 
 type UpdateApiReqMsgParams = {

@@ -1,17 +1,24 @@
 import { expect } from "chai"
 import { afterEach, describe, it } from "mocha"
+import Module from "module"
 import * as sinon from "sinon"
+
+const require = Module.createRequire(import.meta.url)
+
+function loadNotificationsModule() {
+	return require("../integrations/notifications") as typeof import("../integrations/notifications")
+}
 
 describe("notifications", () => {
 	afterEach(() => {
 		sinon.restore()
-		const mod = require("../integrations/notifications") as typeof import("../integrations/notifications")
+		const mod = loadNotificationsModule()
 		mod.setNotificationExecaForTesting(null)
 		mod.setNotificationPlatformForTesting(null)
 	})
 
 	it("builds a Windows toast script using single-quoted literals and DOM text assignment", () => {
-		const mod = require("../integrations/notifications") as typeof import("../integrations/notifications")
+		const mod = loadNotificationsModule()
 		const script = mod.buildWindowsToastNotificationScript({
 			subtitle: "Approval Required",
 			message: "$(Start-Process calc)",
@@ -24,12 +31,68 @@ describe("notifications", () => {
 	})
 
 	it("escapes single quotes for PowerShell single-quoted strings", () => {
-		const mod = require("../integrations/notifications") as typeof import("../integrations/notifications")
+		const mod = loadNotificationsModule()
 		expect(mod.escapePowerShellSingleQuotedString("don't")).to.equal("don''t")
 	})
 
+	it("escapes single quotes in Windows subtitle and message assignments", () => {
+		const mod = loadNotificationsModule()
+		const script = mod.buildWindowsToastNotificationScript({
+			subtitle: "don't ask twice",
+			message: "it's fine",
+		})
+
+		expect(script).to.contain("$subtitle = 'don''t ask twice'")
+		expect(script).to.contain("$message = 'it''s fine'")
+	})
+
+	it("escapes quotes and backslashes for macOS notifications", async () => {
+		const notificationsModule = loadNotificationsModule()
+		const execaStub = sinon.stub().resolves({} as any)
+		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const platformStub = sinon.stub().returns("darwin")
+		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+
+		await notificationsModule.showSystemNotification({
+			title: 'Cline "Agent"',
+			subtitle: "Path C:\\temp",
+			message: 'He said "hello"',
+		})
+
+		sinon.assert.calledOnce(execaStub)
+		expect(execaStub.firstCall.args[0]).to.equal("osascript")
+		const script = (execaStub.firstCall.args[1] as string[])[1]
+		expect(script).to.contain('display notification "He said \\"hello\\""')
+		expect(script).to.contain('with title "Cline \\"Agent\\""')
+		expect(script).to.contain('subtitle "Path C:\\\\temp"')
+	})
+
+	it("passes title and combined subtitle/message to notify-send on Linux", async () => {
+		const notificationsModule = loadNotificationsModule()
+		const execaStub = sinon.stub().resolves({} as any)
+		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const platformStub = sinon.stub().returns("linux")
+		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+
+		await notificationsModule.showSystemNotification({ title: "Cline", subtitle: "Approval Required", message: "test" })
+
+		sinon.assert.calledOnce(execaStub)
+		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
+		expect(execaStub.firstCall.args[1]).to.deep.equal(["Cline", "Approval Required\ntest"])
+	})
+
+	it("creates explicit approval marker only when required", () => {
+		const mod = loadNotificationsModule()
+		expect(mod.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: true })).to.equal(
+			"npm installREQ_APP",
+		)
+		expect(mod.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: false })).to.equal(
+			"npm install",
+		)
+	})
+
 	it("uses hardened PowerShell flags on Windows dispatch", async () => {
-		const notificationsModule = await import("../integrations/notifications")
+		const notificationsModule = loadNotificationsModule()
 		const execaStub = sinon.stub().resolves({} as any)
 		notificationsModule.setNotificationExecaForTesting(execaStub as any)
 		const platformStub = sinon.stub().returns("win32")
