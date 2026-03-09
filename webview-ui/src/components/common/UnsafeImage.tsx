@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 type UnsafeImageProps = ComponentProps<"img">
 
 const UnsafeImage: React.FC<UnsafeImageProps> = ({ src = "", alt = "", ...imgProps }) => {
-	const [isApproved, setIsApproved] = useState(false)
+	const [approvedSrc, setApprovedSrc] = useState<string>()
+	const isApproved = approvedSrc === src
 
 	if (!src) {
 		return null
@@ -17,10 +18,15 @@ const UnsafeImage: React.FC<UnsafeImageProps> = ({ src = "", alt = "", ...imgPro
 			<span className="my-2 block flex flex-col rounded-md border border-input-border bg-code p-3">
 				<p className="m-0 text-sm font-medium">External image blocked pending consent</p>
 				<p className="mt-2 mb-0 break-all text-xs text-muted-foreground">
-					Source: <code>{src}</code> <br />
-					Alt: <code>{alt}</code>
+					Source: <code>{src}</code>
+					{alt && (
+						<>
+							<br />
+							Alt: <code>{alt}</code>
+						</>
+					)}
 				</p>
-				<Button className="mt-3" onClick={() => setIsApproved(true)} type="button" variant="outline">
+				<Button className="mt-3" onClick={() => setApprovedSrc(src)} type="button" variant="outline">
 					Load image
 				</Button>
 			</span>
