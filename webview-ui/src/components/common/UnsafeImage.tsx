@@ -11,7 +11,8 @@ const UnsafeImage: React.FC<UnsafeImageProps> = ({ src = "", alt = "", ...imgPro
 		return null
 	}
 
-	if (!isApproved) {
+	// If it's base-64 encoded image (starts with `data:`), we can render it regardless of consent
+	if (!isApproved && !src.startsWith("data:")) {
 		return (
 			<span className="my-2 block flex flex-col rounded-md border border-input-border bg-code p-3">
 				<p className="m-0 text-sm font-medium">External image blocked pending consent</p>
