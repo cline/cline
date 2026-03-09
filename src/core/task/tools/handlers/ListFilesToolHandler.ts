@@ -71,9 +71,12 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
-		// Check clineignore access before performing any IO
+		// Check clineignore access before performing any IO.
+		// Increment the counter so repeated attempts at blocked paths
+		// accumulate toward the yolo-mode mistake limit.
 		const accessValidation = this.validator.checkClineIgnorePath(relDirPath!)
 		if (!accessValidation.ok) {
+			config.taskState.consecutiveMistakeCount++
 			if (!config.isSubagentExecution) {
 				await config.callbacks.say("clineignore_error", relDirPath)
 			}

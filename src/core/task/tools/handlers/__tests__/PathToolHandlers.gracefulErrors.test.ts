@@ -337,6 +337,30 @@ describe("ListFilesToolHandler.execute – error recovery", () => {
 		await handler.execute(config, makeBlock("dir-3"))
 		assert.equal(taskState.consecutiveMistakeCount, 3)
 	})
+
+	it("increments consecutiveMistakeCount on clineignore denial", async () => {
+		const { config, taskState } = createConfig()
+		// Create a validator whose clineIgnoreController blocks all paths
+		const blockingValidator = new ToolValidator({ validateAccess: () => false } as any)
+		const handler = new ListFilesToolHandler(blockingValidator)
+
+		const result = await handler.execute(config, makeBlock("blocked-dir"))
+
+		assert.equal(typeof result, "string")
+		assert.ok((result as string).includes("clineignore"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+	})
+
+	it("accumulates clineignore denials across repeated calls", async () => {
+		const { config, taskState } = createConfig()
+		const blockingValidator = new ToolValidator({ validateAccess: () => false } as any)
+		const handler = new ListFilesToolHandler(blockingValidator)
+
+		await handler.execute(config, makeBlock("blocked-1"))
+		await handler.execute(config, makeBlock("blocked-2"))
+		await handler.execute(config, makeBlock("blocked-3"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
+	})
 })
 
 // ─── SearchFilesToolHandler ─────────────────────────────────────────────────
