@@ -8,7 +8,7 @@ import { arePathsEqual } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { COMMAND_APPROVAL_NOTIFICATION_MESSAGE, showNotificationForApproval } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -240,7 +240,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			)
 		} else {
 			// Manual approval flow
-			showNotificationForApproval(COMMAND_APPROVAL_NOTIFICATION_MESSAGE, config.autoApprovalSettings.enableNotifications)
+			showNotificationForApproval(
+				actualCommand + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
+				config.autoApprovalSettings.enableNotifications,
+			)
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback(
 				"command",

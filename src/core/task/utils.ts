@@ -14,8 +14,6 @@ export const showNotificationForApproval = (message: string, notificationsEnable
 	}
 }
 
-export const COMMAND_APPROVAL_NOTIFICATION_MESSAGE = "Cline wants to execute a command and needs approval."
-
 type UpdateApiReqMsgParams = {
 	messageStateHandler: MessageStateHandler
 	lastApiReqIndex: number

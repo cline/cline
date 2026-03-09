@@ -2,8 +2,6 @@ import { expect } from "chai"
 import { afterEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 
-import { COMMAND_APPROVAL_NOTIFICATION_MESSAGE } from "../core/task/utils"
-
 describe("notifications", () => {
 	afterEach(() => {
 		sinon.restore()
@@ -44,9 +42,5 @@ describe("notifications", () => {
 		expect(args[3]).to.be.a("string")
 		notificationsModule.setNotificationExecaForTesting(null)
 		notificationsModule.setNotificationPlatformForTesting(null)
-	})
-
-	it("uses generic approval notification copy for command approvals", () => {
-		expect(COMMAND_APPROVAL_NOTIFICATION_MESSAGE).to.equal("Cline wants to execute a command and needs approval.")
 	})
 })
