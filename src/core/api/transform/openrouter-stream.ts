@@ -193,7 +193,7 @@ export async function createOpenRouterStream(
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
-		...getOpenAIToolParams(tools),
+		...getOpenAIToolParams(tools, model.id.startsWith("google/gemini-3")),
 	}
 
 	// @ts-expect-error-next-line

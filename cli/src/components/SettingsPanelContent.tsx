@@ -119,7 +119,7 @@ const FEATURE_SETTINGS = {
 	},
 	parallelToolCalling: {
 		stateKey: "enableParallelToolCalling",
-		default: false,
+		default: true,
 		label: "Parallel tool calling",
 		description: "Allow multiple tools in a single response",
 	},
