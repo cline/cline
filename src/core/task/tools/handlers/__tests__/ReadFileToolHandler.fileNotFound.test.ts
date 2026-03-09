@@ -3,9 +3,9 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { ClineDefaultTool } from "@shared/tools"
+import * as pathUtils from "@utils/path"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
-import { telemetryService } from "@/services/telemetry"
 import { TaskState } from "../../../TaskState"
 import { ToolValidator } from "../../ToolValidator"
 import type { TaskConfig } from "../../types/TaskConfig"
@@ -83,6 +83,7 @@ function createConfig() {
 				getGlobalStateKey: () => undefined,
 				getGlobalSettingsKey: (key: string) => {
 					if (key === "mode") return "act"
+					if (key === "hooksEnabled") return false
 					return undefined
 				},
 				getApiConfiguration: () => ({
@@ -125,8 +126,7 @@ describe("ReadFileToolHandler.execute – file not found", () => {
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-read-test-"))
-		// Stub telemetry so it doesn't try to hit real endpoints
-		sandbox.stub(telemetryService, "captureToolUsage")
+		sandbox.stub(pathUtils, "isLocatedInWorkspace").resolves(true)
 	})
 
 	afterEach(async () => {
