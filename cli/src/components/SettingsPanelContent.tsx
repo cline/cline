@@ -632,7 +632,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 						label: "Enable notifications",
 						type: "checkbox",
 						value: autoApproveSettings.enableNotifications,
-						description: "System alerts when Cline needs your attention, with abbreviated details for safety and privacy",
+						description: "System alerts when Cline needs your attention",
 					},
 				)
 				return result

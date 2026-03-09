@@ -26,7 +26,7 @@ A few details matter:
 
 - **Workspace vs outside workspace**: "Read all files" and "Edit all files" only extend the base toggle. If the base toggle is off, the "all files" option does nothing.
 - **Terminal commands**: Cline treats commands as either safe or requiring approval. "Execute safe commands" covers safe commands. "Execute all commands" extends to commands flagged as requiring approval.
-- **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds. Notifications may use abbreviated text instead of full command details for safety and privacy, and behavior can vary by OS.
+- **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds.
 
 ## Permissions
 
@@ -40,7 +40,7 @@ A few details matter:
 | Execute all commands | Run commands requiring approval (requires base toggle) |
 | Use the browser | Browser tool for web fetching and searching |
 | Use MCP servers | MCP tools and resources |
-| Enable notifications | Notifies you when Cline needs attention, with abbreviated details on some platforms |
+| Enable notifications | Notifies you about long-running commands |
 
 <Warning>
 "Read all files" and "Edit all files" only matter if their base toggle is enabled. They extend access outside your workspace.
