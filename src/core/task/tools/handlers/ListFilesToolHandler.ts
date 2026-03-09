@@ -71,8 +71,6 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
 		// Resolve the absolute path based on multi-workspace configuration
 		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListFilesToolHandler.execute")
 		const { absolutePath, displayPath } =
@@ -97,7 +95,21 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		}
 
 		// Execute the actual list files operation
-		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+		let files: string[]
+		let didHitLimit: boolean
+		try {
+			;[files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+		} catch (error) {
+			// Return a graceful tool error so the model can recover (e.g. try a
+			// different path) instead of letting the exception crash the task.
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return formatResponse.toolError(`Error listing files: ${errorMessage}`)
+		}
+
+		// Only reset after a successful operation so repeated failures
+		// accumulate toward the yolo-mode mistake limit.
+		config.taskState.consecutiveMistakeCount = 0
 
 		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
 

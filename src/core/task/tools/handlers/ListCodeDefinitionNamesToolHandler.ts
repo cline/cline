@@ -65,15 +65,26 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
 		// Resolve the absolute path based on multi-workspace configuration
 		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
 		const { absolutePath, displayPath } =
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
 
 		// Execute the actual parse source code operation
-		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
+		let result: string
+		try {
+			result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
+		} catch (error) {
+			// Return a graceful tool error so the model can recover (e.g. try a
+			// different path) instead of letting the exception crash the task.
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return formatResponse.toolError(`Error listing code definitions: ${errorMessage}`)
+		}
+
+		// Only reset after a successful operation so repeated failures
+		// accumulate toward the yolo-mode mistake limit.
+		config.taskState.consecutiveMistakeCount = 0
 
 		// Handle approval flow
 		const sharedMessageProps = {

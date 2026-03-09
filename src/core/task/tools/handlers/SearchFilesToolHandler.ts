@@ -224,13 +224,22 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "regex")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
-		// Parse workspace hint from the path
-		const { workspaceHint, relPath: parsedPath } = parseWorkspaceInlinePath(relDirPath!)
-
-		// Determine which paths to search
-		const searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
+		// Parse workspace hint from the path and determine search targets.
+		// These can throw if the workspace configuration is invalid or the
+		// path cannot be resolved, so catch and return a graceful tool error.
+		let parsedPath: string
+		let workspaceHint: string | undefined
+		let searchPaths: ReturnType<SearchFilesToolHandler["determineSearchPaths"]>
+		try {
+			const parsed = parseWorkspaceInlinePath(relDirPath!)
+			parsedPath = parsed.relPath
+			workspaceHint = parsed.workspaceHint
+			searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
+		} catch (error) {
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return formatResponse.toolError(`Error resolving search path: ${errorMessage}`)
+		}
 
 		// Determine workspace context for telemetry
 		const primaryWorkspaceRoot = searchPaths[0]?.workspaceRoot
@@ -278,6 +287,10 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 
 		// Format and combine results
 		const results = this.formatSearchResults(config, searchResults, searchPaths)
+
+		// Only reset after a successful operation so repeated failures
+		// accumulate toward the yolo-mode mistake limit.
+		config.taskState.consecutiveMistakeCount = 0
 
 		// Capture workspace search pattern telemetry
 		if (config.isMultiRootEnabled && config.workspaceManager) {
