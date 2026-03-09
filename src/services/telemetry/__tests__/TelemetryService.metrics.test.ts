@@ -98,6 +98,80 @@ describe("TelemetryService metrics", () => {
 		})
 	})
 
+	it("captureTokenUsage emits cache and cost metrics when options provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+			cacheWriteTokens: 50,
+			cacheReadTokens: 30,
+			totalCost: 0.42,
+		})
+
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL,
+				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL,
+				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
+				TelemetryService.METRICS.CACHE.READ_TOTAL,
+				TelemetryService.METRICS.TASK.COST_TOTAL,
+			],
+		)
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE,
+				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE,
+				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
+				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
+				TelemetryService.METRICS.TASK.COST_PER_EVENT,
+			],
+		)
+		const cacheWriteEntry = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_TOTAL)
+		assert.ok(cacheWriteEntry)
+		assert.strictEqual(cacheWriteEntry?.attributes.ulid, "task-1")
+		assert.strictEqual(cacheWriteEntry?.attributes.model, "model-a")
+		const costEntry = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_TOTAL)
+		assert.ok(costEntry)
+		assert.strictEqual(costEntry?.attributes.ulid, "task-1")
+		assert.strictEqual(costEntry?.attributes.model, "model-a")
+		assert.strictEqual(costEntry?.attributes.currency, "USD")
+	})
+
+	it("captureTokenUsage skips cache/cost metrics when options fields are undefined", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTokenUsage("task-1", 120, 80, "model-a", {})
+
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL],
+		)
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
+		)
+	})
+
+	it("captureTokenUsage includes options in event properties", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+			cacheWriteTokens: 50,
+			cacheReadTokens: 30,
+			totalCost: 0.42,
+		})
+
+		const tokenEvent = provider.logs.find((entry) => entry.event === "task.tokens")
+		assert.ok(tokenEvent)
+		assert.strictEqual(tokenEvent?.properties?.cacheWriteTokens, 50)
+		assert.strictEqual(tokenEvent?.properties?.cacheReadTokens, 30)
+		assert.strictEqual(tokenEvent?.properties?.totalCost, 0.42)
+	})
+
 	it("captureConversationTurnEvent emits counters with cache and cost", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
