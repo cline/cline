@@ -14,15 +14,15 @@ import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
 const isWindows = process.platform === "win32"
-const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
-const PROTOC = isWindows ? path.resolve("tmp-protoc/bin/protoc.exe") : GRPC_TOOLS_PROTOC
+const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin", isWindows ? "protoc.exe" : "protoc")
+const LEGACY_WINDOWS_PROTOC = path.resolve("tmp-protoc/bin/protoc.exe")
+const PROTOC = isWindows && fsSync.existsSync(LEGACY_WINDOWS_PROTOC) ? LEGACY_WINDOWS_PROTOC : GRPC_TOOLS_PROTOC
 
-if (isWindows && !fsSync.existsSync(PROTOC)) {
-	console.error(
-		chalk.red(
-			`protoc not found at ${PROTOC}. Please provision tmp-protoc/bin/protoc.exe before running npm run protos on Windows.`,
-		),
-	)
+if (!fsSync.existsSync(PROTOC)) {
+	const windowsHint = isWindows
+		? ` Neither ${LEGACY_WINDOWS_PROTOC} nor the grpc-tools bundled protoc at ${GRPC_TOOLS_PROTOC} exists.`
+		: ""
+	console.error(chalk.red(`protoc not found at ${PROTOC}.${windowsHint}`))
 	process.exit(1)
 }
 
