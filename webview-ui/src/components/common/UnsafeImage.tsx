@@ -16,8 +16,8 @@ const UnsafeImage: React.FC<UnsafeImageProps> = ({ src = "", alt = "", ...imgPro
 	if (!isApproved && !src.startsWith("data:")) {
 		return (
 			<span className="my-2 block flex flex-col rounded-md border border-input-border bg-code p-3">
-				<p className="m-0 text-sm font-medium">External image blocked pending consent</p>
-				<p className="mt-2 mb-0 break-all text-xs text-muted-foreground">
+				<span className="block m-0 text-sm font-medium">External image blocked pending consent</span>
+				<span className="block mt-2 mb-0 break-all text-xs text-muted-foreground">
 					Source: <code>{src}</code>
 					{alt && (
 						<>
@@ -25,7 +25,7 @@ const UnsafeImage: React.FC<UnsafeImageProps> = ({ src = "", alt = "", ...imgPro
 							Alt: <code>{alt}</code>
 						</>
 					)}
-				</p>
+				</span>
 				<Button className="mt-3" onClick={() => setApprovedSrc(src)} type="button" variant="outline">
 					Load image
 				</Button>
