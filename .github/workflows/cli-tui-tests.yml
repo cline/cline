@@ -1,0 +1,83 @@
+name: CLI TUI Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  cli-tui-tests:
+    name: CLI TUI Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build CLI
+        run: npm run cli:build
+
+      - name: Run TUI Tests
+        id: tui_tests
+        run: |
+          npm run test:e2e:cli:tui 2>&1 | tee tui-test-output.log
+          exit_code=${PIPESTATUS[0]}
+          echo "tui_exit_code=$exit_code" >> $GITHUB_OUTPUT
+          exit $exit_code
+
+      - name: Write failure summary
+        if: always() && steps.tui_tests.outcome != 'success' && steps.tui_tests.outcome != 'skipped'
+        run: |
+          echo "## ❌ CLI TUI Tests Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Step outcome:** \`${{ steps.tui_tests.outcome }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Output" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ -f tui-test-output.log ]; then
+            cat tui-test-output.log >> $GITHUB_STEP_SUMMARY
+          else
+            echo "(no test output captured — process may have been killed before output was flushed)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Debugging" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **TUI traces** are attached as artifacts below — download and inspect them to see terminal state at the point of failure." >> $GITHUB_STEP_SUMMARY
+          echo "- **To view a trace replay/Run a TUI Trace: ** run \`npx tui-test show-trace path/to/trace/file\` in your terminal" >> $GITHUB_STEP_SUMMARY
+          echo "- **Full test log** is also attached as an artifact." >> $GITHUB_STEP_SUMMARY
+          echo "- Tests run with \`retries: 2\` so any failure shown is a consistent failure, not a flake." >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload TUI traces
+        if: always() && steps.tui_tests.outcome != 'success' && steps.tui_tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tui-test-traces
+          path: tests/e2e/cli/tui-traces/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload test log
+        if: always() && steps.tui_tests.outcome != 'success' && steps.tui_tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tui-test-log
+          path: tui-test-output.log
+          retention-days: 14
+          if-no-files-found: warn
