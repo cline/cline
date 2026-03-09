@@ -5,6 +5,10 @@ import * as path from "path"
 import "should"
 import { listFiles } from "../list-files"
 
+function normalizeForComparison(value: string): string {
+	return path.normalize(value)
+}
+
 describe("listFiles", () => {
 	const tmpDir = path.join(os.tmpdir(), `cline-list-files-test-${Math.random().toString(36).slice(2)}`)
 
@@ -30,6 +34,6 @@ describe("listFiles", () => {
 
 		const [files] = await listFiles(tmpDir, false, 200)
 
-		files.should.containEql(nestedFile)
+		files.map(normalizeForComparison).should.containEql(normalizeForComparison(nestedFile))
 	})
 })
