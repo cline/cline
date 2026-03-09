@@ -94,6 +94,18 @@ export type TelemetryMetadata = {
 }
 
 /**
+ * Token usage data shared across telemetry capture methods.
+ * Used by both `captureTokenUsage` and `captureConversationTurnEvent`.
+ */
+export interface TokenUsage {
+	tokensIn?: number
+	tokensOut?: number
+	cacheWriteTokens?: number
+	cacheReadTokens?: number
+	totalCost?: number
+}
+
+/**
  * Maximum length for error messages to prevent excessive data
  */
 const MAX_ERROR_MESSAGE_LENGTH = 500
@@ -750,13 +762,7 @@ export class TelemetryService {
 		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
-		tokenUsage: {
-			tokensIn?: number
-			tokensOut?: number
-			cacheWriteTokens?: number
-			cacheReadTokens?: number
-			totalCost?: number
-		} = {},
+		tokenUsage: TokenUsage = {},
 		isNativeToolCall?: boolean,
 	) {
 		// Ensure required parameters are provided
@@ -832,13 +838,7 @@ export class TelemetryService {
 	 * @param tokensOut Number of output tokens generated
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(
-		ulid: string,
-		tokensIn: number,
-		tokensOut: number,
-		model: string,
-		options?: { cacheWriteTokens?: number; cacheReadTokens?: number; totalCost?: number },
-	) {
+	public captureTokenUsage(ulid: string, tokensIn: number, tokensOut: number, model: string, options?: TokenUsage) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
 			properties: {

@@ -128,15 +128,34 @@ describe("TelemetryService metrics", () => {
 				TelemetryService.METRICS.TASK.COST_PER_EVENT,
 			],
 		)
-		const cacheWriteEntry = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_TOTAL)
-		assert.ok(cacheWriteEntry)
-		assert.strictEqual(cacheWriteEntry?.attributes.ulid, "task-1")
-		assert.strictEqual(cacheWriteEntry?.attributes.model, "model-a")
-		const costEntry = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_TOTAL)
-		assert.ok(costEntry)
-		assert.strictEqual(costEntry?.attributes.ulid, "task-1")
-		assert.strictEqual(costEntry?.attributes.model, "model-a")
-		assert.strictEqual(costEntry?.attributes.currency, "USD")
+		const cacheWriteCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_TOTAL)
+		assert.ok(cacheWriteCounter)
+		assert.strictEqual(cacheWriteCounter?.value, 50)
+		assert.strictEqual(cacheWriteCounter?.attributes.ulid, "task-1")
+		assert.strictEqual(cacheWriteCounter?.attributes.model, "model-a")
+
+		const cacheReadCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.READ_TOTAL)
+		assert.ok(cacheReadCounter)
+		assert.strictEqual(cacheReadCounter?.value, 30)
+
+		const costCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_TOTAL)
+		assert.ok(costCounter)
+		assert.strictEqual(costCounter?.value, 0.42)
+		assert.strictEqual(costCounter?.attributes.ulid, "task-1")
+		assert.strictEqual(costCounter?.attributes.model, "model-a")
+		assert.strictEqual(costCounter?.attributes.currency, "USD")
+
+		const cacheWriteHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_PER_EVENT)
+		assert.ok(cacheWriteHist)
+		assert.strictEqual(cacheWriteHist?.value, 50)
+
+		const cacheReadHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.CACHE.READ_PER_EVENT)
+		assert.ok(cacheReadHist)
+		assert.strictEqual(cacheReadHist?.value, 30)
+
+		const costHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_PER_EVENT)
+		assert.ok(costHist)
+		assert.strictEqual(costHist?.value, 0.42)
 	})
 
 	it("captureTokenUsage skips cache/cost metrics when options fields are undefined", () => {
