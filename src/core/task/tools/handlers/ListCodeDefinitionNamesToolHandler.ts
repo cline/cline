@@ -65,18 +65,19 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
-		// Resolve the absolute path based on multi-workspace configuration
-		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
-		const { absolutePath, displayPath } =
-			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
-
-		// Execute the actual parse source code operation
+		// Resolve the path and execute the parse operation inside a single
+		// try/catch so that failures in either step (e.g. bad workspace hint,
+		// non-existent directory) return a graceful tool error instead of
+		// crashing the task.
+		let absolutePath: string
+		let displayPath: string
 		let result: string
 		try {
+			const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+			;({ absolutePath, displayPath } =
+				typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult)
 			result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 		} catch (error) {
-			// Return a graceful tool error so the model can recover (e.g. try a
-			// different path) instead of letting the exception crash the task.
 			config.taskState.consecutiveMistakeCount++
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			return formatResponse.toolError(`Error listing code definitions: ${errorMessage}`)

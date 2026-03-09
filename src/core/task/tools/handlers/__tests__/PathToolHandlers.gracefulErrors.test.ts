@@ -24,6 +24,7 @@ import { SearchFilesToolHandler } from "../SearchFilesToolHandler"
  *   3. Repeated failures accumulate across calls
  *   4. A successful operation resets consecutiveMistakeCount to 0
  *   5. Missing parameters increment the counter
+ *   6. Forced exceptions from core operations are caught gracefully
  */
 
 let tmpDir: string
@@ -144,24 +145,23 @@ describe("ListCodeDefinitionNamesToolHandler.execute – error recovery", () => 
 
 		const result = await handler.execute(config, makeBlock("no-such-dir"))
 
-		// parseSourceCodeForDefinitionsTopLevel returns a string for non-existent
-		// directories rather than throwing, so this should succeed gracefully.
+		// parseSourceCodeForDefinitionsTopLevel returns a descriptive string for
+		// non-existent directories rather than throwing.
 		assert.equal(typeof result, "string")
 		assert.equal(taskState.consecutiveMistakeCount, 0)
 	})
 
-	it("returns a graceful error for a file path (not a directory)", async () => {
+	it("returns a graceful message for a file path (not a directory)", async () => {
 		const { config, validator } = createConfig()
 		const handler = new ListCodeDefinitionNamesToolHandler(validator)
 
-		// Create a file so the path exists but is not a directory
 		const filePath = "not-a-dir.txt"
 		await fs.writeFile(path.join(tmpDir, filePath), "content")
 
 		const result = await handler.execute(config, makeBlock(filePath))
 
 		assert.equal(typeof result, "string")
-		assert.ok((result as string).includes("file, not a directory") || typeof result === "string")
+		assert.ok((result as string).includes("file, not a directory"))
 	})
 
 	it("increments consecutiveMistakeCount when path parameter is missing", async () => {
@@ -189,6 +189,39 @@ describe("ListCodeDefinitionNamesToolHandler.execute – error recovery", () => 
 
 		await handler.execute(config, makeBlock(dirName))
 		assert.equal(taskState.consecutiveMistakeCount, 0)
+	})
+
+	it("catches a thrown exception from the core operation and returns a tool error", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new ListCodeDefinitionNamesToolHandler(validator)
+
+		// Stub parseSourceCodeForDefinitionsTopLevel to throw
+		const treeSitter = await import("@services/tree-sitter")
+		sandbox.stub(treeSitter, "parseSourceCodeForDefinitionsTopLevel").rejects(new Error("tree-sitter crashed"))
+
+		const result = await handler.execute(config, makeBlock("some-dir"))
+
+		assert.equal(typeof result, "string")
+		assert.ok((result as string).includes("Error"))
+		assert.ok((result as string).includes("tree-sitter crashed"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+	})
+
+	it("accumulates failures when the core operation throws repeatedly", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new ListCodeDefinitionNamesToolHandler(validator)
+
+		const treeSitter = await import("@services/tree-sitter")
+		sandbox.stub(treeSitter, "parseSourceCodeForDefinitionsTopLevel").rejects(new Error("boom"))
+
+		await handler.execute(config, makeBlock("dir-1"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock("dir-2"))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock("dir-3"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
 	})
 })
 
@@ -271,6 +304,39 @@ describe("ListFilesToolHandler.execute – error recovery", () => {
 		assert.ok((result as string).includes("file.txt"))
 		assert.equal(taskState.consecutiveMistakeCount, 0)
 	})
+
+	it("catches a thrown exception from listFiles and returns a tool error", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new ListFilesToolHandler(validator)
+
+		// Stub listFiles to throw
+		const listFilesModule = await import("@services/glob/list-files")
+		sandbox.stub(listFilesModule, "listFiles").rejects(new Error("cwd must be a directory"))
+
+		const result = await handler.execute(config, makeBlock("some-dir"))
+
+		assert.equal(typeof result, "string")
+		assert.ok((result as string).includes("Error"))
+		assert.ok((result as string).includes("cwd must be a directory"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+	})
+
+	it("accumulates failures when listFiles throws repeatedly", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new ListFilesToolHandler(validator)
+
+		const listFilesModule = await import("@services/glob/list-files")
+		sandbox.stub(listFilesModule, "listFiles").rejects(new Error("boom"))
+
+		await handler.execute(config, makeBlock("dir-1"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock("dir-2"))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock("dir-3"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
+	})
 })
 
 // ─── SearchFilesToolHandler ─────────────────────────────────────────────────
@@ -308,8 +374,7 @@ describe("SearchFilesToolHandler.execute – error recovery", () => {
 
 		const result = await handler.execute(config, makeBlock("no-such-dir", "pattern"))
 
-		// regexSearchFiles is resilient to non-existent directories, so the
-		// handler should return a result string.
+		// regexSearchFiles is resilient to non-existent directories.
 		assert.equal(typeof result, "string")
 		assert.equal(taskState.consecutiveMistakeCount, 0)
 	})
@@ -357,5 +422,36 @@ describe("SearchFilesToolHandler.execute – error recovery", () => {
 		const result = await handler.execute(config, makeBlock(".", "nonexistent-pattern-xyz"))
 		assert.equal(typeof result, "string")
 		assert.equal(taskState.consecutiveMistakeCount, 0)
+	})
+
+	it("catches a thrown exception from path resolution and returns a tool error", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new SearchFilesToolHandler(validator)
+
+		// Stub determineSearchPaths to throw (simulating a bad workspace config)
+		sandbox.stub(handler as any, "determineSearchPaths").throws(new Error("invalid workspace hint"))
+
+		const result = await handler.execute(config, makeBlock("some-dir", "pattern"))
+
+		assert.equal(typeof result, "string")
+		assert.ok((result as string).includes("Error"))
+		assert.ok((result as string).includes("invalid workspace hint"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+	})
+
+	it("accumulates failures when path resolution throws repeatedly", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new SearchFilesToolHandler(validator)
+
+		sandbox.stub(handler as any, "determineSearchPaths").throws(new Error("boom"))
+
+		await handler.execute(config, makeBlock("dir-1", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock("dir-2", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock("dir-3", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
 	})
 })
