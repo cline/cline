@@ -171,7 +171,17 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const fileContent = await extractFileContent(absolutePath, supportsImages)
+		let fileContent
+		try {
+			fileContent = await extractFileContent(absolutePath, supportsImages)
+		} catch (error) {
+			// Return a graceful tool error instead of crashing. This allows the
+			// model to see the error (e.g. "File not found") and recover by
+			// trying a different path, rather than terminating the entire task.
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return formatResponse.toolError(`Error reading file: ${errorMessage}`)
+		}
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
