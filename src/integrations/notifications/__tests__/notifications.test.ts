@@ -6,7 +6,7 @@ import * as sinon from "sinon"
 const require = Module.createRequire(import.meta.url)
 
 function loadNotificationsModule() {
-	return require("../integrations/notifications") as typeof import("../integrations/notifications")
+	return require("..") as typeof import("..")
 }
 
 describe("notifications", () => {
@@ -89,6 +89,24 @@ describe("notifications", () => {
 		expect(mod.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: false })).to.equal(
 			"npm install",
 		)
+	})
+
+	it("routes approval notifications through platform dispatch only when enabled", async () => {
+		const notificationsModule = loadNotificationsModule()
+		const execaStub = sinon.stub().resolves({} as any)
+		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const platformStub = sinon.stub().returns("linux")
+		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+
+		notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, false)
+		await Promise.resolve()
+		sinon.assert.notCalled(execaStub)
+
+		notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, true)
+		await Promise.resolve()
+		sinon.assert.calledOnce(execaStub)
+		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
+		expect(execaStub.firstCall.args[1]).to.deep.equal(["Cline", "Approval Required\nnpm installREQ_APP"])
 	})
 
 	it("uses hardened PowerShell flags on Windows dispatch", async () => {
