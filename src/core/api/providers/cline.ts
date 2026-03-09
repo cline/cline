@@ -15,6 +15,7 @@ import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { parseOpenAIStreamingUsage } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
 import type { OpenRouterErrorResponse } from "./types"
 
@@ -214,10 +215,7 @@ export class ClineHandler implements ApiHandler {
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-						outputTokens: chunk.usage.completion_tokens || 0,
+						...parseOpenAIStreamingUsage(chunk.usage as Parameters<typeof parseOpenAIStreamingUsage>[0]),
 						totalCost,
 					}
 					didOutputUsage = true

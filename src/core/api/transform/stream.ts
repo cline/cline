@@ -96,3 +96,29 @@ export interface ApiStreamThinkingChunk {
 	 */
 	id?: string
 }
+
+/**
+ * Parses cache token fields from an OpenAI-compatible streaming usage object.
+ *
+ * OpenAI's `CompletionUsage` type doesn't include Anthropic-specific fields like
+ * `cache_creation_input_tokens`, but providers (OpenRouter, Cline, Vercel AI Gateway)
+ * pass them through for Anthropic models. This helper extracts those fields and
+ * computes the non-cached input token count.
+ */
+export function parseOpenAIStreamingUsage(usage: {
+	prompt_tokens?: number
+	completion_tokens?: number
+	prompt_tokens_details?: { cached_tokens?: number }
+	// Anthropic-specific field for cache writes, not in OpenAI types
+	cache_creation_input_tokens?: number
+}): Pick<ApiStreamUsageChunk, "cacheWriteTokens" | "cacheReadTokens" | "inputTokens" | "outputTokens"> {
+	const cacheWriteTokens = usage.cache_creation_input_tokens || 0
+	const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens || 0
+
+	return {
+		cacheWriteTokens,
+		cacheReadTokens,
+		inputTokens: (usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens,
+		outputTokens: usage.completion_tokens || 0,
+	}
+}
