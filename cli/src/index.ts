@@ -333,10 +333,19 @@ async function drainStdout(): Promise<void> {
 
 export async function captureUnhandledException(reason: Error, context: string) {
 	try {
-		const errorService = ErrorService.get()
-		await errorService.captureException(reason, { context })
-		// dispose flushes any pending error captures to ensure they're sent before the process exits
-		return errorService.dispose()
+		// ErrorService may not be initialized yet (e.g., error occurred before initializeCli())
+		// so we guard with a try/get pattern rather than letting ErrorService.get() throw
+		let errorService: ErrorService | null = null
+		try {
+			errorService = ErrorService.get()
+		} catch {
+			// ErrorService not yet initialized; skip capture
+		}
+		if (errorService) {
+			await errorService.captureException(reason, { context })
+			// dispose flushes any pending error captures to ensure they're sent before the process exits
+			return errorService.dispose()
+		}
 	} catch {
 		// Ignore errors during shutdown to avoid an infinite loop
 		Logger.info("Error capturing unhandled exception. Proceeding with shutdown.")
@@ -395,7 +404,11 @@ function setupSignalHandlers() {
 				} catch {
 					// StateManager may not be initialized yet
 				}
-				await ErrorService.get().dispose()
+				try {
+					await ErrorService.get().dispose()
+				} catch {
+					// ErrorService may not be initialized yet
+				}
 				await disposeTelemetryServices()
 			}
 		} catch {
@@ -552,6 +565,11 @@ async function runTask(prompt: string, options: TaskOptions & { images?: string[
 
 	// Task without prompt starts in interactive mode
 	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
+
+	// Capture piped stdin telemetry now that HostProvider is initialized
+	if (options.stdinWasPiped) {
+		telemetryService.captureHostEvent("piped", "detached")
+	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
 	applyTaskOptions(options)
@@ -874,6 +892,11 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 
 	telemetryService.captureHostEvent("resume_task_command", options.initialPrompt ? "with_prompt" : "interactive")
 
+	// Capture piped stdin telemetry now that HostProvider is initialized
+	if (options.stdinWasPiped) {
+		telemetryService.captureHostEvent("piped", "detached")
+	}
+
 	// Apply shared task options (mode, model, thinking, yolo)
 	applyTaskOptions(options)
 	await StateManager.get().flushPendingState()
@@ -1041,8 +1064,6 @@ program
 			} else {
 				effectivePrompt = stdinInput
 			}
-
-			telemetryService.captureHostEvent("piped", "detached")
 
 			// Debug: show that we received piped input
 			if (options.verbose) {
