@@ -25,7 +25,9 @@ describe("filterCommands", () => {
 
 		expect(result.map((command) => command.name)[0]).toBe("history")
 	})
+})
 
+describe("getStandaloneSlashCommandToExecute", () => {
 	it("ignores standalone execution when slash menu is visible", () => {
 		expect(
 			getStandaloneSlashCommandToExecute({

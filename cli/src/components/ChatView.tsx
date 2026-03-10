@@ -1425,9 +1425,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 		if (key.return && !mentionInfo.inMentionMode && !slashInfo.inSlashMode && !pendingAsk && !isSpinnerActive) {
-			if (standaloneSlashCommand && handleCliOnlySlashCommand(standaloneSlashCommand)) {
-				return
-			}
 			if (prompt.trim() || imagePaths.length > 0) {
 				handleSubmit(prompt.trim(), imagePaths)
 			}
