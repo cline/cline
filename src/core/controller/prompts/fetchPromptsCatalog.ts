@@ -1,5 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import type { PromptsCatalog } from "@shared/proto/cline/prompts"
+import { convertStringToProtoPromptType } from "@shared/proto-conversions/prompts/prompt-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
 
@@ -20,7 +21,7 @@ export async function fetchPromptsCatalog(controller: Controller, _request: Empt
 				description: item.description,
 				category: item.category,
 				tags: item.tags,
-				type: item.type === "rule" ? 1 : 2, // Convert string to proto enum
+				type: convertStringToProtoPromptType(item.type),
 				content: item.content,
 				version: item.version || "",
 				globs: item.globs || [],

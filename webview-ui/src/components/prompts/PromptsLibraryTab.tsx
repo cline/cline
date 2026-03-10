@@ -5,6 +5,7 @@ import Fuse from "fuse.js"
 import { useEffect, useMemo, useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { PromptsServiceClient } from "@/services/grpc-client"
+import PromptsSubmitCard from "./PromptsSubmitCard"
 
 type PromptsLibraryTabProps = {
 	catalog: PromptsCatalog
@@ -209,6 +210,28 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 	}, [])
 
 	if (!catalog.items || catalog.items.length === 0) {
+		// If lastUpdated is set, the fetch completed but returned no items (error or empty repo)
+		if (catalog.lastUpdated) {
+			return (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						justifyContent: "center",
+						alignItems: "center",
+						padding: "40px 20px",
+						color: "var(--vscode-descriptionForeground)",
+						textAlign: "center",
+						gap: "8px",
+					}}>
+					<span className="codicon codicon-warning" style={{ fontSize: "24px" }} />
+					<p style={{ margin: 0 }}>Unable to load prompts catalog.</p>
+					<p style={{ margin: 0, fontSize: "12px" }}>
+						This may be due to GitHub API rate limiting. Please try again later.
+					</p>
+				</div>
+			)
+		}
 		return (
 			<div
 				style={{
@@ -550,6 +573,9 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 					})}
 				</div>
 			)}
+
+			{/* Submit Prompts Card */}
+			<PromptsSubmitCard />
 		</div>
 	)
 }

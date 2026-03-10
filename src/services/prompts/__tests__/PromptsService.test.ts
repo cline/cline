@@ -2,6 +2,20 @@ import * as assert from "assert"
 import * as sinon from "sinon"
 import { PromptsService } from "@/services/prompts/PromptsService"
 
+/**
+ * Helper: builds a mock Git Trees API response with entries in .clinerules/ and/or workflows/.
+ * Each entry is a blob path like ".clinerules/test-prompt.md".
+ */
+function mockTreeResponse(paths: string[]) {
+	return {
+		data: {
+			sha: "abc123",
+			tree: paths.map((path) => ({ path, type: "blob", mode: "100644", sha: "def456" })),
+			truncated: false,
+		},
+	}
+}
+
 describe("PromptsService", () => {
 	let service: PromptsService
 	let httpGetStub: sinon.SinonStub
@@ -20,17 +34,6 @@ describe("PromptsService", () => {
 	describe("fetchPromptsCatalog", () => {
 		describe("Frontmatter Parsing", () => {
 			it("should parse valid frontmatter with all fields", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Test description
@@ -42,16 +45,13 @@ tags: [tag1, tag2, tag3]
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -64,17 +64,6 @@ tags: [tag1, tag2, tag3]
 			})
 
 			it("should handle frontmatter with single quotes", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: 'Single quoted description'
@@ -86,16 +75,13 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -106,17 +92,6 @@ Content`,
 			})
 
 			it("should handle missing optional fields", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Only description
@@ -125,16 +100,13 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -146,17 +118,6 @@ Content`,
 			})
 
 			it("should extract GitHub username from author URL", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Test
@@ -166,16 +127,13 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -184,32 +142,18 @@ Content`,
 			})
 
 			it("should handle content with no frontmatter", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: "# Just content, no frontmatter",
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -220,17 +164,6 @@ Content`,
 			})
 
 			it("should handle incomplete frontmatter (missing closing ---)", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Test
@@ -239,16 +172,13 @@ Content without closing delimiter`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -258,17 +188,6 @@ Content without closing delimiter`,
 			})
 
 			it("should handle empty tag array", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Test
@@ -278,16 +197,13 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -296,17 +212,6 @@ Content`,
 			})
 
 			it("should parse version, created_at, and updated_at from frontmatter", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Test description
@@ -321,16 +226,13 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -341,17 +243,6 @@ Content`,
 			})
 
 			it("should trim whitespace from frontmatter values", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Description with spaces   
@@ -362,16 +253,13 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -381,152 +269,7 @@ Content`,
 				assert.strictEqual(catalog.items[0].category, "Category")
 			})
 
-			it("should backfill dates from commits API when frontmatter has no dates", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
-				const mockContentResponse = {
-					data: `---
-description: Test
-author: testuser
----
-Content`,
-				}
-
-				const mockCommitsResponse = {
-					data: [
-						{ commit: { author: { date: "2025-06-15T10:00:00Z" } } },
-						{ commit: { author: { date: "2025-01-10T08:00:00Z" } } },
-					],
-				}
-
-				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
-					}
-					if (url.startsWith("https://raw.githubusercontent.com/")) {
-						return mockContentResponse
-					}
-					if (url.includes("/commits?")) {
-						return mockCommitsResponse
-					}
-					return { data: [] }
-				})
-
-				const catalog = await service.fetchPromptsCatalog()
-
-				assert.strictEqual(catalog.items[0].updatedAt, "2025-06-15T10:00:00Z")
-				assert.strictEqual(catalog.items[0].createdAt, "2025-01-10T08:00:00Z")
-			})
-
-			it("should skip date backfill when frontmatter already has created_at", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
-				const mockContentResponse = {
-					data: `---
-description: Test
-created_at: 2025-01-15
----
-Content`,
-				}
-
-				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
-					}
-					if (url.startsWith("https://raw.githubusercontent.com/")) {
-						return mockContentResponse
-					}
-					// Should NOT be called since frontmatter has created_at
-					if (url.includes("/commits?")) {
-						throw new Error("Should not fetch commits when frontmatter has dates")
-					}
-					return { data: [] }
-				})
-
-				const catalog = await service.fetchPromptsCatalog()
-
-				assert.strictEqual(catalog.items[0].createdAt, "2025-01-15")
-			})
-
-			it("should gracefully handle commits API failure", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
-				const mockContentResponse = {
-					data: `---
-description: Test
----
-Content`,
-				}
-
-				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
-					}
-					if (url.startsWith("https://raw.githubusercontent.com/")) {
-						return mockContentResponse
-					}
-					if (url.includes("/commits?")) {
-						throw new Error("Rate limit exceeded")
-					}
-					return { data: [] }
-				})
-
-				const catalog = await service.fetchPromptsCatalog()
-
-				// Should still return the item, just with empty dates
-				assert.strictEqual(catalog.items.length, 1)
-				assert.strictEqual(catalog.items[0].createdAt, "")
-				assert.strictEqual(catalog.items[0].updatedAt, "")
-			})
-
 			it("should handle malformed tag array (missing brackets)", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
 				const mockContentResponse = {
 					data: `---
 description: Test
@@ -536,22 +279,73 @@ Content`,
 				}
 
 				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
-					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test-prompt.md"])
 					}
 					if (url.startsWith("https://raw.githubusercontent.com/")) {
 						return mockContentResponse
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
 
 				// Should default to empty array when tags format is invalid
 				assert.deepStrictEqual(catalog.items[0].tags, [])
+			})
+		})
+
+		describe("Directory Type Mapping", () => {
+			it("should map files in different directories to correct types", async () => {
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([
+							".clinerules/rule-file.md",
+							"workflows/workflow-file.md",
+							"hooks/hook-file.md",
+							"skills/skill-file.md",
+						])
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return {
+							data: `---
+description: Test
+---
+Content`,
+						}
+					}
+					return { data: {} }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				assert.strictEqual(catalog.items.length, 4)
+				assert.strictEqual(catalog.items.find((i) => i.promptId === "rule-file")?.type, "rule")
+				assert.strictEqual(catalog.items.find((i) => i.promptId === "workflow-file")?.type, "workflow")
+				assert.strictEqual(catalog.items.find((i) => i.promptId === "hook-file")?.type, "hook")
+				assert.strictEqual(catalog.items.find((i) => i.promptId === "skill-file")?.type, "skill")
+			})
+
+			it("should ignore files not in known directories", async () => {
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse(["README.md", ".clinerules/valid.md", "unknown-dir/file.md"])
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return {
+							data: `---
+description: Test
+---
+Content`,
+						}
+					}
+					return { data: {} }
+				})
+
+				const catalog = await service.fetchPromptsCatalog()
+
+				assert.strictEqual(catalog.items.length, 1)
+				assert.strictEqual(catalog.items[0].promptId, "valid")
 			})
 		})
 
@@ -597,7 +391,7 @@ Content`,
 				assert.strictEqual(catalog.items.length, 0)
 			})
 
-			it("should handle malformed JSON response", async () => {
+			it("should handle malformed tree response", async () => {
 				httpGetStub.resolves({ data: "not json" })
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -605,8 +399,8 @@ Content`,
 				assert.strictEqual(catalog.items.length, 0)
 			})
 
-			it("should handle empty directory response", async () => {
-				httpGetStub.resolves({ data: [] })
+			it("should handle empty tree response", async () => {
+				httpGetStub.resolves({ data: { tree: [] } })
 
 				const catalog = await service.fetchPromptsCatalog()
 
@@ -614,44 +408,22 @@ Content`,
 			})
 
 			it("should handle partial success (some files fail)", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "good-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/good.md",
-							html_url: "https://github.com/good.md",
-						},
-						{
-							name: "bad-prompt.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/bad.md",
-							html_url: "https://github.com/bad.md",
-						},
-					],
-				}
-
-				const mockGoodContent = {
-					data: `---
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/good-prompt.md", ".clinerules/bad-prompt.md"])
+					}
+					if (url.includes("good-prompt.md")) {
+						return {
+							data: `---
 description: Good prompt
 ---
 Content`,
-				}
-
-				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
+						}
 					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
-					}
-					if (url.includes("good.md")) {
-						return mockGoodContent
-					}
-					if (url.includes("bad.md")) {
+					if (url.includes("bad-prompt.md")) {
 						throw new Error("Failed to fetch")
 					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				const catalog = await service.fetchPromptsCatalog()
@@ -664,35 +436,19 @@ Content`,
 
 		describe("Caching Behavior", () => {
 			it("should cache results after first fetch", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
-				const mockContentResponse = {
-					data: `---
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test.md"])
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return {
+							data: `---
 description: Test
 ---
 Content`,
-				}
-
-				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
+						}
 					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
-					}
-					if (url.startsWith("https://raw.githubusercontent.com/")) {
-						return mockContentResponse
-					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				// First fetch
@@ -707,35 +463,19 @@ Content`,
 			})
 
 			it("should refetch after cache expiration (1 hour)", async () => {
-				const mockDirectoryResponse = {
-					data: [
-						{
-							name: "test.md",
-							type: "file",
-							download_url: "https://raw.githubusercontent.com/test.md",
-							html_url: "https://github.com/test.md",
-						},
-					],
-				}
-
-				const mockContentResponse = {
-					data: `---
+				httpGetStub.callsFake(async (url: string) => {
+					if (url.includes("/git/trees/main")) {
+						return mockTreeResponse([".clinerules/test.md"])
+					}
+					if (url.startsWith("https://raw.githubusercontent.com/")) {
+						return {
+							data: `---
 description: Test
 ---
 Content`,
-				}
-
-				httpGetStub.callsFake(async (url: string) => {
-					if (url.includes("/contents/.clinerules")) {
-						return mockDirectoryResponse
+						}
 					}
-					if (url.includes("/contents/workflows")) {
-						return { data: [] }
-					}
-					if (url.startsWith("https://raw.githubusercontent.com/")) {
-						return mockContentResponse
-					}
-					return { data: [] }
+					return { data: {} }
 				})
 
 				// First fetch

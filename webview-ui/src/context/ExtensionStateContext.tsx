@@ -592,10 +592,24 @@ export const ExtensionStateContextProvider: React.FC<{
 		promptsCatalogUnsubscribeRef.current = PromptsServiceClient.subscribeToPromptsCatalog(EmptyRequest.create({}), {
 			onResponse: (protoCatalog) => {
 				// Convert proto types to shared types
+				const protoTypeToString = (t: number): "rule" | "workflow" | "hook" | "skill" => {
+					switch (t) {
+						case 1:
+							return "rule"
+						case 2:
+							return "workflow"
+						case 3:
+							return "hook"
+						case 4:
+							return "skill"
+						default:
+							return "rule"
+					}
+				}
 				const catalog = {
 					items: protoCatalog.items.map((item) => ({
 						...item,
-						type: item.type === 1 ? ("rule" as const) : ("workflow" as const),
+						type: protoTypeToString(item.type),
 					})),
 					lastUpdated: protoCatalog.lastUpdated,
 				}

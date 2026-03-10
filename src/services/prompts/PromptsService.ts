@@ -3,12 +3,24 @@ import { getAxiosSettings } from "@/shared/net"
 import type { PromptItem, PromptsCatalog } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 
+// Maps repo directory prefixes to prompt types
+const DIRECTORY_TYPE_MAP: Record<string, "rule" | "workflow" | "hook" | "skill"> = {
+	".clinerules/": "rule",
+	"workflows/": "workflow",
+	"hooks/": "hook",
+	"skills/": "skill",
+}
+
 /**
- * Service for fetching and managing prompts from GitHub
+ * Service for fetching and managing prompts from GitHub.
+ *
+ * Uses the Git Trees API to list the entire repo in a single rate-limited call,
+ * then fetches file contents from raw.githubusercontent.com (CDN, not rate-limited).
+ * This keeps rate-limited API usage to 1 call per catalog fetch.
  */
 export class PromptsService {
-	private readonly PROMPTS_REPO_API = "https://api.github.com/repos/cline/prompts/contents"
-	private readonly PROMPTS_COMMITS_API = "https://api.github.com/repos/cline/prompts/commits"
+	private readonly TREE_API = "https://api.github.com/repos/cline/prompts/git/trees/main?recursive=1"
+	private readonly RAW_CONTENT_BASE = "https://raw.githubusercontent.com/cline/prompts/main"
 	private cachedCatalog: PromptsCatalog | null = null
 	private lastFetchTime = 0
 	private readonly CACHE_DURATION = 60 * 60 * 1000 // 1 hour
@@ -17,11 +29,12 @@ export class PromptsService {
 	 * Wrapper for HTTP GET requests. Protected to allow test stubbing.
 	 */
 	protected async httpGet(url: string) {
-		return axios.get(url, getAxiosSettings())
+		return axios.get(url, { ...getAxiosSettings(), timeout: 10_000 })
 	}
 
 	/**
-	 * Fetches the prompts catalog from GitHub
+	 * Fetches the prompts catalog from GitHub using the Git Trees API.
+	 * Only 1 rate-limited API call is made; content is fetched from the CDN.
 	 */
 	async fetchPromptsCatalog(): Promise<PromptsCatalog> {
 		// Return cached catalog if still fresh
@@ -31,15 +44,56 @@ export class PromptsService {
 		}
 
 		try {
-			// Fetch all directories in parallel for faster loading
-			const [rulesItems, workflowItems, hookItems, skillItems] = await Promise.all([
-				this.fetchPromptsFromDirectory(".clinerules", "rule"),
-				this.fetchPromptsFromDirectory("workflows", "workflow"),
-				this.fetchPromptsFromDirectory("hooks", "hook"),
-				this.fetchPromptsFromDirectory("skills", "skill"),
-			])
+			// 1. Single rate-limited call: get the full repo tree
+			const treeResponse = await this.httpGet(this.TREE_API)
+			const tree: Array<{ path: string; type: string }> = treeResponse.data?.tree || []
 
-			const items: PromptItem[] = [...rulesItems, ...workflowItems, ...hookItems, ...skillItems]
+			// 2. Filter to .md files in known directories
+			const mdFiles: Array<{ path: string; type: "rule" | "workflow" | "hook" | "skill" }> = []
+			for (const entry of tree) {
+				if (entry.type !== "blob" || !entry.path.endsWith(".md")) continue
+
+				for (const [prefix, promptType] of Object.entries(DIRECTORY_TYPE_MAP)) {
+					if (entry.path.startsWith(prefix)) {
+						mdFiles.push({ path: entry.path, type: promptType })
+						break
+					}
+				}
+			}
+
+			// 3. Fetch content from raw.githubusercontent.com (CDN, not rate-limited)
+			const BATCH_SIZE = 10
+			const items: PromptItem[] = []
+
+			for (let i = 0; i < mdFiles.length; i += BATCH_SIZE) {
+				const batch = mdFiles.slice(i, i + BATCH_SIZE)
+				const batchResults = await Promise.all(
+					batch.map(async ({ path, type }) => {
+						try {
+							const contentUrl = `${this.RAW_CONTENT_BASE}/${path}`
+							const contentResponse = await this.httpGet(contentUrl)
+							const fileName = path.split("/").pop() || path
+							const htmlUrl = `https://github.com/cline/prompts/blob/main/${path}`
+							return {
+								file: { name: fileName, html_url: htmlUrl },
+								content: contentResponse.data,
+								type,
+							}
+						} catch (error) {
+							Logger.error(`Error fetching prompt ${path}:`, error)
+							return null
+						}
+					}),
+				)
+
+				for (const result of batchResults) {
+					if (!result) continue
+					const item = this.parsePromptContent(result.file, result.content, result.type)
+					if (item) {
+						items.push(item)
+					}
+				}
+			}
 
 			const catalog: PromptsCatalog = {
 				items,
@@ -58,107 +112,6 @@ export class PromptsService {
 				items: [],
 				lastUpdated: new Date().toISOString(),
 			}
-		}
-	}
-
-	/**
-	 * Fetches prompts from a specific directory in the GitHub repo
-	 * Uses parallel fetching with batching for improved performance
-	 */
-	private async fetchPromptsFromDirectory(
-		directory: string,
-		type: "rule" | "workflow" | "hook" | "skill",
-	): Promise<PromptItem[]> {
-		try {
-			const url = `${this.PROMPTS_REPO_API}/${directory}`
-			const response = await this.httpGet(url)
-
-			if (!Array.isArray(response.data)) {
-				return []
-			}
-
-			// Filter to only .md files
-			const mdFiles = response.data.filter(
-				(file: { name: string; type: string }) => file.name.endsWith(".md") && file.type === "file",
-			)
-
-			// Fetch all file contents in parallel (batched to respect rate limits)
-			const BATCH_SIZE = 10
-			const items: PromptItem[] = []
-
-			for (let i = 0; i < mdFiles.length; i += BATCH_SIZE) {
-				const batch = mdFiles.slice(i, i + BATCH_SIZE)
-				const batchResults = await Promise.all(
-					batch.map(async (file: { name: string; download_url: string; html_url: string }) => {
-						try {
-							const contentResponse = await this.httpGet(file.download_url)
-							return { file, content: contentResponse.data }
-						} catch (error) {
-							Logger.error(`Error fetching prompt ${file.name}:`, error)
-							return null
-						}
-					}),
-				)
-
-				// Process successful fetches
-				for (const result of batchResults) {
-					if (!result) continue
-
-					const { file, content } = result
-					const item = this.parsePromptContent(file, content, type)
-					if (item) {
-						items.push(item)
-					}
-				}
-			}
-
-			// Backfill commit dates for items missing createdAt/updatedAt from frontmatter
-			const itemsNeedingDates = items.filter((item) => !item.createdAt)
-			if (itemsNeedingDates.length > 0) {
-				await this.backfillCommitDates(itemsNeedingDates, directory)
-			}
-
-			return items
-		} catch (error) {
-			Logger.error(`Error fetching directory ${directory}:`, error)
-			return []
-		}
-	}
-
-	/**
-	 * Fetches commit dates from the GitHub Commits API for items missing dates.
-	 * Uses batched parallel requests. Failures are silently ignored (dates remain empty).
-	 */
-	private async backfillCommitDates(items: PromptItem[], directory: string): Promise<void> {
-		const BATCH_SIZE = 5
-		for (let i = 0; i < items.length; i += BATCH_SIZE) {
-			const batch = items.slice(i, i + BATCH_SIZE)
-			await Promise.all(
-				batch.map(async (item) => {
-					try {
-						const filePath = `${directory}/${item.promptId}.md`
-						const commitsUrl = `${this.PROMPTS_COMMITS_API}?path=${encodeURIComponent(filePath)}&per_page=100`
-						const response = await this.httpGet(commitsUrl)
-
-						if (Array.isArray(response.data) && response.data.length > 0) {
-							// First element = most recent commit = updatedAt
-							const latestCommit = response.data[0]
-							if (latestCommit?.commit?.author?.date) {
-								item.updatedAt = latestCommit.commit.author.date
-							}
-
-							// Last element = first commit = createdAt
-							const oldestCommit = response.data[response.data.length - 1]
-							if (oldestCommit?.commit?.author?.date) {
-								item.createdAt = oldestCommit.commit.author.date
-							}
-						}
-					} catch (error) {
-						// Silently ignore — dates will remain empty (displayed as "—")
-						Logger.debug?.(`Could not fetch commit dates for ${item.promptId}: ${error}`)
-					}
-				}),
-			)
 		}
 	}
 
