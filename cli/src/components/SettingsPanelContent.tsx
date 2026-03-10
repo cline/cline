@@ -12,7 +12,6 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { Box, Text, useInput } from "ink"
 import Spinner from "ink-spinner"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { refreshOcaModels } from "@/core/controller/models/refreshOcaModels"
 import { StateManager } from "@/core/storage/StateManager"
@@ -745,7 +744,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 		}
 		const currentMode = stateManager.getGlobalSettingsKey("mode")
 		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+		controller.task.updateApiHandler(apiConfig, currentMode)
 	}, [controller, stateManager])
 
 	const setReasoningEffortForMode = useCallback(
@@ -1046,7 +1045,7 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 			if (controller?.task) {
 				const currentMode = stateManager.getGlobalSettingsKey("mode")
 				const freshApiConfig = stateManager.getApiConfiguration()
-				controller.task.api = buildApiHandler({ ...freshApiConfig, ulid: controller.task.ulid }, currentMode)
+				controller.task.updateApiHandler(freshApiConfig, currentMode)
 			}
 
 			refreshModelIds()

@@ -66,6 +66,10 @@ export class ToolExecutor {
 	private autoApprover: AutoApprove
 	private coordinator: ToolExecutorCoordinator
 
+	public setApiHandler(api: ApiHandler): void {
+		this.api = api
+	}
+
 	// Auto-approval methods using the AutoApprove class
 	private shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
 		return this.autoApprover.shouldAutoApproveTool(toolName)

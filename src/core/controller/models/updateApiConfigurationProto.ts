@@ -8,7 +8,6 @@ import {
 	fromProtobufOpenAiCompatibleModelInfo,
 } from "@shared/proto-conversions/models/typeConversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { buildApiHandler } from "@/core/api"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
 
@@ -124,10 +123,7 @@ export async function updateApiConfigurationProto(
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler(
-				{ ...convertedApiConfigurationFromProto, ulid: controller.task.ulid },
-				currentMode,
-			)
+			controller.task.updateApiHandler(convertedApiConfigurationFromProto, currentMode)
 		}
 
 		// Post updated state to webview

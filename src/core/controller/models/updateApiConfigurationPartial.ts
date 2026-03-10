@@ -1,4 +1,3 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -44,7 +43,7 @@ export async function updateApiConfigurationPartial(
 		controller.stateManager.setApiConfiguration(updatedConfig)
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler({ ...updatedConfig, ulid: controller.task.ulid }, currentMode)
+			controller.task.updateApiHandler(updatedConfig, currentMode)
 		}
 
 		// Notify webview

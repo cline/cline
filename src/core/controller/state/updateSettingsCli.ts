@@ -1,5 +1,3 @@
-import { buildApiHandler } from "@core/api"
-
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -118,11 +116,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 			if (controller.task) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-				const apiConfigForHandler = {
-					...controller.stateManager.getApiConfiguration(),
-					ulid: controller.task.ulid,
-				}
-				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
+				controller.task.updateApiHandler(controller.stateManager.getApiConfiguration(), currentMode)
 			}
 
 			// Update telemetry setting
@@ -144,7 +138,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					telemetryService.captureAutoCondenseToggle(
 						controller.task.ulid,
 						useAutoCondense,
-						controller.task.api.getModel().id,
+						controller.task.getModel().id,
 					)
 				}
 				controller.stateManager.setGlobalState("useAutoCondense", useAutoCondense)

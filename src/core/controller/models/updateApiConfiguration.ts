@@ -1,6 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { buildApiHandler } from "@/core/api"
 import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
@@ -41,7 +40,8 @@ function parseFieldMask(updateMask: string[]): {
 function getAlternateModeField(fieldName: string): string | null {
 	if (fieldName.startsWith("planMode")) {
 		return fieldName.replace("planMode", "actMode")
-	} else if (fieldName.startsWith("actMode")) {
+	}
+	if (fieldName.startsWith("actMode")) {
 		return fieldName.replace("actMode", "planMode")
 	}
 	return null
@@ -141,14 +141,7 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			// Build updated config
-			controller.task.api = buildApiHandler(
-				{
-					...controller.stateManager.getApiConfiguration(),
-					ulid: controller.task.ulid,
-				},
-				currentMode,
-			)
+			controller.task.updateApiHandler(controller.stateManager.getApiConfiguration(), currentMode)
 		}
 
 		// Post updated state to webview

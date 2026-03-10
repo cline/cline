@@ -1,9 +1,8 @@
 import { setTimeout as delay } from "node:timers/promises"
-import { buildApiHandler } from "@core/api"
+import type { ApiHandler } from "@core/api"
 import { parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
-import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
 import { discoverSkills, getAvailableSkills } from "@core/context/instructions/user-instructions/skills"
 import { formatResponse } from "@core/prompts/responses"
 import { PromptRegistry } from "@core/prompts/system-prompt"
@@ -14,10 +13,9 @@ import { ClineAssistantToolUseBlock, ClineStorageMessage, ClineTextContentBlock 
 import { Logger } from "@shared/services/Logger"
 import type { ClineTool } from "@shared/tools"
 import { ClineDefaultTool } from "@shared/tools"
-import { isNextGenModelFamily } from "@utils/model-utils"
 import * as path from "path"
+import { CoreAgent } from "@/core/agents/CoreAgent"
 import { HostProvider } from "@/hosts/host-provider"
-import { ClineError, ClineErrorType } from "@/services/error/ClineError"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { TaskState } from "../../TaskState"
@@ -225,6 +223,7 @@ export class SubagentRunner {
 	private abortRequested = false
 	private activeCommandExecutions = 0
 	private abortingCommands = false
+	private coreAgent = new CoreAgent()
 
 	constructor(private baseConfig: TaskConfig) {}
 
@@ -302,15 +301,15 @@ export class SubagentRunner {
 				...apiConfiguration,
 				ulid: this.baseConfig.ulid,
 			}
-			const api = buildApiHandler(effectiveApiConfiguration, mode)
-			this.activeApiAbort = api.abort?.bind(api)
+			const api = this.coreAgent.initializeApiHandler(effectiveApiConfiguration, mode)
+			this.activeApiAbort = () => this.coreAgent.abortCurrentRequest()
 
 			const providerId = (
 				mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 			) as string
 			const providerInfo = {
 				providerId,
-				model: api.getModel(),
+				model: this.coreAgent.getModel(),
 				mode,
 				customPrompt: this.baseConfig.services.stateManager.getGlobalSettingsKey("customPrompt"),
 			}
@@ -377,66 +376,59 @@ export class SubagentRunner {
 				},
 			]
 
-			while (true) {
-				if (
-					previousRequestTotalTokens !== undefined &&
-					this.shouldCompactBeforeNextRequest(previousRequestTotalTokens, api, providerInfo.model.id)
-				) {
-					const didCompact = this.compactConversationForContextWindow(conversation)
-					if (didCompact) {
-						Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
+			const loopResult = await this.coreAgent.runLoop<void, SubagentRunResult>({
+				initialInput: undefined,
+				shouldAbort: () => this.shouldAbort(),
+				runTurn: async () => {
+					if (
+						previousRequestTotalTokens !== undefined &&
+						this.coreAgent.shouldCompactBeforeNextRequest(
+							previousRequestTotalTokens,
+							api,
+							providerInfo.model.id,
+							this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense"),
+						)
+					) {
+						const didCompact = this.compactConversationForContextWindow(conversation)
+						if (didCompact) {
+							Logger.warn("[SubagentRunner] Proactively compacted context before next subagent request.")
+						}
+						previousRequestTotalTokens = undefined
 					}
-					// Prevent repeated compaction attempts off the same token sample.
-					previousRequestTotalTokens = undefined
-				}
 
-				const streamHandler = new StreamResponseHandler()
-				const { toolUseHandler } = streamHandler.getHandlers()
-				let requestInputTokens = 0
-				let requestOutputTokens = 0
-				let requestCacheWriteTokens = 0
-				let requestCacheReadTokens = 0
-				let requestTotalCost: number | undefined
+					const streamHandler = new StreamResponseHandler()
+					const { toolUseHandler } = streamHandler.getHandlers()
 
-				let assistantText = ""
-				let assistantTextSignature: string | undefined
-				let requestId: string | undefined
+					const stream = this.createMessageWithInitialChunkRetry(
+						api,
+						systemPrompt,
+						conversation,
+						nativeTools,
+						providerInfo.providerId,
+						providerInfo.model.id,
+					)
 
-				const stream = this.createMessageWithInitialChunkRetry(
-					api,
-					systemPrompt,
-					conversation,
-					nativeTools,
-					providerInfo.providerId,
-					providerInfo.model.id,
-				)
-
-				for await (const chunk of stream) {
-					switch (chunk.type) {
-						case "usage":
-							requestId = requestId ?? chunk.id
+					const streamResult = await this.coreAgent.consumeStream({
+						stream,
+						shouldAbort: () => this.shouldAbort(),
+						onAbort: async () => {
+							await this.abort()
+						},
+						onUsageChunk: (chunk, state) => {
 							stats.inputTokens += chunk.inputTokens || 0
 							stats.outputTokens += chunk.outputTokens || 0
 							stats.cacheWriteTokens += chunk.cacheWriteTokens || 0
 							stats.cacheReadTokens += chunk.cacheReadTokens || 0
-							requestInputTokens += chunk.inputTokens || 0
-							requestOutputTokens += chunk.outputTokens || 0
-							requestCacheWriteTokens += chunk.cacheWriteTokens || 0
-							requestCacheReadTokens += chunk.cacheReadTokens || 0
-							requestTotalCost = chunk.totalCost ?? requestTotalCost
 							stats.contextTokens =
-								requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
+								state.usage.inputTokens +
+								state.usage.outputTokens +
+								state.usage.cacheWriteTokens +
+								state.usage.cacheReadTokens
 							stats.contextUsagePercentage =
 								stats.contextWindow > 0 ? (stats.contextTokens / stats.contextWindow) * 100 : 0
 							onProgress({ stats: { ...stats } })
-							break
-						case "text":
-							requestId = requestId ?? chunk.id
-							assistantText += chunk.text || ""
-							assistantTextSignature = chunk.signature || assistantTextSignature
-							break
-						case "tool_calls":
-							requestId = requestId ?? chunk.id
+						},
+						onToolCallChunk: (chunk) => {
 							toolUseHandler.processToolUseDelta(
 								{
 									id: chunk.tool_call.function?.id,
@@ -447,188 +439,184 @@ export class SubagentRunner {
 								},
 								chunk.tool_call.call_id,
 							)
-							break
-						case "reasoning":
-							requestId = requestId ?? chunk.id
-							break
-					}
-
-					if (this.shouldAbort()) {
-						await this.abort()
-						const error = "Subagent run cancelled."
-						onProgress({ status: "failed", error, stats: { ...stats } })
-						return { status: "failed", error, stats }
-					}
-				}
-
-				const calculatedRequestCost =
-					requestTotalCost ??
-					calculateApiCostAnthropic(
-						providerInfo.model.info,
-						requestInputTokens,
-						requestOutputTokens,
-						requestCacheWriteTokens,
-						requestCacheReadTokens,
-					)
-				stats.totalCost += calculatedRequestCost || 0
-				previousRequestTotalTokens =
-					requestInputTokens + requestOutputTokens + requestCacheWriteTokens + requestCacheReadTokens
-
-				const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
-					toolUseId: resolveToolUseId(toolCall, index),
-					id: toolCall.id,
-					call_id: toolCall.call_id,
-					signature: toolCall.signature,
-					name: toolCall.name,
-					input: toolCall.input,
-					isNativeToolCall: true,
-				}))
-				const parsedNonNativeToolCalls = parseNonNativeToolCalls(assistantText)
-				const fallbackNonNativeToolCalls = nativeFinalizedToolCalls.map((toolCall) => ({
-					...toolCall,
-					isNativeToolCall: false,
-				}))
-
-				let finalizedToolCalls: SubagentToolCall[] = []
-				if (useNativeToolCalls) {
-					finalizedToolCalls = nativeFinalizedToolCalls
-				} else if (parsedNonNativeToolCalls.length > 0) {
-					finalizedToolCalls = parsedNonNativeToolCalls
-				} else if (fallbackNonNativeToolCalls.length > 0) {
-					// Defensive fallback: if non-native mode receives structured tool call chunks,
-					// execute them but serialize results as plain text to avoid tool_result pairing mismatches.
-					Logger.warn(
-						"[SubagentRunner] Received structured tool_calls while native tool calling is disabled; falling back to non-native result serialization.",
-					)
-					finalizedToolCalls = fallbackNonNativeToolCalls
-				}
-				const assistantContent = [] as any[]
-				if (assistantText.trim().length > 0) {
-					assistantContent.push({
-						type: "text",
-						text: assistantText,
-						signature: assistantTextSignature,
+						},
 					})
-				}
-				if (useNativeToolCalls) {
-					assistantContent.push(...finalizedToolCalls.map(toAssistantToolUseBlock))
-				}
 
-				if (assistantContent.length > 0) {
-					conversation.push({
-						role: "assistant",
-						content: assistantContent,
-						id: requestId,
-					})
-				}
-
-				if (finalizedToolCalls.length === 0) {
-					emptyAssistantResponseRetries += 1
-					if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
-						const error = "Subagent did not call attempt_completion."
-						onProgress({ status: "failed", error, stats: { ...stats } })
-						return { status: "failed", error, stats }
+					if (streamResult.aborted) {
+						return { status: "failed", error: "Subagent run cancelled." }
 					}
 
-					// Mirror the main loop's no-tools-used nudge so empty/blank model turns
-					// can recover without surfacing an immediate hard failure in subagent UI.
-					if (assistantContent.length === 0) {
-						conversation.push({
-							role: "assistant",
-							content: [
-								{
-									type: "text",
-									text: "Failure: I did not provide a response.",
-								},
-							],
-							id: requestId,
+					const calculatedRequestCost =
+						streamResult.usage.totalCost ??
+						calculateApiCostAnthropic(
+							providerInfo.model.info,
+							streamResult.usage.inputTokens,
+							streamResult.usage.outputTokens,
+							streamResult.usage.cacheWriteTokens,
+							streamResult.usage.cacheReadTokens,
+						)
+					stats.totalCost += calculatedRequestCost || 0
+					previousRequestTotalTokens =
+						streamResult.usage.inputTokens +
+						streamResult.usage.outputTokens +
+						streamResult.usage.cacheWriteTokens +
+						streamResult.usage.cacheReadTokens
+
+					const nativeFinalizedToolCalls = toolUseHandler.getAllFinalizedToolUses().map((toolCall, index) => ({
+						toolUseId: resolveToolUseId(toolCall, index),
+						id: toolCall.id,
+						call_id: toolCall.call_id,
+						signature: toolCall.signature,
+						name: toolCall.name,
+						input: toolCall.input,
+						isNativeToolCall: true,
+					}))
+					const parsedNonNativeToolCalls = parseNonNativeToolCalls(streamResult.assistantText)
+					const fallbackNonNativeToolCalls = nativeFinalizedToolCalls.map((toolCall) => ({
+						...toolCall,
+						isNativeToolCall: false,
+					}))
+
+					let finalizedToolCalls: SubagentToolCall[] = []
+					if (useNativeToolCalls) {
+						finalizedToolCalls = nativeFinalizedToolCalls
+					} else if (parsedNonNativeToolCalls.length > 0) {
+						finalizedToolCalls = parsedNonNativeToolCalls
+					} else if (fallbackNonNativeToolCalls.length > 0) {
+						Logger.warn(
+							"[SubagentRunner] Received structured tool_calls while native tool calling is disabled; falling back to non-native result serialization.",
+						)
+						finalizedToolCalls = fallbackNonNativeToolCalls
+					}
+					const assistantContent = [] as any[]
+					if (streamResult.assistantText.trim().length > 0) {
+						assistantContent.push({
+							type: "text",
+							text: streamResult.assistantText,
+							signature: streamResult.assistantTextSignature,
 						})
 					}
-					conversation.push({
-						role: "user",
-						content: [
-							{
-								type: "text",
-								text: formatResponse.noToolsUsed(useNativeToolCalls),
-							},
-						],
-					})
-					await delay(0)
-					continue
-				}
-				emptyAssistantResponseRetries = 0
+					if (useNativeToolCalls) {
+						assistantContent.push(...finalizedToolCalls.map(toAssistantToolUseBlock))
+					}
 
-				const toolResultBlocks = [] as any[]
-				for (const call of finalizedToolCalls) {
-					const toolName = call.name as ClineDefaultTool
-					const toolCallParams = toToolUseParams(call.input)
+					if (assistantContent.length > 0) {
+						conversation.push({
+							role: "assistant",
+							content: assistantContent,
+							id: streamResult.requestId,
+						})
+					}
 
-					if (toolName === ClineDefaultTool.ATTEMPT) {
-						const completionResult = toolCallParams.result?.trim()
-						if (!completionResult) {
-							const missingResultError = formatResponse.missingToolParameterError("result")
-							pushSubagentToolResultBlock(toolResultBlocks, call, toolName, missingResultError)
+					if (finalizedToolCalls.length === 0) {
+						emptyAssistantResponseRetries += 1
+						if (emptyAssistantResponseRetries > MAX_EMPTY_ASSISTANT_RETRIES) {
+							return { status: "failed", error: "Subagent did not call attempt_completion." }
+						}
+
+						if (assistantContent.length === 0) {
+							conversation.push({
+								role: "assistant",
+								content: [{ type: "text", text: "Failure: I did not provide a response." }],
+								id: streamResult.requestId,
+							})
+						}
+						conversation.push({
+							role: "user",
+							content: [{ type: "text", text: formatResponse.noToolsUsed(useNativeToolCalls) }],
+						})
+						await delay(0)
+						return { status: "continue", nextInput: undefined }
+					}
+					emptyAssistantResponseRetries = 0
+
+					const toolResultBlocks = [] as any[]
+					for (const call of finalizedToolCalls) {
+						const toolName = call.name as ClineDefaultTool
+						const toolCallParams = toToolUseParams(call.input)
+
+						if (toolName === ClineDefaultTool.ATTEMPT) {
+							const completionResult = toolCallParams.result?.trim()
+							if (!completionResult) {
+								const missingResultError = formatResponse.missingToolParameterError("result")
+								pushSubagentToolResultBlock(toolResultBlocks, call, toolName, missingResultError)
+								continue
+							}
+
+							stats.toolCalls += 1
+							onProgress({ stats: { ...stats } })
+							const completed: SubagentRunResult = { status: "completed", result: completionResult, stats }
+							return { status: "complete", output: completed }
+						}
+
+						if (!SUBAGENT_ALLOWED_TOOLS.includes(toolName)) {
+							const deniedResult = formatResponse.toolError(
+								`Tool '${toolName}' is not available inside subagent runs.`,
+							)
+							pushSubagentToolResultBlock(toolResultBlocks, call, toolName, deniedResult)
 							continue
+						}
+
+						const toolCallBlock: ToolUse = {
+							type: "tool_use",
+							name: toolName,
+							params: toolCallParams,
+							partial: false,
+							isNativeToolCall: call.isNativeToolCall,
+							call_id: call.call_id || call.toolUseId,
+							signature: call.signature,
+						}
+
+						if (call.call_id) {
+							state.toolUseIdMap.set(call.call_id, call.toolUseId)
+						}
+
+						onProgress({ latestToolCall: formatToolCallPreview(toolName, toolCallParams) })
+
+						const subagentConfig = this.createSubagentTaskConfig(state)
+						const handler = this.baseConfig.coordinator.getHandler(toolName)
+						let toolResult: unknown
+
+						if (!handler) {
+							toolResult = formatResponse.toolError(`No handler registered for tool '${toolName}'.`)
+						} else {
+							try {
+								toolResult = await this.baseConfig.coordinator.execute(subagentConfig, toolCallBlock)
+							} catch (error) {
+								toolResult = formatResponse.toolError((error as Error).message)
+							}
 						}
 
 						stats.toolCalls += 1
 						onProgress({ stats: { ...stats } })
-						onProgress({ status: "completed", result: completionResult, stats: { ...stats } })
-						return { status: "completed", result: completionResult, stats }
+
+						const serializedToolResult = serializeToolResult(toolResult)
+						const toolDescription = handler?.getDescription(toolCallBlock) || `[${toolName}]`
+						pushSubagentToolResultBlock(toolResultBlocks, call, toolDescription, serializedToolResult)
 					}
 
-					if (!SUBAGENT_ALLOWED_TOOLS.includes(toolName)) {
-						const deniedResult = formatResponse.toolError(`Tool '${toolName}' is not available inside subagent runs.`)
-						pushSubagentToolResultBlock(toolResultBlocks, call, toolName, deniedResult)
-						continue
-					}
+					conversation.push({
+						role: "user",
+						content: toolResultBlocks,
+					})
 
-					const toolCallBlock: ToolUse = {
-						type: "tool_use",
-						name: toolName,
-						params: toolCallParams,
-						partial: false,
-						isNativeToolCall: call.isNativeToolCall,
-						call_id: call.call_id || call.toolUseId,
-						signature: call.signature,
-					}
+					await delay(0)
+					return { status: "continue", nextInput: undefined }
+				},
+			})
 
-					if (call.call_id) {
-						state.toolUseIdMap.set(call.call_id, call.toolUseId)
-					}
-
-					const latestToolCall = formatToolCallPreview(toolName, toolCallParams)
-					onProgress({ latestToolCall })
-
-					const subagentConfig = this.createSubagentTaskConfig(state)
-					const handler = this.baseConfig.coordinator.getHandler(toolName)
-					let toolResult: unknown
-
-					if (!handler) {
-						toolResult = formatResponse.toolError(`No handler registered for tool '${toolName}'.`)
-					} else {
-						try {
-							toolResult = await handler.execute(subagentConfig, toolCallBlock)
-						} catch (error) {
-							toolResult = formatResponse.toolError((error as Error).message)
-						}
-					}
-
-					stats.toolCalls += 1
-					onProgress({ stats: { ...stats } })
-
-					const serializedToolResult = serializeToolResult(toolResult)
-					const toolDescription = handler?.getDescription(toolCallBlock) || `[${toolName}]`
-					pushSubagentToolResultBlock(toolResultBlocks, call, toolDescription, serializedToolResult)
-				}
-
-				conversation.push({
-					role: "user",
-					content: toolResultBlocks,
-				})
-
-				await delay(0)
+			if (loopResult.status === "complete") {
+				onProgress({ status: "completed", result: loopResult.output.result, stats: { ...stats } })
+				return loopResult.output
 			}
+			if (loopResult.status === "failed") {
+				const error = loopResult.error || "Subagent execution failed."
+				onProgress({ status: "failed", error, stats: { ...stats } })
+				return { status: "failed", error, stats }
+			}
+			const cancelledError = "Subagent run cancelled."
+			onProgress({ status: "failed", error: cancelledError, stats: { ...stats } })
+			return { status: "failed", error: cancelledError, stats }
 		} catch (error) {
 			if (this.shouldAbort()) {
 				const cancelledError = "Subagent run cancelled."
@@ -671,19 +659,6 @@ export class SubagentRunner {
 				},
 			},
 		}
-	}
-
-	private shouldRetryInitialStreamError(error: unknown, providerId: string, modelId: string): boolean {
-		// Mirror main loop behavior: do not auto-retry auth/balance failures.
-		const parsedError = ClineError.transform(error, modelId, providerId)
-		const isAuthError = parsedError.isErrorType(ClineErrorType.Auth)
-		const isBalanceError = parsedError.isErrorType(ClineErrorType.Balance)
-
-		if (isAuthError || isBalanceError) {
-			return false
-		}
-
-		return true
 	}
 
 	private compactConversationForContextWindow(conversation: ClineStorageMessage[]): boolean {
@@ -729,25 +704,8 @@ export class SubagentRunner {
 		return { didOptimize: true, needToTruncate: optimizationResult.needToTruncate }
 	}
 
-	private shouldCompactBeforeNextRequest(
-		previousRequestTotalTokens: number,
-		api: ReturnType<typeof buildApiHandler>,
-		modelId: string,
-	): boolean {
-		const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-		const useAutoCondense = this.baseConfig.services.stateManager.getGlobalSettingsKey("useAutoCondense")
-		if (useAutoCondense && isNextGenModelFamily(modelId)) {
-			const autoCondenseThreshold = 0.75
-			const roundedThreshold = autoCondenseThreshold ? Math.floor(contextWindow * autoCondenseThreshold) : maxAllowedSize
-			const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
-			return previousRequestTotalTokens >= thresholdTokens
-		}
-
-		return previousRequestTotalTokens >= maxAllowedSize
-	}
-
 	private async *createMessageWithInitialChunkRetry(
-		api: ReturnType<typeof buildApiHandler>,
+		api: ApiHandler,
 		systemPrompt: string,
 		conversation: ClineStorageMessage[],
 		nativeTools: ClineTool[] | undefined,
@@ -755,7 +713,7 @@ export class SubagentRunner {
 		modelId: string,
 	) {
 		for (let attempt = 1; attempt <= MAX_INITIAL_STREAM_ATTEMPTS; attempt += 1) {
-			const stream = api.createMessage(systemPrompt, conversation, nativeTools)
+			const stream = this.coreAgent.createMessage(systemPrompt, conversation, nativeTools)
 			const iterator = stream[Symbol.asyncIterator]()
 
 			try {
@@ -781,7 +739,7 @@ export class SubagentRunner {
 				const shouldRetry =
 					!this.shouldAbort() &&
 					attempt < MAX_INITIAL_STREAM_ATTEMPTS &&
-					this.shouldRetryInitialStreamError(error, providerId, modelId)
+					this.coreAgent.classifyInitialStreamRetry(error, providerId, modelId).shouldRetry
 				if (!shouldRetry) {
 					throw error
 				}

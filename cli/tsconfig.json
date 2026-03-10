@@ -24,6 +24,18 @@
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
 		"paths": {
+			"@cline/agents": [
+				"../packages/agents/dist/index.d.ts"
+			],
+			"@cline/agents/*": [
+				"../packages/agents/dist/*"
+			],
+			"@cline/llms": [
+				"../packages/llms/dist/index.d.ts"
+			],
+			"@cline/llms/*": [
+				"../packages/llms/dist/*"
+			],
 			"@/*": [
 				"../src/*"
 			],

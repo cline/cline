@@ -5,7 +5,6 @@
 
 import type { ApiProvider } from "@shared/api"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
-import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
 import { StateManager } from "@/core/storage/StateManager"
 import type { BedrockConfig } from "../components/BedrockSetup"
@@ -73,7 +72,7 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 	if (controller?.task) {
 		const currentMode = stateManager.getGlobalSettingsKey("mode")
 		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+		controller.task.updateApiHandler(apiConfig, currentMode)
 	}
 }
 
@@ -137,6 +136,6 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 	if (controller?.task) {
 		const currentMode = stateManager.getGlobalSettingsKey("mode")
 		const apiConfig = stateManager.getApiConfiguration()
-		controller.task.api = buildApiHandler({ ...apiConfig, ulid: controller.task.ulid }, currentMode)
+		controller.task.updateApiHandler(apiConfig, currentMode)
 	}
 }

@@ -1,3 +1,6 @@
 [submodule "evals/cline-bench"]
 	path = evals/cline-bench
 	url = https://github.com/cline/cline-bench.git
+[submodule "sdk-wip"]
+	path = sdk-wip
+	url = https://github.com/cline/sdk-wip.git

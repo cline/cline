@@ -19,6 +19,11 @@ const aliasResolverPlugin = {
 	name: "alias-resolver",
 	setup(build) {
 		const aliases = {
+			"@cline/agents/extensions": path.resolve(__dirname, "sdk-wip/packages/agents/dist/index.js"),
+			"@cline/agents/hooks": path.resolve(__dirname, "sdk-wip/packages/agents/dist/index.js"),
+			"@cline/agents": path.resolve(__dirname, "sdk-wip/packages/agents/dist"),
+			"@cline/core": path.resolve(__dirname, "sdk-wip/packages/core/dist"),
+			"@cline/llms": path.resolve(__dirname, "sdk-wip/packages/llms/dist"),
 			"@": path.resolve(__dirname, "src"),
 			"@core": path.resolve(__dirname, "src/core"),
 			"@integrations": path.resolve(__dirname, "src/integrations"),

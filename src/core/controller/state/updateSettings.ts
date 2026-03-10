@@ -1,4 +1,3 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -49,11 +48,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			if (controller.task) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-				const apiConfigForHandler = {
-					...convertedApiConfigurationFromProto,
-					ulid: controller.task.ulid,
-				}
-				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
+				controller.task.updateApiHandler(convertedApiConfigurationFromProto, currentMode)
 			}
 		}
 
@@ -185,7 +180,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				telemetryService.captureAutoCondenseToggle(
 					controller.task.ulid,
 					request.useAutoCondense,
-					controller.task.api.getModel().id,
+					controller.task.getModel().id,
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
@@ -312,7 +307,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 					controller.task.ulid,
 					"native-tool-call",
 					request.nativeToolCallEnabled,
-					controller.task.api.getModel().id,
+					controller.task.getModel().id,
 				)
 			}
 		}

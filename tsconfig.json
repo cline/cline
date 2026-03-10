@@ -25,6 +25,24 @@
 		"useUnknownInCatchVariables": false,
 		"baseUrl": ".",
 		"paths": {
+			"@cline/agents": [
+				"sdk-wip/packages/agents/dist/index.d.ts"
+			],
+			"@cline/agents/*": [
+				"sdk-wip/packages/agents/dist/*"
+			],
+			"@cline/llms": [
+				"sdk-wip/packages/llms/dist/index.d.ts"
+			],
+			"@cline/llms/*": [
+				"sdk-wip/packages/llms/dist/*"
+			],
+			"@cline/core": [
+				"sdk-wip/packages/core/dist/index.d.ts"
+			],
+			"@cline/core/*": [
+				"sdk-wip/packages/core/dist/*"
+			],
 			"@/*": [
 				"src/*"
 			],
