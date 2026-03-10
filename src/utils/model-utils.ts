@@ -4,6 +4,7 @@ import { AnthropicModelId, anthropicModels } from "@/shared/api"
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
+export const GEMINI_FLASH_MAX_OUTPUT_TOKENS = 8_192
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)
@@ -150,6 +151,13 @@ export function isTrinityModelFamily(id: string): boolean {
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
+}
+
+export function isGeminiFlashModel(id: string): boolean {
+	const modelId = normalize(id)
+	const isGooglePrefixedGemini = modelId.startsWith("google/gemini")
+	const isDirectGemini = modelId.startsWith("gemini-")
+	return (isGooglePrefixedGemini || isDirectGemini) && modelId.includes("flash")
 }
 
 function isDeepSeek32ModelFamily(id: string): boolean {
