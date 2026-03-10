@@ -231,6 +231,14 @@ function snakeToCamel(str) {
 }
 
 /**
+ * Normalize a TS key to the camelCase form derived from proto field names.
+ * This preserves mappings for keys that are not camelCase in TS (e.g. hyphenated keys).
+ */
+function normalizeTsKeyForProtoLookup(fieldName) {
+	return snakeToCamel(toProtoFieldName(fieldName))
+}
+
+/**
  * Parse field numbers from an existing proto message definition
  * Returns a map of camelCase field names to their field numbers
  */
@@ -248,7 +256,8 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const messageBody = match[1]
 
 	// Match field definitions: optional/required/repeated type name = number;
-	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
+	// Supports scalar/message types and map fields.
+	const fieldRegex = /(?:optional|required|repeated)?\s*(?:map<[^>]+>|[\w.]+)\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
@@ -296,8 +305,10 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 
 	// Preserve existing assignments
 	for (const field of fields) {
-		if (existingNumbers[field.name] !== undefined) {
-			result[field.name] = existingNumbers[field.name]
+		const normalizedFieldName = normalizeTsKeyForProtoLookup(field.name)
+		const existingFieldNumber = existingNumbers[normalizedFieldName] ?? existingNumbers[field.name]
+		if (existingFieldNumber !== undefined) {
+			result[field.name] = existingFieldNumber
 		}
 	}
 
