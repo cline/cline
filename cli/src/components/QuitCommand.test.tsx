@@ -1,6 +1,6 @@
 import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import { describe, expect, it } from "vitest"
-import { filterCommands, getStandaloneSlashCommandName } from "../utils/slash-commands"
+import { filterCommands, getStandaloneSlashCommandName, getStandaloneSlashCommandToExecute } from "../utils/slash-commands"
 
 const cliOnlySlashCommands = CLI_ONLY_COMMANDS.map((cmd) => ({
 	name: cmd.name,
@@ -22,5 +22,17 @@ describe("Quit Command (/q and /exit)", () => {
 
 	it("detects /exit as a standalone slash command", () => {
 		expect(getStandaloneSlashCommandName("/exit")).toBe("exit")
+	})
+
+	it("resolves /q to direct execution when no slash menu is active", () => {
+		expect(
+			getStandaloneSlashCommandToExecute({
+				prompt: "/q",
+				inSlashMode: true,
+				hasSlashMenu: false,
+				hasPendingAsk: false,
+				isSpinnerActive: false,
+			}),
+		).toBe("q")
 	})
 })

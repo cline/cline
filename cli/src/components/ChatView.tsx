@@ -108,7 +108,6 @@ import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
-import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
@@ -138,9 +137,10 @@ import {
 import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
 import {
+	createCliOnlySlashCommands,
 	extractSlashQuery,
 	filterCommands,
-	getStandaloneSlashCommandName,
+	getStandaloneSlashCommandToExecute,
 	insertSlashCommand,
 	sortCommandsWorkflowsFirst,
 } from "../utils/slash-commands"
@@ -186,15 +186,6 @@ interface ChatViewProps {
 	initialPrompt?: string
 	initialImages?: string[]
 	taskId?: string
-}
-
-function createCliOnlySlashCommands(): SlashCommandInfo[] {
-	return CLI_ONLY_COMMANDS.map((cmd) => ({
-		name: cmd.name,
-		description: cmd.description || "",
-		section: cmd.section || "default",
-		cliCompatible: true,
-	}))
 }
 
 const SEARCH_DEBOUNCE_MS = 150
@@ -1187,17 +1178,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
-		const standaloneSlashCommand = getStandaloneSlashCommandName(prompt)
+		const standaloneSlashCommand = getStandaloneSlashCommandToExecute({
+			prompt,
+			inSlashMode: slashInfo.inSlashMode,
+			hasSlashMenu: inSlashMenu,
+			hasPendingAsk: !!pendingAsk,
+			isSpinnerActive,
+		})
 
-		if (
-			key.return &&
-			slashInfo.inSlashMode &&
-			!inSlashMenu &&
-			!pendingAsk &&
-			!isSpinnerActive &&
-			standaloneSlashCommand &&
-			handleCliOnlySlashCommand(standaloneSlashCommand)
-		) {
+		if (key.return && standaloneSlashCommand && handleCliOnlySlashCommand(standaloneSlashCommand)) {
 			return
 		}
 
