@@ -41,6 +41,7 @@ import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
+import { findMostRecentTaskForWorkspace } from "./utils/task-history"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
@@ -58,6 +59,7 @@ interface TaskOptions {
 	model?: string
 	verbose?: boolean
 	cwd?: string
+	continue?: boolean
 	config?: string
 	thinking?: boolean | string
 	reasoningEffort?: string
@@ -65,6 +67,7 @@ interface TaskOptions {
 	yolo?: boolean
 	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
+	autoCondense?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
@@ -137,46 +140,43 @@ function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
 function applyTaskOptions(options: TaskOptions): void {
 	// Apply mode flag
 	if (options.plan) {
-		StateManager.get().setGlobalState("mode", "plan")
+		StateManager.get().setSessionOverride("mode", "plan")
 		telemetryService.captureHostEvent("mode_flag", "plan")
 	} else if (options.act) {
-		StateManager.get().setGlobalState("mode", "act")
+		StateManager.get().setSessionOverride("mode", "act")
 		telemetryService.captureHostEvent("mode_flag", "act")
 	}
 
 	// Apply model override if specified
 	if (options.model) {
-		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") ?? "act") as "act" | "plan"
 		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
 		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
 		if (modelKey) {
-			StateManager.get().setGlobalState(modelKey, options.model)
+			StateManager.get().setSessionOverride(modelKey, options.model)
 		}
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
+	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+
 	// Set thinking budget based on --thinking flag (boolean or number)
-	let thinkingBudget = 0
-	if (options.thinking) {
+	if (options.thinking !== undefined) {
+		let thinkingBudget = 1024
 		if (typeof options.thinking === "string") {
 			const parsed = Number.parseInt(options.thinking, 10)
 			if (Number.isNaN(parsed) || parsed < 0) {
 				printWarning(`Invalid --thinking value '${options.thinking}'. Using default 1024.`)
-				thinkingBudget = 1024
 			} else {
 				thinkingBudget = parsed
 			}
-		} else {
-			thinkingBudget = 1024
 		}
-	}
-	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
-	setModeScopedState(currentMode, (mode) => {
-		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-	})
-	if (options.thinking) {
+
+		setModeScopedState(currentMode, (mode) => {
+			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+			StateManager.get().setSessionOverride(thinkingKey, thinkingBudget)
+		})
 		telemetryService.captureHostEvent("thinking_flag", "true")
 	}
 
@@ -184,14 +184,14 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (reasoningEffort !== undefined) {
 		setModeScopedState(currentMode, (mode) => {
 			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-			StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+			StateManager.get().setSessionOverride(reasoningKey, reasoningEffort)
 		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
 	const maxConsecutiveMistakes = normalizeMaxConsecutiveMistakes(options.maxConsecutiveMistakes)
 	if (maxConsecutiveMistakes !== undefined) {
-		StateManager.get().setGlobalState("maxConsecutiveMistakes", maxConsecutiveMistakes)
+		StateManager.get().setSessionOverride("maxConsecutiveMistakes", maxConsecutiveMistakes)
 		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
@@ -211,8 +211,12 @@ function applyTaskOptions(options: TaskOptions): void {
 
 	// Set double-check completion based on flag
 	if (options.doubleCheckCompletion) {
-		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
+		StateManager.get().setSessionOverride("doubleCheckCompletionEnabled", true)
 		telemetryService.captureHostEvent("double_check_completion_flag", "true")
+	}
+
+	if (options.autoCondense) {
+		StateManager.get().setSessionOverride("useAutoCondense", true)
 	}
 }
 
@@ -784,6 +788,7 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
@@ -855,8 +860,8 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  * Resume an existing task by ID
  * Loads the task and optionally prefills the input with a prompt
  */
-async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
-	const ctx = await initializeCli({ ...options, enableAuth: true })
+async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }, existingContext?: CliContext) {
+	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Validate task exists
 	const historyItem = findTaskInHistory(taskId)
@@ -901,6 +906,20 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 		}),
 		createInkCleanup(ctx, () => taskError),
 	)
+}
+
+async function continueTask(options: TaskOptions) {
+	const ctx = await initializeCli({ ...options, enableAuth: true })
+	const historyItem = findMostRecentTaskForWorkspace(StateManager.get().getGlobalStateKey("taskHistory"), ctx.workspacePath)
+
+	if (!historyItem) {
+		printWarning(`No previous task found for ${ctx.workspacePath}`)
+		printInfo("Start a new task or use 'cline history' to browse previous tasks.")
+		await disposeCliContext(ctx)
+		exit(1)
+	}
+
+	return resumeTask(historyItem.id, options, ctx)
 }
 
 /**
@@ -958,9 +977,11 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
+	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
@@ -981,6 +1002,25 @@ program
 		// stdinInput === "" means stdin was piped but empty
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
+
+		if (options.taskId && options.continue) {
+			printWarning("Use either --taskId or --continue, not both.")
+			exit(1)
+		}
+
+		if (options.continue) {
+			if (prompt) {
+				printWarning("Use --continue without a prompt.")
+				exit(1)
+			}
+			if (stdinWasPiped) {
+				printWarning("Use --continue without piped input.")
+				exit(1)
+			}
+
+			await continueTask(options)
+			return
+		}
 
 		// Error if stdin was piped but empty AND no prompt was provided
 		// This handles:
