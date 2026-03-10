@@ -1,6 +1,5 @@
 import { execa } from "execa"
 import { platform } from "os"
-import { COMMAND_REQ_APP_STRING } from "@/shared/combineCommandSequences"
 import { Logger } from "@/shared/services/Logger"
 
 interface NotificationOptions {
@@ -13,6 +12,9 @@ export interface ApprovalNotificationOptions {
 	message: string
 	requiresExplicitApproval?: boolean
 }
+
+const EXPLICIT_APPROVAL_NOTIFICATION_SUFFIX = " (explicit approval required)"
+const MAX_APPROVAL_NOTIFICATION_LENGTH = 140
 
 type ExecaFn = typeof execa
 let execaImpl: ExecaFn = execa
@@ -38,10 +40,27 @@ export function encodePowerShellCommand(command: string): string {
 	return Buffer.from(command, "utf16le").toString("base64")
 }
 
-export function createApprovalNotificationMessage(options: ApprovalNotificationOptions): string {
-	return options.requiresExplicitApproval ? `${options.message}${COMMAND_REQ_APP_STRING}` : options.message
+function abbreviateNotificationMessage(message: string, maxLength: number): string {
+	const normalizedMessage = message.replace(/\s+/g, " ").trim()
+	if (normalizedMessage.length <= maxLength) {
+		return normalizedMessage
+	}
+
+	return `${normalizedMessage.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`
 }
 
+export function createApprovalNotificationMessage(options: ApprovalNotificationOptions): string {
+	const suffix = options.requiresExplicitApproval ? EXPLICIT_APPROVAL_NOTIFICATION_SUFFIX : ""
+	const availableMessageLength = Math.max(0, MAX_APPROVAL_NOTIFICATION_LENGTH - suffix.length)
+	const abbreviatedMessage = abbreviateNotificationMessage(options.message, availableMessageLength)
+
+	return `${abbreviatedMessage}${suffix}`
+}
+
+/**
+ * Note: `title` is not rendered on Windows because the ToastText02 template only exposes
+ * two text slots, which we use for subtitle (id=1) and message (id=2).
+ */
 export function buildWindowsToastNotificationScript(options: NotificationOptions): string {
 	const { subtitle = "", message } = options
 	const safeSubtitle = escapePowerShellSingleQuotedString(subtitle)
@@ -134,12 +153,15 @@ export async function showSystemNotification(options: NotificationOptions): Prom
 	}
 }
 
-export function showApprovalNotification(options: ApprovalNotificationOptions, notificationsEnabled: boolean): void {
+export async function showApprovalNotification(
+	options: ApprovalNotificationOptions,
+	notificationsEnabled: boolean,
+): Promise<void> {
 	if (!notificationsEnabled) {
 		return
 	}
 
-	void showSystemNotification({
+	await showSystemNotification({
 		subtitle: "Approval Required",
 		message: createApprovalNotificationMessage(options),
 	})

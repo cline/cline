@@ -6,7 +6,7 @@ import { calculateApiCostAnthropic } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
 export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
-	showApprovalNotification({ message }, notificationsEnabled)
+	void showApprovalNotification({ message }, notificationsEnabled)
 }
 
 type UpdateApiReqMsgParams = {

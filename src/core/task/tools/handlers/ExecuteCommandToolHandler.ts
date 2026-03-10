@@ -239,7 +239,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			)
 		} else {
 			// Manual approval flow
-			showApprovalNotification(
+			void showApprovalNotification(
 				{ message: actualCommand, requiresExplicitApproval: autoApproveSafe && requiresApprovalPerLLM },
 				config.autoApprovalSettings.enableNotifications,
 			)

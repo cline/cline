@@ -1,20 +1,10 @@
 import { expect } from "chai"
 import { afterEach, describe, it } from "mocha"
-import Module from "module"
 import * as sinon from "sinon"
-
-const require = Module.createRequire(import.meta.url)
-
-function loadNotificationsModule() {
-	return require("..") as typeof import("..")
-}
+import * as notificationsModule from ".."
 
 function decodePowerShellEncodedCommand(encoded: string): string {
 	return Buffer.from(encoded, "base64").toString("utf16le")
-}
-
-function flushMicrotasks(): Promise<void> {
-	return new Promise((resolve) => setImmediate(resolve))
 }
 
 function createResolvedExecaStub() {
@@ -24,14 +14,12 @@ function createResolvedExecaStub() {
 describe("notifications", () => {
 	afterEach(() => {
 		sinon.restore()
-		const mod = loadNotificationsModule()
-		mod.setNotificationExecaForTesting(null)
-		mod.setNotificationPlatformForTesting(null)
+		notificationsModule.setNotificationExecaForTesting(null)
+		notificationsModule.setNotificationPlatformForTesting(null)
 	})
 
 	it("builds a Windows toast script using single-quoted literals and DOM text assignment", () => {
-		const mod = loadNotificationsModule()
-		const script = mod.buildWindowsToastNotificationScript({
+		const script = notificationsModule.buildWindowsToastNotificationScript({
 			subtitle: "Approval Required",
 			message: "$(Start-Process calc)",
 		})
@@ -43,13 +31,11 @@ describe("notifications", () => {
 	})
 
 	it("escapes single quotes for PowerShell single-quoted strings", () => {
-		const mod = loadNotificationsModule()
-		expect(mod.escapePowerShellSingleQuotedString("don't")).to.equal("don''t")
+		expect(notificationsModule.escapePowerShellSingleQuotedString("don't")).to.equal("don''t")
 	})
 
 	it("escapes single quotes in Windows subtitle and message assignments", () => {
-		const mod = loadNotificationsModule()
-		const script = mod.buildWindowsToastNotificationScript({
+		const script = notificationsModule.buildWindowsToastNotificationScript({
 			subtitle: "don't ask twice",
 			message: "it's fine",
 		})
@@ -59,7 +45,6 @@ describe("notifications", () => {
 	})
 
 	it("escapes quotes and backslashes for macOS notifications", async () => {
-		const notificationsModule = loadNotificationsModule()
 		const execaStub = createResolvedExecaStub()
 		notificationsModule.setNotificationExecaForTesting(
 			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
@@ -84,7 +69,6 @@ describe("notifications", () => {
 	})
 
 	it("passes title and combined subtitle/message to notify-send on Linux", async () => {
-		const notificationsModule = loadNotificationsModule()
 		const execaStub = createResolvedExecaStub()
 		notificationsModule.setNotificationExecaForTesting(
 			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
@@ -102,17 +86,24 @@ describe("notifications", () => {
 	})
 
 	it("creates explicit approval marker only when required", () => {
-		const mod = loadNotificationsModule()
-		expect(mod.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: true })).to.equal(
-			"npm installREQ_APP",
-		)
-		expect(mod.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: false })).to.equal(
-			"npm install",
-		)
+		expect(
+			notificationsModule.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: true }),
+		).to.equal("npm install (explicit approval required)")
+		expect(
+			notificationsModule.createApprovalNotificationMessage({ message: "npm install", requiresExplicitApproval: false }),
+		).to.equal("npm install")
+	})
+
+	it("normalizes whitespace in approval notification messages", () => {
+		expect(
+			notificationsModule.createApprovalNotificationMessage({
+				message: "npm\n\tinstall    ./pkg",
+				requiresExplicitApproval: false,
+			}),
+		).to.equal("npm install ./pkg")
 	})
 
 	it("routes approval notifications through platform dispatch only when enabled", async () => {
-		const notificationsModule = loadNotificationsModule()
 		const execaStub = createResolvedExecaStub()
 		notificationsModule.setNotificationExecaForTesting(
 			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
@@ -122,19 +113,31 @@ describe("notifications", () => {
 			platformStub as unknown as Parameters<typeof notificationsModule.setNotificationPlatformForTesting>[0],
 		)
 
-		notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, false)
-		await flushMicrotasks()
+		await notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, false)
 		sinon.assert.notCalled(execaStub)
 
-		notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, true)
-		await flushMicrotasks()
+		await notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, true)
 		sinon.assert.calledOnce(execaStub)
 		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
-		expect(execaStub.firstCall.args[1]).to.deep.equal(["Cline", "Approval Required\nnpm installREQ_APP"])
+		expect(execaStub.firstCall.args[1]).to.deep.equal([
+			"Cline",
+			"Approval Required\nnpm install (explicit approval required)",
+		])
+	})
+
+	it("abbreviates long approval notification messages while preserving the explicit approval suffix", () => {
+		const message = `${"a".repeat(200)}`
+		const notificationMessage = notificationsModule.createApprovalNotificationMessage({
+			message,
+			requiresExplicitApproval: true,
+		})
+
+		expect(notificationMessage.length).to.be.at.most(140)
+		expect(notificationMessage.endsWith(" (explicit approval required)")).to.equal(true)
+		expect(notificationMessage).to.contain("…")
 	})
 
 	it("encodes Windows PowerShell notifications before dispatch", async () => {
-		const notificationsModule = loadNotificationsModule()
 		const execaStub = createResolvedExecaStub()
 		notificationsModule.setNotificationExecaForTesting(
 			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
@@ -163,7 +166,6 @@ describe("notifications", () => {
 	})
 
 	it("encodes PowerShell commands as UTF-16LE base64", () => {
-		const notificationsModule = loadNotificationsModule()
 		const encoded = notificationsModule.encodePowerShellCommand("Write-Host 'hello'")
 		expect(decodePowerShellEncodedCommand(encoded)).to.equal("Write-Host 'hello'")
 	})

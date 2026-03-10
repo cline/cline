@@ -94,7 +94,7 @@ async function compileProtos() {
 	log_verbose(chalk.green(`TypeScript files generated in: ${TS_OUT_DIR}`))
 }
 
-async function tsProtoc(outDir, protoFiles, protoOptions) {
+function tsProtoc(outDir, protoFiles, protoOptions) {
 	const args = [
 		`--proto_path=${PROTO_DIR}`,
 		`--plugin=protoc-gen-ts_proto=${TS_PROTO_PLUGIN}`,
