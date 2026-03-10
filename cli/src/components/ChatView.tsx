@@ -149,6 +149,7 @@ import { HelpPanelContent } from "./HelpPanelContent"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
 import { providerModels } from "./ModelPicker"
+import { RulesPanelContent } from "./RulesPanelContent"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SkillsPanelContent } from "./SkillsPanelContent"
 import { SlashCommandMenu } from "./SlashCommandMenu"
@@ -413,6 +414,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		| { type: "settings"; initialMode?: "model-picker" | "featured-models"; initialModelKey?: "actModelId" | "planModelId" }
 		| { type: "history" }
 		| { type: "help" }
+		| { type: "rules" }
 		| { type: "skills" }
 		| null
 	>(null)
@@ -1158,6 +1160,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						setSlashMenuDismissed(true)
 						return
 					}
+					if (cmd.name === "rules") {
+						setActivePanel({ type: "rules" })
+						setTextInput("")
+						setCursorPos(0)
+						setSelectedSlashIndex(0)
+						setSlashMenuDismissed(true)
+						return
+					}
 					if (cmd.name === "skills") {
 						setActivePanel({ type: "skills" })
 						setTextInput("")
@@ -1554,6 +1564,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 				{/* Help panel */}
 				{activePanel?.type === "help" && <HelpPanelContent onClose={() => setActivePanel(null)} />}
+
+				{/* Rules panel */}
+				{activePanel?.type === "rules" && ctrl && (
+					<RulesPanelContent controller={ctrl} onClose={() => setActivePanel(null)} />
+				)}
 
 				{/* Skills panel */}
 				{activePanel?.type === "skills" && ctrl && (

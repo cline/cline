@@ -92,6 +92,12 @@ export const CLI_ONLY_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
+		name: "rules",
+		description: "View and toggle rules",
+		section: "default",
+		cliCompatible: true,
+	},
+	{
 		name: "skills",
 		description: "View and manage installed skills",
 		section: "default",
