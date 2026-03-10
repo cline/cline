@@ -186,6 +186,7 @@ const buildEnvVars: Record<string, string> = {
 const buildTimeEnvs = [
 	"TELEMETRY_SERVICE_API_KEY",
 	"ERROR_SERVICE_API_KEY",
+	"ENABLE_ERROR_AUTOCAPTURE",
 	"POSTHOG_TELEMETRY_ENABLED",
 	"OTEL_TELEMETRY_ENABLED",
 	"OTEL_LOGS_EXPORTER",
@@ -208,8 +209,8 @@ if (production) {
 	buildEnvVars["process.env.IS_DEV"] = "false"
 }
 
-const config: esbuild.BuildOptions = {
-	entryPoints: [path.join(__dirname, "src", "index.ts")],
+// Shared build options
+const sharedOptions: Partial<esbuild.BuildOptions> = {
 	bundle: true,
 	minify: production,
 	sourcemap: !production,
@@ -221,7 +222,6 @@ const config: esbuild.BuildOptions = {
 	sourcesContent: false,
 	platform: "node",
 	target: "node20",
-	outfile: path.join(__dirname, "dist", "cli.mjs"),
 	// These modules need to load files from the module directory at runtime
 	external: [
 		"@grpc/reflection",
@@ -237,6 +237,13 @@ const config: esbuild.BuildOptions = {
 		"@vscode/ripgrep", // Uses __dirname to locate the binary
 	],
 	supported: { "top-level-await": true },
+}
+
+// CLI executable configuration
+const cliConfig: esbuild.BuildOptions = {
+	...sharedOptions,
+	entryPoints: [path.join(__dirname, "src", "index.ts")],
+	outfile: path.join(__dirname, "dist", "cli.mjs"),
 	banner: {
 		js: `#!/usr/bin/env node
 // Suppress all Node.js warnings (deprecation, experimental, etc.)
@@ -250,19 +257,44 @@ const __dirname = _dirname(__filename);`,
 	},
 }
 
+// Library configuration for programmatic use
+const libConfig: esbuild.BuildOptions = {
+	...sharedOptions,
+	entryPoints: [path.join(__dirname, "src", "exports.ts")],
+	outfile: path.join(__dirname, "dist", "lib.mjs"),
+	banner: {
+		js: `// Cline Library - Programmatic API
+import { createRequire as _createRequire } from 'module';
+import { fileURLToPath as _fileURLToPath } from 'url';
+import { dirname as _dirname } from 'path';
+const require = _createRequire(import.meta.url);
+const __filename = _fileURLToPath(import.meta.url);
+const __dirname = _dirname(__filename);`,
+	},
+}
+
 async function main() {
-	const ctx = await esbuild.context(config)
 	if (watch) {
+		// In watch mode, only watch the CLI (primary use case for development)
+		const ctx = await esbuild.context(cliConfig)
 		await ctx.watch()
 		console.log("[cli] Watching for changes...")
 	} else {
-		await ctx.rebuild()
-		await ctx.dispose()
+		// Build both CLI and library
+		console.log("[cli esbuild] Building CLI executable...")
+		const cliCtx = await esbuild.context(cliConfig)
+		await cliCtx.rebuild()
+		await cliCtx.dispose()
 
-		// Make the output executable
-		const outfile = path.join(__dirname, "dist", "cli.mjs")
-		if (fs.existsSync(outfile)) {
-			fs.chmodSync(outfile, "755")
+		console.log("[cli esbuild] Building library bundle...")
+		const libCtx = await esbuild.context(libConfig)
+		await libCtx.rebuild()
+		await libCtx.dispose()
+
+		// Make the CLI output executable
+		const cliOutfile = path.join(__dirname, "dist", "cli.mjs")
+		if (fs.existsSync(cliOutfile)) {
+			fs.chmodSync(cliOutfile, "755")
 		}
 	}
 }

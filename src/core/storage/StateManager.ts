@@ -19,6 +19,7 @@ import type { StorageContext } from "@shared/storage/storage-context"
 import chokidar, { FSWatcher } from "chokidar"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
+import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
 import {
 	getTaskHistoryStateFilePath,
 	readTaskHistoryFromState,
@@ -77,6 +78,7 @@ export class StateManager {
 	// In-memory model info cache (not persisted to disk)
 	// These are for dynamic providers that fetch models from APIs
 	private modelInfoCache: {
+		clineModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		openRouterModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		groqModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		basetenModels: { data: Record<string, ModelInfo>; timestamp: number } | null
@@ -88,6 +90,7 @@ export class StateManager {
 		liteLlmModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 		vercelModels: { data: Record<string, ModelInfo>; timestamp: number } | null
 	} = {
+		clineModels: null,
 		openRouterModels: null,
 		groqModels: null,
 		basetenModels: null,
@@ -147,6 +150,8 @@ export class StateManager {
 			await StateManager.instance.setupTaskHistoryWatcher()
 
 			StateManager.instance.isInitialized = true
+
+			await AgentConfigLoader.getInstance().ready()
 		} catch (error) {
 			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error
@@ -437,6 +442,7 @@ export class StateManager {
 	 */
 	setModelsCache(
 		provider:
+			| "cline"
 			| "openRouter"
 			| "groq"
 			| "baseten"
@@ -455,6 +461,7 @@ export class StateManager {
 
 	getModelsCache(
 		provider:
+			| "cline"
 			| "openRouter"
 			| "groq"
 			| "baseten"
@@ -874,12 +881,15 @@ export class StateManager {
 
 	/**
 	 * Helper to get a setting value with override support
-	 * Precedence: remote config > task settings > global settings
+	 * Precedence: remote config > session override > task settings > global settings
 	 */
 	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
 		const remoteValue = this.remoteConfigCache[key]
 		if (remoteValue !== undefined) {
 			return remoteValue
+		}
+		if (this.sessionOverrideCache[key] !== undefined) {
+			return this.sessionOverrideCache[key]
 		}
 		const taskValue = this.taskStateCache[key]
 		if (taskValue !== undefined) {

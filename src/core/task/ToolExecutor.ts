@@ -1,5 +1,6 @@
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
@@ -10,7 +11,7 @@ import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
-import { ClineDefaultTool } from "@shared/tools"
+import { ClineDefaultTool, toolUseNames } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
@@ -22,31 +23,7 @@ import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
-import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
-import { ActModeRespondHandler } from "./tools/handlers/ActModeRespondHandler"
-import { ApplyPatchHandler } from "./tools/handlers/ApplyPatchHandler"
-import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
-import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
-import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
-import { CondenseHandler } from "./tools/handlers/CondenseHandler"
-import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
-import { GenerateExplanationToolHandler } from "./tools/handlers/GenerateExplanationToolHandler"
-import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
-import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
-import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
-import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
-import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
-import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
-import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
-import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
-import { UseSubagentsToolHandler } from "./tools/handlers/SubagentToolHandler"
-import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
-import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
-import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
-import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
-import { WebSearchToolHandler } from "./tools/handlers/WebSearchToolHandler"
-import { WriteToFileToolHandler } from "./tools/handlers/WriteToFileToolHandler"
-import { IPartialBlockHandler, SharedToolHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
+import { IPartialBlockHandler, ToolExecutorCoordinator } from "./tools/ToolExecutorCoordinator"
 import { ToolValidator } from "./tools/ToolValidator"
 import { TaskConfig, validateTaskConfig } from "./tools/types/TaskConfig"
 import { createUIHelpers } from "./tools/types/UIHelpers"
@@ -193,7 +170,7 @@ export class ToolExecutor {
 				postStateToWebview: async () => {},
 				reinitExistingTaskFromId: async () => {},
 				cancelTask: this.cancelTask,
-				updateTaskHistory: async (_: any) => [],
+				updateTaskHistory: async () => [],
 				executeCommandTool: this.executeCommandTool,
 				cancelRunningCommandTool: this.cancelRunningCommandTool,
 				doesLatestTaskCompletionHaveNewChanges: this.doesLatestTaskCompletionHaveNewChanges,
@@ -222,38 +199,10 @@ export class ToolExecutor {
 	 */
 	private registerToolHandlers(): void {
 		const validator = new ToolValidator(this.clineIgnoreController)
-
-		// Register all tool handlers
-		this.coordinator.register(new ListFilesToolHandler(validator))
-		this.coordinator.register(new ReadFileToolHandler(validator))
-		this.coordinator.register(new BrowserToolHandler())
-		this.coordinator.register(new AskFollowupQuestionToolHandler())
-		this.coordinator.register(new WebFetchToolHandler())
-		this.coordinator.register(new WebSearchToolHandler())
-
-		// Register WriteToFileToolHandler for all three file tools with proper typing
-		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
-		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
-		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
-
-		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
-		this.coordinator.register(new SearchFilesToolHandler(validator))
-		this.coordinator.register(new ExecuteCommandToolHandler(validator))
-		this.coordinator.register(new UseMcpToolHandler())
-		this.coordinator.register(new AccessMcpResourceHandler())
-		this.coordinator.register(new LoadMcpDocumentationHandler())
-		this.coordinator.register(new UseSkillToolHandler())
-		this.coordinator.register(new PlanModeRespondHandler())
-		this.coordinator.register(new ActModeRespondHandler())
-		this.coordinator.register(new NewTaskHandler())
-		this.coordinator.register(new AttemptCompletionHandler())
-		this.coordinator.register(new CondenseHandler())
-		this.coordinator.register(new SummarizeTaskHandler(validator))
-		this.coordinator.register(new ReportBugHandler())
-		this.coordinator.register(new ApplyPatchHandler(validator))
-		this.coordinator.register(new GenerateExplanationToolHandler())
-		this.coordinator.register(new UseSubagentsToolHandler())
+		// Register all tools via toolUseNames
+		for (const tool of toolUseNames) {
+			this.coordinator.registerByName(tool, validator)
+		}
 	}
 
 	/**
@@ -512,6 +461,7 @@ export class ToolExecutor {
 		toolResult: any,
 		executionSuccess: boolean,
 		executionStartTime: number,
+		hooksEnabled: boolean,
 	): Promise<boolean> {
 		const { executeHook } = await import("../hooks/hook-executor")
 
@@ -534,7 +484,8 @@ export class ToolExecutor {
 			clearActiveHookExecution: this.clearActiveHookExecution,
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
-			hooksEnabled: true, // Already checked by caller
+			hooksEnabled,
+			model: getHookModelContext(this.api, this.stateManager),
 			toolName: block.name,
 		})
 
@@ -603,7 +554,7 @@ export class ToolExecutor {
 			return
 		}
 
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
@@ -635,7 +586,13 @@ export class ToolExecutor {
 			// Run PostToolUse hook for successful tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
 			if (hooksEnabled && block.name !== "attempt_completion") {
-				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				const hookRequestedCancel = await this.runPostToolUseHook(
+					block,
+					toolResult,
+					executionSuccess,
+					executionStartTime,
+					hooksEnabled, // always true here - already checked by caller
+				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true
@@ -653,7 +610,13 @@ export class ToolExecutor {
 			// Run PostToolUse hook for failed tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
 			if (toolWasExecuted && hooksEnabled && block.name !== "attempt_completion") {
-				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				const hookRequestedCancel = await this.runPostToolUseHook(
+					block,
+					toolResult,
+					executionSuccess,
+					executionStartTime,
+					hooksEnabled, // always true here - already checked by caller
+				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true

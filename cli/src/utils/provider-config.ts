@@ -7,6 +7,8 @@ import type { ApiProvider } from "@shared/api"
 import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "@/core/controller"
+import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
+import { refreshVercelAiGatewayModels } from "@/core/controller/models/refreshVercelAiGatewayModels"
 import { StateManager } from "@/core/storage/StateManager"
 import type { BedrockConfig } from "../components/BedrockSetup"
 import { getDefaultModelId } from "../components/ModelPicker"
@@ -40,13 +42,21 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 		if (actModelKey) config[actModelKey] = finalModelId
 		if (planModelKey) config[planModelKey] = finalModelId
 
-		// For cline/openrouter, also set model info (required for getModel() to return correct model)
+		// Fetch model info from the provider API (not just disk cache) so headless
+		// CLI auth gets correct maxTokens, thinkingConfig, etc.
 		if ((providerId === "cline" || providerId === "openrouter") && controller) {
-			const openRouterModels = await controller.readOpenRouterModels()
+			const openRouterModels = await refreshOpenRouterModels(controller)
 			const modelInfo = openRouterModels?.[finalModelId]
 			if (modelInfo) {
 				stateManager.setGlobalState("actModeOpenRouterModelInfo", modelInfo)
 				stateManager.setGlobalState("planModeOpenRouterModelInfo", modelInfo)
+			}
+		} else if (providerId === "vercel-ai-gateway" && controller) {
+			const vercelModels = await refreshVercelAiGatewayModels(controller)
+			const modelInfo = vercelModels?.[finalModelId]
+			if (modelInfo) {
+				stateManager.setGlobalState("actModeVercelAiGatewayModelInfo", modelInfo)
+				stateManager.setGlobalState("planModeVercelAiGatewayModelInfo", modelInfo)
 			}
 		}
 	}

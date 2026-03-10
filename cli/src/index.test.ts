@@ -1,5 +1,6 @@
 import { Command } from "commander"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { captureUnhandledException } from "."
 
 /**
  * Tests for CLI command parsing and structure
@@ -25,6 +26,7 @@ describe("CLI Commands", () => {
 			.option("-a, --act", "Run in act mode")
 			.option("-p, --plan", "Run in plan mode")
 			.option("-y, --yolo", "Enable yolo mode")
+			.option("--auto-approve-all", "Enable auto-approve all")
 			.option("-m, --model <model>", "Model to use")
 			.option("-i, --images <paths...>", "Image file paths")
 			.option("-v, --verbose", "Show verbose output")
@@ -33,6 +35,9 @@ describe("CLI Commands", () => {
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
+			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+			.option("--hooks-dir <path>", "Additional hooks directory")
 			.action(() => {})
 
 		program
@@ -72,6 +77,10 @@ describe("CLI Commands", () => {
 			.option("--thinking [tokens]", "Enable extended thinking")
 			.option("--reasoning-effort <effort>", "Reasoning effort")
 			.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes")
+			.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+			.option("--hooks-dir <path>", "Additional hooks directory")
+			.option("--auto-approve-all", "Enable auto-approve all")
 			.action(() => {})
 	})
 
@@ -106,6 +115,13 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--yolo"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().yolo).toBe(true)
+		})
+
+		it("should parse --auto-approve-all flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--auto-approve-all"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().autoApproveAll).toBe(true)
 		})
 
 		it("should parse --model option", () => {
@@ -169,6 +185,27 @@ describe("CLI Commands", () => {
 			const args = ["test prompt", "--max-consecutive-mistakes", "999"]
 			taskCmd.parse(args, { from: "user" })
 			expect(taskCmd.opts().maxConsecutiveMistakes).toBe("999")
+		})
+
+		it("should parse --hooks-dir option", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--hooks-dir", "/tmp/hooks"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().hooksDir).toBe("/tmp/hooks")
+		})
+
+		it("should parse --double-check-completion flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--double-check-completion"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().doubleCheckCompletion).toBe(true)
+		})
+
+		it("should parse --auto-condense flag", () => {
+			const taskCmd = program.commands.find((c) => c.name() === "task")!
+			const args = ["test prompt", "--auto-condense"]
+			taskCmd.parse(args, { from: "user" })
+			expect(taskCmd.opts().autoCondense).toBe(true)
 		})
 
 		it("should parse short flags", () => {
@@ -321,6 +358,16 @@ describe("CLI Commands", () => {
 			program.parse(["node", "cli", "--max-consecutive-mistakes", "7"])
 			expect(program.opts().maxConsecutiveMistakes).toBe("7")
 		})
+
+		it("should parse --hooks-dir option", () => {
+			program.parse(["node", "cli", "--hooks-dir", "/tmp/hooks"])
+			expect(program.opts().hooksDir).toBe("/tmp/hooks")
+		})
+
+		it("should parse --auto-approve-all flag", () => {
+			program.parse(["node", "cli", "--auto-approve-all"])
+			expect(program.opts().autoApproveAll).toBe(true)
+		})
 	})
 
 	describe("command structure", () => {
@@ -408,5 +455,44 @@ describe("getProviderModelIdKey", () => {
 
 	it("should return null for unknown providers", () => {
 		expect(getProviderModelIdKey("unknown-provider", "act")).toBeNull()
+	})
+})
+
+const mockCaptureException = vi.fn().mockResolvedValue(undefined)
+const mockDispose = vi.fn().mockResolvedValue(undefined)
+
+vi.mock("@/services/error/ErrorService", () => {
+	return {
+		ErrorService: {
+			get: () => ({
+				captureException: mockCaptureException,
+				dispose: mockDispose,
+			}),
+		},
+	}
+})
+
+describe("captureUnhandledException", () => {
+	beforeEach(() => {
+		vi.resetAllMocks()
+	})
+
+	it("captures unhandled exceptions", async () => {
+		const testError = new Error("Test unhandled exception")
+
+		await captureUnhandledException(testError, "unhandledRejection")
+
+		expect(mockCaptureException).toHaveBeenCalledWith(testError, { context: "unhandledRejection" })
+		expect(mockDispose).toHaveBeenCalled()
+	})
+
+	it("does not throw if captureException fails", async () => {
+		mockCaptureException.mockRejectedValueOnce(new Error("Capture failed"))
+
+		const testError = new Error("Test unhandled exception")
+
+		await expect(captureUnhandledException(testError, "unhandledRejection")).resolves.not.toThrow()
+		expect(mockCaptureException).toHaveBeenCalledWith(testError, { context: "unhandledRejection" })
+		expect(mockDispose).not.toHaveBeenCalled()
 	})
 })

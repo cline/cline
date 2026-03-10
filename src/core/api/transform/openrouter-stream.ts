@@ -9,7 +9,12 @@ import {
 	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
-import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
+import {
+	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+	isGeminiFlashModel,
+	shouldSkipReasoningForModel,
+	supportsReasoningEffortForModel,
+} from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format"
@@ -80,6 +85,7 @@ export async function createOpenRouterStream(
 		case "minimax/minimax-m2":
 		case "minimax/minimax-m2.1":
 		case "minimax/minimax-m2.1-lightning":
+		case "minimax/minimax-m2.5":
 			openAiMessages[0] = {
 				role: "system",
 				content: [
@@ -112,38 +118,6 @@ export async function createOpenRouterStream(
 			})
 			break
 		default:
-			break
-	}
-
-	// Not sure how openrouter defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
-	// (models usually default to max tokens allowed)
-	let maxTokens: number | undefined
-	switch (model.id) {
-		case "anthropic/claude-opus-4.6":
-		case "anthropic/claude-haiku-4.5":
-		case "anthropic/claude-4.5-haiku":
-		case "anthropic/claude-sonnet-4.6":
-		case "anthropic/claude-4.6-sonnet":
-		case "anthropic/claude-sonnet-4.5":
-		case "anthropic/claude-4.5-sonnet":
-		case "anthropic/claude-sonnet-4":
-		case "anthropic/claude-opus-4.5":
-		case "anthropic/claude-opus-4.1":
-		case "anthropic/claude-opus-4":
-		case "anthropic/claude-3.7-sonnet":
-		case "anthropic/claude-3.7-sonnet:beta":
-		case "anthropic/claude-3.7-sonnet:thinking":
-		case "anthropic/claude-3-7-sonnet":
-		case "anthropic/claude-3-7-sonnet:beta":
-		case "anthropic/claude-3.5-sonnet":
-		case "anthropic/claude-3.5-sonnet:beta":
-		case "anthropic/claude-3.5-sonnet-20240620":
-		case "anthropic/claude-3.5-sonnet-20240620:beta":
-		case "anthropic/claude-3-5-haiku":
-		case "anthropic/claude-3-5-haiku:beta":
-		case "anthropic/claude-3-5-haiku-20241022":
-		case "anthropic/claude-3-5-haiku-20241022:beta":
-			maxTokens = 8_192
 			break
 	}
 
@@ -211,10 +185,13 @@ export async function createOpenRouterStream(
 	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
 	const reasoningPayload =
 		reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined)
+	const maxTokens = isGeminiFlashModel(model.id)
+		? Math.min(model.info.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
+		: undefined
 
 	const requestPayload: Record<string, unknown> = {
 		model: model.id,
-		max_tokens: maxTokens,
+		...(maxTokens ? { max_tokens: maxTokens } : {}),
 		temperature: temperature,
 		top_p: topP,
 		messages: openAiMessages,

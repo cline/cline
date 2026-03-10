@@ -4,6 +4,7 @@ import { AnthropicModelId, anthropicModels } from "@/shared/api"
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
+export const GEMINI_FLASH_MAX_OUTPUT_TOKENS = 8_192
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)
@@ -85,6 +86,11 @@ export function isGPT5ModelFamily(id: string): boolean {
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
 }
 
+export function isGptOssModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-oss") || modelId.includes("gpt_oss")
+}
+
 export function isGPT51Model(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gpt-5.1") || modelId.includes("gpt-5-1")
@@ -147,6 +153,13 @@ export function isGemini3ModelFamily(id: string): boolean {
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
+export function isGeminiFlashModel(id: string): boolean {
+	const modelId = normalize(id)
+	const isGooglePrefixedGemini = modelId.startsWith("google/gemini")
+	const isDirectGemini = modelId.startsWith("gemini-")
+	return (isGooglePrefixedGemini || isDirectGemini) && modelId.includes("flash")
+}
+
 function isDeepSeek32ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("deepseek") && modelId.includes("3.2") && !modelId.includes("speciale")
@@ -164,6 +177,7 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId) ||
+		isGptOssModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||

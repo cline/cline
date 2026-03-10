@@ -269,6 +269,13 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 				type: GOOGLE_TOOL_PARAM_MAP[param.type || "string"] || GoogleToolParamType.OBJECT,
 			}
 
+			if (param.instruction) {
+				const desc = replacer(resolveInstruction(param.instruction, context), context)
+				if (desc) {
+					paramSchema.description = desc
+				}
+			}
+
 			if (param.properties) {
 				paramSchema.properties = {}
 				for (const [key, prop] of Object.entries<any>(param.properties)) {

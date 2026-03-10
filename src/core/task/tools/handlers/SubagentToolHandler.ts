@@ -10,6 +10,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
+import { AgentConfigLoader } from "../subagent/AgentConfigLoader"
 import { SubagentRunner } from "../subagent/SubagentRunner"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -18,6 +19,19 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 const MAX_SUBAGENT_PROMPTS = 5
 const PROMPT_KEYS = ["prompt_1", "prompt_2", "prompt_3", "prompt_4", "prompt_5"] as const
+
+function resolveConfiguredSubagentName(toolName: string): string | undefined {
+	return AgentConfigLoader.getInstance().resolveSubagentNameForTool(toolName)
+}
+
+function collectPrompts(block: ToolUse, configuredSubagentName?: string): string[] {
+	if (configuredSubagentName) {
+		const dynamicPrompt = block.params.prompt?.trim() || block.params.prompt_1?.trim()
+		return dynamicPrompt ? [dynamicPrompt] : []
+	}
+
+	return PROMPT_KEYS.map((key) => block.params[key]?.trim()).filter((prompt): prompt is string => !!prompt)
+}
 
 function excerpt(text: string | undefined, maxChars = 1200): string {
 	if (!text) {
@@ -36,13 +50,21 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.USE_SUBAGENTS
 
 	getDescription(_block: ToolUse): string {
-		return "[subagents]"
+		const configuredSubagentName = resolveConfiguredSubagentName(_block.name)
+		return configuredSubagentName ? `[subagent: ${configuredSubagentName}]` : "[subagents]"
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const prompts = PROMPT_KEYS.map((key) => uiHelpers.removeClosingTag(block, key, block.params[key]?.trim()))
-			.map((prompt) => prompt?.trim())
-			.filter((prompt): prompt is string => !!prompt)
+		const configuredSubagentName = resolveConfiguredSubagentName(block.name)
+		const prompts = configuredSubagentName
+			? [
+					uiHelpers
+						.removeClosingTag(block, "prompt", block.params.prompt?.trim() || block.params.prompt_1?.trim())
+						?.trim(),
+				].filter((prompt): prompt is string => !!prompt)
+			: PROMPT_KEYS.map((key) => uiHelpers.removeClosingTag(block, key, block.params[key]?.trim()))
+					.map((prompt) => prompt?.trim())
+					.filter((prompt): prompt is string => !!prompt)
 
 		if (prompts.length === 0) {
 			return
@@ -67,14 +89,15 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			return formatResponse.toolError("Subagents are disabled. Enable them in Settings > Features to use this tool.")
 		}
 
-		const prompts = PROMPT_KEYS.map((key) => block.params[key]?.trim()).filter((prompt): prompt is string => !!prompt)
+		const configuredSubagentName = resolveConfiguredSubagentName(block.name)
+		const prompts = collectPrompts(block, configuredSubagentName)
 
 		if (prompts.length === 0) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "prompt_1")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, configuredSubagentName ? "prompt" : "prompt_1")
 		}
 
-		if (prompts.length > MAX_SUBAGENT_PROMPTS) {
+		if (!configuredSubagentName && prompts.length > MAX_SUBAGENT_PROMPTS) {
 			config.taskState.consecutiveMistakeCount++
 			return formatResponse.toolError(
 				`Too many subagent prompts provided (${prompts.length}). Maximum is ${MAX_SUBAGENT_PROMPTS}.`,
@@ -104,7 +127,9 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 			)
 		} else {
 			showNotificationForApproval(
-				prompts.length === 1 ? "Cline wants to use a subagent" : `Cline wants to use ${prompts.length} subagents`,
+				prompts.length === 1
+					? `Cline wants to use ${configuredSubagentName ? `the '${configuredSubagentName}' subagent` : "a subagent"}`
+					: `Cline wants to use ${prompts.length} subagents`,
 				config.autoApprovalSettings.enableNotifications,
 			)
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("use_subagents", approvalBody, config)
@@ -187,7 +212,7 @@ export class UseSubagentsToolHandler implements IFullyManagedTool {
 		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "subagent")
 		await queueStatusUpdate("running", true)
 
-		const runners = prompts.map(() => new SubagentRunner(config))
+		const runners = prompts.map(() => new SubagentRunner(config, configuredSubagentName))
 		const abortPollInterval = setInterval(() => {
 			if (!config.taskState.abort) {
 				return
