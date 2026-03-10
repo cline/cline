@@ -149,6 +149,9 @@ export class GeminiHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
+		// Gemini may emit multiple function calls under the same responseId and without functionCall.id.
+		// Track a local sequence so each emitted tool call has a stable unique ID.
+		const responseToolCallSequence = new Map<string, number>()
 
 		// Configure thinking budget/level if supported
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
@@ -225,6 +228,7 @@ export class GeminiHandler implements ApiHandler {
 
 			let isFirstSdkChunk = true
 			for await (const chunk of result) {
+				const responseKey = chunk.responseId || "gemini-response"
 				if (isFirstSdkChunk) {
 					sdkFirstChunkTime = Date.now()
 					ttftSdkMs = sdkFirstChunkTime - sdkCallStartTime
@@ -253,12 +257,20 @@ export class GeminiHandler implements ApiHandler {
 						const functionCall = part.functionCall
 						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
 						if (functionCall.args && args.length > 0) {
+							const existingId = functionCall.id?.trim()
+							const toolCallId = existingId
+								? existingId
+								: `${responseKey}-tool-${responseToolCallSequence.get(responseKey) ?? 0}`
+							if (!existingId) {
+								responseToolCallSequence.set(responseKey, (responseToolCallSequence.get(responseKey) ?? 0) + 1)
+							}
 							yield {
 								type: "tool_calls",
 								id: chunk.responseId,
 								tool_call: {
+									call_id: toolCallId,
 									function: {
-										id: chunk.responseId,
+										id: toolCallId,
 										name: functionCall.name,
 										arguments: JSON.stringify(functionCall.args),
 									},
