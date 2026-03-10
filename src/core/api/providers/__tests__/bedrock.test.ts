@@ -1163,5 +1163,63 @@ describe("AwsBedrockHandler", () => {
 			// Turn 4: toolResult
 			formatted[3].content?.[0]?.toolResult?.toolUseId?.should.equal("call-2")
 		})
+
+		it("should silently skip thinking blocks without warnings", () => {
+			const h = new AwsBedrockHandler(mockOptions)
+			const conversation: any[] = [
+				{
+					role: "assistant",
+					content: [
+						{ type: "thinking", thinking: "Let me reason about this...", signature: "sig123" },
+						{ type: "text", text: "Here is my response." },
+					],
+				},
+				{
+					role: "user",
+					content: [{ type: "text", text: "Thanks!" }],
+				},
+			]
+
+			const formatted = h["formatMessagesForConverseAPI"](conversation)
+
+			// Thinking block should be filtered out, only text remains
+			formatted[0].content?.should.have.length(1)
+			formatted[0].content?.[0]?.text?.should.equal("Here is my response.")
+			formatted[1].content?.[0]?.text?.should.equal("Thanks!")
+		})
+
+		it("should silently skip redacted_thinking blocks without warnings", () => {
+			const h = new AwsBedrockHandler(mockOptions)
+			const conversation: any[] = [
+				{
+					role: "assistant",
+					content: [
+						{ type: "redacted_thinking", data: "encrypted_data_here" },
+						{ type: "text", text: "Response after redacted thinking." },
+					],
+				},
+			]
+
+			const formatted = h["formatMessagesForConverseAPI"](conversation)
+
+			// Redacted thinking block should be filtered out
+			formatted[0].content?.should.have.length(1)
+			formatted[0].content?.[0]?.text?.should.equal("Response after redacted thinking.")
+		})
+
+		it("should handle messages with only thinking blocks by producing empty content", () => {
+			const h = new AwsBedrockHandler(mockOptions)
+			const conversation: any[] = [
+				{
+					role: "assistant",
+					content: [{ type: "thinking", thinking: "Internal reasoning only", signature: "sig456" }],
+				},
+			]
+
+			const formatted = h["formatMessagesForConverseAPI"](conversation)
+
+			// All content filtered out
+			formatted[0].content?.should.have.length(0)
+		})
 	})
 })

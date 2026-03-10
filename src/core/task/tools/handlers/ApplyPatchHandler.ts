@@ -5,6 +5,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { applyPatch } from "diff"
 import { telemetryService } from "@/services/telemetry"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
 import { preserveEscaping } from "@/shared/string"
@@ -15,6 +16,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
 import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
 import { PatchParser } from "../utils/PatchParser"
 import { PathResolver } from "../utils/PathResolver"
@@ -297,7 +299,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				await this.prepareFileChange(change, operationPath)
 
 				// Get approval
-				const approved = await this.handleApproval(config, block, message, rawInput)
+				const approved = await this.handleApproval(config, block, message, rawInput, change)
 				if (!approved) {
 					this.config = undefined
 					config.taskState.didRejectTool = true
@@ -337,6 +339,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			this.config = undefined
 
+			// Extract provider info for human edit telemetry
+			const { providerId, modelId } = getModelInfo(config)
+
 			// Build response with file contents and diagnostics
 			const responseLines = ["Successfully applied patch to the following files:"]
 
@@ -357,6 +362,20 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 								diff: result.userEdits,
 							}),
 						)
+
+						// Capture human edit telemetry: diff between agent's proposed content and user's pre-save edits
+						// Use applyPatch to reconstruct pre-save content from userEdits, excluding auto-formatting noise
+						const change = commit.changes[path] || Object.values(commit.changes).find((c) => c.movePath === path)
+						const preSaveContent = result.userEdits ? applyPatch(change?.newContent || "", result.userEdits) : false
+						captureAccepted({
+							ulid: config.ulid,
+							tool: this.name,
+							source: "human",
+							beforeContent: change?.newContent || "",
+							afterContent: preSaveContent || result.finalContent || "",
+							providerId,
+							modelId,
+						})
 					}
 					if (result.autoFormattingEdits) {
 						responseLines.push(`\nAuto-formatting was applied to ${path}:\n${result.autoFormattingEdits}\n`)
@@ -687,16 +706,28 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return summaries
 	}
 
-	private async handleApproval(config: TaskConfig, block: ToolUse, message: ClineSayTool, rawInput: string): Promise<boolean> {
+	private async handleApproval(
+		config: TaskConfig,
+		block: ToolUse,
+		message: ClineSayTool,
+		rawInput: string,
+		change?: FileChange,
+	): Promise<boolean> {
 		const patch = { ...message, content: rawInput }
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
 
-		// Extract provider using the proven pattern from ReportBugHandler
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const modelId = config.api.getModel().id
+		// Extract provider info for telemetry
+		const { providerId, modelId } = getModelInfo(config)
+
+		// Determine file-level operation counts from the change type
+		const fileOps = change
+			? {
+					filesCreated: change.type === PatchActionType.ADD ? 1 : 0,
+					filesDeleted: change.type === PatchActionType.DELETE ? 1 : 0,
+					filesMoved: change.type === PatchActionType.UPDATE && change.movePath ? 1 : 0,
+				}
+			: { filesCreated: 0, filesDeleted: 0, filesMoved: 0 }
 
 		if (shouldAutoApprove) {
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -711,6 +742,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				undefined,
 				block.isNativeToolCall,
 			)
+			captureAccepted({
+				ulid: config.ulid,
+				tool: this.name,
+				source: "agent",
+				beforeContent: change?.oldContent || "",
+				afterContent: change?.newContent || "",
+				providerId,
+				modelId,
+				...fileOps,
+			})
 			return true
 		}
 
@@ -737,6 +778,30 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			undefined,
 			block.isNativeToolCall,
 		)
+
+		if (approved) {
+			captureAccepted({
+				ulid: config.ulid,
+				tool: this.name,
+				source: "agent",
+				beforeContent: change?.oldContent || "",
+				afterContent: change?.newContent || "",
+				providerId,
+				modelId,
+				...fileOps,
+			})
+		} else {
+			captureRejected({
+				ulid: config.ulid,
+				tool: this.name,
+				source: "agent",
+				beforeContent: change?.oldContent || "",
+				afterContent: change?.newContent || "",
+				providerId,
+				modelId,
+				...fileOps,
+			})
+		}
 
 		return approved
 	}

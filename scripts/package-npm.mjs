@@ -12,7 +12,9 @@
  *   - cd cli && npm run build:production
  */
 
+import { fileURLToPath } from "node:url"
 import { execSync } from "child_process"
+import dotenv from "dotenv"
 import fs from "fs"
 import { cp } from "fs/promises"
 import path from "path"
@@ -21,10 +23,18 @@ const BUILD_DIR = "dist-standalone"
 const CLI_DIR = "cli"
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const rootDir = path.resolve(__dirname, "..")
+// Load .env from repo root
+dotenv.config({ path: path.join(rootDir, ".env") })
+
 async function main() {
 	console.log("🚀 Building Cline CLI NPM Package (TypeScript)\n")
 
 	await cleanBuildDir()
+	setupEnvironmentVariables()
+
 	await buildTypeScriptCli()
 	await copyCliDist()
 	await copyPackageJson()
@@ -34,6 +44,17 @@ async function main() {
 	console.log("\n✅ Build complete!")
 	console.log(`\n📦 NPM package ready in ${BUILD_DIR}/`)
 	console.log(`To publish: cd ${BUILD_DIR} && npm publish`)
+}
+
+function setupEnvironmentVariables() {
+	// Use a different API key for CLI error capturing, to redirect CLI errors to a different project
+	const cliErrorTrackingKey = process.env.CLI_ERROR_SERVICE_API_KEY
+	if (cliErrorTrackingKey) {
+		process.env.ERROR_SERVICE_API_KEY = cliErrorTrackingKey
+		// If we're sending to a different project, enable exception autocapture
+		process.env.ENABLE_ERROR_AUTOCAPTURE = "true"
+		log_verbose("Set ERROR_SERVICE_API_KEY for build")
+	}
 }
 
 /**
@@ -59,7 +80,7 @@ async function buildTypeScriptCli() {
 	}
 
 	// Build production bundle
-	execSync("npm run build:production", { stdio: "inherit", cwd: CLI_DIR })
+	execSync("npm run build:production", { stdio: "inherit", cwd: CLI_DIR, env: process.env })
 	console.log("✓ TypeScript CLI built")
 }
 
