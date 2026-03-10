@@ -34,6 +34,10 @@ export function escapePowerShellSingleQuotedString(value: string): string {
 	return value.replace(/'/g, "''")
 }
 
+export function encodePowerShellCommand(command: string): string {
+	return Buffer.from(command, "utf16le").toString("base64")
+}
+
 export function createApprovalNotificationMessage(options: ApprovalNotificationOptions): string {
 	return options.requiresExplicitApproval ? `${options.message}${COMMAND_REQ_APP_STRING}` : options.message
 }
@@ -76,9 +80,10 @@ async function showMacOSNotification(options: NotificationOptions): Promise<void
 
 async function showWindowsNotification(options: NotificationOptions): Promise<void> {
 	const script = buildWindowsToastNotificationScript(options)
+	const encodedScript = encodePowerShellCommand(script)
 
 	try {
-		await execaImpl("powershell", ["-NoProfile", "-NonInteractive", "-Command", script])
+		await execaImpl("powershell", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodedScript])
 	} catch (error) {
 		throw new Error(`Failed to show Windows notification: ${error}`)
 	}

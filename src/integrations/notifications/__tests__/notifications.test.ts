@@ -9,6 +9,18 @@ function loadNotificationsModule() {
 	return require("..") as typeof import("..")
 }
 
+function decodePowerShellEncodedCommand(encoded: string): string {
+	return Buffer.from(encoded, "base64").toString("utf16le")
+}
+
+function flushMicrotasks(): Promise<void> {
+	return new Promise((resolve) => setImmediate(resolve))
+}
+
+function createResolvedExecaStub() {
+	return sinon.stub().resolves({} as Record<string, never>)
+}
+
 describe("notifications", () => {
 	afterEach(() => {
 		sinon.restore()
@@ -48,10 +60,14 @@ describe("notifications", () => {
 
 	it("escapes quotes and backslashes for macOS notifications", async () => {
 		const notificationsModule = loadNotificationsModule()
-		const execaStub = sinon.stub().resolves({} as any)
-		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const execaStub = createResolvedExecaStub()
+		notificationsModule.setNotificationExecaForTesting(
+			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
+		)
 		const platformStub = sinon.stub().returns("darwin")
-		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+		notificationsModule.setNotificationPlatformForTesting(
+			platformStub as unknown as Parameters<typeof notificationsModule.setNotificationPlatformForTesting>[0],
+		)
 
 		await notificationsModule.showSystemNotification({
 			title: 'Cline "Agent"',
@@ -69,10 +85,14 @@ describe("notifications", () => {
 
 	it("passes title and combined subtitle/message to notify-send on Linux", async () => {
 		const notificationsModule = loadNotificationsModule()
-		const execaStub = sinon.stub().resolves({} as any)
-		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const execaStub = createResolvedExecaStub()
+		notificationsModule.setNotificationExecaForTesting(
+			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
+		)
 		const platformStub = sinon.stub().returns("linux")
-		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+		notificationsModule.setNotificationPlatformForTesting(
+			platformStub as unknown as Parameters<typeof notificationsModule.setNotificationPlatformForTesting>[0],
+		)
 
 		await notificationsModule.showSystemNotification({ title: "Cline", subtitle: "Approval Required", message: "test" })
 
@@ -93,36 +113,58 @@ describe("notifications", () => {
 
 	it("routes approval notifications through platform dispatch only when enabled", async () => {
 		const notificationsModule = loadNotificationsModule()
-		const execaStub = sinon.stub().resolves({} as any)
-		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const execaStub = createResolvedExecaStub()
+		notificationsModule.setNotificationExecaForTesting(
+			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
+		)
 		const platformStub = sinon.stub().returns("linux")
-		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+		notificationsModule.setNotificationPlatformForTesting(
+			platformStub as unknown as Parameters<typeof notificationsModule.setNotificationPlatformForTesting>[0],
+		)
 
 		notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, false)
-		await Promise.resolve()
+		await flushMicrotasks()
 		sinon.assert.notCalled(execaStub)
 
 		notificationsModule.showApprovalNotification({ message: "npm install", requiresExplicitApproval: true }, true)
-		await Promise.resolve()
+		await flushMicrotasks()
 		sinon.assert.calledOnce(execaStub)
 		expect(execaStub.firstCall.args[0]).to.equal("notify-send")
 		expect(execaStub.firstCall.args[1]).to.deep.equal(["Cline", "Approval Required\nnpm installREQ_APP"])
 	})
 
-	it("uses hardened PowerShell flags on Windows dispatch", async () => {
+	it("encodes Windows PowerShell notifications before dispatch", async () => {
 		const notificationsModule = loadNotificationsModule()
-		const execaStub = sinon.stub().resolves({} as any)
-		notificationsModule.setNotificationExecaForTesting(execaStub as any)
+		const execaStub = createResolvedExecaStub()
+		notificationsModule.setNotificationExecaForTesting(
+			execaStub as unknown as Parameters<typeof notificationsModule.setNotificationExecaForTesting>[0],
+		)
 		const platformStub = sinon.stub().returns("win32")
-		notificationsModule.setNotificationPlatformForTesting(platformStub as any)
+		notificationsModule.setNotificationPlatformForTesting(
+			platformStub as unknown as Parameters<typeof notificationsModule.setNotificationPlatformForTesting>[0],
+		)
 
-		await notificationsModule.showSystemNotification({ subtitle: "Approval Required", message: "test" })
+		await notificationsModule.showSystemNotification({
+			subtitle: "Approval Required",
+			message: 'npm`install $(Start-Process calc) "quoted"',
+		})
 
 		sinon.assert.calledOnce(execaStub)
 		sinon.assert.calledOnce(platformStub)
 		expect(execaStub.firstCall.args[0]).to.equal("powershell")
 		const args = execaStub.firstCall.args[1] as string[]
-		expect(args.slice(0, 3)).to.deep.equal(["-NoProfile", "-NonInteractive", "-Command"])
+		expect(args.slice(0, 3)).to.deep.equal(["-NoProfile", "-NonInteractive", "-EncodedCommand"])
 		expect(args[3]).to.be.a("string")
+
+		const decodedScript = decodePowerShellEncodedCommand(args[3])
+		expect(decodedScript).to.contain("$message = 'npm`install $(Start-Process calc) \"quoted\"'")
+		expect(decodedScript).to.contain("$textNodes.Item(1).InnerText = $message")
+		expect(decodedScript).to.not.contain("-Command")
+	})
+
+	it("encodes PowerShell commands as UTF-16LE base64", () => {
+		const notificationsModule = loadNotificationsModule()
+		const encoded = notificationsModule.encodePowerShellCommand("Write-Host 'hello'")
+		expect(decodePowerShellEncodedCommand(encoded)).to.equal("Write-Host 'hello'")
 	})
 })

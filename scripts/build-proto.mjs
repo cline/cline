@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import chalk from "chalk"
-import { execSync } from "child_process"
+import { execFileSync, execSync } from "child_process"
 import fsSync from "fs"
 import * as fs from "fs/promises"
 import { globby } from "globby"
@@ -75,16 +75,16 @@ async function compileProtos() {
 	tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
 
 	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
-	const descriptorProtocCommand = [
-		PROTOC,
-		`--proto_path="${PROTO_DIR}"`,
-		`--descriptor_set_out="${descriptorFile}"`,
+	const descriptorProtocArgs = [
+		`--proto_path=${PROTO_DIR}`,
+		`--descriptor_set_out=${descriptorFile}`,
 		"--include_imports",
 		...protoFiles,
-	].join(" ")
+	]
 	try {
 		log_verbose(chalk.cyan("Generating descriptor set..."))
-		execSync(descriptorProtocCommand, { stdio: "inherit" })
+		log_verbose(`${PROTOC} ${descriptorProtocArgs.join(" ")}`)
+		execFileSync(PROTOC, descriptorProtocArgs, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
 		process.exit(1)
@@ -95,19 +95,17 @@ async function compileProtos() {
 }
 
 async function tsProtoc(outDir, protoFiles, protoOptions) {
-	// Build the protoc command with proper path handling for cross-platform
-	const command = [
-		PROTOC,
-		`--proto_path="${PROTO_DIR}"`,
-		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
-		`--ts_proto_out="${outDir}"`,
-		`--ts_proto_opt=${protoOptions.join(",")} `,
-		...protoFiles.map((s) => `"${s}"`),
-	].join(" ")
+	const args = [
+		`--proto_path=${PROTO_DIR}`,
+		`--plugin=protoc-gen-ts_proto=${TS_PROTO_PLUGIN}`,
+		`--ts_proto_out=${outDir}`,
+		`--ts_proto_opt=${protoOptions.join(",")}`,
+		...protoFiles,
+	]
 	try {
 		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
-		log_verbose(command)
-		execSync(command, { stdio: "inherit", shell: true })
+		log_verbose(`${PROTOC} ${args.join(" ")}`)
+		execFileSync(PROTOC, args, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
