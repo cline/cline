@@ -27,10 +27,11 @@ interface RulesPanelContentProps {
 }
 
 const MAX_VISIBLE = 10
+const PATH_SEPARATOR_REGEX = /[\\/]/
 
 function buildRuleEntries(toggles: Record<string, boolean>, isGlobal: boolean, ruleType: RuleEntry["ruleType"]): RuleEntry[] {
 	return Object.entries(toggles).map(([path, enabled]) => ({
-		name: path.split("/").pop() || path,
+		name: path.split(PATH_SEPARATOR_REGEX).at(-1) || path,
 		path,
 		enabled,
 		isGlobal,
