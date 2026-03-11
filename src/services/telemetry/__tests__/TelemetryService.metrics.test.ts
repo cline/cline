@@ -81,7 +81,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a")
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "cline")
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
@@ -93,7 +93,7 @@ describe("TelemetryService metrics", () => {
 		)
 		provider.counters.forEach((entry) => {
 			assert.strictEqual(entry.attributes.ulid, "task-1")
-			assert.strictEqual(entry.attributes.model, "model-a")
+			assert.strictEqual(entry.attributes.model, "cline")
 			assert.strictEqual(entry.attributes.extension_version, "test")
 		})
 	})
@@ -102,7 +102,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {
 			cacheWriteTokens: 50,
 			cacheReadTokens: 30,
 			totalCost: 0.42,
@@ -162,7 +162,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a", {})
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {})
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
@@ -178,7 +178,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a", {
 			cacheWriteTokens: 50,
 			cacheReadTokens: 30,
 			totalCost: 0.42,
