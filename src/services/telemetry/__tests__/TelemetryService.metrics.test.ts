@@ -81,7 +81,7 @@ describe("TelemetryService metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
-		service.captureTokenUsage("task-1", 120, 80, "anthropic", "cline")
+		service.captureTokenUsage("task-1", 120, 80, "anthropic", "model-a")
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
@@ -91,9 +91,10 @@ describe("TelemetryService metrics", () => {
 			provider.histograms.map((entry) => entry.name),
 			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
 		)
-		provider.counters.forEach((entry) => {
+		;[...provider.counters, ...provider.histograms].forEach((entry) => {
 			assert.strictEqual(entry.attributes.ulid, "task-1")
-			assert.strictEqual(entry.attributes.model, "cline")
+			assert.strictEqual(entry.attributes.provider, "anthropic")
+			assert.strictEqual(entry.attributes.model, "model-a")
 			assert.strictEqual(entry.attributes.extension_version, "test")
 		})
 	})
@@ -186,6 +187,8 @@ describe("TelemetryService metrics", () => {
 
 		const tokenEvent = provider.logs.find((entry) => entry.event === "task.tokens")
 		assert.ok(tokenEvent)
+		assert.strictEqual(tokenEvent?.properties?.provider, "anthropic")
+		assert.strictEqual(tokenEvent?.properties?.model, "model-a")
 		assert.strictEqual(tokenEvent?.properties?.cacheWriteTokens, 50)
 		assert.strictEqual(tokenEvent?.properties?.cacheReadTokens, 30)
 		assert.strictEqual(tokenEvent?.properties?.totalCost, 0.42)

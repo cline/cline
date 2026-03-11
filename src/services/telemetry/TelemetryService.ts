@@ -836,6 +836,7 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tokensIn Number of input tokens consumed
 	 * @param tokensOut Number of output tokens generated
+	 * @param provider The API provider identifier (e.g. "anthropic", "openai", "cline")
 	 * @param model The model used for token calculation
 	 */
 	public captureTokenUsage(
