@@ -398,14 +398,22 @@ export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponse
 }
 
 /**
- * Replaces template placeholders in description with viewport dimensions.
+ * Replaces template placeholders in descriptions for native tool schemas.
  */
 function replacer(description: string, context: SystemPromptContext): string {
 	const width = context.browserSettings?.viewport?.width || 900
 	const height = context.browserSettings?.viewport?.height || 600
+	const cwd = context.cwd || process.cwd()
+	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
 
-	return description.replace("{{BROWSER_VIEWPORT_WIDTH}}", String(width)).replace("{{BROWSER_VIEWPORT_HEIGHT}}", String(height))
+	return description
+		.replace(/{{BROWSER_VIEWPORT_WIDTH}}/g, String(width))
+		.replace(/{{BROWSER_VIEWPORT_HEIGHT}}/g, String(height))
+		.replace(/{{CWD}}/g, cwd)
+		.replace(/{{MULTI_ROOT_HINT}}/g, multiRootHint)
 }
+
+const MULTI_ROOT_HINT = " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
 
 /**
  * Resolves an instruction that may be a string or a function.
