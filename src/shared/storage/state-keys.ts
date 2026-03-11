@@ -342,6 +342,7 @@ const SECRETS_KEYS = [
 	"hicapApiKey",
 	"aihubmixApiKey",
 	"nousResearchApiKey",
+	"brainiallApiKey",
 	"remoteLiteLlmApiKey",
 	"ocaApiKey",
 	"ocaRefreshToken",

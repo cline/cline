@@ -91,6 +91,8 @@ function isProviderConfigured(providerId: string, config: ApiConfiguration): boo
 			return !!config.aihubmixApiKey
 		case "nousResearch":
 			return !!config.nousResearchApiKey
+		case "brainiall":
+			return !!config.brainiallApiKey
 		case "openai":
 			return !!(
 				(config.openAiBaseUrl && config.openAiApiKey) ||
