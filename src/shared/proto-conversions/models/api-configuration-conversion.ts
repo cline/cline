@@ -326,6 +326,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "brainiall":
+			return ProtoApiProvider.BRAINIALL
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -416,6 +418,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.BRAINIALL:
+			return "brainiall"
 		default:
 			return "anthropic"
 	}
@@ -502,6 +506,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
 		nousResearchApiKey: config.nousResearchApiKey,
+		brainiallApiKey: config.brainiallApiKey,
 		clineApiKey: config.clineApiKey,
 		ocaMode: config.ocaMode,
 		aihubmixApiKey: config.aihubmixApiKey,
@@ -683,6 +688,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		brainiallApiKey: protoConfig.brainiallApiKey,
 		clineApiKey: protoConfig.clineApiKey,
 
 		// Plan mode configurations
