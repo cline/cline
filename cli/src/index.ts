@@ -2,6 +2,7 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
+import { spawn } from "node:child_process"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
@@ -56,6 +57,7 @@ suppressConsoleUnlessVerbose()
 interface TaskOptions {
 	act?: boolean
 	plan?: boolean
+	kanban?: boolean
 	model?: string
 	verbose?: boolean
 	cwd?: string
@@ -246,6 +248,25 @@ function shouldUsePlainTextMode(options: TaskOptions): boolean {
  */
 function getPlainTextModeReason(options: TaskOptions): string {
 	return getModeSelection(options).reason
+}
+
+function getNpxCommand(): string {
+	return process.platform === "win32" ? "npx.cmd" : "npx"
+}
+
+function runKanbanAlias(): void {
+	const child = spawn(getNpxCommand(), ["kanban", "--agent", "cline"], {
+		stdio: "inherit",
+	})
+
+	child.on("error", () => {
+		printWarning("Failed to run 'npx kanban --agent cline'. Make sure npx is installed and available in PATH.")
+		exit(1)
+	})
+
+	child.on("close", (code) => {
+		exit(code ?? 1)
+	})
 }
 
 /**
@@ -854,6 +875,8 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.action(() => checkForUpdates(CLI_VERSION))
 
+program.command("kanban").description("Run npx kanban --agent cline").action(runKanbanAlias)
+
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")
 
@@ -1003,9 +1026,20 @@ program
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("--kanban", "Run npx kanban --agent cline")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
+		if (options.kanban) {
+			if (prompt) {
+				printWarning("Use --kanban without a prompt.")
+				exit(1)
+			}
+
+			runKanbanAlias()
+			return
+		}
+
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
 			await runAcpMode({
@@ -1091,4 +1125,6 @@ program
 	})
 
 // Parse and run
-program.parse()
+if (process.env.VITEST !== "true") {
+	program.parse()
+}
