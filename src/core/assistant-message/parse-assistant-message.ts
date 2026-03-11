@@ -1,4 +1,4 @@
-import { ClineDefaultTool, toolUseNames } from "@shared/tools"
+import { ClineDefaultTool, getToolUseNames } from "@shared/tools"
 import { nanoid } from "nanoid"
 import { AssistantMessageContent, TextStreamContent, ToolParamName, ToolUse, toolParamNames } from "." // Assuming types are defined in index.ts or a similar file
 
@@ -35,9 +35,9 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	let currentParamName: ToolParamName | undefined
 
 	// Precompute tags for faster lookups
-	const toolUseOpenTags = new Map<string, ClineDefaultTool>()
+	const toolUseOpenTags = new Map<string, string>()
 	const toolParamOpenTags = new Map<string, ToolParamName>()
-	for (const name of toolUseNames) {
+	for (const name of getToolUseNames()) {
 		toolUseOpenTags.set(`<${name}>`, name)
 	}
 	for (const name of toolParamNames) {
@@ -173,7 +173,7 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 					// Start the new tool use
 					currentToolUse = {
 						type: "tool_use",
-						name: toolName,
+						name: toolName as ClineDefaultTool,
 						params: {},
 						partial: true, // Assume partial until closing tag is found
 						call_id: nanoid(8),

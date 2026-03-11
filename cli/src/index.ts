@@ -2,28 +2,28 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
+import { spawn } from "node:child_process"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
 import { ClineEndpoint } from "@/config"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
+import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
+import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
-import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { StandaloneTerminalManager } from "@/integrations/terminal/standalone/StandaloneTerminalManager"
-import { BannerService } from "@/services/banner/BannerService"
 import { ErrorService } from "@/services/error/ErrorService"
-import { initializeDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { PostHogClientProvider } from "@/services/telemetry/providers/posthog/PostHogClientProvider"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@/shared/storage"
+import { getProviderModelIdKey } from "@/shared/storage"
 import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiReasoningEffort } from "@/shared/storage/types"
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
@@ -32,7 +32,8 @@ import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
-import { restoreConsole } from "./utils/console"
+import { isAuthConfigured } from "./utils/auth"
+import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
 import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
@@ -41,9 +42,14 @@ import { readStdinIfPiped } from "./utils/piped"
 import { runPlainTextTask } from "./utils/plain-text-task"
 import { applyProviderConfig } from "./utils/provider-config"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
+import { findMostRecentTaskForWorkspace } from "./utils/task-history"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
+
+// CLI-only behavior: suppress console output unless verbose mode is enabled.
+// Kept explicit here so importing the library bundle does not mutate global console methods.
+suppressConsoleUnlessVerbose()
 
 /**
  * Common options shared between runTask and resumeTask
@@ -51,18 +57,23 @@ import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 interface TaskOptions {
 	act?: boolean
 	plan?: boolean
+	kanban?: boolean
 	model?: string
 	verbose?: boolean
 	cwd?: string
+	continue?: boolean
 	config?: string
 	thinking?: boolean | string
 	reasoningEffort?: string
 	maxConsecutiveMistakes?: string
 	yolo?: boolean
+	autoApproveAll?: boolean
 	doubleCheckCompletion?: boolean
+	autoCondense?: boolean
 	timeout?: string
 	json?: boolean
 	stdinWasPiped?: boolean
+	hooksDir?: string
 }
 
 let telemetryDisposed = false
@@ -131,46 +142,43 @@ function normalizeMaxConsecutiveMistakes(value?: string): number | undefined {
 function applyTaskOptions(options: TaskOptions): void {
 	// Apply mode flag
 	if (options.plan) {
-		StateManager.get().setGlobalState("mode", "plan")
+		StateManager.get().setSessionOverride("mode", "plan")
 		telemetryService.captureHostEvent("mode_flag", "plan")
 	} else if (options.act) {
-		StateManager.get().setGlobalState("mode", "act")
+		StateManager.get().setSessionOverride("mode", "act")
 		telemetryService.captureHostEvent("mode_flag", "act")
 	}
 
 	// Apply model override if specified
 	if (options.model) {
-		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+		const selectedMode = (StateManager.get().getGlobalSettingsKey("mode") ?? "act") as "act" | "plan"
 		const providerKey = selectedMode === "act" ? "actModeApiProvider" : "planModeApiProvider"
 		const currentProvider = StateManager.get().getGlobalSettingsKey(providerKey) as ApiProvider
 		const modelKey = getProviderModelIdKey(currentProvider, selectedMode)
 		if (modelKey) {
-			StateManager.get().setGlobalState(modelKey, options.model)
+			StateManager.get().setSessionOverride(modelKey, options.model)
 		}
 		telemetryService.captureHostEvent("model_flag", options.model)
 	}
 
+	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
+
 	// Set thinking budget based on --thinking flag (boolean or number)
-	let thinkingBudget = 0
-	if (options.thinking) {
+	if (options.thinking !== undefined) {
+		let thinkingBudget = 1024
 		if (typeof options.thinking === "string") {
 			const parsed = Number.parseInt(options.thinking, 10)
 			if (Number.isNaN(parsed) || parsed < 0) {
 				printWarning(`Invalid --thinking value '${options.thinking}'. Using default 1024.`)
-				thinkingBudget = 1024
 			} else {
 				thinkingBudget = parsed
 			}
-		} else {
-			thinkingBudget = 1024
 		}
-	}
-	const currentMode = (StateManager.get().getGlobalSettingsKey("mode") || "act") as "act" | "plan"
-	setModeScopedState(currentMode, (mode) => {
-		const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
-		StateManager.get().setGlobalState(thinkingKey, thinkingBudget)
-	})
-	if (options.thinking) {
+
+		setModeScopedState(currentMode, (mode) => {
+			const thinkingKey = mode === "act" ? "actModeThinkingBudgetTokens" : "planModeThinkingBudgetTokens"
+			StateManager.get().setSessionOverride(thinkingKey, thinkingBudget)
+		})
 		telemetryService.captureHostEvent("thinking_flag", "true")
 	}
 
@@ -178,27 +186,39 @@ function applyTaskOptions(options: TaskOptions): void {
 	if (reasoningEffort !== undefined) {
 		setModeScopedState(currentMode, (mode) => {
 			const reasoningKey = mode === "act" ? "actModeReasoningEffort" : "planModeReasoningEffort"
-			StateManager.get().setGlobalState(reasoningKey, reasoningEffort)
+			StateManager.get().setSessionOverride(reasoningKey, reasoningEffort)
 		})
 		telemetryService.captureHostEvent("reasoning_effort_flag", reasoningEffort)
 	}
 
 	const maxConsecutiveMistakes = normalizeMaxConsecutiveMistakes(options.maxConsecutiveMistakes)
 	if (maxConsecutiveMistakes !== undefined) {
-		StateManager.get().setGlobalState("maxConsecutiveMistakes", maxConsecutiveMistakes)
+		StateManager.get().setSessionOverride("maxConsecutiveMistakes", maxConsecutiveMistakes)
 		telemetryService.captureHostEvent("max_consecutive_mistakes_flag", String(maxConsecutiveMistakes))
 	}
 
-	// Set yolo mode based on --yolo flag
+	// Set yolo mode as a session-scoped override so AutoApprove picks it up,
+	// but it is never persisted to disk (setSessionOverride never touches pendingGlobalState).
 	if (options.yolo) {
-		StateManager.get().setGlobalState("yoloModeToggled", true)
+		StateManager.get().setSessionOverride("yoloModeToggled", true)
 		telemetryService.captureHostEvent("yolo_flag", "true")
+	}
+
+	// Set auto-approve-all as a session-scoped override so CLI flag does not
+	// persist user settings to disk.
+	if (options.autoApproveAll) {
+		StateManager.get().setSessionOverride("autoApproveAllToggled", true)
+		telemetryService.captureHostEvent("auto_approve_all_flag", "true")
 	}
 
 	// Set double-check completion based on flag
 	if (options.doubleCheckCompletion) {
-		StateManager.get().setGlobalState("doubleCheckCompletionEnabled", true)
+		StateManager.get().setSessionOverride("doubleCheckCompletionEnabled", true)
 		telemetryService.captureHostEvent("double_check_completion_flag", "true")
+	}
+
+	if (options.autoCondense) {
+		StateManager.get().setSessionOverride("useAutoCondense", true)
 	}
 }
 
@@ -228,6 +248,25 @@ function shouldUsePlainTextMode(options: TaskOptions): boolean {
  */
 function getPlainTextModeReason(options: TaskOptions): string {
 	return getModeSelection(options).reason
+}
+
+function getNpxCommand(): string {
+	return process.platform === "win32" ? "npx.cmd" : "npx"
+}
+
+function runKanbanAlias(): void {
+	const child = spawn(getNpxCommand(), ["kanban", "--agent", "cline"], {
+		stdio: "inherit",
+	})
+
+	child.on("error", () => {
+		printWarning("Failed to run 'npx kanban --agent cline'. Make sure npx is installed and available in PATH.")
+		exit(1)
+	})
+
+	child.on("close", (code) => {
+		exit(code ?? 1)
+	})
 }
 
 /**
@@ -313,6 +352,42 @@ async function drainStdout(): Promise<void> {
 	})
 }
 
+export async function captureUnhandledException(reason: Error, context: string) {
+	try {
+		// ErrorService may not be initialized yet (e.g., error occurred before initializeCli())
+		// so we guard with a try/get pattern rather than letting ErrorService.get() throw
+		let errorService: ErrorService | null = null
+		try {
+			errorService = ErrorService.get()
+		} catch {
+			// ErrorService not yet initialized; skip capture
+		}
+		if (errorService) {
+			await errorService.captureException(reason, { context })
+			// dispose flushes any pending error captures to ensure they're sent before the process exits
+			return errorService.dispose()
+		}
+	} catch {
+		// Ignore errors during shutdown to avoid an infinite loop
+		Logger.info("Error capturing unhandled exception. Proceeding with shutdown.")
+	}
+}
+
+const EXIT_TIMEOUT_MS = 3000
+function onUnhandledException(reason: unknown, context: string) {
+	Logger.error("Unhandled exception:", reason)
+	const finalError = reason instanceof Error ? reason : new Error(String(reason))
+
+	restoreConsole()
+	console.error(finalError)
+
+	setTimeout(() => process.exit(1), EXIT_TIMEOUT_MS)
+
+	captureUnhandledException(finalError, context).finally(() => {
+		process.exit(1)
+	})
+}
+
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
 		if (isShuttingDown) {
@@ -344,7 +419,17 @@ function setupSignalHandlers() {
 				}
 				await disposeCliContext(activeContext)
 			} else {
-				await ErrorService.get().dispose()
+				// Best-effort flush of restored yolo state when no active context
+				try {
+					await StateManager.get().flushPendingState()
+				} catch {
+					// StateManager may not be initialized yet
+				}
+				try {
+					await ErrorService.get().dispose()
+				} catch {
+					// ErrorService may not be initialized yet
+				}
 				await disposeTelemetryServices()
 			}
 		} catch {
@@ -366,9 +451,14 @@ function setupSignalHandlers() {
 			Logger.info("Suppressed unhandled rejection due to abort:", message)
 			return
 		}
-		// For other unhandled rejections, log to file via Logger (if available)
+
+		// For other unhandled rejections, capture the exception and log to file via Logger (if available)
 		// This won't show in terminal but will be in log files for debugging
-		Logger.error("Unhandled rejection:", reason)
+		onUnhandledException(reason, "unhandledRejection")
+	})
+
+	process.on("uncaughtException", (reason: unknown) => {
+		onUnhandledException(reason, "uncaughtException")
 	})
 }
 
@@ -385,6 +475,7 @@ interface CliContext {
 interface InitOptions {
 	config?: string
 	cwd?: string
+	hooksDir?: string
 	verbose?: boolean
 	enableAuth?: boolean
 }
@@ -394,7 +485,8 @@ interface InitOptions {
  */
 async function initializeCli(options: InitOptions): Promise<CliContext> {
 	const workspacePath = options.cwd || process.cwd()
-	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
+	setRuntimeHooksDir(options.hooksDir)
+	const { extensionContext, storageContext, DATA_DIR, EXTENSION_DIR } = initializeCliContext({
 		clineDir: options.config,
 		workspaceDir: workspacePath,
 	})
@@ -407,7 +499,6 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 	Logger.subscribe(logToChannel)
 
 	await ClineEndpoint.initialize(EXTENSION_DIR)
-	await initializeDistinctId(extensionContext)
 
 	// Auto-update check (after endpoints initialized, so we can detect bundled configs)
 	autoUpdateOnStartup(CLI_VERSION)
@@ -436,16 +527,11 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 		DATA_DIR,
 	)
 
-	await StateManager.initialize(extensionContext as any)
+	await StateManager.initialize(storageContext)
 	await ErrorService.initialize()
-
-	// Initialize OpenAI Codex OAuth manager with extension context for secrets storage
-	openAiCodexOAuthManager.initialize(extensionContext)
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	BannerService.initialize(webview.controller)
 
 	await telemetryService.captureExtensionActivated()
 	await telemetryService.captureHostEvent("cline_cli", "initialized")
@@ -500,6 +586,11 @@ async function runTask(prompt: string, options: TaskOptions & { images?: string[
 
 	// Task without prompt starts in interactive mode
 	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
+
+	// Capture piped stdin telemetry now that HostProvider is initialized
+	if (options.stdinWasPiped) {
+		telemetryService.captureHostEvent("piped", "detached")
+	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
 	applyTaskOptions(options)
@@ -593,7 +684,7 @@ async function showConfig(options: { config?: string }) {
 			dataDir: ctx.dataDir,
 			globalState: stateManager.getAllGlobalStateEntries(),
 			workspaceState: stateManager.getAllWorkspaceStateEntries(),
-			hooksEnabled: true,
+			hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 			skillsEnabled: true,
 			isRawModeSupported: checkRawModeSupport(),
 		}),
@@ -725,7 +816,8 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yes/yolo mode (auto-approve actions)")
-	.option("-t, --timeout <seconds>", "Timeout in seconds for yes/yolo mode (default: 600)")
+	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
+	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
@@ -735,6 +827,8 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.action((prompt, options) => {
 		if (options.taskId) {
@@ -761,9 +855,9 @@ program
 program
 	.command("auth")
 	.description("Authenticate a provider and configure what model is used")
-	.option("-p, --provider <id>", "Provider ID for quick setup (e.g., openai-native, anthropic)")
+	.option("-p, --provider <id>", "Provider ID for quick setup (e.g., openai-native, anthropic, moonshot)")
 	.option("-k, --apikey <key>", "API key for the provider")
-	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929)")
+	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-6, kimi-k2.5)")
 	.option("-b, --baseurl <url>", "Base URL (optional, only for openai provider)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
@@ -781,6 +875,8 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.action(() => checkForUpdates(CLI_VERSION))
 
+program.command("kanban").description("Run npx kanban --agent cline").action(runKanbanAlias)
+
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")
 
@@ -791,68 +887,6 @@ devCommand
 		const { openExternal } = await import("@/utils/env")
 		await openExternal(CLI_LOG_FILE)
 	})
-
-/**
- * Check if the user has completed onboarding (has any provider configured).
- *
- * Uses `welcomeViewCompleted` as the single source of truth, matching the VS Code extension's approach.
- * If `welcomeViewCompleted` is undefined (first run), checks if ANY provider has credentials
- * and sets the flag accordingly.
- */
-async function isAuthConfigured(): Promise<boolean> {
-	const stateManager = StateManager.get()
-
-	// Check welcomeViewCompleted first - this is the single source of truth
-	const welcomeViewCompleted = stateManager.getGlobalStateKey("welcomeViewCompleted")
-	if (welcomeViewCompleted !== undefined) {
-		return welcomeViewCompleted
-	}
-
-	// welcomeViewCompleted is undefined - run migration logic to check if ANY provider has credentials
-	// This mirrors the extension's migrateWelcomeViewCompleted behavior
-	const hasAnyAuth = await checkAnyProviderConfigured()
-
-	// Set welcomeViewCompleted based on what we found
-	stateManager.setGlobalState("welcomeViewCompleted", hasAnyAuth)
-	await stateManager.flushPendingState()
-
-	return hasAnyAuth
-}
-
-/**
- * Check if ANY provider has valid credentials configured.
- * Used for migration when welcomeViewCompleted is undefined.
- */
-async function checkAnyProviderConfigured(): Promise<boolean> {
-	const stateManager = StateManager.get()
-	const config = stateManager.getApiConfiguration() as Record<string, unknown>
-
-	// Check Cline account (stored as "cline:clineAccountId" in secrets, loaded into config)
-	if (config["clineApiKey"] || config["cline:clineAccountId"]) return true
-
-	// Check OpenAI Codex OAuth (stored in SECRETS_KEYS, loaded into config)
-	if (config["openai-codex-oauth-credentials"]) return true
-
-	// Check all BYO provider API keys (loaded into config from secrets)
-	for (const [provider, keyField] of Object.entries(ProviderToApiKeyMap)) {
-		// Skip cline - already checked above with the correct key
-		if (provider === "cline") continue
-
-		const fields = Array.isArray(keyField) ? keyField : [keyField]
-		for (const field of fields) {
-			if (config[field]) return true
-		}
-	}
-
-	// Check provider-specific settings that indicate configuration
-	// (for providers that don't require API keys like Bedrock with IAM, Ollama, LM Studio)
-	if (config.awsRegion) return true
-	if (config.vertexProjectId) return true
-	if (config.ollamaBaseUrl) return true
-	if (config.lmStudioBaseUrl) return true
-
-	return false
-}
 
 /**
  * Validate that a task exists in history
@@ -867,8 +901,8 @@ function findTaskInHistory(taskId: string): HistoryItem | null {
  * Resume an existing task by ID
  * Loads the task and optionally prefills the input with a prompt
  */
-async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }) {
-	const ctx = await initializeCli({ ...options, enableAuth: true })
+async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt?: string }, existingContext?: CliContext) {
+	const ctx = existingContext || (await initializeCli({ ...options, enableAuth: true }))
 
 	// Validate task exists
 	const historyItem = findTaskInHistory(taskId)
@@ -880,6 +914,11 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 	}
 
 	telemetryService.captureHostEvent("resume_task_command", options.initialPrompt ? "with_prompt" : "interactive")
+
+	// Capture piped stdin telemetry now that HostProvider is initialized
+	if (options.stdinWasPiped) {
+		telemetryService.captureHostEvent("piped", "detached")
+	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
 	applyTaskOptions(options)
@@ -915,15 +954,34 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 	)
 }
 
+async function continueTask(options: TaskOptions) {
+	const ctx = await initializeCli({ ...options, enableAuth: true })
+	const historyItem = findMostRecentTaskForWorkspace(StateManager.get().getGlobalStateKey("taskHistory"), ctx.workspacePath)
+
+	if (!historyItem) {
+		printWarning(`No previous task found for ${ctx.workspacePath}`)
+		printInfo("Start a new task or use 'cline history' to browse previous tasks.")
+		await disposeCliContext(ctx)
+		exit(1)
+	}
+
+	return resumeTask(historyItem.id, options, ctx)
+}
+
 /**
  * Show welcome prompt and wait for user input
  * If auth is not configured, show auth flow first
  */
-async function showWelcome(options: { verbose?: boolean; cwd?: string; config?: string; thinking?: boolean }) {
+async function showWelcome(options: TaskOptions) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
 	// Check if auth is configured
 	const hasAuth = await isAuthConfigured()
+
+	// Apply CLI task options in interactive startup too, so flags like
+	// --auto-approve-all and --yolo affect the initial TUI state.
+	applyTaskOptions(options)
+	await StateManager.get().flushPendingState()
 
 	let hadError = false
 
@@ -954,7 +1012,8 @@ program
 	.option("-a, --act", "Run in act mode")
 	.option("-p, --plan", "Run in plan mode")
 	.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
-	.option("-t, --timeout <seconds>", "Timeout in seconds for yolo mode (default: 600)")
+	.option("--auto-approve-all", "Enable auto-approve all actions while keeping interactive mode")
+	.option("-t, --timeout <seconds>", "Optional timeout in seconds (applies only when provided)")
 	.option("-m, --model <model>", "Model to use for the task")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory")
@@ -964,14 +1023,29 @@ program
 	.option("--max-consecutive-mistakes <count>", "Maximum consecutive mistakes before halting in yolo mode")
 	.option("--json", "Output messages as JSON instead of styled text")
 	.option("--double-check-completion", "Reject first completion attempt to force re-verification")
+	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
+	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("--kanban", "Run npx kanban --agent cline")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
+	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
+		if (options.kanban) {
+			if (prompt) {
+				printWarning("Use --kanban without a prompt.")
+				exit(1)
+			}
+
+			runKanbanAlias()
+			return
+		}
+
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
 			await runAcpMode({
 				config: options.config,
 				cwd: options.cwd,
+				hooksDir: options.hooksDir,
 				verbose: options.verbose,
 			})
 			return
@@ -985,6 +1059,25 @@ program
 		// stdinInput === "" means stdin was piped but empty
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
+
+		if (options.taskId && options.continue) {
+			printWarning("Use either --taskId or --continue, not both.")
+			exit(1)
+		}
+
+		if (options.continue) {
+			if (prompt) {
+				printWarning("Use --continue without a prompt.")
+				exit(1)
+			}
+			if (stdinWasPiped) {
+				printWarning("Use --continue without piped input.")
+				exit(1)
+			}
+
+			await continueTask(options)
+			return
+		}
 
 		// Error if stdin was piped but empty AND no prompt was provided
 		// This handles:
@@ -1005,8 +1098,6 @@ program
 			} else {
 				effectivePrompt = stdinInput
 			}
-
-			telemetryService.captureHostEvent("piped", "detached")
 
 			// Debug: show that we received piped input
 			if (options.verbose) {
@@ -1034,4 +1125,6 @@ program
 	})
 
 // Parse and run
-program.parse()
+if (process.env.VITEST !== "true") {
+	program.parse()
+}

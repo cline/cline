@@ -65,14 +65,18 @@ interface ContentBlockStart {
 	start?: {
 		type?: string
 		thinking?: string
+		signature?: string
 		toolUse?: ToolUseStart
 	}
 	contentBlock?: {
 		type?: string
 		thinking?: string
+		signature?: string
 	}
 	type?: string
 	thinking?: string
+	// Redacted thinking block data
+	data?: string
 }
 
 // Define types for stream response deltas
@@ -82,6 +86,7 @@ interface ContentBlockDelta {
 		type?: string
 		thinking?: string
 		text?: string
+		signature?: string
 		reasoningContent?: {
 			text?: string
 		}
@@ -102,7 +107,7 @@ interface ToolUseDelta {
 }
 
 // Define types for supported content types
-type SupportedContentType = "text" | "image" | "thinking"
+type SupportedContentType = "text" | "image" | "thinking" | "redacted_thinking" | "document"
 
 interface ContentItem {
 	type: SupportedContentType
@@ -127,9 +132,11 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
-// a special jp inference profile was created for opus 4.6, sonnet 4.5 & haiku 4.5
+// a special jp inference profile was created for sonnet 4.6, opus 4.6, sonnet 4.5 & haiku 4.5
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
 const JP_SUPPORTED_CRIS_MODELS = [
+	"anthropic.claude-sonnet-4-6",
+	"anthropic.claude-sonnet-4-6:1m",
 	"anthropic.claude-opus-4-6-v1",
 	"anthropic.claude-opus-4-6-v1:1m",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -626,6 +633,7 @@ export class AwsBedrockHandler implements ApiHandler {
 									yield {
 										type: "reasoning",
 										reasoning: reasoningBlock.text,
+										...(reasoningBlock.signature ? { signature: reasoningBlock.signature } : {}),
 									}
 								}
 							}
@@ -678,15 +686,31 @@ export class AwsBedrockHandler implements ApiHandler {
 						) {
 							if (blockIndex !== undefined) {
 								blockTypes.set(blockIndex, "reasoning")
+								// Capture signature if provided at block start
+								const signature = blockStart.start?.signature || blockStart.contentBlock?.signature || undefined
 								// Initialize content if provided
 								const initialContent =
 									blockStart.start?.thinking || blockStart.contentBlock?.thinking || blockStart.thinking || ""
-								if (initialContent) {
+								if (initialContent || signature) {
 									yield {
 										type: "reasoning",
-										reasoning: initialContent,
+										reasoning: initialContent || "",
+										...(signature ? { signature } : {}),
 									}
 								}
+							}
+						}
+
+						// Handle redacted thinking blocks
+						if (
+							blockStart.start?.type === "redacted_thinking" ||
+							blockStart.contentBlock?.type === "redacted_thinking" ||
+							blockStart.type === "redacted_thinking"
+						) {
+							yield {
+								type: "reasoning",
+								reasoning: "[Redacted thinking block]",
+								...(blockStart.data ? { redacted_data: blockStart.data } : {}),
 							}
 						}
 					}
@@ -705,8 +729,16 @@ export class AwsBedrockHandler implements ApiHandler {
 							const blockType = blockTypes.get(blockIndex)
 							const delta = chunk.contentBlockDelta.delta as ContentBlockDelta["delta"]
 
+							// Handle signature delta - used to send thinking block signatures
+							if (delta?.type === "signature_delta" && delta?.signature) {
+								yield {
+									type: "reasoning",
+									reasoning: "", // reasoning text already sent via thinking_delta
+									signature: delta.signature,
+								}
+							}
 							// Handle thinking delta (Anthropic SDK format)
-							if (delta?.type === "thinking_delta" || delta?.thinking) {
+							else if (delta?.type === "thinking_delta" || delta?.thinking) {
 								const thinkingContent = delta.thinking || delta.text || ""
 								if (thinkingContent) {
 									yield {
@@ -955,6 +987,12 @@ export class AwsBedrockHandler implements ApiHandler {
 									input: item.input,
 								},
 							}
+						}
+
+						// Skip thinking blocks - Bedrock Converse API handles thinking via
+						// the thinking config parameter, not by replaying blocks in history
+						if (item.type === "thinking" || item.type === "redacted_thinking") {
+							return null
 						}
 
 						if (item.type === "tool_result") {

@@ -4,6 +4,10 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import type { HookExecution } from "./types/HookExecution"
 
 export class TaskState {
+	// Task-level timing
+	taskStartTimeMs = Date.now()
+	taskFirstTokenTimeMs?: number
+
 	// Streaming flags
 	isStreaming = false
 	isWaitingForFirstChunk = false

@@ -1,5 +1,6 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import type { ModelInfo } from "@shared/api"
+import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
@@ -12,6 +13,7 @@ import {
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
+	openRouterClaudeSonnet461mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -118,7 +120,7 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 			const rawModels = response.data.data
 			const parsePrice = (price: any) => {
 				if (price) {
-					return parseFloat(price) * 1_000_000
+					return Number.parseFloat(price) * 1_000_000
 				}
 				return undefined
 			}
@@ -144,6 +146,8 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 				}
 
 				switch (rawModel.id) {
+					case "anthropic/claude-sonnet-4.6":
+					case "anthropic/claude-4.6-sonnet":
 					case "anthropic/claude-sonnet-4.5":
 					case "anthropic/claude-4.5-sonnet":
 					case "anthropic/claude-sonnet-4":
@@ -261,17 +265,38 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						break
 				}
 
+				if (isGeminiFlashModel(rawModel.id)) {
+					modelInfo.maxTokens = Math.min(
+						modelInfo.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+						GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+					)
+				}
+
 				models[rawModel.id] = modelInfo
 
 				// add custom :1m model variant for sonnet
-				if (rawModel.id === "anthropic/claude-sonnet-4" || rawModel.id === "anthropic/claude-sonnet-4.5") {
+				if (
+					rawModel.id === "anthropic/claude-sonnet-4" ||
+					rawModel.id === "anthropic/claude-sonnet-4.5" ||
+					rawModel.id === "anthropic/claude-4.5-sonnet" ||
+					rawModel.id === "anthropic/claude-sonnet-4.6" ||
+					rawModel.id === "anthropic/claude-4.6-sonnet"
+				) {
 					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
 					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
 					// sonnet 4
-					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+					if (rawModel.id === "anthropic/claude-sonnet-4") {
+						models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+					}
 					// sonnet 4.5
-					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+					if (rawModel.id === "anthropic/claude-sonnet-4.5" || rawModel.id === "anthropic/claude-4.5-sonnet") {
+						models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+					}
+					// sonnet 4.6
+					if (rawModel.id === "anthropic/claude-sonnet-4.6" || rawModel.id === "anthropic/claude-4.6-sonnet") {
+						models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo
+					}
 				}
 
 				// add custom :1m model variant for opus 4.6

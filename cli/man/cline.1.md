@@ -56,6 +56,8 @@ Run a new task with a prompt.
 
 **-y**, **\--yolo** :   Enable yolo/yes mode (auto-approve all actions, output in plain mode, exit process automatically when task complete)
 
+**-t**, **\--timeout** *seconds* :   Optional timeout in seconds. Only applied when explicitly provided.
+
 **-m**, **\--model** *model* :   Model to use for the task
 
 **-i**, **\--images** *paths...* :   Image file paths to include with the task
@@ -144,6 +146,8 @@ When running **cline** with just a prompt (no subcommand), these options are ava
 
 **-y**, **\--yolo** :   Enable yolo mode (auto-approve all actions). Also forces plain text output mode.
 
+**-t**, **\--timeout** *seconds* :   Optional timeout in seconds. Only applied when explicitly provided.
+
 **-m**, **\--model** *model* :   Model to use for the task
 
 **-v**, **\--verbose** :   Show verbose output
@@ -157,6 +161,8 @@ When running **cline** with just a prompt (no subcommand), these options are ava
 **\--json** :   Output messages as JSON instead of styled text. Forces plain text mode.
 
 **-T**, **\--taskId** *id* :   Resume an existing task by ID instead of starting a new one. The prompt becomes an optional follow-up message.
+
+**\--continue** :   Resume the most recent task from the current working directory instead of starting a new one.
 
 # JSON OUTPUT FORMAT
 
@@ -263,6 +269,9 @@ cline -T abc123def
 
 # Resume a task with a follow-up message
 cline -T abc123def "Now add unit tests for the changes"
+
+# Resume the most recent task from the current directory
+cline --continue
 
 # Resume in plan mode to review before continuing
 cline -T abc123def -p "What's left to do?"

@@ -46,6 +46,8 @@ describe("LiteLlmHandler", () => {
 	}
 
 	beforeEach(() => {
+		fakeClient.chat.completions.create.resetHistory()
+
 		mockFetchForTesting(mockFetch, () => {
 			return new Promise((resolve) => {
 				doneMockingFetch = resolve

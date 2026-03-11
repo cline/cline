@@ -1,15 +1,21 @@
+import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
 	readonly name = "FakeProvider"
+	public logs: Array<{ event: string; properties?: TelemetryProperties }> = []
 	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public gauges = new Map<string, Map<string, { value: number; attributes: TelemetryProperties; description?: string }>>()
 
-	log(): void {}
-	logRequired(): void {}
+	log(event: string, properties?: TelemetryProperties): void {
+		this.logs.push({ event, properties })
+	}
+	logRequired(event: string, properties?: TelemetryProperties): void {
+		this.logs.push({ event, properties })
+	}
 	identifyUser(): void {}
 	isEnabled(): boolean {
 		return true
@@ -90,6 +96,99 @@ describe("TelemetryService metrics", () => {
 			assert.strictEqual(entry.attributes.model, "model-a")
 			assert.strictEqual(entry.attributes.extension_version, "test")
 		})
+	})
+
+	it("captureTokenUsage emits cache and cost metrics when options provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+			cacheWriteTokens: 50,
+			cacheReadTokens: 30,
+			totalCost: 0.42,
+		})
+
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL,
+				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL,
+				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
+				TelemetryService.METRICS.CACHE.READ_TOTAL,
+				TelemetryService.METRICS.TASK.COST_TOTAL,
+			],
+		)
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE,
+				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE,
+				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
+				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
+				TelemetryService.METRICS.TASK.COST_PER_EVENT,
+			],
+		)
+		const cacheWriteCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_TOTAL)
+		assert.ok(cacheWriteCounter)
+		assert.strictEqual(cacheWriteCounter?.value, 50)
+		assert.strictEqual(cacheWriteCounter?.attributes.ulid, "task-1")
+		assert.strictEqual(cacheWriteCounter?.attributes.model, "model-a")
+
+		const cacheReadCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.CACHE.READ_TOTAL)
+		assert.ok(cacheReadCounter)
+		assert.strictEqual(cacheReadCounter?.value, 30)
+
+		const costCounter = provider.counters.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_TOTAL)
+		assert.ok(costCounter)
+		assert.strictEqual(costCounter?.value, 0.42)
+		assert.strictEqual(costCounter?.attributes.ulid, "task-1")
+		assert.strictEqual(costCounter?.attributes.model, "model-a")
+		assert.strictEqual(costCounter?.attributes.currency, "USD")
+
+		const cacheWriteHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.CACHE.WRITE_PER_EVENT)
+		assert.ok(cacheWriteHist)
+		assert.strictEqual(cacheWriteHist?.value, 50)
+
+		const cacheReadHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.CACHE.READ_PER_EVENT)
+		assert.ok(cacheReadHist)
+		assert.strictEqual(cacheReadHist?.value, 30)
+
+		const costHist = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.TASK.COST_PER_EVENT)
+		assert.ok(costHist)
+		assert.strictEqual(costHist?.value, 0.42)
+	})
+
+	it("captureTokenUsage skips cache/cost metrics when options fields are undefined", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTokenUsage("task-1", 120, 80, "model-a", {})
+
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL],
+		)
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
+		)
+	})
+
+	it("captureTokenUsage includes options in event properties", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTokenUsage("task-1", 120, 80, "model-a", {
+			cacheWriteTokens: 50,
+			cacheReadTokens: 30,
+			totalCost: 0.42,
+		})
+
+		const tokenEvent = provider.logs.find((entry) => entry.event === "task.tokens")
+		assert.ok(tokenEvent)
+		assert.strictEqual(tokenEvent?.properties?.cacheWriteTokens, 50)
+		assert.strictEqual(tokenEvent?.properties?.cacheReadTokens, 30)
+		assert.strictEqual(tokenEvent?.properties?.totalCost, 0.42)
 	})
 
 	it("captureConversationTurnEvent emits counters with cache and cost", () => {
@@ -190,5 +289,82 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+	})
+
+	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskCompleted("task-4", {
+			provider: "openai-native",
+			modelId: "gpt-5",
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
+			timeToFirstTokenMs: 350,
+			durationMs: 2100,
+			mode: "act",
+		})
+
+		const completionEvent = provider.logs.find((entry) => entry.event === "task.completed")
+		assert.ok(completionEvent)
+		assert.ok(completionEvent?.properties)
+		assert.strictEqual(completionEvent?.properties?.ulid, "task-4")
+		assert.strictEqual(completionEvent?.properties?.provider, "openai-native")
+		assert.strictEqual(completionEvent?.properties?.modelId, "gpt-5")
+		assert.strictEqual(completionEvent?.properties?.apiFormat, ApiFormat.OPENAI_RESPONSES)
+		assert.strictEqual(completionEvent?.properties?.apiFormatName, "OPENAI_RESPONSES")
+		assert.strictEqual(completionEvent?.properties?.timeToFirstTokenMs, 350)
+		assert.strictEqual(completionEvent?.properties?.durationMs, 2100)
+
+		const ttftMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.TTFT_SECONDS)
+		assert.ok(ttftMetric)
+		assert.strictEqual(ttftMetric?.value, 0.35)
+		assert.strictEqual(ttftMetric?.attributes.ulid, "task-4")
+		assert.strictEqual(ttftMetric?.attributes.provider, "openai-native")
+		assert.strictEqual(ttftMetric?.attributes.model, "gpt-5")
+		assert.strictEqual(ttftMetric?.attributes.apiFormat, "OPENAI_RESPONSES")
+
+		const durationMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.DURATION_SECONDS)
+		assert.ok(durationMetric)
+		assert.strictEqual(durationMetric?.value, 2.1)
+		assert.strictEqual(durationMetric?.attributes.scope, "task")
+	})
+
+	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(123456, "cline.StateService", "subscribeToState")
+
+		assert.strictEqual(provider.histograms.length, 1)
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.name, TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES)
+		assert.strictEqual(entry.value, 123456)
+		assert.strictEqual(entry.attributes.service, "cline.StateService")
+		assert.strictEqual(entry.attributes.method, "subscribeToState")
+		assert.strictEqual(entry.description, "Size of gRPC response messages in bytes")
+		// Should not have request_id when not provided
+		assert.strictEqual(entry.attributes.request_id, undefined)
+	})
+
+	it("captureGrpcResponseSize includes request_id when provided", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(5000, "cline.StateService", "subscribeToState", "req-42")
+
+		assert.strictEqual(provider.histograms.length, 1)
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.attributes.request_id, "req-42")
+	})
+
+	it("captureGrpcResponseSize includes standard metadata attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureGrpcResponseSize(1000, "cline.StateService", "subscribeToState")
+
+		const entry = provider.histograms[0]
+		assert.strictEqual(entry.attributes.extension_version, "test")
+		assert.strictEqual(entry.attributes.platform, "test-platform")
 	})
 })

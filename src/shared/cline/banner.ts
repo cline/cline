@@ -74,13 +74,53 @@ export interface BannerAction {
 	 * - Others: generally unused
 	 */
 	arg?: string
+
+	/**
+	 * Optional model picker tab to open when using SetModel action
+	 */
+	tab?: "recommended" | "free"
 }
 
 /**
  * The list of predefined banner config rendered by the Welcome Section UI.
  * TODO: Backend would return a similar JSON structure in the future which we will replace this with.
  */
+
 export const BANNER_DATA: BannerCardData[] = [
+	// Sonnet 4.6 banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "claude-sonnet-4-6-2026-feb-18",
+		icon: "sparkles",
+		title: "Try Claude Sonnet 4.6",
+		description: "Anthropic's latest model with strong reasoning and coding performance.",
+		actions: [
+			{
+				title: "Use Sonnet 4.6",
+				action: BannerActionType.SetModel,
+				arg: "anthropic/claude-sonnet-4.6",
+				tab: "recommended",
+			},
+		],
+	},
+
+	// Minimax free promo banner
+	{
+		// Bump this version string when copy/CTA changes and you want the banner to reappear.
+		id: "minimax-m2.5-free-2026-feb-18",
+		icon: "zap",
+		title: "Try MiniMax M2.5 Free",
+		description: "SOTA coding capability with lightning fast inference, free in Cline.",
+		actions: [
+			{
+				title: "Try now",
+				action: BannerActionType.SetModel,
+				arg: "minimax/minimax-m2.5",
+				tab: "free",
+			},
+		],
+	},
+
 	// ChatGPT integration banner
 	{
 		id: "chatgpt-integration-v1",

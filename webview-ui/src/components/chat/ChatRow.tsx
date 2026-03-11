@@ -886,13 +886,18 @@ export const ChatRowContent = memo(
 						)
 					}
 					case "reasoning": {
+						const isReasoningStreaming = message.partial === true
+						const hasReasoningText = !!message.text?.trim()
 						return (
 							<ThinkingRow
-								isExpanded={isExpanded}
+								isExpanded={(isReasoningStreaming && hasReasoningText) || isExpanded}
+								isStreaming={isReasoningStreaming}
 								isVisible={true}
-								onToggle={handleToggle}
+								onToggle={isReasoningStreaming ? undefined : handleToggle}
 								reasoningContent={message.text}
+								showChevron={!isReasoningStreaming || hasReasoningText}
 								showTitle={true}
+								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 							/>
 						)
 					}
@@ -1050,7 +1055,7 @@ export const ChatRowContent = memo(
 									{errorMessage && (
 										<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere text-xs">{errorMessage}</p>
 									)}
-									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px]">
+									<div className="flex flex-col bg-quote p-0 rounded-[3px] text-[12px] p-3">
 										<div className="flex items-center mb-1">
 											{isFailed && !isRequestInProgress ? (
 												<TriangleAlertIcon className="mr-2 size-2" />
@@ -1208,15 +1213,17 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
-								<OptionsButtons
-									inputValue={inputValue}
-									isActive={
-										(isLast && lastModifiedMessage?.ask === "followup") ||
-										(!selected && options && options.length > 0)
-									}
-									options={options}
-									selected={selected}
-								/>
+								<div className="pt-3">
+									<OptionsButtons
+										inputValue={inputValue}
+										isActive={
+											(isLast && lastModifiedMessage?.ask === "followup") ||
+											(!selected && options && options.length > 0)
+										}
+										options={options}
+										selected={selected}
+									/>
+								</div>
 							</div>
 						)
 					case "new_task":

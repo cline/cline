@@ -89,16 +89,9 @@ On the main branch, create a commit that updates:
 
 2. **package.json** - Update the version field to the new version
 
-3. **Delete changesets** for the commits being included in the hotfix. This prevents the changeset bot from including duplicate entries in the next regular release.
+3. No changelog-entry file cleanup is needed. Contributors do not create changelog-entry files in this repo.
 
-   Find and delete the changeset files associated with the selected commits:
-   ```bash
-   ls .changeset/
-   ```
-
-   Each changeset file in `.changeset/` corresponds to a PR. Read them to identify which ones belong to the commits you're hotfixing, then delete those files.
-
-**Skip running `npm run install:all`** - the automation handles outdated lockfiles.
+**Skip running `npm run install:all`** - release automation handles lockfile consistency as needed.
 
 Commit with message format: `v{VERSION} Release Notes (hotfix)`
 
@@ -107,7 +100,7 @@ In the commit body, mention:
 - List the cherry-picked commits that will be included
 
 ```bash
-git add CHANGELOG.md package.json .changeset/
+git add CHANGELOG.md package.json
 git commit -m "v3.40.1 Release Notes (hotfix)
 
 Hotfix release including:

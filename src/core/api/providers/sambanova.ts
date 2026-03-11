@@ -52,7 +52,7 @@ export class SambanovaHandler implements ApiHandler {
 
 		const modelId = model.id.toLowerCase()
 
-		if (modelId.includes("deepseek") || modelId.includes("qwen") || modelId.includes("qwq")) {
+		if (modelId.includes("deepseek") || modelId.includes("qwen3")) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
@@ -60,7 +60,7 @@ export class SambanovaHandler implements ApiHandler {
 		const stream = await client.chat.completions.create({
 			model: this.getModel().id,
 			messages: openAiMessages,
-			temperature: 0,
+			temperature: model.info.temperature ?? 0,
 			stream: true,
 			stream_options: { include_usage: true },
 			...getOpenAIToolParams(tools),

@@ -138,7 +138,7 @@ Usage:
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
-- path: (required) The path of the directory (relative to the current working directory /test/project) to list top level source code definitions for.
+- path: (required) The path of a directory (not a file) relative to the current working directory /test/project. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead.
 - task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <list_code_definition_names>
@@ -276,7 +276,7 @@ Usage:
 </generate_explanation>
 
 ## use_subagents
-Description: Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window.
+Description: Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window. You do not need to launch multiple subagents every time; using one subagent is valid when it avoids unnecessary context usage for light discovery work.
 Parameters:
 - prompt_1: (required) First subagent prompt.
 - prompt_2: (optional) Optional second subagent prompt.

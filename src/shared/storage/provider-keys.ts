@@ -1,6 +1,6 @@
 // Map providers to their specific model ID keys
 
-import { SettingsKey } from "@shared/storage/state-keys"
+import { Secrets, SettingsKey } from "@shared/storage/state-keys"
 import {
 	ApiProvider,
 	anthropicDefaultModelId,
@@ -15,6 +15,7 @@ import {
 	internationalQwenDefaultModelId,
 	liteLlmDefaultModelId,
 	minimaxDefaultModelId,
+	moonshotDefaultModelId,
 	nousResearchDefaultModelId,
 	openAiNativeDefaultModelId,
 	openRouterDefaultModelId,
@@ -23,10 +24,9 @@ import {
 	xaiDefaultModelId,
 } from "../api"
 
-// Note: "cline" provider uses the same model ID key as "openrouter"
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
-	cline: "OpenRouterModelId", // Cline provider uses OpenRouter model IDs
+	cline: "ClineModelId",
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",
@@ -46,7 +46,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	"vercel-ai-gateway": "VercelAiGatewayModelId",
 } as const
 
-export const ProviderToApiKeyMap: Partial<Record<ApiProvider, string | string[]>> = {
+export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (keyof Secrets)[]>> = {
 	cline: ["clineApiKey", "clineAccountId"],
 	anthropic: "apiKey",
 	openrouter: "openRouterApiKey",
@@ -110,6 +110,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	xai: xaiDefaultModelId,
 	gemini: geminiDefaultModelId,
 	minimax: minimaxDefaultModelId,
+	moonshot: moonshotDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
 } as const

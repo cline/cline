@@ -1,4 +1,10 @@
-import { isGPT5ModelFamily, isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
+import {
+	isGptOssModelFamily,
+	isGPT5ModelFamily,
+	isGPT51Model,
+	isGPT52Model,
+	isNextGenModelProvider,
+} from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -28,7 +34,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		if (!isNextGenModelProvider(providerInfo)) {
 			return false
 		}
-		if (modelId.includes("gpt-oss")) {
+		if (isGptOssModelFamily(modelId)) {
 			return true
 		}
 		return (

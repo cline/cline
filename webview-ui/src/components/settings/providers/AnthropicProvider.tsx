@@ -1,4 +1,4 @@
-import { anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import { ANTHROPIC_FAST_MODE_SUFFIX, anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -14,7 +14,11 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-opus-4-6",
+	`claude-opus-4-6${ANTHROPIC_FAST_MODE_SUFFIX}`,
 	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
+	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}${ANTHROPIC_FAST_MODE_SUFFIX}`,
+	"claude-sonnet-4-6",
+	`claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
@@ -89,6 +93,21 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 					<ContextWindowSwitcher
 						base1mModelId={`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`}
 						base200kModelId="claude-opus-4-6"
+						onModelChange={handleModelChange}
+						selectedModelId={selectedModelId}
+					/>
+
+					<ContextWindowSwitcher
+						base1mModelId={`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}${ANTHROPIC_FAST_MODE_SUFFIX}`}
+						base200kModelId={`claude-opus-4-6${ANTHROPIC_FAST_MODE_SUFFIX}`}
+						onModelChange={handleModelChange}
+						selectedModelId={selectedModelId}
+					/>
+
+					{/* Context window switcher for Claude Sonnet 4.6 */}
+					<ContextWindowSwitcher
+						base1mModelId={`claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`}
+						base200kModelId="claude-sonnet-4-6"
 						onModelChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>

@@ -6,6 +6,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { getMcpServerCallbackPath, getServerAuthHash } from "@/utils/mcpAuth"
+import { McpOAuthRedirectResolver } from "./McpOAuthRedirectResolver"
 
 /**
  * Structure for all OAuth data stored in the single mcpOAuthSecrets JSON
@@ -15,6 +16,7 @@ interface McpOAuthSecrets {
 		tokens?: OAuthTokens
 		tokens_saved_at?: number
 		client_info?: OAuthClientInformationFull
+		redirect_url_at_registration?: string
 		code_verifier?: string
 		oauth_state?: string
 		oauth_state_timestamp?: number
@@ -55,6 +57,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	private serverName: string
 	private serverUrl: string
 	private _redirectUrl: string
+	private isRegistrationValid: boolean
 	private serverHash: string
 
 	constructor(serverName: string, serverUrl: string) {
@@ -62,14 +65,26 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		this.serverUrl = serverUrl
 		this.serverHash = getServerAuthHash(serverName, serverUrl)
 
-		// Redirect URL will be set when initialize() is called
+		// Redirect URL and registration validity will be set when initialize() is called
 		this._redirectUrl = ""
+		this.isRegistrationValid = false
 	}
 
 	async initialize(): Promise<void> {
-		// Get the full callback URL with the MCP server-specific path
+		// Get the full callback URL with the MCP server-specific path,
+		// attempting to reuse the previously-registered port to preserve the OAuth client registration.
 		const callbackPath = getMcpServerCallbackPath(this.serverName, this.serverUrl)
-		this._redirectUrl = await HostProvider.get().getCallbackUrl(callbackPath)
+		const secrets = getMcpOAuthSecrets()
+		const savedRedirectUrl = secrets[this.serverHash]?.redirect_url_at_registration
+
+		const resolution = await McpOAuthRedirectResolver.resolve(
+			savedRedirectUrl,
+			callbackPath,
+			HostProvider.get().getCallbackUrl,
+		)
+
+		this._redirectUrl = resolution.redirectUrl
+		this.isRegistrationValid = resolution.isRegistrationValid
 	}
 
 	get redirectUrl(): string {
@@ -85,7 +100,6 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			client_name: "Cline",
 			client_uri: "https://cline.bot",
 			software_id: "cline",
-			scope: "openid",
 		}
 	}
 
@@ -95,6 +109,24 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	async clientInformation(): Promise<OAuthClientInformationFull | undefined> {
+		// If the redirect URL has changed since the client was registered
+		// (e.g., different port bound, platform migration), the saved client_info
+		// is stale — the OAuth server will reject requests with the old redirect_uri.
+		// Return undefined to force the SDK to re-register a new client.
+		if (!this.isRegistrationValid) {
+			const secrets = getMcpOAuthSecrets()
+			if (secrets[this.serverHash]?.client_info) {
+				Logger.log(`[McpOAuth] Discarding stale client registration for ${this.serverName} — redirect URL changed`)
+				// Clear the stale client_info and tokens (tokens are bound to the old client_id)
+				delete secrets[this.serverHash].client_info
+				delete secrets[this.serverHash].redirect_url_at_registration
+				delete secrets[this.serverHash].tokens
+				delete secrets[this.serverHash].tokens_saved_at
+				saveMcpOAuthSecrets(secrets)
+			}
+			return undefined
+		}
+
 		const secrets = getMcpOAuthSecrets()
 		return secrets[this.serverHash]?.client_info
 	}
@@ -105,7 +137,13 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			secrets[this.serverHash] = {}
 		}
 		secrets[this.serverHash].client_info = clientInformation
+		// Track the redirect URL used for this registration so we can detect
+		// when it changes and force re-registration (see clientInformation())
+		secrets[this.serverHash].redirect_url_at_registration = this._redirectUrl
 		saveMcpOAuthSecrets(secrets)
+
+		// After a successful registration, the current redirect URL is now the registered one
+		this.isRegistrationValid = true
 	}
 
 	async tokens(): Promise<OAuthTokens | undefined> {

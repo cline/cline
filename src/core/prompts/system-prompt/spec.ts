@@ -4,6 +4,7 @@ import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completi
 import { FunctionTool as OpenAIResponseFunctionTool, Tool as OpenAIResponseTool } from "openai/resources/responses/responses"
 import { ModelFamily } from "@/shared/prompts"
 import type { ClineDefaultTool } from "@/shared/tools"
+import { MULTI_ROOT_HINT } from "./constants"
 import type { SystemPromptContext } from "./types"
 
 export interface ClineToolSpec {
@@ -269,6 +270,13 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 				type: GOOGLE_TOOL_PARAM_MAP[param.type || "string"] || GoogleToolParamType.OBJECT,
 			}
 
+			if (param.instruction) {
+				const desc = replacer(resolveInstruction(param.instruction, context), context)
+				if (desc) {
+					paramSchema.description = desc
+				}
+			}
+
 			if (param.properties) {
 				paramSchema.properties = {}
 				for (const [key, prop] of Object.entries<any>(param.properties)) {
@@ -391,13 +399,19 @@ export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponse
 }
 
 /**
- * Replaces template placeholders in description with viewport dimensions.
+ * Replaces template placeholders in descriptions for native tool schemas.
  */
 function replacer(description: string, context: SystemPromptContext): string {
 	const width = context.browserSettings?.viewport?.width || 900
 	const height = context.browserSettings?.viewport?.height || 600
+	const cwd = context.cwd || process.cwd()
+	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
 
-	return description.replace("{{BROWSER_VIEWPORT_WIDTH}}", String(width)).replace("{{BROWSER_VIEWPORT_HEIGHT}}", String(height))
+	return description
+		.replace(/{{BROWSER_VIEWPORT_WIDTH}}/g, String(width))
+		.replace(/{{BROWSER_VIEWPORT_HEIGHT}}/g, String(height))
+		.replace(/{{CWD}}/g, cwd)
+		.replace(/{{MULTI_ROOT_HINT}}/g, multiRootHint)
 }
 
 /**

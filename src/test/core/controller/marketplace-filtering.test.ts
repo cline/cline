@@ -84,12 +84,18 @@ describe("Controller Marketplace Filtering", () => {
 		},
 	]
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		// Initialize HostProvider if not already done
 		if (!HostProvider.isInitialized()) {
 			const mockHostBridge: any = {
 				workspaceClient: {},
-				envClient: {},
+				envClient: {
+					getHostVersion: sinon.stub().resolves({
+						clineVersion: "1.0.0",
+						platform: "darwin",
+						clineType: "vscode",
+					}),
+				},
 				windowClient: {},
 				diffClient: {},
 			}
@@ -108,6 +114,9 @@ describe("Controller Marketplace Filtering", () => {
 			)
 			hostProviderInitialized = true
 		}
+
+		// Initialize HostRegistryInfo before creating Controller
+		await require("@/registry").HostRegistryInfo.init()
 
 		// Mock VSCode context
 		mockContext = {

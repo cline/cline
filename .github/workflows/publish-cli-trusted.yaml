@@ -39,6 +39,7 @@ jobs:
         !endsWith(github.actor, '[bot]')
       )
     uses: ./.github/workflows/npm-main.yaml
+    secrets: inherit
     with:
       confirm_publish: ${{ github.event.inputs.confirm_publish }}
 
@@ -49,5 +50,6 @@ jobs:
         (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_target == 'nightly')
       )
     uses: ./.github/workflows/npm-nightly.yaml
+    secrets: inherit
     with:
       force_publish: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}

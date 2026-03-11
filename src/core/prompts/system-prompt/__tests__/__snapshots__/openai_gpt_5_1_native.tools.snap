@@ -3,7 +3,7 @@
     "type": "function",
     "function": {
       "name": "execute_command",
-      "description": "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}{{MULTI_ROOT_HINT}}",
+      "description": "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/project",
       "strict": false,
       "parameters": {
         "type": "object",
@@ -36,7 +36,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the file to read (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}"
+            "description": "The path of the file to read (relative to the current working directory /test/project)"
           },
           "task_progress": {
             "type": "string",
@@ -86,7 +86,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the directory to search in (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}. This directory will be recursively searched."
+            "description": "The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched."
           },
           "regex": {
             "type": "string",
@@ -120,7 +120,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the directory to list contents for (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}"
+            "description": "The path of the directory to list contents for (relative to the current working directory /test/project)"
           },
           "recursive": {
             "type": "boolean",
@@ -149,7 +149,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for."
+            "description": "The path of a directory (not a file) relative to the current working directory /test/project. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead."
           },
           "task_progress": {
             "type": "string",
@@ -376,20 +376,6 @@
   {
     "type": "function",
     "function": {
-      "name": "focus_chain",
-      "description": "",
-      "strict": false,
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "required": [],
-        "additionalProperties": false
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
       "name": "generate_explanation",
       "description": "Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
       "strict": false,
@@ -421,7 +407,7 @@
     "type": "function",
     "function": {
       "name": "use_subagents",
-      "description": "Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window.",
+      "description": "Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window. You do not need to launch multiple subagents every time; using one subagent is valid when it avoids unnecessary context usage for light discovery work.",
       "strict": false,
       "parameters": {
         "type": "object",

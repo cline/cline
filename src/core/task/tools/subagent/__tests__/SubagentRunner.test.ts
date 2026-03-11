@@ -7,8 +7,10 @@ import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { ApiFormat } from "@/shared/proto/cline/models"
+import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import { TaskState } from "../../../TaskState"
+import { SubagentBuilder } from "../SubagentBuilder"
 import { SubagentRunner } from "../SubagentRunner"
 
 function initializeHostProvider() {
@@ -42,6 +44,7 @@ function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
 		mode: "act",
 		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
+		doubleCheckCompletionEnabled: false,
 		vscodeTerminalExecutionMode: "backgroundExec",
 		enableParallelToolCalling: false,
 		isSubagentExecution: false,
@@ -57,6 +60,7 @@ function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
 					supportsPromptCache: true,
 				},
 			}),
+			createMessage: sinon.stub().callsFake(async function* () {}),
 		},
 		services: {
 			stateManager: {
@@ -121,6 +125,21 @@ function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
 	} as unknown as TaskConfig
 }
 
+function stubApiHandler(createMessage: sinon.SinonStub) {
+	sinon.stub(coreApi, "buildApiHandler").returns({
+		abort: sinon.stub(),
+		getModel: () => ({
+			id: "anthropic/claude-sonnet-4.5",
+			info: {
+				contextWindow: 200_000,
+				apiFormat: ApiFormat.ANTHROPIC_CHAT,
+				supportsPromptCache: true,
+			},
+		}),
+		createMessage,
+	} as never)
+}
+
 describe("SubagentRunner", () => {
 	afterEach(() => {
 		sinon.restore()
@@ -147,19 +166,16 @@ describe("SubagentRunner", () => {
 				content: Array<{ type?: string; [key: string]: unknown }>
 			}
 			assert.equal(assistantMessage.role, "assistant")
-			assert.ok(Array.isArray(assistantMessage.content))
 
 			const toolUse = assistantMessage.content.find((block) => block.type === "tool_use")
-			assert.ok(toolUse, "assistant message should include tool_use block")
+			assert.ok(toolUse)
 			assert.equal(toolUse.id, "toolu_subagent_1")
 			assert.equal(toolUse.name, ClineDefaultTool.LIST_FILES)
 
 			const userMessage = conversation[2] as { role: string; content: Array<{ type?: string; [key: string]: unknown }> }
 			assert.equal(userMessage.role, "user")
-			assert.ok(Array.isArray(userMessage.content))
-
 			const toolResult = userMessage.content.find((block) => block.type === "tool_result")
-			assert.ok(toolResult, "user message should include tool_result block")
+			assert.ok(toolResult)
 			assert.equal(toolResult.tool_use_id, "toolu_subagent_1")
 
 			yield {
@@ -179,34 +195,78 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = [{ name: "list_files" } as any]
 			return "system prompt"
 		})
-		sinon.stub(coreApi, "buildApiHandler").returns({
-			abort: sinon.stub(),
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage,
-		})
+		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
 		sinon.stub(skills, "discoverSkills").resolves([])
 		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const config = createTaskConfig(true)
+		const runner = new SubagentRunner(createTaskConfig(true))
+		const result = await runner.run("List files", () => {})
 
-		const runner = new SubagentRunner(config)
-		sinon
-			.stub(runner as unknown as { buildNativeTools: () => unknown[] }, "buildNativeTools")
-			.returns([{ name: "list_files" }])
+		assert.equal(result.status, "completed")
+		assert.equal(result.result, "done")
+		assert.equal(createMessage.callCount, 2)
+	})
+
+	it("passes prior request token totals into the next-turn compaction check", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield {
+				type: "usage",
+				inputTokens: 11,
+				outputTokens: 7,
+				cacheWriteTokens: 3,
+				cacheReadTokens: 2,
+			}
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_previous_tokens_1",
+						name: ClineDefaultTool.LIST_FILES,
+						arguments: JSON.stringify({ path: ".", recursive: false }),
+					},
+				},
+			}
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_previous_tokens_complete_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = [{ name: "list_files" } as any]
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(true))
+		const shouldCompactStub = sinon.stub(runner as any, "shouldCompactBeforeNextRequest").callsFake((...args: unknown[]) => {
+			const [previousRequestTotalTokens] = args
+			assert.equal(previousRequestTotalTokens, 23)
+			return false
+		})
 
 		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(result.result, "done")
 		assert.equal(createMessage.callCount, 2)
+		assert.equal(shouldCompactStub.callCount, 1)
 	})
 
 	it("falls back to non-native result blocks if structured tool calls appear while native mode is disabled", async () => {
@@ -230,7 +290,6 @@ describe("SubagentRunner", () => {
 			}
 
 			assert.equal(lastMessage.role, "user")
-			assert.ok(Array.isArray(lastMessage.content))
 			assert.ok(lastMessage.content.every((block) => block.type === "text"))
 			assert.equal(
 				lastMessage.content.some((block) => block.type === "tool_result"),
@@ -238,8 +297,14 @@ describe("SubagentRunner", () => {
 			)
 
 			yield {
-				type: "text",
-				text: "<attempt_completion><result>done</result></attempt_completion>",
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_complete_2",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
 			}
 		})
 
@@ -248,25 +313,12 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = undefined
 			return "system prompt"
 		})
-		sinon.stub(coreApi, "buildApiHandler").returns({
-			abort: sinon.stub(),
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage,
-		})
 		sinon.stub(skills, "discoverSkills").resolves([])
 		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const config = createTaskConfig(false)
-		const runner = new SubagentRunner(config)
-
+		const runner = new SubagentRunner(createTaskConfig(false))
 		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
@@ -276,9 +328,7 @@ describe("SubagentRunner", () => {
 
 	it("retries empty assistant turns with a no-tools-used nudge before failing", async () => {
 		const createMessage = sinon.stub()
-		createMessage.onFirstCall().callsFake(async function* () {
-			// Empty response turn
-		})
+		createMessage.onFirstCall().callsFake(async function* () {})
 		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
 			const lastAssistant = conversation[1] as {
 				role: string
@@ -297,100 +347,28 @@ describe("SubagentRunner", () => {
 			assert.match(lastUser.content[0]?.text || "", /You did not use a tool in your previous response/i)
 
 			yield {
-				type: "text",
-				text: "<attempt_completion><result>done</result></attempt_completion>",
-			}
-		})
-
-		const promptRegistry = PromptRegistry.getInstance()
-		sinon.stub(promptRegistry, "get").callsFake(async () => {
-			promptRegistry.nativeTools = undefined
-			return "system prompt"
-		})
-		sinon.stub(coreApi, "buildApiHandler").returns({
-			abort: sinon.stub(),
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage,
-		})
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([])
-		initializeHostProvider()
-
-		const config = createTaskConfig(false)
-		const runner = new SubagentRunner(config)
-
-		const result = await runner.run("List files", () => {})
-
-		assert.equal(result.status, "completed")
-		assert.equal(result.result, "done")
-		assert.equal(createMessage.callCount, 2)
-	})
-
-	it("falls back to non-native mode when native settings are enabled but variant has no native tools", async () => {
-		const createMessage = sinon.stub()
-		createMessage.onFirstCall().callsFake(async function* () {
-			yield {
 				type: "tool_calls",
 				tool_call: {
 					function: {
-						id: "toolu_subagent_3",
-						name: ClineDefaultTool.LIST_FILES,
-						arguments: JSON.stringify({ path: ".", recursive: false }),
+						id: "toolu_subagent_complete_3",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
 					},
 				},
 			}
 		})
-		createMessage.onSecondCall().callsFake(async function* (_systemPrompt: string, conversation: unknown[]) {
-			const lastMessage = conversation[conversation.length - 1] as {
-				role: string
-				content: Array<{ type?: string; [key: string]: unknown }>
-			}
-
-			assert.equal(lastMessage.role, "user")
-			assert.ok(Array.isArray(lastMessage.content))
-			assert.ok(lastMessage.content.every((block) => block.type === "text"))
-			assert.equal(
-				lastMessage.content.some((block) => block.type === "tool_result"),
-				false,
-			)
-
-			yield {
-				type: "text",
-				text: "<attempt_completion><result>done</result></attempt_completion>",
-			}
-		})
 
 		const promptRegistry = PromptRegistry.getInstance()
 		sinon.stub(promptRegistry, "get").callsFake(async () => {
 			promptRegistry.nativeTools = undefined
 			return "system prompt"
 		})
-		sinon.stub(coreApi, "buildApiHandler").returns({
-			abort: sinon.stub(),
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage,
-		})
 		sinon.stub(skills, "discoverSkills").resolves([])
 		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const config = createTaskConfig(true)
-		const runner = new SubagentRunner(config)
-
+		const runner = new SubagentRunner(createTaskConfig(false))
 		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
@@ -398,13 +376,83 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 2)
 	})
 
-	it("builds subagent api handler with the parent task ulid", async () => {
+	it("retries initial stream failures before failing", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield* []
+			throw new Error(
+				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
+			)
+		})
+		createMessage.onSecondCall().callsFake(async function* () {
+			yield* []
+			throw new Error(
+				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
+			)
+		})
+		createMessage.onThirdCall().callsFake(async function* () {
+			yield* []
+			throw new Error(
+				'{"code":"stream_initialization_failed","message":"Failed to create stream: failed to generate stream from Vercel: failed to send request"}',
+			)
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const clock = sinon.useFakeTimers()
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const runPromise = runner.run("List files", () => {})
+		await clock.runAllAsync()
+		const result = await runPromise
+		clock.restore()
+
+		assert.equal(result.status, "failed")
+		assert.equal(createMessage.callCount, 3)
+		assert.match(result.error || "", /stream_initialization_failed/i)
+	})
+
+	it("fails context window errors", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield* []
+			const contextError = new Error("context length exceeded")
+			;(contextError as Error & { status: number }).status = 400
+			throw contextError
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Huge prompt", () => {})
+
+		assert.equal(result.status, "failed")
+		assert.equal(createMessage.callCount, 1)
+		assert.match(result.error || "", /context length exceeded/i)
+	})
+
+	it("uses the configured task api handler for subagent requests", async () => {
 		const createMessage = sinon.stub().callsFake(async function* () {
 			yield {
 				type: "tool_calls",
 				tool_call: {
 					function: {
-						id: "toolu_subagent_complete_2",
+						id: "toolu_subagent_complete_4",
 						name: ClineDefaultTool.ATTEMPT,
 						arguments: JSON.stringify({ result: "done" }),
 					},
@@ -417,33 +465,138 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = [{ name: "list_files" } as any]
 			return "system prompt"
 		})
-		const buildApiHandlerStub = sinon.stub(coreApi, "buildApiHandler").returns({
-			abort: sinon.stub(),
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage,
-		})
+		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
 		sinon.stub(skills, "discoverSkills").resolves([])
 		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const config = createTaskConfig(true)
-		const runner = new SubagentRunner(config)
-		sinon
-			.stub(runner as unknown as { buildNativeTools: () => unknown[] }, "buildNativeTools")
-			.returns([{ name: "list_files" }])
-
+		const runner = new SubagentRunner(createTaskConfig(true))
 		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")
-		assert.equal(buildApiHandlerStub.called, true)
-		sinon.assert.calledWithMatch(buildApiHandlerStub, sinon.match({ ulid: "ulid-1" }), "act")
+		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("filters available skills to configured skills when subagent skills are configured", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skills_filtered_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["allowed-skill"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["allowed-skill"])
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([
+			{ name: "allowed-skill", description: "Allowed", path: "/skills/allowed/SKILL.md", source: "project" },
+			{ name: "other-skill", description: "Other", path: "/skills/other/SKILL.md", source: "project" },
+		])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("uses all available skills when subagent skills are not configured", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skills_unconfigured_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["alpha-skill", "beta-skill"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(undefined)
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([
+			{ name: "alpha-skill", description: "Alpha", path: "/skills/alpha/SKILL.md", source: "project" },
+			{ name: "beta-skill", description: "Beta", path: "/skills/beta/SKILL.md", source: "project" },
+		])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
+	})
+
+	it("logs a warning when a configured skill is not available", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_skills_missing_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const warnStub = sinon.stub(Logger, "warn")
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["present-skill"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["present-skill", "missing-skill"])
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon
+			.stub(skills, "getAvailableSkills")
+			.returns([{ name: "present-skill", description: "Present", path: "/skills/present/SKILL.md", source: "project" }])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
+		sinon.assert.calledWith(warnStub, "[SubagentRunner] Configured skill 'missing-skill' not found for subagent run.")
 	})
 
 	it("includes workspace metadata only in the initial user message", async () => {
@@ -500,28 +653,13 @@ describe("SubagentRunner", () => {
 			promptRegistry.nativeTools = [{ name: "list_files" } as any]
 			return "system prompt"
 		})
-		sinon.stub(coreApi, "buildApiHandler").returns({
-			abort: sinon.stub(),
-			getModel: () => ({
-				id: "anthropic/claude-sonnet-4.5",
-				info: {
-					contextWindow: 200_000,
-					apiFormat: ApiFormat.ANTHROPIC_CHAT,
-					supportsPromptCache: true,
-				},
-			}),
-			createMessage,
-		})
+		sinon.stub(SubagentBuilder.prototype, "buildNativeTools").returns([{ name: "list_files" }] as any)
 		sinon.stub(skills, "discoverSkills").resolves([])
 		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const config = createTaskConfig(true)
-		const runner = new SubagentRunner(config)
-		sinon
-			.stub(runner as unknown as { buildNativeTools: () => unknown[] }, "buildNativeTools")
-			.returns([{ name: "list_files" }])
-
+		const runner = new SubagentRunner(createTaskConfig(true))
 		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "completed")

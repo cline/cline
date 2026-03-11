@@ -30,6 +30,8 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	clineApiKey?: string
 }
 
+const CLINE_FREE_MODELS = ["minimax/minimax-m2.5", "kwaipilot/kat-coder-pro", "z-ai/glm-5"]
+
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
@@ -166,7 +168,12 @@ export class ClineHandler implements ApiHandler {
 
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				if (
+					delta &&
+					"reasoning" in delta &&
+					delta.reasoning &&
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -181,6 +188,7 @@ export class ClineHandler implements ApiHandler {
 				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
 				*/
 				if (
+					delta &&
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-expect-error-next-line
@@ -198,9 +206,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5", "minimax/minimax-m2.1"].includes(
-						modelId,
-					)
+					const isFreeModel = CLINE_FREE_MODELS.includes(modelId)
 
 					if (isFreeModel) {
 						totalCost = 0
@@ -254,7 +260,7 @@ export class ClineHandler implements ApiHandler {
 				const generation = response.data
 				let totalCost = generation?.total_cost || 0
 				const modelId = this.getModel().id
-				const isFreeModel = ["kwaipilot/kat-coder-pro", "moonshotai/kimi-k2.5"].includes(modelId)
+				const isFreeModel = CLINE_FREE_MODELS.includes(modelId)
 
 				if (isFreeModel) {
 					totalCost = 0

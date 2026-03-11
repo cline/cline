@@ -13,11 +13,15 @@ export function checkContextWindowExceededError(error: unknown): boolean {
 
 function checkIsOpenRouterContextWindowError(error: any): boolean {
 	try {
+		// OpenRouter errors can reach us in two shapes:
+		// 1) Direct chunk.error path wrapped as Error with status/code attached.
+		// 2) Mid-stream finish_reason="error" path where JSON is stringified into message.
+		// So we check structured status first, then JSON-encoded status/code in message text.
 		const status = error?.status ?? error?.code ?? error?.error?.status ?? error?.response?.status
 		const message: string = String(error?.message || error?.error?.message || "")
 
-		// There seems to be an issue where the true status code is embedded only in the message itself
-		const statusFromMessage = message.match(/"code":\s*(\d+)/)?.[1]
+		// Handle JSON-encoded errors where status/code is embedded in the message string.
+		const statusFromMessage = message.match(/"code":\s*(\d+)/)?.[1] ?? message.match(/"status":\s*(\d+)/)?.[1]
 		const finalStatus = statusFromMessage || status
 
 		// Known OpenAI/OpenRouter-style signal (code 400 and message includes "context length")
