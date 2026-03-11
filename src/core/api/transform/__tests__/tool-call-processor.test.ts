@@ -34,12 +34,17 @@ describe("ToolCallProcessor", () => {
 
 		firstResult.should.have.length(0)
 		secondResult.should.have.length(2)
+		// Intentionally reversed from the setup chunk: output follows incoming
+		// argument-delta order, but reconstruction is correct regardless of arrival
+		// order because id/name/arguments are matched by tool call index.
 		const firstToolCall = secondResult[0]!.tool_call as any
 		const secondToolCall = secondResult[1]!.tool_call as any
 		firstToolCall.function.id.should.equal("call_b")
 		firstToolCall.function.name.should.equal("search_files")
+		firstToolCall.function.arguments.should.equal('{"path":"src"}')
 		secondToolCall.function.id.should.equal("call_a")
 		secondToolCall.function.name.should.equal("read_file")
+		secondToolCall.function.arguments.should.equal('{"path":"README.md"}')
 	})
 
 	it("should clear accumulated state on reset", () => {

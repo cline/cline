@@ -14,6 +14,8 @@ describe("OpenRouterHandler", () => {
 		},
 	})
 
+	const tools = [{ type: "function", function: { name: "read_file", description: "", parameters: { type: "object" } } }] as any
+
 	it("should handle usage-only chunks when delta is missing", async () => {
 		const handler = new OpenRouterHandler({
 			openRouterApiKey: "test-api-key",
@@ -58,93 +60,57 @@ describe("OpenRouterHandler", () => {
 		])
 	})
 
-	it("should set parallel_tool_calls for non-Gemini models when setting is enabled", async () => {
-		const handler = new OpenRouterHandler({
-			openRouterApiKey: "test-api-key",
+	type ParallelToolCallsTestCase = {
+		modelId: string
+		enableParallelToolCalling: boolean
+		expectedParallelToolCalls: boolean
+	}
+
+	const parallelToolCallsTestCases: ParallelToolCallsTestCase[] = [
+		{
+			modelId: "openai/gpt-4o-mini",
 			enableParallelToolCalling: true,
-		})
-		const createStub = sinon.stub().resolves(createAsyncIterable([]))
-		const fakeClient = {
-			chat: {
-				completions: {
-					create: createStub,
-				},
-			},
-		}
-		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
-		sinon.stub(handler, "getModel").returns({
-			id: "openai/gpt-4o-mini",
-			info: openRouterDefaultModelInfo,
-		})
-
-		const tools = [
-			{ type: "function", function: { name: "read_file", description: "", parameters: { type: "object" } } },
-		] as any
-		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }], tools)) {
-			// drain stream
-		}
-
-		const payload = createStub.firstCall.args[0]
-		payload.parallel_tool_calls.should.equal(true)
-	})
-
-	it("should disable parallel_tool_calls when setting is disabled", async () => {
-		const handler = new OpenRouterHandler({
-			openRouterApiKey: "test-api-key",
+			expectedParallelToolCalls: true,
+		},
+		{
+			modelId: "openai/gpt-4o-mini",
 			enableParallelToolCalling: false,
-		})
-		const createStub = sinon.stub().resolves(createAsyncIterable([]))
-		const fakeClient = {
-			chat: {
-				completions: {
-					create: createStub,
-				},
-			},
-		}
-		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
-		sinon.stub(handler, "getModel").returns({
-			id: "openai/gpt-4o-mini",
-			info: openRouterDefaultModelInfo,
-		})
-
-		const tools = [
-			{ type: "function", function: { name: "read_file", description: "", parameters: { type: "object" } } },
-		] as any
-		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }], tools)) {
-			// drain stream
-		}
-
-		const payload = createStub.firstCall.args[0]
-		payload.parallel_tool_calls.should.equal(false)
-	})
-
-	it("should set parallel_tool_calls for Gemini 3 models when setting is enabled", async () => {
-		const handler = new OpenRouterHandler({
-			openRouterApiKey: "test-api-key",
+			expectedParallelToolCalls: false,
+		},
+		{
+			modelId: "google/gemini-3-flash-preview",
 			enableParallelToolCalling: true,
-		})
-		const createStub = sinon.stub().resolves(createAsyncIterable([]))
-		const fakeClient = {
-			chat: {
-				completions: {
-					create: createStub,
+			expectedParallelToolCalls: true,
+		},
+	]
+
+	for (const testCase of parallelToolCallsTestCases) {
+		const settingLabel = testCase.enableParallelToolCalling ? "enabled" : "disabled"
+		it(`should set parallel_tool_calls=${testCase.expectedParallelToolCalls} for ${testCase.modelId} when setting is ${settingLabel}`, async () => {
+			const handler = new OpenRouterHandler({
+				openRouterApiKey: "test-api-key",
+				enableParallelToolCalling: testCase.enableParallelToolCalling,
+			})
+			const createStub = sinon.stub().resolves(createAsyncIterable([]))
+			const fakeClient = {
+				chat: {
+					completions: {
+						create: createStub,
+					},
 				},
-			},
-		}
-		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
-		sinon.stub(handler, "getModel").returns({
-			id: "google/gemini-3-flash-preview",
-			info: openRouterDefaultModelInfo,
+			}
+			sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+			sinon.stub(handler, "getModel").returns({
+				id: testCase.modelId,
+				info: openRouterDefaultModelInfo,
+			})
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }], tools)) {
+				// drain stream
+			}
+
+			const payload = createStub.firstCall.args[0]
+			payload.parallel_tool_calls.should.equal(testCase.expectedParallelToolCalls)
 		})
-
-		const tools = [
-			{ type: "function", function: { name: "read_file", description: "", parameters: { type: "object" } } },
-		] as any
-		for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "hi" }], tools)) {
-			// drain stream
-		}
-
-		const payload = createStub.firstCall.args[0]
-		payload.parallel_tool_calls.should.equal(true)
-	})
+	}
 })

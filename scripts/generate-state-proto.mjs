@@ -231,11 +231,37 @@ function snakeToCamel(str) {
 }
 
 /**
- * Normalize a TS key to the camelCase form derived from proto field names.
- * This preserves mappings for keys that are not camelCase in TS (e.g. hyphenated keys).
+ * Normalize a property key to the camelCase form parsed from proto field names.
+ * Example: "openai-codex-oauth-credentials" -> "openaiCodexOauthCredentials".
+ * We do this before looking up existing field numbers so regenerated proto fields
+ * reuse their old numbers instead of being treated as new fields.
  */
-function normalizeTsKeyForProtoLookup(fieldName) {
+function normalizePropertyNameForProtoLookup(fieldName) {
 	return snakeToCamel(toProtoFieldName(fieldName))
+}
+
+/**
+ * Fail fast when two distinct property keys collapse to the same normalized lookup key.
+ * Collisions make field-number preservation ambiguous and can cause proto renumbering.
+ */
+function assertNoNormalizedFieldNameCollisions(fields) {
+	const normalizedToOriginalNames = new Map()
+
+	for (const field of fields) {
+		const normalizedName = normalizePropertyNameForProtoLookup(field.name)
+		const names = normalizedToOriginalNames.get(normalizedName) ?? new Set()
+		names.add(field.name)
+		normalizedToOriginalNames.set(normalizedName, names)
+	}
+
+	for (const [normalizedName, names] of normalizedToOriginalNames) {
+		if (names.size > 1) {
+			const sortedNames = [...names].sort()
+			throw new Error(
+				`Field-name collision after proto normalization: ${sortedNames.join(", ")} all normalize to "${normalizedName}". Rename one field to keep proto field-number mapping unambiguous.`,
+			)
+		}
+	}
 }
 
 /**
@@ -296,6 +322,8 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 	const result = {}
 	let nextNumber = startNumber
 
+	assertNoNormalizedFieldNameCollisions(fields)
+
 	// Find the highest existing number
 	for (const num of Object.values(existingNumbers)) {
 		if (num >= nextNumber) {
@@ -305,8 +333,19 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 
 	// Preserve existing assignments
 	for (const field of fields) {
-		const normalizedFieldName = normalizeTsKeyForProtoLookup(field.name)
-		const existingFieldNumber = existingNumbers[normalizedFieldName] ?? existingNumbers[field.name]
+		// Normalize before lookup so keys like "openai-codex-oauth-credentials"
+		// reuse existing proto numbers instead of being treated as new fields.
+		const normalizedFieldName = normalizePropertyNameForProtoLookup(field.name)
+		const normalizedFieldNumber = existingNumbers[normalizedFieldName]
+		const rawFieldNumber = existingNumbers[field.name]
+
+		if (normalizedFieldNumber !== undefined && rawFieldNumber !== undefined && normalizedFieldNumber !== rawFieldNumber) {
+			throw new Error(
+				`Ambiguous proto field-number mapping for "${field.name}": normalized key "${normalizedFieldName}" -> ${normalizedFieldNumber}, raw key "${field.name}" -> ${rawFieldNumber}.`,
+			)
+		}
+
+		const existingFieldNumber = normalizedFieldNumber ?? rawFieldNumber
 		if (existingFieldNumber !== undefined) {
 			result[field.name] = existingFieldNumber
 		}
