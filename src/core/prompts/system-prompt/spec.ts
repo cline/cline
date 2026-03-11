@@ -4,6 +4,7 @@ import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completi
 import { FunctionTool as OpenAIResponseFunctionTool, Tool as OpenAIResponseTool } from "openai/resources/responses/responses"
 import { ModelFamily } from "@/shared/prompts"
 import type { ClineDefaultTool } from "@/shared/tools"
+import { MULTI_ROOT_HINT } from "./constants"
 import type { SystemPromptContext } from "./types"
 
 export interface ClineToolSpec {
@@ -412,8 +413,6 @@ function replacer(description: string, context: SystemPromptContext): string {
 		.replace(/{{CWD}}/g, cwd)
 		.replace(/{{MULTI_ROOT_HINT}}/g, multiRootHint)
 }
-
-const MULTI_ROOT_HINT = " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."
 
 /**
  * Resolves an instruction that may be a string or a function.
