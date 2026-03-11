@@ -9,6 +9,7 @@ import {
 	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -43,6 +44,18 @@ function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel 
 		default:
 			return ThinkingLevel.LOW
 	}
+}
+
+function getGeminiMaxOutputTokens(modelId: string, modelMaxTokens?: number): number | undefined {
+	if (!isGeminiFlashModel(modelId)) {
+		return undefined
+	}
+
+	if (modelMaxTokens && modelMaxTokens > 0) {
+		return Math.min(modelMaxTokens, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
+	}
+
+	return GEMINI_FLASH_MAX_OUTPUT_TOKENS
 }
 
 /**
@@ -152,6 +165,7 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		// Set up base generation config
+		const maxOutputTokens = getGeminiMaxOutputTokens(modelId, info.maxTokens)
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
@@ -159,6 +173,7 @@ export class GeminiHandler implements ApiHandler {
 			// Set temperature (default to 0)
 			// Gemini 3 recommends 1.0
 			temperature: info.temperature ?? 1,
+			...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
 		}
 
 		// Add thinking config only if the model supports it
