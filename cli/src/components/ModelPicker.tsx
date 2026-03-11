@@ -66,7 +66,7 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@/shared/api"
-import { StringRequest } from "@/shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@/shared/proto/cline/common"
 import { filterOpenRouterModelIds } from "@/shared/utils/model-filters"
 import { COLORS } from "../constants/colors"
 import { getOpenRouterDefaultModelId, usesOpenRouterModels } from "../utils/openrouter-models"
@@ -165,7 +165,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({ provider, controller, 
 				})
 		} else if (provider === "hicap") {
 			setIsLoading(true)
-			refreshHicapModels(controller, StringRequest.create({ value: "" }))
+			refreshHicapModels(controller, EmptyRequest.create({}))
 				.then((result) => {
 					if (result.models) {
 						const modelIds = Object.keys(result.models).sort((a, b) => a.localeCompare(b))
