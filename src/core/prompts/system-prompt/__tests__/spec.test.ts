@@ -3,7 +3,7 @@ import { describe, it } from "mocha"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { toolSpecFunctionDeclarations, toolSpecInputSchema } from "../spec"
+import { toolSpecFunctionDeclarations, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
 import type { SystemPromptContext } from "../types"
 
 const mockContext: SystemPromptContext = {
@@ -92,5 +92,38 @@ describe("Gemini and Anthropic parameter descriptions match", () => {
 		const anthropicDesc = (anthropic.input_schema as any).properties["path"]?.description
 
 		expect(geminiDesc).to.equal(anthropicDesc)
+	})
+})
+
+describe("native tool placeholder replacement", () => {
+	it("replaces CWD and MULTI_ROOT_HINT placeholders in descriptions", () => {
+		const context: SystemPromptContext = {
+			...mockContext,
+			isMultiRootEnabled: true,
+		}
+		const tool = makeTool({
+			parameters: [
+				{
+					name: "path",
+					required: true,
+					instruction: "Path (relative to {{CWD}}){{MULTI_ROOT_HINT}}",
+				},
+			],
+		})
+
+		const openAI = toolSpecFunctionDefinition(tool, context)
+		const anthropic = toolSpecInputSchema(tool, context)
+		const gemini = toolSpecFunctionDeclarations(tool, context)
+
+		const openAIDesc = ((openAI as any).function.parameters.properties.path as any).description as string
+		const anthropicDesc = ((anthropic as any).input_schema.properties.path as any).description as string
+		const geminiDesc = (gemini.parameters?.properties?.["path"] as any)?.description as string
+
+		for (const desc of [openAIDesc, anthropicDesc, geminiDesc]) {
+			expect(desc).to.include("/test/project")
+			expect(desc).to.include("Use @workspace:path syntax")
+			expect(desc).to.not.include("{{CWD}}")
+			expect(desc).to.not.include("{{MULTI_ROOT_HINT}}")
+		}
 	})
 })
