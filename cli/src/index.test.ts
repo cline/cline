@@ -67,6 +67,17 @@ describe("CLI Commands", () => {
 			.option("--config <path>", "Configuration directory")
 			.action(() => {})
 
+		const mcpCommand = program.command("mcp").description("Manage MCP servers")
+		mcpCommand
+			.command("add")
+			.description("Add an MCP server shortcut")
+			.argument("<name>", "MCP server name")
+			.argument("[targetOrCommand...]", "Command args for stdio, or URL for remote")
+			.option("--type <type>", "Transport type", "stdio")
+			.option("-c, --cwd <path>", "Working directory")
+			.option("--config <path>", "Configuration directory")
+			.action(() => {})
+
 		program
 			.command("kanban")
 			.description("Run npx kanban --agent cline")
@@ -331,6 +342,32 @@ describe("CLI Commands", () => {
 		})
 	})
 
+	describe("mcp command", () => {
+		it("should parse mcp add stdio syntax", () => {
+			const args = ["node", "cli", "mcp", "add", "kanban", "--", "kanban", "mcp"]
+			program.parse(args)
+		})
+
+		it("should parse mcp add remote http syntax", () => {
+			const args = ["node", "cli", "mcp", "add", "linear", "https://mcp.linear.app/mcp", "--type", "http"]
+			program.parse(args)
+		})
+
+		it("should default mcp add type to stdio", () => {
+			const mcpCmd = program.commands.find((c) => c.name() === "mcp")!
+			const addCmd = mcpCmd.commands.find((c) => c.name() === "add")!
+			addCmd.parse(["kanban", "--", "kanban", "mcp"], { from: "user" })
+			expect(addCmd.opts().type).toBe("stdio")
+		})
+
+		it("should parse mcp add type option", () => {
+			const mcpCmd = program.commands.find((c) => c.name() === "mcp")!
+			const addCmd = mcpCmd.commands.find((c) => c.name() === "add")!
+			addCmd.parse(["linear", "https://mcp.linear.app/mcp", "--type", "http"], { from: "user" })
+			expect(addCmd.opts().type).toBe("http")
+		})
+	})
+
 	describe("default command (interactive mode)", () => {
 		it("should parse optional prompt argument", () => {
 			const args = ["node", "cli", "do something"]
@@ -395,6 +432,7 @@ describe("CLI Commands", () => {
 			expect(commandNames).toContain("history")
 			expect(commandNames).toContain("config")
 			expect(commandNames).toContain("auth")
+			expect(commandNames).toContain("mcp")
 			expect(commandNames).toContain("kanban")
 		})
 
