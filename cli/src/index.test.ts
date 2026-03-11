@@ -67,6 +67,11 @@ describe("CLI Commands", () => {
 			.option("--config <path>", "Configuration directory")
 			.action(() => {})
 
+		program
+			.command("kanban")
+			.description("Run npx kanban --agent cline")
+			.action(() => {})
+
 		// Default command for interactive mode
 		program
 			.argument("[prompt]", "Task prompt")
@@ -81,6 +86,7 @@ describe("CLI Commands", () => {
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.option("--auto-approve-all", "Enable auto-approve all")
+			.option("--kanban", "Run npx kanban --agent cline")
 			.action(() => {})
 	})
 
@@ -274,6 +280,13 @@ describe("CLI Commands", () => {
 		})
 	})
 
+	describe("kanban command", () => {
+		it("should parse kanban command", () => {
+			const args = ["node", "cli", "kanban"]
+			program.parse(args)
+		})
+	})
+
 	describe("auth command", () => {
 		it("should parse auth command", () => {
 			const args = ["node", "cli", "auth"]
@@ -368,6 +381,11 @@ describe("CLI Commands", () => {
 			program.parse(["node", "cli", "--auto-approve-all"])
 			expect(program.opts().autoApproveAll).toBe(true)
 		})
+
+		it("should parse --kanban flag", () => {
+			program.parse(["node", "cli", "--kanban"])
+			expect(program.opts().kanban).toBe(true)
+		})
 	})
 
 	describe("command structure", () => {
@@ -377,6 +395,7 @@ describe("CLI Commands", () => {
 			expect(commandNames).toContain("history")
 			expect(commandNames).toContain("config")
 			expect(commandNames).toContain("auth")
+			expect(commandNames).toContain("kanban")
 		})
 
 		it("should have correct aliases", () => {
