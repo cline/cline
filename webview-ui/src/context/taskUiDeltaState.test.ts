@@ -242,4 +242,65 @@ describe("applyTaskUiDeltaToState", () => {
 		expect(result.state).toBe(state)
 		expect(result.state.clineMessages).toBe(state.clineMessages)
 	})
+
+	it("converges to the same final task state as an equivalent full snapshot", () => {
+		const initialState = createState()
+
+		const deltas: TaskUiDelta[] = [
+			createDelta({
+				sequence: 1,
+				type: "message_added",
+				message: { ts: 10, type: "say", say: "text", text: "hello" },
+			}),
+			createDelta({
+				sequence: 2,
+				type: "message_added",
+				message: { ts: 20, type: "say", say: "reasoning", text: "thinking", partial: true },
+			}),
+			createDelta({
+				sequence: 3,
+				type: "message_updated",
+				message: { ts: 20, type: "say", say: "reasoning", text: "thinking complete", partial: false },
+			}),
+			createDelta({
+				sequence: 4,
+				type: "task_metadata_updated",
+				metadata: {
+					backgroundCommandRunning: true,
+					backgroundCommandTaskId: "task-1",
+					currentFocusChainChecklist: "- [x] streamed",
+				},
+			}),
+			createDelta({
+				sequence: 5,
+				type: "message_deleted",
+				messageTs: 10,
+			}),
+		]
+
+		let state = initialState
+		let sequence = 0
+		for (const delta of deltas) {
+			const result = applyTaskUiDeltaToState(state, delta, sequence)
+			expect(result.kind).toBe("applied")
+			if (result.kind !== "applied") {
+				throw new Error("expected applied result")
+			}
+			state = result.state
+			sequence = result.nextSequence
+		}
+
+		const expectedSnapshot: ExtensionState = {
+			...createState(),
+			clineMessages: [{ ts: 20, type: "say", say: "reasoning", text: "thinking complete", partial: false } as any],
+			backgroundCommandRunning: true,
+			backgroundCommandTaskId: "task-1",
+			currentFocusChainChecklist: "- [x] streamed",
+		}
+
+		expect(state.clineMessages).toEqual(expectedSnapshot.clineMessages)
+		expect(state.backgroundCommandRunning).toBe(expectedSnapshot.backgroundCommandRunning)
+		expect(state.backgroundCommandTaskId).toBe(expectedSnapshot.backgroundCommandTaskId)
+		expect(state.currentFocusChainChecklist).toBe(expectedSnapshot.currentFocusChainChecklist)
+	})
 })
