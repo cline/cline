@@ -50,6 +50,7 @@ export class TaskState {
 		lastWebviewFlushCompletedAtMs: 0,
 		observedDelaysMs: [] as number[],
 	}
+	currentChunkReceivedAtMs?: number
 
 	// Streaming flags
 	isStreaming = false
