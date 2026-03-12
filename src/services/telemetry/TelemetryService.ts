@@ -165,9 +165,16 @@ export class TelemetryService {
 			TTFT_SECONDS: "cline.api.ttft.seconds",
 			DURATION_SECONDS: "cline.api.duration.seconds",
 			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
+			PRESENTATION_INVOCATIONS_PER_REQUEST: "cline.api.presentation.invocations.per_request",
 			PRESENTATION_DURATION_SECONDS: "cline.api.presentation.duration.seconds",
+			STATE_POSTS_PER_REQUEST: "cline.api.state_posts.per_request",
 			STATE_BUILD_DURATION_SECONDS: "cline.api.state_build.duration.seconds",
+			STATE_PAYLOAD_BYTES: "cline.api.state_payload.bytes",
 			STATE_SEND_DURATION_SECONDS: "cline.api.state_send.duration.seconds",
+			PARTIAL_MESSAGES_PER_REQUEST: "cline.api.partial_messages.per_request",
+			PARTIAL_MESSAGE_PAYLOAD_BYTES: "cline.api.partial_message_payload.bytes",
+			PARTIAL_MESSAGE_BROADCAST_DURATION_SECONDS: "cline.api.partial_message_broadcast.duration.seconds",
+			PERSISTENCE_FLUSHES_PER_REQUEST: "cline.api.persistence.flushes.per_request",
 			PERSISTENCE_DURATION_SECONDS: "cline.api.persistence.duration.seconds",
 			CHUNK_TO_WEBVIEW_SECONDS: "cline.api.chunk_to_webview.seconds",
 		},
@@ -2416,6 +2423,18 @@ export class TelemetryService {
 			)
 		}
 
+		if (Number.isFinite(args.presentationInvocationCount)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PRESENTATION_INVOCATIONS_PER_REQUEST,
+				args.presentationInvocationCount ?? 0,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.statePostCount)) {
+			this.recordHistogram(TelemetryService.METRICS.API.STATE_POSTS_PER_REQUEST, args.statePostCount ?? 0, attrs)
+		}
+
 		if (Number.isFinite(args.statePostBuildDurationMs) && (args.statePostBuildDurationMs ?? 0) > 0) {
 			this.recordHistogram(
 				TelemetryService.METRICS.API.STATE_BUILD_DURATION_SECONDS,
@@ -2428,6 +2447,38 @@ export class TelemetryService {
 			this.recordHistogram(
 				TelemetryService.METRICS.API.STATE_SEND_DURATION_SECONDS,
 				(args.statePostSendDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.statePostSerializedBytes) && (args.statePostSerializedBytes ?? 0) > 0) {
+			this.recordHistogram(TelemetryService.METRICS.API.STATE_PAYLOAD_BYTES, args.statePostSerializedBytes ?? 0, attrs)
+		}
+
+		if (Number.isFinite(args.partialMessageCount)) {
+			this.recordHistogram(TelemetryService.METRICS.API.PARTIAL_MESSAGES_PER_REQUEST, args.partialMessageCount ?? 0, attrs)
+		}
+
+		if (Number.isFinite(args.partialMessagePayloadBytes) && (args.partialMessagePayloadBytes ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PARTIAL_MESSAGE_PAYLOAD_BYTES,
+				args.partialMessagePayloadBytes ?? 0,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.partialMessageBroadcastDurationMs) && (args.partialMessageBroadcastDurationMs ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PARTIAL_MESSAGE_BROADCAST_DURATION_SECONDS,
+				(args.partialMessageBroadcastDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.persistenceFlushCount)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PERSISTENCE_FLUSHES_PER_REQUEST,
+				args.persistenceFlushCount ?? 0,
 				attrs,
 			)
 		}
