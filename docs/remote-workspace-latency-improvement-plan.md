@@ -312,8 +312,8 @@ In practice this means task history may be slightly behind while tokens are stre
 - [x] Unit test: durable flush persists previously ephemeral changes
 - [x] Unit test: partial → complete transition triggers persistence
 - [x] Unit test: periodic safety flush persists pending ephemeral changes
-- [ ] Integration test: abort during stream still persists a recoverable final state
-- [ ] Regression test: resume-from-history still works after deferred partial persistence
+- [x] Integration test: abort during stream still persists a recoverable final state
+- [x] Regression test: resume-from-history still works after deferred partial persistence
 
 ---
 
