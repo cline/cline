@@ -8,6 +8,7 @@ import {
 	isPresentationSchedulingDisabled,
 	isRemoteWorkspaceEnvironment,
 	isTaskUiDeltaSyncDisabled,
+	shouldWaitForTerminalCooldown,
 	summarizeChunkToWebviewDelays,
 } from "../latency"
 
@@ -77,6 +78,44 @@ describe("task latency helpers", () => {
 		assert.equal(isPresentationSchedulingDisabled(), true)
 		assert.equal(isEphemeralMessagePersistenceDisabled(), true)
 		assert.equal(isTaskUiDeltaSyncDisabled(), true)
+	})
+
+	it("waits for terminal cooldown only when there is active heat or a recent edit", () => {
+		assert.equal(
+			shouldWaitForTerminalCooldown({
+				busyTerminalIds: [],
+				isProcessHot: () => true,
+				didEditFile: false,
+			}),
+			false,
+		)
+
+		assert.equal(
+			shouldWaitForTerminalCooldown({
+				busyTerminalIds: [1, 2],
+				isProcessHot: () => false,
+				didEditFile: false,
+			}),
+			false,
+		)
+
+		assert.equal(
+			shouldWaitForTerminalCooldown({
+				busyTerminalIds: [1, 2],
+				isProcessHot: (terminalId) => terminalId === 2,
+				didEditFile: false,
+			}),
+			true,
+		)
+
+		assert.equal(
+			shouldWaitForTerminalCooldown({
+				busyTerminalIds: [1],
+				isProcessHot: () => false,
+				didEditFile: true,
+			}),
+			true,
+		)
 	})
 
 	it("summarizes chunk-to-webview delays with median and p95 percentiles", () => {
