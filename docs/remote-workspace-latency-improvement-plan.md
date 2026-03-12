@@ -700,7 +700,7 @@ The reason for this order is that the early steps are high-value and lower risk,
 
 ### Telemetry comparisons to monitor during rollout
 
-Use `node scripts/analyze-task-latency-metrics.mjs <path-to-jsonl>` to summarize exported `task.latency_metrics` events, and `node scripts/compare-task-latency-metrics.mjs <baseline-jsonl> <candidate-jsonl>` to diff before/after runs. For rollout toggles and cadence overrides, see `.env.example`.
+Use `node scripts/analyze-task-latency-metrics.mjs <path-to-jsonl>` to summarize exported `task.latency_metrics` events, and `node scripts/compare-task-latency-metrics.mjs <baseline-jsonl> <candidate-jsonl>` to diff before/after runs. The summary helpers also normalize `task.initialization` events so request-start latency can be reviewed alongside per-request streaming telemetry. For rollout toggles and cadence overrides, see `.env.example`.
 
 - [ ] average `presentAssistantMessage()` invocations per request
 - [ ] average partial message events per request
