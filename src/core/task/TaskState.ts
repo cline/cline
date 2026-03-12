@@ -7,6 +7,49 @@ export class TaskState {
 	// Task-level timing
 	taskStartTimeMs = Date.now()
 	taskFirstTokenTimeMs?: number
+	isRemoteWorkspace = false
+
+	// Request-scoped performance metrics
+	presentationMetrics = {
+		requestStartedAtMs: 0,
+		invocationCount: 0,
+		totalDurationMs: 0,
+		triggerCounts: {
+			text: 0,
+			reasoning: 0,
+			tool: 0,
+			finalization: 0,
+			other: 0,
+		},
+	}
+	statePostMetrics = {
+		requestStartedAtMs: 0,
+		callCount: 0,
+		coalescedCallCount: 0,
+		stateBuildDurationMs: 0,
+		serializedBytes: 0,
+		sendDurationMs: 0,
+	}
+	partialMessageMetrics = {
+		requestStartedAtMs: 0,
+		eventCount: 0,
+		payloadBytes: 0,
+		broadcastDurationMs: 0,
+	}
+	persistenceMetrics = {
+		requestStartedAtMs: 0,
+		saveMessagesDurationMs: 0,
+		saveConversationDurationMs: 0,
+		updateHistoryDurationMs: 0,
+		flushCount: 0,
+	}
+	chunkToWebviewMetrics = {
+		requestStartedAtMs: 0,
+		chunkCount: 0,
+		lastChunkReceivedAtMs: 0,
+		lastWebviewFlushCompletedAtMs: 0,
+		observedDelaysMs: [] as number[],
+	}
 
 	// Streaming flags
 	isStreaming = false
