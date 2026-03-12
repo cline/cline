@@ -221,4 +221,25 @@ describe("applyTaskUiDeltaToState", () => {
 		expect(result.state).toBe(state)
 		expect(result.state.clineMessages).toBe(state.clineMessages)
 	})
+
+	it("preserves state references when a delete delta targets a missing message", () => {
+		const state = createState()
+		state.clineMessages = [{ ts: 10, type: "say", say: "text", text: "hello" } as any]
+
+		const result = applyTaskUiDeltaToState(
+			state,
+			createDelta({
+				type: "message_deleted",
+				messageTs: 999,
+			}),
+			0,
+		)
+
+		expect(result.kind).toBe("applied")
+		if (result.kind !== "applied") {
+			throw new Error("expected applied result")
+		}
+		expect(result.state).toBe(state)
+		expect(result.state.clineMessages).toBe(state.clineMessages)
+	})
 })
