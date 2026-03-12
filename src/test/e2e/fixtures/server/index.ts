@@ -377,6 +377,9 @@ export class ClineApiServerMock {
 						const parsed = JSON.parse(body)
 						const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
+						if (body.includes("latency_validation")) {
+							responseText = E2E_MOCK_API_RESPONSES.LATENCY_VALIDATION
+						}
 						if (body.includes("[replace_in_file for 'test.ts'] Result:")) {
 							responseText = E2E_MOCK_API_RESPONSES.REPLACE_REQUEST
 						}
@@ -454,31 +457,30 @@ export class ClineApiServerMock {
 
 							sendChunk()
 							return
-						} else {
-							const response = {
-								id: generationId,
-								object: "chat.completion",
-								created: Math.floor(Date.now() / 1000),
-								model,
-								choices: [
-									{
-										index: 0,
-										message: {
-											role: "assistant",
-											content: "Hello! I'm a mock Cline API response.",
-										},
-										finish_reason: "stop",
-									},
-								],
-								usage: {
-									prompt_tokens: 140,
-									completion_tokens: responseText.length,
-									total_tokens: 140 + responseText.length,
-									cost: (140 + responseText.length) * 0.00015,
-								},
-							}
-							return sendJson(response)
 						}
+						const response = {
+							id: generationId,
+							object: "chat.completion",
+							created: Math.floor(Date.now() / 1000),
+							model,
+							choices: [
+								{
+									index: 0,
+									message: {
+										role: "assistant",
+										content: "Hello! I'm a mock Cline API response.",
+									},
+									finish_reason: "stop",
+								},
+							],
+							usage: {
+								prompt_tokens: 140,
+								completion_tokens: responseText.length,
+								total_tokens: 140 + responseText.length,
+								cost: (140 + responseText.length) * 0.00015,
+							},
+						}
+						return sendJson(response)
 					}
 
 					// Generation details endpoint
