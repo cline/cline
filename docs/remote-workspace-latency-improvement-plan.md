@@ -570,7 +570,7 @@ If Phase 4 is not yet implemented, at minimum route metrics through the controll
 
 ### Tests
 
-- [ ] Unit test: many usage chunks produce fewer UI updates than chunk count
+- [x] Unit test: many usage chunks produce fewer UI updates than chunk count
 - [ ] Integration test: final displayed token/cost values remain accurate at request completion
 - [ ] Regression test: retry/cancel/error flows still show correct request metadata
 
@@ -790,7 +790,7 @@ Below is a consolidated development checklist for tests. This can be used as a p
 - [x] Scheduler unit tests with fake timers
 - [x] MessageStateHandler ephemeral-vs-durable mutation tests
 - [x] Coalesced controller state-posting tests
-- [ ] Usage/metadata throttling tests
+- [x] Usage/metadata throttling tests
 - [x] Remote-mode cadence selection tests
 - [x] Hostbridge/environment TTL caching tests
 
