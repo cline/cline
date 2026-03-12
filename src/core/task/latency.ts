@@ -2,6 +2,24 @@ import type { PresentationPriority } from "./TaskPresentationScheduler"
 
 export type TaskLatencyTrigger = "text" | "reasoning" | "tool" | "finalization" | "other"
 
+function readCadenceOverride(envVarName: string): number | undefined {
+	const rawValue = process.env[envVarName]
+	if (!rawValue) {
+		return undefined
+	}
+
+	const parsed = Number.parseInt(rawValue, 10)
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		return undefined
+	}
+
+	return parsed
+}
+
+function getCadenceOverride(args: { isRemoteWorkspace: boolean; localEnvVar: string; remoteEnvVar: string }): number | undefined {
+	return args.isRemoteWorkspace ? readCadenceOverride(args.remoteEnvVar) : readCadenceOverride(args.localEnvVar)
+}
+
 export function isRemoteWorkspaceEnvironment(host: { platform?: string; version?: string; remoteName?: string | null }): boolean {
 	if (host.remoteName) {
 		return true
@@ -17,6 +35,15 @@ export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: P
 		return 0
 	}
 
+	const override = getCadenceOverride({
+		isRemoteWorkspace,
+		localEnvVar: priority === "low" ? "CLINE_PRESENTATION_LOW_CADENCE_MS" : "CLINE_PRESENTATION_CADENCE_MS",
+		remoteEnvVar: priority === "low" ? "CLINE_REMOTE_PRESENTATION_LOW_CADENCE_MS" : "CLINE_REMOTE_PRESENTATION_CADENCE_MS",
+	})
+	if (override !== undefined) {
+		return override
+	}
+
 	if (priority === "low") {
 		return isRemoteWorkspace ? 125 : 50
 	}
@@ -29,6 +56,15 @@ export function getStateUpdateCadenceMs(isRemoteWorkspace: boolean, priority: Pr
 		return 0
 	}
 
+	const override = getCadenceOverride({
+		isRemoteWorkspace,
+		localEnvVar: priority === "low" ? "CLINE_STATE_UPDATE_LOW_CADENCE_MS" : "CLINE_STATE_UPDATE_CADENCE_MS",
+		remoteEnvVar: priority === "low" ? "CLINE_REMOTE_STATE_UPDATE_LOW_CADENCE_MS" : "CLINE_REMOTE_STATE_UPDATE_CADENCE_MS",
+	})
+	if (override !== undefined) {
+		return override
+	}
+
 	if (priority === "low") {
 		return isRemoteWorkspace ? 150 : 40
 	}
@@ -37,6 +73,15 @@ export function getStateUpdateCadenceMs(isRemoteWorkspace: boolean, priority: Pr
 }
 
 export function getUsageUpdateCadenceMs(isRemoteWorkspace: boolean): number {
+	const override = getCadenceOverride({
+		isRemoteWorkspace,
+		localEnvVar: "CLINE_USAGE_UPDATE_CADENCE_MS",
+		remoteEnvVar: "CLINE_REMOTE_USAGE_UPDATE_CADENCE_MS",
+	})
+	if (override !== undefined) {
+		return override
+	}
+
 	return isRemoteWorkspace ? 400 : 250
 }
 
