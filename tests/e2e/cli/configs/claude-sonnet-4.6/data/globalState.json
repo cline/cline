@@ -1,0 +1,42 @@
+{
+	"remoteRulesToggles": {},
+	"remoteWorkflowToggles": {},
+	"welcomeViewCompleted": true,
+	"actModeOpenRouterModelInfo": {
+		"name": "Anthropic: Claude Sonnet 4.6",
+		"maxTokens": 128000,
+		"contextWindow": 200000,
+		"supportsImages": true,
+		"supportsPromptCache": true,
+		"inputPrice": 3,
+		"outputPrice": 15,
+		"cacheWritesPrice": 3.75,
+		"cacheReadsPrice": 0.3,
+		"description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work. It excels at iterative development, complex codebase navigation, end-to-end project management with memory, polished document creation, and confident computer use for web QA and workflow automation.",
+		"thinkingConfig": {
+			"maxBudget": 6000
+		}
+	},
+	"planModeOpenRouterModelInfo": {
+		"name": "Anthropic: Claude Sonnet 4.6",
+		"maxTokens": 128000,
+		"contextWindow": 200000,
+		"supportsImages": true,
+		"supportsPromptCache": true,
+		"inputPrice": 3,
+		"outputPrice": 15,
+		"cacheWritesPrice": 3.75,
+		"cacheReadsPrice": 0.3,
+		"description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work. It excels at iterative development, complex codebase navigation, end-to-end project management with memory, polished document creation, and confident computer use for web QA and workflow automation.",
+		"thinkingConfig": {
+			"maxBudget": 6000
+		}
+	},
+	"actModeApiProvider": "cline",
+	"planModeApiProvider": "cline",
+	"actModeClineModelId": "anthropic/claude-sonnet-4.6",
+	"planModeClineModelId": "anthropic/claude-sonnet-4.6",
+	"openAiHeaders": {},
+	"sapAiCoreUseOrchestrationMode": true,
+	"ocaMode": "internal"
+}
