@@ -1,11 +1,15 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { TaskUiDeltaEvent } from "@shared/proto/cline/ui"
 import { strict as assert } from "assert"
-import { sendTaskUiDelta, subscribeToTaskUiDeltas } from "./subscribeToTaskUiDeltas"
+import { registerTaskUiDeltaCallback, sendTaskUiDelta, subscribeToTaskUiDeltas } from "./subscribeToTaskUiDeltas"
 
 describe("subscribeToTaskUiDeltas", () => {
 	it("broadcasts serialized task deltas to active stream subscribers", async () => {
 		const received: TaskUiDeltaEvent[] = []
+		const callbackReceived: Array<{ type: string; sequence: number }> = []
+		const unsubscribe = registerTaskUiDeltaCallback((delta) => {
+			callbackReceived.push({ type: delta.type, sequence: delta.sequence })
+		})
 
 		await subscribeToTaskUiDeltas({} as any, EmptyRequest.create({}), async (message) => {
 			received.push(message)
@@ -30,6 +34,7 @@ describe("subscribeToTaskUiDeltas", () => {
 		assert.ok((stats?.payloadBytes ?? 0) > 0)
 		assert.ok((stats?.broadcastDurationMs ?? -1) >= 0)
 		assert.ok((stats?.streamSubscriberCount ?? 0) >= 1)
+		assert.ok((stats?.callbackSubscriberCount ?? 0) >= 1)
 
 		const parsed = JSON.parse(received[0]!.deltaJson)
 		assert.equal(parsed.type, "message_updated")
@@ -39,6 +44,11 @@ describe("subscribeToTaskUiDeltas", () => {
 		const parsedSecond = JSON.parse(received[1]!.deltaJson)
 		assert.equal(parsedSecond.sequence, 2)
 		assert.equal(parsedSecond.message.text, "delta-text-2")
+		assert.deepStrictEqual(callbackReceived, [
+			{ type: "message_updated", sequence: 1 },
+			{ type: "message_updated", sequence: 2 },
+		])
+		unsubscribe()
 	})
 
 	it("removes stream subscribers that throw during delivery", async () => {

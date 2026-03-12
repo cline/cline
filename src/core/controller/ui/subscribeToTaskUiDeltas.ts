@@ -7,11 +7,21 @@ import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
 const activeTaskUiDeltaSubscriptions = new Set<StreamingResponseHandler<TaskUiDeltaEvent>>()
+export type TaskUiDeltaCallback = (delta: TaskUiDelta) => void
+const callbackSubscriptions = new Set<TaskUiDeltaCallback>()
 
 export type TaskUiDeltaDeliveryStats = {
 	payloadBytes: number
 	broadcastDurationMs: number
 	streamSubscriberCount: number
+	callbackSubscriberCount: number
+}
+
+export function registerTaskUiDeltaCallback(callback: TaskUiDeltaCallback): () => void {
+	callbackSubscriptions.add(callback)
+	return () => {
+		callbackSubscriptions.delete(callback)
+	}
 }
 
 export async function subscribeToTaskUiDeltas(
@@ -53,11 +63,20 @@ export async function sendTaskUiDelta(delta: TaskUiDelta): Promise<TaskUiDeltaDe
 		}
 	})
 
+	for (const callback of callbackSubscriptions) {
+		try {
+			callback(delta)
+		} catch (error) {
+			Logger.error("Error sending task UI delta to callback subscriber:", error)
+		}
+	}
+
 	await Promise.all(promises)
 
 	return {
 		payloadBytes,
 		broadcastDurationMs: Math.max(0, performance.now() - startedAt),
 		streamSubscriberCount: activeTaskUiDeltaSubscriptions.size,
+		callbackSubscriberCount: callbackSubscriptions.size,
 	}
 }
