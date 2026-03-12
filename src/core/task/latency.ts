@@ -102,6 +102,19 @@ export function getUsageUpdateCadenceMs(isRemoteWorkspace: boolean): number {
 	return isRemoteWorkspace ? 400 : 250
 }
 
+export function getRequestBoundaryCacheTtlMs(isRemoteWorkspace: boolean): number {
+	const override = getCadenceOverride({
+		isRemoteWorkspace,
+		localEnvVar: "CLINE_REQUEST_BOUNDARY_CACHE_TTL_MS",
+		remoteEnvVar: "CLINE_REMOTE_REQUEST_BOUNDARY_CACHE_TTL_MS",
+	})
+	if (override !== undefined) {
+		return override
+	}
+
+	return isRemoteWorkspace ? 1000 : 500
+}
+
 export function summarizeChunkToWebviewDelays(delaysMs: number[]): { medianMs: number; p95Ms: number } {
 	if (delaysMs.length === 0) {
 		return { medianMs: 0, p95Ms: 0 }

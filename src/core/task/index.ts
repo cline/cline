@@ -116,6 +116,7 @@ import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import {
 	getPresentationCadenceMs,
+	getRequestBoundaryCacheTtlMs,
 	getUsageUpdateCadenceMs,
 	isEphemeralMessagePersistenceDisabled,
 	isPresentationSchedulingDisabled,
@@ -124,6 +125,7 @@ import {
 	type TaskLatencyTrigger,
 } from "./latency"
 import { MessageStateHandler } from "./message-state"
+import { RequestBoundaryCache } from "./RequestBoundaryCache"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { type PresentationPriority, TaskPresentationScheduler } from "./TaskPresentationScheduler"
@@ -274,6 +276,8 @@ export class Task {
 	private usageUpdateTimer: ReturnType<typeof setTimeout> | undefined
 	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
 	private readonly ephemeralMessagePersistenceDisabled = isEphemeralMessagePersistenceDisabled()
+	private readonly openTabsCache: RequestBoundaryCache<string[]>
+	private readonly visibleTabsCache: RequestBoundaryCache<string[]>
 
 	constructor(params: TaskParams) {
 		const {
@@ -578,6 +582,16 @@ export class Task {
 			},
 		})
 
+		const requestBoundaryCacheTtlMs = getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment)
+		this.openTabsCache = new RequestBoundaryCache({
+			load: async () => (await HostProvider.window.getOpenTabs({})).paths || [],
+			ttlMs: requestBoundaryCacheTtlMs,
+		})
+		this.visibleTabsCache = new RequestBoundaryCache({
+			load: async () => (await HostProvider.window.getVisibleTabs({})).paths || [],
+			ttlMs: requestBoundaryCacheTtlMs,
+		})
+
 		this.toolExecutor = new ToolExecutor(
 			this.taskState,
 			this.messageStateHandler,
@@ -717,6 +731,14 @@ export class Task {
 			clearTimeout(this.usageUpdateTimer)
 			this.usageUpdateTimer = undefined
 		}
+	}
+
+	private async getCachedOpenTabPaths(): Promise<string[]> {
+		return this.openTabsCache.get()
+	}
+
+	private async getCachedVisibleTabPaths(): Promise<string[]> {
+		return this.visibleTabsCache.get()
 	}
 
 	private captureRequestLatencyMetrics() {
@@ -2071,8 +2093,8 @@ export class Task {
 
 		// Snapshot editor tabs so prompt tools can decide whether to include
 		// filetype-specific instructions (e.g. notebooks) without adding bespoke flags.
-		const openTabPaths = (await HostProvider.window.getOpenTabs({})).paths || []
-		const visibleTabPaths = (await HostProvider.window.getVisibleTabs({})).paths || []
+		const openTabPaths = await this.getCachedOpenTabPaths()
+		const visibleTabPaths = await this.getCachedVisibleTabPaths()
 		const cap = 50
 		const editorTabs = {
 			open: openTabPaths.slice(0, cap),
@@ -3683,7 +3705,7 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += `\n\n# ${host.platform} Visible Files`
-		const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({})).paths
+		const rawVisiblePaths = await this.getCachedVisibleTabPaths()
 		const filteredVisiblePaths = await filterExistingFiles(rawVisiblePaths)
 		const visibleFilePaths = filteredVisiblePaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
@@ -3700,7 +3722,7 @@ export class Task {
 		}
 
 		details += `\n\n# ${host.platform} Open Tabs`
-		const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({})).paths
+		const rawOpenTabPaths = await this.getCachedOpenTabPaths()
 		const filteredOpenTabPaths = await filterExistingFiles(rawOpenTabPaths)
 		const openTabPaths = filteredOpenTabPaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
