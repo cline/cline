@@ -362,7 +362,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						chatState={chatState}
 						groupedMessages={groupedMessages}
 						messageHandlers={messageHandlers}
+						mode={mode}
 						modifiedMessages={modifiedMessages}
+						rawMessages={messages}
 						scrollBehavior={scrollBehavior}
 						task={task}
 					/>
