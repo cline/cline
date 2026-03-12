@@ -121,6 +121,7 @@ import {
 	isEphemeralMessagePersistenceDisabled,
 	isPresentationSchedulingDisabled,
 	isRemoteWorkspaceEnvironment,
+	shouldWaitForTerminalCooldown,
 	summarizeChunkToWebviewDelays,
 	type TaskLatencyTrigger,
 } from "./latency"
@@ -3755,8 +3756,12 @@ export class Task {
 			//  || this.didEditFile
 			await setTimeoutPromise(300) // delay after saving file to let terminals catch up
 		}
-		// let terminalWasBusy = false
-		if (busyTerminals.length > 0) {
+		const shouldWaitForCooldown = shouldWaitForTerminalCooldown({
+			busyTerminalIds: busyTerminals.map((terminal) => terminal.id),
+			isProcessHot: (terminalId) => this.terminalManager.isProcessHot(terminalId),
+			didEditFile: this.taskState.didEditFile,
+		})
+		if (shouldWaitForCooldown) {
 			// wait for terminals to cool down
 			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {

@@ -115,6 +115,28 @@ export function getRequestBoundaryCacheTtlMs(isRemoteWorkspace: boolean): number
 	return isRemoteWorkspace ? 1000 : 500
 }
 
+export function shouldWaitForTerminalCooldown(args: {
+	busyTerminalIds: number[]
+	isProcessHot: (terminalId: number) => boolean
+	didEditFile: boolean
+}): boolean {
+	if (args.busyTerminalIds.length === 0) {
+		return false
+	}
+
+	if (args.didEditFile) {
+		return true
+	}
+
+	return args.busyTerminalIds.some((terminalId) => {
+		try {
+			return args.isProcessHot(terminalId)
+		} catch {
+			return false
+		}
+	})
+}
+
 export function summarizeChunkToWebviewDelays(delaysMs: number[]): { medianMs: number; p95Ms: number } {
 	if (delaysMs.length === 0) {
 		return { medianMs: 0, p95Ms: 0 }

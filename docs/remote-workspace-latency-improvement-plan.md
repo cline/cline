@@ -584,7 +584,7 @@ Not all latency comes from streaming. Some comes from request setup, environment
 
 - [ ] Audit request-boundary hostbridge calls
 - [x] Cache visible/open tab data with a short TTL
-- [ ] Cache or coalesce terminal-state inspections where safe
+- [x] Cache or coalesce terminal-state inspections where safe
 - [ ] Avoid redundant expensive environment-detail reconstruction
 
 ### Code changes
