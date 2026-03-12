@@ -132,7 +132,8 @@
 			"!!**/webview-ui/build",
 			"!!**/generated",
 			"!!**/proto",
-			"!!**/tests/specs"
+			"!!**/tests/specs",
+			"!!**/web-terminal-poc"
 		]
 	},
 	"plugins": [

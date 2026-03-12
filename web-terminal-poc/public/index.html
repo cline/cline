@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Terminal</title>
+  <link rel="stylesheet" href="/xterm/css/xterm.css">
+  <style>
+    /*
+     * CRITICAL: The terminal container must have explicit dimensions.
+     * xterm.js measures its container to calculate cols/rows via FitAddon.
+     * If the container has no height, fit() returns {cols: 2, rows: 1}.
+     *
+     * We use position:absolute + inset:0 so the terminal fills the viewport
+     * without needing to know the viewport size in advance.
+     */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1e1e1e;
+    }
+
+    #terminal-container {
+      position: absolute;
+      inset: 0;
+      /*
+       * Padding matches VS Code's terminal padding.
+       * FitAddon accounts for this when calculating dimensions.
+       */
+      padding: 8px 12px;
+    }
+
+    /*
+     * Hide the loading message once terminal is ready.
+     */
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #888;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    #loading.hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Connecting...</div>
+  <div id="terminal-container"></div>
+
+  <!--
+    IMPORTANT: Load xterm.js modules from the npm packages we serve via Express.
+    We use ES modules with importmap so we get proper tree-shaking and
+    module resolution without a bundler.
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@xterm/xterm": "/xterm/lib/xterm.mjs",
+        "@xterm/addon-fit": "/xterm-addon-fit/lib/addon-fit.mjs",
+        "@xterm/addon-webgl": "/xterm-addon-webgl/lib/addon-webgl.mjs",
+        "@xterm/addon-web-links": "/xterm-addon-web-links/lib/addon-web-links.mjs",
+        "@xterm/addon-search": "/xterm-addon-search/lib/addon-search.mjs",
+        "@xterm/addon-unicode11": "/xterm-addon-unicode11/lib/addon-unicode11.mjs"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import { FitAddon } from "@xterm/addon-fit";
+    import { SearchAddon } from "@xterm/addon-search";
+    import { Unicode11Addon } from "@xterm/addon-unicode11";
+    import { WebLinksAddon } from "@xterm/addon-web-links";
+    import { WebglAddon } from "@xterm/addon-webgl";
+    import { Terminal } from "@xterm/xterm";
+
+    // --- Configuration ---
+    //
+    // These options are modeled after VS Code's xterm configuration in
+    // xtermTerminal.ts. Each one has a specific purpose documented below.
+
+    const TERMINAL_OPTIONS = {
+      // -- Core -------------------------------------------------------------
+      //
+      // allowProposedApi: Required for some addons (e.g., decorations).
+      allowProposedApi: true,
+
+      // -- Font -------------------------------------------------------------
+      //
+      // fontFamily: Must include a monospace fallback. VS Code uses its own
+      //   font stack but falls back to platform monospace.
+      //
+      // fontSize: 13px is VS Code's default. Going smaller risks subpixel
+      //   rendering issues. Going larger wastes screen real estate.
+      //
+      // fontWeight / fontWeightBold: "normal" and "bold" respectively.
+      //   Using numeric weights (400, 700) is more reliable across fonts.
+      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+      fontSize: 13,
+      fontWeight: "normal",
+      fontWeightBold: "bold",
+      letterSpacing: 0,
+      lineHeight: 1.0,
+
+      // -- Cursor -----------------------------------------------------------
+      //
+      // cursorBlink: Matches VS Code default. Some people find blinking
+      //   cursors distracting - but it makes the terminal feel "alive".
+      //
+      // cursorStyle: "bar" matches modern terminals and VS Code default.
+      //   Options: "block", "underline", "bar"
+      cursorBlink: true,
+      cursorStyle: "bar",
+      cursorWidth: 1,
+
+      // -- Scrollback -------------------------------------------------------
+      //
+      // scrollback: Number of lines kept in history buffer. VS Code
+      //   defaults to 1000. Higher = more memory. 10000 is generous.
+      //
+      // scrollOnUserInput: Auto-scroll to bottom when user types.
+      //   Essential for usability - without this, typing while scrolled
+      //   up is extremely confusing.
+      //
+      // smoothScrollDuration: 0 = instant scroll (no animation).
+      //   Any value > 0 adds perceived latency. VS Code uses 0.
+      scrollback: 10000,
+      scrollOnUserInput: true,
+      smoothScrollDuration: 0,
+
+      // -- Theme ------------------------------------------------------------
+      //
+      // This theme matches VS Code's default dark terminal colors.
+      // Using exact VS Code values makes the terminal feel native.
+      theme: {
+        background: "#1e1e1e",
+        foreground: "#cccccc",
+        cursor: "#aeafad",
+        cursorAccent: "#1e1e1e",
+        selectionBackground: "#264f78",
+        selectionForeground: "#ffffff",
+        selectionInactiveBackground: "#3a3d41",
+        // ANSI colors - VS Code dark theme defaults
+        black: "#000000",
+        red: "#cd3131",
+        green: "#0dbc79",
+        yellow: "#e5e510",
+        blue: "#2472c8",
+        magenta: "#bc3fbc",
+        cyan: "#11a8cd",
+        white: "#e5e5e5",
+        brightBlack: "#666666",
+        brightRed: "#f14c4c",
+        brightGreen: "#23d18b",
+        brightYellow: "#f5f543",
+        brightBlue: "#3b8eea",
+        brightMagenta: "#d670d6",
+        brightCyan: "#29b8db",
+        brightWhite: "#e5e5e5",
+      },
+
+      // -- Advanced ---------------------------------------------------------
+      //
+      // convertEol: DO NOT enable. This converts \n to \r\n which breaks
+      //   raw terminal output. The PTY handles line endings correctly.
+      //
+      // disableStdin: false - we want user input.
+      //
+      // allowTransparency: false - enabling this has a performance cost
+      //   because it forces the renderer to composite differently.
+      //
+      // macOptionIsMeta: true - on Mac, Option key sends Meta sequences
+      //   (e.g., Alt+B for word-back in bash). Without this, Mac users
+      //   can't use any Alt-based shortcuts.
+      //
+      // macOptionClickForcesSelection: true - on Mac, Option+Click
+      //   selects text instead of sending mouse position. Important for
+      //   mouse-enabled TUI apps where you still want to select text.
+      //
+      // rightClickSelectsWord: false - we'll use right-click for
+      //   context menu or paste, not word selection.
+      //
+      // wordSeparator: Matches VS Code's default word separators for
+      //   double-click selection.
+      convertEol: false,
+      disableStdin: false,
+      allowTransparency: false,
+      macOptionIsMeta: true,
+      macOptionClickForcesSelection: true,
+      rightClickSelectsWord: false,
+      wordSeparator: " ()[]{}',\"`",
+
+      // -- Scrollbar --------------------------------------------------------
+      //
+      // VS Code shows a thin scrollbar (14px) with overview ruler.
+      scrollbar: {
+        width: 14,
+        overviewRuler: {
+          showTopBorder: true,
+        },
+      },
+    };
+
+    // --- Flow Control Constants ----------------------------------------------
+    //
+    // Must match server-side values. The client acks every ACK_INTERVAL bytes
+    // to tell the server it can keep sending.
+
+    const ACK_INTERVAL = 100000; // Match server's CHAR_COUNT_ACK_SIZE
+    let pendingAckBytes = 0;
+
+    // --- Terminal Initialization ---------------------------------------------
+
+    const container = document.getElementById("terminal-container");
+    const loading = document.getElementById("loading");
+
+    const terminal = new Terminal(TERMINAL_OPTIONS);
+
+    // -- Load Addons ---------------------------------------------------------
+    //
+    // Order matters:
+    // 1. FitAddon FIRST - needed to calculate initial dimensions
+    // 2. WebLinksAddon - clickable URLs
+    // 3. SearchAddon - Ctrl+F search (optional but nice)
+    // 4. Unicode11Addon - proper Unicode width calculation
+    // 5. WebglAddon LAST - after terminal.open() so it has a canvas
+
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+
+    const webLinksAddon = new WebLinksAddon();
+    terminal.loadAddon(webLinksAddon);
+
+    const searchAddon = new SearchAddon();
+    terminal.loadAddon(searchAddon);
+
+    const unicode11 = new Unicode11Addon();
+    terminal.loadAddon(unicode11);
+    terminal.unicode.activeVersion = "11";
+
+    // -- Open Terminal -------------------------------------------------------
+    //
+    // CRITICAL: terminal.open() must be called BEFORE fitAddon.fit().
+    // The terminal needs to be attached to the DOM to measure font metrics.
+    // If you call fit() before open(), you get wrong dimensions.
+
+    terminal.open(container);
+    fitAddon.fit();
+
+    // -- WebGL Renderer ------------------------------------------------------
+    //
+    // Load AFTER open() because WebGL needs a canvas context.
+    // Handle context loss gracefully - fall back to canvas renderer.
+    //
+    // VS Code does this same pattern in xtermTerminal.ts:
+    //   webglAddon.onContextLoss(() => { webglAddon.dispose(); });
+
+    try {
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        console.warn("[terminal] WebGL context lost, falling back to canvas");
+        webglAddon.dispose();
+      });
+      terminal.loadAddon(webglAddon);
+      console.log("[terminal] WebGL renderer enabled");
+    } catch (e) {
+      console.warn("[terminal] WebGL not available, using canvas renderer:", e.message);
+    }
+
+    // --- WebSocket Connection ------------------------------------------------
+    //
+    // We use a custom WebSocket integration instead of the AttachAddon because:
+    //
+    // 1. AttachAddon doesn't support flow control (ack messages)
+    // 2. AttachAddon doesn't support mixed binary/text frames for control
+    // 3. We need to send resize events on a separate channel
+    //
+    // The AttachAddon is great for simple cases, but for a native-feeling
+    // terminal, you need more control over the data pipeline.
+
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${location.host}/ws`;
+
+    let ws;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+
+    function connect() {
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer"; // Critical: use ArrayBuffer, not Blob
+
+      ws.onopen = () => {
+        console.log("[terminal] WebSocket connected");
+        loading.classList.add("hidden");
+        reconnectAttempts = 0;
+        terminal.focus();
+
+        // Send initial dimensions so server creates PTY with correct size
+        sendResize(terminal.cols, terminal.rows);
+      };
+
+      // -- Incoming Data (PTY -> Terminal) ----------------------------------
+      //
+      // Binary frames = terminal output from PTY
+      // Text frames = control messages (exit notifications, etc.)
+      //
+      // IMPORTANT: We use terminal.write() with a callback to implement
+      // flow control. The callback fires when xterm has PARSED the data
+      // (not just queued it). This matches VS Code's pattern in
+      // terminalInstance.ts _writeProcessData().
+
+      ws.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          // Binary frame = terminal data
+          const data = new Uint8Array(event.data);
+          terminal.write(data, () => {
+            // Data has been parsed by xterm - track for flow control
+            pendingAckBytes += data.byteLength;
+            if (pendingAckBytes >= ACK_INTERVAL) {
+              sendControlMessage({ type: "ack", bytes: pendingAckBytes });
+              pendingAckBytes = 0;
+            }
+          });
+        } else {
+          // Text frame = control message
+          try {
+            const msg = JSON.parse(event.data);
+            handleServerMessage(msg);
+          } catch (e) {
+            console.error("[terminal] Bad server message:", e);
+          }
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log(`[terminal] WebSocket closed: code=${event.code}`);
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && event.code !== 1000) {
+          reconnectAttempts++;
+          const delay = Math.min(1000 * 2 ** reconnectAttempts, 10000);
+          console.log(`[terminal] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+          terminal.write(`\r\n\x1b[33m[Disconnected. Reconnecting in ${delay / 1000}s...]\x1b[0m\r\n`);
+          setTimeout(connect, delay);
+        } else {
+          terminal.write("\r\n\x1b[31m[Connection closed]\x1b[0m\r\n");
+        }
+      };
+
+      ws.onerror = () => {
+        console.error("[terminal] WebSocket error");
+      };
+    }
+
+    function sendControlMessage(msg) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+      }
+    }
+
+    function sendResize(cols, rows) {
+      sendControlMessage({ type: "resize", cols, rows });
+    }
+
+    function handleServerMessage(msg) {
+      switch (msg.type) {
+        case "exit":
+          terminal.write(
+            `\r\n\x1b[90m[Process exited with code ${msg.exitCode}]\x1b[0m\r\n`,
+          );
+          break;
+        default:
+          console.log("[terminal] Unknown server message:", msg);
+      }
+    }
+
+    // --- User Input (Terminal -> PTY) -----------------------------------------
+    //
+    // onData fires for ALL user input: keyboard, paste, IME.
+    // We send it as binary to match the binary protocol.
+    //
+    // onBinary fires for non-UTF8 data (some mouse reports).
+    // This is rare but important for mouse-enabled TUI apps.
+
+    terminal.onData((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // Encode as UTF-8 and send as binary frame
+        const encoded = new TextEncoder().encode(data);
+        ws.send(encoded);
+      }
+    });
+
+    terminal.onBinary((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const buffer = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+          buffer[i] = data.charCodeAt(i) & 0xff;
+        }
+        ws.send(buffer);
+      }
+    });
+
+    // --- Resize Handling -----------------------------------------------------
+    //
+    // CRITICAL: Resize must be debounced AND must notify the server.
+    //
+    // Why debounce?
+    // - Window resize fires many events rapidly
+    // - Each resize triggers xterm reflow (expensive for wide buffers)
+    // - Each resize sends SIGWINCH to the PTY child process
+    // - VS Code debounces horizontal resizes by 100ms
+    //
+    // Why notify server?
+    // - The PTY needs to know the new dimensions
+    // - Without this, programs like vim/htop render wrong
+    // - SIGWINCH tells the child process to re-query terminal size
+
+    let resizeTimeout;
+
+    function handleResize() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        fitAddon.fit();
+      }, 100);  // 100ms debounce, matches VS Code
+    }
+
+    // terminal.onResize fires AFTER fitAddon.fit() changes dimensions
+    terminal.onResize(({ cols, rows }) => {
+      sendResize(cols, rows);
+    });
+
+    // Listen for window resize AND ResizeObserver for container changes
+    window.addEventListener("resize", handleResize);
+
+    // ResizeObserver is more reliable than window.resize for container
+    // size changes (e.g., dev tools open, sidebar toggle)
+    const resizeObserver = new ResizeObserver(() => handleResize());
+    resizeObserver.observe(container);
+
+    // --- Keyboard Shortcuts --------------------------------------------------
+    //
+    // Intercept browser shortcuts that conflict with terminal usage.
+    // VS Code does this extensively in terminalInstance.ts.
+
+    terminal.attachCustomKeyEventHandler((event) => {
+      // Allow Ctrl+Shift+F for search (handled below)
+      if (event.ctrlKey && event.shiftKey && event.key === "F") {
+        return false; // Let it bubble to our handler
+      }
+
+      // Allow Ctrl+Shift+C / Ctrl+Shift+V for copy/paste
+      if (event.ctrlKey && event.shiftKey && (event.key === "C" || event.key === "V")) {
+        return false;
+      }
+
+      // Block Ctrl+W from closing the browser tab
+      if (event.ctrlKey && event.key === "w") {
+        event.preventDefault();
+        return true; // Let xterm handle it (sends to PTY)
+      }
+
+      return true; // Default: let xterm handle the key
+    });
+
+    // --- Copy/Paste ----------------------------------------------------------
+    //
+    // Right-click paste (like PuTTY/Windows Terminal behavior)
+    // Ctrl+Shift+C/V for clipboard operations
+
+    container.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      // Right-click: paste if no selection, otherwise copy
+      if (terminal.hasSelection()) {
+        navigator.clipboard.writeText(terminal.getSelection());
+        terminal.clearSelection();
+      } else {
+        navigator.clipboard.readText().then((text) => {
+          if (text) terminal.paste(text);
+        });
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "C") {
+        e.preventDefault();
+        if (terminal.hasSelection()) {
+          navigator.clipboard.writeText(terminal.getSelection());
+        }
+      }
+      if (e.ctrlKey && e.shiftKey && e.key === "V") {
+        e.preventDefault();
+        navigator.clipboard.readText().then((text) => {
+          if (text) terminal.paste(text);
+        });
+      }
+    });
+
+    // --- Start Connection ----------------------------------------------------
+
+    connect();
+
+    // --- Debug Info ----------------------------------------------------------
+
+    console.log("[terminal] Initialized", {
+      cols: terminal.cols,
+      rows: terminal.rows,
+      renderer: "webgl (with canvas fallback)",
+      scrollback: TERMINAL_OPTIONS.scrollback,
+    });
+  </script>
+</body>
+</html>

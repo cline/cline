@@ -1,0 +1,25 @@
+{
+  "name": "web-terminal-poc",
+  "version": "1.0.0",
+  "description": "POC: Native-feeling web terminal using xterm.js + node-pty (modeled after VS Code's terminal architecture)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "dependencies": {
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-attach": "^0.11.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/addon-search": "^0.15.0",
+    "@xterm/addon-serialize": "^0.13.0",
+    "@xterm/addon-unicode11": "^0.8.0",
+    "@xterm/addon-clipboard": "^0.1.0",
+    "node-pty": "^1.0.0",
+    "ws": "^8.16.0",
+    "express": "^4.18.2",
+    "open": "^10.1.0"
+  }
+}
