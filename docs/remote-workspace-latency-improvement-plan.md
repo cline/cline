@@ -712,7 +712,7 @@ The reason for this order is that the early steps are high-value and lower risk,
 
 - [x] Add optional debug logging for scheduler flush/coalescing behavior
 - [x] Add optional debug counters in webview devtools for delta/full-state application counts
-- [ ] Add a forced full-resync mechanism if delta state diverges
+- [x] Add a forced full-resync mechanism if delta state diverges
 
 ---
 
@@ -801,7 +801,7 @@ Below is a consolidated development checklist for tests. This can be used as a p
 - [ ] Native tool calling request preserves correct tool execution behavior under coalesced presentation
 - [ ] Abort/cancel during stream preserves recoverable task state
 - [ ] Resume from history still works after deferred partial persistence
-- [ ] Full state and delta state converge to the same result
+- [x] Full state and delta state converge to the same result
 
 ### Frontend tests
 
