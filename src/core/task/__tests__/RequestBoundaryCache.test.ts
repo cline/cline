@@ -63,4 +63,26 @@ describe("RequestBoundaryCache", () => {
 		cache.clear()
 		assert.equal(await cache.get(), "value-2")
 	})
+
+	it("retries after a failed load instead of caching the failure", async () => {
+		let loads = 0
+		const cache = new RequestBoundaryCache({
+			load: async () => {
+				loads += 1
+				if (loads === 1) {
+					throw new Error("temporary failure")
+				}
+				return `value-${loads}`
+			},
+			ttlMs: 100,
+		})
+
+		await assert.rejects(cache.get(), /temporary failure/)
+		assert.equal(loads, 1)
+
+		assert.equal(await cache.get(), "value-2")
+		assert.equal(loads, 2)
+		assert.equal(await cache.get(), "value-2")
+		assert.equal(loads, 2)
+	})
 })
