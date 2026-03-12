@@ -701,6 +701,8 @@ The reason for this order is that the early steps are high-value and lower risk,
 
 ### Telemetry comparisons to monitor during rollout
 
+Use `node scripts/analyze-task-latency-metrics.mjs <path-to-jsonl>` to summarize exported `task.latency_metrics` events when comparing before/after runs.
+
 - [ ] average `presentAssistantMessage()` invocations per request
 - [ ] average partial message events per request
 - [ ] average `postStateToWebview()` calls per request
