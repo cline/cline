@@ -2604,6 +2604,7 @@ export class Task {
 							this.ulid,
 							usageInputTokens,
 							usageOutputTokens,
+							providerId,
 							model.id,
 							chunkOptions,
 						)
