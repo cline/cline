@@ -806,7 +806,7 @@ Below is a consolidated development checklist for tests. This can be used as a p
 
 - [x] Partial message update patches active row correctly
 - [ ] Partial→complete transition does not flicker
-- [ ] Delta events update chat state correctly in order
+- [x] Delta events update chat state correctly in order
 - [x] Full snapshot resync repairs intentionally diverged state
 
 ### Performance/regression validation
