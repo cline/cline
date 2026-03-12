@@ -669,7 +669,7 @@ This is important for safe rollout and A/B comparison.
 
 - [x] Unit test: remote detection helper behaves correctly for representative host metadata
 - [x] Unit test: cadence selection changes in remote mode
-- [ ] Integration test: remote-mode config path enables the intended scheduler defaults
+- [x] Integration test: remote-mode config path enables the intended scheduler defaults
 
 ---
 

@@ -10,6 +10,7 @@ describe("Controller postStateToWebview", () => {
 	let stateManagerStub: sinon.SinonStub
 	let mockStateManager: any
 	let hostProviderInitialized = false
+	let mockGetHostVersion: sinon.SinonStub
 
 	before(async () => {
 		if (!ClineEndpoint.isInitialized()) {
@@ -19,14 +20,15 @@ describe("Controller postStateToWebview", () => {
 
 	beforeEach(async () => {
 		if (!HostProvider.isInitialized()) {
+			mockGetHostVersion = sinon.stub().resolves({
+				clineVersion: "1.0.0",
+				platform: "darwin",
+				clineType: "vscode",
+			})
 			const mockHostBridge: any = {
 				workspaceClient: {},
 				envClient: {
-					getHostVersion: sinon.stub().resolves({
-						clineVersion: "1.0.0",
-						platform: "darwin",
-						clineType: "vscode",
-					}),
+					getHostVersion: mockGetHostVersion,
 				},
 				windowClient: {},
 				diffClient: {},
@@ -135,5 +137,54 @@ describe("Controller postStateToWebview", () => {
 
 		sinon.assert.calledOnce(flushNow)
 		sinon.assert.notCalled(requestFlush)
+	})
+
+	it("detects remote workspace host metadata during controller initialization", async () => {
+		HostProvider.reset()
+		hostProviderInitialized = false
+
+		mockGetHostVersion = sinon.stub().resolves({
+			clineVersion: "1.0.0",
+			platform: "darwin",
+			clineType: "vscode",
+			remoteName: "ssh-remote",
+		})
+
+		HostProvider.initialize(
+			() => null as any,
+			() => null as any,
+			() => null as any,
+			() => null as any,
+			{
+				workspaceClient: {},
+				envClient: {
+					getHostVersion: mockGetHostVersion,
+				},
+				windowClient: {},
+				diffClient: {},
+			} as any,
+			() => {},
+			async (path: string) => `http://localhost${path}`,
+			async () => "",
+			"/test/extension",
+			"/test/storage",
+		)
+		hostProviderInitialized = true
+
+		controller = new Controller({
+			globalState: { get: sinon.stub(), update: sinon.stub().resolves() },
+			workspaceState: { get: sinon.stub(), update: sinon.stub().resolves() },
+			secrets: { get: sinon.stub().resolves(), store: sinon.stub().resolves(), delete: sinon.stub().resolves() },
+			subscriptions: [],
+			extensionPath: "/test/path",
+			globalStoragePath: "/test/storage",
+			globalStorageUri: { fsPath: "/test/storage" },
+		} as any)
+
+		await Promise.resolve()
+		await Promise.resolve()
+
+		sinon.assert.called(mockGetHostVersion)
+		;(controller as any).isRemoteWorkspaceEnvironment.should.equal(true)
 	})
 })
