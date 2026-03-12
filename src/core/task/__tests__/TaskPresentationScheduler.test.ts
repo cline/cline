@@ -79,6 +79,37 @@ describe("TaskPresentationScheduler", () => {
 		assert.equal(flushCount, 1)
 	})
 
+	it("runs one follow-up flush when new work arrives during an active flush", async () => {
+		const timer = new FakeTimerController()
+		let flushCount = 0
+		let resolveFlush: (() => void) | undefined
+		const scheduler = new TaskPresentationScheduler({
+			flush: async () => {
+				flushCount++
+				await new Promise<void>((resolve) => {
+					resolveFlush = resolve
+				})
+			},
+			getDelayMs: () => 10,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
+		})
+
+		scheduler.requestFlush("normal")
+		timer.advance(10)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+
+		scheduler.requestFlush("normal")
+		resolveFlush?.()
+		await Promise.resolve()
+		await Promise.resolve()
+		timer.advance(10)
+		await Promise.resolve()
+		assert.equal(flushCount, 2)
+	})
+
 	it("disposes pending work", async () => {
 		const timer = new FakeTimerController()
 		let flushCount = 0
