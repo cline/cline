@@ -311,7 +311,7 @@ In practice this means task history may be slightly behind while tokens are stre
 - [x] Unit test: ephemeral update mutates in-memory message and emits change without saving
 - [x] Unit test: durable flush persists previously ephemeral changes
 - [x] Unit test: partial → complete transition triggers persistence
-- [ ] Unit test: periodic safety flush persists pending ephemeral changes
+- [x] Unit test: periodic safety flush persists pending ephemeral changes
 - [ ] Integration test: abort during stream still persists a recoverable final state
 - [ ] Regression test: resume-from-history still works after deferred partial persistence
 
@@ -789,6 +789,7 @@ Below is a consolidated development checklist for tests. This can be used as a p
 
 - [x] Scheduler unit tests with fake timers
 - [x] MessageStateHandler ephemeral-vs-durable mutation tests
+- [x] Periodic ephemeral safety-flush scheduler tests
 - [x] Coalesced controller state-posting tests
 - [x] Usage/metadata throttling tests
 - [x] Remote-mode cadence selection tests
