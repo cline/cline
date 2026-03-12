@@ -178,4 +178,47 @@ describe("applyTaskUiDeltaToState", () => {
 		expect(result.state.backgroundCommandTaskId).toBe("task-1")
 		expect(result.state.clineMessages).toEqual(state.clineMessages)
 	})
+
+	it("preserves state references when a metadata delta does not change values", () => {
+		const state = createState()
+		const result = applyTaskUiDeltaToState(
+			state,
+			createDelta({
+				type: "task_metadata_updated",
+				metadata: {
+					backgroundCommandRunning: false,
+					backgroundCommandTaskId: undefined,
+				},
+			}),
+			0,
+		)
+
+		expect(result.kind).toBe("applied")
+		if (result.kind !== "applied") {
+			throw new Error("expected applied result")
+		}
+		expect(result.state).toBe(state)
+	})
+
+	it("preserves message array reference when an update delta is identical to existing content", () => {
+		const state = createState()
+		const existingMessage = { ts: 10, type: "say", say: "text", text: "hello" } as const
+		state.clineMessages = [existingMessage as any]
+
+		const result = applyTaskUiDeltaToState(
+			state,
+			createDelta({
+				type: "message_updated",
+				message: { ...existingMessage },
+			}),
+			0,
+		)
+
+		expect(result.kind).toBe("applied")
+		if (result.kind !== "applied") {
+			throw new Error("expected applied result")
+		}
+		expect(result.state).toBe(state)
+		expect(result.state.clineMessages).toBe(state.clineMessages)
+	})
 })
