@@ -681,7 +681,6 @@ At this stage, no additional user-facing settings are recommended. The latency c
 
 These changes touch the hottest and most stateful part of task execution. The mental model here is: **performance work must be staged so that correctness is preserved while the architecture evolves**.
 
-- [ ] Roll out in small phases behind feature flags
 - [ ] Compare telemetry between old and new paths
 - [x] Add fallback/resync paths for delta-sync failures
 - [x] Prepare debugging aids for support and dogfooding
