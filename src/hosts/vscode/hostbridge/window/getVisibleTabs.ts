@@ -1,8 +1,23 @@
 import { window } from "vscode"
 import { GetVisibleTabsRequest, GetVisibleTabsResponse } from "@/shared/proto/host/window"
+import { createCachedTabQuery } from "./tabQueryCache"
+
+const visibleTabsQuery = createCachedTabQuery(
+	async () =>
+		window.visibleTextEditors
+			?.map((editor) => editor.document?.uri?.fsPath)
+			.filter((path): path is string => Boolean(path)) ?? [],
+	(paths) => GetVisibleTabsResponse.create({ paths }),
+)
 
 export async function getVisibleTabs(_: GetVisibleTabsRequest): Promise<GetVisibleTabsResponse> {
-	const visibleTabPaths = window.visibleTextEditors?.map((editor) => editor.document?.uri?.fsPath).filter(Boolean)
+	return visibleTabsQuery.read()
+}
 
-	return GetVisibleTabsResponse.create({ paths: visibleTabPaths ?? [] })
+export function resetVisibleTabsCacheForTests(): void {
+	visibleTabsQuery.reset()
+}
+
+export function setVisibleTabsCacheTtlForTests(ttlMs: number): void {
+	visibleTabsQuery.setTtlForTests(ttlMs)
 }
