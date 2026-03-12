@@ -54,7 +54,11 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							if (!value) {
 								return
 							}
-							const [vendor, family] = value.split("/")
+							// Split on first "/" only — family may contain slashes
+						// (e.g., BYOK providers: "copilot/openai/gpt-4o")
+						const separatorIndex = value.indexOf("/")
+						const vendor = value.substring(0, separatorIndex)
+						const family = value.substring(separatorIndex + 1)
 
 							handleModeFieldChange(
 								{ plan: "planModeVsCodeLmModelSelector", act: "actModeVsCodeLmModelSelector" },
