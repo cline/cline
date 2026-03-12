@@ -4,11 +4,18 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import * as os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
+import sinon from "sinon"
 import * as vscode from "vscode"
-import { getOpenTabs } from "@/hosts/vscode/hostbridge/window/getOpenTabs"
+import {
+	getOpenTabs,
+	resetOpenTabsCacheForTests,
+	setOpenTabsCacheTtlForTests,
+} from "@/hosts/vscode/hostbridge/window/getOpenTabs"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 
 describe("Hostbridge - Window - getOpenTabs", () => {
+	let sandbox: sinon.SinonSandbox
+
 	async function createAndOpenTestDocument(name: string, column: vscode.ViewColumn): Promise<void> {
 		const content = `// Test file ${name}\nconsole.log('Hello from file ${name}');`
 
@@ -45,11 +52,17 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 	}
 
 	beforeEach(async () => {
+		sandbox = sinon.createSandbox()
+		resetOpenTabsCacheForTests()
+		setOpenTabsCacheTtlForTests(500)
 		// Clean up any existing editors and wait for cleanup to complete
 		await waitForAllTabsClosed()
 	})
 
 	afterEach(async () => {
+		sandbox.restore()
+		resetOpenTabsCacheForTests()
+		setOpenTabsCacheTtlForTests(500)
 		// Clean up test documents and editors
 		await waitForAllTabsClosed()
 	})
@@ -179,5 +192,25 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		} catch (error) {
 			console.error(error)
 		}
+	})
+
+	it("reuses cached open-tab results within the TTL and refreshes after expiry", async () => {
+		setOpenTabsCacheTtlForTests(20)
+		await createAndOpenTestDocument("cache-1", vscode.ViewColumn.One)
+		await pWaitFor(async () => (await getOpenTabs(GetOpenTabsRequest.create({}))).paths.length === 1, {
+			timeout: 5000,
+			interval: 50,
+		})
+
+		const firstResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
+		assert.strictEqual(firstResponse.paths.length, 1)
+
+		await createAndOpenTestDocument("cache-2", vscode.ViewColumn.Two)
+		const cachedResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
+		assert.strictEqual(cachedResponse.paths.length, 1, "Expected cached result before TTL expiry")
+
+		await new Promise((resolve) => setTimeout(resolve, 25))
+		const refreshedResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
+		assert.strictEqual(refreshedResponse.paths.length, 2, "Expected refreshed result after TTL expiry")
 	})
 })

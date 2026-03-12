@@ -3,11 +3,18 @@ import * as fs from "fs/promises"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
+import sinon from "sinon"
 import * as vscode from "vscode"
-import { getVisibleTabs } from "@/hosts/vscode/hostbridge/window/getVisibleTabs"
+import {
+	getVisibleTabs,
+	resetVisibleTabsCacheForTests,
+	setVisibleTabsCacheTtlForTests,
+} from "@/hosts/vscode/hostbridge/window/getVisibleTabs"
 import { GetVisibleTabsRequest } from "@/shared/proto/host/window"
 
 describe("Hostbridge - Window - getVisibleTabs", () => {
+	let sandbox: sinon.SinonSandbox
+
 	/**
 	 * Helper function to create and open a test document in a specific column
 	 */
@@ -31,11 +38,17 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 	}
 
 	beforeEach(async () => {
+		sandbox = sinon.createSandbox()
+		resetVisibleTabsCacheForTests()
+		setVisibleTabsCacheTtlForTests(500)
 		// Clean up any existing editors
 		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 	})
 
 	afterEach(async () => {
+		sandbox.restore()
+		resetVisibleTabsCacheForTests()
+		setVisibleTabsCacheTtlForTests(500)
 		// Clean up test documents and editors
 		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 	})
@@ -187,5 +200,23 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 
 		// Clean up temp directory
 		await fs.rm(tempDir, { recursive: true }).catch(() => {})
+	})
+
+	it("reuses cached visible-tab results within the TTL and refreshes after expiry", async () => {
+		setVisibleTabsCacheTtlForTests(20)
+		await createAndOpenTestDocument(1, vscode.ViewColumn.One)
+		await new Promise((resolve) => setTimeout(resolve, 100))
+
+		const firstResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
+		assert.strictEqual(firstResponse.paths.length, 1)
+
+		await createAndOpenTestDocument(2, vscode.ViewColumn.Two)
+		await new Promise((resolve) => setTimeout(resolve, 100))
+		const cachedResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
+		assert.strictEqual(cachedResponse.paths.length, 1, "Expected cached result before TTL expiry")
+
+		await new Promise((resolve) => setTimeout(resolve, 25))
+		const refreshedResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
+		assert.strictEqual(refreshedResponse.paths.length, 2, "Expected refreshed result after TTL expiry")
 	})
 })
