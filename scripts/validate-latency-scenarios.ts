@@ -257,7 +257,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 			taskClient.newTask(
 				{
 					metadata: undefined,
-					text: "Hello, Cline!",
+					text: "latency_validation",
 					images: [],
 					files: [],
 					taskSettings: undefined,
