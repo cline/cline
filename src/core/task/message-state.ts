@@ -63,7 +63,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		saveConversationDurationMs: 0,
 		updateHistoryDurationMs: 0,
 	}
-	private taskUiDeltaSequence = 0
 	private readonly taskUiDeltaSyncDisabled = isTaskUiDeltaSyncDisabled()
 
 	// Mutex to prevent concurrent state modifications (RC-4)
@@ -92,7 +91,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	private async emitTaskUiDeltaForChange(change: ClineMessageChange): Promise<void> {
-		const sequence = ++this.taskUiDeltaSequence
+		const sequence = ++this.taskState.taskUiDeltaSequence
 		if (change.type === "add" && change.message) {
 			await sendTaskUiDelta({
 				type: "message_added",

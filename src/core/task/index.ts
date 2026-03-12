@@ -401,6 +401,7 @@ export class Task {
 				mode: this.stateManager.getGlobalSettingsKey("mode"),
 				stateManager: this.stateManager,
 				postStateToWebview: this.postStateToWebview,
+				postTaskMetadataDelta: (metadata) => this.controller.postTaskMetadataDelta(metadata, this.taskId),
 				say: this.say.bind(this),
 				focusChainSettings: focusChainSettings,
 			})

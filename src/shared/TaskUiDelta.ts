@@ -1,4 +1,8 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+
+export type TaskUiMetadataDelta = Partial<
+	Pick<ExtensionState, "currentFocusChainChecklist" | "backgroundCommandRunning" | "backgroundCommandTaskId">
+>
 
 export type TaskUiDelta =
 	| {
@@ -23,6 +27,12 @@ export type TaskUiDelta =
 			type: "task_state_resynced"
 			taskId: string
 			sequence: number
+	  }
+	| {
+			type: "task_metadata_updated"
+			taskId: string
+			sequence: number
+			metadata: TaskUiMetadataDelta
 	  }
 
 export function isTaskUiDeltaMessageMutation(
