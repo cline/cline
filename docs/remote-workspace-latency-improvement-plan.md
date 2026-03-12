@@ -572,7 +572,7 @@ If Phase 4 is not yet implemented, at minimum route metrics through the controll
 
 - [x] Unit test: many usage chunks produce fewer UI updates than chunk count
 - [ ] Integration test: final displayed token/cost values remain accurate at request completion
-- [ ] Regression test: retry/cancel/error flows still show correct request metadata
+- [x] Regression test: retry/cancel/error flows still show correct request metadata
 
 ---
 
