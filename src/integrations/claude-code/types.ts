@@ -32,10 +32,9 @@ type RateLimitEvent = {
 		rateLimitType?: string
 		[key: string]: unknown
 	}
-	// Legacy format fields (older CLI versions)
+	// Fields that may also appear for backward compatibility
 	message?: string
 	retryAfterSeconds?: number
-}
 
 // Legacy format where rate limit was a system subtype
 type LegacyRateLimitEvent = {
