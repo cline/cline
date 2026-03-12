@@ -129,4 +129,36 @@ describe("TaskPresentationScheduler", () => {
 		await Promise.resolve()
 		assert.equal(flushCount, 0)
 	})
+
+	it("does not schedule a follow-up flush after disposal during an active flush", async () => {
+		const timer = new FakeTimerController()
+		let flushCount = 0
+		let resolveFlush: (() => void) | undefined
+		const scheduler = new TaskPresentationScheduler({
+			flush: async () => {
+				flushCount++
+				await new Promise<void>((resolve) => {
+					resolveFlush = resolve
+				})
+			},
+			getDelayMs: () => 10,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
+		})
+
+		scheduler.requestFlush("normal")
+		timer.advance(10)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+
+		scheduler.requestFlush("normal")
+		await scheduler.dispose()
+		resolveFlush?.()
+		await Promise.resolve()
+		await Promise.resolve()
+		timer.advance(20)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+	})
 })
