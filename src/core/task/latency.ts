@@ -36,6 +36,10 @@ export function getStateUpdateCadenceMs(isRemoteWorkspace: boolean, priority: Pr
 	return isRemoteWorkspace ? 110 : 16
 }
 
+export function getUsageUpdateCadenceMs(isRemoteWorkspace: boolean): number {
+	return isRemoteWorkspace ? 400 : 250
+}
+
 export function summarizeChunkToWebviewDelays(delaysMs: number[]): { medianMs: number; p95Ms: number } {
 	if (delaysMs.length === 0) {
 		return { medianMs: 0, p95Ms: 0 }
