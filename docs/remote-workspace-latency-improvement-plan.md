@@ -36,11 +36,11 @@ Before starting implementation, keep these principles in mind:
 
 Before changing architecture, establish hard measurements so that development can compare before/after behavior in both local and remote contexts. The mental model here is simple: if we do not measure call frequency, serialization size, persistence time, and end-to-end chunk-to-paint delay, we will not know which optimizations actually helped.
 
-- [ ] Add instrumentation for streaming hot-path events
-- [ ] Add instrumentation for state payload sizes and frequencies
-- [ ] Add instrumentation for persistence latency
-- [ ] Add instrumentation for end-to-end chunk-to-webview timing
-- [ ] Add remote-vs-local environment tagging to these metrics
+- [x] Add instrumentation for streaming hot-path events
+- [x] Add instrumentation for state payload sizes and frequencies
+- [x] Add instrumentation for persistence latency
+- [x] Add instrumentation for end-to-end chunk-to-webview timing
+- [x] Add remote-vs-local environment tagging to these metrics
 
 ### Code changes
 
@@ -111,9 +111,9 @@ Places to inspect and potentially extend:
 
 ### Tests
 
-- [ ] Add unit tests for metric aggregation helpers
+- [x] Add unit tests for metric aggregation helpers
 - [ ] Add tests to verify instrumentation does not throw when telemetry is disabled
-- [ ] Add tests to verify state/partial payload-size accounting is invoked
+- [x] Add tests to verify state/partial payload-size accounting is invoked
 
 These tests should focus on ensuring instrumentation remains non-blocking and failure-safe.
 
@@ -125,11 +125,11 @@ These tests should focus on ensuring instrumentation remains non-blocking and fa
 
 The purpose of this phase is to stop calling the expensive presentation path on every incoming chunk. The mental model is: **the stream can run at machine speed, but the UI should repaint at human speed**. The scheduler becomes the boundary between those two clocks.
 
-- [ ] Design and implement a `TaskPresentationScheduler`
-- [ ] Replace direct hot-path `presentAssistantMessage()` invocation with scheduled flushes
-- [ ] Preserve immediate flushes for semantic boundaries
-- [ ] Add local vs remote cadence selection
-- [ ] Add final-drain behavior at stream completion and abort
+- [x] Design and implement a `TaskPresentationScheduler`
+- [x] Replace direct hot-path `presentAssistantMessage()` invocation with scheduled flushes
+- [x] Preserve immediate flushes for semantic boundaries
+- [x] Add local vs remote cadence selection
+- [x] Add final-drain behavior at stream completion and abort
 
 ### Code changes
 
@@ -213,10 +213,10 @@ At request completion, cancellation, or stream failure:
 
 ### Tests
 
-- [ ] Unit test: multiple requests within the cadence window produce one flush
-- [ ] Unit test: an immediate-priority request preempts/coalesces normal requests correctly
+- [x] Unit test: multiple requests within the cadence window produce one flush
+- [x] Unit test: an immediate-priority request preempts/coalesces normal requests correctly
 - [ ] Unit test: scheduler drains final updates on completion
-- [ ] Unit test: scheduler ignores/disposes pending work after task abort/dispose
+- [x] Unit test: scheduler ignores/disposes pending work after task abort/dispose
 - [ ] Integration test: streaming many text chunks produces fewer presentation invocations than chunk count
 
 These tests should be written around deterministic fake timers so cadence behavior is reproducible.
@@ -229,11 +229,11 @@ These tests should be written around deterministic fake timers so cadence behavi
 
 This phase is likely one of the highest-impact improvements. The current system often persists partial updates immediately, which is expensive and unnecessary for animation-like streaming states. The mental model is: **partial updates are for the live experience; durable saves are for crash recovery and task history**. Those are related but not the same thing.
 
-- [ ] Add non-persisting message mutation APIs for partial updates
-- [ ] Update streaming paths to use ephemeral mutations
-- [ ] Add explicit durable flush points
-- [ ] Add periodic safety flush for long-running streams
-- [ ] Preserve correctness for crash recovery and resume behavior
+- [x] Add non-persisting message mutation APIs for partial updates
+- [x] Update streaming paths to use ephemeral mutations
+- [x] Add explicit durable flush points
+- [x] Add periodic safety flush for long-running streams
+- [x] Preserve correctness for crash recovery and resume behavior
 
 ### Code changes
 
@@ -308,9 +308,9 @@ In practice this means task history may be slightly behind while tokens are stre
 
 ### Tests
 
-- [ ] Unit test: ephemeral update mutates in-memory message and emits change without saving
-- [ ] Unit test: durable flush persists previously ephemeral changes
-- [ ] Unit test: partial → complete transition triggers persistence
+- [x] Unit test: ephemeral update mutates in-memory message and emits change without saving
+- [x] Unit test: durable flush persists previously ephemeral changes
+- [x] Unit test: partial → complete transition triggers persistence
 - [ ] Unit test: periodic safety flush persists pending ephemeral changes
 - [ ] Integration test: abort during stream still persists a recoverable final state
 - [ ] Regression test: resume-from-history still works after deferred partial persistence
@@ -323,10 +323,10 @@ In practice this means task history may be slightly behind while tokens are stre
 
 Even after partial-message improvements, the codebase still calls `postStateToWebview()` from many locations. In remote environments, full-state pushes are especially expensive because they build and serialize a large `ExtensionState` payload. The mental model here is: **full state should be treated like a snapshot sync, not like a token stream transport**.
 
-- [ ] Add a controller-level full-state update coalescer
-- [ ] Prevent repeated `postStateToWebview()` calls from flooding the transport during active streaming
-- [ ] Add priority/urgency categories for full-state pushes
-- [ ] Keep initial and terminal state updates immediate and reliable
+- [x] Add a controller-level full-state update coalescer
+- [x] Prevent repeated `postStateToWebview()` calls from flooding the transport during active streaming
+- [x] Add priority/urgency categories for full-state pushes
+- [x] Keep initial and terminal state updates immediate and reliable
 
 ### Code changes
 
@@ -387,9 +387,9 @@ Examples likely safe to coalesce:
 
 ### Tests
 
-- [ ] Unit test: repeated `postStateToWebview()` calls within a short interval produce one flush
-- [ ] Unit test: a dirty state during flush causes exactly one follow-up flush
-- [ ] Unit test: immediate-priority post bypasses normal delay
+- [x] Unit test: repeated `postStateToWebview()` calls within a short interval produce one flush
+- [x] Unit test: a dirty state during flush causes exactly one follow-up flush
+- [x] Unit test: immediate-priority post bypasses normal delay
 - [ ] Integration test: active streaming generates significantly fewer full-state pushes
 
 ---
@@ -400,11 +400,11 @@ Examples likely safe to coalesce:
 
 This is a larger architectural improvement. Cline already has a partial-message subscription, which proves that the system can move small targeted UI updates instead of full snapshots. This phase extends that idea so that active task execution mostly uses **delta events**, while full-state snapshots are reserved for initialization, resync, and coarse-grained transitions.
 
-- [ ] Design a delta event model for hot task execution state
-- [ ] Add backend publishers for message and request metadata deltas
-- [ ] Update webview state handling to apply deltas safely
-- [ ] Keep full snapshot subscription as initialization and recovery path
-- [ ] Add ordering/versioning to prevent stale delta application
+- [x] Design a delta event model for hot task execution state
+- [x] Add backend publishers for message and request metadata deltas
+- [x] Update webview state handling to apply deltas safely
+- [x] Keep full snapshot subscription as initialization and recovery path
+- [x] Add ordering/versioning to prevent stale delta application
 
 ### Code changes
 
@@ -475,8 +475,8 @@ The full state can still include `clineMessages`, but active execution should mo
 
 ### Tests
 
-- [ ] Unit test: message add/update/delete produces correct delta shape
-- [ ] Unit test: sequence ordering rejects or resyncs stale/missing deltas
+- [x] Unit test: message add/update/delete produces correct delta shape
+- [x] Unit test: sequence ordering rejects or resyncs stale/missing deltas
 - [ ] Webview test: applying deltas yields the same final UI state as a full snapshot
 - [ ] Integration test: task execution with streaming text/tool updates works with delta transport enabled
 - [ ] Regression test: reopening/resubscribing still hydrates from full state correctly
@@ -543,9 +543,9 @@ Refactor to:
 
 Token/cost counters and request metadata do not need to update at text-stream cadence. The mental model is: **the user watches the answer, not the token counter**. This phase reduces low-value churn without sacrificing correctness.
 
-- [ ] Batch usage/token/cost updates on a slower cadence
-- [ ] Flush final usage data immediately when a request ends
-- [ ] Keep telemetry capture decoupled from UI update cadence
+- [x] Batch usage/token/cost updates on a slower cadence
+- [x] Flush final usage data immediately when a request ends
+- [x] Keep telemetry capture decoupled from UI update cadence
 
 ### Code changes
 
@@ -721,40 +721,39 @@ The reason for this order is that the early steps are high-value and lower risk,
 This section gives a practical map of the files most likely to change and what each change should do.
 
 ### Backend / extension host
-
-- [ ] `src/core/task/index.ts`
+- [x] `src/core/task/index.ts`
   - Introduce presentation scheduling hooks
   - Replace direct hot-path presentation awaits
   - Separate semantic-boundary flushes from normal streaming cadence
   - Reduce usage-metadata UI push frequency
 
-- [ ] `src/core/task/message-state.ts`
+- [x] `src/core/task/message-state.ts`
   - Add ephemeral mutation APIs
   - Add dirty tracking and explicit flush behavior
   - Preserve mutex correctness
 
-- [ ] `src/core/task/TaskState.ts`
+- [x] `src/core/task/TaskState.ts`
   - Add any scheduler/config/metrics state needed
 
-- [ ] `src/core/task/TaskPresentationScheduler.ts` (new)
+- [x] `src/core/task/TaskPresentationScheduler.ts` (new)
   - Implement coalesced assistant presentation scheduling
 
-- [ ] `src/core/controller/index.ts`
+- [x] `src/core/controller/index.ts`
   - Add state-update coalescer
   - Differentiate immediate vs coalesced state flushes
 
-- [ ] `src/core/controller/state/subscribeToState.ts`
+- [x] `src/core/controller/state/subscribeToState.ts`
   - Extend payload/frequency instrumentation
   - Potentially support lighter-weight state categories if needed later
 
-- [ ] `src/core/controller/ui/subscribeToPartialMessage.ts`
+- [x] `src/core/controller/ui/subscribeToPartialMessage.ts`
   - Add payload/frequency instrumentation
   - Potentially evolve into or complement broader delta transport
 
-- [ ] `src/core/controller/ui/subscribeToTaskUiDeltas.ts` (new, later phase)
+- [x] `src/core/controller/ui/subscribeToTaskUiDeltas.ts` (new, later phase)
   - Streaming task UI delta subscription channel
 
-- [ ] `src/shared/TaskUiDelta.ts` (new, later phase)
+- [x] `src/shared/TaskUiDelta.ts` (new, later phase)
   - Delta type definitions and versioning model
 
 - [ ] `src/hosts/vscode/hostbridge/window/getVisibleTabs.ts`
@@ -765,7 +764,7 @@ This section gives a practical map of the files most likely to change and what e
 
 ### Webview / frontend
 
-- [ ] `webview-ui/src/context/ExtensionStateContext.tsx`
+- [x] `webview-ui/src/context/ExtensionStateContext.tsx`
   - Continue handling full state snapshots
   - Add delta subscription path
   - Apply partial/delta updates with minimal state churn
@@ -788,11 +787,11 @@ Below is a consolidated development checklist for tests. This can be used as a p
 
 ### Backend tests
 
-- [ ] Scheduler unit tests with fake timers
-- [ ] MessageStateHandler ephemeral-vs-durable mutation tests
-- [ ] Coalesced controller state-posting tests
+- [x] Scheduler unit tests with fake timers
+- [x] MessageStateHandler ephemeral-vs-durable mutation tests
+- [x] Coalesced controller state-posting tests
 - [ ] Usage/metadata throttling tests
-- [ ] Remote-mode cadence selection tests
+- [x] Remote-mode cadence selection tests
 - [ ] Hostbridge/environment TTL caching tests
 
 ### Integration tests
@@ -824,10 +823,10 @@ Below is a consolidated development checklist for tests. This can be used as a p
 
 If the team wants the fastest path to meaningful improvement, the first milestone should include only the highest-ROI, lowest-risk work:
 
-- [ ] Add instrumentation
-- [ ] Implement `TaskPresentationScheduler`
-- [ ] Convert partial streaming updates to ephemeral message mutations
-- [ ] Add controller-level `postStateToWebview()` coalescing
+- [x] Add instrumentation
+- [x] Implement `TaskPresentationScheduler`
+- [x] Convert partial streaming updates to ephemeral message mutations
+- [x] Add controller-level `postStateToWebview()` coalescing
 - [ ] Add tests and collect before/after telemetry
 
 ### Why this milestone first?
