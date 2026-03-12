@@ -125,4 +125,26 @@ describe("mergePartialMessage", () => {
 		expect(merged.clineMessages[0]?.partial).toBe(false)
 		expect(merged.clineMessages[0]?.text).toBe("final")
 	})
+
+	it("keeps message ordering stable during partial-to-complete transitions to avoid chat flicker", () => {
+		const state = createState()
+		const before = { ts: 1, type: "say", say: "text", text: "before" } as any
+		const streaming = { ts: 2, type: "say", say: "text", text: "partial", partial: true } as any
+		const after = { ts: 3, type: "say", say: "text", text: "after" } as any
+		state.clineMessages = [before, streaming, after]
+
+		const merged = mergePartialMessage(state, {
+			ts: 2,
+			type: "say",
+			say: "text",
+			text: "complete",
+			partial: false,
+		} as any)
+
+		expect(merged.clineMessages).toHaveLength(3)
+		expect(merged.clineMessages[0]).toBe(before)
+		expect(merged.clineMessages[1]?.ts).toBe(2)
+		expect(merged.clineMessages[1]?.text).toBe("complete")
+		expect(merged.clineMessages[2]).toBe(after)
+	})
 })

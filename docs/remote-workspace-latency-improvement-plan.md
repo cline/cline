@@ -532,7 +532,7 @@ Refactor to:
 ### Tests
 
 - [ ] Webview test: partial text updates only rerender the active message row (or as few components as practical)
-- [ ] Regression test: no flicker during partial→complete transition
+- [x] Regression test: no flicker during partial→complete transition
 - [ ] Regression test: tool rows still group/render correctly under coalesced updates
 
 ---
