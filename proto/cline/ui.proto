@@ -232,6 +232,10 @@ message ShowWebviewEvent {
   bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
 }
 
+message TaskUiDeltaEvent {
+  string delta_json = 1;
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -266,6 +270,9 @@ service UiService {
 
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
+
+  // Subscribe to task UI delta updates for active task execution state
+  rpc subscribeToTaskUiDeltas(EmptyRequest) returns (stream TaskUiDeltaEvent);
 
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);

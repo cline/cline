@@ -557,7 +557,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		taskUiDeltaUnsubscribeRef.current = (UiServiceClient as any).subscribeToTaskUiDeltas(EmptyRequest.create({}), {
+		taskUiDeltaUnsubscribeRef.current = UiServiceClient.subscribeToTaskUiDeltas(EmptyRequest.create({}), {
 			onResponse: (response: { deltaJson?: string }) => {
 				if (!response.deltaJson) {
 					return

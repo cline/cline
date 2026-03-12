@@ -1,15 +1,16 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { TaskUiDeltaEvent } from "@shared/proto/cline/ui"
 import { Logger } from "@/shared/services/Logger"
 import type { TaskUiDelta } from "@/shared/TaskUiDelta"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
-const activeTaskUiDeltaSubscriptions = new Set<StreamingResponseHandler<{ deltaJson: string }>>()
+const activeTaskUiDeltaSubscriptions = new Set<StreamingResponseHandler<TaskUiDeltaEvent>>()
 
 export async function subscribeToTaskUiDeltas(
 	_controller: Controller,
 	_request: EmptyRequest,
-	responseStream: StreamingResponseHandler<{ deltaJson: string }>,
+	responseStream: StreamingResponseHandler<TaskUiDeltaEvent>,
 	requestId?: string,
 ): Promise<void> {
 	activeTaskUiDeltaSubscriptions.add(responseStream)
@@ -34,7 +35,7 @@ export async function sendTaskUiDelta(delta: TaskUiDelta): Promise<void> {
 
 	const promises = Array.from(activeTaskUiDeltaSubscriptions).map(async (responseStream) => {
 		try {
-			await responseStream({ deltaJson }, false)
+			await responseStream(TaskUiDeltaEvent.create({ deltaJson }), false)
 		} catch (error) {
 			Logger.error("Error sending task UI delta:", error)
 			activeTaskUiDeltaSubscriptions.delete(responseStream)
