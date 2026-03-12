@@ -1,9 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { Mode } from "@shared/storage/types"
 import type React from "react"
 import { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { isToolGroup } from "../../utils/messageUtils"
@@ -11,8 +11,10 @@ import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {
 	task: ClineMessage
+	rawMessages: ClineMessage[]
 	groupedMessages: (ClineMessage | ClineMessage[])[]
 	modifiedMessages: ClineMessage[]
+	mode: Mode
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
@@ -24,14 +26,15 @@ interface MessagesAreaProps {
  */
 export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	task,
+	rawMessages,
 	groupedMessages,
 	modifiedMessages,
+	mode,
 	scrollBehavior,
 	chatState,
 	messageHandlers,
 }) => {
-	const { clineMessages } = useExtensionState()
-	const lastRawMessage = useMemo(() => clineMessages.at(-1), [clineMessages])
+	const lastRawMessage = useMemo(() => rawMessages.at(-1), [rawMessages])
 
 	const {
 		virtuosoRef,
@@ -51,8 +54,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		if (!scrolledPastUserMessage) {
 			return -1
 		}
-		return clineMessages.findIndex((msg) => msg.ts === scrolledPastUserMessage.ts)
-	}, [clineMessages, scrolledPastUserMessage])
+		return rawMessages.findIndex((msg) => msg.ts === scrolledPastUserMessage.ts)
+	}, [rawMessages, scrolledPastUserMessage])
 
 	// Handler to scroll to the scrolled past user message
 	const handleScrollToUserMessage = useCallback(() => {
@@ -172,23 +175,28 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			createMessageRenderer(
 				displayedGroupedMessages,
 				modifiedMessages,
+				rawMessages,
+				mode,
 				expandedRows,
 				toggleRowExpansion,
 				handleRowHeightChange,
 				setActiveQuote,
 				inputValue,
 				messageHandlers,
-				false,
+				showThinkingLoaderRow,
 			),
 		[
 			displayedGroupedMessages,
 			modifiedMessages,
+			rawMessages,
+			mode,
 			expandedRows,
 			toggleRowExpansion,
 			handleRowHeightChange,
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			showThinkingLoaderRow,
 		],
 	)
 

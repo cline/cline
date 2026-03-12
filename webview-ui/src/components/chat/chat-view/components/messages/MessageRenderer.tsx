@@ -1,9 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { Mode } from "@shared/storage/types"
 import type React from "react"
-import { useMemo } from "react"
+import { memo, useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import type { MessageHandlers } from "../../types/chatTypes"
 import { findReasoningForApiReq, isTextMessagePendingToolCall, isToolGroup } from "../../utils/messageUtils"
@@ -14,6 +14,8 @@ interface MessageRendererProps {
 	messageOrGroup: ClineMessage | ClineMessage[]
 	groupedMessages: (ClineMessage | ClineMessage[])[]
 	modifiedMessages: ClineMessage[]
+	rawMessages: ClineMessage[]
+	mode: Mode
 	expandedRows: Record<number, boolean>
 	onToggleExpand: (ts: number) => void
 	onHeightChange: (isTaller: boolean) => void
@@ -32,6 +34,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	messageOrGroup,
 	groupedMessages,
 	modifiedMessages,
+	rawMessages,
+	mode,
 	expandedRows,
 	onToggleExpand,
 	onHeightChange,
@@ -40,8 +44,6 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	messageHandlers,
 	footerActive,
 }) => {
-	const { mode } = useExtensionState()
-
 	const isLastMessage = useMemo(() => index === groupedMessages?.length - 1, [groupedMessages, index])
 
 	// Get reasoning content and response status for api_req_started messages
@@ -125,6 +127,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	)
 }
 
+export const MemoizedMessageRenderer = memo(MessageRenderer)
+
 /**
  * Factory function to create the itemContent callback for Virtuoso
  * This allows us to encapsulate the rendering logic while maintaining performance
@@ -132,6 +136,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 export const createMessageRenderer = (
 	groupedMessages: (ClineMessage | ClineMessage[])[],
 	modifiedMessages: ClineMessage[],
+	rawMessages: ClineMessage[],
+	mode: Mode,
 	expandedRows: Record<number, boolean>,
 	onToggleExpand: (ts: number) => void,
 	onHeightChange: (isTaller: boolean) => void,
@@ -141,7 +147,7 @@ export const createMessageRenderer = (
 	footerActive: boolean,
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
-		<MessageRenderer
+		<MemoizedMessageRenderer
 			expandedRows={expandedRows}
 			footerActive={footerActive}
 			groupedMessages={groupedMessages}
@@ -149,10 +155,12 @@ export const createMessageRenderer = (
 			inputValue={inputValue}
 			messageHandlers={messageHandlers}
 			messageOrGroup={messageOrGroup}
+			mode={mode}
 			modifiedMessages={modifiedMessages}
 			onHeightChange={onHeightChange}
 			onSetQuote={onSetQuote}
 			onToggleExpand={onToggleExpand}
+			rawMessages={rawMessages}
 		/>
 	)
 }
