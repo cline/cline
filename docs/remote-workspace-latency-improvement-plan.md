@@ -390,7 +390,7 @@ Examples likely safe to coalesce:
 - [x] Unit test: repeated `postStateToWebview()` calls within a short interval produce one flush
 - [x] Unit test: a dirty state during flush causes exactly one follow-up flush
 - [x] Unit test: immediate-priority post bypasses normal delay
-- [ ] Integration test: active streaming generates significantly fewer full-state pushes
+- [x] Integration test: active streaming generates significantly fewer full-state pushes
 
 ---
 
@@ -828,7 +828,7 @@ If the team wants the fastest path to meaningful improvement, the first mileston
 - [x] Implement `TaskPresentationScheduler`
 - [x] Convert partial streaming updates to ephemeral message mutations
 - [x] Add controller-level `postStateToWebview()` coalescing
-- [ ] Add tests and collect before/after telemetry
+- [x] Add tests and collect before/after telemetry
 
 ### Why this milestone first?
 
