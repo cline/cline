@@ -45,6 +45,15 @@ export function applyTaskUiDeltaToState(
 	}
 
 	if (delta.type === "message_deleted") {
+		const hasMessageToDelete = state.clineMessages.some((message) => message.ts === delta.messageTs)
+		if (!hasMessageToDelete) {
+			return {
+				kind: "applied",
+				nextSequence: delta.sequence,
+				state,
+			}
+		}
+
 		return {
 			kind: "applied",
 			nextSequence: delta.sequence,
