@@ -86,4 +86,46 @@ describe("getRequestStartRowState", () => {
 			}).showStreamingThinking,
 		).toBe(false)
 	})
+
+	it("keeps final request metadata visible once cost arrives", () => {
+		const message = createMessage({
+			ts: 10,
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({ request: "hello", cost: 0.42, tokensIn: 120, tokensOut: 80 }),
+		})
+
+		const state = getRequestStartRowState({
+			message,
+			clineMessages: [message],
+			cost: 0.42,
+			responseStarted: true,
+			getIconByToolName: () => FileCode2Icon,
+		})
+
+		expect(state.apiReqState).toBe("final")
+		expect(state.showStreamingThinking).toBe(false)
+		expect(state.shouldShowActivities).toBe(false)
+	})
+
+	it("prioritizes error state over partial reasoning when streaming fails", () => {
+		const message = createMessage({
+			ts: 11,
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({ request: "hello", cancelReason: "streaming_failed" }),
+		})
+
+		const state = getRequestStartRowState({
+			message,
+			clineMessages: [message],
+			reasoningContent: "thinking",
+			apiReqStreamingFailedMessage: "network timeout",
+			responseStarted: false,
+			getIconByToolName: () => FileCode2Icon,
+		})
+
+		expect(state.apiReqState).toBe("error")
+		expect(state.showStreamingThinking).toBe(false)
+	})
 })
