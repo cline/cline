@@ -379,10 +379,17 @@ describe("TelemetryService metrics", () => {
 			ulid: "task-latency",
 			requestIndex: 2,
 			isRemoteWorkspace: true,
+			presentationInvocationCount: 4,
 			presentationDurationMs: 120,
 			presentationTrigger: "text",
+			statePostCount: 3,
 			statePostBuildDurationMs: 25,
+			statePostSerializedBytes: 4096,
 			statePostSendDurationMs: 35,
+			partialMessageCount: 7,
+			partialMessagePayloadBytes: 2048,
+			partialMessageBroadcastDurationMs: 15,
+			persistenceFlushCount: 2,
 			persistenceSaveMessagesDurationMs: 40,
 			persistenceSaveConversationDurationMs: 10,
 			persistenceUpdateHistoryDurationMs: 20,
@@ -401,6 +408,18 @@ describe("TelemetryService metrics", () => {
 		assert.ok(presentationMetric)
 		assert.strictEqual(presentationMetric?.value, 0.12)
 
+		const presentationCountMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PRESENTATION_INVOCATIONS_PER_REQUEST,
+		)
+		assert.ok(presentationCountMetric)
+		assert.strictEqual(presentationCountMetric?.value, 4)
+
+		const statePostCountMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.STATE_POSTS_PER_REQUEST,
+		)
+		assert.ok(statePostCountMetric)
+		assert.strictEqual(statePostCountMetric?.value, 3)
+
 		const persistenceMetric = provider.histograms.find(
 			(entry) => entry.name === TelemetryService.METRICS.API.PERSISTENCE_DURATION_SECONDS,
 		)
@@ -413,11 +432,41 @@ describe("TelemetryService metrics", () => {
 		assert.ok(stateBuildMetric)
 		assert.strictEqual(stateBuildMetric?.value, 0.025)
 
+		const statePayloadMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.STATE_PAYLOAD_BYTES,
+		)
+		assert.ok(statePayloadMetric)
+		assert.strictEqual(statePayloadMetric?.value, 4096)
+
 		const stateSendMetric = provider.histograms.find(
 			(entry) => entry.name === TelemetryService.METRICS.API.STATE_SEND_DURATION_SECONDS,
 		)
 		assert.ok(stateSendMetric)
 		assert.strictEqual(stateSendMetric?.value, 0.035)
+
+		const partialMessageCountMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PARTIAL_MESSAGES_PER_REQUEST,
+		)
+		assert.ok(partialMessageCountMetric)
+		assert.strictEqual(partialMessageCountMetric?.value, 7)
+
+		const partialMessagePayloadMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PARTIAL_MESSAGE_PAYLOAD_BYTES,
+		)
+		assert.ok(partialMessagePayloadMetric)
+		assert.strictEqual(partialMessagePayloadMetric?.value, 2048)
+
+		const partialMessageBroadcastMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PARTIAL_MESSAGE_BROADCAST_DURATION_SECONDS,
+		)
+		assert.ok(partialMessageBroadcastMetric)
+		assert.strictEqual(partialMessageBroadcastMetric?.value, 0.015)
+
+		const persistenceFlushCountMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PERSISTENCE_FLUSHES_PER_REQUEST,
+		)
+		assert.ok(persistenceFlushCountMetric)
+		assert.strictEqual(persistenceFlushCountMetric?.value, 2)
 
 		const chunkMetrics = provider.histograms.filter(
 			(entry) => entry.name === TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS,
