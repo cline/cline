@@ -2,6 +2,11 @@ import type { PresentationPriority } from "./TaskPresentationScheduler"
 
 export type TaskLatencyTrigger = "text" | "reasoning" | "tool" | "finalization" | "other"
 
+function readBooleanEnv(envVarName: string): boolean {
+	const rawValue = process.env[envVarName]?.toLowerCase()
+	return rawValue === "1" || rawValue === "true" || rawValue === "yes"
+}
+
 function readCadenceOverride(envVarName: string): number | undefined {
 	const rawValue = process.env[envVarName]
 	if (!rawValue) {
@@ -28,6 +33,18 @@ export function isRemoteWorkspaceEnvironment(host: { platform?: string; version?
 	const platform = host.platform?.toLowerCase() ?? ""
 	const version = host.version?.toLowerCase() ?? ""
 	return platform.includes("remote") || version.includes("remote")
+}
+
+export function isPresentationSchedulingDisabled(): boolean {
+	return readBooleanEnv("CLINE_DISABLE_PRESENTATION_SCHEDULER")
+}
+
+export function isEphemeralMessagePersistenceDisabled(): boolean {
+	return readBooleanEnv("CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE")
+}
+
+export function isTaskUiDeltaSyncDisabled(): boolean {
+	return readBooleanEnv("CLINE_DISABLE_TASK_UI_DELTA_SYNC")
 }
 
 export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: PresentationPriority): number {
