@@ -24,6 +24,18 @@ export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: P
 	return isRemoteWorkspace ? 90 : 40
 }
 
+export function getStateUpdateCadenceMs(isRemoteWorkspace: boolean, priority: PresentationPriority): number {
+	if (priority === "immediate") {
+		return 0
+	}
+
+	if (priority === "low") {
+		return isRemoteWorkspace ? 150 : 40
+	}
+
+	return isRemoteWorkspace ? 110 : 16
+}
+
 export function summarizeChunkToWebviewDelays(delaysMs: number[]): { medianMs: number; p95Ms: number } {
 	if (delaysMs.length === 0) {
 		return { medianMs: 0, p95Ms: 0 }
