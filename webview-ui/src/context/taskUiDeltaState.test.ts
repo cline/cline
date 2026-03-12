@@ -319,4 +319,41 @@ describe("applyTaskUiDeltaToState", () => {
 		expect(state.backgroundCommandTaskId).toBe(expectedSnapshot.backgroundCommandTaskId)
 		expect(state.currentFocusChainChecklist).toBe(expectedSnapshot.currentFocusChainChecklist)
 	})
+
+	it("applies ordered delta events sequentially while advancing the cursor", () => {
+		let state = createState()
+		let sequence = 0
+
+		const orderedDeltas: TaskUiDelta[] = [
+			createDelta({
+				sequence: 1,
+				type: "message_added",
+				message: { ts: 100, type: "say", say: "text", text: "first" },
+			}),
+			createDelta({
+				sequence: 2,
+				type: "message_updated",
+				message: { ts: 100, type: "say", say: "text", text: "first updated" },
+			}),
+			createDelta({
+				sequence: 3,
+				type: "task_metadata_updated",
+				metadata: { backgroundCommandRunning: true },
+			}),
+		]
+
+		for (const delta of orderedDeltas) {
+			const result = applyTaskUiDeltaToState(state, delta, sequence)
+			expect(result.kind).toBe("applied")
+			if (result.kind !== "applied") {
+				throw new Error("expected applied result")
+			}
+			state = result.state
+			sequence = result.nextSequence
+		}
+
+		expect(sequence).toBe(3)
+		expect(state.clineMessages).toEqual([{ ts: 100, type: "say", say: "text", text: "first updated" }])
+		expect(state.backgroundCommandRunning).toBe(true)
+	})
 })
