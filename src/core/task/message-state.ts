@@ -11,6 +11,7 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { sendTaskUiDelta } from "../controller/ui/subscribeToTaskUiDeltas"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
@@ -61,6 +62,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		saveConversationDurationMs: 0,
 		updateHistoryDurationMs: 0,
 	}
+	private taskUiDeltaSequence = 0
 
 	// Mutex to prevent concurrent state modifications (RC-4)
 	// Protects against data loss from race conditions when multiple
@@ -82,6 +84,48 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	private emitClineMessagesChanged(change: ClineMessageChange): void {
 		this.emit("clineMessagesChanged", change)
+		void this.emitTaskUiDeltaForChange(change)
+	}
+
+	private async emitTaskUiDeltaForChange(change: ClineMessageChange): Promise<void> {
+		const sequence = ++this.taskUiDeltaSequence
+		if (change.type === "add" && change.message) {
+			await sendTaskUiDelta({
+				type: "message_added",
+				taskId: this.taskId,
+				sequence,
+				message: change.message,
+			})
+			return
+		}
+
+		if (change.type === "update" && change.message) {
+			await sendTaskUiDelta({
+				type: "message_updated",
+				taskId: this.taskId,
+				sequence,
+				message: change.message,
+			})
+			return
+		}
+
+		if (change.type === "delete" && change.previousMessage) {
+			await sendTaskUiDelta({
+				type: "message_deleted",
+				taskId: this.taskId,
+				sequence,
+				messageTs: change.previousMessage.ts,
+			})
+			return
+		}
+
+		if (change.type === "set") {
+			await sendTaskUiDelta({
+				type: "task_state_resynced",
+				taskId: this.taskId,
+				sequence,
+			})
+		}
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
