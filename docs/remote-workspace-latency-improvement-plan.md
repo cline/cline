@@ -804,7 +804,7 @@ Below is a consolidated development checklist for tests. This can be used as a p
 
 ### Frontend tests
 
-- [ ] Partial message update patches active row correctly
+- [x] Partial message update patches active row correctly
 - [ ] Partial→complete transition does not flicker
 - [ ] Delta events update chat state correctly in order
 - [ ] Full snapshot resync repairs intentionally diverged state
