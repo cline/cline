@@ -61,6 +61,15 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 
 				// Special cases that need specific return values
 				switch (prop) {
+					case "getHostVersion":
+						callback(null, {
+							clineVersion: process.env.TEST_HOSTBRIDGE_CLINE_VERSION || "test-cline-version",
+							version: process.env.TEST_HOSTBRIDGE_IDE_VERSION || "1.0.0",
+							platform: process.env.TEST_HOSTBRIDGE_PLATFORM || "VS Code",
+							clineType: process.env.TEST_HOSTBRIDGE_CLINE_TYPE || "vscode",
+							remoteName: process.env.TEST_HOSTBRIDGE_REMOTE_NAME || "",
+						})
+						return
 					case "getWorkspacePaths":
 						const workspaceDir = process.env.TEST_HOSTBRIDGE_WORKSPACE_DIR || "/test-workspace"
 						callback(null, {

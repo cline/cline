@@ -821,6 +821,22 @@ Below is a consolidated development checklist for tests. This can be used as a p
 - [ ] Benchmark before/after full-state payload sizes
 - [ ] Benchmark before/after perceived streaming smoothness in remote mode
 
+#### 2026-03-12 scripted validation status
+
+- Added `scripts/validate-latency-scenarios.ts` to exercise the standalone core + mock hostbridge locally in both `local` and simulated-`remote` modes by driving gRPC task creation and observing:
+  - full-state snapshot delivery,
+  - task UI delta delivery,
+  - payload byte totals,
+  - first-observed update timing,
+  - and feature-toggle variants (`presentation_disabled`, `ephemeral_disabled`, `delta_disabled`).
+- Added `scripts/test-hostbridge-server.ts` support for overriding `getHostVersion()` so the validation harness can force remote detection without a literal remote environment.
+- Initial script run produced a useful partial signal but not a full end-to-end completion signal:
+  - local/default: 13 full-state updates, 27 task UI deltas, ~99 KB state payload bytes, ~38.6 KB delta payload bytes, first state in ~9 ms, first delta in ~24 ms.
+  - remote/default: 10 full-state updates, 27 task UI deltas, ~70.6 KB state payload bytes, ~38.8 KB delta payload bytes, first state in ~9 ms, first delta in ~25 ms.
+  - delta-disabled variants correctly dropped task delta count to 0 while preserving full-state delivery.
+- The current mock-driven scenario still times out before a detectable `completion_result`, and `subscribeToPartialMessage()` did not emit during this run, so these results should be treated as transport/coalescing validation rather than final UX proof.
+- Net takeaway so far: simulated-remote mode is already showing fewer/lighter full-state snapshots than simulated-local mode, and the feature flags are switching behavior in the expected directions, but a stronger completion-aware scripted scenario is still needed before checking off the benchmark items above.
+
 ---
 
 ## Recommended First Milestone
