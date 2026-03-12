@@ -484,11 +484,6 @@ export class Task {
 						await this.messageStateHandler.updateClineMessage(lastApiReqStartedIndex, {
 							text: JSON.stringify(currentApiReqInfo),
 						})
-
-						// Post the updated state to the webview so the UI reflects the retry attempt
-						await this.postStateToWebview().catch((e) =>
-							Logger.error("Error posting state to webview in onRetryAttempt:", e),
-						)
 					} catch (e) {
 						Logger.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
 					}
@@ -2803,7 +2798,6 @@ export class Task {
 				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 			} satisfies ClineApiReqInfo),
 		})
-		await this.postStateToWebview()
 
 		try {
 			const taskMetrics: {
@@ -2878,7 +2872,6 @@ export class Task {
 
 								usageUiFlushScheduled = false
 								await updateApiReqMsgFromMetrics()
-								await this.postStateToWebview()
 							})
 							.catch((error) => {
 								usageUiFlushScheduled = false
