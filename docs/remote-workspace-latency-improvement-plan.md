@@ -618,7 +618,7 @@ The code already avoids expensive file listing except when `includeFileDetails` 
 
 - [x] Unit test: repeated tab/environment requests within TTL reuse cached values
 - [ ] Integration test: environment details still reflect fresh changes after invalidation/TTL expiry
-- [ ] Regression test: open/visible tabs remain accurate enough for prompt quality
+- [x] Regression test: open/visible tabs remain accurate enough for prompt quality
 
 ---
 
