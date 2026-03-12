@@ -583,7 +583,7 @@ If Phase 4 is not yet implemented, at minimum route metrics through the controll
 Not all latency comes from streaming. Some comes from request setup, environment detail gathering, open-tab queries, and terminal state inspection. The mental model here is: **request boundaries should avoid recomputing or refetching unchanged data**.
 
 - [ ] Audit request-boundary hostbridge calls
-- [ ] Cache visible/open tab data with a short TTL
+- [x] Cache visible/open tab data with a short TTL
 - [ ] Cache or coalesce terminal-state inspections where safe
 - [ ] Avoid redundant expensive environment-detail reconstruction
 
@@ -628,9 +628,9 @@ The code already avoids expensive file listing except when `includeFileDetails` 
 
 Different environments deserve different tuning. The mental model here is: **remote mode is a different performance envelope, so the product should adapt rather than relying on one-size-fits-all behavior**.
 
-- [ ] Detect remote execution context reliably
-- [ ] Add remote-aware defaults for presentation/state-update cadence
-- [ ] Expose internal config flags for development and staged rollout
+- [x] Detect remote execution context reliably
+- [x] Add remote-aware defaults for presentation/state-update cadence
+- [x] Expose internal config flags for development and staged rollout
 - [ ] Decide whether any user-facing settings are appropriate
 
 ### Code changes
