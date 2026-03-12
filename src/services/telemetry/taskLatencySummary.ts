@@ -26,6 +26,12 @@ export type TaskLatencySummary = {
 	metrics: Record<NumericMetricKey, { average: number; min: number; max: number }>
 }
 
+export type TaskLatencySummaryComparison = {
+	baselineEvents: number
+	candidateEvents: number
+	metricDiffs: Record<NumericMetricKey, { averageDelta: number; minDelta: number; maxDelta: number }>
+}
+
 const METRIC_KEYS: NumericMetricKey[] = [
 	"presentationInvocationCount",
 	"partialMessageCount",
@@ -68,6 +74,26 @@ export function summarizeTaskLatencyEvents(events: TaskLatencyEvent[]): TaskLate
 		metrics: Object.fromEntries(
 			METRIC_KEYS.map((key) => [key, summarizeMetric(events, key)]),
 		) as TaskLatencySummary["metrics"],
+	}
+}
+
+export function compareTaskLatencySummaries(
+	baseline: TaskLatencySummary,
+	candidate: TaskLatencySummary,
+): TaskLatencySummaryComparison {
+	return {
+		baselineEvents: baseline.eventCount,
+		candidateEvents: candidate.eventCount,
+		metricDiffs: Object.fromEntries(
+			METRIC_KEYS.map((key) => [
+				key,
+				{
+					averageDelta: candidate.metrics[key].average - baseline.metrics[key].average,
+					minDelta: candidate.metrics[key].min - baseline.metrics[key].min,
+					maxDelta: candidate.metrics[key].max - baseline.metrics[key].max,
+				},
+			]),
+		) as TaskLatencySummaryComparison["metricDiffs"],
 	}
 }
 
