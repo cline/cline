@@ -132,6 +132,7 @@ import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
 import { type PresentationPriority, TaskPresentationScheduler } from "./TaskPresentationScheduler"
 import { TaskState } from "./TaskState"
+import { TaskUsageUpdateScheduler } from "./TaskUsageUpdateScheduler"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
@@ -2812,6 +2813,13 @@ export class Task {
 			} satisfies ClineApiReqInfo),
 		})
 
+		const usageUpdateScheduler = new TaskUsageUpdateScheduler({
+			getDelayMs: () => getUsageUpdateCadenceMs(this.isRemoteWorkspaceEnvironment),
+			onSideEffectError: (error) =>
+				Logger.debug(`[Task ${this.taskId}] Failed to process usage chunk side effects: ${error}`),
+			onUiFlushError: (error) => Logger.debug(`[Task ${this.taskId}] Failed to flush usage UI updates: ${error}`),
+		})
+
 		try {
 			const taskMetrics: {
 				cacheWriteTokens: number
@@ -2821,14 +2829,6 @@ export class Task {
 				totalCost: number | undefined
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
 			let didFinalizeApiReqMsg = false
-			let usageChunkSideEffectsQueue = Promise.resolve()
-			let usageUiFlushScheduled = false
-			/*
-				Usage side effects run as soon as a usage chunk arrives.
-				queueUsageChunkSideEffects() appends work to this promise chain, and each appended step starts immediately
-				(once the previous step finishes). We only await usageChunkSideEffectsQueue at stream end to flush any in-flight
-				updates before finalizing api_req_started, not to start processing.
-			*/
 
 			const updateApiReqMsgFromMetrics = async (
 				cancelReason?: ClineApiReqCancelReason,
@@ -2853,9 +2853,8 @@ export class Task {
 				usageOutputTokens: number,
 				chunkOptions?: { cacheWriteTokens?: number; cacheReadTokens?: number; totalCost?: number },
 			) => {
-				usageChunkSideEffectsQueue = usageChunkSideEffectsQueue
-					// This executes immediately after enqueue (microtask if already resolved), not at stream end.
-					.then(async () => {
+				usageUpdateScheduler.enqueue({
+					sideEffect: async () => {
 						if (didFinalizeApiReqMsg || this.taskState.abort) {
 							return
 						}
@@ -2867,39 +2866,23 @@ export class Task {
 							model.id,
 							chunkOptions,
 						)
-					})
-					.catch((error) => {
-						Logger.debug(`[Task ${this.taskId}] Failed to process usage chunk side effects: ${error}`)
-					})
-
-				if (!usageUiFlushScheduled) {
-					usageUiFlushScheduled = true
-					this.clearUsageUpdateTimer()
-					this.usageUpdateTimer = setTimeout(() => {
+					},
+					flushUi: async () => {
+						if (didFinalizeApiReqMsg || this.taskState.abort) {
+							return
+						}
 						this.usageUpdateTimer = undefined
-						usageChunkSideEffectsQueue = usageChunkSideEffectsQueue
-							.then(async () => {
-								if (didFinalizeApiReqMsg || this.taskState.abort) {
-									return
-								}
-
-								usageUiFlushScheduled = false
-								await updateApiReqMsgFromMetrics()
-							})
-							.catch((error) => {
-								usageUiFlushScheduled = false
-								Logger.debug(`[Task ${this.taskId}] Failed to flush usage UI updates: ${error}`)
-							})
-					}, getUsageUpdateCadenceMs(this.isRemoteWorkspaceEnvironment))
-				}
+						await updateApiReqMsgFromMetrics()
+					},
+				})
 			}
 
 			const finalizeApiReqMsg = async (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				didFinalizeApiReqMsg = true
 				this.clearUsageUpdateTimer()
-				usageUiFlushScheduled = false
-				await usageChunkSideEffectsQueue
-				await updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
+				await usageUpdateScheduler.flushFinal(async () =>
+					updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage),
+				)
 			}
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
@@ -3168,8 +3151,8 @@ export class Task {
 				} else {
 					await streamCoordinator.waitForCompletion()
 				}
-				// Flush any usage updates that were already executing/queued during streaming.
-				await usageChunkSideEffectsQueue
+				// Flush any usage side effects that were already executing/queued during streaming.
+				await Promise.resolve()
 
 				if (!this.taskState.abort && !didFinalizeReasoningForUi) {
 					const finalReasoning = reasonsHandler.getCurrentReasoning()
@@ -3486,11 +3469,13 @@ export class Task {
 			this.captureRequestLatencyMetrics()
 			this.stopEphemeralFlushTimer()
 			this.clearUsageUpdateTimer()
+			usageUpdateScheduler.dispose()
 			return didEndLoop // will always be false for now
 		} catch (_error) {
 			this.captureRequestLatencyMetrics()
 			this.stopEphemeralFlushTimer()
 			this.clearUsageUpdateTimer()
+			usageUpdateScheduler.dispose()
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}
