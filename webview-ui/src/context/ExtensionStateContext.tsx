@@ -320,6 +320,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
+	const latestTaskUiDeltaSequenceRef = useRef<number>(0)
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -349,6 +350,24 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
+
+	const resyncCurrentTaskState = useCallback(async () => {
+		try {
+			const latestState = await StateServiceClient.getLatestState(EmptyRequest.create({}))
+			if (!latestState.stateJson) {
+				return
+			}
+
+			const stateData = JSON.parse(latestState.stateJson) as ExtensionState
+			setState((prevState) => ({
+				...prevState,
+				...stateData,
+			}))
+			latestTaskUiDeltaSequenceRef.current = 0
+		} catch (error) {
+			console.error("Failed to resync extension state after task delta gap:", error)
+		}
+	}, [])
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -387,6 +406,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							}
 
 							setDidHydrateState(true)
+							latestTaskUiDeltaSequenceRef.current = 0
 
 							return newState
 						})
@@ -544,12 +564,20 @@ export const ExtensionStateContextProvider: React.FC<{
 
 				try {
 					const delta = JSON.parse(response.deltaJson) as TaskUiDelta
+					const expectedSequence = latestTaskUiDeltaSequenceRef.current + 1
+					if (delta.sequence !== expectedSequence) {
+						void resyncCurrentTaskState()
+						return
+					}
+					latestTaskUiDeltaSequenceRef.current = delta.sequence
 					setState((prevState) => {
 						if (delta.taskId !== prevState.currentTaskItem?.id) {
 							return prevState
 						}
 
 						if (delta.type === "task_state_resynced") {
+							latestTaskUiDeltaSequenceRef.current = 0
+							void resyncCurrentTaskState()
 							return prevState
 						}
 
@@ -740,7 +768,17 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [])
+	}, [
+		closeMcpView,
+		navigateToAccount,
+		navigateToChat,
+		navigateToHistory,
+		navigateToMcp,
+		navigateToSettings,
+		navigateToWorktrees,
+		resyncCurrentTaskState,
+		showWelcome,
+	])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
