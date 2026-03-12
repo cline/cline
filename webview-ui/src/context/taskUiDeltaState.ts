@@ -25,6 +25,17 @@ export function applyTaskUiDeltaToState(
 		return { kind: "resync", nextSequence: 0 }
 	}
 
+	if (delta.type === "task_metadata_updated") {
+		return {
+			kind: "applied",
+			nextSequence: delta.sequence,
+			state: {
+				...state,
+				...delta.metadata,
+			},
+		}
+	}
+
 	if (delta.type === "message_deleted") {
 		return {
 			kind: "applied",

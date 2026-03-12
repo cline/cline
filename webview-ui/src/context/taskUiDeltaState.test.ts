@@ -150,4 +150,32 @@ describe("applyTaskUiDeltaToState", () => {
 
 		expect(result).toEqual({ kind: "ignored", nextSequence: 1 })
 	})
+
+	it("applies task metadata deltas without replacing the message list", () => {
+		const state = createState()
+		state.clineMessages = [{ ts: 10, type: "say", say: "text", text: "hello" }]
+
+		const result = applyTaskUiDeltaToState(
+			state,
+			createDelta({
+				type: "task_metadata_updated",
+				metadata: {
+					currentFocusChainChecklist: "- [x] done",
+					backgroundCommandRunning: true,
+					backgroundCommandTaskId: "task-1",
+				},
+			}),
+			0,
+		)
+
+		expect(result.kind).toBe("applied")
+		if (result.kind !== "applied") {
+			throw new Error("expected applied result")
+		}
+
+		expect(result.state.currentFocusChainChecklist).toBe("- [x] done")
+		expect(result.state.backgroundCommandRunning).toBe(true)
+		expect(result.state.backgroundCommandTaskId).toBe("task-1")
+		expect(result.state.clineMessages).toEqual(state.clineMessages)
+	})
 })

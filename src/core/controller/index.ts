@@ -61,6 +61,7 @@ import { type StateUpdatePriority, StateUpdateScheduler } from "./StateUpdateSch
 import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
+import { sendTaskUiDelta } from "./ui/subscribeToTaskUiDeltas"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -531,7 +532,35 @@ export class Controller {
 		}
 		this.backgroundCommandRunning = running
 		this.backgroundCommandTaskId = nextTaskId
+		if (this.task && nextTaskId && this.task.taskId === nextTaskId) {
+			void this.postTaskMetadataDelta({
+				backgroundCommandRunning: running,
+				backgroundCommandTaskId: nextTaskId,
+			})
+			return
+		}
 		void this.postStateToWebview()
+	}
+
+	async postTaskMetadataDelta(
+		metadata: Partial<
+			Pick<ExtensionState, "currentFocusChainChecklist" | "backgroundCommandRunning" | "backgroundCommandTaskId">
+		>,
+		taskId?: string,
+	) {
+		const targetTask = this.task
+		const resolvedTaskId = taskId ?? targetTask?.taskId
+		if (!targetTask || !resolvedTaskId || targetTask.taskId !== resolvedTaskId) {
+			await this.postStateToWebview({ priority: "normal" })
+			return
+		}
+
+		await sendTaskUiDelta({
+			type: "task_metadata_updated",
+			taskId: resolvedTaskId,
+			sequence: ++targetTask.taskState.taskUiDeltaSequence,
+			metadata,
+		})
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {

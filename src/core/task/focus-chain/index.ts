@@ -24,6 +24,7 @@ export interface FocusChainDependencies {
 	mode: Mode
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
+	postTaskMetadataDelta: (metadata: { currentFocusChainChecklist?: string | null }) => Promise<void>
 	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
 	focusChainSettings: FocusChainSettings
 }
@@ -33,6 +34,7 @@ export class FocusChainManager {
 	private taskState: TaskState
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
+	private postTaskMetadataDelta: (metadata: { currentFocusChainChecklist?: string | null }) => Promise<void>
 	private say: (
 		type: ClineSay,
 		text?: string,
@@ -50,6 +52,7 @@ export class FocusChainManager {
 		this.taskState = dependencies.taskState
 		this.stateManager = dependencies.stateManager
 		this.postStateToWebview = dependencies.postStateToWebview
+		this.postTaskMetadataDelta = dependencies.postTaskMetadataDelta
 		this.say = dependencies.say
 		this.focusChainSettings = dependencies.focusChainSettings
 	}
@@ -85,7 +88,7 @@ export class FocusChainManager {
 				})
 				.on("unlink", async () => {
 					this.taskState.currentFocusChainChecklist = null
-					await this.postStateToWebview()
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: null })
 				})
 				.on("error", (error) => {
 					Logger.error(`[Task ${this.taskId}] Failed to watch focus chain file:`, error)
@@ -120,7 +123,7 @@ export class FocusChainManager {
 						this.taskState.currentFocusChainChecklist = markdownTodoList
 						this.taskState.todoListWasUpdatedByUser = true
 
-						await this.postStateToWebview()
+						await this.postTaskMetadataDelta({ currentFocusChainChecklist: markdownTodoList })
 						telemetryService.captureFocusChainListWritten(this.taskId)
 					} else {
 						Logger.log(
@@ -165,28 +168,28 @@ export class FocusChainManager {
 			`
 
 				// If there are no user changes, proceed with reminders based on list progress
-			} else {
-				let progressBasedMessageStub = ""
-				// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
-				if (completedItems === 0 && totalItems > 0) {
-					progressBasedMessageStub =
-						"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
-				} else if (percentComplete >= 25 && percentComplete < 50) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
-				} else if (percentComplete >= 50 && percentComplete < 75) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete. Proceed with the task.`
-				} else if (percentComplete >= 75) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete! Focus on finishing the remaining items.`
-				}
-				// Every item on the list has been completed. Hooray!
-				else if (completedItems === totalItems && totalItems > 0) {
-					progressBasedMessageStub = FocusChainPrompts.completed
-						.replace("{{totalItems}}", totalItems.toString())
-						.replace("{{currentFocusChainChecklist}}", this.taskState.currentFocusChainChecklist)
-				}
+			}
+			let progressBasedMessageStub = ""
+			// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
+			if (completedItems === 0 && totalItems > 0) {
+				progressBasedMessageStub =
+					"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
+			} else if (percentComplete >= 25 && percentComplete < 50) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
+			} else if (percentComplete >= 50 && percentComplete < 75) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete. Proceed with the task.`
+			} else if (percentComplete >= 75) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete! Focus on finishing the remaining items.`
+			}
+			// Every item on the list has been completed. Hooray!
+			else if (completedItems === totalItems && totalItems > 0) {
+				progressBasedMessageStub = FocusChainPrompts.completed
+					.replace("{{totalItems}}", totalItems.toString())
+					.replace("{{currentFocusChainChecklist}}", this.taskState.currentFocusChainChecklist)
+			}
 
-				// Return with progress-based stub
-				return `\n
+			// Return with progress-based stub
+			return `\n
 				${introUpdateRequired}\n
 				${listCurrentProgress}\n
 				${this.taskState.currentFocusChainChecklist}\n
@@ -194,25 +197,22 @@ export class FocusChainManager {
 				${FocusChainPrompts.reminder}\n
 				${progressBasedMessageStub}\n
 				`
-			}
 		}
 		// When switching from Plan to Act, request that a new list be generated
-		else if (this.taskState.didRespondToPlanAskBySwitchingMode) {
+		if (this.taskState.didRespondToPlanAskBySwitchingMode) {
 			return `${FocusChainPrompts.initial}`
 		}
 
 		// When in plan mode, lists are optional. TODO - May want to improve this soft prompt approach in a future version
-		else if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
+		if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
 			return FocusChainPrompts.planModeReminder
-		} else {
-			// Check if we're early in the task
-			const isEarlyInTask = this.taskState.apiRequestCount < 10
-			if (isEarlyInTask) {
-				return FocusChainPrompts.recommended
-			} else {
-				return FocusChainPrompts.apiRequestCount.replace("{{apiRequestCount}}", this.taskState.apiRequestCount.toString())
-			}
 		}
+		// Check if we're early in the task
+		const isEarlyInTask = this.taskState.apiRequestCount < 10
+		if (isEarlyInTask) {
+			return FocusChainPrompts.recommended
+		}
+		return FocusChainPrompts.apiRequestCount.replace("{{apiRequestCount}}", this.taskState.apiRequestCount.toString())
 	}
 
 	/**
@@ -301,12 +301,14 @@ export class FocusChainManager {
 				// Write the model's update to the markdown file
 				try {
 					await this.writeFocusChainToDisk(taskProgress.trim())
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: taskProgress.trim() })
 
 					// Send the task_progress message to the UI immediately
 					await this.say("task_progress", taskProgress.trim())
 				} catch (error) {
 					Logger.error(`[Task ${this.taskId}] focus chain list: Failed to write to markdown file:`, error)
 					// Fall back to creating a task_progress message directly if file write fails
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: taskProgress.trim() })
 					await this.say("task_progress", taskProgress.trim())
 					Logger.log(`[Task ${this.taskId}] focus chain list: Sent fallback task_progress message to UI`)
 				}
@@ -316,6 +318,7 @@ export class FocusChainManager {
 				if (markdownTodoList) {
 					const _previousList = this.taskState.currentFocusChainChecklist
 					this.taskState.currentFocusChainChecklist = markdownTodoList
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: markdownTodoList })
 
 					// Create a task_progress message to display the focus chain list in the UI
 					await this.say("task_progress", markdownTodoList)
