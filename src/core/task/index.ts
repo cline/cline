@@ -114,9 +114,16 @@ import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
+import {
+	getPresentationCadenceMs,
+	isRemoteWorkspaceEnvironment,
+	summarizeChunkToWebviewDelays,
+	type TaskLatencyTrigger,
+} from "./latency"
 import { MessageStateHandler } from "./message-state"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
+import { type PresentationPriority, TaskPresentationScheduler } from "./TaskPresentationScheduler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -256,6 +263,11 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
+	private readonly isRemoteWorkspaceEnvironment: boolean
+	private readonly presentationScheduler: TaskPresentationScheduler
+	private readonly schedulerDebugLoggingEnabled = process.env.CLINE_DEBUG_LATENCY === "1"
+	private requestLatencyMetrics = this.createRequestLatencyMetrics()
+	private ephemeralFlushTimer: ReturnType<typeof setInterval> | undefined
 
 	constructor(params: TaskParams) {
 		const {
@@ -283,6 +295,7 @@ export class Task {
 
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
+		this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(HostProvider.env.getHostVersion({}) as any)
 		this.controller = controller
 		this.mcpHub = mcpHub
 		this.updateTaskHistory = updateTaskHistory
@@ -531,6 +544,26 @@ export class Task {
 
 		this.commandExecutor = new CommandExecutor(commandExecutorConfig, commandExecutorCallbacks)
 
+		this.presentationScheduler = new TaskPresentationScheduler({
+			flush: async () => this.flushAssistantPresentation(),
+			getDelayMs: (priority) => getPresentationCadenceMs(this.isRemoteWorkspaceEnvironment, priority),
+			onFlushError: (error) => Logger.debug(`[Task] Failed scheduled presentation flush: ${error}`),
+			metrics: {
+				onFlushStarted: (priority) => {
+					if (this.schedulerDebugLoggingEnabled) {
+						Logger.debug(`[Task ${this.taskId}] presentation flush started (${priority})`)
+					}
+				},
+				onFlushCompleted: (durationMs, priority) => {
+					this.requestLatencyMetrics.presentationDurationMs += durationMs
+					this.requestLatencyMetrics.presentationTrigger = priority
+					if (this.schedulerDebugLoggingEnabled) {
+						Logger.debug(`[Task ${this.taskId}] presentation flush completed (${priority}) in ${durationMs}ms`)
+					}
+				},
+			},
+		})
+
 		this.toolExecutor = new ToolExecutor(
 			this.taskState,
 			this.messageStateHandler,
@@ -569,6 +602,84 @@ export class Task {
 		)
 	}
 
+	private createRequestLatencyMetrics() {
+		return {
+			presentationInvocationCount: 0,
+			presentationDurationMs: 0,
+			presentationTrigger: undefined as string | undefined,
+			partialMessageCount: 0,
+			partialMessagePayloadBytes: 0,
+			partialMessageBroadcastDurationMs: 0,
+			chunkToWebviewDelaysMs: [] as number[],
+		}
+	}
+
+	private notePartialMessageEvent(message: ClineMessage, startedAt: number) {
+		this.requestLatencyMetrics.partialMessageCount += 1
+		this.requestLatencyMetrics.partialMessagePayloadBytes += Buffer.byteLength(JSON.stringify(message), "utf8")
+		this.requestLatencyMetrics.partialMessageBroadcastDurationMs += Math.max(0, performance.now() - startedAt)
+		if (this.taskState.currentChunkReceivedAtMs) {
+			this.requestLatencyMetrics.chunkToWebviewDelaysMs.push(
+				Math.max(0, performance.now() - this.taskState.currentChunkReceivedAtMs),
+			)
+		}
+	}
+
+	private async emitPartialMessage(message: ClineMessage) {
+		const startedAt = performance.now()
+		const protoMessage = convertClineMessageToProto(message)
+		await sendPartialMessageEvent(protoMessage)
+		this.notePartialMessageEvent(message, startedAt)
+	}
+
+	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
+		this.requestLatencyMetrics.presentationInvocationCount += 1
+		this.requestLatencyMetrics.presentationTrigger = trigger
+		this.presentationScheduler.requestFlush(priority)
+	}
+
+	private async flushAssistantPresentation() {
+		await this.presentAssistantMessage()
+	}
+
+	private startEphemeralFlushTimer() {
+		if (this.ephemeralFlushTimer) {
+			return
+		}
+		this.ephemeralFlushTimer = setInterval(() => {
+			void this.messageStateHandler.flushClineMessagesAndUpdateHistory()
+		}, 1500)
+	}
+
+	private stopEphemeralFlushTimer() {
+		if (this.ephemeralFlushTimer) {
+			clearInterval(this.ephemeralFlushTimer)
+			this.ephemeralFlushTimer = undefined
+		}
+	}
+
+	private captureRequestLatencyMetrics() {
+		const persistence = this.messageStateHandler.consumeLatencyMetrics()
+		const chunkDelays = summarizeChunkToWebviewDelays(this.requestLatencyMetrics.chunkToWebviewDelaysMs)
+		telemetryService.captureTaskLatencyMetrics({
+			ulid: this.ulid,
+			requestIndex: this.taskState.apiRequestCount,
+			isRemoteWorkspace: this.isRemoteWorkspaceEnvironment,
+			presentationInvocationCount: this.requestLatencyMetrics.presentationInvocationCount,
+			presentationDurationMs: this.requestLatencyMetrics.presentationDurationMs,
+			presentationTrigger: this.requestLatencyMetrics.presentationTrigger,
+			partialMessageCount: this.requestLatencyMetrics.partialMessageCount,
+			partialMessagePayloadBytes: this.requestLatencyMetrics.partialMessagePayloadBytes,
+			partialMessageBroadcastDurationMs: this.requestLatencyMetrics.partialMessageBroadcastDurationMs,
+			persistenceFlushCount: persistence.persistenceFlushCount,
+			persistenceSaveMessagesDurationMs: persistence.saveMessagesDurationMs,
+			persistenceSaveConversationDurationMs: persistence.saveConversationDurationMs,
+			persistenceUpdateHistoryDurationMs: persistence.updateHistoryDurationMs,
+			chunkToWebviewMedianMs: chunkDelays.medianMs,
+			chunkToWebviewP95Ms: chunkDelays.p95Ms,
+		})
+	}
+
 	// Communicate with webview
 
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
@@ -598,15 +709,14 @@ export class Task {
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+					await this.messageStateHandler.updateClineMessageEphemeral(lastMessageIndex, {
 						text,
 						partial,
 					})
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
+					await this.emitPartialMessage(lastMessage)
 					throw new Error("Current ask promise was ignored 1")
 				}
 				// this is a new partial message, so add it with partial state
@@ -615,7 +725,7 @@ export class Task {
 				// this.askResponseImages = undefined
 				askTs = Date.now()
 				this.taskState.lastMessageTs = askTs
-				await this.messageStateHandler.addToClineMessages({
+				await this.messageStateHandler.addToClineMessagesEphemeral({
 					ts: askTs,
 					type: "ask",
 					ask: type,
@@ -647,8 +757,7 @@ export class Task {
 					partial: false,
 				})
 				// await this.postStateToWebview()
-				const protoMessage = convertClineMessageToProto(lastMessage)
-				await sendPartialMessageEvent(protoMessage)
+				await this.emitPartialMessage(lastMessage)
 			} else {
 				// this is a new partial=false message, so add it like normal
 				this.taskState.askResponse = undefined
@@ -773,21 +882,20 @@ export class Task {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
 					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					await this.messageStateHandler.updateClineMessageEphemeral(lastIndex, {
 						text,
 						images,
 						files,
 						partial,
 					})
 
-					const protoMessage = convertClineMessageToProto(lastMessage)
-					await sendPartialMessageEvent(protoMessage)
+					await this.emitPartialMessage(lastMessage)
 					return undefined
 				}
 				// this is a new partial message, so add it with partial state
 				const sayTs = Date.now()
 				this.taskState.lastMessageTs = sayTs
-				await this.messageStateHandler.addToClineMessages({
+				await this.messageStateHandler.addToClineMessagesEphemeral({
 					ts: sayTs,
 					type: "say",
 					say: type,
@@ -814,8 +922,7 @@ export class Task {
 				})
 
 				// await this.postStateToWebview()
-				const protoMessage = convertClineMessageToProto(lastMessage)
-				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
+				await this.emitPartialMessage(lastMessage) // more performant than an entire postStateToWebview
 				return undefined
 			}
 			// this is a new partial=false message, so add it like normal
@@ -965,6 +1072,7 @@ export class Task {
 			this.taskState.didFinishAbortingStream = true
 			// Save BOTH files so Controller.cancelTask() can find the task
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			this.stopEphemeralFlushTimer()
 			await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
 			await this.postStateToWebview()
 		}
@@ -2268,6 +2376,8 @@ export class Task {
 		// Increment API request counter for focus chain list management
 		this.taskState.apiRequestCount++
 		this.taskState.apiRequestsSinceLastTodoUpdate++
+		this.requestLatencyMetrics = this.createRequestLatencyMetrics()
+		this.startEphemeralFlushTimer()
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		const { model, providerId, customPrompt, mode } = this.getCurrentProviderInfo()
@@ -2839,9 +2949,11 @@ export class Task {
 
 					// Present content once per chunk. Calling this from multiple case branches can
 					// race partial updates and duplicate text rows in the chat.
-					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
-					)
+					this.scheduleAssistantPresentation("text", "normal")
+					await Promise.resolve().catch(() => undefined)
+					await this.presentationScheduler
+						.flushNow()
+						.catch((error) => Logger.debug("[Task] Failed to present message: " + error))
 
 					if (this.taskState.abort) {
 						this.api.abort?.()
@@ -3067,7 +3179,7 @@ export class Task {
 			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
 
 			if (partialBlocks.length > 0) {
-				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
+				await this.presentationScheduler.flushNow() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
 			// now add to apiconversationhistory
@@ -3195,8 +3307,12 @@ export class Task {
 				return true
 			}
 
+			this.captureRequestLatencyMetrics()
+			this.stopEphemeralFlushTimer()
 			return didEndLoop // will always be false for now
 		} catch (_error) {
+			this.captureRequestLatencyMetrics()
+			this.stopEphemeralFlushTimer()
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}

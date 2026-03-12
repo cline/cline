@@ -48,12 +48,19 @@ interface MessageStateHandlerParams {
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private apiConversationHistory: ClineStorageMessage[] = []
 	private clineMessages: ClineMessage[] = []
+	private hasDirtyEphemeralChanges = false
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
+	private readonly latencyMetrics = {
+		persistenceFlushCount: 0,
+		saveMessagesDurationMs: 0,
+		saveConversationDurationMs: 0,
+		updateHistoryDurationMs: 0,
+	}
 
 	// Mutex to prevent concurrent state modifications (RC-4)
 	// Protects against data loss from race conditions when multiple
@@ -105,6 +112,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	setClineMessages(newMessages: ClineMessage[]) {
 		const previousMessages = this.clineMessages
 		this.clineMessages = newMessages
+		this.hasDirtyEphemeralChanges = true
 		this.emitClineMessagesChanged({
 			type: "set",
 			messages: this.clineMessages,
@@ -119,7 +127,10 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
 		try {
+			this.latencyMetrics.persistenceFlushCount += 1
+			const saveMessagesStartedAt = performance.now()
 			await saveClineMessages(this.taskId, this.clineMessages)
+			this.latencyMetrics.saveMessagesDurationMs += Math.max(0, performance.now() - saveMessagesStartedAt)
 
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
@@ -142,6 +153,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				Logger.error("Failed to get task directory size:", taskDir, error)
 			}
 			const cwd = await getCwd(getDesktopDir())
+			const updateHistoryStartedAt = performance.now()
 			await this.updateTaskHistory({
 				id: this.taskId,
 				ulid: this.ulid,
@@ -160,6 +172,8 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 				modelId: lastModelInfo?.modelInfo?.modelId,
 			})
+			this.latencyMetrics.updateHistoryDurationMs += Math.max(0, performance.now() - updateHistoryStartedAt)
+			this.hasDirtyEphemeralChanges = false
 		} catch (error) {
 			Logger.error("Failed to save cline messages:", error)
 		}
@@ -179,7 +193,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory.push(message)
+			const saveConversationStartedAt = performance.now()
 			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+			this.latencyMetrics.saveConversationDurationMs += Math.max(0, performance.now() - saveConversationStartedAt)
 		})
 	}
 
@@ -187,7 +203,25 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory = newHistory
+			const saveConversationStartedAt = performance.now()
 			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+			this.latencyMetrics.saveConversationDurationMs += Math.max(0, performance.now() - saveConversationStartedAt)
+		})
+	}
+
+	async addToClineMessagesEphemeral(message: ClineMessage) {
+		return await this.withStateLock(async () => {
+			message.conversationHistoryIndex = this.apiConversationHistory.length - 1
+			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			const index = this.clineMessages.length
+			this.clineMessages.push(message)
+			this.hasDirtyEphemeralChanges = true
+			this.emitClineMessagesChanged({
+				type: "add",
+				messages: this.clineMessages,
+				index,
+				message,
+			})
 		})
 	}
 
@@ -223,6 +257,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		return await this.withStateLock(async () => {
 			const previousMessages = this.clineMessages
 			this.clineMessages = newMessages
+			this.hasDirtyEphemeralChanges = true
 			this.emitClineMessagesChanged({
 				type: "set",
 				messages: this.clineMessages,
@@ -261,6 +296,26 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		})
 	}
 
+	async updateClineMessageEphemeral(index: number, updates: Partial<ClineMessage>): Promise<void> {
+		return await this.withStateLock(async () => {
+			if (index < 0 || index >= this.clineMessages.length) {
+				throw new Error(`Invalid message index: ${index}`)
+			}
+
+			const previousMessage = { ...this.clineMessages[index] }
+			Object.assign(this.clineMessages[index], updates)
+			this.hasDirtyEphemeralChanges = true
+
+			this.emitClineMessagesChanged({
+				type: "update",
+				messages: this.clineMessages,
+				index,
+				previousMessage,
+				message: this.clineMessages[index],
+			})
+		})
+	}
+
 	/**
 	 * Delete a specific message from the clineMessages array
 	 * The entire operation (validate, delete, save) is atomic to prevent races (RC-4)
@@ -287,5 +342,23 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			// Save changes and update history
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
+	}
+
+	async flushClineMessagesAndUpdateHistory(): Promise<void> {
+		return await this.withStateLock(async () => {
+			if (!this.hasDirtyEphemeralChanges) {
+				return
+			}
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
+
+	consumeLatencyMetrics() {
+		const snapshot = { ...this.latencyMetrics }
+		this.latencyMetrics.persistenceFlushCount = 0
+		this.latencyMetrics.saveMessagesDurationMs = 0
+		this.latencyMetrics.saveConversationDurationMs = 0
+		this.latencyMetrics.updateHistoryDurationMs = 0
+		return snapshot
 	}
 }
