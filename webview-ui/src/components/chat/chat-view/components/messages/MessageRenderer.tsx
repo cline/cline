@@ -127,7 +127,48 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	)
 }
 
-export const MemoizedMessageRenderer = memo(MessageRenderer)
+const areMessageRendererPropsEqual = (prev: MessageRendererProps, next: MessageRendererProps) => {
+	if (
+		prev.index !== next.index ||
+		prev.footerActive !== next.footerActive ||
+		prev.inputValue !== next.inputValue ||
+		prev.mode !== next.mode ||
+		prev.messageOrGroup !== next.messageOrGroup ||
+		prev.groupedMessages !== next.groupedMessages ||
+		prev.modifiedMessages !== next.modifiedMessages ||
+		prev.rawMessages !== next.rawMessages ||
+		prev.expandedRows !== next.expandedRows ||
+		prev.onToggleExpand !== next.onToggleExpand ||
+		prev.onHeightChange !== next.onHeightChange ||
+		prev.onSetQuote !== next.onSetQuote ||
+		prev.messageHandlers !== next.messageHandlers
+	) {
+		return false
+	}
+
+	if (Array.isArray(prev.messageOrGroup) || Array.isArray(next.messageOrGroup)) {
+		return true
+	}
+
+	if (prev.messageOrGroup.say === "api_req_started") {
+		const prevReasoning = prev.apiReqReasoningIndex.get(prev.messageOrGroup.ts)
+		const nextReasoning = next.apiReqReasoningIndex.get(next.messageOrGroup.ts)
+		return (
+			prevReasoning?.reasoning === nextReasoning?.reasoning &&
+			prevReasoning?.responseStarted === nextReasoning?.responseStarted
+		)
+	}
+
+	if (prev.messageOrGroup.say === "text") {
+		return (
+			prev.pendingTextMessageIndex.has(prev.messageOrGroup.ts) === next.pendingTextMessageIndex.has(next.messageOrGroup.ts)
+		)
+	}
+
+	return true
+}
+
+export const MemoizedMessageRenderer = memo(MessageRenderer, areMessageRendererPropsEqual)
 
 /**
  * Factory function to create the itemContent callback for Virtuoso
