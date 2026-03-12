@@ -26,21 +26,9 @@ type ErrorMessage = {
 // rather than as a system subtype.
 type RateLimitEvent = {
 	type: "rate_limit_event"
-	rate_limit_info?: {
-		status: string
-		resetsAt?: number
-		rateLimitType?: string
-		[key: string]: unknown
-	}
-	// Fields that may also appear for backward compatibility
+	rate_limit_info?: Record<string, unknown>
+	// Legacy format fields (older CLI versions)
 	message?: string
-	retryAfterSeconds?: number
-
-// Legacy format where rate limit was a system subtype
-type LegacyRateLimitEvent = {
-	type: "system"
-	subtype: "rate_limit_event"
-	message: string
 	retryAfterSeconds?: number
 }
 
@@ -68,11 +56,4 @@ type ResultMessage = {
 	session_id: string
 }
 
-export type ClaudeCodeMessage =
-	| InitMessage
-	| AssistantMessage
-	| ErrorMessage
-	| ResultMessage
-	| RateLimitEvent
-	| LegacyRateLimitEvent
-	| UserMessage
+export type ClaudeCodeMessage = InitMessage | AssistantMessage | ErrorMessage | ResultMessage | RateLimitEvent | UserMessage
