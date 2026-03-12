@@ -477,7 +477,7 @@ The full state can still include `clineMessages`, but active execution should mo
 
 - [x] Unit test: message add/update/delete produces correct delta shape
 - [x] Unit test: sequence ordering rejects or resyncs stale/missing deltas
-- [ ] Webview test: applying deltas yields the same final UI state as a full snapshot
+- [x] Webview test: applying deltas yields the same final UI state as a full snapshot
 - [ ] Integration test: task execution with streaming text/tool updates works with delta transport enabled
 - [ ] Regression test: reopening/resubscribing still hydrates from full state correctly
 
