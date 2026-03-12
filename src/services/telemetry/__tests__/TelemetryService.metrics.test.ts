@@ -333,6 +333,29 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(durationMetric?.attributes.scope, "task")
 	})
 
+	it("captureTaskInitialization records initialization event and histogram", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskInitialization("task-init", "task-123", 875, true)
+
+		const initEvent = provider.logs.find((entry) => entry.event === "task.initialization")
+		assert.ok(initEvent)
+		assert.strictEqual(initEvent?.properties?.ulid, "task-init")
+		assert.strictEqual(initEvent?.properties?.taskId, "task-123")
+		assert.strictEqual(initEvent?.properties?.durationMs, 875)
+		assert.strictEqual(initEvent?.properties?.hasCheckpoints, true)
+
+		const initMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.TASK_INITIALIZATION_SECONDS,
+		)
+		assert.ok(initMetric)
+		assert.strictEqual(initMetric?.value, 0.875)
+		assert.strictEqual(initMetric?.attributes.ulid, "task-init")
+		assert.strictEqual(initMetric?.attributes.taskId, "task-123")
+		assert.strictEqual(initMetric?.attributes.hasCheckpoints, true)
+	})
+
 	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
