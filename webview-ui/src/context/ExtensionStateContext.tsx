@@ -26,6 +26,7 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import type { TaskUiDelta } from "../../../src/shared/TaskUiDelta"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
@@ -330,6 +331,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
+	const taskUiDeltaUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -534,6 +536,55 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
+		taskUiDeltaUnsubscribeRef.current = UiServiceClient.subscribeToTaskUiDeltas(EmptyRequest.create({}), {
+			onResponse: (response: { deltaJson?: string }) => {
+				if (!response.deltaJson) {
+					return
+				}
+
+				try {
+					const delta = JSON.parse(response.deltaJson) as TaskUiDelta
+					setState((prevState) => {
+						if (delta.taskId !== prevState.currentTaskItem?.id) {
+							return prevState
+						}
+
+						if (delta.type === "task_state_resynced") {
+							return prevState
+						}
+
+						if (delta.type === "message_deleted") {
+							return {
+								...prevState,
+								clineMessages: prevState.clineMessages.filter((message) => message.ts !== delta.messageTs),
+							}
+						}
+
+						const existingIndex = findLastIndex(prevState.clineMessages, (message) => message.ts === delta.message.ts)
+						if (existingIndex === -1) {
+							return {
+								...prevState,
+								clineMessages: [...prevState.clineMessages, delta.message],
+							}
+						}
+
+						const clineMessages = [...prevState.clineMessages]
+						clineMessages[existingIndex] = delta.message
+						return { ...prevState, clineMessages }
+					})
+				} catch (error) {
+					console.error("Failed to process task UI delta:", error)
+				}
+			},
+			onError: (error) => {
+				const typedError = error as Error
+				console.error("Error in taskUiDelta subscription:", typedError)
+			},
+			onComplete: () => {
+				console.log("taskUiDelta subscription completed")
+			},
+		})
+
 		// Subscribe to MCP marketplace catalog updates
 		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
 			onResponse: (catalog) => {
@@ -659,6 +710,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (partialMessageUnsubscribeRef.current) {
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
+			}
+			if (taskUiDeltaUnsubscribeRef.current) {
+				taskUiDeltaUnsubscribeRef.current()
+				taskUiDeltaUnsubscribeRef.current = null
 			}
 			if (mcpMarketplaceUnsubscribeRef.current) {
 				mcpMarketplaceUnsubscribeRef.current()
