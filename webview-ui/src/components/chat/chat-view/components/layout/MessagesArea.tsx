@@ -18,6 +18,8 @@ interface MessagesAreaProps {
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
+	apiReqReasoningIndex: Map<number, { reasoning: string | undefined; responseStarted: boolean }>
+	pendingTextMessageIndex: Set<number>
 }
 
 /**
@@ -33,6 +35,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	scrollBehavior,
 	chatState,
 	messageHandlers,
+	apiReqReasoningIndex,
+	pendingTextMessageIndex,
 }) => {
 	const lastRawMessage = useMemo(() => rawMessages.at(-1), [rawMessages])
 
@@ -176,6 +180,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				displayedGroupedMessages,
 				modifiedMessages,
 				rawMessages,
+				apiReqReasoningIndex,
+				pendingTextMessageIndex,
 				mode,
 				expandedRows,
 				toggleRowExpansion,
@@ -189,6 +195,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			displayedGroupedMessages,
 			modifiedMessages,
 			rawMessages,
+			apiReqReasoningIndex,
+			pendingTextMessageIndex,
 			mode,
 			expandedRows,
 			toggleRowExpansion,

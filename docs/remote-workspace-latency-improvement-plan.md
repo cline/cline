@@ -772,7 +772,7 @@ This section gives a practical map of the files most likely to change and what e
 - [x] `webview-ui/src/components/chat/RequestStartRow.tsx`
   - Optimize expensive recomputation on active request updates
 
-- [ ] `webview-ui/src/App.tsx` / `ChatView` and related chat row components
+- [x] `webview-ui/src/App.tsx` / `ChatView` and related chat row components
   - Audit rerender boundaries
   - Memoize rows/selectors where useful
 

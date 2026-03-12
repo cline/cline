@@ -251,6 +251,58 @@ export function findReasoningForApiReq(
 	}
 }
 
+export function buildApiReqReasoningIndex(
+	allMessages: ClineMessage[],
+): Map<number, { reasoning: string | undefined; responseStarted: boolean }> {
+	const result = new Map<number, { reasoning: string | undefined; responseStarted: boolean }>()
+	let currentApiReqTs: number | undefined
+	let reasoningParts: string[] = []
+	let responseStarted = false
+
+	const flushCurrent = () => {
+		if (currentApiReqTs === undefined) {
+			return
+		}
+		result.set(currentApiReqTs, {
+			reasoning: reasoningParts.length > 0 ? reasoningParts.join("\n\n") : undefined,
+			responseStarted,
+		})
+		currentApiReqTs = undefined
+		reasoningParts = []
+		responseStarted = false
+	}
+
+	for (const message of allMessages) {
+		if (message.say === "api_req_started") {
+			flushCurrent()
+			currentApiReqTs = message.ts
+			continue
+		}
+
+		if (currentApiReqTs === undefined) {
+			continue
+		}
+
+		if (message.say === "reasoning" && message.text) {
+			reasoningParts.push(message.text)
+			continue
+		}
+
+		if (
+			message.say === "text" ||
+			message.say === "tool" ||
+			message.ask === "tool" ||
+			message.ask === "command" ||
+			message.say === "command"
+		) {
+			responseStarted = true
+		}
+	}
+
+	flushCurrent()
+	return result
+}
+
 /**
  * Find the API request info for a checkpoint message.
  * Looks backwards from the checkpoint to find the preceding api_req_started.
@@ -399,6 +451,44 @@ export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineM
 		}
 	}
 	return false
+}
+
+export function buildPendingTextMessageIndex(allMessages: ClineMessage[]): Set<number> {
+	const pendingTextMessages = new Set<number>()
+	let currentApiReqHasCost = false
+	let currentTextMessages: number[] = []
+
+	const flushCurrent = () => {
+		if (!currentApiReqHasCost) {
+			for (const ts of currentTextMessages) {
+				pendingTextMessages.add(ts)
+			}
+		}
+		currentApiReqHasCost = false
+		currentTextMessages = []
+	}
+
+	for (const message of allMessages) {
+		if (message.say === "api_req_started") {
+			flushCurrent()
+			if (message.text) {
+				try {
+					const info = JSON.parse(message.text)
+					currentApiReqHasCost = info.cost != null
+				} catch {
+					currentApiReqHasCost = false
+				}
+			}
+			continue
+		}
+
+		if (message.say === "text") {
+			currentTextMessages.push(message.ts)
+		}
+	}
+
+	flushCurrent()
+	return pendingTextMessages
 }
 
 /**

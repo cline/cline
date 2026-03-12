@@ -1,12 +1,41 @@
 import { describe, expect, it } from "vitest"
 import type { ClineMessage } from "../../../../../../src/shared/ExtensionMessage"
-import { groupLowStakesTools, isToolGroup } from "./messageUtils"
+import { buildApiReqReasoningIndex, buildPendingTextMessageIndex, groupLowStakesTools, isToolGroup } from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
 	say: "text",
 	text,
 	ts,
+})
+
+describe("message render state indexes", () => {
+	it("precomputes reasoning and response-start state per api request", () => {
+		const messages = [
+			{ type: "say", say: "api_req_started", text: JSON.stringify({ request: "one" }), ts: 1 },
+			{ type: "say", say: "reasoning", text: "thinking 1", ts: 2 },
+			{ type: "say", say: "text", text: "answer 1", ts: 3 },
+			{ type: "say", say: "api_req_started", text: JSON.stringify({ request: "two" }), ts: 4 },
+			{ type: "say", say: "reasoning", text: "thinking 2", ts: 5 },
+		] as ClineMessage[]
+
+		const index = buildApiReqReasoningIndex(messages)
+		expect(index.get(1)).toEqual({ reasoning: "thinking 1", responseStarted: true })
+		expect(index.get(4)).toEqual({ reasoning: "thinking 2", responseStarted: false })
+	})
+
+	it("precomputes pending text messages for incomplete api requests", () => {
+		const messages = [
+			{ type: "say", say: "api_req_started", text: JSON.stringify({ request: "one" }), ts: 1 },
+			{ type: "say", say: "text", text: "streaming", ts: 2 },
+			{ type: "say", say: "api_req_started", text: JSON.stringify({ request: "two", cost: 0.5 }), ts: 3 },
+			{ type: "say", say: "text", text: "complete", ts: 4 },
+		] as ClineMessage[]
+
+		const index = buildPendingTextMessageIndex(messages)
+		expect(index.has(2)).toBe(true)
+		expect(index.has(4)).toBe(false)
+	})
 })
 
 const createToolMessage = (ts: number, tool: string): ClineMessage => ({
