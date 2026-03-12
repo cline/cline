@@ -116,6 +116,7 @@ import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import {
 	getPresentationCadenceMs,
+	getUsageUpdateCadenceMs,
 	isRemoteWorkspaceEnvironment,
 	summarizeChunkToWebviewDelays,
 	type TaskLatencyTrigger,
@@ -268,6 +269,7 @@ export class Task {
 	private readonly schedulerDebugLoggingEnabled = process.env.CLINE_DEBUG_LATENCY === "1"
 	private requestLatencyMetrics = this.createRequestLatencyMetrics()
 	private ephemeralFlushTimer: ReturnType<typeof setInterval> | undefined
+	private usageUpdateTimer: ReturnType<typeof setTimeout> | undefined
 
 	constructor(params: TaskParams) {
 		const {
@@ -677,6 +679,13 @@ export class Task {
 		if (this.ephemeralFlushTimer) {
 			clearInterval(this.ephemeralFlushTimer)
 			this.ephemeralFlushTimer = undefined
+		}
+	}
+
+	private clearUsageUpdateTimer() {
+		if (this.usageUpdateTimer) {
+			clearTimeout(this.usageUpdateTimer)
+			this.usageUpdateTimer = undefined
 		}
 	}
 
@@ -2400,6 +2409,7 @@ export class Task {
 		this.taskState.apiRequestsSinceLastTodoUpdate++
 		this.requestLatencyMetrics = this.createRequestLatencyMetrics()
 		this.startEphemeralFlushTimer()
+		this.clearUsageUpdateTimer()
 
 		// Used to know what models were used in the task if user wants to export metadata for error reporting purposes
 		const { model, providerId, customPrompt, mode } = this.getCurrentProviderInfo()
@@ -2693,6 +2703,7 @@ export class Task {
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
 			let didFinalizeApiReqMsg = false
 			let usageChunkSideEffectsQueue = Promise.resolve()
+			let usageUiFlushScheduled = false
 			/*
 				Usage side effects run as soon as a usage chunk arrives.
 				queueUsageChunkSideEffects() appends work to this promise chain, and each appended step starts immediately
@@ -2729,9 +2740,6 @@ export class Task {
 						if (didFinalizeApiReqMsg || this.taskState.abort) {
 							return
 						}
-
-						await updateApiReqMsgFromMetrics()
-						await this.postStateToWebview()
 						await telemetryService.captureTokenUsage(
 							this.ulid,
 							usageInputTokens,
@@ -2744,10 +2752,34 @@ export class Task {
 					.catch((error) => {
 						Logger.debug(`[Task ${this.taskId}] Failed to process usage chunk side effects: ${error}`)
 					})
+
+				if (!usageUiFlushScheduled) {
+					usageUiFlushScheduled = true
+					this.clearUsageUpdateTimer()
+					this.usageUpdateTimer = setTimeout(() => {
+						this.usageUpdateTimer = undefined
+						usageChunkSideEffectsQueue = usageChunkSideEffectsQueue
+							.then(async () => {
+								if (didFinalizeApiReqMsg || this.taskState.abort) {
+									return
+								}
+
+								usageUiFlushScheduled = false
+								await updateApiReqMsgFromMetrics()
+								await this.postStateToWebview()
+							})
+							.catch((error) => {
+								usageUiFlushScheduled = false
+								Logger.debug(`[Task ${this.taskId}] Failed to flush usage UI updates: ${error}`)
+							})
+					}, getUsageUpdateCadenceMs(this.isRemoteWorkspaceEnvironment))
+				}
 			}
 
 			const finalizeApiReqMsg = async (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				didFinalizeApiReqMsg = true
+				this.clearUsageUpdateTimer()
+				usageUiFlushScheduled = false
 				await usageChunkSideEffectsQueue
 				await updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
 			}
@@ -3334,10 +3366,12 @@ export class Task {
 
 			this.captureRequestLatencyMetrics()
 			this.stopEphemeralFlushTimer()
+			this.clearUsageUpdateTimer()
 			return didEndLoop // will always be false for now
 		} catch (_error) {
 			this.captureRequestLatencyMetrics()
 			this.stopEphemeralFlushTimer()
+			this.clearUsageUpdateTimer()
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
 		}
