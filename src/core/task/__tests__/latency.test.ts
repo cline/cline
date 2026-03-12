@@ -1,6 +1,7 @@
 import { strict as assert } from "assert"
 import {
 	getPresentationCadenceMs,
+	getRequestBoundaryCacheTtlMs,
 	getStateUpdateCadenceMs,
 	getUsageUpdateCadenceMs,
 	isEphemeralMessagePersistenceDisabled,
@@ -18,6 +19,8 @@ describe("task latency helpers", () => {
 		delete process.env.CLINE_REMOTE_STATE_UPDATE_CADENCE_MS
 		delete process.env.CLINE_USAGE_UPDATE_CADENCE_MS
 		delete process.env.CLINE_REMOTE_USAGE_UPDATE_CADENCE_MS
+		delete process.env.CLINE_REQUEST_BOUNDARY_CACHE_TTL_MS
+		delete process.env.CLINE_REMOTE_REQUEST_BOUNDARY_CACHE_TTL_MS
 		delete process.env.CLINE_DISABLE_PRESENTATION_SCHEDULER
 		delete process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE
 		delete process.env.CLINE_DISABLE_TASK_UI_DELTA_SYNC
@@ -42,6 +45,8 @@ describe("task latency helpers", () => {
 		assert.equal(getStateUpdateCadenceMs(true, "low"), 150)
 		assert.equal(getUsageUpdateCadenceMs(false), 250)
 		assert.equal(getUsageUpdateCadenceMs(true), 400)
+		assert.equal(getRequestBoundaryCacheTtlMs(false), 500)
+		assert.equal(getRequestBoundaryCacheTtlMs(true), 1000)
 	})
 
 	it("respects cadence overrides from environment variables", () => {
@@ -51,6 +56,8 @@ describe("task latency helpers", () => {
 		process.env.CLINE_REMOTE_STATE_UPDATE_CADENCE_MS = "99"
 		process.env.CLINE_USAGE_UPDATE_CADENCE_MS = "333"
 		process.env.CLINE_REMOTE_USAGE_UPDATE_CADENCE_MS = "555"
+		process.env.CLINE_REQUEST_BOUNDARY_CACHE_TTL_MS = "444"
+		process.env.CLINE_REMOTE_REQUEST_BOUNDARY_CACHE_TTL_MS = "888"
 
 		assert.equal(getPresentationCadenceMs(false, "normal"), 22)
 		assert.equal(getPresentationCadenceMs(true, "normal"), 77)
@@ -58,6 +65,8 @@ describe("task latency helpers", () => {
 		assert.equal(getStateUpdateCadenceMs(true, "normal"), 99)
 		assert.equal(getUsageUpdateCadenceMs(false), 333)
 		assert.equal(getUsageUpdateCadenceMs(true), 555)
+		assert.equal(getRequestBoundaryCacheTtlMs(false), 444)
+		assert.equal(getRequestBoundaryCacheTtlMs(true), 888)
 	})
 
 	it("supports development flags for disabling schedulers and delta sync", () => {
