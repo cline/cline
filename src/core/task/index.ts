@@ -301,6 +301,7 @@ export class Task {
 			.getHostVersion({})
 			.then((hostVersion) => {
 				this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(hostVersion)
+				this.taskState.isRemoteWorkspace = this.isRemoteWorkspaceEnvironment
 			})
 			.catch((error) => {
 				Logger.debug(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
@@ -2922,6 +2923,7 @@ export class Task {
 					if (!chunk) {
 						break
 					}
+					this.taskState.currentChunkReceivedAtMs = performance.now()
 					const hadVisibleAssistantContent =
 						assistantMessage.length > 0 || this.taskState.assistantMessageContent.length > 0
 					if (!this.taskState.taskFirstTokenTimeMs) {
