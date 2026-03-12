@@ -264,4 +264,88 @@ describe("MessageStateHandler Mutex Protection", () => {
 		finalHistory[0].content.should.equal("new1")
 		finalHistory[1].content.should.equal("new2")
 	})
+
+	it("should update messages ephemerally without persisting until flush", async () => {
+		const handler = createTestHandler()
+		const changes: Array<{ type: string; text?: string; previousText?: string }> = []
+
+		handler.on("clineMessagesChanged", (change) => {
+			changes.push({
+				type: change.type,
+				text: change.message?.text,
+				previousText: change.previousMessage?.text,
+			})
+		})
+
+		await handler.addToClineMessagesEphemeral(createTestMessage("ephemeral-start"))
+		await handler.updateClineMessageEphemeral(0, { text: "ephemeral-updated", partial: true })
+
+		const messagesBeforeFlush = handler.getClineMessages()
+		messagesBeforeFlush.length.should.equal(1)
+		should.exist(messagesBeforeFlush[0])
+		const pendingMessage = messagesBeforeFlush[0]!
+		pendingMessage.text?.should.equal("ephemeral-updated")
+		should.exist(pendingMessage.partial)
+		pendingMessage.partial!.should.equal(true)
+
+		changes.length.should.equal(2)
+		should.exist(changes[0])
+		should.exist(changes[1])
+		const firstChange = changes[0]!
+		const secondChange = changes[1]!
+		firstChange.type.should.equal("add")
+		should.exist(firstChange.text)
+		firstChange.text!.should.equal("ephemeral-start")
+		secondChange.type.should.equal("update")
+		should.exist(secondChange.previousText)
+		should.exist(secondChange.text)
+		secondChange.previousText!.should.equal("ephemeral-start")
+		secondChange.text!.should.equal("ephemeral-updated")
+
+		const metricsBeforeFlush = handler.consumeLatencyMetrics()
+		metricsBeforeFlush.persistenceFlushCount.should.equal(0)
+
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		const metricsAfterFlush = handler.consumeLatencyMetrics()
+		metricsAfterFlush.persistenceFlushCount.should.equal(1)
+	})
+
+	it("should not flush when there are no dirty ephemeral changes", async () => {
+		const handler = createTestHandler()
+
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		const metrics = handler.consumeLatencyMetrics()
+		metrics.persistenceFlushCount.should.equal(0)
+		metrics.saveMessagesDurationMs.should.equal(0)
+		metrics.updateHistoryDurationMs.should.equal(0)
+	})
+
+	it("should emit delete change metadata for removed messages", async () => {
+		const handler = createTestHandler()
+		const observedDeletes: Array<{ index?: number; previousText?: string }> = []
+
+		handler.on("clineMessagesChanged", (change) => {
+			if (change.type === "delete") {
+				observedDeletes.push({ index: change.index, previousText: change.previousMessage?.text })
+			}
+		})
+
+		await handler.addToClineMessages(createTestMessage("first"))
+		await handler.addToClineMessages(createTestMessage("second"))
+		await handler.deleteClineMessage(0)
+
+		observedDeletes.length.should.equal(1)
+		should.exist(observedDeletes[0])
+		const deletedChange = observedDeletes[0]!
+		should.exist(deletedChange.index)
+		should.exist(deletedChange.previousText)
+		deletedChange.index!.should.equal(0)
+		deletedChange.previousText!.should.equal("first")
+		handler.getClineMessages().length.should.equal(1)
+		should.exist(handler.getClineMessages()[0])
+		const remainingMessage = handler.getClineMessages()[0]!
+		remainingMessage.text?.should.equal("second")
+	})
 })
