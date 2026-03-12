@@ -28,6 +28,7 @@ import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import type { TaskUiDelta } from "../../../src/shared/TaskUiDelta"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { applyTaskUiDeltaToState } from "./taskUiDeltaState"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -556,7 +557,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		taskUiDeltaUnsubscribeRef.current = UiServiceClient.subscribeToTaskUiDeltas(EmptyRequest.create({}), {
+		taskUiDeltaUnsubscribeRef.current = (UiServiceClient as any).subscribeToTaskUiDeltas(EmptyRequest.create({}), {
 			onResponse: (response: { deltaJson?: string }) => {
 				if (!response.deltaJson) {
 					return
@@ -564,47 +565,24 @@ export const ExtensionStateContextProvider: React.FC<{
 
 				try {
 					const delta = JSON.parse(response.deltaJson) as TaskUiDelta
-					const expectedSequence = latestTaskUiDeltaSequenceRef.current + 1
-					if (delta.sequence !== expectedSequence) {
-						void resyncCurrentTaskState()
-						return
-					}
-					latestTaskUiDeltaSequenceRef.current = delta.sequence
 					setState((prevState) => {
-						if (delta.taskId !== prevState.currentTaskItem?.id) {
-							return prevState
-						}
-
-						if (delta.type === "task_state_resynced") {
-							latestTaskUiDeltaSequenceRef.current = 0
+						const result = applyTaskUiDeltaToState(prevState, delta, latestTaskUiDeltaSequenceRef.current)
+						latestTaskUiDeltaSequenceRef.current = result.nextSequence
+						if (result.kind === "resync") {
 							void resyncCurrentTaskState()
 							return prevState
 						}
-
-						if (delta.type === "message_deleted") {
-							return {
-								...prevState,
-								clineMessages: prevState.clineMessages.filter((message) => message.ts !== delta.messageTs),
-							}
+						if (result.kind === "ignored") {
+							return prevState
 						}
 
-						const existingIndex = findLastIndex(prevState.clineMessages, (message) => message.ts === delta.message.ts)
-						if (existingIndex === -1) {
-							return {
-								...prevState,
-								clineMessages: [...prevState.clineMessages, delta.message],
-							}
-						}
-
-						const clineMessages = [...prevState.clineMessages]
-						clineMessages[existingIndex] = delta.message
-						return { ...prevState, clineMessages }
+						return result.state
 					})
 				} catch (error) {
 					console.error("Failed to process task UI delta:", error)
 				}
 			},
-			onError: (error) => {
+			onError: (error: unknown) => {
 				const typedError = error as Error
 				console.error("Error in taskUiDelta subscription:", typedError)
 			},
