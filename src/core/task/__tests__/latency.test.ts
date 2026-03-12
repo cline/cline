@@ -1,5 +1,6 @@
 import { strict as assert } from "assert"
 import {
+	getEnvironmentDetailsStaticCacheTtlMs,
 	getPresentationCadenceMs,
 	getRequestBoundaryCacheTtlMs,
 	getStateUpdateCadenceMs,
@@ -22,6 +23,8 @@ describe("task latency helpers", () => {
 		delete process.env.CLINE_REMOTE_USAGE_UPDATE_CADENCE_MS
 		delete process.env.CLINE_REQUEST_BOUNDARY_CACHE_TTL_MS
 		delete process.env.CLINE_REMOTE_REQUEST_BOUNDARY_CACHE_TTL_MS
+		delete process.env.CLINE_ENVIRONMENT_DETAILS_STATIC_CACHE_TTL_MS
+		delete process.env.CLINE_REMOTE_ENVIRONMENT_DETAILS_STATIC_CACHE_TTL_MS
 		delete process.env.CLINE_DISABLE_PRESENTATION_SCHEDULER
 		delete process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE
 		delete process.env.CLINE_DISABLE_TASK_UI_DELTA_SYNC
@@ -48,6 +51,8 @@ describe("task latency helpers", () => {
 		assert.equal(getUsageUpdateCadenceMs(true), 400)
 		assert.equal(getRequestBoundaryCacheTtlMs(false), 500)
 		assert.equal(getRequestBoundaryCacheTtlMs(true), 1000)
+		assert.equal(getEnvironmentDetailsStaticCacheTtlMs(false), 30_000)
+		assert.equal(getEnvironmentDetailsStaticCacheTtlMs(true), 60_000)
 	})
 
 	it("respects cadence overrides from environment variables", () => {
@@ -59,6 +64,8 @@ describe("task latency helpers", () => {
 		process.env.CLINE_REMOTE_USAGE_UPDATE_CADENCE_MS = "555"
 		process.env.CLINE_REQUEST_BOUNDARY_CACHE_TTL_MS = "444"
 		process.env.CLINE_REMOTE_REQUEST_BOUNDARY_CACHE_TTL_MS = "888"
+		process.env.CLINE_ENVIRONMENT_DETAILS_STATIC_CACHE_TTL_MS = "1234"
+		process.env.CLINE_REMOTE_ENVIRONMENT_DETAILS_STATIC_CACHE_TTL_MS = "5678"
 
 		assert.equal(getPresentationCadenceMs(false, "normal"), 22)
 		assert.equal(getPresentationCadenceMs(true, "normal"), 77)
@@ -68,6 +75,8 @@ describe("task latency helpers", () => {
 		assert.equal(getUsageUpdateCadenceMs(true), 555)
 		assert.equal(getRequestBoundaryCacheTtlMs(false), 444)
 		assert.equal(getRequestBoundaryCacheTtlMs(true), 888)
+		assert.equal(getEnvironmentDetailsStaticCacheTtlMs(false), 1234)
+		assert.equal(getEnvironmentDetailsStaticCacheTtlMs(true), 5678)
 	})
 
 	it("supports development flags for disabling schedulers and delta sync", () => {
