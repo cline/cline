@@ -115,6 +115,7 @@ import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import {
+	getEnvironmentDetailsStaticCacheTtlMs,
 	getPresentationCadenceMs,
 	getRequestBoundaryCacheTtlMs,
 	getUsageUpdateCadenceMs,
@@ -281,6 +282,8 @@ export class Task {
 	private readonly visibleTabsCache: RequestBoundaryCache<string[]>
 	private readonly existingOpenTabsCache: RequestBoundaryCache<string[]>
 	private readonly existingVisibleTabsCache: RequestBoundaryCache<string[]>
+	private readonly workspaceConfigCache: RequestBoundaryCache<string | null>
+	private readonly availableCliToolsCache: RequestBoundaryCache<string[]>
 
 	constructor(params: TaskParams) {
 		const {
@@ -597,6 +600,14 @@ export class Task {
 			load: async () => filterExistingFiles(await this.getCachedVisibleTabPaths()),
 			getTtlMs: () => getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment),
 		})
+		this.workspaceConfigCache = new RequestBoundaryCache({
+			load: async () => (await this.workspaceManager?.buildWorkspacesJson()) ?? null,
+			getTtlMs: () => getEnvironmentDetailsStaticCacheTtlMs(this.isRemoteWorkspaceEnvironment),
+		})
+		this.availableCliToolsCache = new RequestBoundaryCache({
+			load: async () => detectAvailableCliTools(),
+			getTtlMs: () => getEnvironmentDetailsStaticCacheTtlMs(this.isRemoteWorkspaceEnvironment),
+		})
 
 		this.toolExecutor = new ToolExecutor(
 			this.taskState,
@@ -753,6 +764,14 @@ export class Task {
 
 	private async getCachedExistingVisibleTabPaths(): Promise<string[]> {
 		return this.existingVisibleTabsCache.get()
+	}
+
+	private async getCachedWorkspaceConfigurationJson(): Promise<string | null> {
+		return this.workspaceConfigCache.get()
+	}
+
+	private async getCachedAvailableCliTools(): Promise<string[]> {
+		return this.availableCliToolsCache.get()
 	}
 
 	private captureRequestLatencyMetrics() {
@@ -3852,14 +3871,14 @@ export class Task {
 
 			// Add workspace information in JSON format
 			if (this.workspaceManager) {
-				const workspacesJson = await this.workspaceManager.buildWorkspacesJson()
+				const workspacesJson = await this.getCachedWorkspaceConfigurationJson()
 				if (workspacesJson) {
 					details += `\n\n# Workspace Configuration\n${workspacesJson}`
 				}
 			}
 
 			// Add detected CLI tools
-			const availableCliTools = await detectAvailableCliTools()
+			const availableCliTools = await this.getCachedAvailableCliTools()
 			if (availableCliTools.length > 0) {
 				details += `\n\n# Detected CLI Tools\nThese are some of the tools on the user's machine, and may be useful if needed to accomplish the task: ${availableCliTools.join(", ")}. This list is not exhaustive, and other tools may be available.`
 			}

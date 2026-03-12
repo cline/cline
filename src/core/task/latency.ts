@@ -115,6 +115,19 @@ export function getRequestBoundaryCacheTtlMs(isRemoteWorkspace: boolean): number
 	return isRemoteWorkspace ? 1000 : 500
 }
 
+export function getEnvironmentDetailsStaticCacheTtlMs(isRemoteWorkspace: boolean): number {
+	const override = getCadenceOverride({
+		isRemoteWorkspace,
+		localEnvVar: "CLINE_ENVIRONMENT_DETAILS_STATIC_CACHE_TTL_MS",
+		remoteEnvVar: "CLINE_REMOTE_ENVIRONMENT_DETAILS_STATIC_CACHE_TTL_MS",
+	})
+	if (override !== undefined) {
+		return override
+	}
+
+	return isRemoteWorkspace ? 60_000 : 30_000
+}
+
 export function shouldWaitForTerminalCooldown(args: {
 	busyTerminalIds: number[]
 	isProcessHot: (terminalId: number) => boolean
