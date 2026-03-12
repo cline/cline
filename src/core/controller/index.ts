@@ -888,8 +888,15 @@ export class Controller {
 	}
 
 	private async flushStateToWebview() {
+		const buildStartedAt = performance.now()
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(state)
+		const buildDurationMs = Math.max(0, performance.now() - buildStartedAt)
+		const deliveryStats = await sendStateUpdate(state)
+		this.task?.noteStateUpdateMetrics({
+			buildDurationMs,
+			serializedBytes: deliveryStats.payloadBytes,
+			sendDurationMs: deliveryStats.sendDurationMs,
+		})
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {

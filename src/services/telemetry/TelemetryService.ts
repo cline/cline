@@ -166,6 +166,8 @@ export class TelemetryService {
 			DURATION_SECONDS: "cline.api.duration.seconds",
 			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
 			PRESENTATION_DURATION_SECONDS: "cline.api.presentation.duration.seconds",
+			STATE_BUILD_DURATION_SECONDS: "cline.api.state_build.duration.seconds",
+			STATE_SEND_DURATION_SECONDS: "cline.api.state_send.duration.seconds",
 			PERSISTENCE_DURATION_SECONDS: "cline.api.persistence.duration.seconds",
 			CHUNK_TO_WEBVIEW_SECONDS: "cline.api.chunk_to_webview.seconds",
 		},
@@ -2410,6 +2412,22 @@ export class TelemetryService {
 			this.recordHistogram(
 				TelemetryService.METRICS.API.PRESENTATION_DURATION_SECONDS,
 				(args.presentationDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.statePostBuildDurationMs) && (args.statePostBuildDurationMs ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.STATE_BUILD_DURATION_SECONDS,
+				(args.statePostBuildDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.statePostSendDurationMs) && (args.statePostSendDurationMs ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.STATE_SEND_DURATION_SECONDS,
+				(args.statePostSendDurationMs ?? 0) / 1000,
 				attrs,
 			)
 		}

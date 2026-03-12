@@ -621,6 +621,10 @@ export class Task {
 			presentationInvocationCount: 0,
 			presentationDurationMs: 0,
 			presentationTrigger: undefined as string | undefined,
+			statePostCount: 0,
+			statePostBuildDurationMs: 0,
+			statePostSerializedBytes: 0,
+			statePostSendDurationMs: 0,
 			partialMessageCount: 0,
 			partialMessagePayloadBytes: 0,
 			partialMessageBroadcastDurationMs: 0,
@@ -628,10 +632,23 @@ export class Task {
 		}
 	}
 
-	private notePartialMessageEvent(message: ClineMessage, startedAt: number) {
+	public noteStateUpdateMetrics(metrics: { buildDurationMs: number; serializedBytes: number; sendDurationMs: number }) {
+		this.requestLatencyMetrics.statePostCount += 1
+		this.requestLatencyMetrics.statePostBuildDurationMs += metrics.buildDurationMs
+		this.requestLatencyMetrics.statePostSerializedBytes += metrics.serializedBytes
+		this.requestLatencyMetrics.statePostSendDurationMs += metrics.sendDurationMs
+
+		if (this.taskState.currentChunkReceivedAtMs) {
+			this.requestLatencyMetrics.chunkToWebviewDelaysMs.push(
+				Math.max(0, performance.now() - this.taskState.currentChunkReceivedAtMs),
+			)
+		}
+	}
+
+	private notePartialMessageEvent(message: ClineMessage, stats: { payloadBytes: number; broadcastDurationMs: number }) {
 		this.requestLatencyMetrics.partialMessageCount += 1
-		this.requestLatencyMetrics.partialMessagePayloadBytes += Buffer.byteLength(JSON.stringify(message), "utf8")
-		this.requestLatencyMetrics.partialMessageBroadcastDurationMs += Math.max(0, performance.now() - startedAt)
+		this.requestLatencyMetrics.partialMessagePayloadBytes += stats.payloadBytes
+		this.requestLatencyMetrics.partialMessageBroadcastDurationMs += stats.broadcastDurationMs
 		if (this.taskState.currentChunkReceivedAtMs) {
 			this.requestLatencyMetrics.chunkToWebviewDelaysMs.push(
 				Math.max(0, performance.now() - this.taskState.currentChunkReceivedAtMs),
@@ -640,10 +657,9 @@ export class Task {
 	}
 
 	private async emitPartialMessage(message: ClineMessage) {
-		const startedAt = performance.now()
 		const protoMessage = convertClineMessageToProto(message)
-		await sendPartialMessageEvent(protoMessage)
-		this.notePartialMessageEvent(message, startedAt)
+		const stats = await sendPartialMessageEvent(protoMessage)
+		this.notePartialMessageEvent(message, stats)
 	}
 
 	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
@@ -713,6 +729,10 @@ export class Task {
 			presentationInvocationCount: this.requestLatencyMetrics.presentationInvocationCount,
 			presentationDurationMs: this.requestLatencyMetrics.presentationDurationMs,
 			presentationTrigger: this.requestLatencyMetrics.presentationTrigger,
+			statePostCount: this.requestLatencyMetrics.statePostCount,
+			statePostBuildDurationMs: this.requestLatencyMetrics.statePostBuildDurationMs,
+			statePostSerializedBytes: this.requestLatencyMetrics.statePostSerializedBytes,
+			statePostSendDurationMs: this.requestLatencyMetrics.statePostSendDurationMs,
 			partialMessageCount: this.requestLatencyMetrics.partialMessageCount,
 			partialMessagePayloadBytes: this.requestLatencyMetrics.partialMessagePayloadBytes,
 			partialMessageBroadcastDurationMs: this.requestLatencyMetrics.partialMessageBroadcastDurationMs,
