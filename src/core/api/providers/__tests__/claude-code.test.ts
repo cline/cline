@@ -307,7 +307,7 @@ describe("ClaudeCodeHandler", () => {
 				thrownError = err as Error
 			}
 
-			thrownError!.message.should.include("Rate limit exceeded")
+			thrownError!.message.should.containEql("Rate limit exceeded")
 		})
 
 		it("should ignore rate_limit_event system messages without throwing", async () => {
