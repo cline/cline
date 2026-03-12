@@ -104,4 +104,20 @@ describe("mergeExtensionStateSnapshot", () => {
 		const merged = mergeExtensionStateSnapshot(prev, incoming)
 		expect(merged.autoApprovalSettings).toBe(prev.autoApprovalSettings)
 	})
+
+	it("rehydrates cline messages from a full snapshot when reopening or resubscribing to a different snapshot payload", () => {
+		const prev = createState()
+		prev.clineMessages = [{ ts: 10, type: "say", say: "text", text: "stale local copy" } as any]
+
+		const incoming = {
+			...createState(),
+			currentTaskItem: prev.currentTaskItem,
+			clineMessages: [{ ts: 20, type: "say", say: "text", text: "fresh hydrated copy" } as any],
+		}
+
+		const merged = mergeExtensionStateSnapshot(prev, incoming)
+
+		expect(merged.clineMessages).toEqual(incoming.clineMessages)
+		expect(merged.clineMessages).not.toBe(prev.clineMessages)
+	})
 })
