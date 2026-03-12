@@ -215,7 +215,7 @@ At request completion, cancellation, or stream failure:
 
 - [x] Unit test: multiple requests within the cadence window produce one flush
 - [x] Unit test: an immediate-priority request preempts/coalesces normal requests correctly
-- [ ] Unit test: scheduler drains final updates on completion
+- [x] Unit test: scheduler drains final updates on completion
 - [x] Unit test: scheduler ignores/disposes pending work after task abort/dispose
 - [ ] Integration test: streaming many text chunks produces fewer presentation invocations than chunk count
 
@@ -667,8 +667,8 @@ This is important for safe rollout and A/B comparison.
 
 ### Tests
 
-- [ ] Unit test: remote detection helper behaves correctly for representative host metadata
-- [ ] Unit test: cadence selection changes in remote mode
+- [x] Unit test: remote detection helper behaves correctly for representative host metadata
+- [x] Unit test: cadence selection changes in remote mode
 - [ ] Integration test: remote-mode config path enables the intended scheduler defaults
 
 ---
