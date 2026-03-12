@@ -1,5 +1,4 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
@@ -29,6 +28,7 @@ import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/
 import type { TaskUiDelta } from "../../../src/shared/TaskUiDelta"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 import { mergeExtensionStateSnapshot } from "./mergeExtensionState"
+import { mergePartialMessage } from "./mergePartialMessage"
 import { applyTaskUiDeltaToState } from "./taskUiDeltaState"
 
 export interface ExtensionStateContextType extends ExtensionState {
@@ -520,16 +520,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-					setState((prevState) => {
-						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-						if (lastIndex !== -1) {
-							const newClineMessages = [...prevState.clineMessages]
-							newClineMessages[lastIndex] = partialMessage
-							return { ...prevState, clineMessages: newClineMessages }
-						}
-						return prevState
-					})
+					setState((prevState) => mergePartialMessage(prevState, partialMessage))
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
 				}
