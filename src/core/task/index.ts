@@ -113,6 +113,7 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
+import { EphemeralMessageFlushScheduler } from "./EphemeralMessageFlushScheduler"
 import { FocusChainManager } from "./focus-chain"
 import {
 	getEnvironmentDetailsStaticCacheTtlMs,
@@ -273,9 +274,9 @@ export class Task {
 	private commandExecutor!: CommandExecutor
 	private isRemoteWorkspaceEnvironment = false
 	private readonly presentationScheduler: TaskPresentationScheduler
+	private readonly ephemeralMessageFlushScheduler: EphemeralMessageFlushScheduler
 	private readonly schedulerDebugLoggingEnabled = process.env.CLINE_DEBUG_LATENCY === "1"
 	private requestLatencyMetrics = this.createRequestLatencyMetrics()
-	private ephemeralFlushTimer: ReturnType<typeof setInterval> | undefined
 	private usageUpdateTimer: ReturnType<typeof setTimeout> | undefined
 	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
 	private readonly ephemeralMessagePersistenceDisabled = isEphemeralMessagePersistenceDisabled()
@@ -585,6 +586,12 @@ export class Task {
 			},
 		})
 
+		this.ephemeralMessageFlushScheduler = new EphemeralMessageFlushScheduler({
+			flush: async () => this.messageStateHandler.flushClineMessagesAndUpdateHistory(),
+			getDelayMs: () => 1500,
+			onFlushError: (error) => Logger.debug(`[Task ${this.taskId}] Failed to flush ephemeral message state: ${error}`),
+		})
+
 		this.openTabsCache = new RequestBoundaryCache({
 			load: async () => (await HostProvider.window.getOpenTabs({})).paths || [],
 			getTtlMs: () => getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment),
@@ -729,19 +736,11 @@ export class Task {
 		if (this.ephemeralMessagePersistenceDisabled) {
 			return
 		}
-		if (this.ephemeralFlushTimer) {
-			return
-		}
-		this.ephemeralFlushTimer = setInterval(() => {
-			void this.messageStateHandler.flushClineMessagesAndUpdateHistory()
-		}, 1500)
+		this.ephemeralMessageFlushScheduler.start()
 	}
 
 	private stopEphemeralFlushTimer() {
-		if (this.ephemeralFlushTimer) {
-			clearInterval(this.ephemeralFlushTimer)
-			this.ephemeralFlushTimer = undefined
-		}
+		this.ephemeralMessageFlushScheduler.stop()
 	}
 
 	private clearUsageUpdateTimer() {
