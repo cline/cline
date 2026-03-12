@@ -86,4 +86,43 @@ describe("mergePartialMessage", () => {
 		expect(merged.clineMessages).not.toBe(state.clineMessages)
 		expect(merged.clineMessages[0]?.text).toBe("hello world")
 	})
+
+	it("patches only the matching active row and preserves unrelated message references", () => {
+		const state = createState()
+		const firstMessage = { ts: 1, type: "say", say: "text", text: "first" } as any
+		const activeMessage = { ts: 2, type: "say", say: "text", text: "streaming", partial: true } as any
+		state.clineMessages = [firstMessage, activeMessage]
+
+		const merged = mergePartialMessage(state, {
+			ts: 2,
+			type: "say",
+			say: "text",
+			text: "streaming updated",
+			partial: true,
+		} as any)
+
+		expect(merged).not.toBe(state)
+		expect(merged.clineMessages).toHaveLength(2)
+		expect(merged.clineMessages[0]).toBe(firstMessage)
+		expect(merged.clineMessages[1]).not.toBe(activeMessage)
+		expect(merged.clineMessages[1]?.text).toBe("streaming updated")
+	})
+
+	it("preserves message identity and timestamp semantics across partial-to-complete transitions", () => {
+		const state = createState()
+		state.clineMessages = [{ ts: 5, type: "say", say: "text", text: "partial", partial: true } as any]
+
+		const merged = mergePartialMessage(state, {
+			ts: 5,
+			type: "say",
+			say: "text",
+			text: "final",
+			partial: false,
+		} as any)
+
+		expect(merged.clineMessages).toHaveLength(1)
+		expect(merged.clineMessages[0]?.ts).toBe(5)
+		expect(merged.clineMessages[0]?.partial).toBe(false)
+		expect(merged.clineMessages[0]?.text).toBe("final")
+	})
 })
