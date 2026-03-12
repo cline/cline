@@ -711,7 +711,7 @@ The reason for this order is that the early steps are high-value and lower risk,
 ### Debugging and support aids
 
 - [x] Add optional debug logging for scheduler flush/coalescing behavior
-- [ ] Add optional debug counters in webview devtools for delta/full-state application counts
+- [x] Add optional debug counters in webview devtools for delta/full-state application counts
 - [ ] Add a forced full-resync mechanism if delta state diverges
 
 ---

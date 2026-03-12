@@ -31,6 +31,36 @@ import { mergeExtensionStateSnapshot } from "./mergeExtensionState"
 import { mergePartialMessage } from "./mergePartialMessage"
 import { applyTaskUiDeltaToState } from "./taskUiDeltaState"
 
+type DebugTaskUiCounters = {
+	fullStateApplications: number
+	partialMessageApplications: number
+	taskUiDeltaApplications: number
+	taskUiDeltaResyncRequests: number
+}
+
+declare global {
+	interface Window {
+		__CLINE_DEBUG_TASK_UI_COUNTERS__?: DebugTaskUiCounters
+	}
+}
+
+const IS_DEV = process.env.IS_DEV === '"true"'
+
+function ensureDebugTaskUiCounters(): DebugTaskUiCounters | undefined {
+	if (!IS_DEV || typeof window === "undefined") {
+		return undefined
+	}
+
+	window.__CLINE_DEBUG_TASK_UI_COUNTERS__ ??= {
+		fullStateApplications: 0,
+		partialMessageApplications: 0,
+		taskUiDeltaApplications: 0,
+		taskUiDeltaResyncRequests: 0,
+	}
+
+	return window.__CLINE_DEBUG_TASK_UI_COUNTERS__
+}
+
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
@@ -378,6 +408,10 @@ export const ExtensionStateContextProvider: React.FC<{
 			onResponse: (response) => {
 				if (response.stateJson) {
 					try {
+						const counters = ensureDebugTaskUiCounters()
+						if (counters) {
+							counters.fullStateApplications += 1
+						}
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						setState((prevState) => {
 							const newState = mergeExtensionStateSnapshot(prevState, stateData)
@@ -520,6 +554,10 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
+					const counters = ensureDebugTaskUiCounters()
+					if (counters) {
+						counters.partialMessageApplications += 1
+					}
 					setState((prevState) => mergePartialMessage(prevState, partialMessage))
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
@@ -543,13 +581,20 @@ export const ExtensionStateContextProvider: React.FC<{
 					const delta = JSON.parse(response.deltaJson) as TaskUiDelta
 					setState((prevState) => {
 						const result = applyTaskUiDeltaToState(prevState, delta, latestTaskUiDeltaSequenceRef.current)
+						const counters = ensureDebugTaskUiCounters()
 						latestTaskUiDeltaSequenceRef.current = result.nextSequence
 						if (result.kind === "resync") {
+							if (counters) {
+								counters.taskUiDeltaResyncRequests += 1
+							}
 							void resyncCurrentTaskState()
 							return prevState
 						}
 						if (result.kind === "ignored") {
 							return prevState
+						}
+						if (counters) {
+							counters.taskUiDeltaApplications += 1
 						}
 
 						return result.state
