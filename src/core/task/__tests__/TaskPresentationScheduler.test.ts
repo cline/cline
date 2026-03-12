@@ -161,4 +161,40 @@ describe("TaskPresentationScheduler", () => {
 		await Promise.resolve()
 		assert.equal(flushCount, 1)
 	})
+
+	it("flushNow drains pending updates immediately after the current flush completes", async () => {
+		const timer = new FakeTimerController()
+		let flushCount = 0
+		let resolveFlush: (() => void) | undefined
+		const scheduler = new TaskPresentationScheduler({
+			flush: async () => {
+				flushCount++
+				await new Promise<void>((resolve) => {
+					resolveFlush = resolve
+				})
+			},
+			getDelayMs: () => 25,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
+		})
+
+		scheduler.requestFlush("normal")
+		timer.advance(25)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+
+		scheduler.requestFlush("normal")
+		const drainPromise = scheduler.flushNow()
+		resolveFlush?.()
+		await Promise.resolve()
+		await Promise.resolve()
+		assert.equal(flushCount, 2)
+
+		resolveFlush?.()
+		await drainPromise
+		timer.advance(50)
+		await Promise.resolve()
+		assert.equal(flushCount, 2)
+	})
 })
