@@ -9,6 +9,12 @@ import { Controller } from "../index"
 // Keep track of active state subscriptions
 const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
 
+export type StateUpdateDeliveryStats = {
+	payloadBytes: number
+	sendDurationMs: number
+	subscriberCount: number
+}
+
 /**
  * Subscribe to state updates
  * @param controller The controller instance
@@ -58,16 +64,22 @@ export async function subscribeToState(
  * Send a state update to all active subscribers
  * @param state The state to send
  */
-export async function sendStateUpdate(state: ExtensionState): Promise<void> {
+export async function sendStateUpdate(state: ExtensionState): Promise<StateUpdateDeliveryStats> {
 	let stateJson: string
 	try {
 		stateJson = JSON.stringify(state)
 	} catch (error) {
 		Logger.error("Error serializing state update:", error)
-		return
+		return {
+			payloadBytes: 0,
+			sendDurationMs: 0,
+			subscriberCount: activeStateSubscriptions.size,
+		}
 	}
 
-	recordStateSizeTelemetry(Buffer.byteLength(stateJson, "utf8"))
+	const payloadBytes = Buffer.byteLength(stateJson, "utf8")
+	recordStateSizeTelemetry(payloadBytes)
+	const startedAt = performance.now()
 
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {
@@ -84,6 +96,12 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 	})
 
 	await Promise.all(promises)
+
+	return {
+		payloadBytes,
+		sendDurationMs: Math.max(0, performance.now() - startedAt),
+		subscriberCount: activeStateSubscriptions.size,
+	}
 }
 
 function recordStateSizeTelemetry(sizeBytes: number): void {

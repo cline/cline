@@ -381,6 +381,8 @@ describe("TelemetryService metrics", () => {
 			isRemoteWorkspace: true,
 			presentationDurationMs: 120,
 			presentationTrigger: "text",
+			statePostBuildDurationMs: 25,
+			statePostSendDurationMs: 35,
 			persistenceSaveMessagesDurationMs: 40,
 			persistenceSaveConversationDurationMs: 10,
 			persistenceUpdateHistoryDurationMs: 20,
@@ -404,6 +406,18 @@ describe("TelemetryService metrics", () => {
 		)
 		assert.ok(persistenceMetric)
 		assert.strictEqual(persistenceMetric?.value, 0.07)
+
+		const stateBuildMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.STATE_BUILD_DURATION_SECONDS,
+		)
+		assert.ok(stateBuildMetric)
+		assert.strictEqual(stateBuildMetric?.value, 0.025)
+
+		const stateSendMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.STATE_SEND_DURATION_SECONDS,
+		)
+		assert.ok(stateSendMetric)
+		assert.strictEqual(stateSendMetric?.value, 0.035)
 
 		const chunkMetrics = provider.histograms.filter(
 			(entry) => entry.name === TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS,
