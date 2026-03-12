@@ -776,7 +776,7 @@ This section gives a practical map of the files most likely to change and what e
   - Audit rerender boundaries
   - Memoize rows/selectors where useful
 
-- [ ] Any shared message-grouping or selector utilities used during chat rendering
+- [x] Any shared message-grouping or selector utilities used during chat rendering
   - Extract and memoize repeated scans over the full message list
 
 ---
