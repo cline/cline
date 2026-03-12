@@ -1,6 +1,7 @@
 import { findLastIndex } from "@shared/array"
 import type { ExtensionState } from "@shared/ExtensionMessage"
 import type { TaskUiDelta } from "@shared/TaskUiDelta"
+import deepEqual from "fast-deep-equal"
 
 export type TaskUiDeltaApplicationResult =
 	| { kind: "ignored"; nextSequence: number }
@@ -26,6 +27,13 @@ export function applyTaskUiDeltaToState(
 	}
 
 	if (delta.type === "task_metadata_updated") {
+		const metadataChanged = Object.entries(delta.metadata).some(([key, value]) => {
+			return !deepEqual(state[key as keyof ExtensionState], value)
+		})
+		if (!metadataChanged) {
+			return { kind: "applied", nextSequence: delta.sequence, state }
+		}
+
 		return {
 			kind: "applied",
 			nextSequence: delta.sequence,
@@ -56,6 +64,14 @@ export function applyTaskUiDeltaToState(
 				...state,
 				clineMessages: [...state.clineMessages, delta.message],
 			},
+		}
+	}
+
+	if (deepEqual(state.clineMessages[existingIndex], delta.message)) {
+		return {
+			kind: "applied",
+			nextSequence: delta.sequence,
+			state,
 		}
 	}
 
