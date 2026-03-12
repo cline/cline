@@ -15,6 +15,8 @@ import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
+	buildApiReqReasoningIndex,
+	buildPendingTextMessageIndex,
 	CHAT_CONSTANTS,
 	ChatLayout,
 	convertHtmlToMarkdown,
@@ -321,6 +323,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
+	const apiReqReasoningIndex = useMemo(() => buildApiReqReasoningIndex(modifiedMessages), [modifiedMessages])
+	const pendingTextMessageIndex = useMemo(() => buildPendingTextMessageIndex(modifiedMessages), [modifiedMessages])
+
 	// Use scroll behavior hook
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
@@ -359,11 +364,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 				{task && (
 					<MessagesArea
+						apiReqReasoningIndex={apiReqReasoningIndex}
 						chatState={chatState}
 						groupedMessages={groupedMessages}
 						messageHandlers={messageHandlers}
 						mode={mode}
 						modifiedMessages={modifiedMessages}
+						pendingTextMessageIndex={pendingTextMessageIndex}
 						rawMessages={messages}
 						scrollBehavior={scrollBehavior}
 						task={task}

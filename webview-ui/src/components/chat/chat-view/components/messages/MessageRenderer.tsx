@@ -6,7 +6,7 @@ import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import { cn } from "@/lib/utils"
 import type { MessageHandlers } from "../../types/chatTypes"
-import { findReasoningForApiReq, isTextMessagePendingToolCall, isToolGroup } from "../../utils/messageUtils"
+import { isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
 interface MessageRendererProps {
@@ -23,6 +23,8 @@ interface MessageRendererProps {
 	inputValue: string
 	messageHandlers: MessageHandlers
 	footerActive: boolean
+	apiReqReasoningIndex: Map<number, { reasoning: string | undefined; responseStarted: boolean }>
+	pendingTextMessageIndex: Set<number>
 }
 
 /**
@@ -43,26 +45,24 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	inputValue,
 	messageHandlers,
 	footerActive,
+	apiReqReasoningIndex,
+	pendingTextMessageIndex,
 }) => {
 	const isLastMessage = useMemo(() => index === groupedMessages?.length - 1, [groupedMessages, index])
 
-	// Get reasoning content and response status for api_req_started messages
 	const reasoningData = useMemo(() => {
 		if (!Array.isArray(messageOrGroup) && messageOrGroup.say === "api_req_started") {
-			// Use the same message source-of-truth that `groupedMessages` is derived from.
-			return findReasoningForApiReq(messageOrGroup.ts, modifiedMessages)
+			return apiReqReasoningIndex.get(messageOrGroup.ts) ?? { reasoning: undefined, responseStarted: false }
 		}
 		return { reasoning: undefined, responseStarted: false }
-	}, [messageOrGroup, modifiedMessages])
+	}, [apiReqReasoningIndex, messageOrGroup])
 
-	// Check if a text message is waiting for tool call completion
 	const isRequestInProgress = useMemo(() => {
 		if (!Array.isArray(messageOrGroup) && messageOrGroup.say === "text") {
-			// Use modifiedMessages so this stays consistent with the rendered list.
-			return isTextMessagePendingToolCall(messageOrGroup.ts, modifiedMessages)
+			return pendingTextMessageIndex.has(messageOrGroup.ts)
 		}
 		return false
-	}, [messageOrGroup, modifiedMessages])
+	}, [messageOrGroup, pendingTextMessageIndex])
 
 	// Tool group (low-stakes tools grouped together)
 	// Determine if this is the last tool group to show active items
@@ -137,6 +137,8 @@ export const createMessageRenderer = (
 	groupedMessages: (ClineMessage | ClineMessage[])[],
 	modifiedMessages: ClineMessage[],
 	rawMessages: ClineMessage[],
+	apiReqReasoningIndex: Map<number, { reasoning: string | undefined; responseStarted: boolean }>,
+	pendingTextMessageIndex: Set<number>,
 	mode: Mode,
 	expandedRows: Record<number, boolean>,
 	onToggleExpand: (ts: number) => void,
@@ -148,6 +150,7 @@ export const createMessageRenderer = (
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
 		<MemoizedMessageRenderer
+			apiReqReasoningIndex={apiReqReasoningIndex}
 			expandedRows={expandedRows}
 			footerActive={footerActive}
 			groupedMessages={groupedMessages}
@@ -160,6 +163,7 @@ export const createMessageRenderer = (
 			onHeightChange={onHeightChange}
 			onSetQuote={onSetQuote}
 			onToggleExpand={onToggleExpand}
+			pendingTextMessageIndex={pendingTextMessageIndex}
 			rawMessages={rawMessages}
 		/>
 	)
