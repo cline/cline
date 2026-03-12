@@ -17,15 +17,28 @@ describe("subscribeToTaskUiDeltas", () => {
 			sequence: 1,
 			message: { ts: 123, type: "say", say: "text", text: "delta-text" },
 		})
+		const stats = await sendTaskUiDelta({
+			type: "message_updated",
+			taskId: "task-1",
+			sequence: 2,
+			message: { ts: 124, type: "say", say: "text", text: "delta-text-2" },
+		})
 
-		assert.equal(received.length, 1)
+		assert.equal(received.length, 2)
 		assert.ok(received[0]?.deltaJson)
+		assert.ok(stats)
+		assert.ok((stats?.payloadBytes ?? 0) > 0)
+		assert.ok((stats?.broadcastDurationMs ?? -1) >= 0)
+		assert.ok((stats?.streamSubscriberCount ?? 0) >= 1)
 
 		const parsed = JSON.parse(received[0]!.deltaJson)
 		assert.equal(parsed.type, "message_updated")
 		assert.equal(parsed.taskId, "task-1")
 		assert.equal(parsed.sequence, 1)
 		assert.equal(parsed.message.text, "delta-text")
+		const parsedSecond = JSON.parse(received[1]!.deltaJson)
+		assert.equal(parsedSecond.sequence, 2)
+		assert.equal(parsedSecond.message.text, "delta-text-2")
 	})
 
 	it("removes stream subscribers that throw during delivery", async () => {
