@@ -582,7 +582,7 @@ If Phase 4 is not yet implemented, at minimum route metrics through the controll
 
 Not all latency comes from streaming. Some comes from request setup, environment detail gathering, open-tab queries, and terminal state inspection. The mental model here is: **request boundaries should avoid recomputing or refetching unchanged data**.
 
-- [ ] Audit request-boundary hostbridge calls
+- [x] Audit request-boundary hostbridge calls
 - [x] Cache visible/open tab data with a short TTL
 - [x] Cache or coalesce terminal-state inspections where safe
 - [x] Avoid redundant expensive environment-detail reconstruction
@@ -756,10 +756,10 @@ This section gives a practical map of the files most likely to change and what e
 - [x] `src/shared/TaskUiDelta.ts` (new, later phase)
   - Delta type definitions and versioning model
 
-- [ ] `src/hosts/vscode/hostbridge/window/getVisibleTabs.ts`
+- [x] `src/hosts/vscode/hostbridge/window/getVisibleTabs.ts`
   - Add optional caching/invalidation if implemented in host layer
 
-- [ ] `src/hosts/vscode/hostbridge/window/getOpenTabs.ts`
+- [x] `src/hosts/vscode/hostbridge/window/getOpenTabs.ts`
   - Add optional caching/invalidation if implemented in host layer
 
 ### Webview / frontend
