@@ -117,6 +117,8 @@ import { FocusChainManager } from "./focus-chain"
 import {
 	getPresentationCadenceMs,
 	getUsageUpdateCadenceMs,
+	isEphemeralMessagePersistenceDisabled,
+	isPresentationSchedulingDisabled,
 	isRemoteWorkspaceEnvironment,
 	summarizeChunkToWebviewDelays,
 	type TaskLatencyTrigger,
@@ -270,6 +272,8 @@ export class Task {
 	private requestLatencyMetrics = this.createRequestLatencyMetrics()
 	private ephemeralFlushTimer: ReturnType<typeof setInterval> | undefined
 	private usageUpdateTimer: ReturnType<typeof setTimeout> | undefined
+	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
+	private readonly ephemeralMessagePersistenceDisabled = isEphemeralMessagePersistenceDisabled()
 
 	constructor(params: TaskParams) {
 		const {
@@ -645,6 +649,12 @@ export class Task {
 	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
 		this.requestLatencyMetrics.presentationInvocationCount += 1
 		this.requestLatencyMetrics.presentationTrigger = trigger
+		if (this.presentationSchedulingDisabled) {
+			void this.flushAssistantPresentation().catch((error) =>
+				Logger.debug(`[Task] Failed immediate presentation flush: ${error}`),
+			)
+			return
+		}
 		this.presentationScheduler.requestFlush(priority)
 	}
 
@@ -668,6 +678,9 @@ export class Task {
 	}
 
 	private startEphemeralFlushTimer() {
+		if (this.ephemeralMessagePersistenceDisabled) {
+			return
+		}
 		if (this.ephemeralFlushTimer) {
 			return
 		}
@@ -741,10 +754,15 @@ export class Task {
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					await this.messageStateHandler.updateClineMessageEphemeral(lastMessageIndex, {
-						text,
-						partial,
-					})
+					await (this.ephemeralMessagePersistenceDisabled
+						? this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+								text,
+								partial,
+							})
+						: this.messageStateHandler.updateClineMessageEphemeral(lastMessageIndex, {
+								text,
+								partial,
+							}))
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
@@ -757,13 +775,21 @@ export class Task {
 				// this.askResponseImages = undefined
 				askTs = Date.now()
 				this.taskState.lastMessageTs = askTs
-				await this.messageStateHandler.addToClineMessagesEphemeral({
-					ts: askTs,
-					type: "ask",
-					ask: type,
-					text,
-					partial,
-				})
+				await (this.ephemeralMessagePersistenceDisabled
+					? this.messageStateHandler.addToClineMessages({
+							ts: askTs,
+							type: "ask",
+							ask: type,
+							text,
+							partial,
+						})
+					: this.messageStateHandler.addToClineMessagesEphemeral({
+							ts: askTs,
+							type: "ask",
+							ask: type,
+							text,
+							partial,
+						}))
 				await this.postStateToWebview()
 				throw new Error("Current ask promise was ignored 2")
 			}
@@ -914,12 +940,19 @@ export class Task {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
 					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessageEphemeral(lastIndex, {
-						text,
-						images,
-						files,
-						partial,
-					})
+					await (this.ephemeralMessagePersistenceDisabled
+						? this.messageStateHandler.updateClineMessage(lastIndex, {
+								text,
+								images,
+								files,
+								partial,
+							})
+						: this.messageStateHandler.updateClineMessageEphemeral(lastIndex, {
+								text,
+								images,
+								files,
+								partial,
+							}))
 
 					await this.emitPartialMessage(lastMessage)
 					return undefined
@@ -927,16 +960,27 @@ export class Task {
 				// this is a new partial message, so add it with partial state
 				const sayTs = Date.now()
 				this.taskState.lastMessageTs = sayTs
-				await this.messageStateHandler.addToClineMessagesEphemeral({
-					ts: sayTs,
-					type: "say",
-					say: type,
-					text,
-					images,
-					files,
-					partial,
-					modelInfo,
-				})
+				await (this.ephemeralMessagePersistenceDisabled
+					? this.messageStateHandler.addToClineMessages({
+							ts: sayTs,
+							type: "say",
+							say: type,
+							text,
+							images,
+							files,
+							partial,
+							modelInfo,
+						})
+					: this.messageStateHandler.addToClineMessagesEphemeral({
+							ts: sayTs,
+							type: "say",
+							say: type,
+							text,
+							images,
+							files,
+							partial,
+							modelInfo,
+						}))
 				await this.postStateToWebview()
 				return sayTs
 			}

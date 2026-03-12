@@ -13,6 +13,7 @@ import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { sendTaskUiDelta } from "../controller/ui/subscribeToTaskUiDeltas"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import { isTaskUiDeltaSyncDisabled } from "./latency"
 import { TaskState } from "./TaskState"
 
 // Event types for clineMessages changes
@@ -63,6 +64,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		updateHistoryDurationMs: 0,
 	}
 	private taskUiDeltaSequence = 0
+	private readonly taskUiDeltaSyncDisabled = isTaskUiDeltaSyncDisabled()
 
 	// Mutex to prevent concurrent state modifications (RC-4)
 	// Protects against data loss from race conditions when multiple
@@ -84,7 +86,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	private emitClineMessagesChanged(change: ClineMessageChange): void {
 		this.emit("clineMessagesChanged", change)
-		void this.emitTaskUiDeltaForChange(change)
+		if (!this.taskUiDeltaSyncDisabled) {
+			void this.emitTaskUiDeltaForChange(change)
+		}
 	}
 
 	private async emitTaskUiDeltaForChange(change: ClineMessageChange): Promise<void> {

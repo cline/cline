@@ -3,7 +3,10 @@ import {
 	getPresentationCadenceMs,
 	getStateUpdateCadenceMs,
 	getUsageUpdateCadenceMs,
+	isEphemeralMessagePersistenceDisabled,
+	isPresentationSchedulingDisabled,
 	isRemoteWorkspaceEnvironment,
+	isTaskUiDeltaSyncDisabled,
 	summarizeChunkToWebviewDelays,
 } from "../latency"
 
@@ -15,6 +18,9 @@ describe("task latency helpers", () => {
 		delete process.env.CLINE_REMOTE_STATE_UPDATE_CADENCE_MS
 		delete process.env.CLINE_USAGE_UPDATE_CADENCE_MS
 		delete process.env.CLINE_REMOTE_USAGE_UPDATE_CADENCE_MS
+		delete process.env.CLINE_DISABLE_PRESENTATION_SCHEDULER
+		delete process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE
+		delete process.env.CLINE_DISABLE_TASK_UI_DELTA_SYNC
 	})
 
 	it("detects remote workspaces from remoteName, platform, and version metadata", () => {
@@ -52,6 +58,16 @@ describe("task latency helpers", () => {
 		assert.equal(getStateUpdateCadenceMs(true, "normal"), 99)
 		assert.equal(getUsageUpdateCadenceMs(false), 333)
 		assert.equal(getUsageUpdateCadenceMs(true), 555)
+	})
+
+	it("supports development flags for disabling schedulers and delta sync", () => {
+		process.env.CLINE_DISABLE_PRESENTATION_SCHEDULER = "true"
+		process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE = "1"
+		process.env.CLINE_DISABLE_TASK_UI_DELTA_SYNC = "yes"
+
+		assert.equal(isPresentationSchedulingDisabled(), true)
+		assert.equal(isEphemeralMessagePersistenceDisabled(), true)
+		assert.equal(isTaskUiDeltaSyncDisabled(), true)
 	})
 
 	it("summarizes chunk-to-webview delays with median and p95 percentiles", () => {
