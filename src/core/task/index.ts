@@ -580,22 +580,21 @@ export class Task {
 			},
 		})
 
-		const requestBoundaryCacheTtlMs = getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment)
 		this.openTabsCache = new RequestBoundaryCache({
 			load: async () => (await HostProvider.window.getOpenTabs({})).paths || [],
-			ttlMs: requestBoundaryCacheTtlMs,
+			getTtlMs: () => getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment),
 		})
 		this.visibleTabsCache = new RequestBoundaryCache({
 			load: async () => (await HostProvider.window.getVisibleTabs({})).paths || [],
-			ttlMs: requestBoundaryCacheTtlMs,
+			getTtlMs: () => getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment),
 		})
 		this.existingOpenTabsCache = new RequestBoundaryCache({
 			load: async () => filterExistingFiles(await this.getCachedOpenTabPaths()),
-			ttlMs: requestBoundaryCacheTtlMs,
+			getTtlMs: () => getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment),
 		})
 		this.existingVisibleTabsCache = new RequestBoundaryCache({
 			load: async () => filterExistingFiles(await this.getCachedVisibleTabPaths()),
-			ttlMs: requestBoundaryCacheTtlMs,
+			getTtlMs: () => getRequestBoundaryCacheTtlMs(this.isRemoteWorkspaceEnvironment),
 		})
 
 		this.toolExecutor = new ToolExecutor(

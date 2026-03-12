@@ -85,4 +85,38 @@ describe("RequestBoundaryCache", () => {
 		assert.equal(await cache.get(), "value-2")
 		assert.equal(loads, 2)
 	})
+
+	it("uses the current TTL provider value for future cache refreshes", async () => {
+		let now = 0
+		let ttlMs = 50
+		let loads = 0
+		const cache = new RequestBoundaryCache({
+			load: async () => {
+				loads += 1
+				return `value-${loads}`
+			},
+			getTtlMs: () => ttlMs,
+			getNow: () => now,
+		})
+
+		assert.equal(await cache.get(), "value-1")
+		assert.equal(loads, 1)
+
+		now = 49
+		assert.equal(await cache.get(), "value-1")
+		assert.equal(loads, 1)
+
+		ttlMs = 200
+		now = 50
+		assert.equal(await cache.get(), "value-2")
+		assert.equal(loads, 2)
+
+		now = 249
+		assert.equal(await cache.get(), "value-2")
+		assert.equal(loads, 2)
+
+		now = 250
+		assert.equal(await cache.get(), "value-3")
+		assert.equal(loads, 3)
+	})
 })

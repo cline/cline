@@ -1,6 +1,7 @@
 type RequestBoundaryCacheOptions<T> = {
 	load: () => Promise<T>
-	ttlMs: number
+	ttlMs?: number
+	getTtlMs?: () => number
 	getNow?: () => number
 }
 
@@ -9,13 +10,13 @@ export class RequestBoundaryCache<T> {
 	private expiresAt = 0
 	private inFlight: Promise<T> | undefined
 	private readonly load: () => Promise<T>
-	private readonly ttlMs: number
 	private readonly getNow: () => number
+	private readonly getTtlMs: () => number
 
 	constructor(options: RequestBoundaryCacheOptions<T>) {
 		this.load = options.load
-		this.ttlMs = options.ttlMs
 		this.getNow = options.getNow ?? (() => Date.now())
+		this.getTtlMs = options.getTtlMs ?? (() => options.ttlMs ?? 0)
 	}
 
 	async get(): Promise<T> {
@@ -28,7 +29,7 @@ export class RequestBoundaryCache<T> {
 			this.inFlight = this.load()
 				.then((value) => {
 					this.value = value
-					this.expiresAt = this.getNow() + this.ttlMs
+					this.expiresAt = this.getNow() + this.getTtlMs()
 					return value
 				})
 				.finally(() => {
