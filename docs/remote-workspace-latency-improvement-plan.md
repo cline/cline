@@ -683,8 +683,8 @@ These changes touch the hottest and most stateful part of task execution. The me
 
 - [ ] Roll out in small phases behind feature flags
 - [ ] Compare telemetry between old and new paths
-- [ ] Add fallback/resync paths for delta-sync failures
-- [ ] Prepare debugging aids for support and dogfooding
+- [x] Add fallback/resync paths for delta-sync failures
+- [x] Prepare debugging aids for support and dogfooding
 
 ### Rollout order recommendation
 
