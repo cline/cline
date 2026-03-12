@@ -370,4 +370,45 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.extension_version, "test")
 		assert.strictEqual(entry.attributes.platform, "test-platform")
 	})
+
+	it("captureTaskLatencyMetrics records presentation, persistence, and chunk-to-webview histograms", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskLatencyMetrics({
+			ulid: "task-latency",
+			requestIndex: 2,
+			isRemoteWorkspace: true,
+			presentationDurationMs: 120,
+			presentationTrigger: "text",
+			persistenceSaveMessagesDurationMs: 40,
+			persistenceSaveConversationDurationMs: 10,
+			persistenceUpdateHistoryDurationMs: 20,
+			chunkToWebviewMedianMs: 80,
+			chunkToWebviewP95Ms: 150,
+		})
+
+		const latencyEvent = provider.logs.find((entry) => entry.event === "task.latency_metrics")
+		assert.ok(latencyEvent)
+		assert.strictEqual(latencyEvent?.properties?.ulid, "task-latency")
+		assert.strictEqual(latencyEvent?.properties?.isRemoteWorkspace, true)
+
+		const presentationMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PRESENTATION_DURATION_SECONDS,
+		)
+		assert.ok(presentationMetric)
+		assert.strictEqual(presentationMetric?.value, 0.12)
+
+		const persistenceMetric = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PERSISTENCE_DURATION_SECONDS,
+		)
+		assert.ok(persistenceMetric)
+		assert.strictEqual(persistenceMetric?.value, 0.07)
+
+		const chunkMetrics = provider.histograms.filter(
+			(entry) => entry.name === TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS,
+		)
+		assert.strictEqual(chunkMetrics.length, 2)
+		assert.deepStrictEqual(chunkMetrics.map((entry) => entry.attributes.percentile).sort(), ["p50", "p95"])
+	})
 })

@@ -8,6 +8,7 @@ export async function getHostVersion(_: EmptyRequest): Promise<GetHostVersionRes
 	return {
 		platform: vscode.env.appName,
 		version: vscode.version,
+		remoteName: vscode.env.remoteName,
 		clineType: ClineClient.VSCode,
 		clineVersion: ExtensionRegistryInfo.version,
 	}

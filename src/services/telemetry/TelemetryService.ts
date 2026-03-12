@@ -165,6 +165,9 @@ export class TelemetryService {
 			TTFT_SECONDS: "cline.api.ttft.seconds",
 			DURATION_SECONDS: "cline.api.duration.seconds",
 			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
+			PRESENTATION_DURATION_SECONDS: "cline.api.presentation.duration.seconds",
+			PERSISTENCE_DURATION_SECONDS: "cline.api.persistence.duration.seconds",
+			CHUNK_TO_WEBVIEW_SECONDS: "cline.api.chunk_to_webview.seconds",
 		},
 		HOOKS: {
 			EXECUTIONS_TOTAL: "cline.hooks.executions.total",
@@ -310,6 +313,7 @@ export class TelemetryService {
 			SUBAGENT_COMPLETED: "task.subagent_completed",
 			// Skills telemetry events
 			SKILL_USED: "task.skill_used",
+			LATENCY_METRICS: "task.latency_metrics",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -2366,6 +2370,71 @@ export class TelemetryService {
 					`size=${(sizeUtf8Bytes / (1024 * 1024)).toFixed(1)}MB` +
 					(requestId ? ` request_id=${requestId}` : ""),
 			)
+		}
+	}
+
+	public captureTaskLatencyMetrics(args: {
+		ulid: string
+		requestIndex: number
+		isRemoteWorkspace: boolean
+		presentationInvocationCount?: number
+		presentationDurationMs?: number
+		presentationTrigger?: string
+		statePostCount?: number
+		statePostBuildDurationMs?: number
+		statePostSerializedBytes?: number
+		statePostSendDurationMs?: number
+		partialMessageCount?: number
+		partialMessagePayloadBytes?: number
+		partialMessageBroadcastDurationMs?: number
+		persistenceFlushCount?: number
+		persistenceSaveMessagesDurationMs?: number
+		persistenceSaveConversationDurationMs?: number
+		persistenceUpdateHistoryDurationMs?: number
+		chunkToWebviewMedianMs?: number
+		chunkToWebviewP95Ms?: number
+	}): void {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LATENCY_METRICS,
+			properties: args,
+		})
+
+		const attrs = {
+			ulid: args.ulid,
+			request_index: args.requestIndex,
+			is_remote_workspace: args.isRemoteWorkspace,
+			presentation_trigger: args.presentationTrigger,
+		}
+
+		if (Number.isFinite(args.presentationDurationMs)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PRESENTATION_DURATION_SECONDS,
+				(args.presentationDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		const totalPersistenceMs =
+			(args.persistenceSaveMessagesDurationMs ?? 0) +
+			(args.persistenceSaveConversationDurationMs ?? 0) +
+			(args.persistenceUpdateHistoryDurationMs ?? 0)
+		if (Number.isFinite(totalPersistenceMs) && totalPersistenceMs > 0) {
+			this.recordHistogram(TelemetryService.METRICS.API.PERSISTENCE_DURATION_SECONDS, totalPersistenceMs / 1000, attrs)
+		}
+
+		if (Number.isFinite(args.chunkToWebviewMedianMs)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS,
+				(args.chunkToWebviewMedianMs ?? 0) / 1000,
+				{ ...attrs, percentile: "p50" },
+			)
+		}
+
+		if (Number.isFinite(args.chunkToWebviewP95Ms)) {
+			this.recordHistogram(TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS, (args.chunkToWebviewP95Ms ?? 0) / 1000, {
+				...attrs,
+				percentile: "p95",
+			})
 		}
 	}
 
