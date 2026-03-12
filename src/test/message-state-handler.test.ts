@@ -322,6 +322,29 @@ describe("MessageStateHandler Mutex Protection", () => {
 		metrics.updateHistoryDurationMs.should.equal(0)
 	})
 
+	it("should persist when a partial message transitions to complete", async () => {
+		const handler = createTestHandler()
+
+		await handler.addToClineMessagesEphemeral({
+			...createTestMessage("partial-message"),
+			partial: true,
+		})
+
+		let metrics = handler.consumeLatencyMetrics()
+		metrics.persistenceFlushCount.should.equal(0)
+
+		await handler.updateClineMessage(0, { text: "completed-message", partial: false })
+
+		const completedMessage = handler.getClineMessages()[0]
+		should.exist(completedMessage)
+		completedMessage!.text?.should.equal("completed-message")
+		should.exist(completedMessage!.partial)
+		completedMessage!.partial!.should.equal(false)
+
+		metrics = handler.consumeLatencyMetrics()
+		metrics.persistenceFlushCount.should.equal(1)
+	})
+
 	it("should emit delete change metadata for removed messages", async () => {
 		const handler = createTestHandler()
 		const observedDeletes: Array<{ index?: number; previousText?: string }> = []
