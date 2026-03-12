@@ -112,7 +112,7 @@ Places to inspect and potentially extend:
 ### Tests
 
 - [x] Add unit tests for metric aggregation helpers
-- [ ] Add tests to verify instrumentation does not throw when telemetry is disabled
+- [x] Add tests to verify instrumentation does not throw when telemetry is disabled
 - [x] Add tests to verify state/partial payload-size accounting is invoked
 
 These tests should focus on ensuring instrumentation remains non-blocking and failure-safe.

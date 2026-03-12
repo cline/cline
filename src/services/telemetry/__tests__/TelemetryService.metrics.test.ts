@@ -1,6 +1,7 @@
 import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
+import { NoOpTelemetryProvider } from "../TelemetryProviderFactory"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -473,5 +474,42 @@ describe("TelemetryService metrics", () => {
 		)
 		assert.strictEqual(chunkMetrics.length, 2)
 		assert.deepStrictEqual(chunkMetrics.map((entry) => entry.attributes.percentile).sort(), ["p50", "p95"])
+	})
+
+	it("latency instrumentation helpers remain non-throwing when telemetry providers are disabled", () => {
+		const service = new TelemetryService([new NoOpTelemetryProvider()], {
+			extension_version: "test",
+			cline_type: "cline-unit-tests",
+			platform: "test-platform",
+			platform_version: "1.0.0",
+			os_type: "darwin",
+			os_version: "24",
+			is_dev: "true",
+		} as TelemetryMetadata)
+
+		assert.doesNotThrow(() => {
+			service.captureGrpcResponseSize(2048, "cline.UiService", "subscribeToPartialMessage", "req-disabled")
+			service.captureTaskLatencyMetrics({
+				ulid: "task-disabled",
+				requestIndex: 1,
+				isRemoteWorkspace: false,
+				presentationInvocationCount: 2,
+				presentationDurationMs: 32,
+				presentationTrigger: "text",
+				statePostCount: 1,
+				statePostBuildDurationMs: 4,
+				statePostSerializedBytes: 512,
+				statePostSendDurationMs: 6,
+				partialMessageCount: 3,
+				partialMessagePayloadBytes: 256,
+				partialMessageBroadcastDurationMs: 2,
+				persistenceFlushCount: 1,
+				persistenceSaveMessagesDurationMs: 5,
+				persistenceSaveConversationDurationMs: 2,
+				persistenceUpdateHistoryDurationMs: 3,
+				chunkToWebviewMedianMs: 12,
+				chunkToWebviewP95Ms: 20,
+			})
+		})
 	})
 })
