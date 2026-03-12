@@ -219,4 +219,23 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		const refreshedResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
 		assert.strictEqual(refreshedResponse.paths.length, 2, "Expected refreshed result after TTL expiry")
 	})
+
+	it("returns fresh visible tabs immediately after cache reset", async () => {
+		setVisibleTabsCacheTtlForTests(1_000)
+		await createAndOpenTestDocument(1, vscode.ViewColumn.One)
+		await new Promise((resolve) => setTimeout(resolve, 100))
+
+		const firstResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
+		assert.strictEqual(firstResponse.paths.length, 1)
+
+		await createAndOpenTestDocument(2, vscode.ViewColumn.Two)
+		await new Promise((resolve) => setTimeout(resolve, 100))
+
+		const cachedResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
+		assert.strictEqual(cachedResponse.paths.length, 1, "Expected stale cached result before reset")
+
+		resetVisibleTabsCacheForTests()
+		const refreshedResponse = await getVisibleTabs(GetVisibleTabsRequest.create({}))
+		assert.strictEqual(refreshedResponse.paths.length, 2, "Expected cache reset to expose fresh visible tabs")
+	})
 })
