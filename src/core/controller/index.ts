@@ -1,6 +1,7 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import { getStateUpdateCadenceMs, isRemoteWorkspaceEnvironment } from "@core/task/latency"
 import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
@@ -56,6 +57,7 @@ import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
+import { type StateUpdatePriority, StateUpdateScheduler } from "./StateUpdateScheduler"
 import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
@@ -85,6 +87,9 @@ export class Controller {
 
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
+	private isRemoteWorkspaceEnvironment = false
+	private readonly stateUpdateScheduler: StateUpdateScheduler
+	private readonly schedulerDebugLoggingEnabled = process.env.CLINE_DEBUG_LATENCY === "1"
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -118,6 +123,14 @@ export class Controller {
 	}
 
 	constructor(readonly context: ClineExtensionContext) {
+		void HostProvider.env
+			.getHostVersion({})
+			.then((hostVersion) => {
+				this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(hostVersion)
+			})
+			.catch((error) => {
+				Logger.debug(`[Controller] Failed to detect remote workspace state: ${error}`)
+			})
 		Session.reset() // Reset session on controller initialization
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		this.stateManager = StateManager.get()
@@ -156,6 +169,24 @@ export class Controller {
 		// Check CLI installation status once on startup
 		checkCliInstallation(this)
 
+		this.stateUpdateScheduler = new StateUpdateScheduler({
+			flush: async () => this.flushStateToWebview(),
+			getDelayMs: (priority) => getStateUpdateCadenceMs(this.isRemoteWorkspaceEnvironment, priority),
+			onFlushError: (error) => Logger.debug(`[Controller] Failed scheduled state flush: ${error}`),
+			metrics: {
+				onFlushStarted: (priority) => {
+					if (this.schedulerDebugLoggingEnabled) {
+						Logger.debug(`[Controller] state flush started (${priority})`)
+					}
+				},
+				onFlushCompleted: (durationMs, priority) => {
+					if (this.schedulerDebugLoggingEnabled) {
+						Logger.debug(`[Controller] state flush completed (${priority}) in ${durationMs}ms`)
+					}
+				},
+			},
+		})
+
 		Logger.log("[Controller] ClineProvider instantiated")
 	}
 
@@ -172,6 +203,7 @@ export class Controller {
 		}
 
 		await this.clearTask()
+		await this.stateUpdateScheduler.dispose()
 		this.mcpHub.dispose()
 
 		Logger.error("Controller disposed")
@@ -837,7 +869,25 @@ export class Controller {
 		return updatedTaskHistory
 	}
 
-	async postStateToWebview() {
+	async postStateToWebview(options?: { priority?: StateUpdatePriority }) {
+		const priority = options?.priority ?? this.getDefaultStateUpdatePriority()
+		if (priority === "immediate") {
+			await this.stateUpdateScheduler.flushNow()
+			return
+		}
+
+		this.stateUpdateScheduler.requestFlush(priority)
+	}
+
+	private getDefaultStateUpdatePriority(): StateUpdatePriority {
+		if (!this.task) {
+			return "immediate"
+		}
+
+		return this.task.taskState.isStreaming ? "normal" : "immediate"
+	}
+
+	private async flushStateToWebview() {
 		const state = await this.getStateToPostToWebview()
 		await sendStateUpdate(state)
 	}

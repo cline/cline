@@ -263,7 +263,7 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
-	private readonly isRemoteWorkspaceEnvironment: boolean
+	private isRemoteWorkspaceEnvironment = false
 	private readonly presentationScheduler: TaskPresentationScheduler
 	private readonly schedulerDebugLoggingEnabled = process.env.CLINE_DEBUG_LATENCY === "1"
 	private requestLatencyMetrics = this.createRequestLatencyMetrics()
@@ -295,7 +295,14 @@ export class Task {
 
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
-		this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(HostProvider.env.getHostVersion({}) as any)
+		void HostProvider.env
+			.getHostVersion({})
+			.then((hostVersion) => {
+				this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(hostVersion)
+			})
+			.catch((error) => {
+				Logger.debug(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
+			})
 		this.controller = controller
 		this.mcpHub = mcpHub
 		this.updateTaskHistory = updateTaskHistory
@@ -640,6 +647,21 @@ export class Task {
 
 	private async flushAssistantPresentation() {
 		await this.presentAssistantMessage()
+	}
+
+	private getPresentationPriorityForChunk(args: {
+		chunkType: "text" | "reasoning" | "tool_calls"
+		hadVisibleAssistantContent: boolean
+	}): PresentationPriority {
+		if (!args.hadVisibleAssistantContent) {
+			return "immediate"
+		}
+
+		if (args.chunkType === "tool_calls") {
+			return "immediate"
+		}
+
+		return "normal"
 	}
 
 	private startEphemeralFlushTimer() {
@@ -2868,6 +2890,8 @@ export class Task {
 					if (!chunk) {
 						break
 					}
+					const hadVisibleAssistantContent =
+						assistantMessage.length > 0 || this.taskState.assistantMessageContent.length > 0
 					if (!this.taskState.taskFirstTokenTimeMs) {
 						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
 					}
@@ -2894,6 +2918,10 @@ export class Task {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
+							this.scheduleAssistantPresentation(
+								"reasoning",
+								this.getPresentationPriorityForChunk({ chunkType: "reasoning", hadVisibleAssistantContent }),
+							)
 
 							break
 						}
@@ -2916,6 +2944,10 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							this.scheduleAssistantPresentation(
+								"tool",
+								this.getPresentationPriorityForChunk({ chunkType: "tool_calls", hadVisibleAssistantContent }),
+							)
 							break
 						}
 						case "text": {
@@ -2943,17 +2975,13 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
+							this.scheduleAssistantPresentation(
+								"text",
+								this.getPresentationPriorityForChunk({ chunkType: "text", hadVisibleAssistantContent }),
+							)
 							break
 						}
 					}
-
-					// Present content once per chunk. Calling this from multiple case branches can
-					// race partial updates and duplicate text rows in the chat.
-					this.scheduleAssistantPresentation("text", "normal")
-					await Promise.resolve().catch(() => undefined)
-					await this.presentationScheduler
-						.flushNow()
-						.catch((error) => Logger.debug("[Task] Failed to present message: " + error))
 
 					if (this.taskState.abort) {
 						this.api.abort?.()
@@ -3177,10 +3205,7 @@ export class Task {
 			// in case there are native tool calls pending
 			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
 			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
-
-			if (partialBlocks.length > 0) {
-				await this.presentationScheduler.flushNow() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
-			}
+			await this.presentationScheduler.flushNow() // final drain so any coalesced content is fully presented before the next request
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
