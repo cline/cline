@@ -136,6 +136,22 @@ describe("applyTaskUiDeltaToState", () => {
 		expect(result).toEqual({ kind: "resync", nextSequence: 1 })
 	})
 
+	it("requests a full snapshot resync when the backend emits a task_state_resynced delta", () => {
+		const state = createState()
+		state.clineMessages = [{ ts: 10, type: "say", say: "text", text: "stale local state" } as any]
+
+		const result = applyTaskUiDeltaToState(
+			state,
+			createDelta({
+				sequence: 1,
+				type: "task_state_resynced",
+			}),
+			0,
+		)
+
+		expect(result).toEqual({ kind: "resync", nextSequence: 0 })
+	})
+
 	it("ignores deltas for other tasks", () => {
 		const state = createState()
 		const result = applyTaskUiDeltaToState(
