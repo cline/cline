@@ -489,10 +489,10 @@ The full state can still include `clineMessages`, but active execution should mo
 
 Transport improvements alone are not enough if the webview still performs expensive reconciliation on every small update. The mental model here is: **we want the frontend to patch the smallest possible UI surface, especially for the active streaming row**.
 
-- [ ] Audit React render behavior for active streaming messages
-- [ ] Ensure partial text updates overwrite in place rather than causing broader list churn
-- [ ] Reduce expensive derived computations on every incremental update
-- [ ] Add memoization and stable references where beneficial
+- [x] Audit React render behavior for active streaming messages
+- [x] Ensure partial text updates overwrite in place rather than causing broader list churn
+- [x] Reduce expensive derived computations on every incremental update
+- [x] Add memoization and stable references where beneficial
 
 ### Code changes
 
@@ -769,7 +769,7 @@ This section gives a practical map of the files most likely to change and what e
   - Add delta subscription path
   - Apply partial/delta updates with minimal state churn
 
-- [ ] `webview-ui/src/components/chat/RequestStartRow.tsx`
+- [x] `webview-ui/src/components/chat/RequestStartRow.tsx`
   - Optimize expensive recomputation on active request updates
 
 - [ ] `webview-ui/src/App.tsx` / `ChatView` and related chat row components
