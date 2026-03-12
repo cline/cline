@@ -631,7 +631,7 @@ Different environments deserve different tuning. The mental model here is: **rem
 - [x] Detect remote execution context reliably
 - [x] Add remote-aware defaults for presentation/state-update cadence
 - [x] Expose internal config flags for development and staged rollout
-- [ ] Decide whether any user-facing settings are appropriate
+- [x] Decide whether any user-facing settings are appropriate
 
 ### Code changes
 
@@ -664,6 +664,8 @@ Use internal settings, feature flags, or env vars to control rollout, for exampl
 - override cadence intervals.
 
 This is important for safe rollout and A/B comparison.
+
+At this stage, no additional user-facing settings are recommended. The latency controls added so far are implementation details best kept behind internal env/config flags until telemetry and dogfooding show a clear need for end-user customization.
 
 ### Tests
 
