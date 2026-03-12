@@ -278,6 +278,8 @@ export class Task {
 	private readonly ephemeralMessagePersistenceDisabled = isEphemeralMessagePersistenceDisabled()
 	private readonly openTabsCache: RequestBoundaryCache<string[]>
 	private readonly visibleTabsCache: RequestBoundaryCache<string[]>
+	private readonly existingOpenTabsCache: RequestBoundaryCache<string[]>
+	private readonly existingVisibleTabsCache: RequestBoundaryCache<string[]>
 
 	constructor(params: TaskParams) {
 		const {
@@ -591,6 +593,14 @@ export class Task {
 			load: async () => (await HostProvider.window.getVisibleTabs({})).paths || [],
 			ttlMs: requestBoundaryCacheTtlMs,
 		})
+		this.existingOpenTabsCache = new RequestBoundaryCache({
+			load: async () => filterExistingFiles(await this.getCachedOpenTabPaths()),
+			ttlMs: requestBoundaryCacheTtlMs,
+		})
+		this.existingVisibleTabsCache = new RequestBoundaryCache({
+			load: async () => filterExistingFiles(await this.getCachedVisibleTabPaths()),
+			ttlMs: requestBoundaryCacheTtlMs,
+		})
 
 		this.toolExecutor = new ToolExecutor(
 			this.taskState,
@@ -739,6 +749,14 @@ export class Task {
 
 	private async getCachedVisibleTabPaths(): Promise<string[]> {
 		return this.visibleTabsCache.get()
+	}
+
+	private async getCachedExistingOpenTabPaths(): Promise<string[]> {
+		return this.existingOpenTabsCache.get()
+	}
+
+	private async getCachedExistingVisibleTabPaths(): Promise<string[]> {
+		return this.existingVisibleTabsCache.get()
 	}
 
 	private captureRequestLatencyMetrics() {
@@ -2093,8 +2111,8 @@ export class Task {
 
 		// Snapshot editor tabs so prompt tools can decide whether to include
 		// filetype-specific instructions (e.g. notebooks) without adding bespoke flags.
-		const openTabPaths = await this.getCachedOpenTabPaths()
-		const visibleTabPaths = await this.getCachedVisibleTabPaths()
+		const openTabPaths = await this.getCachedExistingOpenTabPaths()
+		const visibleTabPaths = await this.getCachedExistingVisibleTabPaths()
 		const cap = 50
 		const editorTabs = {
 			open: openTabPaths.slice(0, cap),
@@ -3705,8 +3723,7 @@ export class Task {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += `\n\n# ${host.platform} Visible Files`
-		const rawVisiblePaths = await this.getCachedVisibleTabPaths()
-		const filteredVisiblePaths = await filterExistingFiles(rawVisiblePaths)
+		const filteredVisiblePaths = await this.getCachedExistingVisibleTabPaths()
 		const visibleFilePaths = filteredVisiblePaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
 		// Filter paths through clineIgnoreController
@@ -3722,8 +3739,7 @@ export class Task {
 		}
 
 		details += `\n\n# ${host.platform} Open Tabs`
-		const rawOpenTabPaths = await this.getCachedOpenTabPaths()
-		const filteredOpenTabPaths = await filterExistingFiles(rawOpenTabPaths)
+		const filteredOpenTabPaths = await this.getCachedExistingOpenTabPaths()
 		const openTabPaths = filteredOpenTabPaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
 		// Filter paths through clineIgnoreController
