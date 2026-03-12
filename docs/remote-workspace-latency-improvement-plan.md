@@ -792,7 +792,7 @@ Below is a consolidated development checklist for tests. This can be used as a p
 - [x] Coalesced controller state-posting tests
 - [ ] Usage/metadata throttling tests
 - [x] Remote-mode cadence selection tests
-- [ ] Hostbridge/environment TTL caching tests
+- [x] Hostbridge/environment TTL caching tests
 
 ### Integration tests
 
