@@ -213,4 +213,28 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		const refreshedResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
 		assert.strictEqual(refreshedResponse.paths.length, 2, "Expected refreshed result after TTL expiry")
 	})
+
+	it("returns fresh open tabs immediately after cache reset", async () => {
+		setOpenTabsCacheTtlForTests(1_000)
+		await createAndOpenTestDocument("reset-1", vscode.ViewColumn.One)
+		await pWaitFor(async () => (await getOpenTabs(GetOpenTabsRequest.create({}))).paths.length === 1, {
+			timeout: 5_000,
+			interval: 50,
+		})
+
+		const firstResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
+		assert.strictEqual(firstResponse.paths.length, 1)
+
+		await createAndOpenTestDocument("reset-2", vscode.ViewColumn.Two)
+		const cachedResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
+		assert.strictEqual(cachedResponse.paths.length, 1, "Expected stale cached result before reset")
+
+		resetOpenTabsCacheForTests()
+		await pWaitFor(async () => (await getOpenTabs(GetOpenTabsRequest.create({}))).paths.length === 2, {
+			timeout: 5_000,
+			interval: 50,
+		})
+		const refreshedResponse = await getOpenTabs(GetOpenTabsRequest.create({}))
+		assert.strictEqual(refreshedResponse.paths.length, 2, "Expected cache reset to expose fresh open tabs")
+	})
 })
