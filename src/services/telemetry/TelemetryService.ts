@@ -164,6 +164,7 @@ export class TelemetryService {
 		API: {
 			TTFT_SECONDS: "cline.api.ttft.seconds",
 			DURATION_SECONDS: "cline.api.duration.seconds",
+			TASK_INITIALIZATION_SECONDS: "cline.api.task_initialization.seconds",
 			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
 			PRESENTATION_INVOCATIONS_PER_REQUEST: "cline.api.presentation.invocations.per_request",
 			PRESENTATION_DURATION_SECONDS: "cline.api.presentation.duration.seconds",
@@ -1658,6 +1659,14 @@ export class TelemetryService {
 				hasCheckpoints,
 			},
 		})
+
+		if (Number.isFinite(durationMs)) {
+			this.recordHistogram(TelemetryService.METRICS.API.TASK_INITIALIZATION_SECONDS, durationMs / 1000, {
+				ulid,
+				taskId,
+				hasCheckpoints,
+			})
+		}
 	}
 
 	/**

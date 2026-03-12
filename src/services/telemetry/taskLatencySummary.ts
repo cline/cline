@@ -6,8 +6,12 @@ type TaskLatencyEvent = {
 	persistenceFlushCount?: number
 	chunkToWebviewMedianMs?: number
 	chunkToWebviewP95Ms?: number
+	taskInitializationDurationMs?: number
+	durationMs?: number
 	requestIndex?: number
 	ulid?: string
+	taskId?: string
+	event?: string
 	[key: string]: unknown
 }
 
@@ -19,6 +23,7 @@ type NumericMetricKey =
 	| "persistenceFlushCount"
 	| "chunkToWebviewMedianMs"
 	| "chunkToWebviewP95Ms"
+	| "taskInitializationDurationMs"
 
 export type TaskLatencySummary = {
 	eventCount: number
@@ -40,7 +45,23 @@ const METRIC_KEYS: NumericMetricKey[] = [
 	"persistenceFlushCount",
 	"chunkToWebviewMedianMs",
 	"chunkToWebviewP95Ms",
+	"taskInitializationDurationMs",
 ]
+
+function normalizeEvent(event: TaskLatencyEvent): TaskLatencyEvent {
+	if (Number.isFinite(event.taskInitializationDurationMs)) {
+		return event
+	}
+
+	if (event.event === "task.initialization" && Number.isFinite(event.durationMs)) {
+		return {
+			...event,
+			taskInitializationDurationMs: event.durationMs as number,
+		}
+	}
+
+	return event
+}
 
 function summarizeMetric(events: TaskLatencyEvent[], key: NumericMetricKey) {
 	const values = events.map((event) => event[key]).filter((value): value is number => Number.isFinite(value))
@@ -57,8 +78,9 @@ function summarizeMetric(events: TaskLatencyEvent[], key: NumericMetricKey) {
 }
 
 export function summarizeTaskLatencyEvents(events: TaskLatencyEvent[]): TaskLatencySummary {
+	const normalizedEvents = events.map(normalizeEvent)
 	const requestKeys = new Set(
-		events
+		normalizedEvents
 			.map((event) => {
 				if (event.ulid && Number.isFinite(event.requestIndex)) {
 					return `${event.ulid}:${event.requestIndex}`
@@ -69,10 +91,10 @@ export function summarizeTaskLatencyEvents(events: TaskLatencyEvent[]): TaskLate
 	)
 
 	return {
-		eventCount: events.length,
+		eventCount: normalizedEvents.length,
 		requestCount: requestKeys.size,
 		metrics: Object.fromEntries(
-			METRIC_KEYS.map((key) => [key, summarizeMetric(events, key)]),
+			METRIC_KEYS.map((key) => [key, summarizeMetric(normalizedEvents, key)]),
 		) as TaskLatencySummary["metrics"],
 	}
 }

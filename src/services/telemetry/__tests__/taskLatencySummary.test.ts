@@ -14,6 +14,7 @@ describe("taskLatencySummary", () => {
 				persistenceFlushCount: 1,
 				chunkToWebviewMedianMs: 20,
 				chunkToWebviewP95Ms: 35,
+				taskInitializationDurationMs: 600,
 			},
 			{
 				ulid: "task-1",
@@ -25,6 +26,7 @@ describe("taskLatencySummary", () => {
 				persistenceFlushCount: 2,
 				chunkToWebviewMedianMs: 30,
 				chunkToWebviewP95Ms: 45,
+				taskInitializationDurationMs: 900,
 			},
 		])
 
@@ -33,6 +35,7 @@ describe("taskLatencySummary", () => {
 		assert.deepStrictEqual(summary.metrics.presentationInvocationCount, { average: 3, min: 2, max: 4 })
 		assert.deepStrictEqual(summary.metrics.statePostSerializedBytes, { average: 200, min: 100, max: 300 })
 		assert.deepStrictEqual(summary.metrics.chunkToWebviewP95Ms, { average: 40, min: 35, max: 45 })
+		assert.deepStrictEqual(summary.metrics.taskInitializationDurationMs, { average: 750, min: 600, max: 900 })
 	})
 
 	it("returns zeroed summaries when events are empty or metrics are absent", () => {
@@ -67,6 +70,21 @@ describe("taskLatencySummary", () => {
 			averageDelta: -2,
 			minDelta: -2,
 			maxDelta: -2,
+		})
+	})
+
+	it("normalizes task initialization events into latency summaries", () => {
+		const summary = summarizeTaskLatencyEvents([
+			{ event: "task.initialization", ulid: "task-1", taskId: "task-a", durationMs: 500 },
+			{ event: "task.initialization", ulid: "task-2", taskId: "task-b", durationMs: 700 },
+		])
+
+		assert.equal(summary.eventCount, 2)
+		assert.equal(summary.requestCount, 0)
+		assert.deepStrictEqual(summary.metrics.taskInitializationDurationMs, {
+			average: 600,
+			min: 500,
+			max: 700,
 		})
 	})
 })
