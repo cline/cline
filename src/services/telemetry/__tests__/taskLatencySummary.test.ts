@@ -1,5 +1,5 @@
 import { strict as assert } from "assert"
-import { summarizeTaskLatencyEvents } from "../taskLatencySummary"
+import { compareTaskLatencySummaries, summarizeTaskLatencyEvents } from "../taskLatencySummary"
 
 describe("taskLatencySummary", () => {
 	it("summarizes averages and ranges across latency events", () => {
@@ -45,5 +45,28 @@ describe("taskLatencySummary", () => {
 		assert.equal(empty.eventCount, 0)
 		assert.equal(empty.requestCount, 0)
 		assert.deepStrictEqual(empty.metrics.statePostCount, { average: 0, min: 0, max: 0 })
+	})
+
+	it("compares latency summaries for before/after analysis", () => {
+		const baseline = summarizeTaskLatencyEvents([
+			{ ulid: "task", requestIndex: 1, presentationInvocationCount: 5, statePostCount: 4 },
+		])
+		const candidate = summarizeTaskLatencyEvents([
+			{ ulid: "task", requestIndex: 1, presentationInvocationCount: 3, statePostCount: 2 },
+		])
+
+		const comparison = compareTaskLatencySummaries(baseline, candidate)
+		assert.equal(comparison.baselineEvents, 1)
+		assert.equal(comparison.candidateEvents, 1)
+		assert.deepStrictEqual(comparison.metricDiffs.presentationInvocationCount, {
+			averageDelta: -2,
+			minDelta: -2,
+			maxDelta: -2,
+		})
+		assert.deepStrictEqual(comparison.metricDiffs.statePostCount, {
+			averageDelta: -2,
+			minDelta: -2,
+			maxDelta: -2,
+		})
 	})
 })
