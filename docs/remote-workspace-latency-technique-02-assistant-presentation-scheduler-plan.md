@@ -34,6 +34,53 @@ The cross-cutting wisdom from the analysis report applies directly here:
 
 For this technique, the emphasis is on the **immediately-presented** part.
 
+## Document Type, Audience, and Quality Bar
+
+This is an **extraction implementation plan** for a **Staff+ level distributed systems / infrastructure engineer**. It is not a request to invent a scheduler concept from scratch; it is a guide for extracting a production-worthy scheduler from the already-working reference implementation.
+
+The quality bar is high:
+
+- each step should be operationally clear,
+- each behavioral tradeoff should be explainable to reviewers,
+- and the extracted result should preserve semantic immediacy where it matters while reducing hot-path churn where it does not.
+
+## Artifact Stack and Dependency Position
+
+This document depends on the branch analysis report and should be used after reviewing:
+
+1. `docs/remote-workspace-latency-branch-analysis-report.md` for the “why this is high ROI” framing.
+2. `eve_troubleshooting-remote-workspaces` for the actual known-good implementation details.
+3. This plan for the extraction sequence, tests, and safety boundaries.
+
+That sequence matters because this technique is easiest to reason about when the business case, integrated implementation, and extraction steps are all visible at once.
+
+## Minimal Coherent Extraction Boundary
+
+The smallest coherent PR for this technique should usually include:
+
+- the scheduler primitive,
+- task integration,
+- remote-aware cadence selection,
+- final-drain / disposal correctness,
+- and tests for cadence, preemption, overlap, and teardown.
+
+What should **not** be split apart if avoidable:
+
+- scheduler primitive from task integration,
+- immediate-priority semantics from cadence logic,
+- final-drain behavior from the scheduler extraction,
+- and the tests that prove overlap/teardown correctness.
+
+## Common Failure Modes While Extracting
+
+Watch for these failure modes explicitly:
+
+- introducing a timer but leaving direct hot-path awaits in place,
+- over-coalescing semantic-boundary events that users expect to feel immediate,
+- forgetting final-drain behavior at stream completion,
+- teardown bugs that allow delayed flushes after task disposal,
+- and tuning cadence values without validating against the reference implementation.
+
 ---
 
 ## Why This Technique Matters

@@ -26,6 +26,28 @@ The most effective way to use this document is:
 
 Be smart about this. Do not re-invent behavior that already exists in the reference implementation unless there is a very clear reason to improve or simplify it. The branch already contains the end-state shape we want to learn from. Your job is to extract, verify, and explain the minimal version of that behavior safely.
 
+## Document Type, Audience, and Quality Bar
+
+This is an **extraction implementation plan**, not a greenfield design doc and not a PR description. It is intended for a **Staff+ level distributed systems / infrastructure engineer** who is extracting a production-worthy technique from a known-good integrated implementation.
+
+That means the quality bar is:
+
+- the plan should be executable with minimal ambiguity,
+- the reasoning behind each step should be legible to a strong reviewer,
+- and the extraction should preserve product behavior across the rest of Cline while improving remote-workspace latency.
+
+If a step in this plan would not help a strong engineer quickly answer “what exactly am I changing, why now, what must remain true, and how do I verify it?”, then the step is not detailed enough.
+
+## Artifact Stack and Dependency Position
+
+This doc sits in the broader artifact stack as follows:
+
+1. `docs/remote-workspace-latency-branch-analysis-report.md` explains **which techniques matter most and why**.
+2. This document explains **how to extract and implement one technique in a smaller branch/PR**.
+3. A later PR-slicing / execution phase should use this document to drive real implementation work.
+
+When using this plan, always begin by re-reading the branch analysis report so the extraction stays aligned with the larger prioritization and product intent.
+
 ## Developer Operating Posture
 
 This plan is written for a Staff+-level engineer who is expected to use judgment, not just mechanically check boxes.
@@ -42,6 +64,37 @@ The most important meta-principle is still:
 > **Stop treating every streamed chunk as a durable, full-state, immediately-presented event.**
 
 For this technique specifically, the emphasis is on the **durable** part of that sentence.
+
+## Minimal Coherent Extraction Boundary
+
+The smallest coherent PR for this technique should usually include:
+
+- message-state ephemeral mutation APIs,
+- dirty tracking plus explicit flush support,
+- task callsite conversion for partial updates,
+- periodic safety flush,
+- and the minimum set of tests needed to prove correctness.
+
+What should **not** be split away from this technique if avoidable:
+
+- the dirty-bit / flush contract,
+- the durable-boundary logic for partial → complete transitions,
+- safety-flush lifecycle management,
+- and the tests that prove resume/abort correctness.
+
+If those pieces are separated too aggressively, reviewers will have a much harder time understanding whether the extraction is actually safe.
+
+## Common Failure Modes While Extracting
+
+Watch for these failure modes explicitly:
+
+- extracting the ephemeral APIs without converting the real hot-path callsites,
+- clearing the dirty bit too early,
+- leaving abort/resume paths on stale assumptions about immediate persistence,
+- making durable and ephemeral mutation paths diverge semantically,
+- and validating only happy-path streaming while missing crash-recovery or resume regressions.
+
+If any of those happen, the extraction may appear simpler while actually weakening the product.
 
 ---
 

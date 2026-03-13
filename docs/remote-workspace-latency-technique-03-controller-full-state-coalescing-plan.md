@@ -34,6 +34,53 @@ The governing principle remains:
 
 For this technique, the emphasis is on the **full-state** part.
 
+## Document Type, Audience, and Quality Bar
+
+This is an **extraction implementation plan** written for a **Staff+ level distributed systems / infrastructure engineer**. Its purpose is to turn an already-integrated optimization into a smaller, understandable, safe-to-review change set.
+
+The quality bar is:
+
+- state-posting behavior must remain easy to reason about,
+- the extracted scheduler must preserve correctness across non-streaming product surfaces,
+- and the doc must make explicit where coalescing is appropriate versus dangerous.
+
+## Artifact Stack and Dependency Position
+
+This doc should be used in the following sequence:
+
+1. read the branch analysis report for prioritization context,
+2. inspect `eve_troubleshooting-remote-workspaces` for the integrated implementation,
+3. use this plan to extract a smaller, coherent PR with clear verification boundaries.
+
+This sequence reduces rework and helps ensure the extraction remains anchored to the actual behavior we already know works.
+
+## Minimal Coherent Extraction Boundary
+
+The smallest coherent PR for this technique should usually include:
+
+- controller-level scheduler introduction,
+- controller `postStateToWebview()` routing changes,
+- build/send/payload instrumentation,
+- priority selection defaults,
+- and tests covering coalescing plus immediate bypass.
+
+What should **not** be split away if avoidable:
+
+- scheduler extraction from controller integration,
+- payload/build/send instrumentation from the coalescing work,
+- default-priority logic from the scheduler rollout,
+- and product-surface regression coverage for init/cancel/auth/task switching.
+
+## Common Failure Modes While Extracting
+
+Watch for these failure modes explicitly:
+
+- coalescing the scheduler mechanically without auditing callsite urgency,
+- reducing full-state post count while accidentally delaying critical UI transitions,
+- proving frequency reduction without measuring payload size or send/build time,
+- treating streaming and non-streaming surfaces the same,
+- and forgetting that snapshot bugs often manifest as broad UI inconsistency rather than narrow chat glitches.
+
 ---
 
 ## Why This Technique Matters
