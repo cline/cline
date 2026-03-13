@@ -3,6 +3,8 @@ import { ClineAsk, ClineMessage, ClineMessageType, ClineSay } from "@shared/prot
 import { expect } from "chai"
 import { afterEach, describe, it } from "mocha"
 import * as sinon from "sinon"
+import { resetTelemetryService } from "@/services/telemetry"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { registerPartialMessageCallback, sendPartialMessageEvent, subscribeToPartialMessage } from "./subscribeToPartialMessage"
 
@@ -11,6 +13,8 @@ describe("subscribeToPartialMessage", () => {
 		for (const [requestId] of getRequestRegistry().getAllRequests()) {
 			getRequestRegistry().cancelRequest(requestId)
 		}
+		resetTelemetryService()
+		setVscodeHostProviderMock()
 		sinon.restore()
 	})
 
@@ -26,6 +30,7 @@ describe("subscribeToPartialMessage", () => {
 	}
 
 	it("broadcasts partial messages to gRPC subscribers and unregisters on cancel", async () => {
+		setVscodeHostProviderMock()
 		const responseStream = sinon.stub().resolves() as unknown as StreamingResponseHandler<ClineMessage>
 
 		await subscribeToPartialMessage({} as any, EmptyRequest.create({}), responseStream, "partial-req-1")
@@ -48,8 +53,9 @@ describe("subscribeToPartialMessage", () => {
 	})
 
 	it("broadcasts partial messages to callback subscribers until unsubscribed", async () => {
+		setVscodeHostProviderMock()
 		const received: ClineMessage[] = []
-		const unsubscribe = registerPartialMessageCallback((message) => {
+		const unsubscribe = registerPartialMessageCallback((message: ClineMessage) => {
 			received.push(message)
 		})
 
@@ -67,6 +73,7 @@ describe("subscribeToPartialMessage", () => {
 	})
 
 	it("removes failing gRPC subscribers without failing the broadcast", async () => {
+		setVscodeHostProviderMock()
 		const failingStream = sinon
 			.stub()
 			.rejects(new Error("stream failed")) as unknown as StreamingResponseHandler<ClineMessage>
