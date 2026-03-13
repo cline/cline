@@ -30,7 +30,7 @@ export class WandbHandler implements ApiHandler {
 					apiKey: this.options.wandbApiKey,
 				})
 			} catch (error) {
-				throw new Error(`Error creating W&B Inference client: ${error.message}`)
+				throw new Error(`Error creating W&B Inference client: ${error instanceof Error ? error.message : String(error)}`)
 			}
 		}
 		return this.client
