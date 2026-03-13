@@ -15,6 +15,7 @@ type MockLatencyObserverState = {
 		taskInitialization: string
 		requestStart: string
 		firstVisibleUpdate: string
+		firstFullStateUpdate: string
 		fullStateMetrics: string
 		partialMessageMetrics: string
 		taskUiDeltaMetrics: string
@@ -35,6 +36,7 @@ type MockLatencyObserverState = {
 	taskInitialization: MockLatencyObserverState["transport"]
 	requestStart: MockLatencyObserverState["transport"]
 	firstVisibleUpdate: MockLatencyObserverState["transport"]
+	firstFullStateUpdate: MockLatencyObserverState["transport"]
 	logs: unknown[]
 	optionalCounters?: {
 		fullStatePushes: number
@@ -54,6 +56,7 @@ const extensionStateMock = vi.hoisted(() => ({
 			taskInitialization: "supported",
 			requestStart: "supported",
 			firstVisibleUpdate: "supported",
+			firstFullStateUpdate: "supported",
 			fullStateMetrics: "supported",
 			partialMessageMetrics: "supported",
 			taskUiDeltaMetrics: "unsupported",
@@ -78,6 +81,11 @@ const extensionStateMock = vi.hoisted(() => ({
 			support: "supported",
 			samples: [],
 			stats: { count: 1, minMs: 12, maxMs: 12, avgMs: 12, lastMs: 12, totalMs: 12 },
+		},
+		firstFullStateUpdate: {
+			support: "supported",
+			samples: [],
+			stats: { count: 1, minMs: 14, maxMs: 14, avgMs: 14, lastMs: 14, totalMs: 14 },
 		},
 		logs: [],
 		optionalCounters: {
@@ -116,6 +124,7 @@ describe("DebugSection", () => {
 				taskInitialization: "supported",
 				requestStart: "supported",
 				firstVisibleUpdate: "supported",
+				firstFullStateUpdate: "supported",
 				fullStateMetrics: "supported",
 				partialMessageMetrics: "supported",
 				taskUiDeltaMetrics: "unsupported",
@@ -140,6 +149,11 @@ describe("DebugSection", () => {
 				support: "supported",
 				samples: [],
 				stats: { count: 1, minMs: 12, maxMs: 12, avgMs: 12, lastMs: 12, totalMs: 12 },
+			},
+			firstFullStateUpdate: {
+				support: "supported",
+				samples: [],
+				stats: { count: 1, minMs: 14, maxMs: 14, avgMs: 14, lastMs: 14, totalMs: 14 },
 			},
 			logs: [],
 			optionalCounters: {
@@ -188,6 +202,7 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/State bytes: 1024/)).toBeTruthy()
 		expect(screen.getByText(/Partial bytes: 256/)).toBeTruthy()
 		expect(screen.getByText(/Transport probe: Supported/)).toBeTruthy()
+		expect(screen.getByText(/First full-state avg: 14.00 ms/)).toBeTruthy()
 		expect(screen.getByText(/Task UI delta metrics: Unsupported on this branch/)).toBeTruthy()
 		expect(screen.getByText(/Task UI deltas: 7/)).toBeTruthy()
 

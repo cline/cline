@@ -297,6 +297,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<div>Persistence metrics: {capabilityLabel[latencyObserver.capabilities.persistenceMetrics]}</div>
 							<div>Task init avg: {latencyObserver.taskInitialization.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>First visible avg: {latencyObserver.firstVisibleUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
+							<div>
+								First full-state avg: {latencyObserver.firstFullStateUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms
+							</div>
 							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
 							<div>State pushes: {latencyObserver.optionalCounters?.fullStatePushes ?? 0}</div>
 							<div>State bytes: {latencyObserver.optionalCounters?.fullStateBytes ?? 0}</div>

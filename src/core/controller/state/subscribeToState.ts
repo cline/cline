@@ -47,6 +47,7 @@ export async function subscribeToState(
 	const initialStateJson = JSON.stringify(initialState)
 
 	recordStateSizeTelemetry(Buffer.byteLength(initialStateJson, "utf8"))
+	recordStateObserverMetrics(initialState)
 
 	try {
 		await responseStream(
@@ -80,6 +81,7 @@ export async function sendStateUpdate(state: ExtensionState): Promise<StateUpdat
 
 	const payloadBytes = Buffer.byteLength(stateJson, "utf8")
 	recordStateSizeTelemetry(payloadBytes)
+	recordStateObserverMetrics(state)
 	const startedAt = performance.now()
 
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
@@ -111,4 +113,15 @@ function recordStateSizeTelemetry(sizeBytes: number): void {
 	observer.incrementCounter("fullStatePushes")
 	observer.incrementCounter("fullStateBytes", sizeBytes)
 	observer.setCapability("fullStateMetrics", "supported")
+}
+
+function recordStateObserverMetrics(state: ExtensionState): void {
+	const taskId = state.currentTaskItem?.id
+	if (!taskId) {
+		return
+	}
+
+	const observer = getLatencyObserverService()
+	observer.recordFirstFullStateUpdate(taskId)
+	observer.setCapability("firstFullStateUpdate", "supported")
 }
