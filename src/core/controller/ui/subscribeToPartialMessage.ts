@@ -58,6 +58,7 @@ export function registerPartialMessageCallback(callback: PartialMessageCallback)
 export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
 	const observer = getLatencyObserverService()
 	observer.incrementCounter("partialMessageEvents")
+	observer.incrementCounter("partialMessageBytes", Buffer.byteLength(JSON.stringify(partialMessage), "utf8"))
 	observer.setCapability("partialMessageMetrics", "supported")
 
 	// Send to gRPC stream subscribers

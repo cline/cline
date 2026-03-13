@@ -51,7 +51,13 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 				stats: { count: 1, minMs: 12, maxMs: 12, avgMs: 12, lastMs: 12, totalMs: 12 },
 			},
 			logs: [],
-			optionalCounters: { fullStatePushes: 3, partialMessageEvents: 4, persistenceFlushes: 2 },
+			optionalCounters: {
+				fullStatePushes: 3,
+				fullStateBytes: 1024,
+				partialMessageEvents: 4,
+				partialMessageBytes: 256,
+				persistenceFlushes: 2,
+			},
 		},
 		setShowWelcome: vi.fn(),
 	}),
@@ -94,6 +100,8 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/Scenario: Pure ping test/)).toBeTruthy()
 		expect(screen.getByText(/Branch: main/)).toBeTruthy()
 		expect(screen.getByText(/State pushes: 3/)).toBeTruthy()
+		expect(screen.getByText(/State bytes: 1024/)).toBeTruthy()
+		expect(screen.getByText(/Partial bytes: 256/)).toBeTruthy()
 		expect(screen.getByText(/Transport probe: Supported/)).toBeTruthy()
 		expect(screen.getByText(/Task UI delta metrics: Unsupported on this branch/)).toBeTruthy()
 

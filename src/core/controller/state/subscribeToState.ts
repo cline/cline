@@ -91,5 +91,6 @@ function recordStateSizeTelemetry(sizeBytes: number): void {
 	telemetryService.captureGrpcResponseSize(sizeBytes, "cline.StateService", "subscribeToState")
 	const observer = getLatencyObserverService()
 	observer.incrementCounter("fullStatePushes")
+	observer.incrementCounter("fullStateBytes", sizeBytes)
 	observer.setCapability("fullStateMetrics", "supported")
 }
