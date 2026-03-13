@@ -430,7 +430,7 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 
 ### Tests
 
-- [ ] Component test: controls trigger expected actions.
+- [x] Component test: controls trigger expected actions.
 - [x] Component test: unavailable metrics render intelligibly.
 - [ ] Regression test: UI remains hidden or low-noise outside intended dev/debug usage.
 
@@ -459,13 +459,11 @@ A latency observer becomes far more valuable when it can help the developer answ
   - [x] tool-heavy / high-churn scenario
   - [x] large-file-write-adjacent scenario if feasible
 - [x] Add UI affordances or documented steps for running those scenarios repeatedly.
- - [x] Add UI affordances or documented steps for running those scenarios repeatedly.
 
 ### Detailed code changes
 
 - This does not necessarily require the UI to generate tasks itself.
 - At minimum, add a documented scenario matrix and a way for the observer to reset/session-label around a manual run.
- - [x] At minimum, add a documented scenario matrix and a way for the observer to reset/session-label around a manual run.
 - If practical, add a small “start known validation task” action in dev mode.
 
 ### Tests
