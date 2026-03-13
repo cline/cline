@@ -55,6 +55,7 @@ const FADE_DURATION_MS = 300
  */
 export const FeatureTip = memo(() => {
 	const [isVisible, setIsVisible] = useState(false)
+	const [hasFadedIn, setHasFadedIn] = useState(false)
 	const [isFading, setIsFading] = useState(false)
 	const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * FEATURE_TIPS.length))
 	const cycleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -74,6 +75,8 @@ export const FeatureTip = memo(() => {
 	useEffect(() => {
 		showTimerRef.current = setTimeout(() => {
 			setIsVisible(true)
+			// Trigger fade-in on next frame so transition applies
+			requestAnimationFrame(() => setHasFadedIn(true))
 			cycleTimerRef.current = setInterval(advanceTip, CYCLE_INTERVAL_MS)
 		}, SHOW_DELAY_MS)
 
@@ -98,7 +101,7 @@ export const FeatureTip = memo(() => {
 		<div
 			className={cn(
 				"flex items-start gap-1.5 mt-2 ml-1 transition-opacity duration-300",
-				isFading ? "opacity-0" : "opacity-100",
+				!hasFadedIn || isFading ? "opacity-0" : "opacity-100",
 			)}>
 			<LightbulbIcon className="size-3 text-description shrink-0 mt-[1px]" />
 			<span className="text-xs text-description leading-relaxed">
