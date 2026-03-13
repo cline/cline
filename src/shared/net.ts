@@ -112,18 +112,23 @@ let mockFetch: typeof globalThis.fetch | undefined
 export const fetch: typeof globalThis.fetch = (() => {
 	// Note: Don't use Logger here; it may not be initialized.
 
-	let baseFetch: typeof globalThis.fetch = globalThis.fetch
+	let baseFetch: typeof globalThis.fetch | null = null
 	// Note: See esbuild.mjs, process.env.IS_STANDALONE is statically rewritten
 	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
-	if (process.env.IS_STANDALONE === "true") {
+	if (process.env.IS_STANDALONE === "true" && !process.env.CLINE_VCR) {
 		// Configure undici with ProxyAgent
+		// Skip when CLINE_VCR is set so nock can intercept via globalThis.fetch
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
 
-	return (input: string | URL | Request, init?: RequestInit): Promise<Response> => (mockFetch || baseFetch)(input, init)
+	// When CLINE_VCR is set, baseFetch is null and we reference globalThis.fetch
+	// lazily at call time. This is required because nock patches globalThis.fetch
+	// AFTER module initialization, so an eagerly-captured reference would bypass nock.
+	return (input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+		(mockFetch || baseFetch || globalThis.fetch)(input, init)
 })()
 
 /**
@@ -145,9 +150,8 @@ export function mockFetchForTesting<T>(theFetch: typeof globalThis.fetch, callba
 			return result.finally(() => {
 				mockFetch = originalMockFetch
 			}) as typeof result
-		} else {
-			return result
 		}
+		return result
 	} finally {
 		if (willResetSync) {
 			mockFetch = originalMockFetch
