@@ -141,27 +141,27 @@ The scheduler works only if priority rules are intentional and documented.
 
 ### Work
 
-- [ ] Define presentation priorities such as `immediate`, `normal`, and `low`.
-- [ ] Document semantic boundaries that must flush immediately.
-- [ ] Document which chunk types default to normal coalescing.
+- [x] Define presentation priorities such as `immediate`, `normal`, and `low`.
+- [x] Document semantic boundaries that must flush immediately.
+- [x] Document which chunk types default to normal coalescing.
 
 ### Detailed code changes
 
 - In `src/core/task/TaskPresentationScheduler.ts`:
-  - [ ] expose or preserve a `PresentationPriority` type.
+  - [x] expose or preserve a `PresentationPriority` type.
 - In `src/core/task/index.ts`:
-  - [ ] document priority mapping logic near `getPresentationPriorityForChunk(...)`.
+  - [x] document priority mapping logic near `getPresentationPriorityForChunk(...)`.
 - In comments/docstrings, explicitly call out immediate boundaries:
-  - [ ] first visible token,
-  - [ ] tool transitions,
-  - [ ] finalization,
-  - [ ] abort/error cleanup.
+  - [x] first visible token,
+  - [x] tool transitions,
+  - [x] finalization,
+  - [x] abort/error cleanup.
 
 Use the reference implementation branch to understand where those boundaries were discovered empirically. Some of them exist because they matter for user perception; others exist because they matter for correctness or because delayed presentation would feel broken. Preserve that reasoning in the extraction.
 
 ### Tests
 
-- [ ] Unit test: priority merge rules behave as expected.
+- [x] Unit test: priority merge rules behave as expected.
 
 ---
 
@@ -184,30 +184,30 @@ The implementation must be robust under bursty chunk arrival, not just simple ti
 
 ### Work
 
-- [ ] Implement `requestFlush(priority)`.
-- [ ] Implement `flushNow()`.
-- [ ] Track pending priority, active flush, and pending-while-flushing state.
-- [ ] Add disposal semantics so no timers survive task teardown.
+- [x] Implement `requestFlush(priority)`.
+- [x] Implement `flushNow()`.
+- [x] Track pending priority, active flush, and pending-while-flushing state.
+- [x] Add disposal semantics so no timers survive task teardown.
 
 ### Detailed code changes
 
 - In `src/core/task/TaskPresentationScheduler.ts`:
-  - [ ] keep a `scheduledTimer`.
-  - [ ] keep `pendingPriority`.
-  - [ ] keep `flushInProgress`.
-  - [ ] keep `pendingWhileFlushing`.
-  - [ ] when `requestFlush(immediate)` arrives, cancel scheduled timer and run now.
-  - [ ] when work arrives during flush, mark pending and re-run once afterward.
-  - [ ] support `dispose()` to clear timer and suppress future work.
+  - [x] keep a `scheduledTimer`.
+  - [x] keep `pendingPriority`.
+  - [x] keep `flushInProgress`.
+  - [x] keep `pendingWhileFlushing`.
+  - [x] when `requestFlush(immediate)` arrives, cancel scheduled timer and run now.
+  - [x] when work arrives during flush, mark pending and re-run once afterward.
+  - [x] support `dispose()` to clear timer and suppress future work.
 
 Be smart about state-machine edge cases. This scheduler sits on a bursty asynchronous path; the real implementation value is in correct behavior under overlap, priority escalation, and teardown, not just in the existence of a timer.
 
 ### Tests
 
-- [ ] Unit test: multiple requests inside the cadence window produce one flush.
-- [ ] Unit test: immediate priority preempts pending normal work.
-- [ ] Unit test: updates arriving during a flush produce exactly one follow-up flush.
-- [ ] Unit test: dispose clears timers and suppresses future flushes.
+- [x] Unit test: multiple requests inside the cadence window produce one flush.
+- [x] Unit test: immediate priority preempts pending normal work.
+- [x] Unit test: updates arriving during a flush produce exactly one follow-up flush.
+- [x] Unit test: dispose clears timers and suppresses future flushes.
 
 ---
 
@@ -223,17 +223,17 @@ Make the `Task` use the scheduler as the default path for presentation without b
 
 ### Work
 
-- [ ] Add a scheduler field to `Task`.
-- [ ] Add a scheduling wrapper such as `scheduleAssistantPresentation(...)`.
-- [ ] Refactor direct callers to go through the wrapper except where explicit immediate drain is needed.
+- [x] Add a scheduler field to `Task`.
+- [x] Add a scheduling wrapper such as `scheduleAssistantPresentation(...)`.
+- [x] Refactor direct callers to go through the wrapper except where explicit immediate drain is needed.
 
 ### Detailed code changes
 
 - In `src/core/task/index.ts`:
-  - [ ] instantiate `TaskPresentationScheduler` in the constructor.
-  - [ ] wire `flush: async () => this.flushAssistantPresentation()`.
-  - [ ] add `scheduleAssistantPresentation(trigger, priority)`.
-  - [ ] keep `flushAssistantPresentation()` as the method that actually calls `presentAssistantMessage()`.
+  - [x] instantiate `TaskPresentationScheduler` in the constructor.
+  - [x] wire `flush: async () => this.flushAssistantPresentation()`.
+  - [x] add `scheduleAssistantPresentation(trigger, priority)`.
+  - [x] keep `flushAssistantPresentation()` as the method that actually calls `presentAssistantMessage()`.
 
 When extracting this step, mirror the reference implementation’s structure closely enough that future diffs remain comparable. The cleanest extraction is one where a reviewer can trivially line up the extracted version with the reference implementation and see the same conceptual architecture.
 
@@ -256,17 +256,17 @@ This is where the real latency win happens. If the chunk loop no longer blocks o
 
 ### Work
 
-- [ ] Update text chunk path to schedule presentation instead of awaiting it.
-- [ ] Update reasoning chunk path to schedule presentation instead of awaiting it.
-- [ ] Update tool-progress/native-tool-call related chunk path similarly.
-- [ ] Preserve immediate scheduling for first-token and tool-related semantic transitions.
+- [x] Update text chunk path to schedule presentation instead of awaiting it.
+- [x] Update reasoning chunk path to schedule presentation instead of awaiting it.
+- [x] Update tool-progress/native-tool-call related chunk path similarly.
+- [x] Preserve immediate scheduling for first-token and tool-related semantic transitions.
 
 ### Detailed code changes
 
 - In `src/core/task/index.ts`, inside streaming chunk handling:
-  - [ ] text chunks should update assistant content and then call `scheduleAssistantPresentation("text", priority)`.
-  - [ ] reasoning chunks should call `scheduleAssistantPresentation("reasoning", priority)`.
-  - [ ] tool-call chunks should call `scheduleAssistantPresentation("tool", priority)`.
+  - [x] text chunks should update assistant content and then call `scheduleAssistantPresentation("text", priority)`.
+  - [x] reasoning chunks should call `scheduleAssistantPresentation("reasoning", priority)`.
+  - [x] tool-call chunks should call `scheduleAssistantPresentation("tool", priority)`.
 - Ensure priority logic uses whether visible assistant content already exists.
 
 This step is the actual latency win. Use the reference implementation to identify every place where the old flow awaited presentation inside streaming logic, then confirm whether that await was deliberately removed or preserved for a semantic boundary. Be explicit; do not guess.
@@ -291,26 +291,26 @@ Remote workspaces need more coalescing because each UI flush is more expensive. 
 
 ### Work
 
-- [ ] Centralize cadence lookup in `latency.ts`.
-- [ ] Keep `immediate` priority at zero-delay.
-- [ ] Use more conservative normal/low cadences in remote mode.
-- [ ] Allow env-var overrides for tuning.
+- [x] Centralize cadence lookup in `latency.ts`.
+- [x] Keep `immediate` priority at zero-delay.
+- [x] Use more conservative normal/low cadences in remote mode.
+- [x] Allow env-var overrides for tuning.
 
 ### Detailed code changes
 
 - In `src/core/task/latency.ts`:
-  - [ ] add or preserve `getPresentationCadenceMs(isRemoteWorkspace, priority)`.
-  - [ ] keep override env vars for local and remote cadence values.
+  - [x] add or preserve `getPresentationCadenceMs(isRemoteWorkspace, priority)`.
+  - [x] keep override env vars for local and remote cadence values.
 - In `Task` constructor:
-  - [ ] pass cadence callback into scheduler so it adapts automatically once remote detection is known.
+  - [x] pass cadence callback into scheduler so it adapts automatically once remote detection is known.
 
 Do not tune cadence values from first principles unless necessary. Start from the values already proven in `eve_troubleshooting-remote-workspaces`, then adjust only if the extraction boundary demands it or validation shows a problem.
 
 ### Tests
 
-- [ ] Unit test: remote mode returns higher normal cadence than local mode.
-- [ ] Unit test: env var override wins over default values.
-- [ ] Unit test: immediate priority always returns zero.
+- [x] Unit test: remote mode returns higher normal cadence than local mode.
+- [x] Unit test: env var override wins over default values.
+- [x] Unit test: immediate priority always returns zero.
 
 ---
 
@@ -326,24 +326,24 @@ Schedulers are easy to add and easy to get subtly wrong at teardown. The user mu
 
 ### Work
 
-- [ ] Force a final synchronous drain when the stream completes.
-- [ ] Force final drain on abort/error cleanup where appropriate.
-- [ ] Dispose scheduler cleanly during task teardown.
+- [x] Force a final synchronous drain when the stream completes.
+- [x] Force final drain on abort/error cleanup where appropriate.
+- [x] Dispose scheduler cleanly during task teardown.
 
 ### Detailed code changes
 
 - In `src/core/task/index.ts`:
-  - [ ] after the streaming loop has completed and partial blocks are finalized, call `await this.presentationScheduler.flushNow()`.
-  - [ ] in abort/finally paths, ensure no pending scheduled flush survives past task shutdown.
+  - [x] after the streaming loop has completed and partial blocks are finalized, call `await this.presentationScheduler.flushNow()`.
+  - [x] in abort/finally paths, ensure no pending scheduled flush survives past task shutdown.
 - In `TaskPresentationScheduler`:
-  - [ ] make `dispose()` clear timers and suppress post-disposal flushes.
+  - [x] make `dispose()` clear timers and suppress post-disposal flushes.
 
 This is one of the places where smart engineering judgment matters most: the last 1% of scheduler teardown correctness often determines whether the feature is “production-grade” or “subtly flaky.” Compare end-of-stream and abort behavior carefully against the reference implementation.
 
 ### Tests
 
-- [ ] Unit test: final `flushNow()` drains pending coalesced work.
-- [ ] Unit test: task disposal suppresses delayed pending flushes.
+- [x] Unit test: final `flushNow()` drains pending coalesced work.
+- [x] Unit test: task disposal suppresses delayed pending flushes.
 - [ ] Regression test: final text is visible before next request starts.
 
 ---
@@ -418,12 +418,12 @@ That is why this technique materially helps large-file writes: the user does not
 
 ## Developer Checklist Summary
 
-- [ ] Define presentation priorities and semantic boundaries
-- [ ] Implement the scheduler primitive
-- [ ] Integrate scheduler into `Task`
-- [ ] Replace direct per-chunk presentation awaits
-- [ ] Add remote-aware cadence selection
-- [ ] Preserve final-drain semantics
+- [x] Define presentation priorities and semantic boundaries
+- [x] Implement the scheduler primitive
+- [x] Integrate scheduler into `Task`
+- [x] Replace direct per-chunk presentation awaits
+- [x] Add remote-aware cadence selection
+- [x] Preserve final-drain semantics
 - [ ] Instrument and verify behavior
 - [ ] Validate large-file / long-stream scenarios
 
