@@ -15,6 +15,7 @@ type ActiveRequest = {
 	startedAt: number
 	firstVisibleRecorded: boolean
 	firstFullStateRecorded: boolean
+	firstPartialMessageRecorded: boolean
 	counterBaseline: Record<
 		| "fullStatePushes"
 		| "fullStateBytes"
@@ -37,6 +38,7 @@ export class LatencyObserverService {
 		requestStart: "supported",
 		firstVisibleUpdate: "supported",
 		firstFullStateUpdate: "supported",
+		firstPartialMessageUpdate: "supported",
 	}
 	private readonly taskInitializationStarts = new Map<string, number>()
 	private readonly activeRequests = new Map<string, ActiveRequest>()
@@ -45,6 +47,7 @@ export class LatencyObserverService {
 	private readonly requestStartSamples: LatencySample[] = []
 	private readonly firstVisibleUpdateSamples: LatencySample[] = []
 	private readonly firstFullStateUpdateSamples: LatencySample[] = []
+	private readonly firstPartialMessageUpdateSamples: LatencySample[] = []
 	private readonly requestCounterSummaries: LatencyObserverRequestCounterSummary[] = []
 	private readonly logs: LatencyObserverLogEntry[] = []
 	private optionalCounters: Record<
@@ -104,6 +107,7 @@ export class LatencyObserverService {
 			startedAt,
 			firstVisibleRecorded: false,
 			firstFullStateRecorded: false,
+			firstPartialMessageRecorded: false,
 			counterBaseline: { ...this.optionalCounters },
 		})
 		this.requestStartSamples.push({
@@ -147,6 +151,23 @@ export class LatencyObserverService {
 			label: "full-state",
 		})
 		this.pushLog(`first full-state update`, taskId, activeRequest.requestId)
+	}
+
+	recordFirstPartialMessageUpdate(taskId: string, endedAt = performance.now()): void {
+		const activeRequest = this.activeRequests.get(taskId)
+		if (!activeRequest || activeRequest.firstPartialMessageRecorded) {
+			return
+		}
+
+		activeRequest.firstPartialMessageRecorded = true
+		this.firstPartialMessageUpdateSamples.push({
+			startedAt: activeRequest.startedAt,
+			endedAt,
+			durationMs: Math.max(0, endedAt - activeRequest.startedAt),
+			requestId: activeRequest.requestId,
+			label: "partial-message",
+		})
+		this.pushLog(`first partial-message update`, taskId, activeRequest.requestId)
 	}
 
 	completeRequest(taskId: string): void {
@@ -212,6 +233,11 @@ export class LatencyObserverService {
 				samples: [...this.firstFullStateUpdateSamples],
 				stats: createRollingLatencyStats(this.firstFullStateUpdateSamples),
 			},
+			firstPartialMessageUpdate: {
+				support: this.capabilities.firstPartialMessageUpdate,
+				samples: [...this.firstPartialMessageUpdateSamples],
+				stats: createRollingLatencyStats(this.firstPartialMessageUpdateSamples),
+			},
 			requestCounterSummaries: [...this.requestCounterSummaries],
 			logs: [...this.logs],
 			optionalCounters: { ...this.optionalCounters },
@@ -236,6 +262,7 @@ export class LatencyObserverService {
 		this.requestStartSamples.length = 0
 		this.firstVisibleUpdateSamples.length = 0
 		this.firstFullStateUpdateSamples.length = 0
+		this.firstPartialMessageUpdateSamples.length = 0
 		this.requestCounterSummaries.length = 0
 		this.logs.length = 0
 		this.optionalCounters = {

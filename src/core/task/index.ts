@@ -607,6 +607,7 @@ export class Task {
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
+					getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 					await sendPartialMessageEvent(protoMessage)
 					throw new Error("Current ask promise was ignored 1")
 				}
@@ -649,6 +650,7 @@ export class Task {
 				})
 				// await this.postStateToWebview()
 				const protoMessage = convertClineMessageToProto(lastMessage)
+				getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 				await sendPartialMessageEvent(protoMessage)
 			} else {
 				// this is a new partial=false message, so add it like normal
@@ -788,6 +790,7 @@ export class Task {
 					})
 
 					const protoMessage = convertClineMessageToProto(lastMessage)
+					getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 					await sendPartialMessageEvent(protoMessage)
 					return undefined
 				}
@@ -822,6 +825,7 @@ export class Task {
 
 				// await this.postStateToWebview()
 				const protoMessage = convertClineMessageToProto(lastMessage)
+				getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 				await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
 				return undefined
 			}
@@ -2737,6 +2741,7 @@ export class Task {
 				})
 				const completedReasoning = this.messageStateHandler.getClineMessages()[pendingReasoningIndex]
 				if (completedReasoning) {
+					getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 					await sendPartialMessageEvent(convertClineMessageToProto(completedReasoning))
 				}
 				return true
@@ -3378,6 +3383,7 @@ export class Task {
 			lastMessage.partial = false
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			const protoMessage = convertClineMessageToProto(lastMessage)
+			getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 			await sendPartialMessageEvent(protoMessage)
 		}
 
