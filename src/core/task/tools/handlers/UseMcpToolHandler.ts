@@ -4,6 +4,7 @@ import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
 import { truncateContent } from "@/shared/content-limits"
 import { ClineDefaultTool } from "@/shared/tools"
+import type Anthropic from "@anthropic-ai/sdk"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -173,7 +174,7 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("mcp_notification", `[${notification.serverName}] ${notification.message}`)
 			}
 
-			// Process tool result
+			// Process tool result — collect images and text separately for display
 			const toolResultImages =
 				toolResult?.content
 					.filter((item: any) => item.type === "image")
@@ -208,8 +209,41 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			// Truncate response if it exceeds 400KB to prevent context overflow
 			toolResultText = truncateContent(toolResultText)
 
-			// Return formatted result (only pass images if model supports them)
-			return formatResponse.toolResult(toolResultText, supportsImages ? toolResultImages : undefined)
+			// Build content blocks preserving original order from MCP response
+			if (supportsImages && toolResultImages.length > 0) {
+				const orderedBlocks: Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> = []
+				let pendingText = toolResult?.isError ? "Error:\n" : ""
+				for (const item of toolResult?.content || []) {
+					if (item.type === "text") {
+						pendingText += (pendingText ? "\n\n" : "") + item.text
+					} else if (item.type === "resource") {
+						const { blob: _blob, ...rest } = item.resource
+						pendingText += (pendingText ? "\n\n" : "") + JSON.stringify(rest, null, 2)
+					} else if (item.type === "image") {
+						if (pendingText) {
+							orderedBlocks.push({ type: "text", text: truncateContent(pendingText) })
+							pendingText = ""
+						}
+						const dataUrl = `data:${item.mimeType};base64,${item.data}`
+						const [rest, base64] = dataUrl.split(",")
+						const mimeType = rest.split(":")[1].split(";")[0]
+						orderedBlocks.push({
+							type: "image",
+							source: { type: "base64", media_type: mimeType, data: base64 },
+						} as Anthropic.ImageBlockParam)
+					}
+				}
+				if (pendingText) {
+					orderedBlocks.push({ type: "text", text: truncateContent(pendingText) })
+				}
+				if (orderedBlocks.length === 0) {
+					return "(No response)"
+				}
+				return orderedBlocks
+			}
+
+			// Return text-only result (no images or model doesn't support them)
+			return toolResultText
 		} catch (error) {
 			return `Error executing MCP tool: ${(error as Error)?.message}`
 		}
