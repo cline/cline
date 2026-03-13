@@ -53,6 +53,10 @@ export async function getFileMentionFromPath(filePath: string) {
 		return "@/" + filePath
 	}
 	const relativePath = path.relative(cwd, filePath)
+	// For file paths that contain spaces, wrap them in quotes
+	if (relativePath.includes(" ")) {
+		return '@"/' + relativePath + '"'
+	}
 	return "@/" + relativePath
 }
 
