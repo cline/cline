@@ -45,6 +45,7 @@ import { applyProviderConfig } from "./utils/provider-config"
 import { getValidCliProviders, isValidCliProvider } from "./utils/providers"
 import { findMostRecentTaskForWorkspace } from "./utils/task-history"
 import { autoUpdateOnStartup, checkForUpdates } from "./utils/update"
+import { initVcr } from "./utils/vcr"
 import { initializeCliContext } from "./vscode-context"
 import { CLI_LOG_FILE, shutdownEvent, window } from "./vscode-shim"
 
@@ -1148,7 +1149,10 @@ program
 		}
 	})
 
-// Parse and run
+// Initialize VCR (nock-based HTTP record/playback) before parsing commands.
+// This must happen before any HTTP requests are made so nock can intercept them.
+// Does nothing if CLINE_VCR env var is not set.
 if (process.env.VITEST !== "true") {
+	await initVcr(process.env.CLINE_VCR)
 	program.parse()
 }
