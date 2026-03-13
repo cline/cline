@@ -80,6 +80,8 @@ describe("DebugSection", () => {
 		})
 
 		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		expect(screen.getByText("Pure ping test")).toBeTruthy()
+		expect(screen.getByText(/Use ping presets and continuous ping to compare transport RTT and jitter only/)).toBeTruthy()
 
 		fireEvent.change(screen.getByLabelText("Ping payload bytes"), { target: { value: "64" } })
 		fireEvent.click(screen.getByText("Run Ping Probe"))
@@ -87,6 +89,7 @@ describe("DebugSection", () => {
 		await waitFor(() => expect(grpcClientMocks.pingLatencyProbe).toHaveBeenCalledTimes(1))
 		expect(screen.getByText(/Samples: 1/)).toBeTruthy()
 		expect(screen.getByText(/Payload: 64 bytes/)).toBeTruthy()
+		expect(screen.getByText(/Scenario: Pure ping test/)).toBeTruthy()
 		expect(screen.getByText(/Branch: main/)).toBeTruthy()
 		expect(screen.getByText(/State pushes: 3/)).toBeTruthy()
 		expect(screen.getByText(/Transport probe: Supported/)).toBeTruthy()
