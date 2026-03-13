@@ -903,7 +903,7 @@ export const ChatRowContent = memo(
 									showTitle={true}
 									title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								/>
-								{showFeatureTip && <FeatureTip />}
+						{isReasoningStreaming && <FeatureTip />}
 							</div>
 						)
 					}
