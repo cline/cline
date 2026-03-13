@@ -1,4 +1,4 @@
-import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
+import { isGPT51Model, isGPT52Model, isGPT53Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -10,9 +10,9 @@ import { GPT_5_1_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
-	.description("Prompt tailored to GPT-5.1 and GPT-5.2 with native tool use support")
+	.description("Prompt tailored to GPT-5.1, GPT-5.2, and GPT-5.3 with native tool use support")
 	.version(1)
-	.tags("gpt", "gpt-5-1", "gpt-5-2", "advanced", "production", "native_tools")
+	.tags("gpt", "gpt-5-1", "gpt-5-2", "gpt-5-3", "advanced", "production", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
@@ -32,9 +32,9 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 			return false
 		}
 
-		// GPT-5.1 and GPT-5.2 models (including codex variants) use extended reasoning
+		// GPT-5.1, GPT-5.2, and GPT-5.3 models (including codex variants) use extended reasoning
 		// and require reasoning blocks before function calls
-		return (isGPT51Model(modelId) || isGPT52Model(modelId)) && isNextGenModelProvider(providerInfo)
+		return (isGPT51Model(modelId) || isGPT52Model(modelId) || isGPT53Model(modelId)) && isNextGenModelProvider(providerInfo)
 	})
 	.template(GPT_5_1_TEMPLATE_OVERRIDES.BASE)
 	.components(
