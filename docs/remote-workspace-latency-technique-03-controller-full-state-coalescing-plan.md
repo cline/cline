@@ -408,7 +408,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 
 ### Tests
 
-- [ ] Regression test: state hydration on startup remains correct.
+- [x] Regression test: state hydration on startup remains correct.
 - [ ] Regression test: switching tasks shows the correct snapshot.
 - [ ] Regression test: metadata deltas + snapshot flow do not leave stale UI after task switch.
 
@@ -430,7 +430,8 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Added stronger `StateUpdateScheduler` regression coverage for disposal-during-flush and `flushNow()` draining semantics.
 - Added controller regression coverage that keeps mode switches, auth callback hydration, and background-command state updates on the intended priority paths.
 - Added controller regression coverage for task reinitialization and task-history deletion flows during task switching.
-- Non-streaming product-surface safety is now partially covered, but startup hydration and full snapshot convergence after task switches still need explicit regression coverage.
+- Added subscribe-to-state coverage to verify startup subscribers receive the latest full snapshot immediately.
+- Non-streaming product-surface safety is now partially covered, but full snapshot convergence after task switches still needs explicit regression coverage.
 
 ---
 
