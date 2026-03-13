@@ -11,6 +11,7 @@ import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-p
 
 interface LmStudioHandlerOptions extends CommonApiHandlerOptions {
 	lmStudioBaseUrl?: string
+	lmStudioApiKey?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
 }
@@ -29,7 +30,7 @@ export class LmStudioHandler implements ApiHandler {
 				this.client = createOpenAIClient({
 					// Docs on the new v0 api endpoint: https://lmstudio.ai/docs/app/api/endpoints/rest
 					baseURL: new URL("api/v0", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
-					apiKey: "noop",
+					apiKey: this.options.lmStudioApiKey || "noop",
 				})
 			} catch (error) {
 				throw new Error(`Error creating LM Studio client: ${error.message}`)
