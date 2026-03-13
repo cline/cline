@@ -147,10 +147,10 @@ Limitations:
 
 Measure:
 
-- [ ] task creation / initialization latency
-- [ ] request-start latency
-- [ ] time to first visible assistant update
-- [ ] time to first full-state update
+- [x] task creation / initialization latency
+- [x] request-start latency
+- [x] time to first visible assistant update
+- [x] time to first full-state update
 - [x] time to first partial or delta update where available
 
 Why it matters:
@@ -238,7 +238,7 @@ The observer should be easy enough to use that engineers actually use it during 
 
 Recommended UI features:
 
-- [ ] a dedicated dev-facing section in Settings or a dev/debug panel
+- [x] a dedicated dev-facing section in Settings or a dev/debug panel
 - [ ] buttons for:
   - [x] single ping
   - [x] continuous ping
