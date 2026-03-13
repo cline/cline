@@ -376,7 +376,7 @@ Think of this as capability detection, not branch forking.
   - [ ] `task.latency_metrics`
   - [x] initialization telemetry
   - [x] payload-size accounting
-  - [ ] chunk-to-webview summaries
+  - [x] chunk-to-webview summaries
 - [x] Surface unsupported metrics as unavailable instead of failing.
 
 ### Detailed code changes
