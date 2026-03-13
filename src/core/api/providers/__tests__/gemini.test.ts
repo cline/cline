@@ -133,7 +133,8 @@ describe("GeminiHandler", () => {
 		}
 
 		chunks.should.have.length(2)
-		chunks[0].tool_call.function.id.should.not.equal(chunks[1].tool_call.function.id)
+		chunks[0].tool_call.function.id.should.equal("resp_1-tool-0")
+		chunks[1].tool_call.function.id.should.equal("resp_1-tool-1")
 		chunks[0].tool_call.call_id.should.equal(chunks[0].tool_call.function.id)
 		chunks[1].tool_call.call_id.should.equal(chunks[1].tool_call.function.id)
 		JSON.parse(chunks[0].tool_call.function.arguments).path.should.equal(".nvmrc")
