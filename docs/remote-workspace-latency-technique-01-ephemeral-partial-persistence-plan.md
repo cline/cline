@@ -156,15 +156,15 @@ If developers cannot quickly answer “does this mutation need to survive a cras
 
 ### Work
 
-- [ ] Add code comments near `MessageStateHandler` describing the distinction between ephemeral and durable mutations.
-- [ ] Add code comments in `Task.say(...)` and `Task.ask(...)` documenting which partial flows are intentionally ephemeral.
+- [x] Add code comments near `MessageStateHandler` describing the distinction between ephemeral and durable mutations.
+- [x] Add code comments in `Task.say(...)` and `Task.ask(...)` documenting which partial flows are intentionally ephemeral.
 - [ ] Define a durable-boundary checklist in comments or docstrings, including at minimum:
-  - [ ] partial → complete transition
-  - [ ] tool completion / tool result boundary
-  - [ ] request completion
-  - [ ] cancellation / abort
-  - [ ] resume-related state changes
-  - [ ] checkpoint-relevant events
+  - [x] partial → complete transition
+  - [x] tool completion / tool result boundary
+  - [x] request completion
+  - [x] cancellation / abort
+  - [x] resume-related state changes
+  - [x] checkpoint-relevant events
 
 ### Detailed code changes
 
@@ -195,11 +195,11 @@ The presence of dedicated APIs changes developer behavior. If the only available
 
 ### Work
 
-- [ ] Add `addToClineMessagesEphemeral(message)`.
-- [ ] Add `updateClineMessageEphemeral(index, updates)`.
-- [ ] Add internal dirty tracking for unsaved ephemeral changes.
-- [ ] Ensure ephemeral methods emit the same `clineMessagesChanged` events and task UI deltas as durable methods.
-- [ ] Ensure all of the above remain protected by the existing mutex.
+- [x] Add `addToClineMessagesEphemeral(message)`.
+- [x] Add `updateClineMessageEphemeral(index, updates)`.
+- [x] Add internal dirty tracking for unsaved ephemeral changes.
+- [x] Ensure ephemeral methods emit the same `clineMessagesChanged` events and task UI deltas as durable methods.
+- [x] Ensure all of the above remain protected by the existing mutex.
 
 ### Detailed code changes
 
@@ -242,9 +242,9 @@ We are not removing durability; we are **batching** durability at the right sema
 
 ### Work
 
-- [ ] Add `flushClineMessagesAndUpdateHistory()` if not already present.
-- [ ] Make it a no-op when no ephemeral changes are dirty.
-- [ ] Ensure it reuses the same internal persistence logic as durable mutations.
+- [x] Add `flushClineMessagesAndUpdateHistory()` if not already present.
+- [x] Make it a no-op when no ephemeral changes are dirty.
+- [x] Ensure it reuses the same internal persistence logic as durable mutations.
 
 ### Detailed code changes
 
@@ -276,10 +276,10 @@ The APIs only matter if the streaming loop uses them. This is the step that conv
 
 ### Work
 
-- [ ] Audit all partial `say(...)` paths.
-- [ ] Audit all partial `ask(...)` paths.
-- [ ] Switch normal streaming partial updates from durable to ephemeral mutation methods.
-- [ ] Keep complete/finalized messages on durable paths unless explicitly flushed immediately after ephemeral completion.
+- [x] Audit all partial `say(...)` paths.
+- [x] Audit all partial `ask(...)` paths.
+- [x] Switch normal streaming partial updates from durable to ephemeral mutation methods.
+- [x] Keep complete/finalized messages on durable paths unless explicitly flushed immediately after ephemeral completion.
 
 ### Detailed code changes
 
@@ -315,11 +315,11 @@ This is the balancing step. We are intentionally reducing durability frequency, 
 
 ### Work
 
-- [ ] Identify all partial → complete transitions.
-- [ ] Flush at request completion.
-- [ ] Flush on abort / cancellation.
-- [ ] Flush when tool execution reaches a stable durable boundary.
-- [ ] Flush when history / resume semantics require consistency.
+- [x] Identify all partial → complete transitions.
+- [x] Flush at request completion.
+- [x] Flush on abort / cancellation.
+- [x] Flush when tool execution reaches a stable durable boundary.
+- [x] Flush when history / resume semantics require consistency.
 
 ### Detailed code changes
 
@@ -355,10 +355,10 @@ The correct behavior is not “persist every partial” and not “never persist
 
 ### Work
 
-- [ ] Add or finish `EphemeralMessageFlushScheduler`.
-- [ ] Start it when a request begins streaming.
-- [ ] Stop it when the request completes or aborts.
-- [ ] Make it call `flushClineMessagesAndUpdateHistory()` on cadence only when dirty.
+- [x] Add or finish `EphemeralMessageFlushScheduler`.
+- [x] Start it when a request begins streaming.
+- [x] Stop it when the request completes or aborts.
+- [x] Make it call `flushClineMessagesAndUpdateHistory()` on cadence only when dirty.
 
 ### Detailed code changes
 
@@ -430,15 +430,15 @@ Hot-path changes need escape hatches. If behavior regresses in an edge case, the
 
 ### Work
 
-- [ ] Keep or add env flag gating for ephemeral persistence behavior.
+- [x] Keep or add env flag gating for ephemeral persistence behavior.
 - [ ] Ensure telemetry can compare enabled vs disabled behavior.
 - [ ] Add debug logging only if low-noise and useful.
 
 ### Detailed code changes
 
 - In `src/core/task/latency.ts` / `.env.example`:
-  - [ ] preserve `CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE` or equivalent.
-  - [ ] document intended use for A/B validation.
+  - [x] preserve `CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE` or equivalent.
+  - [x] document intended use for A/B validation.
 
 Treat the feature flag and validation path as first-class extraction requirements, not afterthoughts. Since the reference implementation already exists, the smoother development process is to keep comparison easy between “extracted technique enabled” and “feature disabled” modes.
 
@@ -451,12 +451,12 @@ Treat the feature flag and validation path as first-class extraction requirement
 
 ## Developer Checklist Summary
 
-- [ ] Document the durability contract
-- [ ] Add explicit ephemeral mutation APIs
-- [ ] Add dirty tracking and explicit flush support
-- [ ] Convert streaming partial callsites to ephemeral mutations
-- [ ] Enforce durable flushes at semantic boundaries
-- [ ] Add periodic safety flush scheduler
+- [x] Document the durability contract
+- [x] Add explicit ephemeral mutation APIs
+- [x] Add dirty tracking and explicit flush support
+- [x] Convert streaming partial callsites to ephemeral mutations
+- [x] Enforce durable flushes at semantic boundaries
+- [x] Add periodic safety flush scheduler
 - [ ] Validate large-file / long-stream scenarios
 - [ ] Preserve rollout flags and debugging support
 - [ ] Run unit, integration, and validation-harness checks

@@ -1,9 +1,14 @@
-import { describe, it } from "mocha"
+import fs from "fs/promises"
+import { afterEach, describe, it } from "mocha"
+import os from "os"
+import path from "path"
 import "should"
 import should from "should"
+import { getSavedApiConversationHistory, getSavedClineMessages } from "../core/storage/disk"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { ClineMessage } from "../shared/ExtensionMessage"
+import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
 /**
  * Unit tests for MessageStateHandler's mutex protection (RC-4)
@@ -11,6 +16,16 @@ import { ClineMessage } from "../shared/ExtensionMessage"
  * to prevent race conditions, particularly the TOCTOU bug in addToClineMessages
  */
 describe("MessageStateHandler Mutex Protection", () => {
+	let tempGlobalStorageDir: string | undefined
+
+	afterEach(async () => {
+		if (tempGlobalStorageDir) {
+			await fs.rm(tempGlobalStorageDir, { recursive: true, force: true })
+			tempGlobalStorageDir = undefined
+		}
+		setVscodeHostProviderMock()
+	})
+
 	/**
 	 * Helper to create a minimal MessageStateHandler for testing
 	 */
@@ -263,5 +278,105 @@ describe("MessageStateHandler Mutex Protection", () => {
 		finalHistory.length.should.equal(2)
 		finalHistory[0].content.should.equal("new1")
 		finalHistory[1].content.should.equal("new2")
+	})
+
+	it("should update messages ephemerally without persisting until flush", async () => {
+		const handler = createTestHandler()
+		const changes: Array<{ type: string; text?: string; previousText?: string }> = []
+
+		handler.on("clineMessagesChanged", (change) => {
+			changes.push({
+				type: change.type,
+				text: change.message?.text,
+				previousText: change.previousMessage?.text,
+			})
+		})
+
+		await handler.addToClineMessagesEphemeral(createTestMessage("ephemeral-start"))
+		await handler.updateClineMessageEphemeral(0, { text: "ephemeral-updated", partial: true })
+
+		const messagesBeforeFlush = handler.getClineMessages()
+		messagesBeforeFlush.length.should.equal(1)
+		should.exist(messagesBeforeFlush[0])
+		const pendingMessage = messagesBeforeFlush[0]!
+		pendingMessage.text?.should.equal("ephemeral-updated")
+		should.exist(pendingMessage.partial)
+		pendingMessage.partial!.should.equal(true)
+
+		changes.length.should.equal(2)
+		changes[0]!.type.should.equal("add")
+		changes[0]!.text!.should.equal("ephemeral-start")
+		changes[1]!.type.should.equal("update")
+		changes[1]!.previousText!.should.equal("ephemeral-start")
+		changes[1]!.text!.should.equal("ephemeral-updated")
+
+		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(0)
+
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(1)
+	})
+
+	it("should not flush when there are no dirty ephemeral changes", async () => {
+		const handler = createTestHandler()
+
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		const metrics = handler.consumeLatencyMetrics()
+		metrics.persistenceFlushCount.should.equal(0)
+		metrics.saveMessagesDurationMs.should.equal(0)
+		metrics.updateHistoryDurationMs.should.equal(0)
+	})
+
+	it("should persist when a partial message transitions to complete", async () => {
+		const handler = createTestHandler()
+
+		await handler.addToClineMessagesEphemeral({
+			...createTestMessage("partial-message"),
+			partial: true,
+		})
+
+		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(0)
+
+		await handler.updateClineMessage(0, { text: "completed-message", partial: false })
+
+		const completedMessage = handler.getClineMessages()[0]!
+		completedMessage.text?.should.equal("completed-message")
+		completedMessage.partial!.should.equal(false)
+
+		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(1)
+	})
+
+	it("persists flushed ephemeral messages to disk for task recovery", async () => {
+		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-state-"))
+		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })
+
+		const handler = createTestHandler()
+		await handler.addToClineMessagesEphemeral({
+			...createTestMessage("recoverable partial"),
+			partial: true,
+		})
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		const savedMessages = await getSavedClineMessages("test-task-id")
+		savedMessages.length.should.equal(1)
+		savedMessages[0]!.text?.should.equal("recoverable partial")
+		savedMessages[0]!.partial!.should.equal(true)
+	})
+
+	it("persists completed conversation history snapshots that resume can reload", async () => {
+		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-history-"))
+		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })
+
+		const handler = createTestHandler()
+		await handler.overwriteApiConversationHistory([
+			{ role: "user", content: "task request", ts: 1 },
+			{ role: "assistant", content: "task response", ts: 2 },
+		])
+
+		const savedHistory = await getSavedApiConversationHistory("test-task-id")
+		savedHistory.length.should.equal(2)
+		savedHistory[0]!.content.should.equal("task request")
+		savedHistory[1]!.content.should.equal("task response")
 	})
 })

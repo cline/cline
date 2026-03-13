@@ -113,7 +113,9 @@ import { refreshWorkflowToggles } from "../context/instructions/user-instruction
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
+import { EphemeralMessageFlushScheduler } from "./EphemeralMessageFlushScheduler"
 import { FocusChainManager } from "./focus-chain"
+import { getEphemeralMessageFlushCadenceMs, isEphemeralMessagePersistenceDisabled } from "./latency"
 import { MessageStateHandler } from "./message-state"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
@@ -256,6 +258,8 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
+	private readonly ephemeralMessageFlushScheduler: EphemeralMessageFlushScheduler
+	private readonly ephemeralMessagePersistenceDisabled = isEphemeralMessagePersistenceDisabled()
 
 	constructor(params: TaskParams) {
 		const {
@@ -567,6 +571,12 @@ export class Task {
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
 		)
+
+		this.ephemeralMessageFlushScheduler = new EphemeralMessageFlushScheduler({
+			flush: async () => this.messageStateHandler.flushClineMessagesAndUpdateHistory(),
+			getDelayMs: () => getEphemeralMessageFlushCadenceMs(),
+			onFlushError: (error) => Logger.debug(`[Task ${this.taskId}] Failed to flush ephemeral message state: ${error}`),
+		})
 	}
 
 	// Communicate with webview
@@ -583,6 +593,8 @@ export class Task {
 		files?: string[]
 		askTs?: number
 	}> {
+		// Partial ask updates are ephemeral animation state until they complete or another
+		// durable boundary is reached (request completion, abort/cancel, resume, checkpoint).
 		// Allow resume asks even when aborted to enable resume button after cancellation
 		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
 			throw new Error("Cline instance aborted")
@@ -598,10 +610,15 @@ export class Task {
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
-						text,
-						partial,
-					})
+					await (this.ephemeralMessagePersistenceDisabled
+						? this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+								text,
+								partial,
+							})
+						: this.messageStateHandler.updateClineMessageEphemeral(lastMessageIndex, {
+								text,
+								partial,
+							}))
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessagesAndUpdateHistory()
 					// await this.postStateToWebview()
@@ -615,13 +632,21 @@ export class Task {
 				// this.askResponseImages = undefined
 				askTs = Date.now()
 				this.taskState.lastMessageTs = askTs
-				await this.messageStateHandler.addToClineMessages({
-					ts: askTs,
-					type: "ask",
-					ask: type,
-					text,
-					partial,
-				})
+				await (this.ephemeralMessagePersistenceDisabled
+					? this.messageStateHandler.addToClineMessages({
+							ts: askTs,
+							type: "ask",
+							ask: type,
+							text,
+							partial,
+						})
+					: this.messageStateHandler.addToClineMessagesEphemeral({
+							ts: askTs,
+							type: "ask",
+							ask: type,
+							text,
+							partial,
+						}))
 				await this.postStateToWebview()
 				throw new Error("Current ask promise was ignored 2")
 			}
@@ -759,6 +784,10 @@ export class Task {
 		files?: string[],
 		partial?: boolean,
 	): Promise<number | undefined> {
+		// Partial say updates are intentionally ephemeral: they keep streaming UI live
+		// without forcing disk persistence on every chunk. Durable boundaries include
+		// partial→complete transitions, tool completion, request completion, cancel/abort,
+		// resume-visible state changes, and checkpoint-relevant events.
 		// Allow hook messages even when aborted to enable proper cleanup
 		if (this.taskState.abort && type !== "hook_status" && type !== "hook_output_stream") {
 			throw new Error("Cline instance aborted")
@@ -779,12 +808,19 @@ export class Task {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
 					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
-						text,
-						images,
-						files,
-						partial,
-					})
+					await (this.ephemeralMessagePersistenceDisabled
+						? this.messageStateHandler.updateClineMessage(lastIndex, {
+								text,
+								images,
+								files,
+								partial,
+							})
+						: this.messageStateHandler.updateClineMessageEphemeral(lastIndex, {
+								text,
+								images,
+								files,
+								partial,
+							}))
 
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage)
@@ -793,16 +829,27 @@ export class Task {
 				// this is a new partial message, so add it with partial state
 				const sayTs = Date.now()
 				this.taskState.lastMessageTs = sayTs
-				await this.messageStateHandler.addToClineMessages({
-					ts: sayTs,
-					type: "say",
-					say: type,
-					text,
-					images,
-					files,
-					partial,
-					modelInfo,
-				})
+				await (this.ephemeralMessagePersistenceDisabled
+					? this.messageStateHandler.addToClineMessages({
+							ts: sayTs,
+							type: "say",
+							say: type,
+							text,
+							images,
+							files,
+							partial,
+							modelInfo,
+						})
+					: this.messageStateHandler.addToClineMessagesEphemeral({
+							ts: sayTs,
+							type: "say",
+							say: type,
+							text,
+							images,
+							files,
+							partial,
+							modelInfo,
+						}))
 				await this.postStateToWebview()
 				return sayTs
 			}
@@ -907,6 +954,7 @@ export class Task {
 		this.taskState.didFinishAbortingStream = true
 
 		// Save conversation state to disk
+		await this.messageStateHandler.flushClineMessagesAndUpdateHistory()
 		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
 
@@ -1462,6 +1510,7 @@ export class Task {
 
 	async abortTask() {
 		try {
+			this.ephemeralMessageFlushScheduler.stop()
 			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
 			// We must capture this state now because subsequent cleanup will
 			// clear the active work indicators that shouldRunTaskCancelHook checks
@@ -1550,6 +1599,7 @@ export class Task {
 
 			// PHASE 5: Immediately update UI to reflect abort state
 			try {
+				await this.messageStateHandler.flushClineMessagesAndUpdateHistory()
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				await this.postStateToWebview()
 			} catch (error) {
@@ -2558,6 +2608,9 @@ export class Task {
 		await this.postStateToWebview()
 
 		try {
+			if (!this.ephemeralMessagePersistenceDisabled) {
+				this.ephemeralMessageFlushScheduler.start()
+			}
 			const taskMetrics: {
 				cacheWriteTokens: number
 				cacheReadTokens: number
@@ -2644,6 +2697,7 @@ export class Task {
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				await finalizeApiReqMsg(cancelReason, streamingFailedMessage)
+				await this.messageStateHandler.flushClineMessagesAndUpdateHistory()
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				// Let assistant know their response was interrupted for when task is resumed
@@ -2977,6 +3031,7 @@ export class Task {
 
 			// Update the api_req_started message with final usage and cost details
 			await finalizeApiReqMsg()
+			await this.messageStateHandler.flushClineMessagesAndUpdateHistory()
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
@@ -3209,6 +3264,8 @@ export class Task {
 		} catch (_error) {
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
+		} finally {
+			this.ephemeralMessageFlushScheduler.stop()
 		}
 	}
 
