@@ -165,7 +165,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									direction: displayText.includes(":") ? "ltr" : "rtl",
 									textAlign: "left",
 								}}>
-								{displayText.includes(":") ? displayText : cleanPathPrefix(displayText) + "\u200E"}
+								{displayText.includes(":") ? displayText : "\u202A" + cleanPathPrefix(displayText) + "\u202C"}
 							</span>
 						</>
 					)
