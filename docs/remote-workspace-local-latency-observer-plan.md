@@ -521,15 +521,15 @@ The observer should behave like a thin compatibility layer, not a second product
 
 ### Work
 
-- [ ] Avoid relying on candidate-only classes for core functionality.
-- [ ] Gate richer behavior via capability detection.
-- [ ] Keep backend hooks shallow and intentionally placed.
+- [x] Avoid relying on candidate-only classes for core functionality.
+- [x] Gate richer behavior via capability detection.
+- [x] Keep backend hooks shallow and intentionally placed.
 
 ### Detailed code changes
 
 - Prefer hooks at stable abstraction boundaries:
-  - [ ] UI service layer for ping/pong,
-  - [ ] controller/task lifecycle boundaries for timing,
+  - [x] UI service layer for ping/pong,
+  - [x] controller/task lifecycle boundaries for timing,
   - [ ] optional adapters for richer telemetry.
 - Avoid deep invasive branch-specific assumptions where possible.
 
