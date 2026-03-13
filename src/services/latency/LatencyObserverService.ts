@@ -33,11 +33,18 @@ export class LatencyObserverService {
 	private readonly firstVisibleUpdateSamples: LatencySample[] = []
 	private readonly logs: LatencyObserverLogEntry[] = []
 	private optionalCounters: Record<
-		"fullStatePushes" | "partialMessageEvents" | "taskUiDeltaEvents" | "persistenceFlushes",
+		| "fullStatePushes"
+		| "fullStateBytes"
+		| "partialMessageEvents"
+		| "partialMessageBytes"
+		| "taskUiDeltaEvents"
+		| "persistenceFlushes",
 		number
 	> = {
 		fullStatePushes: 0,
+		fullStateBytes: 0,
 		partialMessageEvents: 0,
+		partialMessageBytes: 0,
 		taskUiDeltaEvents: 0,
 		persistenceFlushes: 0,
 	}
@@ -164,7 +171,9 @@ export class LatencyObserverService {
 		this.logs.length = 0
 		this.optionalCounters = {
 			fullStatePushes: 0,
+			fullStateBytes: 0,
 			partialMessageEvents: 0,
+			partialMessageBytes: 0,
 			taskUiDeltaEvents: 0,
 			persistenceFlushes: 0,
 		}

@@ -47,7 +47,15 @@ export interface LatencyObserverMetricSet {
 	capabilities: LatencyObserverCapabilities
 	session: LatencyObserverSessionMetadata
 	optionalCounters?: Partial<
-		Record<"fullStatePushes" | "partialMessageEvents" | "taskUiDeltaEvents" | "persistenceFlushes", number>
+		Record<
+			| "fullStatePushes"
+			| "fullStateBytes"
+			| "partialMessageEvents"
+			| "partialMessageBytes"
+			| "taskUiDeltaEvents"
+			| "persistenceFlushes",
+			number
+		>
 	>
 }
 

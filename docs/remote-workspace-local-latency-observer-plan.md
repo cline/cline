@@ -163,8 +163,10 @@ Why it matters:
 Measure:
 
 - [ ] number of full-state pushes per request
-- [ ] total full-state payload bytes per request
+- [x] total full-state payload bytes per request
 - [ ] number of partial-message events per request
+- [x] number of partial-message events per request
+- [x] total partial-message payload bytes per request
 - [ ] number of task UI deltas per request where supported
 - [ ] persistence flush counts where supported
 
@@ -387,6 +389,11 @@ Think of this as capability detection, not branch forking.
 
 - [ ] Unit test: richer metrics adapter populates observer state when data exists.
 - [ ] Unit test: missing richer metrics are displayed as unavailable.
+
+Progress note:
+
+- [x] Current branch now records full-state push counts plus total serialized full-state bytes.
+- [x] Current branch now records partial-message event counts plus total serialized partial-message bytes.
 
 ---
 

@@ -279,7 +279,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<div>First visible avg: {latencyObserver.firstVisibleUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
 							<div>State pushes: {latencyObserver.optionalCounters?.fullStatePushes ?? 0}</div>
+							<div>State bytes: {latencyObserver.optionalCounters?.fullStateBytes ?? 0}</div>
 							<div>Partial events: {latencyObserver.optionalCounters?.partialMessageEvents ?? 0}</div>
+							<div>Partial bytes: {latencyObserver.optionalCounters?.partialMessageBytes ?? 0}</div>
 							<div>Task UI deltas: {latencyObserver.optionalCounters?.taskUiDeltaEvents ?? 0}</div>
 							<div>Persistence flushes: {latencyObserver.optionalCounters?.persistenceFlushes ?? 0}</div>
 							<div className="max-h-24 overflow-auto rounded border border-[var(--vscode-panel-border)] p-2">
