@@ -315,7 +315,9 @@ describe("applyPrompt", () => {
 			assert.strictEqual(result.value, true)
 			// Should have fetched content from raw.githubusercontent.com
 			assert.ok(axiosGetStub.calledOnce)
-			assert.ok(axiosGetStub.firstCall.args[0].includes("raw.githubusercontent.com"))
+			const requestedUrl = axiosGetStub.firstCall.args[0]
+			const parsedUrl = new URL(requestedUrl)
+			assert.strictEqual(parsedUrl.hostname, "raw.githubusercontent.com")
 			// Should write the fetched content
 			assert.ok(fsWriteFileStub.calledWith(sinon.match.string, "# Fetched content from GitHub", "utf-8"))
 		})
