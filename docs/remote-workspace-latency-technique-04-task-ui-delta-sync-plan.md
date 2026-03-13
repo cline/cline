@@ -168,8 +168,8 @@ Do not improvise this contract from memory. Read the reference implementation br
 
 ### Tests
 
-- [ ] Unit test: type helpers or guards behave correctly.
-- [ ] Unit test: sequence mismatch triggers resync result.
+- [x] Unit test: type helpers or guards behave correctly.
+- [x] Unit test: sequence mismatch triggers resync result.
 
 ---
 
@@ -202,9 +202,9 @@ This is a good example of where “be smart about this” matters. The developer
 
 ### Tests
 
-- [ ] Unit test: subscribers receive published deltas.
-- [ ] Unit test: publisher handles no-subscriber case safely.
-- [ ] Unit test: serialized payload shape is stable.
+- [x] Unit test: subscribers receive published deltas.
+- [x] Unit test: publisher handles no-subscriber case safely.
+- [x] Unit test: serialized payload shape is stable.
 
 ---
 
@@ -310,9 +310,9 @@ The frontend side should be implemented with a bias toward correctness and repai
 
 ### Tests
 
-- [ ] Webview test: ordered deltas produce correct final state.
-- [ ] Webview test: sequence gap triggers resync path.
-- [ ] Webview test: stale/non-current-task delta is ignored safely.
+- [x] Webview test: ordered deltas produce correct final state.
+- [x] Webview test: sequence gap triggers resync path.
+- [x] Webview test: stale/non-current-task delta is ignored safely.
 
 ---
 
@@ -350,7 +350,7 @@ This step is essential to keeping the rest of Cline’s product surfaces healthy
 
 ### Tests
 
-- [ ] Regression test: initial load hydrates correctly without prior deltas.
+- [x] Regression test: initial load hydrates correctly without prior deltas.
 - [ ] Regression test: reopening or task switching still works.
 - [ ] Regression test: full snapshot repairs intentionally diverged delta state.
 
@@ -383,7 +383,7 @@ Be smart about this at the React-state level too: if the frontend re-renders lar
 
 ### Tests
 
-- [ ] Webview test: unchanged update payload does not cause unnecessary state replacement.
+- [x] Webview test: unchanged update payload does not cause unnecessary state replacement.
 - [ ] Webview test: active message row updates correctly under repeated deltas.
 
 ---
@@ -468,9 +468,10 @@ That is why this technique still matters for large-file-write scenarios, even th
 ## Extraction Progress Notes
 
 - Implemented the core task UI delta transport and reducer path in commit `05d7cc315` (`Add task UI delta sync transport and reducers`).
+- Added extraction-branch follow-up coverage in commit `8839a5bf6` (`Add task UI delta sync test coverage and env flag helper`), including backend delta broadcaster tests, latency/env-flag helper coverage, reducer sequencing tests, and a webview context delta hydration test.
 - Wired focus-chain metadata and background-command metadata through task-specific delta publication, with snapshot fallback when task identity is ambiguous.
 - Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
-- Verification is currently blocked by local tooling drift: `npm run protos` / `npm run compile` fail before typechecking due to a missing local dependency (`chalk` required by `scripts/build-proto.mjs`).
+- Verification remains blocked locally because this workspace currently lacks installed dependencies (`node_modules` and `webview-ui/node_modules` are both absent), so `npm run test:unit` and `npm run test:webview` fail before execution (`cross-env` / `vitest` not found). Earlier notes also recorded tooling drift around `npm run protos` / `npm run compile` in this environment.
 
 ---
 
