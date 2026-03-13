@@ -41,8 +41,52 @@ type ScenarioResult = {
 	messageCountAtCompletion: number | null
 	finalUniqueMessageCount: number | null
 	hasDuplicateMessagesAtCompletion: boolean | null
+	finalStateSignature: string | null
 	completed: boolean
 	error?: string
+}
+
+type ScenarioComparison = {
+	scenario: string
+	mode: ValidationMode
+	baselineVariant: string
+	baselineSignature: string | null
+	baselineSemanticSignature: string | null
+	allVariantsMatchBaseline: boolean
+	mismatchedVariants: string[]
+}
+
+function buildSemanticMessageSignature(message: any) {
+	const messageType = message.type
+	const sayType = message.say ?? null
+	const askType = message.ask ?? null
+
+	let normalizedText: string | null = message.text ?? null
+	if (sayType === "api_req_started" || sayType === "hook_status" || sayType === "checkpoint_created") {
+		normalizedText = null
+	}
+	if (messageType === "ask") {
+		normalizedText = null
+	}
+
+	return {
+		type: messageType,
+		say: sayType,
+		ask: askType,
+		text: normalizedText,
+		partial: message.partial ?? false,
+		images: Array.isArray(message.images) ? message.images.length : 0,
+		files: Array.isArray(message.files) ? message.files.length : 0,
+	}
+}
+
+function buildSemanticStateSignature(state: any, clineMessages: any[]): string {
+	return JSON.stringify({
+		clineMessages: clineMessages.map(buildSemanticMessageSignature),
+		currentFocusChainChecklist: state.currentFocusChainChecklist ?? null,
+		backgroundCommandRunning: state.backgroundCommandRunning ?? false,
+		backgroundCommandTaskId: state.backgroundCommandTaskId ?? null,
+	})
 }
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -200,6 +244,7 @@ async function runScenario(
 	let messageCountAtCompletion: number | null = null
 	let finalUniqueMessageCount: number | null = null
 	let hasDuplicateMessagesAtCompletion: boolean | null = null
+	let finalStateSignature: string | null = null
 	let completed = false
 
 	const stateStream = stateClient.subscribeToState({})
@@ -238,6 +283,7 @@ async function runScenario(
 				const uniqueMessageTs = new Set(clineMessages.map((message: any) => message.ts))
 				finalUniqueMessageCount = uniqueMessageTs.size
 				hasDuplicateMessagesAtCompletion = uniqueMessageTs.size !== clineMessages.length
+				finalStateSignature = buildSemanticStateSignature(state, clineMessages)
 				completed = true
 			}
 		} catch {
@@ -329,9 +375,51 @@ async function runScenario(
 		messageCountAtCompletion,
 		finalUniqueMessageCount,
 		hasDuplicateMessagesAtCompletion,
+		finalStateSignature,
 		completed,
 		error,
 	}
+}
+
+function compareScenarioResults(results: ScenarioResult[]): ScenarioComparison[] {
+	const comparisons = new Map<string, ScenarioComparison>()
+
+	for (const result of results) {
+		const key = `${result.scenario}:${result.mode}`
+		const comparison = comparisons.get(key)
+		if (!comparison) {
+			comparisons.set(key, {
+				scenario: result.scenario,
+				mode: result.mode,
+				baselineVariant: "delta_disabled",
+				baselineSignature: result.variant === "delta_disabled" ? result.finalStateSignature : null,
+				baselineSemanticSignature: result.variant === "delta_disabled" ? result.finalStateSignature : null,
+				allVariantsMatchBaseline: true,
+				mismatchedVariants: [],
+			})
+			continue
+		}
+
+		if (result.variant === "delta_disabled") {
+			comparison.baselineSignature = result.finalStateSignature
+			comparison.baselineSemanticSignature = result.finalStateSignature
+		}
+	}
+
+	for (const result of results) {
+		const key = `${result.scenario}:${result.mode}`
+		const comparison = comparisons.get(key)
+		if (!comparison || result.variant === comparison.baselineVariant) {
+			continue
+		}
+
+		if (comparison.baselineSignature !== result.finalStateSignature) {
+			comparison.allVariantsMatchBaseline = false
+			comparison.mismatchedVariants.push(result.variant)
+		}
+	}
+
+	return [...comparisons.values()]
 }
 
 async function main() {
@@ -343,7 +431,8 @@ async function main() {
 			}
 		}
 	}
-	console.log(JSON.stringify({ results }, null, 2))
+	const comparisons = compareScenarioResults(results)
+	console.log(JSON.stringify({ results, comparisons }, null, 2))
 }
 
 main().catch((error) => {
