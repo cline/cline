@@ -32,7 +32,7 @@ export interface ButtonConfig {
 export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Error recovery states - user must take action
 	api_req_failed: {
-		sendingDisabled: true,
+		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Retry",
 		secondaryText: "Start New Task",

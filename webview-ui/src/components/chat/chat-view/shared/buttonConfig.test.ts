@@ -39,6 +39,19 @@ describe("getButtonConfig", () => {
 				expect(config).toEqual(BUTTON_CONFIGS[errorState])
 			})
 		})
+
+		it("api_req_failed allows sending messages (sendingDisabled is false)", () => {
+			const errorMessage: ClineMessage = {
+				type: "ask",
+				ask: "api_req_failed",
+				text: "Insufficient funds",
+				ts: Date.now(),
+			}
+			const config = getButtonConfig(errorMessage)
+			expect(config.sendingDisabled).toBe(false)
+			expect(config.enableButtons).toBe(true)
+			expect(config.primaryAction).toBe("retry")
+		})
 	})
 
 	// Test tool approval states

@@ -168,12 +168,24 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 			switch (actionType) {
 				case "retry":
-					// For API retry (api_req_failed), always send simple approval without content
-					await TaskServiceClient.askResponse(
-						AskResponseRequest.create({
-							responseType: "yesButtonClicked",
-						}),
-					)
+					// For API retry (api_req_failed), send content as messageResponse if user typed something
+					// This allows appending a message to the failed request before retrying
+					if (hasContent) {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "messageResponse",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
+					} else {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
+					}
 					clearInputState()
 					break
 				case "approve":
