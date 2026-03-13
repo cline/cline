@@ -181,9 +181,9 @@ Why it matters:
 Record:
 
 - [ ] branch / commit identity
-- [ ] local vs remote environment marker
-- [ ] selected scenario / payload size / cadence mode
-- [ ] timestamped session logs
+- [x] local vs remote environment marker
+- [x] selected scenario / payload size / cadence mode
+- [x] timestamped session logs
 
 Why it matters:
 
@@ -202,11 +202,11 @@ The observer should be implemented so that it degrades gracefully:
 
 These should work on both `main` and `eve_troubleshooting-remote-workspaces` with little or no branch-specific logic:
 
-- [ ] ping/pong RTT with configurable payload size
-- [ ] task initialization timing if a simple observer hook can be added
+- [x] ping/pong RTT with configurable payload size
+- [x] task initialization timing if a simple observer hook can be added
 - [x] first state update timing
-- [ ] visible branch/commit/session labeling
-- [ ] local UI for logs and rolling stats
+- [x] visible branch/commit/session labeling
+- [x] local UI for logs and rolling stats
 
 ### Opportunistic richer metrics
 
@@ -623,7 +623,7 @@ That gives both a human and a machine-readable comparison story.
 
 ## Developer Checklist Summary
 
-- [ ] Define a branch-portable shared metric contract
+- [x] Define a branch-portable shared metric contract
 - [x] Implement a modernized ping/pong transport probe
 - [x] Add a shallow branch-portable task observer hook layer
 - [ ] Adapt richer metrics where available without making them required
