@@ -216,7 +216,9 @@ export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] 
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
-	return getGlobalStorageDir("settings")
+	const settingsDir = path.join(getClineHomePath(), "data", "settings")
+	await fs.mkdir(settingsDir, { recursive: true })
+	return settingsDir
 }
 
 /**

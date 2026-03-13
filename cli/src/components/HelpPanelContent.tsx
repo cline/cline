@@ -86,6 +86,10 @@ export const HelpPanelContent: React.FC<HelpPanelContentProps> = ({ onClose }) =
 					</Text>
 					<Text>
 						{"  "}
+						<Text color="white">/mcp</Text> - View and toggle MCP servers
+					</Text>
+					<Text>
+						{"  "}
 						<Text color="white">/clear</Text> - Start a fresh task
 					</Text>
 					<Text>

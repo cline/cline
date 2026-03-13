@@ -1,6 +1,10 @@
+import { McpServer } from "@shared/mcp"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
-import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import {
+	convertMcpServersToProtoMcpServers,
+	convertProtoMcpServersToMcpServers,
+} from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
@@ -52,6 +56,18 @@ export async function subscribeToMcpServers(
 			}
 		}
 	}
+}
+
+/**
+ * Subscribe to MCP server updates outside of a gRPC request context (e.g. CLI).
+ * Returns an unsubscribe function to call on cleanup.
+ */
+export function subscribeToMcpServerUpdates(handler: (servers: McpServer[]) => void): () => void {
+	const responseStream: StreamingResponseHandler<McpServers> = async (mcpServers) => {
+		handler(convertProtoMcpServersToMcpServers(mcpServers.mcpServers))
+	}
+	activeMcpServersSubscriptions.add(responseStream)
+	return () => activeMcpServersSubscriptions.delete(responseStream)
 }
 
 /**
