@@ -377,7 +377,7 @@ Use the reference implementation’s chosen cadence and lifecycle wiring as the 
 
 - [x] Unit test: scheduler flushes pending ephemeral changes on cadence.
 - [x] Unit test: scheduler does nothing when there is no dirty ephemeral state.
-- [ ] Unit test: scheduler stops cleanly on request completion/abort.
+- [x] Unit test: scheduler stops cleanly on request completion/abort.
 
 ---
 
