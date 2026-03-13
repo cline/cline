@@ -389,7 +389,7 @@ Think of this as capability detection, not branch forking.
 ### Tests
 
 - [ ] Unit test: richer metrics adapter populates observer state when data exists.
-- [ ] Unit test: missing richer metrics are displayed as unavailable.
+- [x] Unit test: missing richer metrics are displayed as unavailable.
 
 Progress note:
 
@@ -504,7 +504,7 @@ Local visibility is great, but engineers also need artifacts they can compare si
 
 ### Tests
 
-- [ ] Unit test: exported schema is stable.
+- [x] Unit test: exported schema is stable.
 - [x] Regression test: export works even when optional metrics are unavailable.
 
 ---

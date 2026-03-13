@@ -15,7 +15,7 @@ type ActiveRequest = {
 }
 
 export class LatencyObserverService {
-	private readonly sessionStartedAt = Date.now()
+	private sessionStartedAt = Date.now()
 	private sessionMetadata: LatencyObserverSessionMetadata = {
 		startedAt: this.sessionStartedAt,
 	}
@@ -137,22 +137,22 @@ export class LatencyObserverService {
 			session: { ...this.sessionMetadata },
 			capabilities: { ...this.capabilities },
 			transport: {
-				support: "supported",
+				support: this.capabilities.transportProbe,
 				samples: [...this.transportSamples],
 				stats: createRollingLatencyStats(this.transportSamples),
 			},
 			taskInitialization: {
-				support: "supported",
+				support: this.capabilities.taskInitialization,
 				samples: [...this.taskInitializationSamples],
 				stats: createRollingLatencyStats(this.taskInitializationSamples),
 			},
 			requestStart: {
-				support: "supported",
+				support: this.capabilities.requestStart,
 				samples: [...this.requestStartSamples],
 				stats: createRollingLatencyStats(this.requestStartSamples),
 			},
 			firstVisibleUpdate: {
-				support: "supported",
+				support: this.capabilities.firstVisibleUpdate,
 				samples: [...this.firstVisibleUpdateSamples],
 				stats: createRollingLatencyStats(this.firstVisibleUpdateSamples),
 			},
@@ -162,6 +162,16 @@ export class LatencyObserverService {
 	}
 
 	reset(): void {
+		const { branch, commit, environment, platform, label } = this.sessionMetadata
+		this.sessionStartedAt = Date.now()
+		this.sessionMetadata = {
+			startedAt: this.sessionStartedAt,
+			branch,
+			commit,
+			environment,
+			platform,
+			label,
+		}
 		this.taskInitializationStarts.clear()
 		this.activeRequests.clear()
 		this.transportSamples.length = 0
