@@ -551,10 +551,10 @@ Numbers without interpretation guidance lead to bad product decisions.
 ### Detailed code changes
 
 - Add an adjacent doc section or inline UI help text explaining:
-  - [ ] transport RTT is a lower-level signal,
-  - [ ] task lifecycle timings are closer to user perception,
-  - [ ] churn metrics help explain cause,
-  - [ ] branch comparison should use the same scenario and environment.
+  - [x] transport RTT is a lower-level signal,
+  - [x] task lifecycle timings are closer to user perception,
+  - [x] churn metrics help explain cause,
+  - [x] branch comparison should use the same scenario and environment.
 
 ### Tests
 
