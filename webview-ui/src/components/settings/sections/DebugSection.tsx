@@ -338,6 +338,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<div>
 								Partial-message metrics: {capabilityLabel[latencyObserver.capabilities.partialMessageMetrics]}
 							</div>
+							<div>Chunk→webview timing: {capabilityLabel[latencyObserver.capabilities.chunkToWebviewTiming]}</div>
 							<div>Task UI delta metrics: {capabilityLabel[latencyObserver.capabilities.taskUiDeltaMetrics]}</div>
 							<div>Persistence metrics: {capabilityLabel[latencyObserver.capabilities.persistenceMetrics]}</div>
 							<div>Task init avg: {latencyObserver.taskInitialization.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
