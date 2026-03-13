@@ -12,6 +12,7 @@ type ActiveRequest = {
 	requestId: string
 	startedAt: number
 	firstVisibleRecorded: boolean
+	firstFullStateRecorded: boolean
 }
 
 export class LatencyObserverService {
@@ -24,6 +25,7 @@ export class LatencyObserverService {
 		taskInitialization: "supported",
 		requestStart: "supported",
 		firstVisibleUpdate: "supported",
+		firstFullStateUpdate: "supported",
 	}
 	private readonly taskInitializationStarts = new Map<string, number>()
 	private readonly activeRequests = new Map<string, ActiveRequest>()
@@ -31,6 +33,7 @@ export class LatencyObserverService {
 	private readonly taskInitializationSamples: LatencySample[] = []
 	private readonly requestStartSamples: LatencySample[] = []
 	private readonly firstVisibleUpdateSamples: LatencySample[] = []
+	private readonly firstFullStateUpdateSamples: LatencySample[] = []
 	private readonly logs: LatencyObserverLogEntry[] = []
 	private optionalCounters: Record<
 		| "fullStatePushes"
@@ -87,6 +90,7 @@ export class LatencyObserverService {
 			requestId,
 			startedAt,
 			firstVisibleRecorded: false,
+			firstFullStateRecorded: false,
 		})
 		this.requestStartSamples.push({
 			startedAt,
@@ -112,6 +116,23 @@ export class LatencyObserverService {
 			requestId: activeRequest.requestId,
 		})
 		this.pushLog(`first visible update (${source})`, taskId, activeRequest.requestId)
+	}
+
+	recordFirstFullStateUpdate(taskId: string, endedAt = performance.now()): void {
+		const activeRequest = this.activeRequests.get(taskId)
+		if (!activeRequest || activeRequest.firstFullStateRecorded) {
+			return
+		}
+
+		activeRequest.firstFullStateRecorded = true
+		this.firstFullStateUpdateSamples.push({
+			startedAt: activeRequest.startedAt,
+			endedAt,
+			durationMs: Math.max(0, endedAt - activeRequest.startedAt),
+			requestId: activeRequest.requestId,
+			label: "full-state",
+		})
+		this.pushLog(`first full-state update`, taskId, activeRequest.requestId)
 	}
 
 	completeRequest(taskId: string): void {
@@ -156,6 +177,11 @@ export class LatencyObserverService {
 				samples: [...this.firstVisibleUpdateSamples],
 				stats: createRollingLatencyStats(this.firstVisibleUpdateSamples),
 			},
+			firstFullStateUpdate: {
+				support: this.capabilities.firstFullStateUpdate,
+				samples: [...this.firstFullStateUpdateSamples],
+				stats: createRollingLatencyStats(this.firstFullStateUpdateSamples),
+			},
 			logs: [...this.logs],
 			optionalCounters: { ...this.optionalCounters },
 		}
@@ -178,6 +204,7 @@ export class LatencyObserverService {
 		this.taskInitializationSamples.length = 0
 		this.requestStartSamples.length = 0
 		this.firstVisibleUpdateSamples.length = 0
+		this.firstFullStateUpdateSamples.length = 0
 		this.logs.length = 0
 		this.optionalCounters = {
 			fullStatePushes: 0,

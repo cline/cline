@@ -10,6 +10,7 @@ describe("LatencyObserverService", () => {
 		service.recordTaskInitializationEnd("task-1", 25)
 		service.markRequestStart("task-1", "task-1:req-1", 30)
 		service.recordFirstVisibleUpdate("task-1", "text", 42)
+		service.recordFirstFullStateUpdate("task-1", 45)
 		service.completeRequest("task-1")
 
 		const snapshot = service.getSnapshot()
@@ -17,7 +18,21 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.taskInitialization.stats.lastMs, 15)
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 1)
 		assert.equal(snapshot.firstVisibleUpdate.stats.lastMs, 12)
+		assert.equal(snapshot.firstFullStateUpdate.stats.count, 1)
+		assert.equal(snapshot.firstFullStateUpdate.stats.lastMs, 15)
 		assert.equal(snapshot.logs.length >= 4, true)
+	})
+
+	it("records first full-state update only once per request", () => {
+		const service = new LatencyObserverService()
+
+		service.markRequestStart("task-fs", "task-fs:req-1", 100)
+		service.recordFirstFullStateUpdate("task-fs", 125)
+		service.recordFirstFullStateUpdate("task-fs", 140)
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.firstFullStateUpdate.stats.count, 1)
+		assert.equal(snapshot.firstFullStateUpdate.samples[0].durationMs, 25)
 	})
 
 	it("records first visible update only once per request", () => {
@@ -55,11 +70,13 @@ describe("LatencyObserverService", () => {
 		service.setCapability("taskInitialization", "hook-not-installed")
 		service.setCapability("requestStart", "unsupported")
 		service.setCapability("firstVisibleUpdate", "hook-not-installed")
+		service.setCapability("firstFullStateUpdate", "unsupported")
 
 		const snapshot = service.getSnapshot()
 		assert.equal(snapshot.taskInitialization.support, "hook-not-installed")
 		assert.equal(snapshot.requestStart.support, "unsupported")
 		assert.equal(snapshot.firstVisibleUpdate.support, "hook-not-installed")
+		assert.equal(snapshot.firstFullStateUpdate.support, "unsupported")
 	})
 
 	it("reset clears recorded samples, counters, and logs for a fresh session", () => {
@@ -84,6 +101,7 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.taskInitialization.stats.count, 0)
 		assert.equal(snapshot.requestStart.stats.count, 0)
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 0)
+		assert.equal(snapshot.firstFullStateUpdate.stats.count, 0)
 		assert.equal(snapshot.logs.length, 0)
 		assert.equal(snapshot.optionalCounters?.fullStatePushes, 0)
 	})
