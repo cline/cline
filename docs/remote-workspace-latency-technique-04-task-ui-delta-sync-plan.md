@@ -441,15 +441,15 @@ That is why this technique still matters for large-file-write scenarios, even th
 
 ### Work
 
-- [ ] Add scenario coverage for long active execution with many message mutations.
-- [ ] Compare delta-enabled vs delta-disabled behavior.
-- [ ] Verify convergence at the end of execution.
+- [x] Add scenario coverage for long active execution with many message mutations.
+- [x] Compare delta-enabled vs delta-disabled behavior.
+- [x] Verify convergence at the end of execution.
 
 ### Tests
 
-- [ ] Integration/validation scenario: long-running execution with many message updates works correctly under delta sync.
+- [x] Integration/validation scenario: long-running execution with many message updates works correctly under delta sync.
 - [ ] Regression test: final UI state matches snapshot-based state.
-- [ ] Regression test: no stale message duplication or ordering bug appears after many updates.
+- [x] Regression test: no stale message duplication or ordering bug appears after many updates.
 
 ---
 
@@ -477,11 +477,15 @@ That is why this technique still matters for large-file-write scenarios, even th
 - Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
 - Built the standalone validation target, fixed the latency harness mock response path for `latency_validation`, and ran `scripts/validate-latency-scenarios.ts` end-to-end across local/remote and delta-enabled/delta-disabled variants.
 - Validation now shows clean snapshot fallback when delta sync is disabled (`taskDeltaCount: 0`, `taskDeltaPayloadBytes: 0`, `completed: true`) while delta-enabled variants deliver 31 task deltas / 14,690 delta bytes and still converge successfully.
+- Extended the validation harness with a `long_running` scenario (`latency_validation_long`) that drives 152 partial-message events and 165 task UI deltas while still converging to 7 unique final messages with no duplicate/stale rows in either local or remote mode.
+- The long-running scenario now provides direct enabled-vs-disabled comparison data via `totalTransportBytes`, `taskDeltaCount`, `finalUniqueMessageCount`, and `hasDuplicateMessagesAtCompletion`.
 - Installed dependencies, regenerated protos, and verified the focused backend and webview coverage locally. Successful verification included:
   - `npm run test:unit -- src/test/controller-task-ui-metadata.test.ts src/core/controller/ui/subscribeToTaskUiDeltas.test.ts src/test/message-state-handler.test.ts src/core/task/__tests__/latency.test.ts src/services/telemetry/__tests__/taskLatencySummary.test.ts`
   - `cd webview-ui && npm run test -- src/context/taskUiDeltaState.test.ts src/context/taskUiDebugCounters.test.ts src/context/ExtensionStateContext.test.tsx`
 - The webview verification now passes without the earlier React `act(...)` warning noise after wrapping streamed state updates in `act(...)`.
-- Remaining validation gap: in the current synthetic scenario, full-state payload bytes remain equal across delta-enabled and delta-disabled variants (`statePayloadBytes: 105468`), so the plan item requiring demonstrated reduction in full-state payload bytes during active execution is still open.
+- Remaining validation gaps:
+  - In the current synthetic scenarios, `statePayloadBytes` remain effectively unchanged across delta-enabled and delta-disabled variants, so the plan item requiring demonstrated reduction in **full-state payload bytes** during active execution is still open.
+  - The harness proves convergence/no-duplication, but it does not yet assert that the final UI state is byte-for-byte identical to a snapshot-based baseline.
 
 ---
 

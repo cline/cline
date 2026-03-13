@@ -82,9 +82,33 @@ Latency validation scenario completed successfully.
 </result>
 </attempt_completion>`
 
+const latency_validation_long = `I'll complete a longer-running validation task so the latency harness can measure repeated task UI updates under sustained streaming load.
+
+Here is a streamed progress narrative with enough material to force multiple incremental updates while still converging on a single correct final UI state. The harness should observe the active task accumulating partial message activity, task UI deltas, and final completion without producing duplicate stale rows.
+
+Progress checkpoint 1: initializing the long-running validation flow.
+Progress checkpoint 2: continuing the long-running validation flow.
+Progress checkpoint 3: continuing the long-running validation flow.
+Progress checkpoint 4: continuing the long-running validation flow.
+Progress checkpoint 5: continuing the long-running validation flow.
+Progress checkpoint 6: continuing the long-running validation flow.
+Progress checkpoint 7: continuing the long-running validation flow.
+Progress checkpoint 8: continuing the long-running validation flow.
+Progress checkpoint 9: continuing the long-running validation flow.
+Progress checkpoint 10: continuing the long-running validation flow.
+Progress checkpoint 11: continuing the long-running validation flow.
+Progress checkpoint 12: continuing the long-running validation flow.
+
+<attempt_completion>
+<result>
+Long-running latency validation scenario completed successfully.
+</result>
+</attempt_completion>`
+
 export const E2E_MOCK_API_RESPONSES = {
 	DEFAULT: "Hello! I'm a mock Cline API response.",
 	REPLACE_REQUEST: replace_in_file,
 	EDIT_REQUEST: edit_request,
 	LATENCY_VALIDATION: latency_validation,
+	LATENCY_VALIDATION_LONG: latency_validation_long,
 }

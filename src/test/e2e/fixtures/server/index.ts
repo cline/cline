@@ -377,7 +377,9 @@ export class ClineApiServerMock {
 						const parsed = JSON.parse(body)
 						const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
-						if (body.includes("latency_validation")) {
+						if (body.includes("latency_validation_long")) {
+							responseText = E2E_MOCK_API_RESPONSES.LATENCY_VALIDATION_LONG
+						} else if (body.includes("latency_validation")) {
 							responseText = E2E_MOCK_API_RESPONSES.LATENCY_VALIDATION
 						}
 						if (body.includes("[replace_in_file for 'test.ts'] Result:")) {

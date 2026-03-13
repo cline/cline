@@ -18,7 +18,13 @@ type ValidationVariant = {
 	env: Record<string, string>
 }
 
+type ValidationScenario = {
+	name: string
+	prompt: string
+}
+
 type ScenarioResult = {
+	scenario: string
 	variant: string
 	mode: ValidationMode
 	newTaskRpcMs: number
@@ -31,7 +37,10 @@ type ScenarioResult = {
 	taskDeltaCount: number
 	statePayloadBytes: number
 	taskDeltaPayloadBytes: number
+	totalTransportBytes: number
 	messageCountAtCompletion: number | null
+	finalUniqueMessageCount: number | null
+	hasDuplicateMessagesAtCompletion: boolean | null
 	completed: boolean
 	error?: string
 }
@@ -59,6 +68,11 @@ const variants: ValidationVariant[] = [
 			CLINE_DISABLE_TASK_UI_DELTA_SYNC: "true",
 		},
 	},
+]
+
+const scenarios: ValidationScenario[] = [
+	{ name: "basic", prompt: "latency_validation" },
+	{ name: "long_running", prompt: "latency_validation_long" },
 ]
 
 async function waitForPort(port: number, timeoutMs = 20_000): Promise<void> {
@@ -160,7 +174,11 @@ async function stopServer(child: ChildProcess) {
 	}
 }
 
-async function runScenario(mode: ValidationMode, variant: ValidationVariant): Promise<ScenarioResult> {
+async function runScenario(
+	mode: ValidationMode,
+	variant: ValidationVariant,
+	scenario: ValidationScenario,
+): Promise<ScenarioResult> {
 	const server = await startServer(mode, variant.env)
 	const address = `127.0.0.1:${server.grpcPort}`
 	const accountClient = new AccountServiceClient(address, credentials.createInsecure())
@@ -180,6 +198,8 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 	let statePayloadBytes = 0
 	let taskDeltaPayloadBytes = 0
 	let messageCountAtCompletion: number | null = null
+	let finalUniqueMessageCount: number | null = null
+	let hasDuplicateMessagesAtCompletion: boolean | null = null
 	let completed = false
 
 	const stateStream = stateClient.subscribeToState({})
@@ -215,6 +235,9 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 			if (hasCompletion && completionMs === null) {
 				completionMs = Date.now() - startedAt
 				messageCountAtCompletion = clineMessages.length
+				const uniqueMessageTs = new Set(clineMessages.map((message: any) => message.ts))
+				finalUniqueMessageCount = uniqueMessageTs.size
+				hasDuplicateMessagesAtCompletion = uniqueMessageTs.size !== clineMessages.length
 				completed = true
 			}
 		} catch {
@@ -257,7 +280,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 			taskClient.newTask(
 				{
 					metadata: undefined,
-					text: "latency_validation",
+					text: scenario.prompt,
 					images: [],
 					files: [],
 					taskSettings: undefined,
@@ -289,6 +312,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 	await stopServer(server.child)
 
 	return {
+		scenario: scenario.name,
 		variant: variant.name,
 		mode,
 		newTaskRpcMs,
@@ -301,7 +325,10 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 		taskDeltaCount,
 		statePayloadBytes,
 		taskDeltaPayloadBytes,
+		totalTransportBytes: statePayloadBytes + taskDeltaPayloadBytes,
 		messageCountAtCompletion,
+		finalUniqueMessageCount,
+		hasDuplicateMessagesAtCompletion,
 		completed,
 		error,
 	}
@@ -309,9 +336,11 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 
 async function main() {
 	const results: ScenarioResult[] = []
-	for (const mode of ["local", "remote"] as const) {
-		for (const variant of variants) {
-			results.push(await runScenario(mode, variant))
+	for (const scenario of scenarios) {
+		for (const mode of ["local", "remote"] as const) {
+			for (const variant of variants) {
+				results.push(await runScenario(mode, variant, scenario))
+			}
 		}
 	}
 	console.log(JSON.stringify({ results }, null, 2))
