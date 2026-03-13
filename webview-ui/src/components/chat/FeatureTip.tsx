@@ -71,7 +71,6 @@ export const FeatureTip = memo(() => {
 		}, FADE_DURATION_MS)
 	}, [])
 
-	// Delayed appearance + cycling
 	useEffect(() => {
 		showTimerRef.current = setTimeout(() => {
 			setIsVisible(true)
