@@ -479,16 +479,19 @@ Local visibility is great, but engineers also need artifacts they can compare si
 - [ ] Add export of observer session data to JSON.
 - [ ] Include branch/commit/environment metadata in export.
 - [ ] Make exported structure easy to diff or post-process.
+- [x] Add export of observer session data to JSON.
+- [x] Include branch/commit/environment metadata in export.
+- [x] Make exported structure easy to diff or post-process.
 
 ### Detailed code changes
 
 - Add an export button or command that writes a session artifact.
 - Keep schema intentionally simple:
-  - [ ] session metadata,
-  - [ ] ping samples and aggregates,
-  - [ ] lifecycle measurements,
-  - [ ] richer metrics if available,
-  - [ ] recent logs or event markers.
+  - [x] session metadata,
+  - [x] ping samples and aggregates,
+  - [x] lifecycle measurements,
+  - [x] richer metrics if available,
+  - [x] recent logs or event markers.
 
 ### Tests
 
