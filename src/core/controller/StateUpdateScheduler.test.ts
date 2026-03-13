@@ -14,7 +14,7 @@ describe("StateUpdateScheduler", () => {
 			setTimeoutFn: ((callback: () => void) => {
 				scheduledCallback = callback
 				return 1 as any
-			}) as typeof setTimeout,
+			}) as unknown as typeof setTimeout,
 			clearTimeoutFn: (() => {}) as typeof clearTimeout,
 		})
 
@@ -38,7 +38,7 @@ describe("StateUpdateScheduler", () => {
 				flushCount += 1
 			},
 			getDelayMs: () => 25,
-			setTimeoutFn: (() => 1 as any) as typeof setTimeout,
+			setTimeoutFn: (() => 1 as any) as unknown as typeof setTimeout,
 			clearTimeoutFn: (() => {
 				timerCleared = true
 			}) as typeof clearTimeout,
@@ -54,6 +54,7 @@ describe("StateUpdateScheduler", () => {
 	it("runs one follow-up flush when updates arrive during an active flush", async () => {
 		let flushCount = 0
 		let releaseFlush: (() => void) | undefined
+		let scheduledCallback: (() => void) | undefined
 		const scheduler = new StateUpdateScheduler({
 			flush: async () => {
 				flushCount += 1
@@ -64,12 +65,18 @@ describe("StateUpdateScheduler", () => {
 				}
 			},
 			getDelayMs: () => 0,
+			setTimeoutFn: ((callback: () => void) => {
+				scheduledCallback = callback
+				return 1 as any
+			}) as unknown as typeof setTimeout,
+			clearTimeoutFn: (() => {}) as typeof clearTimeout,
 		})
 
 		const firstFlush = scheduler.flushNow()
 		scheduler.requestFlush("normal")
 		releaseFlush?.()
 		await firstFlush
+		scheduledCallback?.()
 		await Promise.resolve()
 		await Promise.resolve()
 
@@ -84,7 +91,7 @@ describe("StateUpdateScheduler", () => {
 				flushCount += 1
 			},
 			getDelayMs: () => 10,
-			setTimeoutFn: (() => 1 as any) as typeof setTimeout,
+			setTimeoutFn: (() => 1 as any) as unknown as typeof setTimeout,
 			clearTimeoutFn: (() => {
 				timerCleared = true
 			}) as typeof clearTimeout,

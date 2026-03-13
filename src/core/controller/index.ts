@@ -870,6 +870,10 @@ export class Controller {
 	}
 
 	async postStateToWebview(options?: { priority?: StateUpdatePriority }) {
+		// Priority guidance:
+		// - immediate: task init/clear, task switching, auth changes, mode switches, or any UX-critical hydration.
+		// - normal: streaming-era snapshot churn such as usage/cost updates and background command metadata.
+		// - low: reserved for future non-urgent background state sync where extra batching is acceptable.
 		const priority = options?.priority ?? this.getDefaultStateUpdatePriority()
 		if (priority === "immediate") {
 			await this.stateUpdateScheduler.flushNow()

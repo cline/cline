@@ -206,10 +206,10 @@ Be smart about the scheduler design here. A controller-level scheduler can look 
 
 ### Tests
 
-- [ ] Unit test: repeated normal-priority calls inside cadence window produce one flush.
-- [ ] Unit test: immediate-priority request bypasses delay.
-- [ ] Unit test: updates arriving while flush is running trigger exactly one follow-up flush.
-- [ ] Unit test: dispose clears scheduled work.
+- [x] Unit test: repeated normal-priority calls inside cadence window produce one flush.
+- [x] Unit test: immediate-priority request bypasses delay.
+- [x] Unit test: updates arriving while flush is running trigger exactly one follow-up flush.
+- [x] Unit test: dispose clears scheduled work.
 
 ---
 
@@ -242,8 +242,8 @@ When extracting this step, prefer preserving the reference implementation’s me
 
 ### Tests
 
-- [ ] Unit test: no-task / idle state posts remain immediate by default.
-- [ ] Unit test: active-streaming posts default to coalesced priority.
+- [x] Unit test: no-task / idle state posts remain immediate by default.
+- [x] Unit test: active-streaming posts default to coalesced priority.
 
 ---
 
@@ -384,8 +384,8 @@ Keep the tuning hooks aligned with the reference implementation so extracted beh
 
 ### Tests
 
-- [ ] Unit test: remote defaults are more conservative than local defaults.
-- [ ] Unit test: env override behavior works as expected.
+- [x] Unit test: remote defaults are more conservative than local defaults.
+- [x] Unit test: env override behavior works as expected.
 
 ---
 
