@@ -239,6 +239,64 @@ describe("DebugSection", () => {
 		createElementSpy.mockRestore()
 	})
 
+	it("exports a stable latency observer schema with scenario and transport stats", async () => {
+		const OriginalBlob = globalThis.Blob
+		class FakeBlob {
+			public readonly parts: unknown[]
+			public readonly type: string
+
+			constructor(parts: unknown[], options?: { type?: string }) {
+				this.parts = parts
+				this.type = options?.type ?? ""
+			}
+		}
+		vi.stubGlobal("Blob", FakeBlob as unknown as typeof Blob)
+		const createObjectURL = vi.fn((_: Blob) => "blob:test")
+		const revokeObjectURL = vi.fn()
+		const click = vi.fn()
+		const originalCreateElement = document.createElement.bind(document)
+		const createElementSpy = vi.spyOn(document, "createElement").mockImplementation(((tagName: string) => {
+			if (tagName === "a") {
+				return { click, href: "", download: "" } as unknown as HTMLAnchorElement
+			}
+			return originalCreateElement(tagName)
+		}) as typeof document.createElement)
+		vi.stubGlobal("URL", {
+			createObjectURL,
+			revokeObjectURL,
+		})
+
+		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		fireEvent.click(screen.getByText("Export Session JSON"))
+
+		expect(createObjectURL).toHaveBeenCalledTimes(1)
+		const exportedBlob = createObjectURL.mock.calls[0][0] as unknown as FakeBlob
+		const exportedJson = JSON.parse(String(exportedBlob.parts[0]))
+		expect(exportedJson).toMatchObject({
+			session: {
+				branch: "main",
+				commit: "abcdef123456",
+				environment: "production",
+			},
+			observationScenario: {
+				id: "ping-only",
+				label: "Pure ping test",
+			},
+			transport: {
+				support: "supported",
+				stats: {
+					count: 0,
+					totalMs: 0,
+				},
+			},
+		})
+		expect(exportedJson.transport.samples).toEqual([])
+		expect(exportedJson.logs).toEqual([])
+
+		vi.stubGlobal("Blob", OriginalBlob)
+		createElementSpy.mockRestore()
+	})
+
 	it("runs payload presets and prevents overlapping manual pings while active", async () => {
 		let resolvePing: (() => void) | undefined
 		grpcClientMocks.pingLatencyProbe.mockImplementation(
