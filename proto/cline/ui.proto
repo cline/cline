@@ -237,6 +237,9 @@ service UiService {
   // Lightweight ping/pong endpoint for measuring local UI transport latency.
   rpc pingLatencyProbe(BytesRequest) returns (Int64);
 
+  // Resets the backend latency observer session counters and logs.
+  rpc resetLatencyObserver(EmptyRequest) returns (Empty);
+
   // Scrolls to a specific settings section in the settings view
   rpc scrollToSettings(StringRequest) returns (KeyValuePair);
 

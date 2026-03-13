@@ -166,6 +166,15 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		URL.revokeObjectURL(url)
 	}
 
+	const resetObserverSession = async () => {
+		setSamples([])
+		setPingError(null)
+		continuousPingEnabledRef.current = false
+		setIsContinuousPinging(false)
+		setIsRunningPayloadSweep(false)
+		await UiServiceClient.resetLatencyObserver({})
+	}
+
 	return (
 		<div>
 			{renderSectionHeader("debug")}
@@ -245,6 +254,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						</Button>
 						<Button onClick={() => setSamples([])} variant="ghost">
 							Reset Stats
+						</Button>
+						<Button onClick={resetObserverSession} variant="ghost">
+							Reset Observer Session
 						</Button>
 						<Button disabled={!latencyObserver} onClick={exportLatencyObserverSession} variant="ghost">
 							Export Session JSON
