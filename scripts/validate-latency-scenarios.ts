@@ -80,6 +80,21 @@ async function waitForPort(port: number, timeoutMs = 20_000): Promise<void> {
 	throw new Error(`Timed out waiting for port ${port}`)
 }
 
+async function isPortBusy(port: number): Promise<boolean> {
+	try {
+		await new Promise<void>((resolve, reject) => {
+			const socket = net.connect(port, "127.0.0.1", () => {
+				socket.destroy()
+				resolve()
+			})
+			socket.on("error", reject)
+		})
+		return true
+	} catch {
+		return false
+	}
+}
+
 async function getFreePort(): Promise<number> {
 	return await new Promise((resolve, reject) => {
 		const server = net.createServer()
@@ -115,6 +130,12 @@ function unaryCall<T>(fn: (callback: (error: Error | null, response: T) => void)
 }
 
 async function startServer(mode: ValidationMode, envOverrides: Record<string, string>) {
+	if (await isPortBusy(7777)) {
+		throw new Error(
+			"Cannot start latency validation harness because the mock API port 7777 is already in use. Stop the conflicting process and retry.",
+		)
+	}
+
 	const grpcPort = await getFreePort()
 	const hostbridgePort = await getFreePort()
 	const env: Record<string, string> = {
@@ -140,11 +161,22 @@ async function startServer(mode: ValidationMode, envOverrides: Record<string, st
 	})
 
 	let stderr = ""
+	let exitedEarly = false
 	child.stderr?.on("data", (chunk) => {
 		stderr += chunk.toString()
 	})
+	child.once("exit", () => {
+		exitedEarly = true
+	})
 
-	await waitForPort(grpcPort)
+	try {
+		await waitForPort(grpcPort)
+	} catch (error) {
+		if (exitedEarly) {
+			throw new Error(`Latency validation server exited before becoming ready.${stderr ? `\n${stderr.trim()}` : ""}`)
+		}
+		throw error
+	}
 	return { child, grpcPort, hostbridgePort, getStderr: () => stderr }
 }
 
