@@ -344,6 +344,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
 		}
 
+		if (request.warpGrepEnabled !== undefined) {
+			controller.stateManager.setGlobalState("warpGrepEnabled", request.warpGrepEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

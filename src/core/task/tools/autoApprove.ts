@@ -46,6 +46,7 @@ export class AutoApprove {
 				case ClineDefaultTool.LIST_FILES:
 				case ClineDefaultTool.LIST_CODE_DEF:
 				case ClineDefaultTool.SEARCH:
+				case ClineDefaultTool.WARPGREP:
 				case ClineDefaultTool.NEW_RULE:
 				case ClineDefaultTool.FILE_NEW:
 				case ClineDefaultTool.FILE_EDIT:
@@ -69,6 +70,7 @@ export class AutoApprove {
 				case ClineDefaultTool.LIST_FILES:
 				case ClineDefaultTool.LIST_CODE_DEF:
 				case ClineDefaultTool.SEARCH:
+				case ClineDefaultTool.WARPGREP:
 				case ClineDefaultTool.NEW_RULE:
 				case ClineDefaultTool.FILE_NEW:
 				case ClineDefaultTool.FILE_EDIT:
@@ -92,6 +94,7 @@ export class AutoApprove {
 			case ClineDefaultTool.LIST_FILES:
 			case ClineDefaultTool.LIST_CODE_DEF:
 			case ClineDefaultTool.SEARCH:
+			case ClineDefaultTool.WARPGREP:
 			case ClineDefaultTool.USE_SUBAGENTS:
 				return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
 			case ClineDefaultTool.NEW_RULE:
