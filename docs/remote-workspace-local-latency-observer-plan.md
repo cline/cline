@@ -127,10 +127,10 @@ These are inspired most directly by the old ping-pong tester.
 
 Measure:
 
-- [ ] round-trip UI service ping latency
-- [ ] effect of varying payload sizes
-- [ ] repeated sample min/max/avg/current
-- [ ] continuous test mode for drift/jitter observation
+- [x] round-trip UI service ping latency
+- [x] effect of varying payload sizes
+- [x] repeated sample min/max/avg/current
+- [x] continuous test mode for drift/jitter observation
 
 Why it matters:
 
@@ -239,7 +239,7 @@ The observer should be easy enough to use that engineers actually use it during 
 Recommended UI features:
 
 - [x] a dedicated dev-facing section in Settings or a dev/debug panel
-- [ ] buttons for:
+- [x] buttons for:
   - [x] single ping
   - [x] continuous ping
   - [x] test all payload sizes
@@ -452,7 +452,7 @@ A latency observer becomes far more valuable when it can help the developer answ
 
 ### Work
 
-- [ ] Define a small set of recommended scenarios:
+- [x] Define a small set of recommended scenarios:
   - [x] pure ping test
   - [x] short assistant response
   - [x] long streaming response
@@ -485,9 +485,9 @@ Local visibility is great, but engineers also need artifacts they can compare si
 
 ### Work
 
-- [ ] Add export of observer session data to JSON.
-- [ ] Include branch/commit/environment metadata in export.
-- [ ] Make exported structure easy to diff or post-process.
+- [x] Add export of observer session data to JSON.
+- [x] Include branch/commit/environment metadata in export.
+- [x] Make exported structure easy to diff or post-process.
 - [x] Add export of observer session data to JSON.
 - [x] Include branch/commit/environment metadata in export.
 - [x] Make exported structure easy to diff or post-process.
