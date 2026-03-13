@@ -1,7 +1,9 @@
 import { WebviewProvider } from "@/core/webview"
+import { setupLgWebhooks } from "@/services/lg-cns-integration/webhook-hooks"
 import { Logger } from "@/shared/services/Logger"
 
 export const TASK_URI_PATH = "/task"
+export const LG_TASK_URI_PATH = "/lg-task"
 
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks
@@ -91,6 +93,28 @@ export class SharedUriHandler {
 					}
 					Logger.warn("SharedUriHandler: Missing prompt parameter for task creation")
 					return false
+				}
+				case LG_TASK_URI_PATH: {
+					const promptFile = query.get("prompt-file")
+					if (!promptFile) {
+						Logger.warn("SharedUriHandler: Missing prompt-file parameter for LG task creation")
+						return false
+					}
+
+					const webhookUrl = query.get("webhook-url")
+					const webhookToken = query.get("webhook-token")
+					if (webhookUrl && webhookToken) {
+						await setupLgWebhooks(webhookUrl, webhookToken)
+					}
+
+					const prompt =
+						`The following file contains a development specification for you to implement: ${promptFile}\n\n` +
+						`Start by reading this file. As you work through the task, re-read the file whenever its contents ` +
+						`are lost during context compaction (when the context window limit is reached), so you can keep ` +
+						`track of your progress against the spec requirements.`
+
+					await visibleWebview.controller.handleTaskCreation(prompt)
+					return true
 				}
 				// Match /mcp-auth/callback/{hash}
 				case path.match(/^\/mcp-auth\/callback\/[^/]+$/)?.input: {
