@@ -567,9 +567,9 @@ Numbers without interpretation guidance lead to bad product decisions.
 
 ### Work
 
-- [ ] Document what ping RTT does and does not mean.
-- [ ] Document how to compare first-visible-update and state-churn metrics.
-- [ ] Document that the most important measurement is user-perceived latency, not just a single low-level counter.
+- [x] Document what ping RTT does and does not mean.
+- [x] Document how to compare first-visible-update and state-churn metrics.
+- [x] Document that the most important measurement is user-perceived latency, not just a single low-level counter.
 
 ### Detailed code changes
 
@@ -581,7 +581,7 @@ Numbers without interpretation guidance lead to bad product decisions.
 
 ### Tests
 
-- [ ] No code-heavy tests needed; verify docs/UI copy is clear.
+- [x] No code-heavy tests needed; verify docs/UI copy is clear.
 
 ---
 
