@@ -1652,20 +1652,6 @@ export const openAiNativeModels = {
 		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
-	"gpt-5.4-pro": {
-		maxTokens: 128_000,
-		contextWindow: 2_000_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 5.0,
-		outputPrice: 25.0,
-		cacheReadsPrice: 0.5,
-		apiFormat: ApiFormat.OPENAI_RESPONSES,
-		temperature: 1,
-		systemRole: "developer",
-		supportsReasoning: true,
-		supportsReasoningEffort: true,
-	},
 	"gpt-5.3-codex": {
 		maxTokens: 8_192, // 128000 breaks context window truncation
 		contextWindow: 400_000,
