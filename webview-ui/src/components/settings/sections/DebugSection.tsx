@@ -1,9 +1,17 @@
 import { createRollingLatencyStats, type LatencySample } from "@shared/LatencyObserver"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
+
+const PAYLOAD_PRESETS = [0, 64, 1024, 16_384] as const
+
+const capabilityLabel: Record<string, string> = {
+	supported: "Supported",
+	unsupported: "Unsupported on this branch",
+	"hook-not-installed": "Observer hook not installed",
+}
 
 interface DebugSectionProps {
 	onResetState: (resetGlobalState?: boolean) => Promise<void>
@@ -15,17 +23,27 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 	const [payloadBytes, setPayloadBytes] = useState(0)
 	const [samples, setSamples] = useState<LatencySample[]>([])
 	const [isPinging, setIsPinging] = useState(false)
+	const [isContinuousPinging, setIsContinuousPinging] = useState(false)
+	const [isRunningPayloadSweep, setIsRunningPayloadSweep] = useState(false)
 	const [pingError, setPingError] = useState<string | null>(null)
+	const continuousPingEnabledRef = useRef(false)
 
-	const stats = useMemo(() => createRollingLatencyStats(samples), [samples])
+	const transportSamples = latencyObserver?.transport.samples ?? []
+	const effectiveTransportSamples = useMemo(() => {
+		if (transportSamples.length > 0) {
+			return transportSamples
+		}
+		return samples
+	}, [samples, transportSamples])
+	const stats = useMemo(() => createRollingLatencyStats(effectiveTransportSamples), [effectiveTransportSamples])
 
-	const runPing = async () => {
+	const runPing = async (nextPayloadBytes = payloadBytes) => {
 		setIsPinging(true)
 		setPingError(null)
 		const startedAt = performance.now()
 
 		try {
-			await UiServiceClient.pingLatencyProbe({ value: new Uint8Array(payloadBytes) })
+			await UiServiceClient.pingLatencyProbe({ value: new Uint8Array(nextPayloadBytes) })
 			const endedAt = performance.now()
 			setSamples((current) => [
 				...current,
@@ -33,7 +51,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 					startedAt,
 					endedAt,
 					durationMs: endedAt - startedAt,
-					payloadBytes,
+					payloadBytes: nextPayloadBytes,
 				},
 			])
 		} catch (error) {
@@ -43,12 +61,65 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		}
 	}
 
+	const runPayloadSweep = async () => {
+		setIsRunningPayloadSweep(true)
+		setPingError(null)
+
+		try {
+			for (const preset of PAYLOAD_PRESETS) {
+				await runPing(preset)
+			}
+		} finally {
+			setIsRunningPayloadSweep(false)
+		}
+	}
+
+	const toggleContinuousPing = async () => {
+		if (isContinuousPinging) {
+			continuousPingEnabledRef.current = false
+			setIsContinuousPinging(false)
+			return
+		}
+
+		continuousPingEnabledRef.current = true
+		setIsContinuousPinging(true)
+		setPingError(null)
+
+		try {
+			while (continuousPingEnabledRef.current) {
+				await runPing(payloadBytes)
+				if (!continuousPingEnabledRef.current) {
+					break
+				}
+				await new Promise((resolve) => setTimeout(resolve, 500))
+			}
+		} finally {
+			continuousPingEnabledRef.current = false
+			setIsContinuousPinging(false)
+		}
+	}
+
+	useEffect(() => {
+		return () => {
+			continuousPingEnabledRef.current = false
+		}
+	}, [])
+
 	const exportLatencyObserverSession = () => {
 		if (!latencyObserver) {
 			return
 		}
 
-		const blob = new Blob([JSON.stringify(latencyObserver, null, 2)], { type: "application/json" })
+		const exportSnapshot = {
+			...latencyObserver,
+			transport: {
+				...latencyObserver.transport,
+				samples: effectiveTransportSamples,
+				stats,
+			},
+		}
+
+		const blob = new Blob([JSON.stringify(exportSnapshot, null, 2)], { type: "application/json" })
 		const url = URL.createObjectURL(blob)
 		const anchor = document.createElement("a")
 		const branchLabel = latencyObserver.session.branch ?? "unknown-branch"
@@ -65,6 +136,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 			<Section>
 				<div className="flex flex-col gap-3">
 					<h4 className="m-0 text-sm font-medium">Latency Observer</h4>
+					<p className="m-0 text-xs text-(--vscode-descriptionForeground)">
+						Use this panel to compare transport RTT and task-lifecycle responsiveness across branches.
+					</p>
 					<label className="flex flex-col gap-1 text-xs text-(--vscode-descriptionForeground)">
 						<span>Ping payload bytes</span>
 						<input
@@ -77,8 +151,20 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						/>
 					</label>
 					<div className="flex gap-2">
-						<Button disabled={isPinging} onClick={runPing} variant="secondary">
+						<Button
+							disabled={isPinging || isContinuousPinging || isRunningPayloadSweep}
+							onClick={() => runPing()}
+							variant="secondary">
 							{isPinging ? "Pinging..." : "Run Ping Probe"}
+						</Button>
+						<Button disabled={isRunningPayloadSweep} onClick={toggleContinuousPing} variant="secondary">
+							{isContinuousPinging ? "Stop Continuous Ping" : "Start Continuous Ping"}
+						</Button>
+						<Button
+							disabled={isPinging || isContinuousPinging || isRunningPayloadSweep}
+							onClick={runPayloadSweep}
+							variant="ghost">
+							Test Payload Presets
 						</Button>
 						<Button onClick={() => setSamples([])} variant="ghost">
 							Reset Stats
@@ -95,17 +181,36 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						<div>Avg: {stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 						<div>Payload: {payloadBytes} bytes</div>
 					</div>
+					<div className="flex flex-wrap gap-2 text-xs text-(--vscode-descriptionForeground)">
+						{PAYLOAD_PRESETS.map((preset) => (
+							<button
+								className="rounded border border-[var(--vscode-panel-border)] px-2 py-1"
+								key={preset}
+								onClick={() => setPayloadBytes(preset)}
+								type="button">
+								{preset.toLocaleString()} B
+							</button>
+						))}
+					</div>
 					{pingError && <p className="m-0 text-xs text-[var(--vscode-errorForeground)]">{pingError}</p>}
 					{latencyObserver && (
 						<div className="flex flex-col gap-2 border-t border-[var(--vscode-panel-border)] pt-3 text-xs">
 							<div>Branch: {latencyObserver.session.branch ?? "unknown"}</div>
 							<div>Commit: {latencyObserver.session.commit?.slice(0, 8) ?? "unknown"}</div>
 							<div>Environment: {String(latencyObserver.session.environment ?? "unknown")}</div>
+							<div>Transport probe: {capabilityLabel[latencyObserver.capabilities.transportProbe]}</div>
+							<div>Full-state metrics: {capabilityLabel[latencyObserver.capabilities.fullStateMetrics]}</div>
+							<div>
+								Partial-message metrics: {capabilityLabel[latencyObserver.capabilities.partialMessageMetrics]}
+							</div>
+							<div>Task UI delta metrics: {capabilityLabel[latencyObserver.capabilities.taskUiDeltaMetrics]}</div>
+							<div>Persistence metrics: {capabilityLabel[latencyObserver.capabilities.persistenceMetrics]}</div>
 							<div>Task init avg: {latencyObserver.taskInitialization.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>First visible avg: {latencyObserver.firstVisibleUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
 							<div>State pushes: {latencyObserver.optionalCounters?.fullStatePushes ?? 0}</div>
 							<div>Partial events: {latencyObserver.optionalCounters?.partialMessageEvents ?? 0}</div>
+							<div>Task UI deltas: {latencyObserver.optionalCounters?.taskUiDeltaEvents ?? 0}</div>
 							<div>Persistence flushes: {latencyObserver.optionalCounters?.persistenceFlushes ?? 0}</div>
 							<div className="max-h-24 overflow-auto rounded border border-[var(--vscode-panel-border)] p-2">
 								{latencyObserver.logs.length === 0
