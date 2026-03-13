@@ -225,7 +225,7 @@ The smart way to execute this step is to compare the durable and ephemeral codep
 - [x] Unit test: ephemeral add mutates in-memory state without calling persistence.
 - [x] Unit test: ephemeral update mutates in-memory state without calling persistence.
 - [x] Unit test: ephemeral mutation emits `clineMessagesChanged` with correct shape.
-- [ ] Unit test: ephemeral mutation still emits task UI deltas when delta sync is enabled.
+- [x] Unit test: ephemeral mutation still emits task UI deltas when delta sync is enabled.
 - [x] Unit test: invalid index still throws in ephemeral update path.
 
 ---
