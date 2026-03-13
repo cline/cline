@@ -303,7 +303,7 @@ This is the simplest locally visible measurement and should serve as the “does
 
 - [x] Add or confirm a simple UI-service ping endpoint that accepts payload size.
 - [x] Measure round-trip latency in the webview using `performance.now()`.
-- [ ] Support multiple payload sizes and continuous testing.
+- [x] Support multiple payload sizes and continuous testing.
 
 ### Detailed code changes
 
@@ -417,7 +417,7 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 - Add session identity fields:
   - [x] git branch or commit label if available from backend,
   - [x] environment marker (local vs remote),
-  - [ ] capability flags for richer metrics.
+  - [x] capability flags for richer metrics.
 
 ### Tests
 
