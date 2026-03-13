@@ -431,7 +431,19 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Added controller regression coverage that keeps mode switches, auth callback hydration, and background-command state updates on the intended priority paths.
 - Added controller regression coverage for task reinitialization and task-history deletion flows during task switching.
 - Added subscribe-to-state coverage to verify startup subscribers receive the latest full snapshot immediately.
+- Confirmed that state post metrics are currently accumulated on `Task.requestLatencyMetrics`, but are not yet forwarded through `getTaskCompletionTelemetry()` / `captureTaskCompleted()`, so Step 6 still needs explicit validation plumbing rather than just more assertions.
 - Non-streaming product-surface safety is now partially covered, but full snapshot convergence after task switches still needs explicit regression coverage.
+
+## Recommended Next Validation Step
+
+The next coherent increment should be to extend task-completion telemetry (or an equivalent validation harness payload) so it includes:
+
+- full-state post count,
+- total serialized state bytes,
+- total build duration for state snapshots,
+- and total send duration for state snapshots.
+
+With that wiring in place, Step 6 can be closed by running a long-lived / high-churn task scenario and comparing coalescing-on versus coalescing-disabled behavior, ideally across both local and remote workspace environments.
 
 ---
 
