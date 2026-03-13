@@ -277,4 +277,61 @@ describe("Task.scheduleAssistantPresentation", () => {
 		assert.equal(immediateFlushCount, 5)
 		assert.ok(immediateFlushCount > scheduledFlushCount)
 	})
+
+	it("reduces presentation flushes for a long-stream / large-file-like mixed workload", async () => {
+		const timer = new FakeTimerController()
+		const scheduledTask = createTaskDouble()
+		const immediateTask = createTaskDouble()
+		let scheduledFlushCount = 0
+		let immediateFlushCount = 0
+
+		scheduledTask.presentationScheduler = new TaskPresentationScheduler({
+			flush: async () => {
+				scheduledFlushCount += 1
+			},
+			getDelayMs: (priority) => (priority === "immediate" ? 0 : 50),
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
+		})
+		scheduledTask.flushAssistantPresentation = async () => {
+			scheduledFlushCount += 1
+		}
+
+		immediateTask.presentationSchedulingDisabled = true
+		immediateTask.presentationScheduler = {
+			requestFlush: () => undefined,
+		}
+		immediateTask.flushAssistantPresentation = async () => {
+			immediateFlushCount += 1
+		}
+
+		const workload: Array<["text" | "reasoning" | "tool", "immediate" | "normal"]> = [
+			["text", "immediate"],
+			["reasoning", "normal"],
+			["reasoning", "normal"],
+			["text", "normal"],
+			["text", "normal"],
+			["tool", "immediate"],
+			["text", "normal"],
+			["reasoning", "normal"],
+			["text", "normal"],
+			["tool", "immediate"],
+			["text", "normal"],
+		]
+
+		for (const [trigger, priority] of workload) {
+			scheduledTask.scheduleAssistantPresentation(trigger, priority)
+			immediateTask.scheduleAssistantPresentation(trigger, priority)
+			await flushMicrotasks(5)
+		}
+
+		timer.advance(50)
+		await flushMicrotasks()
+
+		assert.ok(scheduledFlushCount < immediateFlushCount)
+		assert.ok(scheduledFlushCount <= 6, `expected coalesced flushes, got ${scheduledFlushCount}`)
+		assert.equal(immediateTask.requestLatencyMetrics.presentationInvocationCount, workload.length)
+		assert.equal(scheduledTask.requestLatencyMetrics.presentationInvocationCount, workload.length)
+	})
 })

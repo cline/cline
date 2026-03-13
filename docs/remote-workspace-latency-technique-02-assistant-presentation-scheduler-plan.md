@@ -405,14 +405,14 @@ That is why this technique materially helps large-file writes: the user does not
 
 ### Work
 
-- [ ] Add validation scenario for long streamed response and/or large-file write workflow.
-- [ ] Compare presentation flush count with scheduler enabled vs disabled.
-- [ ] Confirm first-token latency remains acceptable.
+- [x] Add validation scenario for long streamed response and/or large-file write workflow.
+- [x] Compare presentation flush count with scheduler enabled vs disabled.
+- [x] Confirm first-token latency remains acceptable.
 
 ### Tests
 
-- [ ] Validation harness scenario: scheduler-enabled mode produces fewer presentation flushes than chunk count.
-- [ ] Comparison run: scheduler-disabled variant shows meaningfully higher presentation activity.
+- [x] Validation harness scenario: scheduler-enabled mode produces fewer presentation flushes than chunk count.
+- [x] Comparison run: scheduler-disabled variant shows meaningfully higher presentation activity.
 
 ---
 
@@ -425,7 +425,7 @@ That is why this technique materially helps large-file writes: the user does not
 - [x] Add remote-aware cadence selection
 - [x] Preserve final-drain semantics
 - [x] Instrument and verify behavior
-- [ ] Validate large-file / long-stream scenarios
+- [x] Validate large-file / long-stream scenarios
 
 ---
 
