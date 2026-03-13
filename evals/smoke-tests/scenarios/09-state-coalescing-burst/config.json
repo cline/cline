@@ -1,0 +1,35 @@
+{
+	"name": "State coalescing burst scenario",
+	"description": "Exercises a longer multi-step project creation/edit flow to generate heavier UI state churn for coalescing validation",
+	"prompt": "Create a tiny static site project with these files: index.html, styles.css, app.js, README.md, and package.json. The site should render a task dashboard with three task cards, simple styling, and a button that toggles completed state in JavaScript. Include a short README explaining the file layout and how the toggle works. After creating the files, review them and make one more refinement pass to improve naming consistency and polish the README.",
+	"expectedFiles": [
+		"index.html",
+		"styles.css",
+		"app.js",
+		"README.md",
+		"package.json"
+	],
+	"expectedContent": [
+		{
+			"file": "index.html",
+			"contains": "task"
+		},
+		{
+			"file": "styles.css",
+			"contains": ".task"
+		},
+		{
+			"file": "app.js",
+			"contains": "toggle"
+		},
+		{
+			"file": "README.md",
+			"contains": "file"
+		},
+		{
+			"file": "package.json",
+			"contains": "name"
+		}
+	],
+	"timeout": 240
+}

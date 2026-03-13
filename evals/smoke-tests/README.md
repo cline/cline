@@ -73,6 +73,7 @@ cline auth -p cline -k "$CLINE_API_KEY" -m anthropic/claude-sonnet-4.5
 | 05-typescript-function | Generate TypeScript | Code generation |
 | 06-apply-patch | Edit file (GPT-5) | `apply_patch` tool, native tool calling |
 | 07-edit-gemini | Edit file (Gemini) | Gemini model variant |
+| 09-state-coalescing-burst | Multi-step churn project | Heavier long-running scenario for state coalescing validation |
 
 ### Per-Scenario Models
 
@@ -113,6 +114,31 @@ Shows `pass@1` when trials < 3, `pass@3` otherwise.
    }
    ```
 3. (Optional) Add `template/` directory with starting files
+
+## State Coalescing Validation Scenario
+
+The `09-state-coalescing-burst` scenario is intended as a heavier smoke/eval scaffold for the controller full-state coalescing work. It drives a longer multi-file task with multiple creation and refinement steps so the extension emits more task-state churn than the simpler smoke tests.
+
+Recommended usage when validating the coalescing technique:
+
+```bash
+# Baseline / coalescing-enabled run
+npm run eval:smoke:run -- --scenario 09-state-coalescing-burst --trials 1
+
+# Comparison run with more aggressive immediate-like cadence
+CLINE_STATE_UPDATE_CADENCE_MS=0 \
+CLINE_REMOTE_STATE_UPDATE_CADENCE_MS=0 \
+CLINE_STATE_UPDATE_LOW_CADENCE_MS=0 \
+CLINE_REMOTE_STATE_UPDATE_LOW_CADENCE_MS=0 \
+npm run eval:smoke:run -- --scenario 09-state-coalescing-burst --trials 1
+```
+
+This scenario does not automatically assert telemetry deltas yet, but it provides a repeatable long-running task for comparing `task.completed` telemetry fields such as:
+
+- `statePostCount`
+- `statePostSerializedBytes`
+- `statePostBuildDurationMs`
+- `statePostSendDurationMs`
 
 ## CI Integration
 

@@ -348,6 +348,7 @@ That is the key link to the large-file-write scenario: even when the tool work i
 - [x] Add or extend validation scenarios for high-churn task execution.
 - [x] Compare full-state update count enabled vs disabled.
 - [x] Compare payload-byte totals enabled vs disabled.
+- [x] Add a heavier long-running eval/harness scenario scaffold for manual or CI validation.
 
 ### Tests
 
@@ -437,6 +438,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Added scheduler burst-validation coverage showing coalesced normal-priority updates reduce flush count versus immediate flushing, and that remote cadence coalesces more aggressively than local cadence under the same burst pattern.
 - Added controller regression coverage verifying that multiple coalesced streaming-era state updates still flush the latest full snapshot rather than an intermediate stale snapshot.
 - Added controller burst-comparison coverage showing coalesced streaming-era snapshot delivery sends fewer full-state updates and fewer total serialized bytes than equivalent immediate flushing for the same update burst.
+- Added a heavier smoke/eval scenario scaffold (`09-state-coalescing-burst`) plus README guidance for comparing coalescing-enabled and near-immediate cadence runs with the new telemetry fields.
 
 ## Recommended Next Validation Step
 
