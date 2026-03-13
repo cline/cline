@@ -75,9 +75,8 @@ export const FeatureTip = memo(() => {
 	useEffect(() => {
 		showTimerRef.current = setTimeout(() => {
 			setIsVisible(true)
+			cycleTimerRef.current = setInterval(advanceTip, CYCLE_INTERVAL_MS)
 		}, SHOW_DELAY_MS)
-
-		cycleTimerRef.current = setInterval(advanceTip, CYCLE_INTERVAL_MS)
 
 		return () => {
 			if (showTimerRef.current) {
