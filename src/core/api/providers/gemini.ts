@@ -151,7 +151,7 @@ export class GeminiHandler implements ApiHandler {
 		const contents = messages.map(convertAnthropicMessageToGemini)
 		// Gemini may emit multiple function calls under the same responseId and without functionCall.id.
 		// Track a local sequence so each emitted tool call has a stable unique ID.
-		const responseToolCallSequence = new Map<string, number>()
+		const responseToolCallCount = new Map<string, number>()
 
 		// Configure thinking budget/level if supported
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
@@ -258,12 +258,13 @@ export class GeminiHandler implements ApiHandler {
 						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
 						if (functionCall.args && args.length > 0) {
 							const existingId = functionCall.id?.trim()
-							const toolCallId = existingId
-								? existingId
-								: `${responseKey}-tool-${responseToolCallSequence.get(responseKey) ?? 0}`
-							if (!existingId) {
-								responseToolCallSequence.set(responseKey, (responseToolCallSequence.get(responseKey) ?? 0) + 1)
-							}
+							const toolCallId =
+								existingId ??
+								(() => {
+									const sequenceNumber = responseToolCallCount.get(responseKey) ?? 0
+									responseToolCallCount.set(responseKey, sequenceNumber + 1)
+									return `${responseKey}-tool-${sequenceNumber}`
+								})()
 							yield {
 								type: "tool_calls",
 								id: chunk.responseId,
