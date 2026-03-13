@@ -320,7 +320,7 @@ This is the simplest locally visible measurement and should serve as the “does
 
 - [x] Unit/integration test: ping returns successfully.
 - [x] Test: payload size selection is reflected in the request.
-- [ ] Regression test: continuous mode handles pending request overlap safely.
+- [x] Regression test: continuous mode handles pending request overlap safely.
 
 ---
 
