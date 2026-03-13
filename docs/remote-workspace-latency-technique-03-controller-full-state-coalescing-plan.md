@@ -145,23 +145,23 @@ If every caller thinks its update is urgent, the scheduler will collapse back in
 
 ### Work
 
-- [ ] Define `immediate`, `normal`, and `low` state update priorities.
-- [ ] Audit core state-posting callsites.
-- [ ] Document which flows must bypass coalescing.
+- [x] Define `immediate`, `normal`, and `low` state update priorities.
+- [x] Audit core state-posting callsites.
+- [x] Document which flows must bypass coalescing.
 
 ### Detailed code changes
 
 - In `src/core/controller/index.ts`, document priority expectations near `postStateToWebview(...)`.
 - Categorize at least these as typically immediate:
-  - [ ] task initialization,
-  - [ ] explicit task clear/switch,
-  - [ ] auth/login/logout state changes,
-  - [ ] mode switch.
+  - [x] task initialization,
+  - [x] explicit task clear/switch,
+  - [x] auth/login/logout state changes,
+  - [x] mode switch.
 - Categorize these as usually coalescible during streaming:
-  - [ ] usage/cost updates,
-  - [ ] background command state churn,
-  - [ ] focus-chain intermediate changes,
-  - [ ] repeated chat-state updates caused by streaming partials.
+  - [x] usage/cost updates,
+  - [x] background command state churn,
+  - [x] focus-chain intermediate changes,
+  - [x] repeated chat-state updates caused by streaming partials.
 
 Use the reference implementation branch to validate these classifications before finalizing them in your extraction. The point is not to make an abstract list; it is to preserve the already-learned boundary between “must feel instant” and “safe to batch.”
 
@@ -225,18 +225,18 @@ The API should remain convenient for the rest of the codebase. Most callers shou
 
 ### Work
 
-- [ ] Add optional priority parameter to `postStateToWebview(...)`.
-- [ ] Determine the default priority based on whether the task is actively streaming.
-- [ ] Preserve an explicit immediate path.
+- [x] Add optional priority parameter to `postStateToWebview(...)`.
+- [x] Determine the default priority based on whether the task is actively streaming.
+- [x] Preserve an explicit immediate path.
 
 ### Detailed code changes
 
 - In `src/core/controller/index.ts`:
-  - [ ] instantiate `StateUpdateScheduler` in the constructor.
-  - [ ] change `postStateToWebview(options?)` so it:
-    - [ ] flushes immediately for `priority: "immediate"`,
-    - [ ] otherwise requests scheduled flush.
-  - [ ] add `getDefaultStateUpdatePriority()` that returns `normal` while streaming and `immediate` when idle/non-task.
+  - [x] instantiate `StateUpdateScheduler` in the constructor.
+  - [x] change `postStateToWebview(options?)` so it:
+    - [x] flushes immediately for `priority: "immediate"`,
+    - [x] otherwise requests scheduled flush.
+  - [x] add `getDefaultStateUpdatePriority()` that returns `normal` while streaming and `immediate` when idle/non-task.
 
 When extracting this step, prefer preserving the reference implementation’s method boundaries and control flow. That will make later comparison and debugging much smoother.
 
@@ -264,16 +264,16 @@ Snapshot frequency alone is not enough. One giant expensive snapshot can be wors
 
 ### Work
 
-- [ ] Measure `getStateToPostToWebview()` build time.
-- [ ] Measure serialized payload size.
-- [ ] Measure send time.
-- [ ] Feed these metrics into per-request latency telemetry.
+- [x] Measure `getStateToPostToWebview()` build time.
+- [x] Measure serialized payload size.
+- [x] Measure send time.
+- [x] Feed these metrics into per-request latency telemetry.
 
 ### Detailed code changes
 
 - In `src/core/controller/index.ts`:
-  - [ ] add `flushStateToWebview()` that records build duration and delivery stats.
-  - [ ] call `task?.noteStateUpdateMetrics(...)` with build duration, payload bytes, and send duration.
+  - [x] add `flushStateToWebview()` that records build duration and delivery stats.
+  - [x] call `task?.noteStateUpdateMetrics(...)` with build duration, payload bytes, and send duration.
 - In `src/core/controller/state/subscribeToState.ts`:
   - [ ] ensure payload byte counting remains available and accurate.
 
@@ -281,8 +281,8 @@ This step is not just observability polish. It is what lets the team prove that 
 
 ### Tests
 
-- [ ] Unit test: state update metrics are recorded when a flush occurs.
-- [ ] Unit test: payload byte accounting is invoked.
+- [x] Unit test: state update metrics are recorded when a flush occurs.
+- [x] Unit test: payload byte accounting is invoked.
 
 ---
 
@@ -298,29 +298,29 @@ The scheduler provides the mechanism; callsite audit provides the correctness. W
 
 ### Work
 
-- [ ] Review all major `postStateToWebview()` callsites.
-- [ ] Keep task initialization and state transitions immediate where appropriate.
-- [ ] Allow hot streaming churn to use normal or low priority.
+- [x] Review all major `postStateToWebview()` callsites.
+- [x] Keep task initialization and state transitions immediate where appropriate.
+- [x] Allow hot streaming churn to use normal or low priority.
 
 ### Detailed code changes
 
 - In controller and task flows, inspect callsites involving:
-  - [ ] task init / resume,
-  - [ ] cancel / clear,
-  - [ ] auth state changes,
-  - [ ] usage updates,
-  - [ ] focus-chain metadata,
-  - [ ] background command metadata,
-  - [ ] periodic stream-related updates.
+  - [x] task init / resume,
+  - [x] cancel / clear,
+  - [x] auth state changes,
+  - [x] usage updates,
+  - [x] focus-chain metadata,
+  - [x] background command metadata,
+  - [x] periodic stream-related updates.
 - Where needed, pass explicit priority rather than relying only on defaults.
 
 The smart move here is to audit callsites with the reference implementation open, because the coalescing behavior only makes sense in context. The subtle value of the reference branch is that it already captures where the team discovered hidden urgency requirements.
 
 ### Tests
 
-- [ ] Regression test: task init still hydrates the UI immediately.
-- [ ] Regression test: cancel/clear still updates UI promptly.
-- [ ] Regression test: auth/settings flows are not delayed in a user-visible bad way.
+- [x] Regression test: task init still hydrates the UI immediately.
+- [x] Regression test: cancel/clear still updates UI promptly.
+- [x] Regression test: auth/settings flows are not delayed in a user-visible bad way.
 
 ---
 
@@ -416,11 +416,11 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 
 ## Developer Checklist Summary
 
-- [ ] Define snapshot posting priorities
-- [ ] Build controller-level scheduler
-- [ ] Route `postStateToWebview()` through scheduler
-- [ ] Instrument build/send/payload metrics
-- [ ] Audit state-posting callsites
+- [x] Define snapshot posting priorities
+- [x] Build controller-level scheduler
+- [x] Route `postStateToWebview()` through scheduler
+- [x] Instrument build/send/payload metrics
+- [x] Audit state-posting callsites
 - [ ] Validate high-churn and large-file-write scenarios
 - [ ] Add remote-aware cadence tuning
 - [ ] Verify non-streaming product-surface safety

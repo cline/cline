@@ -291,7 +291,7 @@ export class Controller {
 		// Check if the user has completed enough tasks to no longer be considered a "new user"
 		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
 			this.stateManager.setGlobalState("isNewUser", false)
-			await this.postStateToWebview()
+			await this.postStateToWebview({ priority: "immediate" })
 		}
 
 		if (autoApprovalSettings) {
@@ -409,6 +409,7 @@ export class Controller {
 		}
 
 		await this.postStateToWebview()
+		await this.postStateToWebview({ priority: "immediate" })
 
 		// Additional safety
 		if (this.task) {
@@ -432,7 +433,7 @@ export class Controller {
 			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
 		}
 
-		await this.postStateToWebview()
+		await this.postStateToWebview({ priority: "immediate" })
 
 		if (this.task) {
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
@@ -582,7 +583,7 @@ export class Controller {
 				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 			}
 
-			await this.postStateToWebview()
+			await this.postStateToWebview({ priority: "immediate" })
 		} catch (error) {
 			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
@@ -633,7 +634,7 @@ export class Controller {
 				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 			}
 
-			await this.postStateToWebview()
+			await this.postStateToWebview({ priority: "immediate" })
 		} catch (error) {
 			Logger.error("Failed to handle auth callback:", error)
 			HostProvider.window.showMessage({
@@ -648,7 +649,7 @@ export class Controller {
 	async handleMcpOAuthCallback(serverHash: string, code: string, state: string | null) {
 		try {
 			await this.mcpHub.completeOAuth(serverHash, code, state)
-			await this.postStateToWebview()
+			await this.postStateToWebview({ priority: "immediate" })
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: `Successfully authenticated MCP server`,

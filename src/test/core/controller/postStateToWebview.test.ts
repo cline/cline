@@ -139,6 +139,53 @@ describe("Controller postStateToWebview", () => {
 		sinon.assert.notCalled(requestFlush)
 	})
 
+	it("treats non-streaming active tasks as immediate by default", async () => {
+		const flushNow = sinon.stub().resolves()
+		const requestFlush = sinon.stub()
+		;(controller as any).stateUpdateScheduler = {
+			flushNow,
+			requestFlush,
+			dispose: sinon.stub().resolves(),
+		}
+		;(controller as any).task = {
+			taskState: {
+				isStreaming: false,
+			},
+		}
+
+		await controller.postStateToWebview()
+
+		sinon.assert.calledOnce(flushNow)
+		sinon.assert.notCalled(requestFlush)
+	})
+
+	it("records state update metrics when a flush occurs", async () => {
+		const noteStateUpdateMetrics = sinon.stub()
+		;(controller as any).task = { noteStateUpdateMetrics }
+		const getStateToPostToWebview = sinon.stub(controller, "getStateToPostToWebview").resolves({ foo: "bar" } as any)
+		const stateModule = require("@core/controller/state/subscribeToState")
+		const sendStateUpdateStub = sinon.stub(stateModule, "sendStateUpdate").resolves({
+			payloadBytes: 123,
+			sendDurationMs: 7,
+			subscriberCount: 1,
+		})
+
+		try {
+			await (controller as any).flushStateToWebview()
+
+			sinon.assert.calledOnce(getStateToPostToWebview)
+			sinon.assert.calledOnce(sendStateUpdateStub)
+			sinon.assert.calledOnce(noteStateUpdateMetrics)
+			const metrics = noteStateUpdateMetrics.firstCall.args[0]
+			metrics.serializedBytes.should.equal(123)
+			metrics.sendDurationMs.should.equal(7)
+			metrics.buildDurationMs.should.be.greaterThanOrEqual(0)
+		} finally {
+			getStateToPostToWebview.restore()
+			sendStateUpdateStub.restore()
+		}
+	})
+
 	it("detects remote workspace host metadata during controller initialization", async () => {
 		HostProvider.reset()
 		hostProviderInitialized = false
