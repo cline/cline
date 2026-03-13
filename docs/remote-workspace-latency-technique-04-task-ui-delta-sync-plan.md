@@ -422,7 +422,7 @@ Since the reference implementation already exists, one of the strongest ways to 
 ### Tests
 
 - [ ] Validation harness scenario: delta-enabled mode reduces full-state payload bytes during active execution.
-- [ ] Validation harness scenario: delta-disabled variant falls back cleanly to snapshot behavior.
+- [x] Validation harness scenario: delta-disabled variant falls back cleanly to snapshot behavior.
 - [x] Unit test: debug counters increment correctly where applicable.
 
 ---
@@ -475,10 +475,13 @@ That is why this technique still matters for large-file-write scenarios, even th
 - Added frontend churn/debug counter coverage in `webview-ui/src/context/taskUiDeltaState.test.ts` and `webview-ui/src/context/taskUiDebugCounters.test.ts`.
 - Wired focus-chain metadata and background-command metadata through task-specific delta publication, with snapshot fallback when task identity is ambiguous.
 - Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
+- Built the standalone validation target, fixed the latency harness mock response path for `latency_validation`, and ran `scripts/validate-latency-scenarios.ts` end-to-end across local/remote and delta-enabled/delta-disabled variants.
+- Validation now shows clean snapshot fallback when delta sync is disabled (`taskDeltaCount: 0`, `taskDeltaPayloadBytes: 0`, `completed: true`) while delta-enabled variants deliver 31 task deltas / 14,690 delta bytes and still converge successfully.
 - Installed dependencies, regenerated protos, and verified the focused backend and webview coverage locally. Successful verification included:
   - `npm run test:unit -- src/test/controller-task-ui-metadata.test.ts src/core/controller/ui/subscribeToTaskUiDeltas.test.ts src/test/message-state-handler.test.ts src/core/task/__tests__/latency.test.ts src/services/telemetry/__tests__/taskLatencySummary.test.ts`
   - `cd webview-ui && npm run test -- src/context/taskUiDeltaState.test.ts src/context/taskUiDebugCounters.test.ts src/context/ExtensionStateContext.test.tsx`
 - The webview verification now passes without the earlier React `act(...)` warning noise after wrapping streamed state updates in `act(...)`.
+- Remaining validation gap: in the current synthetic scenario, full-state payload bytes remain equal across delta-enabled and delta-disabled variants (`statePayloadBytes: 105468`), so the plan item requiring demonstrated reduction in full-state payload bytes during active execution is still open.
 
 ---
 
