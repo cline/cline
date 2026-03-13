@@ -30,6 +30,54 @@ The cross-cutting project wisdom still applies here:
 
 For this technique, the emphasis is on moving active execution away from **full-state** and toward **targeted transport**.
 
+## Document Type, Audience, and Quality Bar
+
+This is an **extraction implementation plan** for a **Staff+ level distributed systems / infrastructure engineer**. It assumes the reader is capable of reasoning about transport contracts, ordering invariants, state hydration, and recovery semantics.
+
+The quality bar is especially high here because this technique crosses backend, transport, and frontend boundaries. The plan must therefore make it easy to answer:
+
+- what the transport contract is,
+- what invariants must hold,
+- what recovery behavior is expected,
+- and how the extracted version will be validated against the reference implementation.
+
+## Artifact Stack and Dependency Position
+
+This doc should be read as part of the following artifact sequence:
+
+1. `docs/remote-workspace-latency-branch-analysis-report.md` explains why delta sync is strategically valuable but later in the extraction order.
+2. `eve_troubleshooting-remote-workspaces` shows the integrated end state and should be consulted constantly.
+3. This document defines the extraction steps, invariants, and test strategy for a smaller implementation branch.
+
+Because this technique is more coupled than the other top-four techniques, keeping that sequence explicit will make development much smoother.
+
+## Minimal Coherent Extraction Boundary
+
+The smallest coherent PR for this technique should usually include:
+
+- shared delta type definitions,
+- backend publish/subscribe infrastructure,
+- message-state delta emission,
+- frontend delta application with sequencing and resync,
+- and tests covering ordering, divergence, and recovery.
+
+What should **not** be split away if avoidable:
+
+- sequence validation from delta application,
+- resync path from initial delta rollout,
+- backend emission from frontend application if the goal is an end-to-end usable slice,
+- and the fallback snapshot path that preserves product correctness.
+
+## Common Failure Modes While Extracting
+
+Watch for these failure modes explicitly:
+
+- treating deltas as a replacement for snapshots rather than a companion to them,
+- making the reducer permissive instead of sequence-strict,
+- emitting deltas from the wrong abstraction boundary,
+- forgetting task-identity filtering and task-switch behavior,
+- and validating only happy-path ordered deltas without aggressive resync/fallback testing.
+
 ---
 
 ## Why This Technique Matters
