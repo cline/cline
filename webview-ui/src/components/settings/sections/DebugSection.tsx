@@ -79,9 +79,15 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 					{pingError && <p className="m-0 text-xs text-[var(--vscode-errorForeground)]">{pingError}</p>}
 					{latencyObserver && (
 						<div className="flex flex-col gap-2 border-t border-[var(--vscode-panel-border)] pt-3 text-xs">
+							<div>Branch: {latencyObserver.session.branch ?? "unknown"}</div>
+							<div>Commit: {latencyObserver.session.commit?.slice(0, 8) ?? "unknown"}</div>
+							<div>Environment: {String(latencyObserver.session.environment ?? "unknown")}</div>
 							<div>Task init avg: {latencyObserver.taskInitialization.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>First visible avg: {latencyObserver.firstVisibleUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
+							<div>State pushes: {latencyObserver.optionalCounters?.fullStatePushes ?? 0}</div>
+							<div>Partial events: {latencyObserver.optionalCounters?.partialMessageEvents ?? 0}</div>
+							<div>Persistence flushes: {latencyObserver.optionalCounters?.persistenceFlushes ?? 0}</div>
 							<div className="max-h-24 overflow-auto rounded border border-[var(--vscode-panel-border)] p-2">
 								{latencyObserver.logs.length === 0
 									? "No observer events yet."
