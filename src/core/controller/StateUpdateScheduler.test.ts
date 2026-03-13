@@ -2,20 +2,51 @@ import { strict as assert } from "assert"
 import { describe, it } from "mocha"
 import { StateUpdateScheduler } from "./StateUpdateScheduler"
 
+class FakeTimerController {
+	private now = 0
+	private nextId = 1
+	private timers = new Map<number, { time: number; callback: () => void }>()
+
+	setTimeout = (callback: () => void, delay: number) => {
+		const id = this.nextId++
+		this.timers.set(id, { time: this.now + delay, callback })
+		return id as unknown as ReturnType<typeof setTimeout>
+	}
+
+	clearTimeout = (handle: ReturnType<typeof setTimeout>) => {
+		this.timers.delete(handle as unknown as number)
+	}
+
+	advance(ms: number) {
+		this.now += ms
+		let ran = true
+		while (ran) {
+			ran = false
+			for (const [id, timer] of [...this.timers.entries()].sort((a, b) => a[1].time - b[1].time)) {
+				if (timer.time <= this.now) {
+					this.timers.delete(id)
+					timer.callback()
+					ran = true
+				}
+			}
+		}
+	}
+
+	getNow = () => this.now
+}
+
 describe("StateUpdateScheduler", () => {
 	it("coalesces repeated normal-priority requests into one flush", async () => {
+		const timer = new FakeTimerController()
 		let flushCount = 0
-		let scheduledCallback: (() => void) | undefined
 		const scheduler = new StateUpdateScheduler({
 			flush: async () => {
 				flushCount += 1
 			},
-			getDelayMs: () => 25,
-			setTimeoutFn: ((callback: () => void) => {
-				scheduledCallback = callback
-				return 1 as any
-			}) as unknown as typeof setTimeout,
-			clearTimeoutFn: (() => {}) as typeof clearTimeout,
+			getDelayMs: () => 50,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
 		})
 
 		scheduler.requestFlush("normal")
@@ -23,38 +54,40 @@ describe("StateUpdateScheduler", () => {
 		scheduler.requestFlush("low")
 
 		assert.equal(flushCount, 0)
-		assert.ok(scheduledCallback)
-		scheduledCallback?.()
+		timer.advance(49)
+		assert.equal(flushCount, 0)
+		timer.advance(1)
 		await Promise.resolve()
 
 		assert.equal(flushCount, 1)
 	})
 
 	it("flushes immediately when requested", async () => {
+		const timer = new FakeTimerController()
 		let flushCount = 0
-		let timerCleared = false
 		const scheduler = new StateUpdateScheduler({
 			flush: async () => {
 				flushCount += 1
 			},
-			getDelayMs: () => 25,
-			setTimeoutFn: (() => 1 as any) as unknown as typeof setTimeout,
-			clearTimeoutFn: (() => {
-				timerCleared = true
-			}) as typeof clearTimeout,
+			getDelayMs: () => 50,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
 		})
 
 		scheduler.requestFlush("normal")
 		await scheduler.flushNow()
 
-		assert.equal(timerCleared, true)
+		assert.equal(flushCount, 1)
+		timer.advance(100)
+		await Promise.resolve()
 		assert.equal(flushCount, 1)
 	})
 
 	it("runs one follow-up flush when updates arrive during an active flush", async () => {
+		const timer = new FakeTimerController()
 		let flushCount = 0
 		let releaseFlush: (() => void) | undefined
-		let scheduledCallback: (() => void) | undefined
 		const scheduler = new StateUpdateScheduler({
 			flush: async () => {
 				flushCount += 1
@@ -64,20 +97,22 @@ describe("StateUpdateScheduler", () => {
 					})
 				}
 			},
-			getDelayMs: () => 0,
-			setTimeoutFn: ((callback: () => void) => {
-				scheduledCallback = callback
-				return 1 as any
-			}) as unknown as typeof setTimeout,
-			clearTimeoutFn: (() => {}) as typeof clearTimeout,
+			getDelayMs: () => 10,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
 		})
 
-		const firstFlush = scheduler.flushNow()
+		scheduler.requestFlush("normal")
+		timer.advance(10)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+
 		scheduler.requestFlush("normal")
 		releaseFlush?.()
-		await firstFlush
-		scheduledCallback?.()
 		await Promise.resolve()
+		await Promise.resolve()
+		timer.advance(10)
 		await Promise.resolve()
 
 		assert.equal(flushCount, 2)
@@ -103,5 +138,73 @@ describe("StateUpdateScheduler", () => {
 
 		assert.equal(timerCleared, true)
 		assert.equal(flushCount, 0)
+	})
+
+	it("does not schedule a follow-up flush after disposal during an active flush", async () => {
+		const timer = new FakeTimerController()
+		let flushCount = 0
+		let resolveFlush: (() => void) | undefined
+		const scheduler = new StateUpdateScheduler({
+			flush: async () => {
+				flushCount += 1
+				await new Promise<void>((resolve) => {
+					resolveFlush = resolve
+				})
+			},
+			getDelayMs: () => 10,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
+		})
+
+		scheduler.requestFlush("normal")
+		timer.advance(10)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+
+		scheduler.requestFlush("normal")
+		await scheduler.dispose()
+		resolveFlush?.()
+		await Promise.resolve()
+		await Promise.resolve()
+		timer.advance(20)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+	})
+
+	it("flushNow drains pending updates immediately after the current flush completes", async () => {
+		const timer = new FakeTimerController()
+		let flushCount = 0
+		let resolveFlush: (() => void) | undefined
+		const scheduler = new StateUpdateScheduler({
+			flush: async () => {
+				flushCount += 1
+				await new Promise<void>((resolve) => {
+					resolveFlush = resolve
+				})
+			},
+			getDelayMs: () => 25,
+			setTimeoutFn: timer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+			getNow: timer.getNow,
+		})
+
+		scheduler.requestFlush("normal")
+		timer.advance(25)
+		await Promise.resolve()
+		assert.equal(flushCount, 1)
+
+		scheduler.requestFlush("normal")
+		const drainPromise = scheduler.flushNow()
+		resolveFlush?.()
+		await Promise.resolve()
+		await Promise.resolve()
+		assert.equal(flushCount, 2)
+
+		resolveFlush?.()
+		await drainPromise
+		timer.advance(50)
+		await Promise.resolve()
+		assert.equal(flushCount, 2)
 	})
 })

@@ -186,6 +186,57 @@ describe("Controller postStateToWebview", () => {
 		}
 	})
 
+	it("posts background command state updates at normal priority", async () => {
+		const postStateToWebview = sinon.stub(controller, "postStateToWebview").resolves()
+
+		controller.updateBackgroundCommandState(true, "task-123")
+		await Promise.resolve()
+
+		sinon.assert.calledOnceWithExactly(postStateToWebview, { priority: "normal" })
+	})
+
+	it("keeps mode switches on the immediate path", async () => {
+		const postStateToWebview = sinon.stub(controller, "postStateToWebview").resolves()
+
+		const didSwitch = await controller.togglePlanActMode("plan")
+
+		didSwitch.should.equal(false)
+		sinon.assert.calledOnceWithExactly(postStateToWebview, { priority: "immediate" })
+		sinon.assert.calledWith(mockStateManager.setGlobalState, "mode", "plan")
+	})
+
+	it("keeps auth callback state hydration on the immediate path", async () => {
+		mockStateManager.getGlobalSettingsKey.callsFake((key: string) => {
+			switch (key) {
+				case "planActSeparateModelsSetting":
+					return false
+				case "mode":
+					return "act"
+				default:
+					return undefined
+			}
+		})
+		mockStateManager.getApiConfiguration.returns({
+			planModeApiProvider: "openrouter",
+			actModeApiProvider: "openrouter",
+		})
+
+		const handleAuthCallback = sinon.stub(controller.authService, "handleAuthCallback").resolves()
+		const postStateToWebview = sinon.stub(controller, "postStateToWebview").resolves()
+		const fetchRemoteConfigModule = require("@core/storage/remote-config/fetch")
+		const fetchRemoteConfigStub = sinon.stub(fetchRemoteConfigModule, "fetchRemoteConfig").resolves()
+
+		try {
+			await controller.handleAuthCallback("token-123", "google")
+
+			sinon.assert.calledOnce(handleAuthCallback)
+			sinon.assert.calledWith(mockStateManager.setGlobalState, "welcomeViewCompleted", true)
+			sinon.assert.calledOnceWithExactly(postStateToWebview, { priority: "immediate" })
+		} finally {
+			fetchRemoteConfigStub.restore()
+		}
+	})
+
 	it("detects remote workspace host metadata during controller initialization", async () => {
 		HostProvider.reset()
 		hostProviderInitialized = false

@@ -402,9 +402,9 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 ### Work
 
 - [ ] Test history/task switching behavior.
-- [ ] Test settings/auth-related UI updates.
-- [ ] Test onboarding / welcome state hydration.
-- [ ] Test focus-chain/background-command metadata behavior.
+- [x] Test settings/auth-related UI updates.
+- [x] Test onboarding / welcome state hydration.
+- [x] Test focus-chain/background-command metadata behavior.
 
 ### Tests
 
@@ -424,6 +424,12 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - [ ] Validate high-churn and large-file-write scenarios
 - [x] Add remote-aware cadence tuning
 - [ ] Verify non-streaming product-surface safety
+
+## Progress Notes
+
+- Added stronger `StateUpdateScheduler` regression coverage for disposal-during-flush and `flushNow()` draining semantics.
+- Added controller regression coverage that keeps mode switches, auth callback hydration, and background-command state updates on the intended priority paths.
+- Non-streaming product-surface safety is now partially covered, but startup hydration and task-switch history flows still need explicit regression coverage.
 
 ---
 
