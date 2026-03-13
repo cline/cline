@@ -1,5 +1,6 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import type { ModelInfo } from "@shared/api"
+import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
@@ -262,6 +263,13 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 							}
 						}
 						break
+				}
+
+				if (isGeminiFlashModel(rawModel.id)) {
+					modelInfo.maxTokens = Math.min(
+						modelInfo.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+						GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+					)
 				}
 
 				models[rawModel.id] = modelInfo

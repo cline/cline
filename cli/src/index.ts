@@ -2,6 +2,7 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
+import { spawn } from "node:child_process"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
@@ -34,6 +35,7 @@ import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
+import { addMcpServerShortcut, type McpAddOptions } from "./utils/mcp"
 import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
 import { CLINE_CLI_DIR, getCliBinaryPath } from "./utils/path"
@@ -56,6 +58,7 @@ suppressConsoleUnlessVerbose()
 interface TaskOptions {
 	act?: boolean
 	plan?: boolean
+	kanban?: boolean
 	model?: string
 	verbose?: boolean
 	cwd?: string
@@ -248,6 +251,36 @@ function getPlainTextModeReason(options: TaskOptions): string {
 	return getModeSelection(options).reason
 }
 
+function getNpxCommand(): string {
+	return process.platform === "win32" ? "npx.cmd" : "npx"
+}
+
+function runKanbanAlias(): void {
+	const child = spawn(getNpxCommand(), ["kanban", "--agent", "cline"], {
+		stdio: "inherit",
+	})
+
+	child.on("error", () => {
+		printWarning("Failed to run 'npx kanban --agent cline'. Make sure npx is installed and available in PATH.")
+		exit(1)
+	})
+
+	child.on("close", (code) => {
+		exit(code ?? 1)
+	})
+}
+
+async function addMcpServer(name: string, targetOrCommand: string[] = [], options: McpAddOptions): Promise<void> {
+	try {
+		const result = await addMcpServerShortcut(name, targetOrCommand, options)
+		const transportLabel = result.transportType === "streamableHttp" ? "http" : result.transportType
+		printInfo(`Added MCP server '${result.serverName}' (${transportLabel}) to ${result.settingsPath}`)
+	} catch (error) {
+		printWarning(error instanceof Error ? error.message : "Failed to add MCP server.")
+		exit(1)
+	}
+}
+
 /**
  * Run a task in plain text mode (no Ink UI).
  * Handles auth check, task execution, cleanup, and exit.
@@ -333,10 +366,19 @@ async function drainStdout(): Promise<void> {
 
 export async function captureUnhandledException(reason: Error, context: string) {
 	try {
-		const errorService = ErrorService.get()
-		await errorService.captureException(reason, { context })
-		// dispose flushes any pending error captures to ensure they're sent before the process exits
-		return errorService.dispose()
+		// ErrorService may not be initialized yet (e.g., error occurred before initializeCli())
+		// so we guard with a try/get pattern rather than letting ErrorService.get() throw
+		let errorService: ErrorService | null = null
+		try {
+			errorService = ErrorService.get()
+		} catch {
+			// ErrorService not yet initialized; skip capture
+		}
+		if (errorService) {
+			await errorService.captureException(reason, { context })
+			// dispose flushes any pending error captures to ensure they're sent before the process exits
+			return errorService.dispose()
+		}
 	} catch {
 		// Ignore errors during shutdown to avoid an infinite loop
 		Logger.info("Error capturing unhandled exception. Proceeding with shutdown.")
@@ -395,7 +437,11 @@ function setupSignalHandlers() {
 				} catch {
 					// StateManager may not be initialized yet
 				}
-				await ErrorService.get().dispose()
+				try {
+					await ErrorService.get().dispose()
+				} catch {
+					// ErrorService may not be initialized yet
+				}
 				await disposeTelemetryServices()
 			}
 		} catch {
@@ -552,6 +598,11 @@ async function runTask(prompt: string, options: TaskOptions & { images?: string[
 
 	// Task without prompt starts in interactive mode
 	telemetryService.captureHostEvent("task_command", prompt ? "task" : "interactive")
+
+	// Capture piped stdin telemetry now that HostProvider is initialized
+	if (options.stdinWasPiped) {
+		telemetryService.captureHostEvent("piped", "detached")
+	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
 	applyTaskOptions(options)
@@ -825,6 +876,18 @@ program
 	.option("--config <path>", "Path to Cline configuration directory")
 	.action(runAuth)
 
+const mcpCommand = program.command("mcp").description("Manage MCP servers")
+
+mcpCommand
+	.command("add")
+	.description("Add an MCP server shortcut to cline_mcp_settings.json")
+	.argument("<name>", "MCP server name")
+	.argument("[targetOrCommand...]", "For stdio: use -- <command> [args]. For http/sse: provide <url>.")
+	.option("--type <type>", "Transport type: stdio (default), http, or sse", "stdio")
+	.option("-c, --cwd <path>", "Working directory for config resolution")
+	.option("--config <path>", "Path to Cline configuration directory")
+	.action(addMcpServer)
+
 program
 	.command("version")
 	.description("Show Cline CLI version number")
@@ -835,6 +898,8 @@ program
 	.description("Check for updates and install if available")
 	.option("-v, --verbose", "Show verbose output")
 	.action(() => checkForUpdates(CLI_VERSION))
+
+program.command("kanban").description("Run npx kanban --agent cline").action(runKanbanAlias)
 
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")
@@ -873,6 +938,11 @@ async function resumeTask(taskId: string, options: TaskOptions & { initialPrompt
 	}
 
 	telemetryService.captureHostEvent("resume_task_command", options.initialPrompt ? "with_prompt" : "interactive")
+
+	// Capture piped stdin telemetry now that HostProvider is initialized
+	if (options.stdinWasPiped) {
+		telemetryService.captureHostEvent("piped", "detached")
+	}
 
 	// Apply shared task options (mode, model, thinking, yolo)
 	applyTaskOptions(options)
@@ -980,9 +1050,20 @@ program
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("--kanban", "Run npx kanban --agent cline")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
+		if (options.kanban) {
+			if (prompt) {
+				printWarning("Use --kanban without a prompt.")
+				exit(1)
+			}
+
+			runKanbanAlias()
+			return
+		}
+
 		// Check for ACP mode first - this takes precedence over everything else
 		if (options.acp) {
 			await runAcpMode({
@@ -1042,8 +1123,6 @@ program
 				effectivePrompt = stdinInput
 			}
 
-			telemetryService.captureHostEvent("piped", "detached")
-
 			// Debug: show that we received piped input
 			if (options.verbose) {
 				process.stderr.write(`[debug] Received ${stdinInput.length} bytes from stdin\n`)
@@ -1070,4 +1149,6 @@ program
 	})
 
 // Parse and run
-program.parse()
+if (process.env.VITEST !== "true") {
+	program.parse()
+}

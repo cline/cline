@@ -1,5 +1,26 @@
 # cline
 
+## [2.7.0]
+
+### Added
+
+- Added MCP add shortcuts for stdio and HTTP servers
+- Added `--continue` for the current directory
+- Added `--auto-condense` flag for AI-powered context compaction
+- Added `--hooks-dir` flag for runtime hook injection
+- Enabled error autocapture
+- Prompt rules now include test verification guidance and make `CLI_RULES` language-agnostic
+
+### Fixed
+
+- Fixed remount behavior so TUI remounts only on width resize
+- Fixed startup prompt replay on resize remount
+- Fixed task flags so they are applied before the welcome TUI mounts
+
+### Changed
+
+- Hooks: reintroduced feature toggle
+
 ## [2.6.1]
 
 ### Added
