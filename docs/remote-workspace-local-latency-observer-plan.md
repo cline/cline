@@ -624,14 +624,14 @@ That gives both a human and a machine-readable comparison story.
 ## Developer Checklist Summary
 
 - [ ] Define a branch-portable shared metric contract
-- [ ] Implement a modernized ping/pong transport probe
-- [ ] Add a shallow branch-portable task observer hook layer
+- [x] Implement a modernized ping/pong transport probe
+- [x] Add a shallow branch-portable task observer hook layer
 - [ ] Adapt richer metrics where available without making them required
-- [ ] Build a visible local observer UI
-- [ ] Support scenario-driven observation
-- [ ] Add export/comparison workflow support
+- [x] Build a visible local observer UI
+- [x] Support scenario-driven observation
+- [x] Add export/comparison workflow support
 - [ ] Validate portability on both `main` and `eve_troubleshooting-remote-workspaces`
-- [ ] Document how to interpret the results
+- [x] Document how to interpret the results
 
 ---
 
