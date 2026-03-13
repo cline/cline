@@ -7,6 +7,90 @@ const grpcClientMocks = vi.hoisted(() => ({
 	setWelcomeViewCompleted: vi.fn(),
 }))
 
+type MockLatencyObserverState = {
+	session: { startedAt: number; branch: string; commit: string; environment: string }
+	capabilities: {
+		transportProbe: string
+		taskInitialization: string
+		requestStart: string
+		firstVisibleUpdate: string
+		fullStateMetrics: string
+		partialMessageMetrics: string
+		taskUiDeltaMetrics: string
+		persistenceMetrics: string
+	}
+	transport: {
+		support: string
+		samples: unknown[]
+		stats: {
+			count: number
+			minMs: number | null
+			maxMs: number | null
+			avgMs: number | null
+			lastMs: number | null
+			totalMs: number
+		}
+	}
+	taskInitialization: MockLatencyObserverState["transport"]
+	requestStart: MockLatencyObserverState["transport"]
+	firstVisibleUpdate: MockLatencyObserverState["transport"]
+	logs: unknown[]
+	optionalCounters?: {
+		fullStatePushes: number
+		fullStateBytes: number
+		partialMessageEvents: number
+		partialMessageBytes: number
+		taskUiDeltaEvents: number
+		persistenceFlushes: number
+	}
+}
+
+const extensionStateMock = vi.hoisted(() => ({
+	latencyObserver: {
+		session: { startedAt: 1, branch: "main", commit: "abcdef123456", environment: "production" },
+		capabilities: {
+			transportProbe: "supported",
+			taskInitialization: "supported",
+			requestStart: "supported",
+			firstVisibleUpdate: "supported",
+			fullStateMetrics: "supported",
+			partialMessageMetrics: "supported",
+			taskUiDeltaMetrics: "unsupported",
+			persistenceMetrics: "supported",
+		},
+		transport: {
+			support: "supported",
+			samples: [],
+			stats: { count: 0, minMs: null, maxMs: null, avgMs: null, lastMs: null, totalMs: 0 },
+		},
+		taskInitialization: {
+			support: "supported",
+			samples: [],
+			stats: { count: 1, minMs: 10, maxMs: 10, avgMs: 10, lastMs: 10, totalMs: 10 },
+		},
+		requestStart: {
+			support: "supported",
+			samples: [],
+			stats: { count: 1, minMs: 0, maxMs: 0, avgMs: 0, lastMs: 0, totalMs: 0 },
+		},
+		firstVisibleUpdate: {
+			support: "supported",
+			samples: [],
+			stats: { count: 1, minMs: 12, maxMs: 12, avgMs: 12, lastMs: 12, totalMs: 12 },
+		},
+		logs: [],
+		optionalCounters: {
+			fullStatePushes: 3,
+			fullStateBytes: 1024,
+			partialMessageEvents: 4,
+			partialMessageBytes: 256,
+			taskUiDeltaEvents: 7,
+			persistenceFlushes: 2,
+		},
+	} as MockLatencyObserverState,
+	setShowWelcome: vi.fn(),
+}))
+
 vi.mock("@/services/grpc-client", () => ({
 	UiServiceClient: {
 		pingLatencyProbe: grpcClientMocks.pingLatencyProbe,
@@ -17,8 +101,13 @@ vi.mock("@/services/grpc-client", () => ({
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({
-		latencyObserver: {
+	useExtensionState: () => extensionStateMock,
+}))
+
+describe("DebugSection", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		extensionStateMock.latencyObserver = {
 			session: { startedAt: 1, branch: "main", commit: "abcdef123456", environment: "production" },
 			capabilities: {
 				transportProbe: "supported",
@@ -59,19 +148,12 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 				taskUiDeltaEvents: 7,
 				persistenceFlushes: 2,
 			},
-		},
-		setShowWelcome: vi.fn(),
-	}),
-}))
-
-describe("DebugSection", () => {
-	beforeEach(() => {
-		vi.clearAllMocks()
+		}
 	})
 
 	it("runs the latency probe and renders rolling stats", async () => {
 		grpcClientMocks.pingLatencyProbe.mockResolvedValue({ value: 64 })
-		const createObjectURL = vi.fn(() => "blob:test")
+		const createObjectURL = vi.fn((_: Blob) => "blob:test")
 		const revokeObjectURL = vi.fn()
 		const click = vi.fn()
 		const originalCreateElement = document.createElement.bind(document)
@@ -111,6 +193,52 @@ describe("DebugSection", () => {
 		expect(createObjectURL).toHaveBeenCalledTimes(1)
 		expect(click).toHaveBeenCalledTimes(1)
 		expect(revokeObjectURL).toHaveBeenCalledTimes(1)
+
+		createElementSpy.mockRestore()
+	})
+
+	it("exports a stable session even when optional metrics are unavailable", async () => {
+		extensionStateMock.latencyObserver = {
+			...extensionStateMock.latencyObserver,
+			capabilities: {
+				...extensionStateMock.latencyObserver.capabilities,
+				fullStateMetrics: "unsupported",
+				partialMessageMetrics: "unsupported",
+				taskUiDeltaMetrics: "hook-not-installed",
+			},
+			optionalCounters: undefined,
+		}
+
+		grpcClientMocks.pingLatencyProbe.mockResolvedValue({ value: 0 })
+		const createObjectURL = vi.fn((_: Blob) => "blob:test")
+		const revokeObjectURL = vi.fn()
+		const click = vi.fn()
+		const originalCreateElement = document.createElement.bind(document)
+		const createElementSpy = vi.spyOn(document, "createElement").mockImplementation(((tagName: string) => {
+			if (tagName === "a") {
+				return { click, href: "", download: "" } as unknown as HTMLAnchorElement
+			}
+			return originalCreateElement(tagName)
+		}) as typeof document.createElement)
+		vi.stubGlobal("URL", {
+			createObjectURL,
+			revokeObjectURL,
+		})
+
+		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		fireEvent.click(screen.getByText("Export Session JSON"))
+
+		expect(createObjectURL).toHaveBeenCalledTimes(1)
+		const firstCreateObjectUrlCall = createObjectURL.mock.calls[0]
+		if (!firstCreateObjectUrlCall) {
+			throw new Error("Expected export blob to be created")
+		}
+		const exportedBlob = firstCreateObjectUrlCall[0]
+		const exportedJson = JSON.parse(await exportedBlob.text())
+		expect(exportedJson.observationScenario.id).toBe("ping-only")
+		expect(exportedJson.capabilities.fullStateMetrics).toBe("unsupported")
+		expect(exportedJson.capabilities.taskUiDeltaMetrics).toBe("hook-not-installed")
+		expect(exportedJson.optionalCounters).toBeUndefined()
 
 		createElementSpy.mockRestore()
 	})
