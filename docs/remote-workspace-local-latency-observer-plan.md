@@ -265,27 +265,27 @@ The observer succeeds if its core contract is branch-portable. Everything richer
 
 ### Work
 
-- [ ] Define a shared observer metric model for:
-  - [ ] ping RTT samples
-  - [ ] task initialization / request-start samples
-  - [ ] first-visible-update samples
-  - [ ] optional richer counters
-- [ ] Mark each metric as either:
-  - [ ] required/shared
-  - [ ] optional/richer
+- [x] Define a shared observer metric model for:
+  - [x] ping RTT samples
+  - [x] task initialization / request-start samples
+  - [x] first-visible-update samples
+  - [x] optional richer counters
+- [x] Mark each metric as either:
+  - [x] required/shared
+  - [x] optional/richer
 
 ### Detailed code changes
 
 - Add a shared type module, e.g. `src/shared/LatencyObserver.ts` or similar, that defines:
-  - [ ] sample types,
-  - [ ] rolling stats shape,
-  - [ ] branch capability flags,
-  - [ ] session metadata shape.
+  - [x] sample types,
+  - [x] rolling stats shape,
+  - [x] branch capability flags,
+  - [x] session metadata shape.
 
 ### Tests
 
-- [ ] Unit test: metric aggregation shape is stable.
-- [ ] Unit test: missing optional metrics do not break the model.
+- [x] Unit test: metric aggregation shape is stable.
+- [x] Unit test: missing optional metrics do not break the model.
 
 ---
 
@@ -301,22 +301,22 @@ This is the simplest locally visible measurement and should serve as the “does
 
 ### Work
 
-- [ ] Add or confirm a simple UI-service ping endpoint that accepts payload size.
-- [ ] Measure round-trip latency in the webview using `performance.now()`.
+- [x] Add or confirm a simple UI-service ping endpoint that accepts payload size.
+- [x] Measure round-trip latency in the webview using `performance.now()`.
 - [ ] Support multiple payload sizes and continuous testing.
 
 ### Detailed code changes
 
 - Inspect whether the current codebase already has a UI ping path analogous to the old branch’s `UiServiceClient.ping(...)` flow.
 - If missing, add:
-  - [ ] a lightweight request/response endpoint in the UI service layer,
-  - [ ] optional payload-size expansion to simulate message size effects.
+  - [x] a lightweight request/response endpoint in the UI service layer,
+  - [x] optional payload-size expansion to simulate message size effects.
 - In the webview, add a dev-facing component similar in spirit to the old `LatencyTester.tsx`, but keep it isolated behind a dev/debug visibility gate.
 
 ### Tests
 
-- [ ] Unit/integration test: ping returns successfully.
-- [ ] Test: payload size selection is reflected in the request.
+- [x] Unit/integration test: ping returns successfully.
+- [x] Test: payload size selection is reflected in the request.
 - [ ] Regression test: continuous mode handles pending request overlap safely.
 
 ---
