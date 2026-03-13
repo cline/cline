@@ -1,0 +1,1 @@
+---\n'cline': patch\n---\n\nfix: respect user-defined timeout in MCP server requests
