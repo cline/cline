@@ -208,6 +208,14 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<li>Compare the same scenario, payload, and environment across branches for meaningful results.</li>
 						</ul>
 					</div>
+					<div className="rounded border border-[var(--vscode-panel-border)] p-2 text-xs text-(--vscode-descriptionForeground)">
+						<div className="font-medium text-foreground">Branch-portable vs richer metrics</div>
+						<p className="mb-0 mt-2">
+							Transport RTT, task initialization, request count, first visible update, logs, and export data are
+							intended to stay branch-portable. Full-state bytes, partial-message bytes, task UI deltas, and future
+							chunk timing are richer metrics that may vary by branch capability.
+						</p>
+					</div>
 					<label className="flex flex-col gap-1 text-xs text-(--vscode-descriptionForeground)">
 						<span>Ping payload bytes</span>
 						<input
