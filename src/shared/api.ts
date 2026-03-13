@@ -43,6 +43,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "coreweave"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 

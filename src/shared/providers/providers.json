@@ -162,7 +162,11 @@
 		},
 		{
 			"value": "nousResearch",
-			"label": "NousResearch"
+			"label": "Nous Research"
+		},
+		{
+			"value": "coreweave",
+			"label": "CoreWeave (W&B Inference)"
 		}
 	]
 }

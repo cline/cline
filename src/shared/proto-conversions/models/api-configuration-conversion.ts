@@ -266,6 +266,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.REQUESTY
 		case "together":
 			return ProtoApiProvider.TOGETHER
+		case "coreweave":
+			return ProtoApiProvider.COREWEAVE
 		case "deepseek":
 			return ProtoApiProvider.DEEPSEEK
 		case "qwen":
@@ -356,6 +358,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "requesty"
 		case ProtoApiProvider.TOGETHER:
 			return "together"
+		case ProtoApiProvider.COREWEAVE:
+			return "coreweave"
 		case ProtoApiProvider.DEEPSEEK:
 			return "deepseek"
 		case ProtoApiProvider.QWEN:
@@ -464,6 +468,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		requestyApiKey: config.requestyApiKey,
 		requestyBaseUrl: config.requestyBaseUrl,
 		togetherApiKey: config.togetherApiKey,
+		coreweaveApiKey: config.coreweaveApiKey,
 		fireworksApiKey: config.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: config.fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens: config.fireworksModelMaxTokens,
@@ -532,6 +537,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeRequestyModelId: config.planModeRequestyModelId,
 		planModeRequestyModelInfo: convertModelInfoToProtoOpenRouter(config.planModeRequestyModelInfo),
 		planModeTogetherModelId: config.planModeTogetherModelId,
+		planModeCoreweaveModelId: config.planModeCoreweaveModelId,
 		planModeFireworksModelId: config.planModeFireworksModelId,
 		planModeGroqModelId: config.planModeGroqModelId,
 		planModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.planModeGroqModelInfo),
@@ -576,6 +582,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeRequestyModelId: config.actModeRequestyModelId,
 		actModeRequestyModelInfo: convertModelInfoToProtoOpenRouter(config.actModeRequestyModelInfo),
 		actModeTogetherModelId: config.actModeTogetherModelId,
+		actModeCoreweaveModelId: config.actModeCoreweaveModelId,
 		actModeFireworksModelId: config.actModeFireworksModelId,
 		actModeGroqModelId: config.actModeGroqModelId,
 		actModeGroqModelInfo: convertModelInfoToProtoOpenRouter(config.actModeGroqModelInfo),
@@ -643,6 +650,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		requestyApiKey: protoConfig.requestyApiKey,
 		requestyBaseUrl: protoConfig.requestyBaseUrl,
 		togetherApiKey: protoConfig.togetherApiKey,
+		coreweaveApiKey: protoConfig.coreweaveApiKey,
 		fireworksApiKey: protoConfig.fireworksApiKey,
 		fireworksModelMaxCompletionTokens: protoConfig.fireworksModelMaxCompletionTokens,
 		fireworksModelMaxTokens: protoConfig.fireworksModelMaxTokens,
@@ -714,6 +722,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeRequestyModelId: protoConfig.planModeRequestyModelId,
 		planModeRequestyModelInfo: convertProtoToModelInfo(protoConfig.planModeRequestyModelInfo),
 		planModeTogetherModelId: protoConfig.planModeTogetherModelId,
+		planModeCoreweaveModelId: protoConfig.planModeCoreweaveModelId,
 		planModeFireworksModelId: protoConfig.planModeFireworksModelId,
 		planModeGroqModelId: protoConfig.planModeGroqModelId,
 		planModeGroqModelInfo: convertProtoToModelInfo(protoConfig.planModeGroqModelInfo),
@@ -759,6 +768,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeRequestyModelId: protoConfig.actModeRequestyModelId,
 		actModeRequestyModelInfo: convertProtoToModelInfo(protoConfig.actModeRequestyModelInfo),
 		actModeTogetherModelId: protoConfig.actModeTogetherModelId,
+		actModeCoreweaveModelId: protoConfig.actModeCoreweaveModelId,
 		actModeFireworksModelId: protoConfig.actModeFireworksModelId,
 		actModeGroqModelId: protoConfig.actModeGroqModelId,
 		actModeGroqModelInfo: convertProtoToModelInfo(protoConfig.actModeGroqModelInfo),

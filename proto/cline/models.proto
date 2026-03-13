@@ -199,6 +199,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string coreweave_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -287,6 +288,7 @@ message ModelsApiOptions {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
   optional string plan_mode_cline_model_id = 135;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 136;
+  optional string plan_mode_coreweave_model_id = 137;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -326,6 +328,7 @@ message ModelsApiOptions {
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
   optional string act_mode_cline_model_id = 235;
   optional OpenRouterModelInfo act_mode_cline_model_info = 236;
+  optional string act_mode_coreweave_model_id = 237;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -460,6 +463,7 @@ enum ApiProvider {
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
+  COREWEAVE = 41;
 }
 
 enum ApiFormat {
@@ -598,6 +602,7 @@ message ModelsApiConfiguration {
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
+  optional string coreweave_api_key = 87;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -642,6 +647,7 @@ message ModelsApiConfiguration {
   optional string gemini_plan_mode_thinking_level = 139;
   optional string plan_mode_cline_model_id = 140;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 141;
+  optional string plan_mode_coreweave_model_id = 142;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -686,4 +692,5 @@ message ModelsApiConfiguration {
   optional string gemini_act_mode_thinking_level = 239;
   optional string act_mode_cline_model_id = 240;
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
+  optional string act_mode_coreweave_model_id = 242;
 }

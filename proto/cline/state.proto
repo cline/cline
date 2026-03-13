@@ -104,7 +104,8 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
-  optional string openai_codex_oauth_credentials = 48;
+  optional string coreweave_api_key = 49;
+  optional string openai_codex_oauth_credentials = 50;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
@@ -279,11 +280,13 @@ message Settings {
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
   optional bool double_check_completion_enabled = 176;
-  map<string, string> open_ai_headers = 177;
   optional string plan_mode_cline_model_id = 178;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
+  map<string, string> open_ai_headers = 182;
+  optional string plan_mode_coreweave_model_id = 183;
+  optional string act_mode_coreweave_model_id = 184;
 }
 
 message State {

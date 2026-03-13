@@ -405,6 +405,7 @@ describe("getProviderModelIdKey", () => {
 		litellm: "LiteLlmModelId",
 		requesty: "RequestyModelId",
 		together: "TogetherModelId",
+		coreweave: "CoreweaveModelId",
 		fireworks: "FireworksModelId",
 		sapaicore: "SapAiCoreModelId",
 		groq: "GroqModelId",

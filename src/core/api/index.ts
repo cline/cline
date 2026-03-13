@@ -11,6 +11,7 @@ import { AwsBedrockHandler } from "./providers/bedrock"
 import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
+import { CoreweaveHandler } from "./providers/coreweave"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
@@ -218,6 +219,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				togetherApiKey: options.togetherApiKey,
 				togetherModelId: mode === "plan" ? options.planModeTogetherModelId : options.actModeTogetherModelId,
+			})
+		case "coreweave":
+			return new CoreweaveHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				coreweaveApiKey: options.coreweaveApiKey,
+				coreweaveModelId: mode === "plan" ? options.planModeCoreweaveModelId : options.actModeCoreweaveModelId,
 			})
 		case "qwen":
 			return new QwenHandler({

@@ -156,6 +156,7 @@ export function getModelsForProvider(
 		case "oca":
 		case "aihubmix":
 		case "together":
+		case "coreweave":
 		default:
 			return undefined
 	}
@@ -518,6 +519,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 
 			// Provider-specific model IDs
 			togetherModelId: undefined,
+			coreweaveModelId: undefined,
 			fireworksModelId: undefined,
 			lmStudioModelId: undefined,
 			ollamaModelId: undefined,
@@ -579,6 +581,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 
 		// Provider-specific model IDs
 		togetherModelId: mode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
+		coreweaveModelId: mode === "plan" ? apiConfiguration.planModeCoreweaveModelId : apiConfiguration.actModeCoreweaveModelId,
 		fireworksModelId: mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
 		lmStudioModelId: mode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
 		ollamaModelId: mode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
@@ -756,6 +759,11 @@ export async function syncModeConfigurations(
 			updates.actModeTogetherModelId = sourceFields.togetherModelId
 			break
 
+		case "coreweave":
+			updates.planModeCoreweaveModelId = sourceFields.coreweaveModelId
+			updates.actModeCoreweaveModelId = sourceFields.coreweaveModelId
+			break
+
 		case "fireworks":
 			updates.planModeFireworksModelId = sourceFields.fireworksModelId
 			updates.actModeFireworksModelId = sourceFields.fireworksModelId
@@ -905,6 +913,15 @@ export const getProviderInfo = (
 					effectiveMode === "plan" ? apiConfiguration.planModeTogetherModelId : apiConfiguration.actModeTogetherModelId,
 				baseUrl: undefined,
 				helpText: "Add your Together AI API key in settings",
+			}
+		case "coreweave":
+			return {
+				modelId:
+					effectiveMode === "plan"
+						? apiConfiguration.planModeCoreweaveModelId
+						: apiConfiguration.actModeCoreweaveModelId,
+				baseUrl: undefined,
+				helpText: "Add your CoreWeave (W&B Inference) API key in settings",
 			}
 		case "dify":
 			return {

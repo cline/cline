@@ -9,6 +9,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 			openAiModelId,
 			requestyModelId,
 			togetherModelId,
+			coreweaveModelId,
 			ollamaModelId,
 			lmStudioModelId,
 			vsCodeLmModelSelector,
@@ -97,6 +98,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "together":
 				if (!apiConfiguration.togetherApiKey || !togetherModelId) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "coreweave":
+				if (!apiConfiguration.coreweaveApiKey || !coreweaveModelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
