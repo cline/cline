@@ -80,6 +80,7 @@ interface ChatTextAreaProps {
 	onSend: () => void
 	onSelectFilesAndImages: () => void
 	shouldDisableFilesAndImages: boolean
+	imagesSupported: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
 }
@@ -207,6 +208,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSend,
 			onSelectFilesAndImages,
 			shouldDisableFilesAndImages,
+			imagesSupported,
 			onHeightChange,
 			onFocusChange,
 		},
@@ -856,7 +858,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
+				if (!shouldDisableFilesAndImages && imagesSupported && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -1264,7 +1266,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
+			if (shouldDisableFilesAndImages || !imagesSupported || imageFiles.length === 0) {
 				return
 			}
 
