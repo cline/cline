@@ -273,9 +273,9 @@ This step is the actual latency win. Use the reference implementation to identif
 
 ### Tests
 
-- [ ] Integration-style test: many streaming chunks produce fewer presentation invocations than chunk count.
-- [ ] Regression test: first visible token still appears promptly.
-- [ ] Regression test: tool execution order is preserved under scheduled presentation.
+- [x] Integration-style test: many streaming chunks produce fewer presentation invocations than chunk count.
+- [x] Regression test: first visible token still appears promptly.
+- [x] Regression test: tool execution order is preserved under scheduled presentation.
 
 ---
 
@@ -344,7 +344,7 @@ This is one of the places where smart engineering judgment matters most: the las
 
 - [x] Unit test: final `flushNow()` drains pending coalesced work.
 - [x] Unit test: task disposal suppresses delayed pending flushes.
-- [ ] Regression test: final text is visible before next request starts.
+- [x] Regression test: final text is visible before next request starts.
 
 ---
 
