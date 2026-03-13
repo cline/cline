@@ -61,7 +61,7 @@ export const FeatureTip = memo(() => {
 	const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-	const currentTip = useMemo(() => FEATURE_TIPS[tipIndex], [tipIndex])
+	const currentTip = FEATURE_TIPS[tipIndex]
 
 	const advanceTip = useCallback(() => {
 		setIsFading(true)
