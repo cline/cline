@@ -219,7 +219,9 @@ export abstract class DiffViewProvider {
 		// Strip potential BOM from incoming content. VS Code's `applyEdit` might implicitly handle the BOM
 		// when replacing from the start (0,0), and we want to avoid duplication.
 		// Final BOM is handled in `saveChanges`.
-		if (accumulatedContent.startsWith("\ufeff")) {
+		// Only strip BOM if the original file didn't have one, to preserve BOM for files that need it.
+		const hadBOM = this.originalContent?.startsWith("\ufeff") ?? false
+		if (accumulatedContent.startsWith("\ufeff") && !hadBOM) {
 			accumulatedContent = accumulatedContent.slice(1) // Remove the BOM character
 		}
 
@@ -390,10 +392,18 @@ export abstract class DiffViewProvider {
 			)
 		}
 
+		// Check if original file had BOM and preserve it in final content
+		const hadBOM = this.originalContent?.startsWith("\ufeff") ?? false
+		let finalContent = normalizedPostSaveContent
+		if (hadBOM && !finalContent.startsWith("\ufeff")) {
+			// Add BOM back if original file had it
+			finalContent = "\ufeff" + finalContent
+		}
+
 		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
-		const finalContent = this.isNotebookFile()
-			? sanitizeNotebookForLLM(normalizedPostSaveContent, true)
-			: normalizedPostSaveContent
+		if (this.isNotebookFile()) {
+			finalContent = sanitizeNotebookForLLM(finalContent, true)
+		}
 
 		return {
 			newProblemsMessage,
