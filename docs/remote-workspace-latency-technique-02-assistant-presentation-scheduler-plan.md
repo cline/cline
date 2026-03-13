@@ -1,0 +1,438 @@
+# Technique Plan: Assistant Presentation Scheduler
+
+This document is the implementation plan for the **assistant presentation scheduler** technique identified in `docs/remote-workspace-latency-branch-analysis-report.md` as one of the highest-ROI improvements for remote-workspace responsiveness.
+
+The central principle is:
+
+> **The provider stream is not the UI clock.**
+
+In other words, the model may emit chunks at machine cadence, but the user only needs the UI to update at a human-friendly cadence. Trying to present every chunk immediately is what turns remote-mode transport, persistence, and rendering overhead into visible jitter.
+
+This plan explains how to introduce a scheduler that coalesces presentation work without compromising semantic immediacy at important boundaries like first token, tool transitions, errors, and final completion.
+
+## How To Use This Plan
+
+This plan should be implemented on its **own extraction branch**. Do not treat this document as a net-new design exercise.
+
+The branch `eve_troubleshooting-remote-workspaces` already contains the **fully developed reference implementation** for this technique. That branch should be used constantly while executing this plan: inspect how it solves each subproblem, then extract the minimal coherent subset of that behavior into your branch with tests and clear review boundaries.
+
+Be smart about this. The reference implementation has already paid the discovery cost. The goal now is to convert that integrated work into a smaller, comprehensible, reviewable, and verifiable technique PR. If something in the reference implementation looks surprising, understand it before simplifying it.
+
+## Developer Operating Posture
+
+This technique is not just “add a debounce.” It is a hot-path scheduling change in the core task-execution loop. Treat it with the care you would give any latency-sensitive distributed-systems control surface.
+
+While implementing:
+
+- keep one eye on the extracted branch and one on `eve_troubleshooting-remote-workspaces`,
+- preserve semantic immediacy even while coalescing ordinary chunk churn,
+- and continually ask whether the stream is being allowed to run at machine speed while the UI updates at human speed.
+
+The cross-cutting wisdom from the analysis report applies directly here:
+
+> **Stop treating every streamed chunk as a durable, full-state, immediately-presented event.**
+
+For this technique, the emphasis is on the **immediately-presented** part.
+
+## Document Type, Audience, and Quality Bar
+
+This is an **extraction implementation plan** for a **Staff+ level distributed systems / infrastructure engineer**. It is not a request to invent a scheduler concept from scratch; it is a guide for extracting a production-worthy scheduler from the already-working reference implementation.
+
+The quality bar is high:
+
+- each step should be operationally clear,
+- each behavioral tradeoff should be explainable to reviewers,
+- and the extracted result should preserve semantic immediacy where it matters while reducing hot-path churn where it does not.
+
+## Artifact Stack and Dependency Position
+
+This document depends on the branch analysis report and should be used after reviewing:
+
+1. `docs/remote-workspace-latency-branch-analysis-report.md` for the “why this is high ROI” framing.
+2. `eve_troubleshooting-remote-workspaces` for the actual known-good implementation details.
+3. This plan for the extraction sequence, tests, and safety boundaries.
+
+That sequence matters because this technique is easiest to reason about when the business case, integrated implementation, and extraction steps are all visible at once.
+
+## Minimal Coherent Extraction Boundary
+
+The smallest coherent PR for this technique should usually include:
+
+- the scheduler primitive,
+- task integration,
+- remote-aware cadence selection,
+- final-drain / disposal correctness,
+- and tests for cadence, preemption, overlap, and teardown.
+
+What should **not** be split apart if avoidable:
+
+- scheduler primitive from task integration,
+- immediate-priority semantics from cadence logic,
+- final-drain behavior from the scheduler extraction,
+- and the tests that prove overlap/teardown correctness.
+
+## Common Failure Modes While Extracting
+
+Watch for these failure modes explicitly:
+
+- introducing a timer but leaving direct hot-path awaits in place,
+- over-coalescing semantic-boundary events that users expect to feel immediate,
+- forgetting final-drain behavior at stream completion,
+- teardown bugs that allow delayed flushes after task disposal,
+- and tuning cadence values without validating against the reference implementation.
+
+---
+
+## Why This Technique Matters
+
+The streaming loop is one of the hottest paths in the whole system. If every chunk does all of the following synchronously:
+
+- parse/update assistant content,
+- present to the UI,
+- possibly trigger follow-on state posting,
+- possibly interact with persistence or tool execution,
+
+then the stream becomes paced by downstream work rather than by provider availability.
+
+That problem gets worse in remote workspaces because UI presentation is no longer “just local work.” It often implies transport across host boundaries, local parsing, and frontend reconciliation.
+
+The goal here is not to make the UI less live. The goal is to make it live at the **right cadence**.
+
+---
+
+## Success Criteria
+
+- Normal text/reasoning/tool-progress chunk presentation is coalesced behind a scheduler.
+- The streaming loop no longer awaits presentation on every chunk.
+- Important semantic boundaries still flush immediately.
+- Remote workspaces use more conservative cadences than local workspaces.
+- Final drain behavior guarantees that no residual content is left unpresented.
+
+---
+
+## Files Most Likely to Change
+
+- `src/core/task/TaskPresentationScheduler.ts`
+- `src/core/task/index.ts`
+- `src/core/task/latency.ts`
+- `src/core/task/__tests__/TaskPresentationScheduler.test.ts`
+- `src/core/task/__tests__/latency.test.ts`
+
+---
+
+## Step-by-Step Implementation Plan
+
+## Step 1 — Define the presentation contract and priorities
+
+### Goal
+
+Establish which kinds of updates can be coalesced and which must feel immediate.
+
+### Mental model
+
+Not all updates are equal.
+
+- A tenth text chunk arriving 20ms after the ninth is not urgent.
+- The first visible token is urgent.
+- A tool completion or approval transition is urgent.
+- Finalization is urgent.
+
+The scheduler works only if priority rules are intentional and documented.
+
+### Work
+
+- [ ] Define presentation priorities such as `immediate`, `normal`, and `low`.
+- [ ] Document semantic boundaries that must flush immediately.
+- [ ] Document which chunk types default to normal coalescing.
+
+### Detailed code changes
+
+- In `src/core/task/TaskPresentationScheduler.ts`:
+  - [ ] expose or preserve a `PresentationPriority` type.
+- In `src/core/task/index.ts`:
+  - [ ] document priority mapping logic near `getPresentationPriorityForChunk(...)`.
+- In comments/docstrings, explicitly call out immediate boundaries:
+  - [ ] first visible token,
+  - [ ] tool transitions,
+  - [ ] finalization,
+  - [ ] abort/error cleanup.
+
+Use the reference implementation branch to understand where those boundaries were discovered empirically. Some of them exist because they matter for user perception; others exist because they matter for correctness or because delayed presentation would feel broken. Preserve that reasoning in the extraction.
+
+### Tests
+
+- [ ] Unit test: priority merge rules behave as expected.
+
+---
+
+## Step 2 — Implement the scheduler primitive
+
+### Goal
+
+Build a reusable scheduler that coalesces repeated requests, avoids overlapping flushes, and supports immediate preemption.
+
+### Mental model
+
+Think of the scheduler as a small state machine:
+
+- a flush may be pending,
+- a flush may be running,
+- more work may arrive while the flush is running,
+- the highest pending priority wins.
+
+The implementation must be robust under bursty chunk arrival, not just simple timer-based debounce logic.
+
+### Work
+
+- [ ] Implement `requestFlush(priority)`.
+- [ ] Implement `flushNow()`.
+- [ ] Track pending priority, active flush, and pending-while-flushing state.
+- [ ] Add disposal semantics so no timers survive task teardown.
+
+### Detailed code changes
+
+- In `src/core/task/TaskPresentationScheduler.ts`:
+  - [ ] keep a `scheduledTimer`.
+  - [ ] keep `pendingPriority`.
+  - [ ] keep `flushInProgress`.
+  - [ ] keep `pendingWhileFlushing`.
+  - [ ] when `requestFlush(immediate)` arrives, cancel scheduled timer and run now.
+  - [ ] when work arrives during flush, mark pending and re-run once afterward.
+  - [ ] support `dispose()` to clear timer and suppress future work.
+
+Be smart about state-machine edge cases. This scheduler sits on a bursty asynchronous path; the real implementation value is in correct behavior under overlap, priority escalation, and teardown, not just in the existence of a timer.
+
+### Tests
+
+- [ ] Unit test: multiple requests inside the cadence window produce one flush.
+- [ ] Unit test: immediate priority preempts pending normal work.
+- [ ] Unit test: updates arriving during a flush produce exactly one follow-up flush.
+- [ ] Unit test: dispose clears timers and suppresses future flushes.
+
+---
+
+## Step 3 — Integrate scheduler into `Task`
+
+### Goal
+
+Make the `Task` use the scheduler as the default path for presentation without breaking existing semantics.
+
+### Mental model
+
+`presentAssistantMessage()` should become the **drain implementation**, not the hot-path public API that every chunk directly awaits.
+
+### Work
+
+- [ ] Add a scheduler field to `Task`.
+- [ ] Add a scheduling wrapper such as `scheduleAssistantPresentation(...)`.
+- [ ] Refactor direct callers to go through the wrapper except where explicit immediate drain is needed.
+
+### Detailed code changes
+
+- In `src/core/task/index.ts`:
+  - [ ] instantiate `TaskPresentationScheduler` in the constructor.
+  - [ ] wire `flush: async () => this.flushAssistantPresentation()`.
+  - [ ] add `scheduleAssistantPresentation(trigger, priority)`.
+  - [ ] keep `flushAssistantPresentation()` as the method that actually calls `presentAssistantMessage()`.
+
+When extracting this step, mirror the reference implementation’s structure closely enough that future diffs remain comparable. The cleanest extraction is one where a reviewer can trivially line up the extracted version with the reference implementation and see the same conceptual architecture.
+
+### Tests
+
+- [ ] Unit test: `scheduleAssistantPresentation(...)` increments request metrics correctly.
+- [ ] Unit test: scheduling-disabled mode still drains immediately.
+
+---
+
+## Step 4 — Replace direct per-chunk presentation awaits in the streaming loop
+
+### Goal
+
+Remove the default `await presentAssistantMessage()` behavior from the chunk-ingestion hot path.
+
+### Mental model
+
+This is where the real latency win happens. If the chunk loop no longer blocks on presentation for normal chunk traffic, provider ingestion stays fast and the UI drains on its own cadence.
+
+### Work
+
+- [ ] Update text chunk path to schedule presentation instead of awaiting it.
+- [ ] Update reasoning chunk path to schedule presentation instead of awaiting it.
+- [ ] Update tool-progress/native-tool-call related chunk path similarly.
+- [ ] Preserve immediate scheduling for first-token and tool-related semantic transitions.
+
+### Detailed code changes
+
+- In `src/core/task/index.ts`, inside streaming chunk handling:
+  - [ ] text chunks should update assistant content and then call `scheduleAssistantPresentation("text", priority)`.
+  - [ ] reasoning chunks should call `scheduleAssistantPresentation("reasoning", priority)`.
+  - [ ] tool-call chunks should call `scheduleAssistantPresentation("tool", priority)`.
+- Ensure priority logic uses whether visible assistant content already exists.
+
+This step is the actual latency win. Use the reference implementation to identify every place where the old flow awaited presentation inside streaming logic, then confirm whether that await was deliberately removed or preserved for a semantic boundary. Be explicit; do not guess.
+
+### Tests
+
+- [ ] Integration-style test: many streaming chunks produce fewer presentation invocations than chunk count.
+- [ ] Regression test: first visible token still appears promptly.
+- [ ] Regression test: tool execution order is preserved under scheduled presentation.
+
+---
+
+## Step 5 — Add remote-aware cadence selection
+
+### Goal
+
+Use different default cadences for local and remote environments.
+
+### Mental model
+
+Remote workspaces need more coalescing because each UI flush is more expensive. The right question is not “what is the minimum possible delay?” but “what cadence is imperceptibly live while materially reducing churn?”
+
+### Work
+
+- [ ] Centralize cadence lookup in `latency.ts`.
+- [ ] Keep `immediate` priority at zero-delay.
+- [ ] Use more conservative normal/low cadences in remote mode.
+- [ ] Allow env-var overrides for tuning.
+
+### Detailed code changes
+
+- In `src/core/task/latency.ts`:
+  - [ ] add or preserve `getPresentationCadenceMs(isRemoteWorkspace, priority)`.
+  - [ ] keep override env vars for local and remote cadence values.
+- In `Task` constructor:
+  - [ ] pass cadence callback into scheduler so it adapts automatically once remote detection is known.
+
+Do not tune cadence values from first principles unless necessary. Start from the values already proven in `eve_troubleshooting-remote-workspaces`, then adjust only if the extraction boundary demands it or validation shows a problem.
+
+### Tests
+
+- [ ] Unit test: remote mode returns higher normal cadence than local mode.
+- [ ] Unit test: env var override wins over default values.
+- [ ] Unit test: immediate priority always returns zero.
+
+---
+
+## Step 6 — Preserve final-drain semantics
+
+### Goal
+
+Guarantee that all pending content is fully presented before request completion, abort, or disposal.
+
+### Mental model
+
+Schedulers are easy to add and easy to get subtly wrong at teardown. The user must never lose the last bit of visible content because it was still sitting in a pending timer when the request ended.
+
+### Work
+
+- [ ] Force a final synchronous drain when the stream completes.
+- [ ] Force final drain on abort/error cleanup where appropriate.
+- [ ] Dispose scheduler cleanly during task teardown.
+
+### Detailed code changes
+
+- In `src/core/task/index.ts`:
+  - [ ] after the streaming loop has completed and partial blocks are finalized, call `await this.presentationScheduler.flushNow()`.
+  - [ ] in abort/finally paths, ensure no pending scheduled flush survives past task shutdown.
+- In `TaskPresentationScheduler`:
+  - [ ] make `dispose()` clear timers and suppress post-disposal flushes.
+
+This is one of the places where smart engineering judgment matters most: the last 1% of scheduler teardown correctness often determines whether the feature is “production-grade” or “subtly flaky.” Compare end-of-stream and abort behavior carefully against the reference implementation.
+
+### Tests
+
+- [ ] Unit test: final `flushNow()` drains pending coalesced work.
+- [ ] Unit test: task disposal suppresses delayed pending flushes.
+- [ ] Regression test: final text is visible before next request starts.
+
+---
+
+## Step 7 — Add instrumentation and verify chunk-to-visible behavior
+
+### Goal
+
+Measure the scheduler’s actual effect so cadence tuning is based on data.
+
+### Mental model
+
+Scheduling is always a tradeoff between update frequency and perceived responsiveness. The only good tuning process is to measure:
+
+- how many flushes occur,
+- how long flushes take,
+- what the chunk-to-visible delay looks like.
+
+### Work
+
+- [ ] Track presentation invocation count.
+- [ ] Track total/average presentation duration.
+- [ ] Track final chunk-to-webview delay distribution.
+- [ ] Emit request-level telemetry summary.
+
+### Detailed code changes
+
+- In `src/core/task/index.ts`:
+  - [ ] accumulate presentation metrics in request-scoped latency metrics.
+  - [ ] record chunk-to-webview delay when state or partial-message updates occur.
+- In telemetry summary helpers:
+  - [ ] ensure presentation-related fields are included and comparable.
+
+### Tests
+
+- [ ] Unit test: metrics aggregate correctly under multiple scheduler flushes.
+- [ ] Unit test: instrumentation is failure-safe when telemetry is disabled/unavailable.
+
+---
+
+## Step 8 — Validate special high-churn scenarios such as large-file writes
+
+### Goal
+
+Ensure the scheduler meaningfully helps the scenarios users actually notice.
+
+### Mental model
+
+Large-file write scenarios often generate:
+
+- lots of reasoning text,
+- tool descriptions/progress,
+- potential partial previews,
+- repeated task-state churn.
+
+The scheduler should reduce the “chatty” feel without making the operation feel frozen.
+
+That is why this technique materially helps large-file writes: the user does not need every incremental progress mutation painted at model-chunk cadence. They need the operation to feel continuously alive, not hyperactive.
+
+### Work
+
+- [ ] Add validation scenario for long streamed response and/or large-file write workflow.
+- [ ] Compare presentation flush count with scheduler enabled vs disabled.
+- [ ] Confirm first-token latency remains acceptable.
+
+### Tests
+
+- [ ] Validation harness scenario: scheduler-enabled mode produces fewer presentation flushes than chunk count.
+- [ ] Comparison run: scheduler-disabled variant shows meaningfully higher presentation activity.
+
+---
+
+## Developer Checklist Summary
+
+- [ ] Define presentation priorities and semantic boundaries
+- [ ] Implement the scheduler primitive
+- [ ] Integrate scheduler into `Task`
+- [ ] Replace direct per-chunk presentation awaits
+- [ ] Add remote-aware cadence selection
+- [ ] Preserve final-drain semantics
+- [ ] Instrument and verify behavior
+- [ ] Validate large-file / long-stream scenarios
+
+---
+
+## Final Mental Model Recap
+
+- **Streams run at machine speed.**
+- **People read at human speed.**
+- **UI presentation should honor the latter without blocking the former.**
+
+If developers hold that model throughout implementation, this technique will reliably reduce jitter and improve perceived responsiveness in remote workspaces.
