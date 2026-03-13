@@ -31,6 +31,7 @@ export interface LatencyObserverSessionMetadata {
 export interface LatencyObserverCapabilities {
 	transportProbe: LatencyObserverMetricSupport
 	taskInitialization: LatencyObserverMetricSupport
+	requestStart: LatencyObserverMetricSupport
 	firstVisibleUpdate: LatencyObserverMetricSupport
 	fullStateMetrics: LatencyObserverMetricSupport
 	partialMessageMetrics: LatencyObserverMetricSupport
@@ -40,6 +41,7 @@ export interface LatencyObserverCapabilities {
 
 export interface LatencyObserverMetricSet {
 	transportSamples: LatencySample[]
+	requestStartSamples: LatencySample[]
 	taskInitializationSamples: LatencySample[]
 	firstVisibleUpdateSamples: LatencySample[]
 	capabilities: LatencyObserverCapabilities
@@ -49,9 +51,34 @@ export interface LatencyObserverMetricSet {
 	>
 }
 
+export interface LatencyObserverMetricSnapshot {
+	support: LatencyObserverMetricSupport
+	samples: LatencySample[]
+	stats: RollingLatencyStats
+}
+
+export interface LatencyObserverLogEntry {
+	ts: number
+	message: string
+	taskId?: string
+	requestId?: string
+}
+
+export interface LatencyObserverStateSnapshot {
+	session: LatencyObserverSessionMetadata
+	capabilities: LatencyObserverCapabilities
+	transport: LatencyObserverMetricSnapshot
+	taskInitialization: LatencyObserverMetricSnapshot
+	requestStart: LatencyObserverMetricSnapshot
+	firstVisibleUpdate: LatencyObserverMetricSnapshot
+	logs: LatencyObserverLogEntry[]
+	optionalCounters?: LatencyObserverMetricSet["optionalCounters"]
+}
+
 export const DEFAULT_LATENCY_OBSERVER_CAPABILITIES: LatencyObserverCapabilities = {
 	transportProbe: "supported",
 	taskInitialization: "unsupported",
+	requestStart: "unsupported",
 	firstVisibleUpdate: "unsupported",
 	fullStateMetrics: "unsupported",
 	partialMessageMetrics: "unsupported",

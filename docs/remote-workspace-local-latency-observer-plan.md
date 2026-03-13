@@ -333,27 +333,27 @@ Do **not** couple the observer directly to candidate-branch-only telemetry struc
 
 ### Work
 
-- [ ] Define a branch-portable observer service or callback layer.
-- [ ] Add hooks for:
-  - [ ] task initialization start/end
-  - [ ] request start
-  - [ ] first visible update
-  - [ ] request completion
+- [x] Define a branch-portable observer service or callback layer.
+- [x] Add hooks for:
+  - [x] task initialization start/end
+  - [x] request start
+  - [x] first visible update
+  - [x] request completion
 - [ ] Keep richer optional hooks for state-post counts, chunk-to-webview, etc.
 
 ### Detailed code changes
 
 - Add a small service such as `LatencyObserverService` or similarly named utility in `src/services/` or `src/core/controller/`.
 - It should:
-  - [ ] record timestamps,
-  - [ ] aggregate per-session/per-request values,
-  - [ ] expose results to the UI layer,
-  - [ ] not require the full candidate telemetry pipeline to exist.
+  - [x] record timestamps,
+  - [x] aggregate per-session/per-request values,
+  - [x] expose results to the UI layer,
+  - [x] not require the full candidate telemetry pipeline to exist.
 
 ### Tests
 
-- [ ] Unit test: initialization and request lifecycle timings aggregate correctly.
-- [ ] Unit test: optional hooks can be absent without crashing.
+- [x] Unit test: initialization and request lifecycle timings aggregate correctly.
+- [x] Unit test: optional hooks can be absent without crashing.
 
 ---
 
