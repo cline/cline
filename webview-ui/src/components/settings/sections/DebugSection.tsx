@@ -43,6 +43,22 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		}
 	}
 
+	const exportLatencyObserverSession = () => {
+		if (!latencyObserver) {
+			return
+		}
+
+		const blob = new Blob([JSON.stringify(latencyObserver, null, 2)], { type: "application/json" })
+		const url = URL.createObjectURL(blob)
+		const anchor = document.createElement("a")
+		const branchLabel = latencyObserver.session.branch ?? "unknown-branch"
+		const commitLabel = latencyObserver.session.commit?.slice(0, 8) ?? "unknown-commit"
+		anchor.href = url
+		anchor.download = `latency-observer-${branchLabel}-${commitLabel}.json`
+		anchor.click()
+		URL.revokeObjectURL(url)
+	}
+
 	return (
 		<div>
 			{renderSectionHeader("debug")}
@@ -66,6 +82,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						</Button>
 						<Button onClick={() => setSamples([])} variant="ghost">
 							Reset Stats
+						</Button>
+						<Button disabled={!latencyObserver} onClick={exportLatencyObserverSession} variant="ghost">
+							Export Session JSON
 						</Button>
 					</div>
 					<div className="grid grid-cols-2 gap-2 text-xs">
