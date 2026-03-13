@@ -30,6 +30,8 @@ describe("LatencyObserver", () => {
 			requestStartSamples: [],
 			taskInitializationSamples: [],
 			firstVisibleUpdateSamples: [],
+			firstFullStateUpdateSamples: [],
+			firstPartialMessageUpdateSamples: [],
 			capabilities: DEFAULT_LATENCY_OBSERVER_CAPABILITIES,
 			session: {
 				startedAt: 1,
