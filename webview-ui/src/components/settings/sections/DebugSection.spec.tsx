@@ -4,6 +4,7 @@ import DebugSection from "./DebugSection"
 
 const grpcClientMocks = vi.hoisted(() => ({
 	pingLatencyProbe: vi.fn(),
+	resetLatencyObserver: vi.fn(),
 	setWelcomeViewCompleted: vi.fn(),
 }))
 
@@ -94,6 +95,7 @@ const extensionStateMock = vi.hoisted(() => ({
 vi.mock("@/services/grpc-client", () => ({
 	UiServiceClient: {
 		pingLatencyProbe: grpcClientMocks.pingLatencyProbe,
+		resetLatencyObserver: grpcClientMocks.resetLatencyObserver,
 	},
 	StateServiceClient: {
 		setWelcomeViewCompleted: grpcClientMocks.setWelcomeViewCompleted,
@@ -267,5 +269,14 @@ describe("DebugSection", () => {
 		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(3, { value: new Uint8Array(64) })
 		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(4, { value: new Uint8Array(1024) })
 		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(5, { value: new Uint8Array(16_384) })
+	})
+
+	it("resets the backend observer session", async () => {
+		grpcClientMocks.resetLatencyObserver.mockResolvedValue({})
+		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByText("Reset Observer Session"))
+
+		await waitFor(() => expect(grpcClientMocks.resetLatencyObserver).toHaveBeenCalledTimes(1))
 	})
 })
