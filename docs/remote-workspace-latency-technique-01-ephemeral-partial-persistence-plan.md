@@ -431,7 +431,7 @@ Hot-path changes need escape hatches. If behavior regresses in an edge case, the
 ### Work
 
 - [x] Keep or add env flag gating for ephemeral persistence behavior.
-- [ ] Ensure telemetry can compare enabled vs disabled behavior.
+- [x] Ensure telemetry can compare enabled vs disabled behavior.
 - [ ] Add debug logging only if low-noise and useful.
 
 ### Detailed code changes
@@ -458,7 +458,7 @@ Treat the feature flag and validation path as first-class extraction requirement
 - [x] Enforce durable flushes at semantic boundaries
 - [x] Add periodic safety flush scheduler
 - [x] Validate large-file / long-stream scenarios
-- [ ] Preserve rollout flags and debugging support
+- [x] Preserve rollout flags and debugging support
 - [ ] Run unit, integration, and validation-harness checks
 
 ---

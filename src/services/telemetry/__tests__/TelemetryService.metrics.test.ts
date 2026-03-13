@@ -77,6 +77,10 @@ function createTelemetryService(provider: FakeProvider): TelemetryService {
 }
 
 describe("TelemetryService metrics", () => {
+	afterEach(() => {
+		delete process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE
+	})
+
 	it("captureTokenUsage emits token counters and histograms", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
@@ -330,6 +334,22 @@ describe("TelemetryService metrics", () => {
 		assert.ok(durationMetric)
 		assert.strictEqual(durationMetric?.value, 2.1)
 		assert.strictEqual(durationMetric?.attributes.scope, "task")
+	})
+
+	it("captureTaskInitialization includes ephemeral persistence mode for A/B comparison", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		delete process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE
+		service.captureTaskInitialization("task-5", "task-id-5", 1234, true)
+
+		process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE = "1"
+		service.captureTaskInitialization("task-6", "task-id-6", 5678, false)
+
+		const initEvents = provider.logs.filter((entry) => entry.event === "task.initialization")
+		assert.strictEqual(initEvents.length, 2)
+		assert.strictEqual(initEvents[0]?.properties?.ephemeralMessagePersistenceEnabled, true)
+		assert.strictEqual(initEvents[1]?.properties?.ephemeralMessagePersistenceEnabled, false)
 	})
 
 	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {

@@ -1643,6 +1643,7 @@ export class TelemetryService {
 				taskId,
 				durationMs,
 				hasCheckpoints,
+				ephemeralMessagePersistenceEnabled: !process.env.CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE,
 			},
 		})
 	}
