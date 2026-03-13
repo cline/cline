@@ -2980,7 +2980,11 @@ export class Task {
 			}
 
 			// Stored the assistant API response immediately after the stream finishes in the same turn
-			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls
+			// Check if the stream produced any content — either text or native tool calls.
+			// toolUseHandler may have accumulated tool_use blocks even when useNativeToolCalls is false
+			// (e.g., from Claude Code provider when the model returns native tool_use blocks).
+			const hasAccumulatedToolCalls = toolUseHandler.getAllFinalizedToolUses().length > 0
+			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls || hasAccumulatedToolCalls
 			if (assistantHasContent) {
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,

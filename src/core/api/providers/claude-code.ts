@@ -2,6 +2,7 @@ import { filterMessagesForClaudeCode } from "@/integrations/claude-code/message-
 import { runClaudeCode } from "@/integrations/claude-code/run"
 import { ClaudeCodeModelId, claudeCodeDefaultModelId, claudeCodeModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { Logger } from "@/shared/services/Logger"
 import { type ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { type ApiStream, ApiStreamUsageChunk } from "../transform/stream"
@@ -58,20 +59,48 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
-			if (chunk.type === "system" && chunk.subtype === "init") {
-				// Based on my tests, subscription usage sets the `apiKeySource` to "none"
-				isPaidUsage = chunk.apiKeySource !== "none"
+			// Handle system init messages
+			if (chunk.type === "system" && "subtype" in chunk) {
+				if (chunk.subtype === "init") {
+					// Based on my tests, subscription usage sets the `apiKeySource` to "none"
+					isPaidUsage = (chunk as any).apiKeySource !== "none"
+				}
+				// Also handles legacy rate_limit_event format (type: "system", subtype: "rate_limit_event")
+				// by falling through — no special handling needed.
+				continue
+			}
+
+			// Handle rate_limit_event (newer CLI format: top-level type)
+			if (chunk.type === "rate_limit_event") {
+				// Rate limit events are informational. Log them but don't yield anything.
+				// If the rate limit blocks the response, the stream will end without
+				// assistant messages and the task loop will handle the empty response.
+				Logger.log("Claude Code rate limit event:", JSON.stringify(chunk))
+				continue
+			}
+
+			// Skip user messages (tool results from Claude Code's own tool execution)
+			if (chunk.type === "user") {
 				continue
 			}
 
 			if (chunk.type === "assistant" && "message" in chunk) {
 				const message = chunk.message
 
-				if (message.stop_reason !== null) {
-					const content = "text" in message.content[0] ? message.content[0] : undefined
+				// Check for error field on the message (newer CLI format)
+				if ("error" in message && message.error) {
+					const firstContent = message.content.length > 0 ? message.content[0] : undefined
+					const errorText =
+						firstContent && "text" in firstContent ? firstContent.text : `Claude Code error: ${message.error}`
+					throw new Error(errorText)
+				}
 
-					const isError = content && content.text.startsWith(`API Error`)
-					if (isError) {
+				if (message.stop_reason !== null) {
+					const firstContent = message.content.length > 0 ? message.content[0] : undefined
+					const content = firstContent && "text" in firstContent ? firstContent : undefined
+
+					// Check if content exists before accessing its properties
+					if (content && content.text.startsWith(`API Error`)) {
 						// Error messages are formatted as: `API Error: <<status code>> <<json>>`
 						const errorMessageStart = content.text.indexOf("{")
 						const errorMessage = content.text.slice(errorMessageStart)
@@ -126,6 +155,19 @@ export class ClaudeCodeHandler implements ApiHandler {
 								},
 							}
 							break
+						default:
+							// Handle unknown content block types gracefully.
+							// Newer Anthropic models or CLI versions may introduce new content types
+							// (e.g., server_tool_use, mcp_tool_use). Log them instead of silently dropping.
+							Logger.warn(`Unhandled content type in Claude Code response: ${(content as any).type}`)
+							// If the unknown block has a text-like field, try to yield it as text
+							if ("text" in (content as any) && typeof (content as any).text === "string") {
+								yield {
+									type: "text",
+									text: (content as any).text,
+								}
+							}
+							break
 					}
 				}
 
@@ -142,10 +184,18 @@ export class ClaudeCodeHandler implements ApiHandler {
 			}
 
 			if (chunk.type === "result" && "result" in chunk) {
+				if (chunk.is_error) {
+					throw new Error(`Claude Code returned an error: ${chunk.result}`)
+				}
+
 				usage.totalCost = isPaidUsage ? chunk.total_cost_usd : 0
 
 				yield usage
+				continue
 			}
+
+			// Any completely unrecognized chunk type — log and skip
+			Logger.warn(`Unrecognized Claude Code chunk type: ${(chunk as any).type}`)
 		}
 	}
 
