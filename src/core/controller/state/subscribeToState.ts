@@ -50,12 +50,23 @@ export async function subscribeToState(
 	recordStateObserverMetrics(initialState)
 
 	try {
+		const startedAt = performance.now()
 		await responseStream(
 			{
 				stateJson: initialStateJson,
 			},
 			false, // Not the last message
 		)
+		const observer = getLatencyObserverService()
+		const endedAt = performance.now()
+		observer.setCapability("chunkToWebviewTiming", "supported")
+		observer.recordChunkToWebviewDelivery({
+			startedAt,
+			endedAt,
+			durationMs: Math.max(0, endedAt - startedAt),
+			label: "full-state-broadcast",
+			payloadBytes: Buffer.byteLength(initialStateJson, "utf8"),
+		})
 	} catch (error) {
 		Logger.error("Error sending initial state:", error)
 		activeStateSubscriptions.delete(responseStream)
@@ -86,12 +97,23 @@ export async function sendStateUpdate(state: ExtensionState): Promise<StateUpdat
 
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {
+			const startedAt = performance.now()
 			await responseStream(
 				{
 					stateJson,
 				},
 				false, // Not the last message
 			)
+			const observer = getLatencyObserverService()
+			const endedAt = performance.now()
+			observer.setCapability("chunkToWebviewTiming", "supported")
+			observer.recordChunkToWebviewDelivery({
+				startedAt,
+				endedAt,
+				durationMs: Math.max(0, endedAt - startedAt),
+				label: "full-state-broadcast",
+				payloadBytes: Buffer.byteLength(stateJson, "utf8"),
+			})
 		} catch (error) {
 			Logger.error("Error sending state update:", error)
 			activeStateSubscriptions.delete(responseStream)
