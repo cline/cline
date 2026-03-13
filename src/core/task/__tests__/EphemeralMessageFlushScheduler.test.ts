@@ -70,6 +70,24 @@ describe("EphemeralMessageFlushScheduler", () => {
 		assert.equal(handler.consumeLatencyMetrics().persistenceFlushCount, 1)
 	})
 
+	it("does nothing when there are no dirty ephemeral changes", async () => {
+		const timer = new FakeIntervalController()
+		const handler = createHandler()
+		const scheduler = new EphemeralMessageFlushScheduler({
+			flush: async () => handler.flushClineMessagesAndUpdateHistory(),
+			getDelayMs: () => 1500,
+			setIntervalFn: timer.setInterval as typeof setInterval,
+			clearIntervalFn: timer.clearInterval as typeof clearInterval,
+		})
+
+		scheduler.start()
+		timer.advance(1500)
+		await Promise.resolve()
+		await Promise.resolve()
+
+		assert.equal(handler.consumeLatencyMetrics().persistenceFlushCount, 0)
+	})
+
 	it("stops scheduling future flushes after stop is called", async () => {
 		const timer = new FakeIntervalController()
 		let flushCount = 0
