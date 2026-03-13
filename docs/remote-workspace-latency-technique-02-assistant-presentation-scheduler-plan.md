@@ -239,7 +239,7 @@ When extracting this step, mirror the reference implementation’s structure clo
 
 ### Tests
 
-- [ ] Unit test: `scheduleAssistantPresentation(...)` increments request metrics correctly.
+- [x] Unit test: `scheduleAssistantPresentation(...)` increments request metrics correctly.
 - [x] Unit test: scheduling-disabled mode still drains immediately.
 
 ---
