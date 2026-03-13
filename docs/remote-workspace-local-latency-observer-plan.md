@@ -372,7 +372,7 @@ Think of this as capability detection, not branch forking.
 
 ### Work
 
-- [ ] Integrate existing richer latency metrics when present:
+- [x] Integrate existing richer latency metrics when present:
   - [ ] `task.latency_metrics`
   - [x] initialization telemetry
   - [x] payload-size accounting
@@ -384,7 +384,7 @@ Think of this as capability detection, not branch forking.
 - Where current richer telemetry exists (candidate branch or current branch after instrumentation work), add adapters that feed it into the observer UI.
 - On `main`, either:
   - [ ] wire minimal equivalents if easy,
-  - [ ] or leave those fields explicitly unsupported.
+  - [x] or leave those fields explicitly unsupported.
 
 ### Tests
 
@@ -530,7 +530,7 @@ The observer should behave like a thin compatibility layer, not a second product
 - Prefer hooks at stable abstraction boundaries:
   - [x] UI service layer for ping/pong,
   - [x] controller/task lifecycle boundaries for timing,
-  - [ ] optional adapters for richer telemetry.
+  - [x] optional adapters for richer telemetry.
 - Avoid deep invasive branch-specific assumptions where possible.
 
 ### Tests
@@ -640,7 +640,7 @@ That gives both a human and a machine-readable comparison story.
 - [x] Define a branch-portable shared metric contract
 - [x] Implement a modernized ping/pong transport probe
 - [x] Add a shallow branch-portable task observer hook layer
-- [ ] Adapt richer metrics where available without making them required
+- [x] Adapt richer metrics where available without making them required
 - [x] Build a visible local observer UI
 - [x] Support scenario-driven observation
 - [x] Add export/comparison workflow support
