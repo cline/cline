@@ -18,8 +18,6 @@ const DEFAULT_IGNORE_DIRECTORIES = [
 	"out",
 	"bundle",
 	"vendor",
-	"tmp",
-	"temp",
 	"deps",
 	"Pods",
 ]
