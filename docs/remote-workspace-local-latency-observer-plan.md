@@ -410,7 +410,7 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 
 - Add a component in `webview-ui/src/components/settings/` or a more appropriate dev/debug location.
 - Prefer a design inspired by the old `LatencyTester`:
-  - [ ] simple controls,
+  - [x] simple controls,
   - [ ] rolling stats,
   - [x] recent logs,
   - [x] easy reset.
@@ -444,12 +444,12 @@ A latency observer becomes far more valuable when it can help the developer answ
 ### Work
 
 - [ ] Define a small set of recommended scenarios:
-  - [ ] pure ping test
-  - [ ] short assistant response
-  - [ ] long streaming response
-  - [ ] tool-heavy / high-churn scenario
-  - [ ] large-file-write-adjacent scenario if feasible
-- [ ] Add UI affordances or documented steps for running those scenarios repeatedly.
+  - [x] pure ping test
+  - [x] short assistant response
+  - [x] long streaming response
+  - [x] tool-heavy / high-churn scenario
+  - [x] large-file-write-adjacent scenario if feasible
+- [x] Add UI affordances or documented steps for running those scenarios repeatedly.
 
 ### Detailed code changes
 
