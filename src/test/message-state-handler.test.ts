@@ -347,6 +347,32 @@ describe("MessageStateHandler Mutex Protection", () => {
 		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(1)
 	})
 
+	it("batches long runs of partial updates into a single durable flush", async () => {
+		const handler = createTestHandler()
+
+		await handler.addToClineMessagesEphemeral({
+			...createTestMessage("chunk-0"),
+			partial: true,
+		})
+
+		for (let i = 1; i <= 25; i++) {
+			await handler.updateClineMessageEphemeral(0, {
+				text: `chunk-${i}`,
+				partial: true,
+			})
+		}
+
+		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(0)
+
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		const metrics = handler.consumeLatencyMetrics()
+		metrics.persistenceFlushCount.should.equal(1)
+		const finalMessage = handler.getClineMessages()[0]
+		should.exist(finalMessage)
+		finalMessage!.text?.should.equal("chunk-25")
+	})
+
 	it("persists flushed ephemeral messages to disk for task recovery", async () => {
 		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-state-"))
 		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })

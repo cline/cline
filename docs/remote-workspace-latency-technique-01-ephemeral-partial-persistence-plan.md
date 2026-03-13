@@ -297,7 +297,7 @@ This is the step where it becomes easy to accidentally under-extract or over-ext
 
 ### Tests
 
-- [ ] Integration-style test: many partial text updates do not trigger per-update durable saves.
+- [x] Integration-style test: many partial text updates do not trigger per-update durable saves.
 - [ ] Unit test: partial `say(...)` path still emits live UI updates while skipping persistence.
 - [ ] Unit test: partial `ask(...)` path still emits live UI updates while skipping persistence.
 
@@ -364,7 +364,7 @@ The correct behavior is not “persist every partial” and not “never persist
 
 - In `src/core/task/EphemeralMessageFlushScheduler.ts`:
   - [ ] ensure a single timer is active,
-  - [ ] prevent overlap between flushes,
+  - [x] prevent overlap between flushes,
   - [ ] support clean start/stop/dispose semantics.
 - In `src/core/task/index.ts`:
   - [ ] start scheduler near request start,
@@ -395,14 +395,14 @@ This is the direct answer to the large-file-write scenario: this technique helps
 
 ### Work
 
-- [ ] Add a targeted validation scenario for large streamed output / large-file write behavior.
-- [ ] Confirm persistence flush count drops sharply versus baseline.
+- [x] Add a targeted validation scenario for large streamed output / large-file write behavior.
+- [x] Confirm persistence flush count drops sharply versus baseline.
 - [ ] Confirm the user still sees smooth progress and correct final durable state.
 
 ### Detailed code changes
 
 - Extend existing latency validation or tests to simulate:
-  - [ ] long streaming response,
+  - [x] long streaming response,
   - [ ] tool progress and completion,
   - [ ] large-file write workflow or equivalent sustained partial-update workload.
 - Use telemetry fields already added in latency instrumentation to compare:
@@ -412,7 +412,7 @@ This is the direct answer to the large-file-write scenario: this technique helps
 
 ### Tests
 
-- [ ] Performance/regression test: long stream causes far fewer persistence flushes than partial-update count.
+- [x] Performance/regression test: long stream causes far fewer persistence flushes than partial-update count.
 - [ ] Validation harness comparison: baseline vs ephemeral-persistence-enabled variant.
 - [ ] Regression test: final message history and resume state remain correct.
 
@@ -457,7 +457,7 @@ Treat the feature flag and validation path as first-class extraction requirement
 - [x] Convert streaming partial callsites to ephemeral mutations
 - [x] Enforce durable flushes at semantic boundaries
 - [x] Add periodic safety flush scheduler
-- [ ] Validate large-file / long-stream scenarios
+- [x] Validate large-file / long-stream scenarios
 - [ ] Preserve rollout flags and debugging support
 - [ ] Run unit, integration, and validation-harness checks
 

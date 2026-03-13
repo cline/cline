@@ -8,6 +8,7 @@ type EphemeralMessageFlushSchedulerOptions = {
 
 export class EphemeralMessageFlushScheduler {
 	private intervalHandle: ReturnType<typeof setInterval> | undefined
+	private flushInFlight = false
 
 	private readonly flush: () => Promise<void>
 	private readonly getDelayMs: () => number
@@ -29,7 +30,16 @@ export class EphemeralMessageFlushScheduler {
 		}
 
 		this.intervalHandle = this.setIntervalFn(() => {
-			void this.flush().catch((error) => this.onFlushError?.(error))
+			if (this.flushInFlight) {
+				return
+			}
+
+			this.flushInFlight = true
+			void this.flush()
+				.catch((error) => this.onFlushError?.(error))
+				.finally(() => {
+					this.flushInFlight = false
+				})
 		}, this.getDelayMs())
 	}
 
@@ -40,6 +50,7 @@ export class EphemeralMessageFlushScheduler {
 
 		this.clearIntervalFn(this.intervalHandle)
 		this.intervalHandle = undefined
+		this.flushInFlight = false
 	}
 
 	dispose(): void {
