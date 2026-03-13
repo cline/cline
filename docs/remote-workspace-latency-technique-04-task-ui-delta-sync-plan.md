@@ -145,24 +145,24 @@ Delta systems fail when they are “implicit.” They need an explicit contract 
 
 ### Work
 
-- [ ] Define delta event types.
-- [ ] Ensure every delta contains `taskId` and `sequence`.
-- [ ] Define resync behavior on missing/stale sequence.
+- [x] Define delta event types.
+- [x] Ensure every delta contains `taskId` and `sequence`.
+- [x] Define resync behavior on missing/stale sequence.
 
 ### Detailed code changes
 
 - In `src/shared/TaskUiDelta.ts`:
-  - [ ] define or refine delta union including:
-    - [ ] `message_added`
-    - [ ] `message_updated`
-    - [ ] `message_deleted`
-    - [ ] `task_metadata_updated`
-    - [ ] `task_state_resynced`
-  - [ ] document the sequencing contract in comments.
+  - [x] define or refine delta union including:
+    - [x] `message_added`
+    - [x] `message_updated`
+    - [x] `message_deleted`
+    - [x] `task_metadata_updated`
+    - [x] `task_state_resynced`
+  - [x] document the sequencing contract in comments.
 - Decide that:
-  - [ ] deltas are only valid for the current task,
-  - [ ] sequence must increment monotonically by 1,
-  - [ ] a gap triggers full resync.
+  - [x] deltas are only valid for the current task,
+  - [x] sequence must increment monotonically by 1,
+  - [x] a gap triggers full resync.
 
 Do not improvise this contract from memory. Read the reference implementation branch carefully and preserve the exact mental model it uses for sequence monotonicity and recovery semantics.
 
@@ -185,18 +185,18 @@ Full-state snapshots and deltas should coexist, not replace each other outright.
 
 ### Work
 
-- [ ] Add subscription/publisher mechanism for task UI deltas.
-- [ ] Ensure it is failure-safe and non-blocking.
-- [ ] Keep transport format minimal, ideally serialized delta JSON.
+- [x] Add subscription/publisher mechanism for task UI deltas.
+- [x] Ensure it is failure-safe and non-blocking.
+- [x] Keep transport format minimal, ideally serialized delta JSON.
 
 ### Detailed code changes
 
 - In `src/core/controller/ui/subscribeToTaskUiDeltas.ts`:
-  - [ ] implement backend subscription registry / broadcaster.
-  - [ ] add `sendTaskUiDelta(...)` helper.
-  - [ ] record payload-size metrics if useful.
+  - [x] implement backend subscription registry / broadcaster.
+  - [x] add `sendTaskUiDelta(...)` helper.
+  - [x] record payload-size metrics if useful.
 - If protobuf transport needs changes:
-  - [ ] ensure message contract is appropriately wired through `proto/cline/ui.proto` or equivalent.
+  - [x] ensure message contract is appropriately wired through `proto/cline/ui.proto` or equivalent.
 
 This is a good example of where “be smart about this” matters. The developer should not just make the channel exist; they should make it easy to reason about, easy to debug, and obviously subordinate to the canonical snapshot path.
 
@@ -220,18 +220,18 @@ The message-state layer is the natural source of truth for chat mutation events.
 
 ### Work
 
-- [ ] Emit `message_added` on add.
-- [ ] Emit `message_updated` on update.
-- [ ] Emit `message_deleted` on delete.
-- [ ] Emit `task_state_resynced` on full replacement/set flows.
-- [ ] Increment a per-task delta sequence on each publish.
+- [x] Emit `message_added` on add.
+- [x] Emit `message_updated` on update.
+- [x] Emit `message_deleted` on delete.
+- [x] Emit `task_state_resynced` on full replacement/set flows.
+- [x] Increment a per-task delta sequence on each publish.
 
 ### Detailed code changes
 
 - In `src/core/task/message-state.ts`:
-  - [ ] wire `emitClineMessagesChanged(...)` to publish deltas when delta sync is enabled.
-  - [ ] use `taskState.taskUiDeltaSequence` as the monotonic sequence source.
-  - [ ] send minimal payloads for each mutation type.
+  - [x] wire `emitClineMessagesChanged(...)` to publish deltas when delta sync is enabled.
+  - [x] use `taskState.taskUiDeltaSequence` as the monotonic sequence source.
+  - [x] send minimal payloads for each mutation type.
 - Ensure ephemeral and durable mutations both publish the same deltas so live UI behavior does not depend on durability choice.
 
 This step should be executed with the reference implementation branch open beside the extraction branch. The key engineering task is not simply “emit deltas,” but “emit deltas from the true state mutation boundary without creating semantic skew between durable and ephemeral paths.”
@@ -257,16 +257,16 @@ Some of the most annoying snapshot churn comes from small metadata updates that 
 
 ### Work
 
-- [ ] Add controller helper for metadata delta publication.
-- [ ] Route focus-chain and background-command metadata through it.
-- [ ] Fall back to snapshot posting when no current task or invalid task context exists.
+- [x] Add controller helper for metadata delta publication.
+- [x] Route focus-chain and background-command metadata through it.
+- [x] Fall back to snapshot posting when no current task or invalid task context exists.
 
 ### Detailed code changes
 
 - In `src/core/controller/index.ts`:
-  - [ ] add or refine `postTaskMetadataDelta(...)`.
-  - [ ] only publish deltas when target task matches current active task.
-  - [ ] otherwise request a normal full-state post as fallback.
+  - [x] add or refine `postTaskMetadataDelta(...)`.
+  - [x] only publish deltas when target task matches current active task.
+  - [x] otherwise request a normal full-state post as fallback.
 
 Keep the fallback path boring and reliable. Smart engineering here means preferring explicit fallback to snapshot sync over any attempt to get fancy when task identity or activity context is ambiguous.
 
@@ -289,22 +289,22 @@ Frontend delta handling must be strict, not permissive. If it misses a sequence 
 
 ### Work
 
-- [ ] Track latest applied sequence in the frontend.
-- [ ] Ignore deltas for non-current tasks.
-- [ ] Trigger resync on sequence mismatch.
-- [ ] Apply message add/update/delete with minimal array churn.
+- [x] Track latest applied sequence in the frontend.
+- [x] Ignore deltas for non-current tasks.
+- [x] Trigger resync on sequence mismatch.
+- [x] Apply message add/update/delete with minimal array churn.
 
 ### Detailed code changes
 
 - In `webview-ui/src/context/taskUiDeltaState.ts`:
-  - [ ] validate `delta.sequence === latestSequence + 1`.
-  - [ ] return `resync` on mismatch.
-  - [ ] ignore deltas for non-current tasks while still advancing sequence semantics intentionally if that is the chosen policy.
-  - [ ] apply message mutations minimally.
+  - [x] validate `delta.sequence === latestSequence + 1`.
+  - [x] return `resync` on mismatch.
+  - [x] ignore deltas for non-current tasks while still advancing sequence semantics intentionally if that is the chosen policy.
+  - [x] apply message mutations minimally.
 - In `webview-ui/src/context/ExtensionStateContext.tsx`:
-  - [ ] subscribe to delta stream,
-  - [ ] feed deltas into reducer/helper,
-  - [ ] trigger full-state resync when helper returns `resync`.
+  - [x] subscribe to delta stream,
+  - [x] feed deltas into reducer/helper,
+  - [x] trigger full-state resync when helper returns `resync`.
 
 The frontend side should be implemented with a bias toward correctness and repairability. If you find yourself making the delta reducer permissive to “keep things working,” stop and compare with the reference implementation. The right answer is usually stricter sequencing plus easier resync.
 
@@ -335,15 +335,15 @@ Deltas should advance current state, not become the sole source of truth.
 
 ### Work
 
-- [ ] Preserve `subscribeToState` as initialization path.
-- [ ] Reset delta sequence on full snapshot hydration.
-- [ ] Trigger snapshot fetch on divergence.
+- [x] Preserve `subscribeToState` as initialization path.
+- [x] Reset delta sequence on full snapshot hydration.
+- [x] Trigger snapshot fetch on divergence.
 
 ### Detailed code changes
 
 - In `ExtensionStateContext.tsx`:
-  - [ ] after receiving a fresh full snapshot, reset latest delta sequence tracking.
-  - [ ] on resync request, fetch latest state and replace current state.
+  - [x] after receiving a fresh full snapshot, reset latest delta sequence tracking.
+  - [x] on resync request, fetch latest state and replace current state.
 - Ensure startup / reload still works even if no deltas arrive.
 
 This step is essential to keeping the rest of Cline’s product surfaces healthy. Delta sync should improve active execution, not quietly turn startup, reopen, or task switching into undefined behavior.
@@ -368,16 +368,16 @@ A delta transport is less valuable if the frontend responds by rebuilding large 
 
 ### Work
 
-- [ ] Update only the changed message when possible.
-- [ ] Avoid replacing `clineMessages` unless necessary.
-- [ ] Keep metadata updates narrow.
+- [x] Update only the changed message when possible.
+- [x] Avoid replacing `clineMessages` unless necessary.
+- [x] Keep metadata updates narrow.
 
 ### Detailed code changes
 
 - In `webview-ui/src/context/taskUiDeltaState.ts`:
-  - [ ] add/update should preserve array identity only where safe and replace minimal slices.
-  - [ ] delete should only filter when message exists.
-  - [ ] metadata updates should shallow-merge only changed fields.
+  - [x] add/update should preserve array identity only where safe and replace minimal slices.
+  - [x] delete should only filter when message exists.
+  - [x] metadata updates should shallow-merge only changed fields.
 
 Be smart about this at the React-state level too: if the frontend re-renders large portions of the tree on every delta, then the transport win will be partially squandered.
 
@@ -404,16 +404,16 @@ Delta systems are harder to reason about than snapshots, so they need better vis
 
 ### Work
 
-- [ ] Add debug counters for full-state applications, partial-message applications, delta applications, and resync requests.
+- [x] Add debug counters for full-state applications, partial-message applications, delta applications, and resync requests.
 - [ ] Compare default mode vs delta-disabled mode in validation harness.
 - [ ] Ensure feature flag exists for safe staged rollout.
 
 ### Detailed code changes
 
 - In `webview-ui/src/context/taskUiDebugCounters.ts`:
-  - [ ] add counters for delta application and resync requests.
+  - [x] add counters for delta application and resync requests.
 - In `.env.example` / `latency.ts`:
-  - [ ] preserve `CLINE_DISABLE_TASK_UI_DELTA_SYNC` or equivalent.
+  - [x] preserve `CLINE_DISABLE_TASK_UI_DELTA_SYNC` or equivalent.
 - In validation tooling:
   - [ ] compare `stateUpdateCount`, `taskDeltaCount`, and payload bytes across variants.
 
@@ -455,15 +455,22 @@ That is why this technique still matters for large-file-write scenarios, even th
 
 ## Developer Checklist Summary
 
-- [ ] Define delta model and sequencing contract
-- [ ] Build backend delta subscription/publishing infrastructure
-- [ ] Publish deltas from message-state mutations
-- [ ] Publish metadata deltas for non-message hot paths
-- [ ] Implement frontend delta application with strict ordering safety
-- [ ] Preserve full snapshots for hydration and recovery
-- [ ] Minimize frontend churn during delta application
+- [x] Define delta model and sequencing contract
+- [x] Build backend delta subscription/publishing infrastructure
+- [x] Publish deltas from message-state mutations
+- [x] Publish metadata deltas for non-message hot paths
+- [x] Implement frontend delta application with strict ordering safety
+- [x] Preserve full snapshots for hydration and recovery
+- [x] Minimize frontend churn during delta application
 - [ ] Add observability, flags, and validation coverage
 - [ ] Validate large-file / long-running execution scenarios
+
+## Extraction Progress Notes
+
+- Implemented the core task UI delta transport and reducer path in commit `05d7cc315` (`Add task UI delta sync transport and reducers`).
+- Wired focus-chain metadata and background-command metadata through task-specific delta publication, with snapshot fallback when task identity is ambiguous.
+- Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
+- Verification is currently blocked by local tooling drift: `npm run protos` / `npm run compile` fail before typechecking due to a missing local dependency (`chalk` required by `scripts/build-proto.mjs`).
 
 ---
 
