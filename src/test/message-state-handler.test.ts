@@ -315,7 +315,8 @@ describe("MessageStateHandler Mutex Protection", () => {
 		})
 		received[2]?.type.should.equal("message_deleted")
 		received[2]?.sequence.should.equal(3)
-		received[2]?.messageTs.should.equal(message.ts)
+		should.exist(received[2]?.messageTs)
+		received[2]!.messageTs!.should.equal(message.ts)
 		unsubscribe()
 	})
 

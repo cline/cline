@@ -1,7 +1,7 @@
-import { strict as assert } from "assert"
-import { describe, it } from "mocha"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { TaskUiDeltaEvent } from "@shared/proto/cline/ui"
+import { strict as assert } from "assert"
+import { describe, it } from "mocha"
 import { registerTaskUiDeltaCallback, sendTaskUiDelta, subscribeToTaskUiDeltas } from "./subscribeToTaskUiDeltas"
 
 describe("subscribeToTaskUiDeltas", () => {
