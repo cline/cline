@@ -36,6 +36,82 @@ class FakeTimerController {
 }
 
 describe("StateUpdateScheduler", () => {
+	it("reduces flush count for bursty normal-priority updates compared with immediate flushes", async () => {
+		const immediateTimer = new FakeTimerController()
+		let immediateFlushCount = 0
+		const immediateScheduler = new StateUpdateScheduler({
+			flush: async () => {
+				immediateFlushCount += 1
+			},
+			getDelayMs: () => 0,
+			setTimeoutFn: immediateTimer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: immediateTimer.clearTimeout as typeof clearTimeout,
+			getNow: immediateTimer.getNow,
+		})
+
+		for (let i = 0; i < 6; i++) {
+			await immediateScheduler.flushNow()
+		}
+
+		const coalescedTimer = new FakeTimerController()
+		let coalescedFlushCount = 0
+		const coalescedScheduler = new StateUpdateScheduler({
+			flush: async () => {
+				coalescedFlushCount += 1
+			},
+			getDelayMs: () => 25,
+			setTimeoutFn: coalescedTimer.setTimeout as typeof setTimeout,
+			clearTimeoutFn: coalescedTimer.clearTimeout as typeof clearTimeout,
+			getNow: coalescedTimer.getNow,
+		})
+
+		for (let i = 0; i < 6; i++) {
+			coalescedScheduler.requestFlush("normal")
+			coalescedTimer.advance(5)
+			await Promise.resolve()
+		}
+
+		coalescedTimer.advance(25)
+		await Promise.resolve()
+
+		assert.equal(immediateFlushCount, 6)
+		assert.equal(coalescedFlushCount, 2)
+		assert.ok(coalescedFlushCount < immediateFlushCount)
+	})
+
+	it("coalesces more aggressively with remote cadence than with local cadence under the same burst", async () => {
+		const runBurst = async (delayMs: number) => {
+			const timer = new FakeTimerController()
+			let flushCount = 0
+			const scheduler = new StateUpdateScheduler({
+				flush: async () => {
+					flushCount += 1
+				},
+				getDelayMs: () => delayMs,
+				setTimeoutFn: timer.setTimeout as typeof setTimeout,
+				clearTimeoutFn: timer.clearTimeout as typeof clearTimeout,
+				getNow: timer.getNow,
+			})
+
+			for (let i = 0; i < 8; i++) {
+				scheduler.requestFlush("normal")
+				timer.advance(20)
+				await Promise.resolve()
+			}
+
+			timer.advance(delayMs)
+			await Promise.resolve()
+			return flushCount
+		}
+
+		const localFlushCount = await runBurst(16)
+		const remoteFlushCount = await runBurst(110)
+
+		assert.equal(localFlushCount, 8)
+		assert.equal(remoteFlushCount, 2)
+		assert.ok(remoteFlushCount < localFlushCount)
+	})
+
 	it("coalesces repeated normal-priority requests into one flush", async () => {
 		const timer = new FakeTimerController()
 		let flushCount = 0
