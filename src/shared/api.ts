@@ -1636,8 +1636,48 @@ export const geminiModels = {
 // OpenAI Native
 // https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
-export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.2"
+export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5.4"
 export const openAiNativeModels = {
+	"gpt-5.4-pro": {
+		maxTokens: 128_000,
+		contextWindow: 2_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheReadsPrice: 0.5,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.4": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.5,
+		outputPrice: 15.0,
+		cacheReadsPrice: 0.25,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"gpt-5.3-codex": {
+		maxTokens: 8_192, // 128000 breaks context window truncation
+		contextWindow: 400_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.0,
+		outputPrice: 16.0,
+		cacheReadsPrice: 0.2,
+		apiFormat: ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE,
+		temperature: 1,
+		systemRole: "developer",
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
 	"gpt-5.2": {
 		maxTokens: 8_192,
 		contextWindow: 272000,
