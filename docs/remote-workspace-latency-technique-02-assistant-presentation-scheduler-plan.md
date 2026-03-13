@@ -367,7 +367,6 @@ Scheduling is always a tradeoff between update frequency and perceived responsiv
 - [x] Track presentation invocation count.
 - [x] Track total/average presentation duration.
 - [x] Track final chunk-to-webview delay distribution.
-- [ ] Emit request-level telemetry summary.
 - [x] Emit request-level telemetry summary.
 
 ### Detailed code changes
