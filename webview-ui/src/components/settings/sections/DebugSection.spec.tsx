@@ -56,6 +56,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 				fullStateBytes: 1024,
 				partialMessageEvents: 4,
 				partialMessageBytes: 256,
+				taskUiDeltaEvents: 7,
 				persistenceFlushes: 2,
 			},
 		},
@@ -104,6 +105,7 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/Partial bytes: 256/)).toBeTruthy()
 		expect(screen.getByText(/Transport probe: Supported/)).toBeTruthy()
 		expect(screen.getByText(/Task UI delta metrics: Unsupported on this branch/)).toBeTruthy()
+		expect(screen.getByText(/Task UI deltas: 7/)).toBeTruthy()
 
 		fireEvent.click(screen.getByText("Export Session JSON"))
 		expect(createObjectURL).toHaveBeenCalledTimes(1)

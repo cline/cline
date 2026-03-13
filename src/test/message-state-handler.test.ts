@@ -7,6 +7,7 @@ import should from "should"
 import { getSavedApiConversationHistory, getSavedClineMessages } from "../core/storage/disk"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
+import { getLatencyObserverService } from "../services/latency/LatencyObserverService"
 import { ClineMessage } from "../shared/ExtensionMessage"
 import { setVscodeHostProviderMock } from "./host-provider-test-utils"
 
@@ -70,6 +71,21 @@ describe("MessageStateHandler Mutex Protection", () => {
 
 		handler.setClineMessages(testMessages)
 		handler.getClineMessages().should.deepEqual(testMessages)
+	})
+
+	it("tracks task UI delta events when message state changes", async () => {
+		const observer = getLatencyObserverService()
+		observer.reset()
+
+		const handler = createTestHandler()
+		handler.setClineMessages([createTestMessage("initial")])
+		await handler.addToClineMessages(createTestMessage("added"))
+		await handler.updateClineMessage(0, { text: "updated" })
+		await handler.deleteClineMessage(1)
+
+		const snapshot = observer.getSnapshot()
+		should.equal(snapshot.capabilities.taskUiDeltaMetrics, "supported")
+		should.equal(snapshot.optionalCounters?.taskUiDeltaEvents, 4)
 	})
 
 	/**

@@ -85,6 +85,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 * Emit a clineMessagesChanged event with the change details
 	 */
 	private emitClineMessagesChanged(change: ClineMessageChange): void {
+		const observer = getLatencyObserverService()
+		observer.incrementCounter("taskUiDeltaEvents")
+		observer.setCapability("taskUiDeltaMetrics", "supported")
 		this.emit("clineMessagesChanged", change)
 		if (!this.taskUiDeltaSyncDisabled) {
 			void this.emitTaskUiDeltaForChange(change)
