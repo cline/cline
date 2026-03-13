@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import DebugSection from "./DebugSection"
 
 const grpcClientMocks = vi.hoisted(() => ({
@@ -58,6 +58,10 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 }))
 
 describe("DebugSection", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
 	it("runs the latency probe and renders rolling stats", async () => {
 		grpcClientMocks.pingLatencyProbe.mockResolvedValue({ value: 64 })
 		const createObjectURL = vi.fn(() => "blob:test")
@@ -85,6 +89,8 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/Payload: 64 bytes/)).toBeTruthy()
 		expect(screen.getByText(/Branch: main/)).toBeTruthy()
 		expect(screen.getByText(/State pushes: 3/)).toBeTruthy()
+		expect(screen.getByText(/Transport probe: Supported/)).toBeTruthy()
+		expect(screen.getByText(/Task UI delta metrics: Unsupported on this branch/)).toBeTruthy()
 
 		fireEvent.click(screen.getByText("Export Session JSON"))
 		expect(createObjectURL).toHaveBeenCalledTimes(1)
@@ -92,5 +98,37 @@ describe("DebugSection", () => {
 		expect(revokeObjectURL).toHaveBeenCalledTimes(1)
 
 		createElementSpy.mockRestore()
+	})
+
+	it("runs payload presets and prevents overlapping manual pings while active", async () => {
+		let resolvePing: (() => void) | undefined
+		grpcClientMocks.pingLatencyProbe.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolvePing = () => resolve({ value: 0 })
+				}),
+		)
+
+		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByText("Run Ping Probe"))
+		await waitFor(() => expect(grpcClientMocks.pingLatencyProbe).toHaveBeenCalledTimes(1))
+		const pingButton = screen.getByText("Pinging...")
+		expect(pingButton).toBeTruthy()
+		expect(pingButton.closest("button")?.hasAttribute("disabled")).toBe(true)
+
+		fireEvent.click(pingButton)
+		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenCalledTimes(1)
+
+		resolvePing?.()
+		await waitFor(() => expect(screen.getByText("Run Ping Probe")).toBeTruthy())
+
+		grpcClientMocks.pingLatencyProbe.mockResolvedValue({ value: 0 })
+		fireEvent.click(screen.getByText("Test Payload Presets"))
+		await waitFor(() => expect(grpcClientMocks.pingLatencyProbe).toHaveBeenCalledTimes(5))
+		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(2, { value: new Uint8Array(0) })
+		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(3, { value: new Uint8Array(64) })
+		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(4, { value: new Uint8Array(1024) })
+		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(5, { value: new Uint8Array(16_384) })
 	})
 })
