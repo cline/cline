@@ -388,7 +388,7 @@ Think of this as capability detection, not branch forking.
 
 ### Tests
 
-- [ ] Unit test: richer metrics adapter populates observer state when data exists.
+- [x] Unit test: richer metrics adapter populates observer state when data exists.
 - [x] Unit test: missing richer metrics are displayed as unavailable.
 
 Progress note:
