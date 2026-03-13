@@ -43,6 +43,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "wandb"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -3313,6 +3314,162 @@ export const nebiusModels = {
 } as const satisfies Record<string, ModelInfo>
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
+
+// W&B Inference by CoreWeave
+// https://docs.wandb.ai/inference/models
+export const wandbModels = {
+	"deepseek-ai/DeepSeek-V3.1": {
+		maxTokens: 8_192,
+		contextWindow: 161_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 1.65,
+		description: "A large hybrid model that supports both thinking and non-thinking modes via prompt templates",
+	},
+	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.17,
+		outputPrice: 0.66,
+		description: "Multimodal model integrating text and image understanding, ideal for visual tasks and combined analysis",
+	},
+	"meta-llama/Llama-3.3-70B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.71,
+		outputPrice: 0.71,
+		description: "Multilingual model excelling in conversational tasks, detailed instruction-following, and coding",
+	},
+	"meta-llama/Llama-3.1-70B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 0.8,
+		description: "Efficient conversational model optimized for responsive multilingual chatbot interactions",
+	},
+	"meta-llama/Llama-3.1-8B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.22,
+		description: "Efficient conversational model optimized for responsive multilingual chatbot interactions",
+	},
+	"microsoft/Phi-4-mini-instruct": {
+		maxTokens: 4_096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.08,
+		outputPrice: 0.35,
+		description: "Compact, efficient model ideal for fast responses in resource-constrained environments",
+	},
+	"MiniMaxAI/MiniMax-M2.5": {
+		maxTokens: 40_960,
+		contextWindow: 197_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		description:
+			"MoE model with a highly sparse architecture designed for high-throughput and low latency with strong coding capabilities",
+	},
+	"nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8": {
+		maxTokens: 8_192,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.8,
+		description: "A LatentMoE model designed to deliver strong agentic, reasoning, and conversational capabilities",
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 32_768,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Efficient Mixture-of-Experts model designed for high-reasoning, agentic and general-purpose use cases",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32_768,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+		description:
+			"Lower latency Mixture-of-Experts model trained on OpenAI’s Harmony response format with reasoning capabilities",
+	},
+	"OpenPipe/Qwen3-14B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.22,
+		description:
+			"An efficient multilingual, dense, instruction-tuned model, optimized by OpenPipe for building agents with finetuning",
+	},
+	"Qwen/Qwen3-235B-A22B-Thinking-2507": {
+		maxTokens: 32_768,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+		description:
+			"High-performance Mixture-of-Experts model optimized for structured reasoning, math, and long-form generation",
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 32_768,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+		description: "Efficient multilingual, Mixture-of-Experts, instruction-tuned model, optimized for logical reasoning",
+	},
+	"Qwen/Qwen3-30B-A3B-Instruct-2507": {
+		maxTokens: 8_192,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+		description: "MoE instruction-tuned model with enhanced reasoning, coding, and long-context understanding",
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 32_768,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 1.5,
+		description:
+			"Mixture-of-Experts model optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning",
+	},
+	"zai-org/GLM-5-FP8": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+		description: "Mixture-of-Experts model for long-horizon agentic tasks with strong performance on reasoning and coding",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type WandbModelId = keyof typeof wandbModels
+export const wandbDefaultModelId = "meta-llama/Llama-3.3-70B-Instruct" satisfies WandbModelId
 
 // X AI
 // https://docs.x.ai/docs/api-reference

@@ -21,6 +21,7 @@ import {
 	openRouterDefaultModelId,
 	requestyDefaultModelId,
 	sapAiCoreDefaultModelId,
+	wandbDefaultModelId,
 	xaiDefaultModelId,
 } from "../api"
 
@@ -83,6 +84,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	hicap: "hicapApiKey",
 	nousResearch: "nousResearchApiKey",
 	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
+	wandb: "wandbApiKey",
 } as const
 
 const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
@@ -113,6 +115,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	moonshot: moonshotDefaultModelId,
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
+	wandb: wandbDefaultModelId,
 } as const
 
 /**
