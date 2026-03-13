@@ -235,6 +235,7 @@ const sharedOptions: Partial<esbuild.BuildOptions> = {
 		"pino",
 		"pino-roll",
 		"@vscode/ripgrep", // Uses __dirname to locate the binary
+		"nock", // VCR support — devDependency, dynamically imported only when CLINE_VCR is set
 	],
 	supported: { "top-level-await": true },
 }
