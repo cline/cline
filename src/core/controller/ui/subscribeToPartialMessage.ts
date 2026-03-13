@@ -166,6 +166,12 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 	// Final/non-partial updates bypass throttling to keep completion transitions snappy.
 	queuedPartialMessagesByTs.delete(partialMessage.ts)
 
+	// Cancel any pending throttle timer since the final message supersedes any queued partial.
+	if (queuedPartialMessageTimeout) {
+		clearTimeout(queuedPartialMessageTimeout)
+		queuedPartialMessageTimeout = undefined
+	}
+
 	// If a queued flush is currently dispatching, wait so final updates are always the latest applied state.
 	if (activePartialMessageFlush) {
 		await activePartialMessageFlush
