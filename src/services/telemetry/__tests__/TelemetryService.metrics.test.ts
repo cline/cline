@@ -64,6 +64,16 @@ class FakeProvider implements ITelemetryProvider {
 	async dispose(): Promise<void> {}
 }
 
+class ThrowingProvider extends FakeProvider {
+	override recordHistogram(): void {
+		throw new Error("histogram failed")
+	}
+
+	override log(): void {
+		throw new Error("log failed")
+	}
+}
+
 function createTelemetryService(provider: FakeProvider): TelemetryService {
 	return new TelemetryService([provider], {
 		extension_version: "test",
@@ -373,6 +383,22 @@ describe("TelemetryService metrics", () => {
 		)
 		assert.ok(chunkP95)
 		assert.strictEqual(chunkP95?.value, 0.15)
+	})
+
+	it("captureTaskLatencyMetrics is failure-safe when telemetry providers throw", () => {
+		const provider = new ThrowingProvider()
+		const service = createTelemetryService(provider)
+
+		assert.doesNotThrow(() => {
+			service.captureTaskLatencyMetrics({
+				ulid: "task-6",
+				requestIndex: 1,
+				isRemoteWorkspace: false,
+				presentationInvocationCount: 2,
+				presentationDurationMs: 25,
+				chunkToWebviewMedianMs: 10,
+			})
+		})
 	})
 
 	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {

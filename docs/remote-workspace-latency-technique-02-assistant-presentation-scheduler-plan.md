@@ -368,6 +368,7 @@ Scheduling is always a tradeoff between update frequency and perceived responsiv
 - [x] Track total/average presentation duration.
 - [x] Track final chunk-to-webview delay distribution.
 - [ ] Emit request-level telemetry summary.
+- [x] Emit request-level telemetry summary.
 
 ### Detailed code changes
 
@@ -375,12 +376,12 @@ Scheduling is always a tradeoff between update frequency and perceived responsiv
   - [x] accumulate presentation metrics in request-scoped latency metrics.
   - [x] record chunk-to-webview delay when state or partial-message updates occur.
 - In telemetry summary helpers:
-  - [ ] ensure presentation-related fields are included and comparable.
+  - [x] ensure presentation-related fields are included and comparable.
 
 ### Tests
 
 - [x] Unit test: metrics aggregate correctly under multiple scheduler flushes.
-- [ ] Unit test: instrumentation is failure-safe when telemetry is disabled/unavailable.
+- [x] Unit test: instrumentation is failure-safe when telemetry is disabled/unavailable.
 
 ---
 
