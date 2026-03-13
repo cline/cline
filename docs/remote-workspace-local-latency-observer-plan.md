@@ -180,7 +180,7 @@ Why it matters:
 
 Record:
 
-- [ ] branch / commit identity
+- [x] branch / commit identity
 - [x] local vs remote environment marker
 - [x] selected scenario / payload size / cadence mode
 - [x] timestamped session logs
@@ -420,7 +420,7 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 - Add a component in `webview-ui/src/components/settings/` or a more appropriate dev/debug location.
 - Prefer a design inspired by the old `LatencyTester`:
   - [x] simple controls,
-  - [ ] rolling stats,
+  - [x] rolling stats,
   - [x] recent logs,
   - [x] easy reset.
 - Add session identity fields:
