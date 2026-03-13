@@ -332,6 +332,49 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(durationMetric?.attributes.scope, "task")
 	})
 
+	it("captureTaskLatencyMetrics records presentation and chunk-to-webview histograms", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskLatencyMetrics({
+			ulid: "task-5",
+			requestIndex: 2,
+			isRemoteWorkspace: true,
+			presentationInvocationCount: 4,
+			presentationDurationMs: 120,
+			presentationTrigger: "text",
+			partialMessageCount: 3,
+			partialMessagePayloadBytes: 2048,
+			partialMessageBroadcastDurationMs: 45,
+			chunkToWebviewMedianMs: 80,
+			chunkToWebviewP95Ms: 150,
+		})
+
+		const latencyEvent = provider.logs.find((entry) => entry.event === "task.latency_metrics")
+		assert.ok(latencyEvent)
+		assert.strictEqual(latencyEvent?.properties?.ulid, "task-5")
+		assert.strictEqual(latencyEvent?.properties?.requestIndex, 2)
+
+		const presentationInvocations = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PRESENTATION_INVOCATIONS_PER_REQUEST,
+		)
+		assert.ok(presentationInvocations)
+		assert.strictEqual(presentationInvocations?.value, 4)
+
+		const presentationDuration = provider.histograms.find(
+			(entry) => entry.name === TelemetryService.METRICS.API.PRESENTATION_DURATION_SECONDS,
+		)
+		assert.ok(presentationDuration)
+		assert.strictEqual(presentationDuration?.value, 0.12)
+
+		const chunkP95 = provider.histograms.find(
+			(entry) =>
+				entry.name === TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS && entry.attributes.percentile === "p95",
+		)
+		assert.ok(chunkP95)
+		assert.strictEqual(chunkP95?.value, 0.15)
+	})
+
 	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)

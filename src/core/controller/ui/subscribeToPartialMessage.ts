@@ -4,6 +4,11 @@ import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
+export type PartialMessageEventStats = {
+	payloadBytes: number
+	broadcastDurationMs: number
+}
+
 // Keep track of active partial message subscriptions (gRPC streams)
 const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<ClineMessage>>()
 
@@ -54,7 +59,9 @@ export function registerPartialMessageCallback(callback: PartialMessageCallback)
  * Send a partial message event to all active subscribers
  * @param partialMessage The ClineMessage to send
  */
-export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
+export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<PartialMessageEventStats> {
+	const startedAt = performance.now()
+	const payloadBytes = Buffer.byteLength(JSON.stringify(partialMessage), "utf8")
 	// Send to gRPC stream subscribers
 	const streamPromises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
 		try {
@@ -79,4 +86,9 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 	}
 
 	await Promise.all(streamPromises)
+
+	return {
+		payloadBytes,
+		broadcastDurationMs: Math.max(0, performance.now() - startedAt),
+	}
 }

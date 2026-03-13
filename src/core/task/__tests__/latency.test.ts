@@ -1,5 +1,10 @@
 import { strict as assert } from "assert"
-import { getPresentationCadenceMs, isPresentationSchedulingDisabled, isRemoteWorkspaceEnvironment } from "../latency"
+import {
+	getPresentationCadenceMs,
+	isPresentationSchedulingDisabled,
+	isRemoteWorkspaceEnvironment,
+	summarizeChunkToWebviewDelays,
+} from "../latency"
 
 describe("task latency helpers", () => {
 	afterEach(() => {
@@ -33,5 +38,10 @@ describe("task latency helpers", () => {
 	it("supports development flags for disabling presentation scheduling", () => {
 		process.env.CLINE_DISABLE_PRESENTATION_SCHEDULER = "true"
 		assert.equal(isPresentationSchedulingDisabled(), true)
+	})
+
+	it("summarizes chunk-to-webview delays using median and p95", () => {
+		assert.deepStrictEqual(summarizeChunkToWebviewDelays([]), { medianMs: 0, p95Ms: 0 })
+		assert.deepStrictEqual(summarizeChunkToWebviewDelays([10, 20, 30, 40, 50]), { medianMs: 30, p95Ms: 50 })
 	})
 })

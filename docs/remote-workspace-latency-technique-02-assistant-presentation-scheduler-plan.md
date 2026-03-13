@@ -240,7 +240,7 @@ When extracting this step, mirror the reference implementation’s structure clo
 ### Tests
 
 - [ ] Unit test: `scheduleAssistantPresentation(...)` increments request metrics correctly.
-- [ ] Unit test: scheduling-disabled mode still drains immediately.
+- [x] Unit test: scheduling-disabled mode still drains immediately.
 
 ---
 
@@ -364,22 +364,22 @@ Scheduling is always a tradeoff between update frequency and perceived responsiv
 
 ### Work
 
-- [ ] Track presentation invocation count.
-- [ ] Track total/average presentation duration.
-- [ ] Track final chunk-to-webview delay distribution.
+- [x] Track presentation invocation count.
+- [x] Track total/average presentation duration.
+- [x] Track final chunk-to-webview delay distribution.
 - [ ] Emit request-level telemetry summary.
 
 ### Detailed code changes
 
 - In `src/core/task/index.ts`:
-  - [ ] accumulate presentation metrics in request-scoped latency metrics.
-  - [ ] record chunk-to-webview delay when state or partial-message updates occur.
+  - [x] accumulate presentation metrics in request-scoped latency metrics.
+  - [x] record chunk-to-webview delay when state or partial-message updates occur.
 - In telemetry summary helpers:
   - [ ] ensure presentation-related fields are included and comparable.
 
 ### Tests
 
-- [ ] Unit test: metrics aggregate correctly under multiple scheduler flushes.
+- [x] Unit test: metrics aggregate correctly under multiple scheduler flushes.
 - [ ] Unit test: instrumentation is failure-safe when telemetry is disabled/unavailable.
 
 ---
@@ -424,7 +424,7 @@ That is why this technique materially helps large-file writes: the user does not
 - [x] Replace direct per-chunk presentation awaits
 - [x] Add remote-aware cadence selection
 - [x] Preserve final-drain semantics
-- [ ] Instrument and verify behavior
+- [x] Instrument and verify behavior
 - [ ] Validate large-file / long-stream scenarios
 
 ---

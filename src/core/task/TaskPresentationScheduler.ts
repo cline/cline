@@ -6,6 +6,11 @@ type TaskPresentationSchedulerOptions = {
 	setTimeoutFn?: typeof setTimeout
 	clearTimeoutFn?: typeof clearTimeout
 	onFlushError?: (error: unknown) => void
+	getNow?: () => number
+	metrics?: {
+		onFlushStarted?: (priority: PresentationPriority) => void
+		onFlushCompleted?: (durationMs: number, priority: PresentationPriority) => void
+	}
 }
 
 export class TaskPresentationScheduler {
@@ -20,6 +25,8 @@ export class TaskPresentationScheduler {
 	private readonly setTimeoutFn: typeof setTimeout
 	private readonly clearTimeoutFn: typeof clearTimeout
 	private readonly onFlushError?: (error: unknown) => void
+	private readonly getNow: () => number
+	private readonly metrics?: TaskPresentationSchedulerOptions["metrics"]
 
 	constructor(options: TaskPresentationSchedulerOptions) {
 		this.flush = options.flush
@@ -27,6 +34,8 @@ export class TaskPresentationScheduler {
 		this.setTimeoutFn = options.setTimeoutFn ?? setTimeout
 		this.clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout
 		this.onFlushError = options.onFlushError
+		this.getNow = options.getNow ?? (() => performance.now())
+		this.metrics = options.metrics
 	}
 
 	requestFlush(priority: PresentationPriority = "normal"): void {
@@ -91,15 +100,19 @@ export class TaskPresentationScheduler {
 			return
 		}
 
+		const priority = this.pendingPriority
 		this.flushInProgress = true
 		this.pendingPriority = undefined
 		this.pendingWhileFlushing = false
 
+		const startedAt = this.getNow()
+		this.metrics?.onFlushStarted?.(priority)
 		try {
 			await this.flush()
 		} catch (error) {
 			this.onFlushError?.(error)
 		} finally {
+			this.metrics?.onFlushCompleted?.(Math.max(0, this.getNow() - startedAt), priority)
 			this.flushInProgress = false
 		}
 

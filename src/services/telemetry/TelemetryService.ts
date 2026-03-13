@@ -164,6 +164,14 @@ export class TelemetryService {
 		API: {
 			TTFT_SECONDS: "cline.api.ttft.seconds",
 			DURATION_SECONDS: "cline.api.duration.seconds",
+			PRESENTATION_INVOCATIONS_PER_REQUEST: "cline.api.presentation.invocations.per_request",
+			PRESENTATION_DURATION_SECONDS: "cline.api.presentation.duration.seconds",
+			STATE_POSTS_PER_REQUEST: "cline.api.state_posts.per_request",
+			STATE_SEND_DURATION_SECONDS: "cline.api.state_send.duration.seconds",
+			PARTIAL_MESSAGES_PER_REQUEST: "cline.api.partial_messages.per_request",
+			PARTIAL_MESSAGE_PAYLOAD_BYTES: "cline.api.partial_message_payload.bytes",
+			PARTIAL_MESSAGE_BROADCAST_DURATION_SECONDS: "cline.api.partial_message_broadcast.duration.seconds",
+			CHUNK_TO_WEBVIEW_SECONDS: "cline.api.chunk_to_webview.seconds",
 			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
 		},
 		HOOKS: {
@@ -292,6 +300,8 @@ export class TelemetryService {
 			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
+			// Tracks request-scoped latency metrics for assistant presentation and UI delivery
+			LATENCY_METRICS: "task.latency_metrics",
 			// Terminal execution telemetry events
 			TERMINAL_EXECUTION: "task.terminal_execution",
 			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
@@ -1645,6 +1655,97 @@ export class TelemetryService {
 				hasCheckpoints,
 			},
 		})
+	}
+
+	public captureTaskLatencyMetrics(args: {
+		ulid: string
+		requestIndex: number
+		isRemoteWorkspace: boolean
+		presentationInvocationCount?: number
+		presentationDurationMs?: number
+		presentationTrigger?: string
+		statePostCount?: number
+		statePostSendDurationMs?: number
+		partialMessageCount?: number
+		partialMessagePayloadBytes?: number
+		partialMessageBroadcastDurationMs?: number
+		chunkToWebviewMedianMs?: number
+		chunkToWebviewP95Ms?: number
+	}): void {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.LATENCY_METRICS,
+			properties: args,
+		})
+
+		const attrs = {
+			ulid: args.ulid,
+			request_index: args.requestIndex,
+			is_remote_workspace: args.isRemoteWorkspace,
+			presentation_trigger: args.presentationTrigger,
+		}
+
+		if (Number.isFinite(args.presentationDurationMs)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PRESENTATION_DURATION_SECONDS,
+				(args.presentationDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.presentationInvocationCount)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PRESENTATION_INVOCATIONS_PER_REQUEST,
+				args.presentationInvocationCount ?? 0,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.statePostCount)) {
+			this.recordHistogram(TelemetryService.METRICS.API.STATE_POSTS_PER_REQUEST, args.statePostCount ?? 0, attrs)
+		}
+
+		if (Number.isFinite(args.statePostSendDurationMs) && (args.statePostSendDurationMs ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.STATE_SEND_DURATION_SECONDS,
+				(args.statePostSendDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.partialMessageCount)) {
+			this.recordHistogram(TelemetryService.METRICS.API.PARTIAL_MESSAGES_PER_REQUEST, args.partialMessageCount ?? 0, attrs)
+		}
+
+		if (Number.isFinite(args.partialMessagePayloadBytes) && (args.partialMessagePayloadBytes ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PARTIAL_MESSAGE_PAYLOAD_BYTES,
+				args.partialMessagePayloadBytes ?? 0,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.partialMessageBroadcastDurationMs) && (args.partialMessageBroadcastDurationMs ?? 0) > 0) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.PARTIAL_MESSAGE_BROADCAST_DURATION_SECONDS,
+				(args.partialMessageBroadcastDurationMs ?? 0) / 1000,
+				attrs,
+			)
+		}
+
+		if (Number.isFinite(args.chunkToWebviewMedianMs)) {
+			this.recordHistogram(
+				TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS,
+				(args.chunkToWebviewMedianMs ?? 0) / 1000,
+				{ ...attrs, percentile: "p50" },
+			)
+		}
+
+		if (Number.isFinite(args.chunkToWebviewP95Ms)) {
+			this.recordHistogram(TelemetryService.METRICS.API.CHUNK_TO_WEBVIEW_SECONDS, (args.chunkToWebviewP95Ms ?? 0) / 1000, {
+				...attrs,
+				percentile: "p95",
+			})
+		}
 	}
 
 	/**

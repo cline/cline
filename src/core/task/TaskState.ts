@@ -7,6 +7,7 @@ export class TaskState {
 	// Task-level timing
 	taskStartTimeMs = Date.now()
 	taskFirstTokenTimeMs?: number
+	currentChunkReceivedAtMs?: number
 
 	// Streaming flags
 	isStreaming = false

@@ -59,3 +59,17 @@ export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: P
 
 	return isRemoteWorkspace ? 90 : 40
 }
+
+export function summarizeChunkToWebviewDelays(delaysMs: number[]): { medianMs: number; p95Ms: number } {
+	if (delaysMs.length === 0) {
+		return { medianMs: 0, p95Ms: 0 }
+	}
+
+	const sorted = [...delaysMs].sort((a, b) => a - b)
+	const percentile = (ratio: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))]
+
+	return {
+		medianMs: percentile(0.5),
+		p95Ms: percentile(0.95),
+	}
+}
