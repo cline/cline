@@ -375,7 +375,7 @@ Use the reference implementation’s chosen cadence and lifecycle wiring as the 
 
 ### Tests
 
-- [ ] Unit test: scheduler flushes pending ephemeral changes on cadence.
+- [x] Unit test: scheduler flushes pending ephemeral changes on cadence.
 - [ ] Unit test: scheduler does nothing when there is no dirty ephemeral state.
 - [ ] Unit test: scheduler stops cleanly on request completion/abort.
 
@@ -444,7 +444,7 @@ Treat the feature flag and validation path as first-class extraction requirement
 
 ### Tests
 
-- [ ] Unit test: disable flag routes behavior back to durable-per-update path where applicable.
+- [x] Unit test: disable flag routes behavior back to durable-per-update path where applicable.
 - [ ] Validation harness variant: feature-disabled mode still behaves correctly.
 
 ---
