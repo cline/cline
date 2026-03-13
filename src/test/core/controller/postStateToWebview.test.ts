@@ -237,6 +237,37 @@ describe("Controller postStateToWebview", () => {
 		}
 	})
 
+	it("reinitializes an existing task from history when switching tasks", async () => {
+		const historyItem = { id: "task-2", task: "Continue task", ts: Date.now() } as any
+		const getTaskWithId = sinon.stub(controller, "getTaskWithId").resolves({ historyItem } as any)
+		const initTask = sinon.stub(controller, "initTask").resolves("task-2")
+
+		await controller.reinitExistingTaskFromId("task-2")
+
+		sinon.assert.calledOnceWithExactly(getTaskWithId, "task-2")
+		sinon.assert.calledOnceWithExactly(initTask, undefined, undefined, undefined, historyItem)
+	})
+
+	it("updates task history state and notifies the UI when deleting a task", async () => {
+		const existingHistory = [
+			{ id: "task-1", task: "Keep me", ts: 1 },
+			{ id: "task-2", task: "Remove me", ts: 2 },
+		]
+		mockStateManager.getGlobalStateKey.callsFake((key: string) => {
+			if (key === "taskHistory") {
+				return existingHistory
+			}
+			return undefined
+		})
+		const postStateToWebview = sinon.stub(controller, "postStateToWebview").resolves()
+
+		const updatedHistory = await controller.deleteTaskFromState("task-2")
+
+		updatedHistory.should.deepEqual([{ id: "task-1", task: "Keep me", ts: 1 }])
+		sinon.assert.calledWith(mockStateManager.setGlobalState, "taskHistory", updatedHistory)
+		sinon.assert.calledOnce(postStateToWebview)
+	})
+
 	it("detects remote workspace host metadata during controller initialization", async () => {
 		HostProvider.reset()
 		hostProviderInitialized = false

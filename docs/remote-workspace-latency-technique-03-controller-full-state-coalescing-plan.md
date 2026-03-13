@@ -401,7 +401,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 
 ### Work
 
-- [ ] Test history/task switching behavior.
+- [x] Test history/task switching behavior.
 - [x] Test settings/auth-related UI updates.
 - [x] Test onboarding / welcome state hydration.
 - [x] Test focus-chain/background-command metadata behavior.
@@ -429,7 +429,8 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 
 - Added stronger `StateUpdateScheduler` regression coverage for disposal-during-flush and `flushNow()` draining semantics.
 - Added controller regression coverage that keeps mode switches, auth callback hydration, and background-command state updates on the intended priority paths.
-- Non-streaming product-surface safety is now partially covered, but startup hydration and task-switch history flows still need explicit regression coverage.
+- Added controller regression coverage for task reinitialization and task-history deletion flows during task switching.
+- Non-streaming product-surface safety is now partially covered, but startup hydration and full snapshot convergence after task switches still need explicit regression coverage.
 
 ---
 
