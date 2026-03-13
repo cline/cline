@@ -62,6 +62,7 @@ export class TaskState {
 	apiRequestsSinceLastTodoUpdate = 0
 	currentFocusChainChecklist: string | null = null
 	todoListWasUpdatedByUser = false
+	taskUiDeltaSequence = 0
 
 	// Task Abort / Cancellation
 	abort = false

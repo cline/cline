@@ -11,7 +11,9 @@ import { HistoryItem } from "@/shared/HistoryItem"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { sendTaskUiDelta } from "../controller/ui/subscribeToTaskUiDeltas"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import { isTaskUiDeltaSyncDisabled } from "./latency"
 import { TaskState } from "./TaskState"
 
 // Event types for clineMessages changes
@@ -48,12 +50,14 @@ interface MessageStateHandlerParams {
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private apiConversationHistory: ClineStorageMessage[] = []
 	private clineMessages: ClineMessage[] = []
+	private hasDirtyEphemeralChanges = false
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
+	private readonly taskUiDeltaSyncDisabled = isTaskUiDeltaSyncDisabled()
 
 	// Mutex to prevent concurrent state modifications (RC-4)
 	// Protects against data loss from race conditions when multiple
@@ -75,6 +79,31 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	private emitClineMessagesChanged(change: ClineMessageChange): void {
 		this.emit("clineMessagesChanged", change)
+		if (!this.taskUiDeltaSyncDisabled) {
+			void this.emitTaskUiDeltaForChange(change)
+		}
+	}
+
+	private async emitTaskUiDeltaForChange(change: ClineMessageChange): Promise<void> {
+		const sequence = ++this.taskState.taskUiDeltaSequence
+		if (change.type === "add" && change.message) {
+			await sendTaskUiDelta({ type: "message_added", taskId: this.taskId, sequence, message: change.message })
+			return
+		}
+
+		if (change.type === "update" && change.message) {
+			await sendTaskUiDelta({ type: "message_updated", taskId: this.taskId, sequence, message: change.message })
+			return
+		}
+
+		if (change.type === "delete" && change.previousMessage) {
+			await sendTaskUiDelta({ type: "message_deleted", taskId: this.taskId, sequence, messageTs: change.previousMessage.ts })
+			return
+		}
+
+		if (change.type === "set") {
+			await sendTaskUiDelta({ type: "task_state_resynced", taskId: this.taskId, sequence })
+		}
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -105,6 +134,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	setClineMessages(newMessages: ClineMessage[]) {
 		const previousMessages = this.clineMessages
 		this.clineMessages = newMessages
+		this.hasDirtyEphemeralChanges = true
 		this.emitClineMessagesChanged({
 			type: "set",
 			messages: this.clineMessages,
@@ -183,6 +213,22 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		})
 	}
 
+	async addToClineMessagesEphemeral(message: ClineMessage) {
+		return await this.withStateLock(async () => {
+			message.conversationHistoryIndex = this.apiConversationHistory.length - 1
+			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			const index = this.clineMessages.length
+			this.clineMessages.push(message)
+			this.hasDirtyEphemeralChanges = true
+			this.emitClineMessagesChanged({
+				type: "add",
+				messages: this.clineMessages,
+				index,
+				message,
+			})
+		})
+	}
+
 	async overwriteApiConversationHistory(newHistory: ClineStorageMessage[]): Promise<void> {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
@@ -223,6 +269,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		return await this.withStateLock(async () => {
 			const previousMessages = this.clineMessages
 			this.clineMessages = newMessages
+			this.hasDirtyEphemeralChanges = true
 			this.emitClineMessagesChanged({
 				type: "set",
 				messages: this.clineMessages,
@@ -261,6 +308,26 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		})
 	}
 
+	async updateClineMessageEphemeral(index: number, updates: Partial<ClineMessage>): Promise<void> {
+		return await this.withStateLock(async () => {
+			if (index < 0 || index >= this.clineMessages.length) {
+				throw new Error(`Invalid message index: ${index}`)
+			}
+
+			const previousMessage = { ...this.clineMessages[index] }
+			Object.assign(this.clineMessages[index], updates)
+			this.hasDirtyEphemeralChanges = true
+
+			this.emitClineMessagesChanged({
+				type: "update",
+				messages: this.clineMessages,
+				index,
+				previousMessage,
+				message: this.clineMessages[index],
+			})
+		})
+	}
+
 	/**
 	 * Delete a specific message from the clineMessages array
 	 * The entire operation (validate, delete, save) is atomic to prevent races (RC-4)
@@ -285,6 +352,15 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			})
 
 			// Save changes and update history
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
+
+	async flushClineMessagesAndUpdateHistory(): Promise<void> {
+		return await this.withStateLock(async () => {
+			if (!this.hasDirtyEphemeralChanges) {
+				return
+			}
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}

@@ -1,0 +1,82 @@
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { TaskUiDeltaEvent } from "@shared/proto/cline/ui"
+import { telemetryService } from "@/services/telemetry"
+import { Logger } from "@/shared/services/Logger"
+import type { TaskUiDelta } from "@/shared/TaskUiDelta"
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
+
+const activeTaskUiDeltaSubscriptions = new Set<StreamingResponseHandler<TaskUiDeltaEvent>>()
+export type TaskUiDeltaCallback = (delta: TaskUiDelta) => void
+const callbackSubscriptions = new Set<TaskUiDeltaCallback>()
+
+export type TaskUiDeltaDeliveryStats = {
+	payloadBytes: number
+	broadcastDurationMs: number
+	streamSubscriberCount: number
+	callbackSubscriberCount: number
+}
+
+export function registerTaskUiDeltaCallback(callback: TaskUiDeltaCallback): () => void {
+	callbackSubscriptions.add(callback)
+	return () => {
+		callbackSubscriptions.delete(callback)
+	}
+}
+
+export async function subscribeToTaskUiDeltas(
+	_controller: Controller,
+	_request: EmptyRequest,
+	responseStream: StreamingResponseHandler<TaskUiDeltaEvent>,
+	requestId?: string,
+): Promise<void> {
+	activeTaskUiDeltaSubscriptions.add(responseStream)
+
+	const cleanup = () => {
+		activeTaskUiDeltaSubscriptions.delete(responseStream)
+	}
+
+	if (requestId) {
+		getRequestRegistry().registerRequest(requestId, cleanup, { type: "task_ui_delta_subscription" }, responseStream)
+	}
+}
+
+export async function sendTaskUiDelta(delta: TaskUiDelta): Promise<TaskUiDeltaDeliveryStats | undefined> {
+	let deltaJson: string
+	try {
+		deltaJson = JSON.stringify(delta)
+	} catch (error) {
+		Logger.error("Error serializing task UI delta:", error)
+		return undefined
+	}
+
+	const payloadBytes = Buffer.byteLength(deltaJson, "utf8")
+	telemetryService.captureGrpcResponseSize(payloadBytes, "cline.UiService", "subscribeToTaskUiDeltas")
+	const startedAt = performance.now()
+
+	const promises = Array.from(activeTaskUiDeltaSubscriptions).map(async (responseStream) => {
+		try {
+			await responseStream(TaskUiDeltaEvent.create({ deltaJson }), false)
+		} catch (error) {
+			Logger.error("Error sending task UI delta:", error)
+			activeTaskUiDeltaSubscriptions.delete(responseStream)
+		}
+	})
+
+	for (const callback of callbackSubscriptions) {
+		try {
+			callback(delta)
+		} catch (error) {
+			Logger.error("Error sending task UI delta to callback subscriber:", error)
+		}
+	}
+
+	await Promise.all(promises)
+
+	return {
+		payloadBytes,
+		broadcastDurationMs: Math.max(0, performance.now() - startedAt),
+		streamSubscriberCount: activeTaskUiDeltaSubscriptions.size,
+		callbackSubscriberCount: callbackSubscriptions.size,
+	}
+}

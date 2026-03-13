@@ -24,6 +24,7 @@ export interface FocusChainDependencies {
 	mode: Mode
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
+	postTaskMetadataDelta: (metadata: { currentFocusChainChecklist?: string | null }) => Promise<void>
 	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
 	focusChainSettings: FocusChainSettings
 }
@@ -33,6 +34,7 @@ export class FocusChainManager {
 	private taskState: TaskState
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
+	private postTaskMetadataDelta: (metadata: { currentFocusChainChecklist?: string | null }) => Promise<void>
 	private say: (
 		type: ClineSay,
 		text?: string,
@@ -50,6 +52,7 @@ export class FocusChainManager {
 		this.taskState = dependencies.taskState
 		this.stateManager = dependencies.stateManager
 		this.postStateToWebview = dependencies.postStateToWebview
+		this.postTaskMetadataDelta = dependencies.postTaskMetadataDelta
 		this.say = dependencies.say
 		this.focusChainSettings = dependencies.focusChainSettings
 	}
@@ -85,7 +88,7 @@ export class FocusChainManager {
 				})
 				.on("unlink", async () => {
 					this.taskState.currentFocusChainChecklist = null
-					await this.postStateToWebview()
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: null })
 				})
 				.on("error", (error) => {
 					Logger.error(`[Task ${this.taskId}] Failed to watch focus chain file:`, error)
@@ -120,7 +123,7 @@ export class FocusChainManager {
 						this.taskState.currentFocusChainChecklist = markdownTodoList
 						this.taskState.todoListWasUpdatedByUser = true
 
-						await this.postStateToWebview()
+						await this.postTaskMetadataDelta({ currentFocusChainChecklist: markdownTodoList })
 						telemetryService.captureFocusChainListWritten(this.taskId)
 					} else {
 						Logger.log(
@@ -301,12 +304,14 @@ export class FocusChainManager {
 				// Write the model's update to the markdown file
 				try {
 					await this.writeFocusChainToDisk(taskProgress.trim())
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: taskProgress.trim() })
 
 					// Send the task_progress message to the UI immediately
 					await this.say("task_progress", taskProgress.trim())
 				} catch (error) {
 					Logger.error(`[Task ${this.taskId}] focus chain list: Failed to write to markdown file:`, error)
 					// Fall back to creating a task_progress message directly if file write fails
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: taskProgress.trim() })
 					await this.say("task_progress", taskProgress.trim())
 					Logger.log(`[Task ${this.taskId}] focus chain list: Sent fallback task_progress message to UI`)
 				}
@@ -316,6 +321,7 @@ export class FocusChainManager {
 				if (markdownTodoList) {
 					const _previousList = this.taskState.currentFocusChainChecklist
 					this.taskState.currentFocusChainChecklist = markdownTodoList
+					await this.postTaskMetadataDelta({ currentFocusChainChecklist: markdownTodoList })
 
 					// Create a task_progress message to display the focus chain list in the UI
 					await this.say("task_progress", markdownTodoList)

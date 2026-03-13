@@ -1,5 +1,4 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
@@ -26,7 +25,14 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import type { TaskUiDelta } from "../../../src/shared/TaskUiDelta"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { mergeExtensionStateSnapshot } from "./mergeExtensionState"
+import { mergePartialMessage } from "./mergePartialMessage"
+import { ensureDebugTaskUiCounters, incrementDebugTaskUiCounter } from "./taskUiDebugCounters"
+import { applyTaskUiDeltaToState } from "./taskUiDeltaState"
+
+const IS_DEV = process.env.IS_DEV === '"true"'
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -319,6 +325,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
+	const latestTaskUiDeltaSequenceRef = useRef<number>(0)
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -330,6 +337,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
+	const taskUiDeltaUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -348,6 +356,24 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 
+	const resyncCurrentTaskState = useCallback(async () => {
+		try {
+			const latestState = await StateServiceClient.getLatestState(EmptyRequest.create({}))
+			if (!latestState.stateJson) {
+				return
+			}
+
+			const stateData = JSON.parse(latestState.stateJson) as ExtensionState
+			setState((prevState) => ({
+				...prevState,
+				...stateData,
+			}))
+			latestTaskUiDeltaSequenceRef.current = 0
+		} catch (error) {
+			console.error("Failed to resync extension state after task delta gap:", error)
+		}
+	}, [])
+
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
 		// Set up state subscription
@@ -355,25 +381,14 @@ export const ExtensionStateContextProvider: React.FC<{
 			onResponse: (response) => {
 				if (response.stateJson) {
 					try {
+						incrementDebugTaskUiCounter(
+							IS_DEV,
+							typeof window === "undefined" ? undefined : window,
+							"fullStateApplications",
+						)
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
 						setState((prevState) => {
-							// Versioning logic for autoApprovalSettings
-							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							// HACK: Preserve clineMessages if currentTaskItem is the same
-							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
-								stateData.clineMessages = stateData.clineMessages?.length
-									? stateData.clineMessages
-									: prevState.clineMessages
-							}
-
-							const newState = {
-								...stateData,
-								autoApprovalSettings: shouldUpdateAutoApproval
-									? stateData.autoApprovalSettings
-									: prevState.autoApprovalSettings,
-							}
+							const newState = mergeExtensionStateSnapshot(prevState, stateData)
 
 							// Update welcome screen state based on API configuration if welcome view not in progress
 							if (!newState.welcomeViewCompleted && !showWelcome) {
@@ -385,6 +400,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							}
 
 							setDidHydrateState(true)
+							latestTaskUiDeltaSequenceRef.current = 0
 
 							return newState
 						})
@@ -512,16 +528,12 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
-					setState((prevState) => {
-						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-						if (lastIndex !== -1) {
-							const newClineMessages = [...prevState.clineMessages]
-							newClineMessages[lastIndex] = partialMessage
-							return { ...prevState, clineMessages: newClineMessages }
-						}
-						return prevState
-					})
+					incrementDebugTaskUiCounter(
+						IS_DEV,
+						typeof window === "undefined" ? undefined : window,
+						"partialMessageApplications",
+					)
+					setState((prevState) => mergePartialMessage(prevState, partialMessage))
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
 				}
@@ -531,6 +543,47 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onComplete: () => {
 				console.log("[DEBUG] partialMessage subscription completed")
+			},
+		})
+
+		taskUiDeltaUnsubscribeRef.current = UiServiceClient.subscribeToTaskUiDeltas(EmptyRequest.create({}), {
+			onResponse: (response: { deltaJson?: string }) => {
+				if (!response.deltaJson) {
+					return
+				}
+
+				try {
+					const delta = JSON.parse(response.deltaJson) as TaskUiDelta
+					setState((prevState) => {
+						const result = applyTaskUiDeltaToState(prevState, delta, latestTaskUiDeltaSequenceRef.current)
+						const counters = ensureDebugTaskUiCounters(IS_DEV, typeof window === "undefined" ? undefined : window)
+						latestTaskUiDeltaSequenceRef.current = result.nextSequence
+						if (result.kind === "resync") {
+							if (counters) {
+								counters.taskUiDeltaResyncRequests += 1
+							}
+							void resyncCurrentTaskState()
+							return prevState
+						}
+						if (result.kind === "ignored") {
+							return prevState
+						}
+						if (counters) {
+							counters.taskUiDeltaApplications += 1
+						}
+
+						return result.state
+					})
+				} catch (error) {
+					console.error("Failed to process task UI delta:", error)
+				}
+			},
+			onError: (error: unknown) => {
+				const typedError = error as Error
+				console.error("Error in taskUiDelta subscription:", typedError)
+			},
+			onComplete: () => {
+				console.log("taskUiDelta subscription completed")
 			},
 		})
 
@@ -660,6 +713,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
 			}
+			if (taskUiDeltaUnsubscribeRef.current) {
+				taskUiDeltaUnsubscribeRef.current()
+				taskUiDeltaUnsubscribeRef.current = null
+			}
 			if (mcpMarketplaceUnsubscribeRef.current) {
 				mcpMarketplaceUnsubscribeRef.current()
 				mcpMarketplaceUnsubscribeRef.current = null
@@ -685,7 +742,17 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [])
+	}, [
+		closeMcpView,
+		navigateToAccount,
+		navigateToChat,
+		navigateToHistory,
+		navigateToMcp,
+		navigateToSettings,
+		navigateToWorktrees,
+		resyncCurrentTaskState,
+		showWelcome,
+	])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))

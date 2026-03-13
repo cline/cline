@@ -368,6 +368,7 @@ export class Task {
 				mode: this.stateManager.getGlobalSettingsKey("mode"),
 				stateManager: this.stateManager,
 				postStateToWebview: this.postStateToWebview,
+				postTaskMetadataDelta: (metadata) => this.controller.postTaskMetadataDelta(metadata, this.taskId),
 				say: this.say.bind(this),
 				focusChainSettings: focusChainSettings,
 			})
@@ -598,7 +599,7 @@ export class Task {
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
-					await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
+					await this.messageStateHandler.updateClineMessageEphemeral(lastMessageIndex, {
 						text,
 						partial,
 					})
@@ -615,7 +616,7 @@ export class Task {
 				// this.askResponseImages = undefined
 				askTs = Date.now()
 				this.taskState.lastMessageTs = askTs
-				await this.messageStateHandler.addToClineMessages({
+				await this.messageStateHandler.addToClineMessagesEphemeral({
 					ts: askTs,
 					type: "ask",
 					ask: type,
@@ -779,7 +780,7 @@ export class Task {
 				if (isUpdatingPreviousPartial) {
 					// existing partial message, so update it
 					const lastIndex = this.messageStateHandler.getClineMessages().length - 1
-					await this.messageStateHandler.updateClineMessage(lastIndex, {
+					await this.messageStateHandler.updateClineMessageEphemeral(lastIndex, {
 						text,
 						images,
 						files,
@@ -793,7 +794,7 @@ export class Task {
 				// this is a new partial message, so add it with partial state
 				const sayTs = Date.now()
 				this.taskState.lastMessageTs = sayTs
-				await this.messageStateHandler.addToClineMessages({
+				await this.messageStateHandler.addToClineMessagesEphemeral({
 					ts: sayTs,
 					type: "say",
 					say: type,
