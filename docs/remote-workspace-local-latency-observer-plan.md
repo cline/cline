@@ -240,15 +240,15 @@ Recommended UI features:
 
 - [ ] a dedicated dev-facing section in Settings or a dev/debug panel
 - [ ] buttons for:
-  - [ ] single ping
-  - [ ] continuous ping
-  - [ ] test all payload sizes
+  - [x] single ping
+  - [x] continuous ping
+  - [x] test all payload sizes
   - [ ] start observed task scenario
-  - [ ] reset stats
-- [ ] visible stats cards / table for current/min/max/avg
-- [ ] recent logs panel
-- [ ] session metadata display (branch, commit, environment)
-- [ ] explicit note describing which metrics are branch-portable vs richer-on-candidate
+  - [x] reset stats
+- [x] visible stats cards / table for current/min/max/avg
+- [x] recent logs panel
+- [x] session metadata display (branch, commit, environment)
+- [x] explicit note describing which metrics are branch-portable vs richer-on-candidate
 
 The point is to make the observer *pleasant enough* that it becomes part of the engineering workflow rather than a script that only gets used once.
 
@@ -411,9 +411,9 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 
 ### Work
 
-- [ ] Add a dev/debug observer panel or settings section.
-- [ ] Show transport stats, lifecycle stats, optional richer metrics, and logs.
-- [ ] Display branch/session/environment metadata.
+- [x] Add a dev/debug observer panel or settings section.
+- [x] Show transport stats, lifecycle stats, optional richer metrics, and logs.
+- [x] Display branch/session/environment metadata.
 
 ### Detailed code changes
 
@@ -431,7 +431,7 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 ### Tests
 
 - [ ] Component test: controls trigger expected actions.
-- [ ] Component test: unavailable metrics render intelligibly.
+- [x] Component test: unavailable metrics render intelligibly.
 - [ ] Regression test: UI remains hidden or low-noise outside intended dev/debug usage.
 
 ---
