@@ -468,7 +468,7 @@ A latency observer becomes far more valuable when it can help the developer answ
 
 ### Tests
 
-- [ ] Validation test: scenario runs produce observer output.
+- [x] Validation test: scenario runs produce observer output.
 - [x] Regression test: observer reset cleanly separates sessions.
 
 ---

@@ -160,6 +160,32 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
+vi.mock("@/components/ui/select", () => {
+	const React = require("react") as typeof import("react")
+	const SelectContext = React.createContext<{ onValueChange?: (value: string) => void } | null>(null)
+
+	return {
+		Select: ({ children, onValueChange }: { children: React.ReactNode; onValueChange?: (value: string) => void }) => (
+			<SelectContext.Provider value={{ onValueChange }}>{children}</SelectContext.Provider>
+		),
+		SelectTrigger: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+			<div className={className} role="combobox">
+				{children}
+			</div>
+		),
+		SelectValue: () => null,
+		SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+		SelectItem: ({ children, value }: { children: React.ReactNode; value: string }) => {
+			const context = React.useContext(SelectContext)
+			return (
+				<button onClick={() => context?.onValueChange?.(value)} role="option" type="button">
+					{children}
+				</button>
+			)
+		},
+	}
+})
+
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => extensionStateMock,
 }))
@@ -301,6 +327,22 @@ describe("DebugSection", () => {
 		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
 		fireEvent.click(screen.getByText("Start Observed Task Scenario"))
 		await waitFor(() => expect(grpcClientMocks.newTask).toHaveBeenCalledTimes(1))
+	})
+
+	it("starts the selected large-file scenario with the plan document attached", async () => {
+		grpcClientMocks.newTask.mockResolvedValue({ value: "task-2" })
+		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+
+		fireEvent.mouseDown(screen.getByRole("combobox"))
+		fireEvent.click(screen.getByRole("option", { name: "Large-file-write adjacent" }))
+		fireEvent.click(screen.getByText("Start Observed Task Scenario"))
+
+		await waitFor(() => expect(grpcClientMocks.newTask).toHaveBeenCalledTimes(1))
+		expect(grpcClientMocks.newTask).toHaveBeenCalledWith({
+			text: "Latency observer large-file scenario. Read the latency observer plan document and summarize the sections most relevant to payload size and export behavior.",
+			images: [],
+			files: ["docs/remote-workspace-local-latency-observer-plan.md"],
+		})
 	})
 
 	it("resets the backend observer session", async () => {
