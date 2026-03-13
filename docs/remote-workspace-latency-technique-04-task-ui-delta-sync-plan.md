@@ -405,8 +405,8 @@ Delta systems are harder to reason about than snapshots, so they need better vis
 ### Work
 
 - [x] Add debug counters for full-state applications, partial-message applications, delta applications, and resync requests.
-- [ ] Compare default mode vs delta-disabled mode in validation harness.
-- [ ] Ensure feature flag exists for safe staged rollout.
+- [x] Compare default mode vs delta-disabled mode in validation harness.
+- [x] Ensure feature flag exists for safe staged rollout.
 
 ### Detailed code changes
 
@@ -415,7 +415,7 @@ Delta systems are harder to reason about than snapshots, so they need better vis
 - In `.env.example` / `latency.ts`:
   - [x] preserve `CLINE_DISABLE_TASK_UI_DELTA_SYNC` or equivalent.
 - In validation tooling:
-  - [ ] compare `stateUpdateCount`, `taskDeltaCount`, and payload bytes across variants.
+  - [x] compare `stateUpdateCount`, `taskDeltaCount`, and payload bytes across variants.
 
 Since the reference implementation already exists, one of the strongest ways to smooth development is to validate the extracted technique against both disabled-mode behavior and the known-good reference branch behavior.
 
@@ -462,13 +462,14 @@ That is why this technique still matters for large-file-write scenarios, even th
 - [x] Implement frontend delta application with strict ordering safety
 - [x] Preserve full snapshots for hydration and recovery
 - [x] Minimize frontend churn during delta application
-- [ ] Add observability, flags, and validation coverage
+- [x] Add observability, flags, and validation coverage
 - [ ] Validate large-file / long-running execution scenarios
 
 ## Extraction Progress Notes
 
 - Implemented the core task UI delta transport and reducer path in commit `05d7cc315` (`Add task UI delta sync transport and reducers`).
 - Added extraction-branch follow-up coverage in commit `8839a5bf6` (`Add task UI delta sync test coverage and env flag helper`), including backend delta broadcaster tests, latency/env-flag helper coverage, reducer sequencing tests, and a webview context delta hydration test.
+- Added latency-analysis helpers and validation scripts for comparing delta-enabled vs delta-disabled runs (`src/services/telemetry/taskLatencySummary.ts`, `scripts/validate-latency-scenarios.ts`, `scripts/analyze-task-latency-metrics.mjs`, and `scripts/compare-task-latency-metrics.mjs`).
 - Wired focus-chain metadata and background-command metadata through task-specific delta publication, with snapshot fallback when task identity is ambiguous.
 - Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
 - Verification remains blocked locally because this workspace currently lacks installed dependencies (`node_modules` and `webview-ui/node_modules` are both absent), so `npm run test:unit` and `npm run test:webview` fail before execution (`cross-env` / `vitest` not found). Earlier notes also recorded tooling drift around `npm run protos` / `npm run compile` in this environment.
