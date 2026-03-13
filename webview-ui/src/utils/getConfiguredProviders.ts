@@ -233,6 +233,17 @@ export function getConfiguredProviders(
 		configured.push("oca")
 	}
 
+	//OpenAI OAuth
+	if (
+		apiConfiguration.openAiOAuthAuthUrl &&
+		apiConfiguration.openAiOAuthBaseUrl &&
+		apiConfiguration.openAiOAuthClientId &&
+		apiConfiguration.openAiOAuthScopes &&
+		apiConfiguration.openAiOAuthTokenUrl
+	) {
+		configured.push("openai-oauth")
+	}
+
 	return configured
 }
 

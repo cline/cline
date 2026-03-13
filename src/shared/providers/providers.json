@@ -1,6 +1,10 @@
 {
 	"list": [
 		{
+			"value": "openai-oauth",
+			"label": "OpenAI OAuth 2.0"
+		},
+		{
 			"value": "cline",
 			"label": "Cline"
 		},

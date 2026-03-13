@@ -32,6 +32,14 @@ export async function updateApiConfigurationProto(
 
 		const convertedApiConfigurationFromProto = {
 			...protoApiConfiguration,
+			// Normalize proto OAuth fields (openAiOAuth*) to Settings keys (openAiOAuth*)
+			openAiOAuthAuthUrl: protoApiConfiguration.openAiOAuthAuthUrl,
+			openAiOAuthBaseUrl: protoApiConfiguration.openAiOAuthBaseUrl,
+			openAiOAuthClientId: protoApiConfiguration.openAiOAuthClientId,
+			openAiOAuthClientSecret: protoApiConfiguration.openAiOAuthClientSecret,
+			openAiOAuthHeaders: protoApiConfiguration.openAiOAuthHeaders,
+			openAiOAuthScopes: protoApiConfiguration.openAiOAuthScopes,
+			openAiOAuthTokenUrl: protoApiConfiguration.openAiOAuthTokenUrl,
 			// Convert proto ApiProvider enums to native string types
 			planModeApiProvider:
 				protoApiConfiguration.planModeApiProvider !== undefined
@@ -80,6 +88,9 @@ export async function updateApiConfigurationProto(
 			planModeAihubmixModelInfo: protoApiConfiguration.planModeAihubmixModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeAihubmixModelInfo)
 				: undefined,
+			planModeOpenAiOAuthModelInfo: protoApiConfiguration.planModeOpenAiOAuthModelInfo
+				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeOpenAiOAuthModelInfo)
+				: undefined,
 
 			// Act Mode
 			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
@@ -117,6 +128,9 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			actModeAihubmixModelInfo: protoApiConfiguration.actModeAihubmixModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeAihubmixModelInfo)
+				: undefined,
+			actModeOpenAiOAuthModelInfo: protoApiConfiguration.actModeOpenAiOAuthModelInfo
+				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeOpenAiOAuthModelInfo)
 				: undefined,
 			geminiPlanModeThinkingLevel: protoApiConfiguration.geminiPlanModeThinkingLevel,
 			geminiActModeThinkingLevel: protoApiConfiguration.geminiActModeThinkingLevel,
