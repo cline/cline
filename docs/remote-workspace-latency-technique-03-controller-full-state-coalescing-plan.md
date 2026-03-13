@@ -353,7 +353,7 @@ That is the key link to the large-file-write scenario: even when the tool work i
 
 - [x] Validation harness scenario: coalescing reduces full-state count in long-running tasks.
 - [x] Validation harness scenario: remote mode benefits more than local mode.
-- [ ] Regression test: final state still fully converges after coalesced posting.
+- [x] Regression test: final state still fully converges after coalesced posting.
 
 ---
 
@@ -435,6 +435,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Wired state-post metrics through task completion telemetry so high-churn validation can compare state post count, serialized bytes, build duration, and send duration across runs.
 - Added task-switch regression coverage to verify active-task snapshot data wins over stale metadata after switching tasks.
 - Added scheduler burst-validation coverage showing coalesced normal-priority updates reduce flush count versus immediate flushing, and that remote cadence coalesces more aggressively than local cadence under the same burst pattern.
+- Added controller regression coverage verifying that multiple coalesced streaming-era state updates still flush the latest full snapshot rather than an intermediate stale snapshot.
 
 ## Recommended Next Validation Step
 

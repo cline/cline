@@ -2,6 +2,7 @@ import { afterEach, before, beforeEach, describe, it } from "mocha"
 import "should"
 import { Controller } from "@core/controller"
 import * as sinon from "sinon"
+import { setTimeout as setTimeoutPromise } from "timers/promises"
 import { ClineEndpoint } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 
@@ -180,6 +181,43 @@ describe("Controller postStateToWebview", () => {
 			metrics.serializedBytes.should.equal(123)
 			metrics.sendDurationMs.should.equal(7)
 			metrics.buildDurationMs.should.be.greaterThanOrEqual(0)
+		} finally {
+			getStateToPostToWebview.restore()
+			sendStateUpdateStub.restore()
+		}
+	})
+
+	it("flushes the latest snapshot after coalescing multiple streaming-era state updates", async () => {
+		let snapshot = { currentTaskItem: { id: "task-1" }, currentFocusChainChecklist: "- [ ] first" }
+		;(controller as any).task = {
+			taskState: {
+				isStreaming: true,
+			},
+			noteStateUpdateMetrics: sinon.stub(),
+		}
+
+		const getStateToPostToWebview = sinon.stub(controller, "getStateToPostToWebview").callsFake(async () => snapshot as any)
+		const stateModule = require("@core/controller/state/subscribeToState")
+		const sentStates: any[] = []
+		const sendStateUpdateStub = sinon.stub(stateModule, "sendStateUpdate").callsFake(async (state: any) => {
+			sentStates.push(state)
+			return {
+				payloadBytes: 256,
+				sendDurationMs: 3,
+				subscriberCount: 1,
+			}
+		})
+
+		try {
+			await controller.postStateToWebview()
+			snapshot = { currentTaskItem: { id: "task-2" }, currentFocusChainChecklist: "- [x] latest" }
+			await controller.postStateToWebview()
+
+			await setTimeoutPromise(40)
+
+			sinon.assert.calledOnce(sendStateUpdateStub)
+			sinon.assert.calledOnce(getStateToPostToWebview)
+			sentStates.should.deepEqual([{ currentTaskItem: { id: "task-2" }, currentFocusChainChecklist: "- [x] latest" }])
 		} finally {
 			getStateToPostToWebview.restore()
 			sendStateUpdateStub.restore()
