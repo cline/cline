@@ -543,11 +543,15 @@ Portability note:
 
 - [x] Initial portability probe completed against local `main` and `eve_troubleshooting-remote-workspaces` worktrees.
 - [x] Direct cherry-pick of the current observer implementation does **not** apply cleanly yet.
-- [x] The main adaptation gap is architectural drift: the current observer implementation depends on files such as
+- [x] Clean worktree inspection shows the target branches already contain some observer-related anchor points, including:
+  - [x] `src/core/controller/ui/subscribeToPartialMessage.ts`
+  - [x] `webview-ui/src/components/settings/sections/DebugSection.tsx`
+- [x] However, the richer shared observer modules and tests on the current branch are still absent on the target branches, including:
   - [x] `src/shared/LatencyObserver.ts`
   - [x] `src/services/latency/LatencyObserverService.ts`
+  - [x] `src/services/latency/__tests__/LatencyObserverService.test.ts`
   - [x] `webview-ui/src/components/settings/sections/DebugSection.spec.tsx`
-  which do not exist on those target branches yet, so portability will require an extraction/backport sequence rather than a pure cherry-pick.
+- [x] So portability still requires an extraction/backport sequence rather than a pure cherry-pick, but the enabling UI/controller surfaces are partially present already.
 
 ---
 
