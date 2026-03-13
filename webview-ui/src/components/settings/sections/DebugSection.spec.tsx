@@ -5,6 +5,7 @@ import DebugSection from "./DebugSection"
 const grpcClientMocks = vi.hoisted(() => ({
 	pingLatencyProbe: vi.fn(),
 	resetLatencyObserver: vi.fn(),
+	newTask: vi.fn(),
 	setWelcomeViewCompleted: vi.fn(),
 }))
 
@@ -130,6 +131,9 @@ vi.mock("@/services/grpc-client", () => ({
 	UiServiceClient: {
 		pingLatencyProbe: grpcClientMocks.pingLatencyProbe,
 		resetLatencyObserver: grpcClientMocks.resetLatencyObserver,
+	},
+	TaskServiceClient: {
+		newTask: grpcClientMocks.newTask,
 	},
 	StateServiceClient: {
 		setWelcomeViewCompleted: grpcClientMocks.setWelcomeViewCompleted,
@@ -384,6 +388,20 @@ describe("DebugSection", () => {
 		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(3, { value: new Uint8Array(64) })
 		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(4, { value: new Uint8Array(1024) })
 		expect(grpcClientMocks.pingLatencyProbe).toHaveBeenNthCalledWith(5, { value: new Uint8Array(16_384) })
+	})
+
+	it("starts an observed task scenario using the selected scenario template", async () => {
+		grpcClientMocks.newTask.mockResolvedValue({ value: "task-1" })
+		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByText("Start Observed Task Scenario"))
+
+		await waitFor(() => expect(grpcClientMocks.newTask).toHaveBeenCalledTimes(1))
+		expect(grpcClientMocks.newTask).toHaveBeenCalledWith({
+			text: "Latency observer ping-only scenario. Do not perform any tools. Respond with a short acknowledgement so transport RTT can be compared without task churn.",
+			images: [],
+			files: [],
+		})
 	})
 
 	it("resets the backend observer session", async () => {

@@ -1,9 +1,10 @@
 import { createRollingLatencyStats, type LatencySample } from "@shared/LatencyObserver"
+import { NewTaskRequest } from "@shared/proto/cline/task"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { StateServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
 
 const PAYLOAD_PRESETS = [0, 64, 1024, 16_384] as const
@@ -35,6 +36,25 @@ const OBSERVATION_SCENARIOS = [
 	},
 ] as const
 
+const OBSERVATION_SCENARIO_PROMPTS: Record<(typeof OBSERVATION_SCENARIOS)[number]["id"], { prompt: string; files?: string[] }> = {
+	"ping-only": {
+		prompt: "Latency observer ping-only scenario. Do not perform any tools. Respond with a short acknowledgement so transport RTT can be compared without task churn.",
+	},
+	"short-response": {
+		prompt: "Latency observer short-response scenario. Answer in 2 concise sentences describing what you are measuring for responsiveness.",
+	},
+	"long-streaming": {
+		prompt: "Latency observer long-streaming scenario. Produce a longer multi-paragraph explanation of how to compare perceived latency across branches, with enough content to stream for several seconds.",
+	},
+	"tool-heavy": {
+		prompt: "Latency observer tool-heavy scenario. Inspect the repository by listing relevant files, then summarize likely hot paths for state churn and partial updates.",
+	},
+	"large-file": {
+		prompt: "Latency observer large-file scenario. Read the latency observer plan document and summarize the sections most relevant to payload size and export behavior.",
+		files: ["docs/remote-workspace-local-latency-observer-plan.md"],
+	},
+}
+
 const capabilityLabel: Record<string, string> = {
 	supported: "Supported",
 	unsupported: "Unsupported on this branch",
@@ -53,6 +73,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 	const [isPinging, setIsPinging] = useState(false)
 	const [isContinuousPinging, setIsContinuousPinging] = useState(false)
 	const [isRunningPayloadSweep, setIsRunningPayloadSweep] = useState(false)
+	const [isStartingScenario, setIsStartingScenario] = useState(false)
 	const [pingError, setPingError] = useState<string | null>(null)
 	const [selectedScenarioId, setSelectedScenarioId] = useState<(typeof OBSERVATION_SCENARIOS)[number]["id"]>("ping-only")
 	const continuousPingEnabledRef = useRef(false)
@@ -176,6 +197,26 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		await UiServiceClient.resetLatencyObserver({})
 	}
 
+	const startObservedScenario = async () => {
+		const scenarioConfig = OBSERVATION_SCENARIO_PROMPTS[selectedScenario.id]
+		setIsStartingScenario(true)
+		setPingError(null)
+
+		try {
+			await TaskServiceClient.newTask(
+				NewTaskRequest.create({
+					text: scenarioConfig.prompt,
+					images: [],
+					files: scenarioConfig.files ?? [],
+				}),
+			)
+		} catch (error) {
+			setPingError(error instanceof Error ? error.message : String(error))
+		} finally {
+			setIsStartingScenario(false)
+		}
+	}
+
 	return (
 		<div>
 			{renderSectionHeader("debug")}
@@ -246,6 +287,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						</Button>
 						<Button disabled={isRunningPayloadSweep} onClick={toggleContinuousPing} variant="secondary">
 							{isContinuousPinging ? "Stop Continuous Ping" : "Start Continuous Ping"}
+						</Button>
+						<Button disabled={isStartingScenario} onClick={startObservedScenario} variant="secondary">
+							{isStartingScenario ? "Starting Scenario..." : "Start Observed Task Scenario"}
 						</Button>
 						<Button
 							disabled={isPinging || isContinuousPinging || isRunningPayloadSweep}
