@@ -178,8 +178,8 @@ When doing this work, read the corresponding code in `eve_troubleshooting-remote
 
 ### Tests
 
-- [ ] No behavioral tests required for comments alone.
-- [ ] Ensure any snapshot/doc-based linting or type-check flow still passes.
+- [x] No behavioral tests required for comments alone.
+- [x] Ensure any snapshot/doc-based linting or type-check flow still passes.
 
 ---
 
@@ -432,7 +432,7 @@ Hot-path changes need escape hatches. If behavior regresses in an edge case, the
 
 - [x] Keep or add env flag gating for ephemeral persistence behavior.
 - [x] Ensure telemetry can compare enabled vs disabled behavior.
-- [ ] Add debug logging only if low-noise and useful.
+- [x] Add debug logging only if low-noise and useful.
 
 ### Detailed code changes
 
