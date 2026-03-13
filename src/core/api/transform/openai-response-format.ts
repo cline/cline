@@ -113,14 +113,19 @@ export function convertToOpenAIResponsesInput(
 
 			for (const part of m.content) {
 				switch (part.type) {
-					case "thinking":
+					case "thinking": {
 						// Only include reasoning item if it has actual content (thinking text or summary)
 						// Empty reasoning items cause API errors: "Item 'rs_...' of type 'reasoning' was provided without its required following item"
 						const hasThinkingContent = part.thinking && part.thinking.trim().length > 0
 						const hasSummaryContent = part.summary && Array.isArray(part.summary) && part.summary.length > 0
 
-						if (part.call_id && part.call_id.length > 0 && (hasThinkingContent || hasSummaryContent)) {
-							// Use summary if available, otherwise use thinking text
+						if (part.call_id && part.call_id.length > 0) {
+							// When a function_call follows (signalled by call_id), we MUST include the
+							// reasoning item even with no content. Omitting it orphans the function_call
+							// and OpenAI rejects the next request with:
+							//   "Item 'fc_...' of type 'function_call' was provided without its
+							//    required 'reasoning' item: 'rs_...'"
+							// summary: [] is acceptable here — redacted_thinking uses the same pattern.
 							let summary: any[] = []
 							if (hasSummaryContent) {
 								// part.summary is already in the correct format from OpenAI Responses API
@@ -142,6 +147,7 @@ export function convertToOpenAIResponsesInput(
 							} as ResponseReasoningItem)
 						}
 						break
+					}
 					case "redacted_thinking":
 						// Include reasoning item with encrypted content if it has a call_id
 						// Even if data is missing, we need to maintain the reasoning-function_call pairing

@@ -1,8 +1,9 @@
 import {
-	isGptOssModelFamily,
 	isGPT5ModelFamily,
 	isGPT51Model,
 	isGPT52Model,
+	isGPT53Model,
+	isGptOssModelFamily,
 	isNextGenModelProvider,
 } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
@@ -39,10 +40,11 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		}
 		return (
 			isGPT5ModelFamily(modelId) &&
-			// Exclude gpt-5.1 and gpt-5.2 models (including codex variants)
-			// GPT-5.1 and GPT-5.2 use extended reasoning and need the native-gpt-5-1 variant
+			// Exclude gpt-5.1, gpt-5.2, and gpt-5.3 models (including codex variants)
+			// These use extended reasoning and need the native-gpt-5-1 variant
 			!isGPT51Model(modelId) &&
 			!isGPT52Model(modelId) &&
+			!isGPT53Model(modelId) &&
 			// gpt-5-chat models do not support native tool use
 			!modelId.includes("chat") &&
 			isNextGenModelProvider(providerInfo)
