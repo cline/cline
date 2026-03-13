@@ -82,6 +82,8 @@ describe("DebugSection", () => {
 		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
 		expect(screen.getByText("Pure ping test")).toBeTruthy()
 		expect(screen.getByText(/Use ping presets and continuous ping to compare transport RTT and jitter only/)).toBeTruthy()
+		expect(screen.getByText("How to interpret these numbers")).toBeTruthy()
+		expect(screen.getByText(/Ping RTT is a lower-level transport signal/)).toBeTruthy()
 
 		fireEvent.change(screen.getByLabelText("Ping payload bytes"), { target: { value: "64" } })
 		fireEvent.click(screen.getByText("Run Ping Probe"))

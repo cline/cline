@@ -195,6 +195,19 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						</Select>
 						<p className="m-0">{selectedScenario.description}</p>
 					</div>
+					<div className="rounded border border-[var(--vscode-panel-border)] p-2 text-xs text-(--vscode-descriptionForeground)">
+						<div className="font-medium text-foreground">How to interpret these numbers</div>
+						<ul className="mb-0 mt-2 list-disc pl-4">
+							<li>Ping RTT is a lower-level transport signal, not a full UX measurement.</li>
+							<li>
+								Task initialization and first visible update are better proxies for user-perceived responsiveness.
+							</li>
+							<li>
+								State push, partial-message, and persistence counters help explain why one branch feels faster.
+							</li>
+							<li>Compare the same scenario, payload, and environment across branches for meaningful results.</li>
+						</ul>
+					</div>
 					<label className="flex flex-col gap-1 text-xs text-(--vscode-descriptionForeground)">
 						<span>Ping payload bytes</span>
 						<input
