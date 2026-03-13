@@ -480,12 +480,15 @@ That is why this technique still matters for large-file-write scenarios, even th
 - Extended the validation harness with a `long_running` scenario (`latency_validation_long`) that drives 152 partial-message events and 165 task UI deltas while still converging to 7 unique final messages with no duplicate/stale rows in either local or remote mode.
 - The long-running scenario now provides direct enabled-vs-disabled comparison data via `totalTransportBytes`, `taskDeltaCount`, `finalUniqueMessageCount`, and `hasDuplicateMessagesAtCompletion`.
 - Added semantic final-state signatures to the validation harness so each delta-enabled variant is compared directly against the `delta_disabled` baseline. The current runs now report `allVariantsMatchBaseline: true` for both `basic` and `long_running` scenarios in local and remote modes.
+- Reduced unconditional snapshot posting inside the task loop by gating several active-execution `postStateToWebview()` calls behind the delta-sync flag. This removed snapshot posts for finalized `api_req_started` updates, usage-chunk metric refreshes, and several ask/say paths when delta sync is enabled.
+- Latest validation runs now show lower absolute snapshot traffic than the earlier harness runs (for example, remote `long_running` `statePayloadBytes` dropped from ~111.8 KB to ~101.2 KB, and `stateUpdateCount` from 16 to 15), confirming that some active-execution full-state churn was successfully removed.
 - Installed dependencies, regenerated protos, and verified the focused backend and webview coverage locally. Successful verification included:
   - `npm run test:unit -- src/test/controller-task-ui-metadata.test.ts src/core/controller/ui/subscribeToTaskUiDeltas.test.ts src/test/message-state-handler.test.ts src/core/task/__tests__/latency.test.ts src/services/telemetry/__tests__/taskLatencySummary.test.ts`
   - `cd webview-ui && npm run test -- src/context/taskUiDeltaState.test.ts src/context/taskUiDebugCounters.test.ts src/context/ExtensionStateContext.test.tsx`
 - The webview verification now passes without the earlier React `act(...)` warning noise after wrapping streamed state updates in `act(...)`.
 - Remaining validation gaps:
-  - In the current synthetic scenarios, `statePayloadBytes` remain effectively unchanged across delta-enabled and delta-disabled variants, so the plan item requiring demonstrated reduction in **full-state payload bytes** during active execution is still open.
+  - In the current synthetic scenarios, `statePayloadBytes` remain effectively unchanged **between** delta-enabled and delta-disabled variants, even though the absolute snapshot volume is lower than before. This indicates the remaining snapshot traffic is dominated by canonical hydration / task-boundary state posts that both variants still legitimately share.
+  - The next likely step is to separate *hydration/task-boundary* snapshot bytes from *active-execution* snapshot bytes in the validation harness (or eliminate additional task-boundary snapshot posts that are still unnecessary in delta-enabled mode) so the delta-specific reduction can be demonstrated directly.
 
 ---
 

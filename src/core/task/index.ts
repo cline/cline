@@ -114,6 +114,7 @@ import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
+import { isTaskUiDeltaSyncDisabled } from "./latency"
 import { MessageStateHandler } from "./message-state"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
@@ -256,6 +257,7 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
+	private readonly taskUiDeltaSyncDisabled = isTaskUiDeltaSyncDisabled()
 
 	constructor(params: TaskParams) {
 		const {
@@ -623,7 +625,7 @@ export class Task {
 					text,
 					partial,
 				})
-				await this.postStateToWebview()
+				await this.postStateToWebviewIfDeltaSyncDisabled()
 				throw new Error("Current ask promise was ignored 2")
 			}
 			// partial=false means its a complete version of a previously partial message
@@ -664,7 +666,7 @@ export class Task {
 					ask: type,
 					text,
 				})
-				await this.postStateToWebview()
+				await this.postStateToWebviewIfDeltaSyncDisabled()
 			}
 		} else {
 			// this is a new non-partial message, so add it like normal
@@ -681,7 +683,7 @@ export class Task {
 				ask: type,
 				text,
 			})
-			await this.postStateToWebview()
+			await this.postStateToWebviewIfDeltaSyncDisabled()
 		}
 
 		if (type !== "command_output") {
@@ -804,7 +806,7 @@ export class Task {
 					partial,
 					modelInfo,
 				})
-				await this.postStateToWebview()
+				await this.postStateToWebviewIfDeltaSyncDisabled()
 				return sayTs
 			}
 			// partial=false means its a complete version of a previously partial message
@@ -837,7 +839,7 @@ export class Task {
 				files,
 				modelInfo,
 			})
-			await this.postStateToWebview()
+			await this.postStateToWebviewIfDeltaSyncDisabled()
 			return sayTs
 		}
 		// this is a new non-partial message, so add it like normal
@@ -852,7 +854,7 @@ export class Task {
 			files,
 			modelInfo,
 		})
-		await this.postStateToWebview()
+		await this.postStateToWebviewIfDeltaSyncDisabled()
 		return sayTs
 	}
 
@@ -1672,6 +1674,12 @@ export class Task {
 		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return { model, providerId, customPrompt, mode }
+	}
+
+	private async postStateToWebviewIfDeltaSyncDisabled(): Promise<void> {
+		if (this.taskUiDeltaSyncDisabled) {
+			await this.postStateToWebview()
+		}
 	}
 
 	private async writePromptMetadataArtifacts(params: { systemPrompt: string; providerInfo: ApiProviderInfo }): Promise<void> {
@@ -2556,7 +2564,7 @@ export class Task {
 				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 			} satisfies ClineApiReqInfo),
 		})
-		await this.postStateToWebview()
+		await this.postStateToWebviewIfDeltaSyncDisabled()
 
 		try {
 			const taskMetrics: {
@@ -2606,7 +2614,7 @@ export class Task {
 						}
 
 						await updateApiReqMsgFromMetrics()
-						await this.postStateToWebview()
+						await this.postStateToWebviewIfDeltaSyncDisabled()
 						await telemetryService.captureTokenUsage(
 							this.ulid,
 							usageInputTokens,
@@ -2979,7 +2987,7 @@ export class Task {
 			// Update the api_req_started message with final usage and cost details
 			await finalizeApiReqMsg()
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			await this.postStateToWebview()
+			await this.postStateToWebviewIfDeltaSyncDisabled()
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
