@@ -13,6 +13,8 @@ import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool, toolUseNames } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import * as vscode from "vscode"
+import { isGPT5ModelFamily, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -273,15 +275,11 @@ export class ToolExecutor {
 	 * Check if parallel tool calling is enabled.
 	 * Parallel tool calling is enabled if:
 	 * 1. User has enabled it in settings, OR
-	 * 2. The current model/provider supports native tool calling and handles parallel tools well
+	 * 2. The current model is GPT-5 (which handles parallel tools well)
 	 */
 	private isParallelToolCallingEnabled(): boolean {
-		const enableParallelSetting = this.stateManager.getGlobalSettingsKey("enableParallelToolCalling")
-		const model = this.api.getModel()
-		const apiConfig = this.stateManager.getApiConfiguration()
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		return isParallelToolCallingEnabled(enableParallelSetting, { providerId, model, mode })
+		const modelId = this.api.getModel().id
+		return this.stateManager.getGlobalSettingsKey("enableParallelToolCalling") || isGPT5ModelFamily(modelId)
 	}
 
 	/**
