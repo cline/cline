@@ -78,6 +78,7 @@ describe("Latency observer state and partial-message adapters", () => {
 	it("records partial-message observer metrics when partial events are emitted", async () => {
 		const observer = getLatencyObserverService()
 		observer.reset()
+		observer.markRequestStart("task-2", "task-2:req-1", 100)
 
 		const received: ProtoClineMessage[] = []
 		const unregister = registerPartialMessageCallback((message) => {
@@ -98,6 +99,7 @@ describe("Latency observer state and partial-message adapters", () => {
 		const snapshot = observer.getSnapshot()
 		assert.equal(snapshot.capabilities.partialMessageMetrics, "supported")
 		assert.equal(snapshot.optionalCounters?.partialMessageEvents, 1)
+		assert.equal(snapshot.firstPartialMessageUpdate.stats.count, 0)
 		assert.equal((snapshot.optionalCounters?.partialMessageBytes ?? 0) > 0, true)
 	})
 })
