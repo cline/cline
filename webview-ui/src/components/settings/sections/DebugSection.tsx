@@ -1,11 +1,39 @@
 import { createRollingLatencyStats, type LatencySample } from "@shared/LatencyObserver"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
 
 const PAYLOAD_PRESETS = [0, 64, 1024, 16_384] as const
+const OBSERVATION_SCENARIOS = [
+	{
+		id: "ping-only",
+		label: "Pure ping test",
+		description: "Use ping presets and continuous ping to compare transport RTT and jitter only.",
+	},
+	{
+		id: "short-response",
+		label: "Short assistant response",
+		description: "Run a brief question and compare request start, first visible update, and completion smoothness.",
+	},
+	{
+		id: "long-streaming",
+		label: "Long streaming response",
+		description: "Use a longer prompt to compare first visible update timing and sustained streaming behavior.",
+	},
+	{
+		id: "tool-heavy",
+		label: "Tool-heavy / high churn",
+		description: "Run a task that triggers multiple tool calls to compare state pushes, partials, and persistence churn.",
+	},
+	{
+		id: "large-file",
+		label: "Large-file-write adjacent",
+		description: "Exercise file-heavy workflows to compare payload size effects and observer counters under load.",
+	},
+] as const
 
 const capabilityLabel: Record<string, string> = {
 	supported: "Supported",
@@ -26,7 +54,10 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 	const [isContinuousPinging, setIsContinuousPinging] = useState(false)
 	const [isRunningPayloadSweep, setIsRunningPayloadSweep] = useState(false)
 	const [pingError, setPingError] = useState<string | null>(null)
+	const [selectedScenarioId, setSelectedScenarioId] = useState<(typeof OBSERVATION_SCENARIOS)[number]["id"]>("ping-only")
 	const continuousPingEnabledRef = useRef(false)
+	const selectedScenario =
+		OBSERVATION_SCENARIOS.find((scenario) => scenario.id === selectedScenarioId) ?? OBSERVATION_SCENARIOS[0]
 
 	const transportSamples = latencyObserver?.transport.samples ?? []
 	const effectiveTransportSamples = useMemo(() => {
@@ -112,6 +143,11 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 
 		const exportSnapshot = {
 			...latencyObserver,
+			observationScenario: {
+				id: selectedScenario.id,
+				label: selectedScenario.label,
+				description: selectedScenario.description,
+			},
 			transport: {
 				...latencyObserver.transport,
 				samples: effectiveTransportSamples,
@@ -139,6 +175,26 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 					<p className="m-0 text-xs text-(--vscode-descriptionForeground)">
 						Use this panel to compare transport RTT and task-lifecycle responsiveness across branches.
 					</p>
+					<div className="flex flex-col gap-1 text-xs text-(--vscode-descriptionForeground)">
+						<span>Observation scenario</span>
+						<Select
+							onValueChange={(value) =>
+								setSelectedScenarioId(value as (typeof OBSERVATION_SCENARIOS)[number]["id"])
+							}
+							value={selectedScenarioId}>
+							<SelectTrigger className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{OBSERVATION_SCENARIOS.map((scenario) => (
+									<SelectItem key={scenario.id} value={scenario.id}>
+										{scenario.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<p className="m-0">{selectedScenario.description}</p>
+					</div>
 					<label className="flex flex-col gap-1 text-xs text-(--vscode-descriptionForeground)">
 						<span>Ping payload bytes</span>
 						<input
@@ -195,6 +251,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 					{pingError && <p className="m-0 text-xs text-[var(--vscode-errorForeground)]">{pingError}</p>}
 					{latencyObserver && (
 						<div className="flex flex-col gap-2 border-t border-[var(--vscode-panel-border)] pt-3 text-xs">
+							<div>Scenario: {selectedScenario.label}</div>
 							<div>Branch: {latencyObserver.session.branch ?? "unknown"}</div>
 							<div>Commit: {latencyObserver.session.commit?.slice(0, 8) ?? "unknown"}</div>
 							<div>Environment: {String(latencyObserver.session.environment ?? "unknown")}</div>
