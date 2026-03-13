@@ -268,6 +268,37 @@ describe("Controller postStateToWebview", () => {
 		sinon.assert.calledOnce(postStateToWebview)
 	})
 
+	it("includes the active task snapshot when building state for task switching", async () => {
+		const existingHistory = [
+			{ id: "task-1", task: "Old task", ts: 1 },
+			{ id: "task-2", task: "Active task", ts: 2 },
+		]
+		mockStateManager.getGlobalStateKey.callsFake((key: string) => {
+			if (key === "taskHistory") {
+				return existingHistory
+			}
+			if (key === "isNewUser") {
+				return false
+			}
+			return undefined
+		})
+		;(controller as any).task = {
+			taskId: "task-2",
+			messageStateHandler: {
+				getClineMessages: () => [],
+			},
+			taskState: {
+				checkpointManagerErrorMessage: undefined,
+				currentFocusChainChecklist: null,
+			},
+		}
+
+		const state = await controller.getStateToPostToWebview()
+
+		state.currentTaskItem?.id.should.equal("task-2")
+		state.taskHistory?.map((item) => item.id).should.deepEqual(["task-2", "task-1"])
+	})
+
 	it("detects remote workspace host metadata during controller initialization", async () => {
 		HostProvider.reset()
 		hostProviderInitialized = false
