@@ -345,7 +345,7 @@ That is the key link to the large-file-write scenario: even when the tool work i
 
 ### Work
 
-- [ ] Add or extend validation scenarios for high-churn task execution.
+- [x] Add or extend validation scenarios for high-churn task execution.
 - [ ] Compare full-state update count enabled vs disabled.
 - [ ] Compare payload-byte totals enabled vs disabled.
 
@@ -432,6 +432,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Added controller regression coverage for task reinitialization and task-history deletion flows during task switching.
 - Added subscribe-to-state coverage to verify startup subscribers receive the latest full snapshot immediately.
 - Confirmed that state post metrics are currently accumulated on `Task.requestLatencyMetrics`, but are not yet forwarded through `getTaskCompletionTelemetry()` / `captureTaskCompleted()`, so Step 6 still needs explicit validation plumbing rather than just more assertions.
+- Wired state-post metrics through task completion telemetry so high-churn validation can compare state post count, serialized bytes, build duration, and send duration across runs.
 - Non-streaming product-surface safety is now partially covered, but full snapshot convergence after task switches still needs explicit regression coverage.
 
 ## Recommended Next Validation Step

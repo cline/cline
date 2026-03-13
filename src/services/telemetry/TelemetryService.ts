@@ -705,6 +705,10 @@ export class TelemetryService {
 			apiFormat?: ApiFormat
 			timeToFirstTokenMs?: number
 			durationMs?: number
+			statePostCount?: number
+			statePostBuildDurationMs?: number
+			statePostSerializedBytes?: number
+			statePostSendDurationMs?: number
 			mode: Mode
 		},
 	) {
@@ -719,6 +723,10 @@ export class TelemetryService {
 				apiFormatName,
 				timeToFirstTokenMs: args?.timeToFirstTokenMs,
 				durationMs: args?.durationMs,
+				statePostCount: args?.statePostCount,
+				statePostBuildDurationMs: args?.statePostBuildDurationMs,
+				statePostSerializedBytes: args?.statePostSerializedBytes,
+				statePostSendDurationMs: args?.statePostSendDurationMs,
 				mode: args?.mode,
 			},
 		})

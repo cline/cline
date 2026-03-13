@@ -18,6 +18,10 @@ export function getTaskCompletionTelemetry(config: TaskConfig) {
 		apiFormat: model.info.apiFormat,
 		timeToFirstTokenMs: config.taskState.taskFirstTokenTimeMs,
 		durationMs,
+		statePostCount: config.taskState.statePostCount,
+		statePostBuildDurationMs: config.taskState.statePostBuildDurationMs,
+		statePostSerializedBytes: config.taskState.statePostSerializedBytes,
+		statePostSendDurationMs: config.taskState.statePostSendDurationMs,
 		mode: currentMode,
 	}
 }

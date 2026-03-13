@@ -304,6 +304,10 @@ describe("TelemetryService metrics", () => {
 			apiFormat: ApiFormat.OPENAI_RESPONSES,
 			timeToFirstTokenMs: 350,
 			durationMs: 2100,
+			statePostCount: 6,
+			statePostBuildDurationMs: 48,
+			statePostSerializedBytes: 4096,
+			statePostSendDurationMs: 21,
 			mode: "act",
 		})
 
@@ -317,6 +321,10 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(completionEvent?.properties?.apiFormatName, "OPENAI_RESPONSES")
 		assert.strictEqual(completionEvent?.properties?.timeToFirstTokenMs, 350)
 		assert.strictEqual(completionEvent?.properties?.durationMs, 2100)
+		assert.strictEqual(completionEvent?.properties?.statePostCount, 6)
+		assert.strictEqual(completionEvent?.properties?.statePostBuildDurationMs, 48)
+		assert.strictEqual(completionEvent?.properties?.statePostSerializedBytes, 4096)
+		assert.strictEqual(completionEvent?.properties?.statePostSendDurationMs, 21)
 
 		const ttftMetric = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.API.TTFT_SECONDS)
 		assert.ok(ttftMetric)

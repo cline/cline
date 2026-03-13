@@ -7,6 +7,10 @@ export class TaskState {
 	// Task-level timing
 	taskStartTimeMs = Date.now()
 	taskFirstTokenTimeMs?: number
+	statePostCount = 0
+	statePostBuildDurationMs = 0
+	statePostSerializedBytes = 0
+	statePostSendDurationMs = 0
 
 	// Streaming flags
 	isStreaming = false

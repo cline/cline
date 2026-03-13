@@ -580,6 +580,10 @@ export class Task {
 		this.requestLatencyMetrics.statePostBuildDurationMs += metrics.buildDurationMs
 		this.requestLatencyMetrics.statePostSerializedBytes += metrics.serializedBytes
 		this.requestLatencyMetrics.statePostSendDurationMs += metrics.sendDurationMs
+		this.taskState.statePostCount += 1
+		this.taskState.statePostBuildDurationMs += metrics.buildDurationMs
+		this.taskState.statePostSerializedBytes += metrics.serializedBytes
+		this.taskState.statePostSendDurationMs += metrics.sendDurationMs
 	}
 
 	// Communicate with webview
