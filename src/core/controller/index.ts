@@ -8,6 +8,7 @@ import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
+import { PromptsService } from "@services/prompts/PromptsService"
 import type { ApiProvider, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
@@ -70,6 +71,7 @@ export class Controller {
 	task?: Task
 
 	mcpHub: McpHub
+	promptsService: PromptsService
 	accountService: ClineAccountService
 	authService: AuthService
 	ocaAuthService: OcaAuthService
@@ -147,6 +149,8 @@ export class Controller {
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
+
+		this.promptsService = new PromptsService()
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints().catch((error) => {
