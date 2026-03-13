@@ -151,7 +151,7 @@ Measure:
 - [ ] request-start latency
 - [ ] time to first visible assistant update
 - [ ] time to first full-state update
-- [ ] time to first partial or delta update where available
+- [x] time to first partial or delta update where available
 
 Why it matters:
 

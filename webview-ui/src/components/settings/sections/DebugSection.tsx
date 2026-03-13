@@ -345,6 +345,9 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<div>
 								First full-state avg: {latencyObserver.firstFullStateUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms
 							</div>
+							<div>
+								First partial avg: {latencyObserver.firstPartialMessageUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms
+							</div>
 							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
 							<div>State pushes: {latencyObserver.optionalCounters?.fullStatePushes ?? 0}</div>
 							<div>State bytes: {latencyObserver.optionalCounters?.fullStateBytes ?? 0}</div>

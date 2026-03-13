@@ -35,6 +35,18 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.firstFullStateUpdate.samples[0].durationMs, 25)
 	})
 
+	it("records first partial-message update only once per request", () => {
+		const service = new LatencyObserverService()
+
+		service.markRequestStart("task-pm", "task-pm:req-1", 100)
+		service.recordFirstPartialMessageUpdate("task-pm", 118)
+		service.recordFirstPartialMessageUpdate("task-pm", 140)
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.firstPartialMessageUpdate.stats.count, 1)
+		assert.equal(snapshot.firstPartialMessageUpdate.samples[0].durationMs, 18)
+	})
+
 	it("records first visible update only once per request", () => {
 		const service = new LatencyObserverService()
 
@@ -99,12 +111,14 @@ describe("LatencyObserverService", () => {
 		service.setCapability("requestStart", "unsupported")
 		service.setCapability("firstVisibleUpdate", "hook-not-installed")
 		service.setCapability("firstFullStateUpdate", "unsupported")
+		service.setCapability("firstPartialMessageUpdate", "hook-not-installed")
 
 		const snapshot = service.getSnapshot()
 		assert.equal(snapshot.taskInitialization.support, "hook-not-installed")
 		assert.equal(snapshot.requestStart.support, "unsupported")
 		assert.equal(snapshot.firstVisibleUpdate.support, "hook-not-installed")
 		assert.equal(snapshot.firstFullStateUpdate.support, "unsupported")
+		assert.equal(snapshot.firstPartialMessageUpdate.support, "hook-not-installed")
 	})
 
 	it("reset clears recorded samples, counters, and logs for a fresh session", () => {
@@ -130,6 +144,7 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.requestStart.stats.count, 0)
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 0)
 		assert.equal(snapshot.firstFullStateUpdate.stats.count, 0)
+		assert.equal(snapshot.firstPartialMessageUpdate.stats.count, 0)
 		assert.equal(snapshot.requestCounterSummaries.length, 0)
 		assert.equal(snapshot.logs.length, 0)
 		assert.equal(snapshot.optionalCounters?.fullStatePushes, 0)
