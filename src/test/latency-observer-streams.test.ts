@@ -71,8 +71,10 @@ describe("Latency observer state and partial-message adapters", () => {
 		const snapshot = observer.getSnapshot()
 		assert.equal(snapshot.capabilities.fullStateMetrics, "supported")
 		assert.equal(snapshot.capabilities.firstFullStateUpdate, "supported")
+		assert.equal(snapshot.capabilities.chunkToWebviewTiming, "supported")
 		assert.equal(snapshot.optionalCounters?.fullStatePushes, 1)
 		assert.equal(snapshot.firstFullStateUpdate.stats.count, 1)
+		assert.equal(snapshot.chunkToWebview.stats.count, 1)
 	})
 
 	it("records partial-message observer metrics when partial events are emitted", async () => {
