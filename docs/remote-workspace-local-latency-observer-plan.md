@@ -553,6 +553,30 @@ Portability note:
   - [x] `webview-ui/src/components/settings/sections/DebugSection.spec.tsx`
 - [x] So portability still requires an extraction/backport sequence rather than a pure cherry-pick, but the enabling UI/controller surfaces are partially present already.
 
+Recommended extraction/backport sequence:
+
+1. Add the shared observer type surface first:
+   - `src/shared/LatencyObserver.ts`
+2. Add the observer service and unit coverage next:
+   - `src/services/latency/LatencyObserverService.ts`
+   - `src/services/latency/__tests__/LatencyObserverService.test.ts`
+3. Wire controller/task integration points after the shared service exists:
+   - `src/core/controller/index.ts`
+   - `src/core/controller/state/subscribeToState.ts`
+   - `src/core/controller/ui/subscribeToPartialMessage.ts`
+   - `src/core/controller/ui/resetLatencyObserver.ts`
+   - `src/core/task/index.ts`
+   - `src/core/task/message-state.ts`
+4. Add webview state plumbing and the debug panel once backend snapshots compile:
+   - `webview-ui/src/components/settings/sections/DebugSection.tsx`
+   - supporting grpc/webview state wiring on the target branch as needed
+5. Backport test coverage last, once the target branch shape is stable:
+   - `src/test/latency-observer-streams.test.ts`
+   - `src/shared/__tests__/LatencyObserver.test.ts`
+   - `webview-ui/src/components/settings/sections/DebugSection.spec.tsx`
+
+This sequence should minimize conflict churn because it introduces the shared contracts before the dependent task/controller and UI layers.
+
 ---
 
 ## Step 9 — Document how to interpret the measurements
