@@ -697,6 +697,7 @@ export class Task {
 	}
 
 	private async emitPartialMessage(message: ClineMessage) {
+		getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 		const protoMessage = convertClineMessageToProto(message)
 		const stats = await sendPartialMessageEvent(protoMessage)
 		this.notePartialMessageEvent(message, stats)
@@ -3001,6 +3002,7 @@ export class Task {
 				})
 				const completedReasoning = this.messageStateHandler.getClineMessages()[pendingReasoningIndex]
 				if (completedReasoning) {
+					getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 					await sendPartialMessageEvent(convertClineMessageToProto(completedReasoning))
 				}
 				return true
@@ -3656,6 +3658,7 @@ export class Task {
 			lastMessage.partial = false
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			const protoMessage = convertClineMessageToProto(lastMessage)
+			getLatencyObserverService().recordFirstPartialMessageUpdate(this.taskId)
 			await sendPartialMessageEvent(protoMessage)
 		}
 
