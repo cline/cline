@@ -71,33 +71,51 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
-		// Resolve the absolute path based on multi-workspace configuration
-		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListFilesToolHandler.execute")
-		const { absolutePath, displayPath } =
-			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
-
-		// Determine workspace context for telemetry
-		const fallbackAbsolutePath = path.resolve(config.cwd, relDirPath ?? "")
-		const workspaceContext = {
-			isMultiRootEnabled: config.isMultiRootEnabled || false,
-			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
-			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
-			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
-		}
-
-		// Check clineignore access
+		// Check clineignore access before performing any IO.
+		// Increment the counter so repeated attempts at blocked paths
+		// accumulate toward the yolo-mode mistake limit.
 		const accessValidation = this.validator.checkClineIgnorePath(relDirPath!)
 		if (!accessValidation.ok) {
+			config.taskState.consecutiveMistakeCount++
 			if (!config.isSubagentExecution) {
 				await config.callbacks.say("clineignore_error", relDirPath)
 			}
 			return formatResponse.toolError(formatResponse.clineIgnoreError(relDirPath!))
 		}
 
-		// Execute the actual list files operation
-		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+		// Resolve the path and execute the list operation inside a single
+		// try/catch so that failures in either step (e.g. bad workspace hint,
+		// non-existent directory) return a graceful tool error instead of
+		// crashing the task.
+		let absolutePath: string
+		let displayPath: string
+		let files: string[]
+		let didHitLimit: boolean
+		let usedWorkspaceHint: boolean
+		try {
+			const pathResult = resolveWorkspacePath(config, relDirPath!, "ListFilesToolHandler.execute")
+			;({ absolutePath, displayPath } =
+				typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult)
+			usedWorkspaceHint = typeof pathResult !== "string"
+			;[files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+		} catch (error) {
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return formatResponse.toolError(`Error listing files: ${errorMessage}`)
+		}
+
+		// Only reset after all validations and the core operation succeed so
+		// repeated failures accumulate toward the yolo-mode mistake limit.
+		config.taskState.consecutiveMistakeCount = 0
+
+		// Determine workspace context for telemetry
+		const fallbackAbsolutePath = path.resolve(config.cwd, relDirPath ?? "")
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint,
+			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
+			resolutionMethod: (usedWorkspaceHint ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
 
 		const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit, config.services.clineIgnoreController)
 
