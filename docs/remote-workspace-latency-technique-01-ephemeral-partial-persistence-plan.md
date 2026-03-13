@@ -335,7 +335,7 @@ This step is the heart of the technique. The way to think about it is: we are re
 
 - [ ] Unit test: partial → complete transition results in durable persistence.
 - [ ] Integration test: abort during stream persists a recoverable state.
-- [ ] Regression test: resume-from-history still works after deferred partial persistence.
+- [x] Regression test: resume-from-history still works after deferred partial persistence.
 - [ ] Regression test: tool result flows remain properly visible in history after finalization.
 
 ---
@@ -414,7 +414,7 @@ This is the direct answer to the large-file-write scenario: this technique helps
 
 - [x] Performance/regression test: long stream causes far fewer persistence flushes than partial-update count.
 - [ ] Validation harness comparison: baseline vs ephemeral-persistence-enabled variant.
-- [ ] Regression test: final message history and resume state remain correct.
+- [x] Regression test: final message history and resume state remain correct.
 
 ---
 

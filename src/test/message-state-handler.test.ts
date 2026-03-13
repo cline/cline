@@ -405,4 +405,37 @@ describe("MessageStateHandler Mutex Protection", () => {
 		savedHistory[0]!.content.should.equal("task request")
 		savedHistory[1]!.content.should.equal("task response")
 	})
+
+	it("persists recoverable message and conversation state for resume after an interrupted stream", async () => {
+		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-resume-"))
+		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })
+
+		const handler = createTestHandler()
+		await handler.addToClineMessagesEphemeral({
+			...createTestMessage("partial assistant output"),
+			partial: true,
+		})
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		await handler.overwriteApiConversationHistory([
+			{ role: "user", content: "task request", ts: 1 },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "partial assistant output\n\n[Response interrupted by user]" }],
+				ts: 2,
+			},
+		])
+
+		const savedMessages = await getSavedClineMessages("test-task-id")
+		const savedHistory = await getSavedApiConversationHistory("test-task-id")
+
+		savedMessages.length.should.equal(1)
+		savedMessages[0]!.text?.should.equal("partial assistant output")
+		savedMessages[0]!.partial!.should.equal(true)
+
+		savedHistory.length.should.equal(2)
+		Array.isArray(savedHistory[1]!.content).should.equal(true)
+		const savedAssistantContent = savedHistory[1]!.content as Array<{ type: string; text?: string }>
+		savedAssistantContent[0]!.text!.should.match(/Response interrupted by user/)
+	})
 })
