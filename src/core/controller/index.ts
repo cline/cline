@@ -33,6 +33,7 @@ import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
+import { getLatencyObserverService } from "@/services/latency/LatencyObserverService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
@@ -312,6 +313,7 @@ export class Controller {
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 
 		const taskId = historyItem?.id || Date.now().toString()
+		getLatencyObserverService().markTaskInitializationStart(taskId)
 
 		// Acquire task lock
 		let taskLockAcquired = false
@@ -1086,6 +1088,7 @@ export class Controller {
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,
+			latencyObserver: getLatencyObserverService().getSnapshot(),
 		}
 	}
 

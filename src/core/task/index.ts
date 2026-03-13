@@ -51,6 +51,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
+import { getLatencyObserverService } from "@services/latency/LatencyObserverService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
@@ -1098,6 +1099,9 @@ export class Task {
 			return sayTs
 		}
 		// this is a new non-partial message, so add it like normal
+		if (type === "text" || type === "reasoning") {
+			getLatencyObserverService().recordFirstVisibleUpdate(this.taskId, type)
+		}
 		const sayTs = Date.now()
 		this.taskState.lastMessageTs = sayTs
 		await this.messageStateHandler.addToClineMessages({
@@ -2612,6 +2616,8 @@ export class Task {
 
 		// Save checkpoint if this is the first API request
 		const isFirstRequest = this.messageStateHandler.getClineMessages().filter((m) => m.say === "api_req_started").length === 0
+		this.taskState.currentLatencyObserverRequestId = `${this.taskId}:request-${this.taskState.apiRequestCount}`
+		getLatencyObserverService().markRequestStart(this.taskId, this.taskState.currentLatencyObserverRequestId)
 
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (
@@ -2808,6 +2814,7 @@ export class Task {
 				durationMs,
 				this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
 			)
+			getLatencyObserverService().recordTaskInitializationEnd(this.taskId)
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
@@ -3487,6 +3494,8 @@ export class Task {
 			usageUpdateScheduler.dispose()
 			// this should never happen since the only thing that can throw an error is the attemptApiRequest, which is wrapped in a try catch that sends an ask where if noButtonClicked, will clear current task and destroy this instance. However to avoid unhandled promise rejection, we will end this loop which will end execution of this instance (see startTask)
 			return true // needs to be true so parent loop knows to end task
+		} finally {
+			getLatencyObserverService().completeRequest(this.taskId)
 		}
 	}
 
