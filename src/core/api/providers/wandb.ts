@@ -60,6 +60,13 @@ export class WandbHandler implements ApiHandler {
 				}
 			}
 
+			if (delta && "reasoning" in delta && delta.reasoning) {
+				yield {
+					type: "reasoning",
+					reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
+				}
+			}
+
 			if (delta?.tool_calls) {
 				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
