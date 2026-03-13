@@ -35,6 +35,7 @@ export interface LatencyObserverCapabilities {
 	firstVisibleUpdate: LatencyObserverMetricSupport
 	firstFullStateUpdate: LatencyObserverMetricSupport
 	firstPartialMessageUpdate: LatencyObserverMetricSupport
+	chunkToWebviewTiming: LatencyObserverMetricSupport
 	fullStateMetrics: LatencyObserverMetricSupport
 	partialMessageMetrics: LatencyObserverMetricSupport
 	taskUiDeltaMetrics: LatencyObserverMetricSupport
@@ -48,6 +49,7 @@ export interface LatencyObserverMetricSet {
 	firstVisibleUpdateSamples: LatencySample[]
 	firstFullStateUpdateSamples: LatencySample[]
 	firstPartialMessageUpdateSamples: LatencySample[]
+	chunkToWebviewSamples: LatencySample[]
 	capabilities: LatencyObserverCapabilities
 	session: LatencyObserverSessionMetadata
 	optionalCounters?: Partial<
@@ -98,6 +100,7 @@ export interface LatencyObserverStateSnapshot {
 	firstVisibleUpdate: LatencyObserverMetricSnapshot
 	firstFullStateUpdate: LatencyObserverMetricSnapshot
 	firstPartialMessageUpdate: LatencyObserverMetricSnapshot
+	chunkToWebview: LatencyObserverMetricSnapshot
 	requestCounterSummaries: LatencyObserverRequestCounterSummary[]
 	logs: LatencyObserverLogEntry[]
 	optionalCounters?: LatencyObserverMetricSet["optionalCounters"]
@@ -110,6 +113,7 @@ export const DEFAULT_LATENCY_OBSERVER_CAPABILITIES: LatencyObserverCapabilities 
 	firstVisibleUpdate: "unsupported",
 	firstFullStateUpdate: "unsupported",
 	firstPartialMessageUpdate: "unsupported",
+	chunkToWebviewTiming: "unsupported",
 	fullStateMetrics: "unsupported",
 	partialMessageMetrics: "unsupported",
 	taskUiDeltaMetrics: "unsupported",

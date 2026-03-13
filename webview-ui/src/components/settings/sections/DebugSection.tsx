@@ -348,6 +348,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<div>
 								First partial avg: {latencyObserver.firstPartialMessageUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms
 							</div>
+							<div>Chunk→webview avg: {latencyObserver.chunkToWebview.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
 							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
 							<div>State pushes: {latencyObserver.optionalCounters?.fullStatePushes ?? 0}</div>
 							<div>State bytes: {latencyObserver.optionalCounters?.fullStateBytes ?? 0}</div>

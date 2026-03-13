@@ -32,6 +32,7 @@ describe("LatencyObserver", () => {
 			firstVisibleUpdateSamples: [],
 			firstFullStateUpdateSamples: [],
 			firstPartialMessageUpdateSamples: [],
+			chunkToWebviewSamples: [],
 			capabilities: DEFAULT_LATENCY_OBSERVER_CAPABILITIES,
 			session: {
 				startedAt: 1,

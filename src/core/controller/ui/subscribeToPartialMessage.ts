@@ -69,8 +69,9 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 	const startedAt = performance.now()
 	const observer = getLatencyObserverService()
 	observer.incrementCounter("partialMessageEvents")
-	observer.incrementCounter("partialMessageBytes", Buffer.byteLength(JSON.stringify(partialMessage), "utf8"))
+	observer.incrementCounter("partialMessageBytes", payloadBytes)
 	observer.setCapability("partialMessageMetrics", "supported")
+	observer.setCapability("chunkToWebviewTiming", "supported")
 
 	// Send to gRPC stream subscribers
 	const streamPromises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
@@ -96,10 +97,18 @@ export async function sendPartialMessageEvent(partialMessage: ClineMessage): Pro
 	}
 
 	await Promise.all(streamPromises)
+	const endedAt = performance.now()
+	observer.recordChunkToWebviewDelivery({
+		startedAt,
+		endedAt,
+		durationMs: Math.max(0, endedAt - startedAt),
+		label: "partial-message-broadcast",
+		payloadBytes,
+	})
 
 	return {
 		payloadBytes,
-		broadcastDurationMs: Math.max(0, performance.now() - startedAt),
+		broadcastDurationMs: Math.max(0, endedAt - startedAt),
 		streamSubscriberCount: activePartialMessageSubscriptions.size,
 		callbackSubscriberCount: callbackSubscriptions.size,
 	}

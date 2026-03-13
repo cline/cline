@@ -47,6 +47,23 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.firstPartialMessageUpdate.samples[0].durationMs, 18)
 	})
 
+	it("records chunk-to-webview delivery summaries", () => {
+		const service = new LatencyObserverService()
+
+		service.recordChunkToWebviewDelivery({
+			startedAt: 200,
+			endedAt: 212,
+			durationMs: 12,
+			label: "partial-message-broadcast",
+			payloadBytes: 64,
+		})
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.chunkToWebview.stats.count, 1)
+		assert.equal(snapshot.chunkToWebview.stats.lastMs, 12)
+		assert.equal(snapshot.chunkToWebview.samples[0].payloadBytes, 64)
+	})
+
 	it("records first visible update only once per request", () => {
 		const service = new LatencyObserverService()
 
@@ -112,6 +129,7 @@ describe("LatencyObserverService", () => {
 		service.setCapability("firstVisibleUpdate", "hook-not-installed")
 		service.setCapability("firstFullStateUpdate", "unsupported")
 		service.setCapability("firstPartialMessageUpdate", "hook-not-installed")
+		service.setCapability("chunkToWebviewTiming", "supported")
 
 		const snapshot = service.getSnapshot()
 		assert.equal(snapshot.taskInitialization.support, "hook-not-installed")
@@ -119,6 +137,7 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.firstVisibleUpdate.support, "hook-not-installed")
 		assert.equal(snapshot.firstFullStateUpdate.support, "unsupported")
 		assert.equal(snapshot.firstPartialMessageUpdate.support, "hook-not-installed")
+		assert.equal(snapshot.chunkToWebview.support, "supported")
 	})
 
 	it("reset clears recorded samples, counters, and logs for a fresh session", () => {
@@ -145,6 +164,7 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 0)
 		assert.equal(snapshot.firstFullStateUpdate.stats.count, 0)
 		assert.equal(snapshot.firstPartialMessageUpdate.stats.count, 0)
+		assert.equal(snapshot.chunkToWebview.stats.count, 0)
 		assert.equal(snapshot.requestCounterSummaries.length, 0)
 		assert.equal(snapshot.logs.length, 0)
 		assert.equal(snapshot.optionalCounters?.fullStatePushes, 0)
