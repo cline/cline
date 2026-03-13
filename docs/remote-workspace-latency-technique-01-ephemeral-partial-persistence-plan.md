@@ -416,6 +416,8 @@ This is the direct answer to the large-file-write scenario: this technique helps
 - [ ] Validation harness comparison: baseline vs ephemeral-persistence-enabled variant.
 - [x] Regression test: final message history and resume state remain correct.
 
+Implementation note: a standalone validation harness script now exists at `scripts/validate-latency-scenarios.ts` and is wired to `npm run test:latency:validate`. In this workspace it still requires a clean local mock API port / compatible delta-stream server support before the baseline-vs-variant comparison can be considered fully verified.
+
 ---
 
 ## Step 8 — Rollout safeguards and developer controls
@@ -446,6 +448,8 @@ Treat the feature flag and validation path as first-class extraction requirement
 
 - [x] Unit test: disable flag routes behavior back to durable-per-update path where applicable.
 - [ ] Validation harness variant: feature-disabled mode still behaves correctly.
+
+Implementation note: the validation harness includes an `ephemeral_disabled` variant for A/B runs; the remaining work here is environmental/runtime verification rather than missing flag plumbing.
 
 ---
 
