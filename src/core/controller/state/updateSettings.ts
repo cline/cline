@@ -344,6 +344,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
 		}
 
+		if (request.projectSpecificHistory !== undefined) {
+			controller.stateManager.setGlobalState("projectSpecificHistory", request.projectSpecificHistory)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
