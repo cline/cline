@@ -539,6 +539,16 @@ The observer should behave like a thin compatibility layer, not a second product
 - [ ] Manual validation on `eve_troubleshooting-remote-workspaces`.
 - [ ] Confirm that the same observer branch can be adapted onto both with minimal or no code drift.
 
+Portability note:
+
+- [x] Initial portability probe completed against local `main` and `eve_troubleshooting-remote-workspaces` worktrees.
+- [x] Direct cherry-pick of the current observer implementation does **not** apply cleanly yet.
+- [x] The main adaptation gap is architectural drift: the current observer implementation depends on files such as
+  - [x] `src/shared/LatencyObserver.ts`
+  - [x] `src/services/latency/LatencyObserverService.ts`
+  - [x] `webview-ui/src/components/settings/sections/DebugSection.spec.tsx`
+  which do not exist on those target branches yet, so portability will require an extraction/backport sequence rather than a pure cherry-pick.
+
 ---
 
 ## Step 9 — Document how to interpret the measurements
