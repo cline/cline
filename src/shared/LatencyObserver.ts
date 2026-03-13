@@ -67,6 +67,19 @@ export interface LatencyObserverMetricSnapshot {
 	stats: RollingLatencyStats
 }
 
+export interface LatencyObserverRequestCounterSummary {
+	requestId: string
+	taskId?: string
+	startedAt: number
+	completedAt: number
+	fullStatePushes: number
+	fullStateBytes: number
+	partialMessageEvents: number
+	partialMessageBytes: number
+	taskUiDeltaEvents: number
+	persistenceFlushes: number
+}
+
 export interface LatencyObserverLogEntry {
 	ts: number
 	message: string
@@ -82,6 +95,7 @@ export interface LatencyObserverStateSnapshot {
 	requestStart: LatencyObserverMetricSnapshot
 	firstVisibleUpdate: LatencyObserverMetricSnapshot
 	firstFullStateUpdate: LatencyObserverMetricSnapshot
+	requestCounterSummaries: LatencyObserverRequestCounterSummary[]
 	logs: LatencyObserverLogEntry[]
 	optionalCounters?: LatencyObserverMetricSet["optionalCounters"]
 }

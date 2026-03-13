@@ -3,16 +3,27 @@ import {
 	DEFAULT_LATENCY_OBSERVER_CAPABILITIES,
 	type LatencyObserverCapabilities,
 	type LatencyObserverLogEntry,
+	type LatencyObserverRequestCounterSummary,
 	type LatencyObserverSessionMetadata,
 	type LatencyObserverStateSnapshot,
 	type LatencySample,
 } from "@/shared/LatencyObserver"
 
 type ActiveRequest = {
+	taskId: string
 	requestId: string
 	startedAt: number
 	firstVisibleRecorded: boolean
 	firstFullStateRecorded: boolean
+	counterBaseline: Record<
+		| "fullStatePushes"
+		| "fullStateBytes"
+		| "partialMessageEvents"
+		| "partialMessageBytes"
+		| "taskUiDeltaEvents"
+		| "persistenceFlushes",
+		number
+	>
 }
 
 export class LatencyObserverService {
@@ -34,6 +45,7 @@ export class LatencyObserverService {
 	private readonly requestStartSamples: LatencySample[] = []
 	private readonly firstVisibleUpdateSamples: LatencySample[] = []
 	private readonly firstFullStateUpdateSamples: LatencySample[] = []
+	private readonly requestCounterSummaries: LatencyObserverRequestCounterSummary[] = []
 	private readonly logs: LatencyObserverLogEntry[] = []
 	private optionalCounters: Record<
 		| "fullStatePushes"
@@ -87,10 +99,12 @@ export class LatencyObserverService {
 
 	markRequestStart(taskId: string, requestId: string, startedAt = performance.now()): void {
 		this.activeRequests.set(taskId, {
+			taskId,
 			requestId,
 			startedAt,
 			firstVisibleRecorded: false,
 			firstFullStateRecorded: false,
+			counterBaseline: { ...this.optionalCounters },
 		})
 		this.requestStartSamples.push({
 			startedAt,
@@ -141,6 +155,22 @@ export class LatencyObserverService {
 			return
 		}
 
+		this.requestCounterSummaries.push({
+			requestId: activeRequest.requestId,
+			taskId: activeRequest.taskId,
+			startedAt: activeRequest.startedAt,
+			completedAt: performance.now(),
+			fullStatePushes: this.optionalCounters.fullStatePushes - activeRequest.counterBaseline.fullStatePushes,
+			fullStateBytes: this.optionalCounters.fullStateBytes - activeRequest.counterBaseline.fullStateBytes,
+			partialMessageEvents: this.optionalCounters.partialMessageEvents - activeRequest.counterBaseline.partialMessageEvents,
+			partialMessageBytes: this.optionalCounters.partialMessageBytes - activeRequest.counterBaseline.partialMessageBytes,
+			taskUiDeltaEvents: this.optionalCounters.taskUiDeltaEvents - activeRequest.counterBaseline.taskUiDeltaEvents,
+			persistenceFlushes: this.optionalCounters.persistenceFlushes - activeRequest.counterBaseline.persistenceFlushes,
+		})
+		if (this.requestCounterSummaries.length > 50) {
+			this.requestCounterSummaries.shift()
+		}
+
 		this.activeRequests.delete(taskId)
 		this.pushLog(`request completed`, taskId, activeRequest.requestId)
 	}
@@ -182,6 +212,7 @@ export class LatencyObserverService {
 				samples: [...this.firstFullStateUpdateSamples],
 				stats: createRollingLatencyStats(this.firstFullStateUpdateSamples),
 			},
+			requestCounterSummaries: [...this.requestCounterSummaries],
 			logs: [...this.logs],
 			optionalCounters: { ...this.optionalCounters },
 		}
@@ -205,6 +236,7 @@ export class LatencyObserverService {
 		this.requestStartSamples.length = 0
 		this.firstVisibleUpdateSamples.length = 0
 		this.firstFullStateUpdateSamples.length = 0
+		this.requestCounterSummaries.length = 0
 		this.logs.length = 0
 		this.optionalCounters = {
 			fullStatePushes: 0,

@@ -162,14 +162,14 @@ Why it matters:
 
 Measure:
 
-- [ ] number of full-state pushes per request
+- [x] number of full-state pushes per request
 - [x] total full-state payload bytes per request
-- [ ] number of partial-message events per request
+- [x] number of partial-message events per request
 - [x] number of partial-message events per request
 - [x] total partial-message payload bytes per request
 - [ ] number of task UI deltas per request where supported
 - [x] number of task UI deltas per request where supported
-- [ ] persistence flush counts where supported
+- [x] persistence flush counts where supported
 
 Why it matters:
 
@@ -213,10 +213,10 @@ These should work on both `main` and `eve_troubleshooting-remote-workspaces` wit
 These may only exist natively on `eve_troubleshooting-remote-workspaces` or may require additional light plumbing on `main`:
 
 - [ ] chunk-to-webview timing
-- [ ] full-state post counts / bytes
-- [ ] partial-message event counts
-- [ ] task UI delta counts
-- [ ] persistence flush metrics
+- [x] full-state post counts / bytes
+- [x] partial-message event counts
+- [x] task UI delta counts
+- [x] persistence flush metrics
 
 ### Recommended implementation rule
 

@@ -64,6 +64,34 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.optionalCounters?.partialMessageBytes, 128)
 	})
 
+	it("captures per-request richer counter summaries on completion", () => {
+		const service = new LatencyObserverService()
+
+		service.markRequestStart("task-4", "task-4:req-1", 50)
+		service.incrementCounter("fullStatePushes", 2)
+		service.incrementCounter("fullStateBytes", 300)
+		service.incrementCounter("partialMessageEvents", 3)
+		service.incrementCounter("partialMessageBytes", 120)
+		service.incrementCounter("taskUiDeltaEvents", 4)
+		service.incrementCounter("persistenceFlushes", 1)
+		service.completeRequest("task-4")
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.requestCounterSummaries.length, 1)
+		assert.deepEqual(snapshot.requestCounterSummaries[0], {
+			requestId: "task-4:req-1",
+			taskId: "task-4",
+			startedAt: 50,
+			completedAt: snapshot.requestCounterSummaries[0].completedAt,
+			fullStatePushes: 2,
+			fullStateBytes: 300,
+			partialMessageEvents: 3,
+			partialMessageBytes: 120,
+			taskUiDeltaEvents: 4,
+			persistenceFlushes: 1,
+		})
+	})
+
 	it("uses capability support values in metric snapshots", () => {
 		const service = new LatencyObserverService()
 
@@ -102,6 +130,7 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.requestStart.stats.count, 0)
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 0)
 		assert.equal(snapshot.firstFullStateUpdate.stats.count, 0)
+		assert.equal(snapshot.requestCounterSummaries.length, 0)
 		assert.equal(snapshot.logs.length, 0)
 		assert.equal(snapshot.optionalCounters?.fullStatePushes, 0)
 	})
