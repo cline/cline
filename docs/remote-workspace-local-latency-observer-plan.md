@@ -204,7 +204,7 @@ These should work on both `main` and `eve_troubleshooting-remote-workspaces` wit
 
 - [ ] ping/pong RTT with configurable payload size
 - [ ] task initialization timing if a simple observer hook can be added
-- [ ] first state update timing
+- [x] first state update timing
 - [ ] visible branch/commit/session labeling
 - [ ] local UI for logs and rolling stats
 
@@ -432,7 +432,7 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 
 - [x] Component test: controls trigger expected actions.
 - [x] Component test: unavailable metrics render intelligibly.
-- [ ] Regression test: UI remains hidden or low-noise outside intended dev/debug usage.
+- [x] Regression test: UI remains hidden or low-noise outside intended dev/debug usage.
 
 ---
 
