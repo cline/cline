@@ -22,7 +22,7 @@ export const WandbProvider = ({ showModelOptions, isPopup, currentMode }: WandbP
 	return (
 		<div>
 			<ApiKeyField
-				helpText="This key is stored locally and only used to make API requests from this extension. (Note: Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected.)"
+				helpText="This key is stored locally and only used to make API requests from this extension."
 				initialValue={apiConfiguration?.wandbApiKey || ""}
 				onChange={(value) => handleFieldChange("wandbApiKey", value)}
 				providerName="W&B"
