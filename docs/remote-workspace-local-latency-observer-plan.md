@@ -168,6 +168,7 @@ Measure:
 - [x] number of partial-message events per request
 - [x] total partial-message payload bytes per request
 - [ ] number of task UI deltas per request where supported
+- [x] number of task UI deltas per request where supported
 - [ ] persistence flush counts where supported
 
 Why it matters:
@@ -394,6 +395,7 @@ Progress note:
 
 - [x] Current branch now records full-state push counts plus total serialized full-state bytes.
 - [x] Current branch now records partial-message event counts plus total serialized partial-message bytes.
+- [x] Current branch now records task UI delta events from message-state changes.
 
 ---
 
