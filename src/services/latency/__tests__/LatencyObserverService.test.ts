@@ -49,8 +49,23 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.optionalCounters?.partialMessageBytes, 128)
 	})
 
+	it("uses capability support values in metric snapshots", () => {
+		const service = new LatencyObserverService()
+
+		service.setCapability("taskInitialization", "hook-not-installed")
+		service.setCapability("requestStart", "unsupported")
+		service.setCapability("firstVisibleUpdate", "hook-not-installed")
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.taskInitialization.support, "hook-not-installed")
+		assert.equal(snapshot.requestStart.support, "unsupported")
+		assert.equal(snapshot.firstVisibleUpdate.support, "hook-not-installed")
+	})
+
 	it("reset clears recorded samples, counters, and logs for a fresh session", () => {
 		const service = new LatencyObserverService()
+		service.setSessionMetadata({ branch: "feature/latency", commit: "abc123", environment: "production" })
+		const startedAtBeforeReset = service.getSnapshot().session.startedAt
 
 		service.markTaskInitializationStart("task-3", 1)
 		service.recordTaskInitializationEnd("task-3", 5)
@@ -62,6 +77,10 @@ describe("LatencyObserverService", () => {
 		service.reset()
 
 		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.session.branch, "feature/latency")
+		assert.equal(snapshot.session.commit, "abc123")
+		assert.equal(snapshot.session.environment, "production")
+		assert.equal(snapshot.session.startedAt >= startedAtBeforeReset, true)
 		assert.equal(snapshot.taskInitialization.stats.count, 0)
 		assert.equal(snapshot.requestStart.stats.count, 0)
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 0)
