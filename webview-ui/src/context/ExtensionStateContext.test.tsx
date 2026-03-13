@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider, useExtensionState } from "./ExtensionStateContext"
 
@@ -90,26 +90,30 @@ describe("ExtensionStateContextProvider", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		subscriptions.state?.onResponse?.({
-			stateJson: JSON.stringify({
-				version: "initial",
-				clineMessages: [],
-				currentTaskItem: { id: "task-1" },
-				backgroundCommandRunning: false,
-			}),
+		await act(async () => {
+			subscriptions.state?.onResponse?.({
+				stateJson: JSON.stringify({
+					version: "initial",
+					clineMessages: [],
+					currentTaskItem: { id: "task-1" },
+					backgroundCommandRunning: false,
+				}),
+			})
 		})
 
 		await waitFor(() => {
 			expect(screen.getByTestId("version").textContent).toBe("initial")
 		})
 
-		subscriptions.delta?.onResponse?.({
-			deltaJson: JSON.stringify({
-				type: "message_added",
-				taskId: "task-1",
-				sequence: 1,
-				message: { ts: 1, type: "say", say: "text", text: "hello" },
-			}),
+		await act(async () => {
+			subscriptions.delta?.onResponse?.({
+				deltaJson: JSON.stringify({
+					type: "message_added",
+					taskId: "task-1",
+					sequence: 1,
+					message: { ts: 1, type: "say", say: "text", text: "hello" },
+				}),
+			})
 		})
 
 		await waitFor(() => {
@@ -117,26 +121,115 @@ describe("ExtensionStateContextProvider", () => {
 			expect(screen.getByTestId("latest-message").textContent).toBe("hello")
 		})
 
-		subscriptions.delta?.onResponse?.({
-			deltaJson: JSON.stringify({
-				type: "message_updated",
-				taskId: "task-1",
-				sequence: 2,
-				message: { ts: 1, type: "say", say: "text", text: "hello world" },
-			}),
-		})
-		subscriptions.delta?.onResponse?.({
-			deltaJson: JSON.stringify({
-				type: "task_metadata_updated",
-				taskId: "task-1",
-				sequence: 3,
-				metadata: { backgroundCommandRunning: true, backgroundCommandTaskId: "task-1" },
-			}),
+		await act(async () => {
+			subscriptions.delta?.onResponse?.({
+				deltaJson: JSON.stringify({
+					type: "message_updated",
+					taskId: "task-1",
+					sequence: 2,
+					message: { ts: 1, type: "say", say: "text", text: "hello world" },
+				}),
+			})
+			subscriptions.delta?.onResponse?.({
+				deltaJson: JSON.stringify({
+					type: "task_metadata_updated",
+					taskId: "task-1",
+					sequence: 3,
+					metadata: { backgroundCommandRunning: true, backgroundCommandTaskId: "task-1" },
+				}),
+			})
 		})
 
 		await waitFor(() => {
 			expect(screen.getByTestId("latest-message").textContent).toBe("hello world")
 			expect(screen.getByTestId("background-command").textContent).toBe("true")
+		})
+	})
+
+	it("requests a full-state resync when a delta sequence gap is detected", async () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ContextProbe />
+			</ExtensionStateContextProvider>,
+		)
+
+		await act(async () => {
+			subscriptions.state?.onResponse?.({
+				stateJson: JSON.stringify({
+					version: "initial",
+					clineMessages: [],
+					currentTaskItem: { id: "task-1" },
+				}),
+			})
+		})
+
+		await act(async () => {
+			subscriptions.delta?.onResponse?.({
+				deltaJson: JSON.stringify({
+					type: "message_added",
+					taskId: "task-1",
+					sequence: 2,
+					message: { ts: 2, type: "say", say: "text", text: "should trigger resync" },
+				}),
+			})
+		})
+
+		await waitFor(() => {
+			expect(screen.getByTestId("version").textContent).toBe("resynced")
+			expect(screen.getByTestId("latest-message").textContent).toBe("resynced")
+		})
+	})
+
+	it("resets delta sequencing when a full snapshot switches to a different task", async () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ContextProbe />
+			</ExtensionStateContextProvider>,
+		)
+
+		await act(async () => {
+			subscriptions.state?.onResponse?.({
+				stateJson: JSON.stringify({
+					version: "task-1-state",
+					clineMessages: [],
+					currentTaskItem: { id: "task-1" },
+				}),
+			})
+			subscriptions.delta?.onResponse?.({
+				deltaJson: JSON.stringify({
+					type: "message_added",
+					taskId: "task-1",
+					sequence: 1,
+					message: { ts: 1, type: "say", say: "text", text: "task one" },
+				}),
+			})
+		})
+
+		await waitFor(() => {
+			expect(screen.getByTestId("latest-message").textContent).toBe("task one")
+		})
+
+		await act(async () => {
+			subscriptions.state?.onResponse?.({
+				stateJson: JSON.stringify({
+					version: "task-2-state",
+					clineMessages: [],
+					currentTaskItem: { id: "task-2" },
+				}),
+			})
+			subscriptions.delta?.onResponse?.({
+				deltaJson: JSON.stringify({
+					type: "message_added",
+					taskId: "task-2",
+					sequence: 1,
+					message: { ts: 2, type: "say", say: "text", text: "task two" },
+				}),
+			})
+		})
+
+		await waitFor(() => {
+			expect(screen.getByTestId("version").textContent).toBe("task-2-state")
+			expect(screen.getByTestId("latest-message").textContent).toBe("task two")
 		})
 	})
 })

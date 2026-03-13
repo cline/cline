@@ -272,8 +272,8 @@ Keep the fallback path boring and reliable. Smart engineering here means preferr
 
 ### Tests
 
-- [ ] Unit test: metadata delta publishes for current active task.
-- [ ] Unit test: mismatched/non-active task falls back to snapshot path.
+- [x] Unit test: metadata delta publishes for current active task.
+- [x] Unit test: mismatched/non-active task falls back to snapshot path.
 
 ---
 
@@ -351,8 +351,8 @@ This step is essential to keeping the rest of Cline’s product surfaces healthy
 ### Tests
 
 - [x] Regression test: initial load hydrates correctly without prior deltas.
-- [ ] Regression test: reopening or task switching still works.
-- [ ] Regression test: full snapshot repairs intentionally diverged delta state.
+- [x] Regression test: reopening or task switching still works.
+- [x] Regression test: full snapshot repairs intentionally diverged delta state.
 
 ---
 
@@ -471,12 +471,13 @@ That is why this technique still matters for large-file-write scenarios, even th
 - Added extraction-branch follow-up coverage in commit `8839a5bf6` (`Add task UI delta sync test coverage and env flag helper`), including backend delta broadcaster tests, latency/env-flag helper coverage, reducer sequencing tests, and a webview context delta hydration test.
 - Added latency-analysis helpers and validation scripts for comparing delta-enabled vs delta-disabled runs (`src/services/telemetry/taskLatencySummary.ts`, `scripts/validate-latency-scenarios.ts`, `scripts/analyze-task-latency-metrics.mjs`, and `scripts/compare-task-latency-metrics.mjs`).
 - Added message-state regression coverage in commit `cdee38396` (`Add message-state task UI delta regression tests`) and fixed verification follow-up issues in commit `5548080d9`.
+- Added controller metadata delta coverage (`src/test/controller-task-ui-metadata.test.ts`) plus webview resync/task-switch regression coverage in `webview-ui/src/context/ExtensionStateContext.test.tsx`.
 - Wired focus-chain metadata and background-command metadata through task-specific delta publication, with snapshot fallback when task identity is ambiguous.
 - Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
 - Installed dependencies, regenerated protos, and verified the focused backend and webview coverage locally. Successful verification included:
-  - `npm run test:unit -- src/core/controller/ui/subscribeToTaskUiDeltas.test.ts src/test/message-state-handler.test.ts src/core/task/__tests__/latency.test.ts src/services/telemetry/__tests__/taskLatencySummary.test.ts`
+  - `npm run test:unit -- src/test/controller-task-ui-metadata.test.ts src/core/controller/ui/subscribeToTaskUiDeltas.test.ts src/test/message-state-handler.test.ts src/core/task/__tests__/latency.test.ts src/services/telemetry/__tests__/taskLatencySummary.test.ts`
   - `cd webview-ui && npm run test -- src/context/taskUiDeltaState.test.ts src/context/ExtensionStateContext.test.tsx`
-- The webview verification passes, but still emits React `act(...)` warnings in `ExtensionStateContext.test.tsx`; these are test-harness hygiene issues rather than functional failures.
+- The webview verification now passes without the earlier React `act(...)` warning noise after wrapping streamed state updates in `act(...)`.
 
 ---
 
