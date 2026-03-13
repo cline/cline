@@ -83,6 +83,18 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			return formatResponse.toolError(`Error listing code definitions: ${errorMessage}`)
 		}
 
+		// parseSourceCodeForDefinitionsTopLevel returns error strings for file paths
+		// and non-existent directories rather than throwing. Check for these error
+		// conditions and increment the counter so repeated failures accumulate.
+		const isErrorResult =
+			result.includes("provided path is a file, not a directory") ||
+			result.includes("does not exist or you do not have permission")
+
+		if (isErrorResult) {
+			config.taskState.consecutiveMistakeCount++
+			return formatResponse.toolError(result)
+		}
+
 		// Only reset after a successful operation so repeated failures
 		// accumulate toward the yolo-mode mistake limit.
 		config.taskState.consecutiveMistakeCount = 0

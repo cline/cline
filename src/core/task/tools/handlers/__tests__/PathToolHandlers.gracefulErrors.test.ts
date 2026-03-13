@@ -146,13 +146,15 @@ describe("ListCodeDefinitionNamesToolHandler.execute – error recovery", () => 
 		const result = await handler.execute(config, makeBlock("no-such-dir"))
 
 		// parseSourceCodeForDefinitionsTopLevel returns a descriptive string for
-		// non-existent directories rather than throwing.
+		// non-existent directories rather than throwing. The handler now detects
+		// this error condition and increments the counter.
 		assert.equal(typeof result, "string")
-		assert.equal(taskState.consecutiveMistakeCount, 0)
+		assert.ok((result as string).includes("does not exist or you do not have permission"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
 	})
 
 	it("returns a graceful message for a file path (not a directory)", async () => {
-		const { config, validator } = createConfig()
+		const { config, taskState, validator } = createConfig()
 		const handler = new ListCodeDefinitionNamesToolHandler(validator)
 
 		const filePath = "not-a-dir.txt"
@@ -162,6 +164,7 @@ describe("ListCodeDefinitionNamesToolHandler.execute – error recovery", () => 
 
 		assert.equal(typeof result, "string")
 		assert.ok((result as string).includes("file, not a directory"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
 	})
 
 	it("increments consecutiveMistakeCount when path parameter is missing", async () => {
@@ -221,6 +224,41 @@ describe("ListCodeDefinitionNamesToolHandler.execute – error recovery", () => 
 		assert.equal(taskState.consecutiveMistakeCount, 2)
 
 		await handler.execute(config, makeBlock("dir-3"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
+	})
+
+	it("accumulates failures for repeated non-existent directory calls", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new ListCodeDefinitionNamesToolHandler(validator)
+
+		await handler.execute(config, makeBlock("nonexistent-1"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock("nonexistent-2"))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock("nonexistent-3"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
+	})
+
+	it("accumulates failures for repeated file-path (not directory) calls", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new ListCodeDefinitionNamesToolHandler(validator)
+
+		const filePath1 = "file1.txt"
+		const filePath2 = "file2.txt"
+		const filePath3 = "file3.txt"
+		await fs.writeFile(path.join(tmpDir, filePath1), "content")
+		await fs.writeFile(path.join(tmpDir, filePath2), "content")
+		await fs.writeFile(path.join(tmpDir, filePath3), "content")
+
+		await handler.execute(config, makeBlock(filePath1))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock(filePath2))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock(filePath3))
 		assert.equal(taskState.consecutiveMistakeCount, 3)
 	})
 })
