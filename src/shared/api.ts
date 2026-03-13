@@ -3387,8 +3387,8 @@ export const wandbModels = {
 		contextWindow: 262_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
+		inputPrice: 0.2,
+		outputPrice: 0.8,
 		description: "A LatentMoE model designed to deliver strong agentic, reasoning, and conversational capabilities",
 	},
 	"openai/gpt-oss-120b": {
