@@ -505,7 +505,7 @@ Local visibility is great, but engineers also need artifacts they can compare si
 ### Tests
 
 - [ ] Unit test: exported schema is stable.
-- [ ] Regression test: export works even when optional metrics are unavailable.
+- [x] Regression test: export works even when optional metrics are unavailable.
 
 ---
 
