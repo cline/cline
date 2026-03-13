@@ -3,6 +3,11 @@ import { getAxiosSettings } from "@/shared/net"
 import type { PromptItem, PromptsCatalog } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 
+const GITHUB_API_BASE = "https://api.github.com"
+const RAW_CONTENT_BASE = "https://raw.githubusercontent.com/cline/prompts/main"
+const REPO_OWNER = "cline"
+const REPO_NAME = "prompts"
+
 // Maps repo directory prefixes to prompt types
 const DIRECTORY_TYPE_MAP: Record<string, "rule" | "workflow" | "hook" | "skill"> = {
 	".clinerules/": "rule",
@@ -12,15 +17,79 @@ const DIRECTORY_TYPE_MAP: Record<string, "rule" | "workflow" | "hook" | "skill">
 }
 
 /**
- * Service for fetching and managing prompts from GitHub.
+ * Minimal YAML frontmatter parser.
+ * Extracts key-value pairs from YAML frontmatter delimited by `---`.
+ * Handles strings, numbers, and simple arrays like ["a", "b"].
+ */
+function parseFrontmatter(content: string): Record<string, unknown> {
+	const match = content.match(/^---\s*\n([\s\S]*?)\n---/)
+	if (!match) return {}
+
+	const yamlBlock = match[1]
+	const result: Record<string, unknown> = {}
+
+	for (const line of yamlBlock.split("\n")) {
+		const kvMatch = line.match(/^(\w[\w-]*):\s*(.*)$/)
+		if (!kvMatch) continue
+
+		const key = kvMatch[1]
+		let value: unknown = kvMatch[2].trim()
+
+		// Parse arrays: ["tag1", "tag2"]
+		if (typeof value === "string" && value.startsWith("[") && value.endsWith("]")) {
+			try {
+				value = JSON.parse(value)
+			} catch {
+				// Try parsing as YAML-style array
+				value = (value as string)
+					.slice(1, -1)
+					.split(",")
+					.map((s) => s.trim().replace(/^["']|["']$/g, ""))
+					.filter(Boolean)
+			}
+		}
+		// Strip surrounding quotes
+		else if (typeof value === "string" && /^["'].*["']$/.test(value)) {
+			value = value.slice(1, -1)
+		}
+
+		result[key] = value
+	}
+
+	return result
+}
+
+/**
+ * Resolves author name from a string that might be a GitHub URL.
+ */
+function resolveAuthorName(author: string): string {
+	try {
+		const url = new URL(author.startsWith("http") ? author : `https://${author}`)
+		if (url.hostname === "github.com" || url.hostname === "www.github.com") {
+			const segments = url.pathname.split("/").filter(Boolean)
+			if (segments.length > 0) return segments[0]
+		}
+	} catch {
+		// Not a URL, use as-is
+	}
+	return author
+}
+
+interface GitTreeEntry {
+	path: string
+	mode: string
+	type: string
+	sha: string
+	url: string
+}
+
+/**
+ * Service for fetching and managing prompts from the cline/prompts GitHub repository.
  *
- * Uses the Git Trees API to list the entire repo in a single rate-limited call,
- * then fetches file contents from raw.githubusercontent.com (CDN, not rate-limited).
- * This keeps rate-limited API usage to 1 call per catalog fetch.
+ * Uses the Git Tree API (1 rate-limited call) to discover all files, then fetches
+ * raw content from the CDN (not rate-limited) to parse YAML frontmatter for metadata.
  */
 export class PromptsService {
-	private readonly TREE_API = "https://api.github.com/repos/cline/prompts/git/trees/main?recursive=1"
-	private readonly RAW_CONTENT_BASE = "https://raw.githubusercontent.com/cline/prompts/main"
 	private cachedCatalog: PromptsCatalog | null = null
 	private lastFetchTime = 0
 	private readonly CACHE_DURATION = 60 * 60 * 1000 // 1 hour
@@ -28,13 +97,56 @@ export class PromptsService {
 	/**
 	 * Wrapper for HTTP GET requests. Protected to allow test stubbing.
 	 */
-	protected async httpGet(url: string) {
-		return axios.get(url, { ...getAxiosSettings(), timeout: 10_000 })
+	protected async httpGet(url: string, headers?: Record<string, string>) {
+		return axios.get(url, {
+			...getAxiosSettings(),
+			timeout: 15_000,
+			headers: {
+				Accept: "application/vnd.github.v3+json",
+				...headers,
+			},
+		})
 	}
 
 	/**
-	 * Fetches the prompts catalog from GitHub using the Git Trees API.
-	 * Only 1 rate-limited API call is made; content is fetched from the CDN.
+	 * Fetches raw file content from the GitHub CDN (not rate-limited).
+	 * Protected to allow test stubbing.
+	 */
+	protected async fetchRawContent(filePath: string): Promise<string> {
+		const url = `${RAW_CONTENT_BASE}/${filePath}`
+		const response = await axios.get(url, {
+			...getAxiosSettings(),
+			timeout: 10_000,
+			responseType: "text",
+		})
+		return typeof response.data === "string" ? response.data : String(response.data)
+	}
+
+	/**
+	 * Fetches the date of the last commit that modified a file.
+	 * Uses the GitHub Commits API (rate-limited). Returns empty string on failure.
+	 * Protected to allow test stubbing.
+	 */
+	protected async fetchLastCommitDate(filePath: string): Promise<string> {
+		try {
+			const url = `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/commits?path=${encodeURIComponent(filePath)}&per_page=1`
+			const response = await this.httpGet(url)
+			const commits = response.data
+			if (Array.isArray(commits) && commits.length > 0) {
+				return commits[0]?.commit?.author?.date || ""
+			}
+		} catch (error) {
+			Logger.error(`Error fetching commit date for ${filePath}:`, error)
+		}
+		return ""
+	}
+
+	/**
+	 * Fetches the prompts catalog from the cline/prompts GitHub repository.
+	 *
+	 * 1. Uses the Git Tree API (1 rate-limited call) to list all files
+	 * 2. Fetches raw content from CDN (not rate-limited) for each markdown file
+	 * 3. Parses YAML frontmatter for metadata (author, version, description, etc.)
 	 */
 	async fetchPromptsCatalog(): Promise<PromptsCatalog> {
 		// Return cached catalog if still fresh
@@ -44,59 +156,31 @@ export class PromptsService {
 		}
 
 		try {
-			// 1. Single rate-limited call: get the full repo tree
-			const treeResponse = await this.httpGet(this.TREE_API)
-			const tree: Array<{ path: string; type: string }> = treeResponse.data?.tree || []
+			// Step 1: Get all files via Git Tree API (single rate-limited call)
+			const treeUrl = `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/main?recursive=1`
+			const treeResponse = await this.httpGet(treeUrl)
+			const entries: GitTreeEntry[] = treeResponse.data?.tree || []
 
-			// 2. Filter to .md files in known directories
-			const mdFiles: Array<{ path: string; type: "rule" | "workflow" | "hook" | "skill" }> = []
-			for (const entry of tree) {
-				if (entry.type !== "blob" || !entry.path.endsWith(".md")) continue
+			// Filter to markdown files in known directories
+			const markdownFiles = entries.filter((entry) => {
+				if (entry.type !== "blob" || !entry.path.toLowerCase().endsWith(".md")) return false
+				return Object.keys(DIRECTORY_TYPE_MAP).some((prefix) => entry.path.startsWith(prefix))
+			})
 
-				for (const [prefix, promptType] of Object.entries(DIRECTORY_TYPE_MAP)) {
-					if (entry.path.startsWith(prefix)) {
-						mdFiles.push({ path: entry.path, type: promptType })
-						break
+			// Step 2: Fetch raw content from CDN and parse frontmatter (parallel, not rate-limited)
+			const items = await Promise.all(
+				markdownFiles.map(async (entry) => {
+					try {
+						return await this.processFile(entry.path)
+					} catch (error) {
+						Logger.error(`Error processing ${entry.path}:`, error)
+						return null
 					}
-				}
-			}
-
-			// 3. Fetch content from raw.githubusercontent.com (CDN, not rate-limited)
-			const BATCH_SIZE = 10
-			const items: PromptItem[] = []
-
-			for (let i = 0; i < mdFiles.length; i += BATCH_SIZE) {
-				const batch = mdFiles.slice(i, i + BATCH_SIZE)
-				const batchResults = await Promise.all(
-					batch.map(async ({ path, type }) => {
-						try {
-							const contentUrl = `${this.RAW_CONTENT_BASE}/${path}`
-							const contentResponse = await this.httpGet(contentUrl)
-							const fileName = path.split("/").pop() || path
-							const htmlUrl = `https://github.com/cline/prompts/blob/main/${path}`
-							return {
-								file: { name: fileName, html_url: htmlUrl },
-								content: contentResponse.data,
-								type,
-							}
-						} catch (error) {
-							Logger.error(`Error fetching prompt ${path}:`, error)
-							return null
-						}
-					}),
-				)
-
-				for (const result of batchResults) {
-					if (!result) continue
-					const item = this.parsePromptContent(result.file, result.content, result.type)
-					if (item) {
-						items.push(item)
-					}
-				}
-			}
+				}),
+			)
 
 			const catalog: PromptsCatalog = {
-				items,
+				items: items.filter((item): item is PromptItem => item !== null),
 				lastUpdated: new Date().toISOString(),
 			}
 
@@ -107,7 +191,6 @@ export class PromptsService {
 			return catalog
 		} catch (error) {
 			Logger.error("Error in fetchPromptsCatalog:", error)
-			// Return empty catalog on error
 			return {
 				items: [],
 				lastUpdated: new Date().toISOString(),
@@ -116,85 +199,57 @@ export class PromptsService {
 	}
 
 	/**
-	 * Parses prompt content and extracts metadata from frontmatter
+	 * Processes a single file: fetches content from CDN, parses frontmatter,
+	 * and fetches the last commit date from the GitHub Commits API.
 	 */
-	private parsePromptContent(
-		file: { name: string; html_url: string },
-		content: string,
-		type: "rule" | "workflow" | "hook" | "skill",
-	): PromptItem | null {
-		try {
-			// Parse frontmatter (basic implementation)
-			const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/)
-			let description = ""
-			let author = ""
-			let category = ""
-			const tags: string[] = []
-
-			let version = ""
-			let createdAt = ""
-			let updatedAt = ""
-
-			if (frontmatterMatch) {
-				const frontmatter = frontmatterMatch[1]
-				const descMatch = frontmatter.match(/description:\s*["']?(.*?)["']?(?:\n|$)/)
-				const authorMatch = frontmatter.match(/author:\s*["']?(.*?)["']?(?:\n|$)/)
-				const categoryMatch = frontmatter.match(/category:\s*["']?(.*?)["']?(?:\n|$)/)
-				const versionMatch = frontmatter.match(/version:\s*["']?(.*?)["']?(?:\n|$)/)
-				const createdAtMatch = frontmatter.match(/created_at:\s*["']?(.*?)["']?(?:\n|$)/)
-				const updatedAtMatch = frontmatter.match(/updated_at:\s*["']?(.*?)["']?(?:\n|$)/)
-				const tagsMatch = frontmatter.match(/tags:\s*\[(.*?)\]/)
-
-				if (descMatch) description = descMatch[1].trim()
-				if (authorMatch) author = authorMatch[1].trim()
-				if (categoryMatch) category = categoryMatch[1].trim()
-				if (versionMatch) version = versionMatch[1].trim()
-				if (createdAtMatch) createdAt = createdAtMatch[1].trim()
-				if (updatedAtMatch) updatedAt = updatedAtMatch[1].trim()
-				if (tagsMatch) {
-					const tagContent = tagsMatch[1].trim()
-					if (tagContent) {
-						tags.push(...tagContent.split(",").map((t: string) => t.trim().replace(/["']/g, "")))
-					}
-				}
+	private async processFile(filePath: string): Promise<PromptItem | null> {
+		// Determine prompt type from directory
+		let promptType: "rule" | "workflow" | "hook" | "skill" | null = null
+		for (const [prefix, type] of Object.entries(DIRECTORY_TYPE_MAP)) {
+			if (filePath.startsWith(prefix)) {
+				promptType = type
+				break
 			}
+		}
+		if (!promptType) return null
 
-			const promptId = file.name.replace(".md", "")
+		// Fetch raw content (CDN, not rate-limited) and commit date (API, rate-limited) in parallel
+		const [content, lastCommitDate] = await Promise.all([this.fetchRawContent(filePath), this.fetchLastCommitDate(filePath)])
 
-			// Extract username from GitHub URL if present
-			let authorName = author || "Unknown"
-			if (author) {
-				try {
-					const authorUrl = new URL(author.startsWith("http") ? author : `https://${author}`)
-					if (authorUrl.hostname === "github.com" || authorUrl.hostname === "www.github.com") {
-						const pathSegments = authorUrl.pathname.split("/").filter(Boolean)
-						if (pathSegments.length > 0) {
-							authorName = pathSegments[0]
-						}
-					}
-				} catch {
-					// Not a valid URL, use as-is
-				}
-			}
+		// Parse YAML frontmatter
+		const frontmatter = parseFrontmatter(content)
 
-			return {
-				promptId,
-				githubUrl: file.html_url,
-				name: promptId.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
-				author: authorName,
-				description: description || "No description available",
-				category: category || "General",
-				tags,
-				type,
-				content,
-				version: version || "",
-				globs: [],
-				createdAt,
-				updatedAt,
-			}
-		} catch (error) {
-			Logger.error(`Error parsing prompt ${file.name}:`, error)
-			return null
+		const fileName = filePath.split("/").pop() || ""
+		const promptId = fileName.replace(/\.md$/, "")
+
+		// Resolve author
+		let authorName = "Unknown"
+		const fmAuthor = typeof frontmatter.author === "string" ? frontmatter.author.trim() : ""
+		if (fmAuthor) {
+			authorName = resolveAuthorName(fmAuthor)
+		}
+
+		// Resolve version
+		const version = frontmatter.version != null ? String(frontmatter.version).trim() : ""
+
+		return {
+			promptId,
+			githubUrl: `https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/main/${filePath}`,
+			name: promptId.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+			author: authorName,
+			description:
+				typeof frontmatter.description === "string" && frontmatter.description.trim()
+					? frontmatter.description.trim()
+					: "No description available",
+			category:
+				typeof frontmatter.category === "string" && frontmatter.category.trim() ? frontmatter.category.trim() : "General",
+			tags: Array.isArray(frontmatter.tags) ? frontmatter.tags.map(String) : [],
+			type: promptType,
+			content, // Include full content for apply
+			version,
+			globs: Array.isArray(frontmatter.globs) ? frontmatter.globs.map(String) : [],
+			createdAt: lastCommitDate,
+			updatedAt: lastCommitDate,
 		}
 	}
 }

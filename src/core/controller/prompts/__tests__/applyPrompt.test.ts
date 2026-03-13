@@ -9,6 +9,7 @@ const proxyquire = require("proxyquire")
 const getWorkspacePathStub = sinon.stub()
 const fsMkdirStub = sinon.stub()
 const fsWriteFileStub = sinon.stub()
+const axiosGetStub = sinon.stub()
 
 // Load module with proxyquire at module scope
 const { applyPrompt } = proxyquire("../applyPrompt", {
@@ -18,6 +19,15 @@ const { applyPrompt } = proxyquire("../applyPrompt", {
 	"node:fs/promises": {
 		mkdir: fsMkdirStub,
 		writeFile: fsWriteFileStub,
+		"@noCallThru": true,
+	},
+	axios: {
+		get: axiosGetStub,
+		default: { get: axiosGetStub },
+		"@noCallThru": true,
+	},
+	"@/shared/net": {
+		getAxiosSettings: () => ({}),
 		"@noCallThru": true,
 	},
 })
@@ -31,6 +41,7 @@ describe("applyPrompt", () => {
 		getWorkspacePathStub.reset()
 		fsMkdirStub.reset()
 		fsWriteFileStub.reset()
+		axiosGetStub.reset()
 	})
 
 	afterEach(() => {
@@ -286,10 +297,11 @@ describe("applyPrompt", () => {
 			assert.ok(fsWriteFileStub.calledOnce)
 		})
 
-		it("should handle empty content", async () => {
+		it("should fetch content from GitHub when content is empty", async () => {
 			getWorkspacePathStub.resolves("/workspace")
 			fsMkdirStub.resolves()
 			fsWriteFileStub.resolves()
+			axiosGetStub.resolves({ data: "# Fetched content from GitHub" })
 
 			const request = ApplyPromptRequest.create({
 				promptId: "empty",
@@ -301,7 +313,29 @@ describe("applyPrompt", () => {
 			const result = await applyPrompt(mockController, request)
 
 			assert.strictEqual(result.value, true)
-			assert.ok(fsWriteFileStub.calledWith(sinon.match.string, "", "utf-8"))
+			// Should have fetched content from raw.githubusercontent.com
+			assert.ok(axiosGetStub.calledOnce)
+			assert.ok(axiosGetStub.firstCall.args[0].includes("raw.githubusercontent.com"))
+			// Should write the fetched content
+			assert.ok(fsWriteFileStub.calledWith(sinon.match.string, "# Fetched content from GitHub", "utf-8"))
+		})
+
+		it("should return false when content is empty and fetch fails", async () => {
+			getWorkspacePathStub.resolves("/workspace")
+			fsMkdirStub.resolves()
+			fsWriteFileStub.resolves()
+			axiosGetStub.rejects(new Error("Network error"))
+
+			const request = ApplyPromptRequest.create({
+				promptId: "empty",
+				type: 1,
+				content: "",
+				name: "Empty",
+			})
+
+			const result = await applyPrompt(mockController, request)
+
+			assert.strictEqual(result.value, false)
 		})
 
 		it("should handle very long filenames", async () => {

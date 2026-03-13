@@ -536,7 +536,7 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 															padding: "8px 12px",
 															color: "var(--vscode-descriptionForeground)",
 														}}>
-														Created at
+														Last updated
 													</td>
 													<td
 														style={{
@@ -544,7 +544,7 @@ const PromptsLibraryTab = ({ catalog }: PromptsLibraryTabProps) => {
 															textAlign: "right",
 															fontWeight: 600,
 														}}>
-														{prompt.createdAt ? formatDate(prompt.createdAt) : "—"}
+														{prompt.updatedAt ? formatDate(prompt.updatedAt) : "—"}
 													</td>
 												</tr>
 												<tr>
