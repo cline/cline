@@ -197,6 +197,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const handleModelChange = (newModelId: string) => {
 		setSearchTerm(newModelId)
 
+		// clineModels keys are case-sensitive (from OpenRouter). Do a case-insensitive
+		// fallback so that model IDs like "moonshotai/Kimi-K2.5" (from the backend's
+		// free model list) still resolve to their info entry ("moonshotai/kimi-k2.5").
+		const resolvedModelKey =
+			clineModels && !(newModelId in clineModels)
+				? Object.keys(clineModels).find((k) => k.toLowerCase() === newModelId.toLowerCase())
+				: newModelId
+
 		handleModeFieldsChange(
 			{
 				clineModelId: { plan: "planModeClineModelId", act: "actModeClineModelId" },
@@ -204,7 +212,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			},
 			{
 				clineModelId: newModelId,
-				clineModelInfo: clineModels?.[newModelId],
+				clineModelInfo: resolvedModelKey ? clineModels?.[resolvedModelKey] : undefined,
 			},
 			currentMode,
 		)

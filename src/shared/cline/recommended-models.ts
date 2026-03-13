@@ -53,5 +53,11 @@ export const CLINE_RECOMMENDED_MODELS_FALLBACK: ClineRecommendedModelsData = {
 			description: "Arcee AI's advanced large preview model in the Trinity series",
 			tags: ["FREE"],
 		},
+		{
+			id: "moonshotai/Kimi-K2.5",
+			name: "Moonshot Kimi K2.5",
+			description: "Moonshot AI's flagship multimodal reasoning model in the Kimi series, powered by W&B Inference",
+			tags: ["FREE"],
+		},
 	],
 }
