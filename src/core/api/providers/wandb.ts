@@ -72,6 +72,11 @@ export class WandbHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
+				// W&B Inference returns prompt_tokens_details.cached_tokens in the usage chunk,
+				// but does not currently offer cache-aware billing (cached tokens are billed
+				// at the same rate as regular input tokens). We report inputTokens as the full
+				// prompt_tokens value and do not subtract cached tokens until W&B supports
+				// cache-aware pricing. This may change in a future update.
 				yield {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
