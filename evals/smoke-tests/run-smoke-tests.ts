@@ -11,15 +11,16 @@
  *   npx tsx evals/smoke-tests/run-smoke-tests.ts [options]
  *
  * Options:
- *   --provider <name>  Run tests for a specific provider (default: all configured)
  *   --trials <n>       Number of trials per test (default: 3)
  *   --scenario <name>  Run a specific scenario (default: all)
+ *   --model <id>       Override model for all scenarios
  *   --output <file>    Write JSON results to file
  */
 
 import { execSync, spawn } from "child_process"
 import * as fs from "fs"
 import * as path from "path"
+import * as dotenv from "dotenv"
 import { MetricsCalculator } from "../analysis/src/metrics"
 
 // Default provider and model for smoke tests
@@ -43,24 +44,23 @@ function checkClineCli(): boolean {
 // Use user's existing Cline config (already has auth configured)
 // For CI, this would be set up by the auth step before tests run
 const CLINE_CONFIG_DIR = path.join(process.env.HOME || "", ".cline")
+const configuredAuthCache = new Set<string>()
 
-// Configure authentication using CLINE_API_KEY environment variable
-// Returns success if auth is configured, error message otherwise
-function configureAuth(): { ok: boolean; error?: string } {
-	const apiKey = process.env.CLINE_API_KEY
-	if (!apiKey) {
-		return {
-			ok: false,
-			error: "CLINE_API_KEY environment variable not set",
-		}
-	}
-
+function configureAuth(options: { provider: string; apiKey: string; modelId: string; baseUrl?: string }): {
+	ok: boolean
+	error?: string
+} {
 	// Ensure config directory exists
 	fs.mkdirSync(CLINE_CONFIG_DIR, { recursive: true })
 
 	try {
 		// Run quick auth setup (non-interactive when all flags provided)
-		execSync(`cline auth --config "${CLINE_CONFIG_DIR}" -p ${DEFAULT_PROVIDER} -k "${apiKey}" -m "${DEFAULT_MODEL}"`, {
+		const args = [`cline auth --config "${CLINE_CONFIG_DIR}"`, `-p "${options.provider}"`, `-k "${options.apiKey}"`, `-m "${options.modelId}"`]
+		if (options.baseUrl) {
+			args.push(`-b "${options.baseUrl}"`)
+		}
+
+		execSync(args.join(" "), {
 			encoding: "utf-8",
 			timeout: 10000,
 			stdio: "pipe",
@@ -74,6 +74,22 @@ function configureAuth(): { ok: boolean; error?: string } {
 	}
 }
 
+function loadEnvFiles(): void {
+	const repoRoot = path.resolve(__dirname, "..", "..")
+	const envFiles = [path.join(repoRoot, ".env"), path.join(repoRoot, ".env.local")]
+	for (const envPath of envFiles) {
+		if (fs.existsSync(envPath)) {
+			dotenv.config({ path: envPath, override: false })
+		}
+	}
+}
+
+interface ScenarioAuthConfig {
+	apiKeyEnv?: string
+	baseUrlEnv?: string
+	modelId?: string
+}
+
 // Smoke test scenario definition
 interface SmokeScenario {
 	id: string
@@ -85,6 +101,9 @@ interface SmokeScenario {
 	expectedContent?: { file: string; contains: string }[] // Content checks
 	timeout: number // Seconds
 	models?: string[] // Optional: override default models for this scenario
+	provider?: string // Provider override (defaults to DEFAULT_PROVIDER)
+	requiredEnv?: string[] // Env vars required for this scenario to run
+	auth?: ScenarioAuthConfig // Optional auth overrides for provider-specific scenarios
 }
 
 // Load scenarios from disk
@@ -106,6 +125,54 @@ function loadScenarios(scenariosDir: string): SmokeScenario[] {
 	}
 
 	return scenarios
+}
+
+function getMissingEnvVars(requiredEnv: string[] | undefined): string[] {
+	if (!requiredEnv || requiredEnv.length === 0) {
+		return []
+	}
+	return requiredEnv.filter((key) => !process.env[key])
+}
+
+function getScenarioProvider(scenario: SmokeScenario): string {
+	return scenario.provider || DEFAULT_PROVIDER
+}
+
+function ensureScenarioAuth(scenario: SmokeScenario, modelId: string): { ok: boolean; error?: string } {
+	const provider = getScenarioProvider(scenario)
+	const authModelId = scenario.auth?.modelId || modelId
+	const apiKeyEnv = scenario.auth?.apiKeyEnv || (provider === DEFAULT_PROVIDER ? "CLINE_API_KEY" : undefined)
+	const apiKey = apiKeyEnv ? process.env[apiKeyEnv] : undefined
+	const baseUrl = scenario.auth?.baseUrlEnv ? process.env[scenario.auth.baseUrlEnv] : undefined
+	const authCacheKey = `${provider}|${authModelId}|${baseUrl || ""}|${apiKeyEnv || ""}`
+
+	if (apiKey) {
+		if (configuredAuthCache.has(authCacheKey)) {
+			return { ok: true }
+		}
+		const result = configureAuth({ provider, apiKey, modelId: authModelId, baseUrl })
+		if (result.ok) {
+			configuredAuthCache.add(authCacheKey)
+		}
+		return result
+	}
+
+	// For default provider, local developers can rely on existing ~/.cline auth.
+	if (provider === DEFAULT_PROVIDER) {
+		return { ok: true }
+	}
+
+	if (!apiKeyEnv) {
+		return {
+			ok: false,
+			error: `Provider '${provider}' requires auth.apiKeyEnv in scenario config or preconfigured credentials`,
+		}
+	}
+
+	return {
+		ok: false,
+		error: `Missing required auth env var '${apiKeyEnv}' for provider '${provider}'`,
+	}
 }
 
 // Run a single trial
@@ -318,6 +385,8 @@ interface SmokeTestReport {
 
 // Main execution
 async function main() {
+	loadEnvFiles()
+
 	const args = process.argv.slice(2)
 
 	// Parse arguments
@@ -357,24 +426,6 @@ async function main() {
 		process.exit(1)
 	}
 
-	// Configure authentication if CLINE_API_KEY is set
-	// Otherwise use existing auth from ~/.cline
-	if (process.env.CLINE_API_KEY) {
-		console.log("Configuring authentication from CLINE_API_KEY...")
-		const authResult = configureAuth()
-		if (!authResult.ok) {
-			console.error("")
-			console.error("ERROR: Authentication failed")
-			console.error(`  ${authResult.error}`)
-			console.error("")
-			process.exit(1)
-		}
-		console.log("Authentication configured")
-	} else {
-		console.log("Using existing authentication from ~/.cline")
-	}
-	console.log("")
-
 	// Load scenarios
 	const scenariosDir = path.join(__dirname, "scenarios")
 	let scenarios = loadScenarios(scenariosDir)
@@ -392,10 +443,38 @@ async function main() {
 		}
 	}
 
+	const skippedByEnv: Array<{ id: string; missingEnv: string[] }> = []
+	if (selectedScenario) {
+		const missingEnv = getMissingEnvVars(scenarios[0].requiredEnv)
+		if (missingEnv.length > 0) {
+			console.error(`Scenario '${selectedScenario}' missing required env: ${missingEnv.join(", ")}`)
+			process.exit(1)
+		}
+	} else {
+		scenarios = scenarios.filter((scenario) => {
+			const missingEnv = getMissingEnvVars(scenario.requiredEnv)
+			if (missingEnv.length > 0) {
+				skippedByEnv.push({ id: scenario.id, missingEnv })
+				return false
+			}
+			return true
+		})
+	}
+
 	// Filter models
 	let models = MODELS
 	if (selectedModel) {
 		models = [selectedModel]
+	}
+
+	if (scenarios.length === 0) {
+		console.error("No runnable scenarios after env filtering")
+		if (skippedByEnv.length > 0) {
+			for (const skipped of skippedByEnv) {
+				console.error(`  - ${skipped.id}: missing ${skipped.missingEnv.join(", ")}`)
+			}
+		}
+		process.exit(1)
 	}
 
 	// Create results directory with timestamp
@@ -406,11 +485,17 @@ async function main() {
 
 	// Models are now always explicit
 	const resolvedModels = models
+	const providersInRun = [...new Set(scenarios.map((scenario) => getScenarioProvider(scenario)))]
 
 	console.log(`Running ${scenarios.length} scenarios × ${models.length} models × ${trials} trials`)
-	console.log(`Provider: ${DEFAULT_PROVIDER}`)
+	console.log(`Providers: ${providersInRun.join(", ")}`)
 	console.log(`Models: ${resolvedModels.join(", ")}`)
 	console.log(`Scenarios: ${scenarios.map((s) => s.id).join(", ")}`)
+	if (skippedByEnv.length > 0) {
+		console.log(
+			`Skipped by env: ${skippedByEnv.map((skipped) => `${skipped.id} (missing: ${skipped.missingEnv.join(", ")})`).join("; ")}`,
+		)
+	}
 	console.log(`Results: ${resultsDir}`)
 	console.log(`Parallel: ${parallel ? `yes (limit: ${parallelLimit})` : "no"}`)
 	console.log("")
@@ -420,7 +505,7 @@ async function main() {
 
 	// Build list of all scenario+model combinations
 	interface TestJob {
-		scenario: Scenario
+		scenario: SmokeScenario
 		modelId: string
 	}
 	const jobs: TestJob[] = []
@@ -436,6 +521,26 @@ async function main() {
 		const { scenario, modelId } = job
 		const logDir = path.join(resultsDir, scenario.id, modelId)
 		fs.mkdirSync(logDir, { recursive: true })
+
+		const authResult = ensureScenarioAuth(scenario, modelId)
+		if (!authResult.ok) {
+			const trialResults = Array.from({ length: trials }, () => ({
+				passed: false,
+				error: authResult.error || "Scenario authentication failed",
+				durationMs: 0,
+				stdout: "",
+				stderr: "",
+			}))
+			return {
+				scenarioId: scenario.id,
+				scenarioName: scenario.name,
+				model: modelId,
+				modelId,
+				trials: trialResults,
+				metrics: metricsCalc.calculateTaskMetrics(trialResults.map((t) => t.passed)),
+				status: metricsCalc.getTaskStatus(trialResults.map((t) => t.passed)),
+			}
+		}
 
 		const trialResults: TrialResult[] = []
 		const trialWorkdirs: string[] = []
@@ -504,58 +609,23 @@ async function main() {
 		// Sequential execution
 		for (const job of jobs) {
 			console.log(`\n[${job.scenario.id}] ${job.scenario.name} (${job.modelId})`)
-			const logDir = path.join(resultsDir, job.scenario.id, job.modelId)
-			fs.mkdirSync(logDir, { recursive: true })
-
-			const trialResults: TrialResult[] = []
-			const trialWorkdirs: string[] = []
-
-			for (let t = 0; t < trials; t++) {
-				const trialWorkdir = path.join(logDir, `workspace-trial-${t + 1}`)
-				trialWorkdirs.push(trialWorkdir)
-				process.stdout.write(`  Trial ${t + 1}/${trials}... `)
-				const result = await runTrial(job.scenario, job.modelId, trialWorkdir)
-				trialResults.push(result)
-				console.log(result.passed ? "✓ PASS" : `✗ FAIL: ${result.error}`)
-			}
-
-			trialResults.forEach((result, t) => {
-				const trialNum = t + 1
-				const logContent =
-					`# Trial ${trialNum}\n` +
-					`Status: ${result.passed ? "PASS" : "FAIL"}\n` +
-					`Duration: ${result.durationMs}ms\n` +
-					(result.error ? `Error: ${result.error}\n` : "") +
-					`\n## STDOUT\n${result.stdout || "(empty)"}\n` +
-					`\n## STDERR\n${result.stderr || "(empty)"}\n`
-				fs.writeFileSync(path.join(logDir, `trial-${trialNum}.log`), logContent)
+			const result = await runJob(job)
+			result.trials.forEach((trial, index) => {
+				console.log(`  Trial ${index + 1}/${trials}... ${trial.passed ? "✓ PASS" : `✗ FAIL: ${trial.error}`}`)
 			})
-
-			const trialBools = trialResults.map((t) => t.passed)
-			const metrics = metricsCalc.calculateTaskMetrics(trialBools)
-			const status = metricsCalc.getTaskStatus(trialBools)
-
-			results.push({
-				scenarioId: job.scenario.id,
-				scenarioName: job.scenario.name,
-				model: job.modelId,
-				modelId: job.modelId,
-				trials: trialResults,
-				metrics,
-				status,
-			})
+			results.push(result)
 
 			// Display pass@k where k = actual trials (pass@3 is meaningless with fewer trials)
-			const passMetric = trials >= 3 ? metrics.passAt3 : metrics.passAt1
+			const passMetric = trials >= 3 ? result.metrics.passAt3 : result.metrics.passAt1
 			const passLabel = trials >= 3 ? "pass@3" : "pass@1"
-			console.log(`  Result: ${status.toUpperCase()} | ${passLabel}: ${(passMetric * 100).toFixed(0)}%`)
+			console.log(`  Result: ${result.status.toUpperCase()} | ${passLabel}: ${(passMetric * 100).toFixed(0)}%`)
 		}
 	}
 
 	// Generate report
 	const report: SmokeTestReport = {
 		timestamp: new Date().toISOString(),
-		provider: DEFAULT_PROVIDER,
+		provider: providersInRun.join(","),
 		models: resolvedModels,
 		scenarios: scenarios.map((s) => s.id),
 		trialsPerTest: trials,

@@ -6,7 +6,9 @@ import { getDistinctId } from "../../services/logging/distinctId"
 import { telemetryService } from "../../services/telemetry"
 import {
 	HookInput,
+	HookModelContext,
 	HookOutput,
+	NotificationData,
 	PostToolUseData,
 	PreCompactData,
 	PreToolUseData,
@@ -119,9 +121,17 @@ export interface Hooks {
 	TaskComplete: {
 		taskComplete: TaskCompleteData
 	}
+	Notification: {
+		notification: NotificationData
+	}
 	PreCompact: {
 		preCompact: PreCompactData
 	}
+}
+
+export interface HookModelInputContext {
+	provider?: string
+	slug?: string
 }
 
 // The names of all supported hooks. Hooks[N] is the type of data the hook takes as input.
@@ -134,6 +144,7 @@ type HookName = keyof Hooks
  */
 export type NamedHookInput<Name extends HookName> = {
 	taskId: string
+	model?: HookModelInputContext
 } & Hooks[Name]
 
 // We look up HookRunner.exec via symbol so that the combined hook runner can call
@@ -189,6 +200,12 @@ export abstract class HookRunner<Name extends HookName> {
 			StateManager.get()
 				.getGlobalStateKey("workspaceRoots")
 				?.map((root) => root.path) || []
+
+		const model: HookModelContext = {
+			provider: params.model?.provider?.trim() || "unknown",
+			slug: params.model?.slug?.trim() || "unknown",
+		}
+
 		return {
 			clineVersion,
 			hookName: this.hookName,
@@ -196,6 +213,7 @@ export abstract class HookRunner<Name extends HookName> {
 			workspaceRoots,
 			userId: getDistinctId(), // Always available: Cline User ID, machine ID, or generated UUID
 			...params,
+			model,
 		}
 	}
 }
@@ -506,10 +524,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 				return HookOutput.create({
 					cancel: false,
 				})
-			} else {
-				// Hook failed with non-zero exit - include hook name in error
-				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
+			// Hook failed with non-zero exit - include hook name in error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		} catch (error) {
 			const durationMs = performance.now() - startTime
 
@@ -916,9 +933,12 @@ export class HookFactory {
 	}
 
 	/**
-	 * Finds a hook on Windows using git-style hook discovery.
-	 * Like git, we look for a file with the hook name (no extension) and execute it
-	 * through the shell, which handles shebangs and script interpretation.
+	 * Finds a hook on Windows by checking for a PowerShell hook file (`<HookName>.ps1`).
+	 *
+	 * Extensionless hooks are intentionally ignored on Windows.
+	 *
+	 * Why: Windows hooks execute via PowerShell (`powershell -File ...`).
+	 * The supported contract is an explicit PowerShell script file per hook type.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the hooks directory path to search
@@ -926,20 +946,33 @@ export class HookFactory {
 	 * @throws Error if an unexpected file system error occurs
 	 */
 	private static async findWindowsHook(hookName: HookName, hooksDir: string): Promise<string | undefined> {
-		const candidate = path.join(hooksDir, hookName)
+		const powerShell = path.join(hooksDir, `${hookName}.ps1`)
+		const powerShellExists = await HookFactory.isHookFile(powerShell, hookName)
 
+		if (powerShellExists) {
+			return powerShell
+		}
+
+		return undefined
+	}
+
+	private static async isHookFile(candidate: string, hookName: HookName): Promise<boolean> {
 		try {
 			const stat = await fs.stat(candidate)
-			return stat.isFile() ? candidate : undefined
+			return stat.isFile()
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected error (file doesn't exist), return undefined
-			return undefined
+			return false
 		}
 	}
 
 	/**
 	 * Finds a hook on Unix-like systems (Linux, macOS) by checking for an executable file.
+	 *
+	 * `.ps1` hook files are intentionally ignored on Unix platforms.
+	 *
+	 * Why: Unix hooks use executable-file semantics (bash scripts, binaries, etc.)
+	 * with canonical extensionless hook names.
 	 *
 	 * @param hookName the name of the hook to search for
 	 * @param hooksDir the .clinerules directory path to search
@@ -954,7 +987,7 @@ export class HookFactory {
 			return stat.isFile() ? candidate : undefined
 		} catch (error) {
 			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-			// Expected error (file doesn't exist or not executable), return undefined
+			// Expected errors (missing/non-executable hook) return no match.
 			return undefined
 		}
 	}

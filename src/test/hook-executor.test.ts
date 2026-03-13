@@ -4,6 +4,7 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import * as sinon from "sinon"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
@@ -17,13 +18,7 @@ import { ClineMessage } from "../shared/ExtensionMessage"
  * ~400 lines of duplicated code across TaskStart, TaskResume, UserPromptSubmit, and TaskCancel
  */
 describe("Hook Executor", () => {
-	// Skip all hook tests on Windows as hooks are not yet supported on that platform
-	if (process.platform === "win32") {
-		it.skip("Hook tests are not supported on Windows yet", () => {
-			// This is intentional - hooks will be implemented for Windows in a future release
-		})
-		return
-	}
+	const isWindows = process.platform === "win32"
 	let tempDir: string
 	let baseTempDir: string // Store base directory for cleanup
 	let testHandler: MessageStateHandler
@@ -49,11 +44,16 @@ describe("Hook Executor", () => {
 	async function createHookScript(
 		hookName: string,
 		output: { cancel?: boolean; contextModification?: string; errorMessage?: string },
-		exitCode: number = 0,
-		delayMs: number = 0,
+		exitCode = 0,
+		delayMs = 0,
 	): Promise<string> {
-		const scriptPath = path.join(tempDir, hookName)
-		const scriptContent = `#!/usr/bin/env node
+		const scriptPath = path.join(tempDir, hookFileName(hookName))
+		const scriptContent = isWindows
+			? `Start-Sleep -Milliseconds ${delayMs}
+Write-Output '${JSON.stringify(output).replace(/'/g, "''")}'
+exit ${exitCode}
+`
+			: `#!/usr/bin/env node
 const delay = ${delayMs};
 setTimeout(() => {
   console.log(${JSON.stringify(JSON.stringify(output))});
@@ -578,6 +578,35 @@ setTimeout(() => {
 				hooksEnabled: true,
 			})
 
+			result.wasCancelled.should.equal(false)
+		})
+
+		it("should execute Notification hook with attention payload", async function () {
+			this.timeout(5000)
+
+			await createHookScript("Notification", {
+				cancel: false,
+				contextModification: "Notification received",
+			})
+
+			const result = await executeHook({
+				hookName: "Notification",
+				hookInput: {
+					notification: {
+						event: "user_attention",
+						source: "tool",
+						message: "Approve this action",
+						waitingForUserInput: true,
+					},
+				},
+				isCancellable: false,
+				say: async () => Date.now(),
+				messageStateHandler: testHandler,
+				taskId: "test-task",
+				hooksEnabled: true,
+			})
+
+			result.contextModification!.should.equal("Notification received")
 			result.wasCancelled.should.equal(false)
 		})
 	})

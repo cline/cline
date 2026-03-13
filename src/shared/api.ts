@@ -110,6 +110,7 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 }
 
 export const CLAUDE_SONNET_1M_SUFFIX = ":1m"
+export const ANTHROPIC_FAST_MODE_SUFFIX = ":fast"
 export const CLAUDE_SONNET_1M_TIERS = [
 	{
 		contextWindow: 200000,
@@ -255,6 +256,19 @@ export const anthropicModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 	},
+	"claude-opus-4-6:fast": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 30.0,
+		outputPrice: 150.0,
+		cacheWritesPrice: 37.5,
+		cacheReadsPrice: 3.0,
+		description:
+			"Anthropic fast mode preview for Claude Opus 4.6. Same model and capabilities with higher output token speed at premium pricing. Requires fast mode access on your Anthropic account.",
+	},
 	"claude-opus-4-6:1m": {
 		maxTokens: 128_000,
 		contextWindow: 1_000_000,
@@ -266,6 +280,19 @@ export const anthropicModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-opus-4-6:1m:fast": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 30.0,
+		outputPrice: 150.0,
+		cacheWritesPrice: 37.5,
+		cacheReadsPrice: 3.0,
+		description:
+			"Anthropic fast mode preview for Claude Opus 4.6 with the 1M context beta enabled. Same model and capabilities with higher output token speed at premium pricing across the full 1M context window. Requires both fast mode and 1M context access on your Anthropic account.",
 	},
 	"claude-opus-4-5-20251101": {
 		maxTokens: 64_000,
@@ -1894,6 +1921,18 @@ export const openAiNativeModels = {
 export type OpenAiCodexModelId = keyof typeof openAiCodexModels
 export const openAiCodexDefaultModelId: OpenAiCodexModelId = "gpt-5.3-codex"
 export const openAiCodexModels = {
+	"gpt-5.4": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		apiFormat: ApiFormat.OPENAI_RESPONSES,
+		// Subscription-based: no per-token costs
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "GPT-5.4 Codex: OpenAI's latest flagship coding model via ChatGPT subscription",
+	},
 	"gpt-5.3-codex": {
 		maxTokens: 128_000,
 		contextWindow: 400_000,

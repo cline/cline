@@ -1,10 +1,15 @@
+// biome-ignore-all lint/suspicious/noUselessEscapeInString: keep shell JSON echo pattern aligned with existing templates
 /**
  * Hook script templates for all supported hook types.
- * Templates are provided as executable Bash shell scripts with comprehensive examples.
- * Scripts use jq for JSON parsing when available, with fallback to basic parsing.
+ * On Unix, templates are Bash scripts with comprehensive examples.
+ * On Windows, templates are PowerShell scripts executed by the Windows hook runtime.
  */
 
 export function getHookTemplate(hookName: string): string {
+	if (process.platform === "win32") {
+		return getWindowsPowerShellTemplate(hookName)
+	}
+
 	const templates: Record<string, string> = {
 		TaskStart: getTaskStartTemplate(),
 		TaskResume: getTaskResumeTemplate(),
@@ -13,10 +18,32 @@ export function getHookTemplate(hookName: string): string {
 		PreToolUse: getPreToolUseTemplate(),
 		PostToolUse: getPostToolUseTemplate(),
 		UserPromptSubmit: getUserPromptSubmitTemplate(),
+		Notification: getNotificationTemplate(),
 		PreCompact: getPreCompactTemplate(),
 	}
 
 	return templates[hookName] || getDefaultTemplate(hookName)
+}
+
+function getWindowsPowerShellTemplate(hookName: string): string {
+	return `# ${hookName} Hook
+# PowerShell template for Windows hook execution.
+
+try {
+    $rawInput = [Console]::In.ReadToEnd()
+    if ($rawInput) {
+        $null = $rawInput | ConvertFrom-Json
+    }
+} catch {
+    Write-Error "[${hookName}] Invalid JSON input: $($_.Exception.Message)"
+}
+
+@{
+    cancel = $false
+    contextModification = ""
+    errorMessage = ""
+} | ConvertTo-Json -Compress
+`
 }
 
 function getTaskStartTemplate(): string {
@@ -282,6 +309,49 @@ fi
 echo "[UserPromptSubmit] User submitted prompt (length: $PROMPT_LENGTH)" >&2
 
 # Return result
+echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
+`
+}
+
+function getNotificationTemplate(): string {
+	return `#!/bin/bash
+#
+# Notification Hook
+#
+# Executes when Cline reaches a user-attention boundary or emits lifecycle notifications.
+#
+# Input: {
+#   taskId,
+#   notification: {
+#     event: string,
+#     source: string,
+#     message: string,
+#     waitingForUserInput: boolean
+#   },
+#   clineVersion,
+#   timestamp,
+#   ...
+# }
+# Output: { cancel: boolean, contextModification?: string, errorMessage?: string }
+#
+# Typical events:
+# - user_attention (ask prompt requiring user input)
+# - task_complete (task reached completion)
+
+INPUT=$(cat)
+
+if command -v jq &> /dev/null; then
+  EVENT=$(echo "$INPUT" | jq -r '.notification.event // "unknown"')
+  SOURCE=$(echo "$INPUT" | jq -r '.notification.source // "unknown"')
+  WAITING=$(echo "$INPUT" | jq -r '.notification.waitingForUserInput // false')
+else
+  EVENT="unknown"
+  SOURCE="unknown"
+  WAITING="false"
+fi
+
+echo "[Notification] event=$EVENT source=$SOURCE waitingForUserInput=$WAITING" >&2
+
 echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
 `
 }

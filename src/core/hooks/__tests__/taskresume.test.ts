@@ -1,58 +1,29 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskResume Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	let hookTestEnv: HookTestEnv
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
-	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
-		} as any)
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		sandbox.restore()
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("Hook Input Format", () => {
@@ -92,7 +63,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -100,7 +71,8 @@ console.log(JSON.stringify({
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
-                     input.taskId && input.workspaceRoots !== undefined;
+                     input.taskId && input.workspaceRoots !== undefined &&
+                     input.model && input.model.provider && input.model.slug;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
@@ -123,12 +95,16 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 	})
 
 	describe("Time-Based Calculations", () => {
-		it("should correctly calculate minutes ago for recent resumes", async () => {
+		it("should correctly calculate minutes ago for recent resumes", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -166,7 +142,7 @@ console.log(JSON.stringify({
 					},
 				})
 
-				result.contextModification!.should.equal(`Minutes ago: ${expected}`)
+				result.contextModification?.should.equal(`Minutes ago: ${expected}`)
 			}
 		})
 
@@ -201,7 +177,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Days ago: 7")
+			result.contextModification?.should.equal("Days ago: 7")
 		})
 
 		it("should handle edge case: future timestamp", async () => {
@@ -234,12 +210,16 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Future timestamp detected")
+			result.contextModification?.should.equal("Future timestamp detected")
 		})
 	})
 
 	describe("Message Count Analysis", () => {
-		it("should analyze message count thresholds", async () => {
+		it("should analyze message count thresholds", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -277,7 +257,7 @@ console.log(JSON.stringify({
 					},
 				})
 
-				result.contextModification!.should.equal(`Conversation length: ${expected}`)
+				result.contextModification?.should.equal(`Conversation length: ${expected}`)
 			}
 		})
 
@@ -308,7 +288,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Empty conversation")
+			result.contextModification?.should.equal("Empty conversation")
 		})
 	})
 
@@ -344,7 +324,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("STALE_TASK: Long conversation paused for extended time")
+			result.contextModification?.should.equal("STALE_TASK: Long conversation paused for extended time")
 		})
 
 		it("should combine context deletion with other state", async () => {
@@ -377,7 +357,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("CONTEXT_WARNING: Large conversation with truncated history")
+			result.contextModification?.should.equal("CONTEXT_WARNING: Large conversation with truncated history")
 		})
 	})
 
@@ -438,24 +418,20 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Invalid timestamp")
+			result.contextModification?.should.equal("Invalid timestamp")
 		})
 	})
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				const workspaceDirs = await originalGetAllHooksDirs()
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace TaskResume hooks", async () => {
@@ -491,8 +467,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Task resumed/)
-			result.contextModification!.should.match(/WORKSPACE: Task resumed/)
+			result.contextModification?.should.match(/GLOBAL: Task resumed/)
+			result.contextModification?.should.match(/WORKSPACE: Task resumed/)
 		})
 
 		it("should combine context modifications from both hooks with time analysis", async () => {
@@ -534,8 +510,8 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.match(/GLOBAL_POLICY: Review task context/)
-			result.contextModification!.should.match(/PROJECT_NOTE: 15 messages in history/)
+			result.contextModification?.should.match(/GLOBAL_POLICY: Review task context/)
+			result.contextModification?.should.match(/PROJECT_NOTE: 15 messages in history/)
 		})
 	})
 
@@ -585,7 +561,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskResume hook executed successfully")
+			result.contextModification?.should.equal("TaskResume hook executed successfully")
 		})
 
 		it("should work with recent-resume fixture", async () => {
@@ -605,7 +581,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/Recently paused task/)
+			result.contextModification?.should.match(/Recently paused task/)
 		})
 
 		it("should work with long-pause fixture", async () => {
@@ -625,7 +601,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/paused 48 hours ago/)
+			result.contextModification?.should.match(/paused 48 hours ago/)
 		})
 
 		it("should work with context-deleted fixture", async () => {
@@ -644,7 +620,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/truncated/)
+			result.contextModification?.should.match(/truncated/)
 		})
 
 		it("should work with message-count fixture", async () => {
@@ -663,7 +639,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
+			result.contextModification?.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
 		})
 
 		it("should work with context-injection fixture", async () => {
@@ -682,7 +658,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("WORKSPACE_RULES: Task test-task resumed - review previous context")
+			result.contextModification?.should.equal("WORKSPACE_RULES: Task test-task resumed - review previous context")
 		})
 
 		it("should work with error fixture", async () => {

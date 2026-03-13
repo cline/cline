@@ -30,7 +30,11 @@ permissions:
   pull-requests: write # Required by nested reusable test workflow
 
 jobs:
+  cli-tui-tests:
+    uses: ./.github/workflows/cli-tui-tests.yml
+
   publish-main:
+    needs: cli-tui-tests
     if: |
       github.repository == 'cline/cline' && (
         github.event_name == 'workflow_dispatch' &&
@@ -44,6 +48,7 @@ jobs:
       confirm_publish: ${{ github.event.inputs.confirm_publish }}
 
   publish-nightly:
+    needs: cli-tui-tests
     if: |
       github.repository == 'cline/cline' && (
         github.event_name == 'schedule' ||

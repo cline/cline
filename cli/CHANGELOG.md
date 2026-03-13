@@ -1,5 +1,66 @@
 # cline
 
+## [2.7.0]
+
+### Added
+
+- Added MCP add shortcuts for stdio and HTTP servers
+- Added `--continue` for the current directory
+- Added `--auto-condense` flag for AI-powered context compaction
+- Added `--hooks-dir` flag for runtime hook injection
+- Enabled error autocapture
+- Prompt rules now include test verification guidance and make `CLI_RULES` language-agnostic
+
+### Fixed
+
+- Fixed remount behavior so TUI remounts only on width resize
+- Fixed startup prompt replay on resize remount
+- Fixed task flags so they are applied before the welcome TUI mounts
+
+### Changed
+
+- Hooks: reintroduced feature toggle
+
+## [2.6.1]
+
+### Added
+
+- Added GPT-5.4 models for ChatGPT subscription users
+- Hooks: Added a `Notification` hook for attention and completion boundaries
+- Added `--hooks-dir` CLI flag for runtime hook injection
+- Added `--auto-approve-all` CLI flag for interactive mode
+
+### Fixed
+
+- Handle streamable HTTP MCP reconnects more reliably
+
+## [2.6.0]
+
+### Added
+
+- Hook payloads now include `model.provider` and `model.slug` 
+- Token/cost updates now happen immediately as usage chunks arrive, not after tool execution
+
+### Fixed
+
+- Improve subagent context compaction logic
+- Subagent stream retry delay increased to reduce noise from transient failures
+- State serialization errors are now caught and logged instead of crashing
+- Removed incorrect `max_tokens` from OpenRouter requests
+
+## [2.5.2]
+
+### Added
+
+- Added Windows PowerShell support for hooks (execution, resolution, and management), improving hook behavior on Windows for CLI and shared core workflows.
+
+### Fixed
+
+- Restored GPT-OSS native file editing for OpenAI-compatible models used through shared core tooling.
+- Improved OpenRouter context overflow error handling so auto-compaction triggers correctly for wrapped 400 errors.
+- Hardened checkpoint recovery by retrying nested git restore and preventing silent `.git_disabled` leftovers.
+- Added a User-Agent header for requests to the Cline back-end to improve request handling consistency.
+
 ## [2.5.1]
 
 ### Added
