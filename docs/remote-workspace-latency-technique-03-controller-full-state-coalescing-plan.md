@@ -188,19 +188,19 @@ This scheduler is conceptually parallel to the presentation scheduler, but it co
 
 ### Work
 
-- [ ] Implement `StateUpdateScheduler` with request/flush/dispose behavior.
-- [ ] Support priority merging.
-- [ ] Avoid overlapping snapshot flushes.
-- [ ] Re-run once if additional work arrives during flush.
+- [x] Implement `StateUpdateScheduler` with request/flush/dispose behavior.
+- [x] Support priority merging.
+- [x] Avoid overlapping snapshot flushes.
+- [x] Re-run once if additional work arrives during flush.
 
 ### Detailed code changes
 
 - In `src/core/controller/StateUpdateScheduler.ts`:
-  - [ ] track `scheduledTimer`, `pendingPriority`, `flushInProgress`, `pendingWhileFlushing`, and `disposed`.
-  - [ ] support `requestFlush(priority)`.
-  - [ ] support `flushNow()`.
-  - [ ] support `dispose()`.
-  - [ ] ensure `immediate` preempts a pending delayed timer.
+  - [x] track `scheduledTimer`, `pendingPriority`, `flushInProgress`, `pendingWhileFlushing`, and `disposed`.
+  - [x] support `requestFlush(priority)`.
+  - [x] support `flushNow()`.
+  - [x] support `dispose()`.
+  - [x] ensure `immediate` preempts a pending delayed timer.
 
 Be smart about the scheduler design here. A controller-level scheduler can look mechanically similar to the presentation scheduler, but the failure mode is different: a presentation bug is usually visible in one message stream, while a snapshot bug can destabilize the whole UI state model.
 
@@ -275,7 +275,7 @@ Snapshot frequency alone is not enough. One giant expensive snapshot can be wors
   - [x] add `flushStateToWebview()` that records build duration and delivery stats.
   - [x] call `task?.noteStateUpdateMetrics(...)` with build duration, payload bytes, and send duration.
 - In `src/core/controller/state/subscribeToState.ts`:
-  - [ ] ensure payload byte counting remains available and accurate.
+  - [x] ensure payload byte counting remains available and accurate.
 
 This step is not just observability polish. It is what lets the team prove that the extracted technique is actually reducing snapshot churn rather than merely moving it around.
 
@@ -369,16 +369,16 @@ Remote mode should intentionally trade a little more coalescing for much less tr
 
 ### Work
 
-- [ ] Centralize cadence defaults in `latency.ts`.
-- [ ] Expose env var overrides for local and remote state cadence.
-- [ ] Document these in `.env.example`.
+- [x] Centralize cadence defaults in `latency.ts`.
+- [x] Expose env var overrides for local and remote state cadence.
+- [x] Document these in `.env.example`.
 
 ### Detailed code changes
 
 - In `src/core/task/latency.ts`:
-  - [ ] add/preserve `getStateUpdateCadenceMs(isRemoteWorkspace, priority)`.
+  - [x] add/preserve `getStateUpdateCadenceMs(isRemoteWorkspace, priority)`.
 - In `.env.example`:
-  - [ ] document state update cadence overrides.
+  - [x] document state update cadence overrides.
 
 Keep the tuning hooks aligned with the reference implementation so extracted behavior can be compared apples-to-apples during rollout and validation.
 
@@ -422,7 +422,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - [x] Instrument build/send/payload metrics
 - [x] Audit state-posting callsites
 - [ ] Validate high-churn and large-file-write scenarios
-- [ ] Add remote-aware cadence tuning
+- [x] Add remote-aware cadence tuning
 - [ ] Verify non-streaming product-surface safety
 
 ---
