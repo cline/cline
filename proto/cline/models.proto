@@ -199,6 +199,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string lm_studio_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -686,4 +687,5 @@ message ModelsApiConfiguration {
   optional string gemini_act_mode_thinking_level = 239;
   optional string act_mode_cline_model_id = 240;
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
+  optional string lm_studio_api_key = 242;
 }
