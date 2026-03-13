@@ -110,4 +110,46 @@ describe("EphemeralMessageFlushScheduler", () => {
 		await Promise.resolve()
 		assert.equal(flushCount, 1)
 	})
+
+	it("does not create overlapping timers when start is called repeatedly", async () => {
+		const timer = new FakeIntervalController()
+		let flushCount = 0
+		const scheduler = new EphemeralMessageFlushScheduler({
+			flush: async () => {
+				flushCount += 1
+			},
+			getDelayMs: () => 100,
+			setIntervalFn: timer.setInterval as typeof setInterval,
+			clearIntervalFn: timer.clearInterval as typeof clearInterval,
+		})
+
+		scheduler.start()
+		scheduler.start()
+		scheduler.start()
+
+		timer.advance(100)
+		await Promise.resolve()
+
+		assert.equal(flushCount, 1)
+	})
+
+	it("dispose stops future flushes", async () => {
+		const timer = new FakeIntervalController()
+		let flushCount = 0
+		const scheduler = new EphemeralMessageFlushScheduler({
+			flush: async () => {
+				flushCount += 1
+			},
+			getDelayMs: () => 100,
+			setIntervalFn: timer.setInterval as typeof setInterval,
+			clearIntervalFn: timer.clearInterval as typeof clearInterval,
+		})
+
+		scheduler.start()
+		scheduler.dispose()
+		timer.advance(500)
+		await Promise.resolve()
+
+		assert.equal(flushCount, 0)
+	})
 })

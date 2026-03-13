@@ -363,9 +363,9 @@ The correct behavior is not “persist every partial” and not “never persist
 ### Detailed code changes
 
 - In `src/core/task/EphemeralMessageFlushScheduler.ts`:
-  - [ ] ensure a single timer is active,
+  - [x] ensure a single timer is active,
   - [x] prevent overlap between flushes,
-  - [ ] support clean start/stop/dispose semantics.
+  - [x] support clean start/stop/dispose semantics.
 - In `src/core/task/index.ts`:
   - [ ] start scheduler near request start,
   - [ ] stop scheduler in both success and error/finally paths,
@@ -459,7 +459,7 @@ Treat the feature flag and validation path as first-class extraction requirement
 - [x] Add periodic safety flush scheduler
 - [x] Validate large-file / long-stream scenarios
 - [x] Preserve rollout flags and debugging support
-- [ ] Run unit, integration, and validation-harness checks
+- [x] Run unit, integration, and validation-harness checks
 
 ---
 
