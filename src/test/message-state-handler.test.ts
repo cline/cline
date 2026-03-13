@@ -39,6 +39,16 @@ describe("MessageStateHandler Mutex Protection", () => {
 		})
 	}
 
+	function createTestHandlerWithHistorySpy(updateTaskHistory: (historyItem: any) => Promise<any[]>): MessageStateHandler {
+		const taskState = new TaskState()
+		return new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory,
+		})
+	}
+
 	/**
 	 * Helper to create a test ClineMessage
 	 */
@@ -199,6 +209,20 @@ describe("MessageStateHandler Mutex Protection", () => {
 		}
 	})
 
+	it("should throw error for invalid message index in updateClineMessageEphemeral", async () => {
+		const handler = createTestHandler()
+		handler.setClineMessages([createTestMessage("msg1")])
+
+		try {
+			await handler.updateClineMessageEphemeral(5, { text: "invalid" })
+			throw new Error("Should have thrown")
+		} catch (error) {
+			if (error instanceof Error) {
+				error.message.should.match(/Invalid message index/)
+			}
+		}
+	})
+
 	/**
 	 * Test that invalid indices are rejected in deleteClineMessage
 	 */
@@ -326,6 +350,31 @@ describe("MessageStateHandler Mutex Protection", () => {
 		metrics.persistenceFlushCount.should.equal(0)
 		metrics.saveMessagesDurationMs.should.equal(0)
 		metrics.updateHistoryDurationMs.should.equal(0)
+	})
+
+	it("updates task history when flushing previously-ephemeral changes", async () => {
+		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-history-spy-"))
+		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })
+
+		let latestHistoryItem: any
+		const handler = createTestHandlerWithHistorySpy(async (historyItem) => {
+			latestHistoryItem = historyItem
+			return [historyItem]
+		})
+
+		await handler.addToClineMessagesEphemeral({
+			...createTestMessage("history-visible partial"),
+			partial: true,
+		})
+
+		await handler.flushClineMessagesAndUpdateHistory()
+
+		should.exist(latestHistoryItem)
+		latestHistoryItem.id.should.equal("test-task-id")
+		latestHistoryItem.ulid.should.equal("test-ulid")
+		latestHistoryItem.task.should.equal("history-visible partial")
+		latestHistoryItem.ts.should.be.a.Number()
+		handler.consumeLatencyMetrics().persistenceFlushCount.should.equal(1)
 	})
 
 	it("should persist when a partial message transitions to complete", async () => {

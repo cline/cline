@@ -158,7 +158,7 @@ If developers cannot quickly answer “does this mutation need to survive a cras
 
 - [x] Add code comments near `MessageStateHandler` describing the distinction between ephemeral and durable mutations.
 - [x] Add code comments in `Task.say(...)` and `Task.ask(...)` documenting which partial flows are intentionally ephemeral.
-- [ ] Define a durable-boundary checklist in comments or docstrings, including at minimum:
+- [x] Define a durable-boundary checklist in comments or docstrings, including at minimum:
   - [x] partial → complete transition
   - [x] tool completion / tool result boundary
   - [x] request completion
@@ -204,29 +204,29 @@ The presence of dedicated APIs changes developer behavior. If the only available
 ### Detailed code changes
 
 - In `src/core/task/message-state.ts`:
-  - [ ] Add a `hasDirtyEphemeralChanges` flag if it does not already exist.
-  - [ ] In `addToClineMessagesEphemeral(...)`:
-    - [ ] set `conversationHistoryIndex` and `conversationHistoryDeletedRange` exactly as durable add does,
-    - [ ] mutate `clineMessages`,
-    - [ ] mark dirty,
-    - [ ] emit `clineMessagesChanged`.
-  - [ ] In `updateClineMessageEphemeral(...)`:
-    - [ ] validate index,
-    - [ ] capture previous message,
-    - [ ] mutate in place,
-    - [ ] mark dirty,
-    - [ ] emit `clineMessagesChanged`.
-  - [ ] Keep delta emission behavior identical between ephemeral and durable changes so frontend live behavior stays consistent.
+- [x] Add a `hasDirtyEphemeralChanges` flag if it does not already exist.
+  - [x] In `addToClineMessagesEphemeral(...)`:
+    - [x] set `conversationHistoryIndex` and `conversationHistoryDeletedRange` exactly as durable add does,
+    - [x] mutate `clineMessages`,
+    - [x] mark dirty,
+    - [x] emit `clineMessagesChanged`.
+  - [x] In `updateClineMessageEphemeral(...)`:
+    - [x] validate index,
+    - [x] capture previous message,
+    - [x] mutate in place,
+    - [x] mark dirty,
+    - [x] emit `clineMessagesChanged`.
+  - [x] Keep delta emission behavior identical between ephemeral and durable changes so frontend live behavior stays consistent.
 
 The smart way to execute this step is to compare the durable and ephemeral codepaths side by side in the reference implementation branch and preserve the shared invariants exactly. The extraction should reduce write amplification, not create a shadow message-state model with slightly different semantics.
 
 ### Tests
 
-- [ ] Unit test: ephemeral add mutates in-memory state without calling persistence.
-- [ ] Unit test: ephemeral update mutates in-memory state without calling persistence.
-- [ ] Unit test: ephemeral mutation emits `clineMessagesChanged` with correct shape.
+- [x] Unit test: ephemeral add mutates in-memory state without calling persistence.
+- [x] Unit test: ephemeral update mutates in-memory state without calling persistence.
+- [x] Unit test: ephemeral mutation emits `clineMessagesChanged` with correct shape.
 - [ ] Unit test: ephemeral mutation still emits task UI deltas when delta sync is enabled.
-- [ ] Unit test: invalid index still throws in ephemeral update path.
+- [x] Unit test: invalid index still throws in ephemeral update path.
 
 ---
 
@@ -249,18 +249,18 @@ We are not removing durability; we are **batching** durability at the right sema
 ### Detailed code changes
 
 - In `src/core/task/message-state.ts`:
-  - [ ] Add `flushClineMessagesAndUpdateHistory()` guarded by `withStateLock(...)`.
-  - [ ] If `hasDirtyEphemeralChanges` is false, return early.
-  - [ ] Otherwise call `saveClineMessagesAndUpdateHistoryInternal()`.
-  - [ ] Ensure `saveClineMessagesAndUpdateHistoryInternal()` clears the dirty flag only after successful save/update-history flow.
+  - [x] Add `flushClineMessagesAndUpdateHistory()` guarded by `withStateLock(...)`.
+  - [x] If `hasDirtyEphemeralChanges` is false, return early.
+  - [x] Otherwise call `saveClineMessagesAndUpdateHistoryInternal()`.
+  - [x] Ensure `saveClineMessagesAndUpdateHistoryInternal()` clears the dirty flag only after successful save/update-history flow.
 
 This step is where the implementation starts to feel like a deliberate state machine rather than a collection of helper methods. Be smart about failure ordering here: if the code clears the dirty bit too early or conflates flush success with mutation success, recovery correctness will quietly degrade.
 
 ### Tests
 
-- [ ] Unit test: flush persists previously-ephemeral changes.
-- [ ] Unit test: flush is a cheap no-op when there are no dirty changes.
-- [ ] Unit test: task history reflects flushed content after prior ephemeral mutation.
+- [x] Unit test: flush persists previously-ephemeral changes.
+- [x] Unit test: flush is a cheap no-op when there are no dirty changes.
+- [x] Unit test: task history reflects flushed content after prior ephemeral mutation.
 
 ---
 
