@@ -41,6 +41,7 @@ import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
+import { migrateMcpSettings } from "./hosts/vscode/mcp-settings-migration"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
@@ -78,11 +79,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	const storageContext = createStorageContext({ workspacePath })
 	await exportVSCodeStorageToSharedFiles(context, storageContext)
 
-	// 4. Register services and perform common initialization
+	// 4. Migrate MCP settings from VSCode's host-specific path to shared ~/.cline/data/settings/.
+	// This has its own sentinel and runs independently of the global/workspace migration.
+	await migrateMcpSettings(context, storageContext)
+
+	// 5. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
 
-	// 5. Register services and commands specific to VS Code
+	// 6. Register services and commands specific to VS Code
 	// Initialize test mode and add disposables to context
 	const testModeWatchers = await initializeTestMode(webview)
 	context.subscriptions.push(...testModeWatchers)
