@@ -290,7 +290,13 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 
 		// Only reset after a successful operation so repeated failures
 		// accumulate toward the yolo-mode mistake limit.
-		config.taskState.consecutiveMistakeCount = 0
+		// If ALL searches failed, increment the mistake counter.
+		const anySucceeded = searchResults.some((result) => result.success)
+		if (anySucceeded) {
+			config.taskState.consecutiveMistakeCount = 0
+		} else {
+			config.taskState.consecutiveMistakeCount++
+		}
 
 		// Capture workspace search pattern telemetry
 		if (config.isMultiRootEnabled && config.workspaceManager) {

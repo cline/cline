@@ -398,9 +398,10 @@ describe("SearchFilesToolHandler.execute – error recovery", () => {
 
 		const result = await handler.execute(config, makeBlock("no-such-dir", "pattern"))
 
-		// regexSearchFiles is resilient to non-existent directories.
+		// regexSearchFiles throws for non-existent directories, executeSearch catches it,
+		// returns success=false, and the handler increments consecutiveMistakeCount.
 		assert.equal(typeof result, "string")
-		assert.equal(taskState.consecutiveMistakeCount, 0)
+		assert.equal(taskState.consecutiveMistakeCount, 1)
 	})
 
 	it("increments consecutiveMistakeCount when path parameter is missing", async () => {
@@ -442,6 +443,10 @@ describe("SearchFilesToolHandler.execute – error recovery", () => {
 		await handler.execute(config, makeBlock("dir"))
 		assert.equal(taskState.consecutiveMistakeCount, 2)
 
+		// Stub regexSearchFiles to return a successful result
+		const ripgrepModule = await import("@services/ripgrep")
+		sandbox.stub(ripgrepModule, "regexSearchFiles").resolves("Found 0 results.\n\n")
+
 		// Search in tmpDir (exists, will find 0 results but should succeed)
 		const result = await handler.execute(config, makeBlock(".", "nonexistent-pattern-xyz"))
 		assert.equal(typeof result, "string")
@@ -477,5 +482,60 @@ describe("SearchFilesToolHandler.execute – error recovery", () => {
 
 		await handler.execute(config, makeBlock("dir-3", "pat"))
 		assert.equal(taskState.consecutiveMistakeCount, 3)
+	})
+
+	it("increments consecutiveMistakeCount when regexSearchFiles throws", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new SearchFilesToolHandler(validator)
+
+		// Stub regexSearchFiles to throw
+		const ripgrepModule = await import("@services/ripgrep")
+		sandbox.stub(ripgrepModule, "regexSearchFiles").rejects(new Error("ripgrep crashed"))
+
+		const result = await handler.execute(config, makeBlock(".", "pattern"))
+
+		// The search failed, so consecutiveMistakeCount should increment
+		assert.equal(typeof result, "string")
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+	})
+
+	it("accumulates failures when regexSearchFiles throws repeatedly", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new SearchFilesToolHandler(validator)
+
+		const ripgrepModule = await import("@services/ripgrep")
+		sandbox.stub(ripgrepModule, "regexSearchFiles").rejects(new Error("boom"))
+
+		await handler.execute(config, makeBlock("dir-1", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock("dir-2", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock("dir-3", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 3)
+	})
+
+	it("resets consecutiveMistakeCount after regexSearchFiles failure is followed by success", async () => {
+		const { config, taskState, validator } = createConfig()
+		const handler = new SearchFilesToolHandler(validator)
+
+		const ripgrepModule = await import("@services/ripgrep")
+		const stub = sandbox.stub(ripgrepModule, "regexSearchFiles")
+
+		// First two calls fail
+		stub.onFirstCall().rejects(new Error("boom"))
+		stub.onSecondCall().rejects(new Error("boom"))
+		// Third call succeeds
+		stub.onThirdCall().resolves("Found 0 results.\n\n")
+
+		await handler.execute(config, makeBlock("dir-1", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+
+		await handler.execute(config, makeBlock("dir-2", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 2)
+
+		await handler.execute(config, makeBlock("dir-3", "pat"))
+		assert.equal(taskState.consecutiveMistakeCount, 0)
 	})
 })
