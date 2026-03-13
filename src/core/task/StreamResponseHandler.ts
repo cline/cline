@@ -317,7 +317,13 @@ class ReasoningHandler {
 			return null
 		}
 
-		if (!this.pendingReasoning.summary.length && !this.pendingReasoning.content) {
+		// Only discard if there is truly nothing: no content, no summary, and no ID.
+		// When an ID is present, OpenAI requires the reasoning item to be sent back in
+		// the next request's input — even with an empty summary — to avoid orphaning
+		// the paired function_call ("function_call was provided without its required
+		// reasoning item: rs_..."). Keep the block so convertToOpenAIResponsesInput()
+		// can include it with summary: [].
+		if (!this.pendingReasoning.summary.length && !this.pendingReasoning.content && !this.pendingReasoning.id) {
 			return null
 		}
 
