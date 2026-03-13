@@ -194,6 +194,7 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/First full-state avg: 14.00 ms/)).toBeTruthy()
 		expect(screen.getByText(/First partial avg: 16.00 ms/)).toBeTruthy()
 		expect(screen.getByText(/Chunk→webview avg: 9.00 ms/)).toBeTruthy()
+		expect(screen.getByText(/Chunk→webview timing: Supported/)).toBeTruthy()
 		expect(screen.getByText(/Req partial bytes: 256/)).toBeTruthy()
 
 		fireEvent.click(screen.getByText("Export Session JSON"))
