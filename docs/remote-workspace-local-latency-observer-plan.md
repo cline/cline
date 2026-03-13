@@ -212,7 +212,7 @@ These should work on both `main` and `eve_troubleshooting-remote-workspaces` wit
 
 These may only exist natively on `eve_troubleshooting-remote-workspaces` or may require additional light plumbing on `main`:
 
-- [ ] chunk-to-webview timing
+- [x] chunk-to-webview timing
 - [x] full-state post counts / bytes
 - [x] partial-message event counts
 - [x] task UI delta counts
@@ -342,7 +342,7 @@ Do **not** couple the observer directly to candidate-branch-only telemetry struc
   - [x] request start
   - [x] first visible update
   - [x] request completion
-- [ ] Keep richer optional hooks for state-post counts, chunk-to-webview, etc.
+- [x] Keep richer optional hooks for state-post counts, chunk-to-webview, etc.
 
 ### Detailed code changes
 
