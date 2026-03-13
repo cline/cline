@@ -253,6 +253,12 @@ export class Task {
 
 	// Task Locking (Sqlite)
 	private taskLockAcquired: boolean
+	private requestLatencyMetrics = {
+		statePostCount: 0,
+		statePostBuildDurationMs: 0,
+		statePostSerializedBytes: 0,
+		statePostSendDurationMs: 0,
+	}
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
@@ -567,6 +573,13 @@ export class Task {
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
 		)
+	}
+
+	public noteStateUpdateMetrics(metrics: { buildDurationMs: number; serializedBytes: number; sendDurationMs: number }) {
+		this.requestLatencyMetrics.statePostCount += 1
+		this.requestLatencyMetrics.statePostBuildDurationMs += metrics.buildDurationMs
+		this.requestLatencyMetrics.statePostSerializedBytes += metrics.serializedBytes
+		this.requestLatencyMetrics.statePostSendDurationMs += metrics.sendDurationMs
 	}
 
 	// Communicate with webview
