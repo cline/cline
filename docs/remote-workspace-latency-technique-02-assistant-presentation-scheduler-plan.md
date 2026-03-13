@@ -10,6 +10,30 @@ In other words, the model may emit chunks at machine cadence, but the user only 
 
 This plan explains how to introduce a scheduler that coalesces presentation work without compromising semantic immediacy at important boundaries like first token, tool transitions, errors, and final completion.
 
+## How To Use This Plan
+
+This plan should be implemented on its **own extraction branch**. Do not treat this document as a net-new design exercise.
+
+The branch `eve_troubleshooting-remote-workspaces` already contains the **fully developed reference implementation** for this technique. That branch should be used constantly while executing this plan: inspect how it solves each subproblem, then extract the minimal coherent subset of that behavior into your branch with tests and clear review boundaries.
+
+Be smart about this. The reference implementation has already paid the discovery cost. The goal now is to convert that integrated work into a smaller, comprehensible, reviewable, and verifiable technique PR. If something in the reference implementation looks surprising, understand it before simplifying it.
+
+## Developer Operating Posture
+
+This technique is not just “add a debounce.” It is a hot-path scheduling change in the core task-execution loop. Treat it with the care you would give any latency-sensitive distributed-systems control surface.
+
+While implementing:
+
+- keep one eye on the extracted branch and one on `eve_troubleshooting-remote-workspaces`,
+- preserve semantic immediacy even while coalescing ordinary chunk churn,
+- and continually ask whether the stream is being allowed to run at machine speed while the UI updates at human speed.
+
+The cross-cutting wisdom from the analysis report applies directly here:
+
+> **Stop treating every streamed chunk as a durable, full-state, immediately-presented event.**
+
+For this technique, the emphasis is on the **immediately-presented** part.
+
 ---
 
 ## Why This Technique Matters
@@ -86,6 +110,8 @@ The scheduler works only if priority rules are intentional and documented.
   - [ ] finalization,
   - [ ] abort/error cleanup.
 
+Use the reference implementation branch to understand where those boundaries were discovered empirically. Some of them exist because they matter for user perception; others exist because they matter for correctness or because delayed presentation would feel broken. Preserve that reasoning in the extraction.
+
 ### Tests
 
 - [ ] Unit test: priority merge rules behave as expected.
@@ -127,6 +153,8 @@ The implementation must be robust under bursty chunk arrival, not just simple ti
   - [ ] when work arrives during flush, mark pending and re-run once afterward.
   - [ ] support `dispose()` to clear timer and suppress future work.
 
+Be smart about state-machine edge cases. This scheduler sits on a bursty asynchronous path; the real implementation value is in correct behavior under overlap, priority escalation, and teardown, not just in the existence of a timer.
+
 ### Tests
 
 - [ ] Unit test: multiple requests inside the cadence window produce one flush.
@@ -160,6 +188,8 @@ Make the `Task` use the scheduler as the default path for presentation without b
   - [ ] add `scheduleAssistantPresentation(trigger, priority)`.
   - [ ] keep `flushAssistantPresentation()` as the method that actually calls `presentAssistantMessage()`.
 
+When extracting this step, mirror the reference implementation’s structure closely enough that future diffs remain comparable. The cleanest extraction is one where a reviewer can trivially line up the extracted version with the reference implementation and see the same conceptual architecture.
+
 ### Tests
 
 - [ ] Unit test: `scheduleAssistantPresentation(...)` increments request metrics correctly.
@@ -191,6 +221,8 @@ This is where the real latency win happens. If the chunk loop no longer blocks o
   - [ ] reasoning chunks should call `scheduleAssistantPresentation("reasoning", priority)`.
   - [ ] tool-call chunks should call `scheduleAssistantPresentation("tool", priority)`.
 - Ensure priority logic uses whether visible assistant content already exists.
+
+This step is the actual latency win. Use the reference implementation to identify every place where the old flow awaited presentation inside streaming logic, then confirm whether that await was deliberately removed or preserved for a semantic boundary. Be explicit; do not guess.
 
 ### Tests
 
@@ -225,6 +257,8 @@ Remote workspaces need more coalescing because each UI flush is more expensive. 
 - In `Task` constructor:
   - [ ] pass cadence callback into scheduler so it adapts automatically once remote detection is known.
 
+Do not tune cadence values from first principles unless necessary. Start from the values already proven in `eve_troubleshooting-remote-workspaces`, then adjust only if the extraction boundary demands it or validation shows a problem.
+
 ### Tests
 
 - [ ] Unit test: remote mode returns higher normal cadence than local mode.
@@ -256,6 +290,8 @@ Schedulers are easy to add and easy to get subtly wrong at teardown. The user mu
   - [ ] in abort/finally paths, ensure no pending scheduled flush survives past task shutdown.
 - In `TaskPresentationScheduler`:
   - [ ] make `dispose()` clear timers and suppress post-disposal flushes.
+
+This is one of the places where smart engineering judgment matters most: the last 1% of scheduler teardown correctness often determines whether the feature is “production-grade” or “subtly flaky.” Compare end-of-stream and abort behavior carefully against the reference implementation.
 
 ### Tests
 
@@ -317,6 +353,8 @@ Large-file write scenarios often generate:
 - repeated task-state churn.
 
 The scheduler should reduce the “chatty” feel without making the operation feel frozen.
+
+That is why this technique materially helps large-file writes: the user does not need every incremental progress mutation painted at model-chunk cadence. They need the operation to feel continuously alive, not hyperactive.
 
 ### Work
 

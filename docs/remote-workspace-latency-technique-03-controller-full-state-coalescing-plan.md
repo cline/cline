@@ -10,6 +10,30 @@ When Cline is actively streaming, repeatedly rebuilding and sending large `Exten
 
 This technique reduces that cost by coalescing repeated `postStateToWebview()` requests into a scheduler-driven snapshot flow with priorities and remote-aware cadence.
 
+## How To Use This Plan
+
+This plan is for extracting a coherent technique into its **own branch**, while treating `eve_troubleshooting-remote-workspaces` as the **fully developed reference implementation**.
+
+That means the branch work has already been done once. The goal now is not to rediscover the architecture from scratch; it is to produce a smaller, easier-to-review implementation plan that tells a developer exactly how to extract and verify the technique with high confidence.
+
+Be smart about this. Continually compare your work to the reference implementation and actively take implementation details from it when executing each step. The reference branch should be your source of truth for subtle behaviors, edge-case handling, and interactions with the rest of the product surface.
+
+## Developer Operating Posture
+
+This technique sits at the boundary between extension-host state management and frontend hydration. That makes it highly leveraged and easy to get wrong in ways that only show up under load or during cross-surface interactions.
+
+While implementing:
+
+- keep snapshot semantics explicit,
+- preserve immediate behavior where product correctness or UX requires it,
+- and use the reference implementation to understand which callsites were intentionally allowed to coalesce.
+
+The governing principle remains:
+
+> **Stop treating every streamed chunk as a durable, full-state, immediately-presented event.**
+
+For this technique, the emphasis is on the **full-state** part.
+
 ---
 
 ## Why This Technique Matters
@@ -92,6 +116,8 @@ If every caller thinks its update is urgent, the scheduler will collapse back in
   - [ ] focus-chain intermediate changes,
   - [ ] repeated chat-state updates caused by streaming partials.
 
+Use the reference implementation branch to validate these classifications before finalizing them in your extraction. The point is not to make an abstract list; it is to preserve the already-learned boundary between “must feel instant” and “safe to batch.”
+
 ### Tests
 
 - [ ] No behavior test required yet beyond upcoming scheduler tests.
@@ -129,6 +155,8 @@ This scheduler is conceptually parallel to the presentation scheduler, but it co
   - [ ] support `dispose()`.
   - [ ] ensure `immediate` preempts a pending delayed timer.
 
+Be smart about the scheduler design here. A controller-level scheduler can look mechanically similar to the presentation scheduler, but the failure mode is different: a presentation bug is usually visible in one message stream, while a snapshot bug can destabilize the whole UI state model.
+
 ### Tests
 
 - [ ] Unit test: repeated normal-priority calls inside cadence window produce one flush.
@@ -162,6 +190,8 @@ The API should remain convenient for the rest of the codebase. Most callers shou
     - [ ] flushes immediately for `priority: "immediate"`,
     - [ ] otherwise requests scheduled flush.
   - [ ] add `getDefaultStateUpdatePriority()` that returns `normal` while streaming and `immediate` when idle/non-task.
+
+When extracting this step, prefer preserving the reference implementation’s method boundaries and control flow. That will make later comparison and debugging much smoother.
 
 ### Tests
 
@@ -200,6 +230,8 @@ Snapshot frequency alone is not enough. One giant expensive snapshot can be wors
 - In `src/core/controller/state/subscribeToState.ts`:
   - [ ] ensure payload byte counting remains available and accurate.
 
+This step is not just observability polish. It is what lets the team prove that the extracted technique is actually reducing snapshot churn rather than merely moving it around.
+
 ### Tests
 
 - [ ] Unit test: state update metrics are recorded when a flush occurs.
@@ -235,6 +267,8 @@ The scheduler provides the mechanism; callsite audit provides the correctness. W
   - [ ] periodic stream-related updates.
 - Where needed, pass explicit priority rather than relying only on defaults.
 
+The smart move here is to audit callsites with the reference implementation open, because the coalescing behavior only makes sense in context. The subtle value of the reference branch is that it already captures where the team discovered hidden urgency requirements.
+
 ### Tests
 
 - [ ] Regression test: task init still hydrates the UI immediately.
@@ -259,6 +293,8 @@ Large-file writes often produce:
 - possible repeated snapshot posts.
 
 This technique should reduce the transport overhead from that churn even if the write tool itself remains functionally the same.
+
+That is the key link to the large-file-write scenario: even when the tool work is mostly backend-side, the surrounding UI state churn can still create a slow, noisy experience if snapshots are over-posted.
 
 ### Work
 
@@ -296,6 +332,8 @@ Remote mode should intentionally trade a little more coalescing for much less tr
   - [ ] add/preserve `getStateUpdateCadenceMs(isRemoteWorkspace, priority)`.
 - In `.env.example`:
   - [ ] document state update cadence overrides.
+
+Keep the tuning hooks aligned with the reference implementation so extracted behavior can be compared apples-to-apples during rollout and validation.
 
 ### Tests
 
