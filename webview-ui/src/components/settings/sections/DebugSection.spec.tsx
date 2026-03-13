@@ -60,6 +60,20 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 describe("DebugSection", () => {
 	it("runs the latency probe and renders rolling stats", async () => {
 		grpcClientMocks.pingLatencyProbe.mockResolvedValue({ value: 64 })
+		const createObjectURL = vi.fn(() => "blob:test")
+		const revokeObjectURL = vi.fn()
+		const click = vi.fn()
+		const originalCreateElement = document.createElement.bind(document)
+		const createElementSpy = vi.spyOn(document, "createElement").mockImplementation(((tagName: string) => {
+			if (tagName === "a") {
+				return { click, href: "", download: "" } as unknown as HTMLAnchorElement
+			}
+			return originalCreateElement(tagName)
+		}) as typeof document.createElement)
+		vi.stubGlobal("URL", {
+			createObjectURL,
+			revokeObjectURL,
+		})
 
 		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
 
@@ -71,5 +85,12 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/Payload: 64 bytes/)).toBeTruthy()
 		expect(screen.getByText(/Branch: main/)).toBeTruthy()
 		expect(screen.getByText(/State pushes: 3/)).toBeTruthy()
+
+		fireEvent.click(screen.getByText("Export Session JSON"))
+		expect(createObjectURL).toHaveBeenCalledTimes(1)
+		expect(click).toHaveBeenCalledTimes(1)
+		expect(revokeObjectURL).toHaveBeenCalledTimes(1)
+
+		createElementSpy.mockRestore()
 	})
 })
