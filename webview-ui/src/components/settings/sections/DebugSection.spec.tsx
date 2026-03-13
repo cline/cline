@@ -31,6 +31,7 @@ type MockLatencyObserverState = {
 		firstVisibleUpdate: string
 		firstFullStateUpdate: string
 		firstPartialMessageUpdate: string
+		chunkToWebviewTiming: string
 		fullStateMetrics: string
 		partialMessageMetrics: string
 		taskUiDeltaMetrics: string
@@ -42,6 +43,7 @@ type MockLatencyObserverState = {
 	firstVisibleUpdate: TransportMetric
 	firstFullStateUpdate: TransportMetric
 	firstPartialMessageUpdate: TransportMetric
+	chunkToWebview: TransportMetric
 	logs: unknown[]
 	requestCounterSummaries: Array<{
 		requestId: string
@@ -74,6 +76,7 @@ const makeLatencyObserverState = (): MockLatencyObserverState => ({
 		firstVisibleUpdate: "supported",
 		firstFullStateUpdate: "supported",
 		firstPartialMessageUpdate: "supported",
+		chunkToWebviewTiming: "supported",
 		fullStateMetrics: "supported",
 		partialMessageMetrics: "supported",
 		taskUiDeltaMetrics: "unsupported",
@@ -108,6 +111,11 @@ const makeLatencyObserverState = (): MockLatencyObserverState => ({
 		support: "supported",
 		samples: [],
 		stats: { count: 1, minMs: 16, maxMs: 16, avgMs: 16, lastMs: 16, totalMs: 16 },
+	},
+	chunkToWebview: {
+		support: "supported",
+		samples: [],
+		stats: { count: 1, minMs: 9, maxMs: 9, avgMs: 9, lastMs: 9, totalMs: 9 },
 	},
 	logs: [],
 	requestCounterSummaries: [
@@ -185,6 +193,7 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/Payload: 64 bytes/)).toBeTruthy()
 		expect(screen.getByText(/First full-state avg: 14.00 ms/)).toBeTruthy()
 		expect(screen.getByText(/First partial avg: 16.00 ms/)).toBeTruthy()
+		expect(screen.getByText(/Chunk→webview avg: 9.00 ms/)).toBeTruthy()
 		expect(screen.getByText(/Req partial bytes: 256/)).toBeTruthy()
 
 		fireEvent.click(screen.getByText("Export Session JSON"))

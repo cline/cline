@@ -39,6 +39,7 @@ export class LatencyObserverService {
 		firstVisibleUpdate: "supported",
 		firstFullStateUpdate: "supported",
 		firstPartialMessageUpdate: "supported",
+		chunkToWebviewTiming: "supported",
 	}
 	private readonly taskInitializationStarts = new Map<string, number>()
 	private readonly activeRequests = new Map<string, ActiveRequest>()
@@ -48,6 +49,7 @@ export class LatencyObserverService {
 	private readonly firstVisibleUpdateSamples: LatencySample[] = []
 	private readonly firstFullStateUpdateSamples: LatencySample[] = []
 	private readonly firstPartialMessageUpdateSamples: LatencySample[] = []
+	private readonly chunkToWebviewSamples: LatencySample[] = []
 	private readonly requestCounterSummaries: LatencyObserverRequestCounterSummary[] = []
 	private readonly logs: LatencyObserverLogEntry[] = []
 	private optionalCounters: Record<
@@ -170,6 +172,13 @@ export class LatencyObserverService {
 		this.pushLog(`first partial-message update`, taskId, activeRequest.requestId)
 	}
 
+	recordChunkToWebviewDelivery(sample: LatencySample): void {
+		this.chunkToWebviewSamples.push(sample)
+		if (this.chunkToWebviewSamples.length > 200) {
+			this.chunkToWebviewSamples.shift()
+		}
+	}
+
 	completeRequest(taskId: string): void {
 		const activeRequest = this.activeRequests.get(taskId)
 		if (!activeRequest) {
@@ -238,6 +247,11 @@ export class LatencyObserverService {
 				samples: [...this.firstPartialMessageUpdateSamples],
 				stats: createRollingLatencyStats(this.firstPartialMessageUpdateSamples),
 			},
+			chunkToWebview: {
+				support: this.capabilities.chunkToWebviewTiming,
+				samples: [...this.chunkToWebviewSamples],
+				stats: createRollingLatencyStats(this.chunkToWebviewSamples),
+			},
 			requestCounterSummaries: [...this.requestCounterSummaries],
 			logs: [...this.logs],
 			optionalCounters: { ...this.optionalCounters },
@@ -263,6 +277,7 @@ export class LatencyObserverService {
 		this.firstVisibleUpdateSamples.length = 0
 		this.firstFullStateUpdateSamples.length = 0
 		this.firstPartialMessageUpdateSamples.length = 0
+		this.chunkToWebviewSamples.length = 0
 		this.requestCounterSummaries.length = 0
 		this.logs.length = 0
 		this.optionalCounters = {
