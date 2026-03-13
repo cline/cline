@@ -243,7 +243,7 @@ Recommended UI features:
   - [x] single ping
   - [x] continuous ping
   - [x] test all payload sizes
-  - [ ] start observed task scenario
+  - [x] start observed task scenario
   - [x] reset stats
 - [x] visible stats cards / table for current/min/max/avg
 - [x] recent logs panel
