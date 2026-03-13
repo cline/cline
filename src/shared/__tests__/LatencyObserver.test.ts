@@ -27,6 +27,7 @@ describe("LatencyObserver", () => {
 	it("supports missing optional metrics without breaking the shared model", () => {
 		const metricSet: LatencyObserverMetricSet = {
 			transportSamples: [],
+			requestStartSamples: [],
 			taskInitializationSamples: [],
 			firstVisibleUpdateSamples: [],
 			capabilities: DEFAULT_LATENCY_OBSERVER_CAPABILITIES,

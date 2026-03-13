@@ -11,6 +11,7 @@ import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
+import type { LatencyObserverStateSnapshot } from "./LatencyObserver"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
 import { OnboardingModelGroup } from "./proto/cline/state"
@@ -111,6 +112,7 @@ export interface ExtensionState {
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
+	latencyObserver?: LatencyObserverStateSnapshot
 }
 
 export interface ClineMessage {

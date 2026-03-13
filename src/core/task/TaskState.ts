@@ -59,6 +59,7 @@ export class TaskState {
 
 	// Focus Chain / Todo List Management
 	apiRequestCount = 0
+	currentLatencyObserverRequestId?: string
 	apiRequestsSinceLastTodoUpdate = 0
 	currentFocusChainChecklist: string | null = null
 	todoListWasUpdatedByUser = false

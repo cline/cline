@@ -11,7 +11,7 @@ interface DebugSectionProps {
 }
 
 const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) => {
-	const { setShowWelcome } = useExtensionState()
+	const { latencyObserver, setShowWelcome } = useExtensionState()
 	const [payloadBytes, setPayloadBytes] = useState(0)
 	const [samples, setSamples] = useState<LatencySample[]>([])
 	const [isPinging, setIsPinging] = useState(false)
@@ -77,6 +77,20 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 						<div>Payload: {payloadBytes} bytes</div>
 					</div>
 					{pingError && <p className="m-0 text-xs text-[var(--vscode-errorForeground)]">{pingError}</p>}
+					{latencyObserver && (
+						<div className="flex flex-col gap-2 border-t border-[var(--vscode-panel-border)] pt-3 text-xs">
+							<div>Task init avg: {latencyObserver.taskInitialization.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
+							<div>First visible avg: {latencyObserver.firstVisibleUpdate.stats.avgMs?.toFixed(2) ?? "-"} ms</div>
+							<div>Observed requests: {latencyObserver.requestStart.stats.count}</div>
+							<div className="max-h-24 overflow-auto rounded border border-[var(--vscode-panel-border)] p-2">
+								{latencyObserver.logs.length === 0
+									? "No observer events yet."
+									: latencyObserver.logs
+											.slice(-5)
+											.map((entry) => <div key={`${entry.ts}-${entry.message}`}>{entry.message}</div>)}
+							</div>
+						</div>
+					)}
 				</div>
 			</Section>
 			<Section>
