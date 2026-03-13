@@ -356,4 +356,40 @@ describe("applyTaskUiDeltaToState", () => {
 		expect(state.clineMessages).toEqual([{ ts: 100, type: "say", say: "text", text: "first updated" }])
 		expect(state.backgroundCommandRunning).toBe(true)
 	})
+
+	it("updates the active message row correctly under repeated deltas", () => {
+		let state = createState()
+		let sequence = 0
+
+		const deltas: TaskUiDelta[] = [
+			createDelta({
+				sequence: 1,
+				type: "message_added",
+				message: { ts: 500, type: "say", say: "text", text: "draft", partial: true },
+			}),
+			createDelta({
+				sequence: 2,
+				type: "message_updated",
+				message: { ts: 500, type: "say", say: "text", text: "draft + more", partial: true },
+			}),
+			createDelta({
+				sequence: 3,
+				type: "message_updated",
+				message: { ts: 500, type: "say", say: "text", text: "final", partial: false },
+			}),
+		]
+
+		for (const delta of deltas) {
+			const result = applyTaskUiDeltaToState(state, delta, sequence)
+			expect(result.kind).toBe("applied")
+			if (result.kind !== "applied") {
+				throw new Error("expected applied result")
+			}
+			state = result.state
+			sequence = result.nextSequence
+		}
+
+		expect(state.clineMessages).toHaveLength(1)
+		expect(state.clineMessages[0]).toEqual({ ts: 500, type: "say", say: "text", text: "final", partial: false })
+	})
 })

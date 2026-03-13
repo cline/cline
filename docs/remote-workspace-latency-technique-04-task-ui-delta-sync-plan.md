@@ -384,7 +384,7 @@ Be smart about this at the React-state level too: if the frontend re-renders lar
 ### Tests
 
 - [x] Webview test: unchanged update payload does not cause unnecessary state replacement.
-- [ ] Webview test: active message row updates correctly under repeated deltas.
+- [x] Webview test: active message row updates correctly under repeated deltas.
 
 ---
 
@@ -423,7 +423,7 @@ Since the reference implementation already exists, one of the strongest ways to 
 
 - [ ] Validation harness scenario: delta-enabled mode reduces full-state payload bytes during active execution.
 - [ ] Validation harness scenario: delta-disabled variant falls back cleanly to snapshot behavior.
-- [ ] Unit test: debug counters increment correctly where applicable.
+- [x] Unit test: debug counters increment correctly where applicable.
 
 ---
 
@@ -472,11 +472,12 @@ That is why this technique still matters for large-file-write scenarios, even th
 - Added latency-analysis helpers and validation scripts for comparing delta-enabled vs delta-disabled runs (`src/services/telemetry/taskLatencySummary.ts`, `scripts/validate-latency-scenarios.ts`, `scripts/analyze-task-latency-metrics.mjs`, and `scripts/compare-task-latency-metrics.mjs`).
 - Added message-state regression coverage in commit `cdee38396` (`Add message-state task UI delta regression tests`) and fixed verification follow-up issues in commit `5548080d9`.
 - Added controller metadata delta coverage (`src/test/controller-task-ui-metadata.test.ts`) plus webview resync/task-switch regression coverage in `webview-ui/src/context/ExtensionStateContext.test.tsx`.
+- Added frontend churn/debug counter coverage in `webview-ui/src/context/taskUiDeltaState.test.ts` and `webview-ui/src/context/taskUiDebugCounters.test.ts`.
 - Wired focus-chain metadata and background-command metadata through task-specific delta publication, with snapshot fallback when task identity is ambiguous.
 - Preserved snapshot hydration/resync semantics alongside delta application and added frontend debug counters for snapshot, partial-message, delta, and resync activity.
 - Installed dependencies, regenerated protos, and verified the focused backend and webview coverage locally. Successful verification included:
   - `npm run test:unit -- src/test/controller-task-ui-metadata.test.ts src/core/controller/ui/subscribeToTaskUiDeltas.test.ts src/test/message-state-handler.test.ts src/core/task/__tests__/latency.test.ts src/services/telemetry/__tests__/taskLatencySummary.test.ts`
-  - `cd webview-ui && npm run test -- src/context/taskUiDeltaState.test.ts src/context/ExtensionStateContext.test.tsx`
+  - `cd webview-ui && npm run test -- src/context/taskUiDeltaState.test.ts src/context/taskUiDebugCounters.test.ts src/context/ExtensionStateContext.test.tsx`
 - The webview verification now passes without the earlier React `act(...)` warning noise after wrapping streamed state updates in `act(...)`.
 
 ---
