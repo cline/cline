@@ -164,6 +164,75 @@ export function getModelsForProvider(
 /**
  * Interface for normalized API configuration
  */
+/**
+ * Returns the canonical default model ID for a provider.
+ * For providers where the default depends on regional settings (qwen, zai),
+ * pass the optional apiConfiguration to get the correct region-specific default.
+ * Returns undefined for providers with no static default (openai, ollama, lmstudio, etc.)
+ */
+export function getDefaultModelIdForProvider(provider: ApiProvider, apiConfiguration?: ApiConfiguration): string | undefined {
+	switch (provider) {
+		case "anthropic":
+			return anthropicDefaultModelId
+		case "claude-code":
+			return claudeCodeDefaultModelId
+		case "bedrock":
+			return bedrockDefaultModelId
+		case "vertex":
+			return vertexDefaultModelId
+		case "gemini":
+			return geminiDefaultModelId
+		case "openai-native":
+			return openAiNativeDefaultModelId
+		case "openai-codex":
+			return openAiCodexDefaultModelId
+		case "deepseek":
+			return deepSeekDefaultModelId
+		case "qwen":
+			return apiConfiguration?.qwenApiLine === "china" ? mainlandQwenDefaultModelId : internationalQwenDefaultModelId
+		case "qwen-code":
+			return qwenCodeDefaultModelId
+		case "doubao":
+			return doubaoDefaultModelId
+		case "mistral":
+			return mistralDefaultModelId
+		case "asksage":
+			return askSageDefaultModelId
+		case "xai":
+			return xaiDefaultModelId
+		case "moonshot":
+			return moonshotDefaultModelId
+		case "nebius":
+			return nebiusDefaultModelId
+		case "sambanova":
+			return sambanovaDefaultModelId
+		case "cerebras":
+			return cerebrasDefaultModelId
+		case "groq":
+			return groqDefaultModelId
+		case "baseten":
+			return basetenDefaultModelId
+		case "sapaicore":
+			return sapAiCoreDefaultModelId
+		case "huawei-cloud-maas":
+			return huaweiCloudMaasDefaultModelId
+		case "zai":
+			return apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
+		case "fireworks":
+			return fireworksDefaultModelId
+		case "minimax":
+			return minimaxDefaultModelId
+		case "huggingface":
+			return huggingFaceDefaultModelId
+		case "nousResearch":
+			return nousResearchDefaultModelId
+		case "openrouter":
+			return openRouterDefaultModelId
+		default:
+			return undefined
+	}
+}
+
 export interface NormalizedApiConfig {
 	selectedProvider: ApiProvider
 	selectedModelId: string
