@@ -2,6 +2,7 @@ import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { EventEmitter } from "events"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
+import { getLatencyObserverService } from "@/services/latency/LatencyObserverService"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -119,6 +120,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
 		try {
+			const observer = getLatencyObserverService()
+			observer.incrementCounter("persistenceFlushes")
+			observer.setCapability("persistenceMetrics", "supported")
 			await saveClineMessages(this.taskId, this.clineMessages)
 
 			// combined as they are in ChatView

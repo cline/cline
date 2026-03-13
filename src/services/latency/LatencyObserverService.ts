@@ -1,7 +1,9 @@
 import {
 	createRollingLatencyStats,
 	DEFAULT_LATENCY_OBSERVER_CAPABILITIES,
+	type LatencyObserverCapabilities,
 	type LatencyObserverLogEntry,
+	type LatencyObserverSessionMetadata,
 	type LatencyObserverStateSnapshot,
 	type LatencySample,
 } from "@/shared/LatencyObserver"
@@ -14,6 +16,15 @@ type ActiveRequest = {
 
 export class LatencyObserverService {
 	private readonly sessionStartedAt = Date.now()
+	private sessionMetadata: LatencyObserverSessionMetadata = {
+		startedAt: this.sessionStartedAt,
+	}
+	private capabilities: LatencyObserverCapabilities = {
+		...DEFAULT_LATENCY_OBSERVER_CAPABILITIES,
+		taskInitialization: "supported",
+		requestStart: "supported",
+		firstVisibleUpdate: "supported",
+	}
 	private readonly taskInitializationStarts = new Map<string, number>()
 	private readonly activeRequests = new Map<string, ActiveRequest>()
 	private readonly transportSamples: LatencySample[] = []
@@ -21,6 +32,27 @@ export class LatencyObserverService {
 	private readonly requestStartSamples: LatencySample[] = []
 	private readonly firstVisibleUpdateSamples: LatencySample[] = []
 	private readonly logs: LatencyObserverLogEntry[] = []
+	private optionalCounters: Record<
+		"fullStatePushes" | "partialMessageEvents" | "taskUiDeltaEvents" | "persistenceFlushes",
+		number
+	> = {
+		fullStatePushes: 0,
+		partialMessageEvents: 0,
+		taskUiDeltaEvents: 0,
+		persistenceFlushes: 0,
+	}
+
+	setSessionMetadata(metadata: Partial<Omit<LatencyObserverSessionMetadata, "startedAt">>): void {
+		this.sessionMetadata = {
+			...this.sessionMetadata,
+			...metadata,
+			startedAt: this.sessionStartedAt,
+		}
+	}
+
+	setCapability<K extends keyof LatencyObserverCapabilities>(key: K, value: LatencyObserverCapabilities[K]): void {
+		this.capabilities[key] = value
+	}
 
 	markTaskInitializationStart(taskId: string, startedAt = performance.now()): void {
 		this.taskInitializationStarts.set(taskId, startedAt)
@@ -89,17 +121,14 @@ export class LatencyObserverService {
 		this.transportSamples.push(sample)
 	}
 
+	incrementCounter(counter: keyof typeof this.optionalCounters, amount = 1): void {
+		this.optionalCounters[counter] += amount
+	}
+
 	getSnapshot(): LatencyObserverStateSnapshot {
 		return {
-			session: {
-				startedAt: this.sessionStartedAt,
-			},
-			capabilities: {
-				...DEFAULT_LATENCY_OBSERVER_CAPABILITIES,
-				taskInitialization: "supported",
-				requestStart: "supported",
-				firstVisibleUpdate: "supported",
-			},
+			session: { ...this.sessionMetadata },
+			capabilities: { ...this.capabilities },
 			transport: {
 				support: "supported",
 				samples: [...this.transportSamples],
@@ -121,6 +150,7 @@ export class LatencyObserverService {
 				stats: createRollingLatencyStats(this.firstVisibleUpdateSamples),
 			},
 			logs: [...this.logs],
+			optionalCounters: { ...this.optionalCounters },
 		}
 	}
 
@@ -132,6 +162,12 @@ export class LatencyObserverService {
 		this.requestStartSamples.length = 0
 		this.firstVisibleUpdateSamples.length = 0
 		this.logs.length = 0
+		this.optionalCounters = {
+			fullStatePushes: 0,
+			partialMessageEvents: 0,
+			taskUiDeltaEvents: 0,
+			persistenceFlushes: 0,
+		}
 	}
 
 	private pushLog(message: string, taskId?: string, requestId?: string): void {

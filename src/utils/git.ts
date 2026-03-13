@@ -278,6 +278,27 @@ export async function getLatestGitCommitHash(cwd: string): Promise<string | null
 	}
 }
 
+export async function getCurrentGitBranch(cwd: string): Promise<string | null> {
+	try {
+		const isInstalled = await checkGitInstalled()
+		if (!isInstalled) {
+			return null
+		}
+
+		const isRepo = await checkGitRepo(cwd)
+		if (!isRepo) {
+			return null
+		}
+
+		const { stdout } = await execAsync("git rev-parse --abbrev-ref HEAD", { cwd })
+		const branch = stdout.trim()
+		return branch.length > 0 ? branch : null
+	} catch (error) {
+		Logger.error("Error getting current git branch:", error)
+		return null
+	}
+}
+
 function truncateOutput(content: string): string {
 	if (!GIT_OUTPUT_LINE_LIMIT) {
 		return content

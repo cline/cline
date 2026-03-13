@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { ClineMessage } from "@shared/proto/cline/ui"
+import { getLatencyObserverService } from "@/services/latency/LatencyObserverService"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
@@ -55,6 +56,10 @@ export function registerPartialMessageCallback(callback: PartialMessageCallback)
  * @param partialMessage The ClineMessage to send
  */
 export async function sendPartialMessageEvent(partialMessage: ClineMessage): Promise<void> {
+	const observer = getLatencyObserverService()
+	observer.incrementCounter("partialMessageEvents")
+	observer.setCapability("partialMessageMetrics", "supported")
+
 	// Send to gRPC stream subscribers
 	const streamPromises = Array.from(activePartialMessageSubscriptions).map(async (responseStream) => {
 		try {
