@@ -60,6 +60,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		OBSERVATION_SCENARIOS.find((scenario) => scenario.id === selectedScenarioId) ?? OBSERVATION_SCENARIOS[0]
 
 	const transportSamples = latencyObserver?.transport.samples ?? []
+	const latestRequestSummary = latencyObserver?.requestCounterSummaries.at(-1)
 	const effectiveTransportSamples = useMemo(() => {
 		if (transportSamples.length > 0) {
 			return transportSamples
@@ -307,6 +308,17 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 							<div>Partial bytes: {latencyObserver.optionalCounters?.partialMessageBytes ?? 0}</div>
 							<div>Task UI deltas: {latencyObserver.optionalCounters?.taskUiDeltaEvents ?? 0}</div>
 							<div>Persistence flushes: {latencyObserver.optionalCounters?.persistenceFlushes ?? 0}</div>
+							{latestRequestSummary && (
+								<>
+									<div className="font-medium text-foreground">Latest request churn</div>
+									<div>Req state pushes: {latestRequestSummary.fullStatePushes}</div>
+									<div>Req state bytes: {latestRequestSummary.fullStateBytes}</div>
+									<div>Req partial events: {latestRequestSummary.partialMessageEvents}</div>
+									<div>Req partial bytes: {latestRequestSummary.partialMessageBytes}</div>
+									<div>Req UI deltas: {latestRequestSummary.taskUiDeltaEvents}</div>
+									<div>Req persistence flushes: {latestRequestSummary.persistenceFlushes}</div>
+								</>
+							)}
 							<div className="max-h-24 overflow-auto rounded border border-[var(--vscode-panel-border)] p-2">
 								{latencyObserver.logs.length === 0
 									? "No observer events yet."

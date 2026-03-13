@@ -38,6 +38,18 @@ type MockLatencyObserverState = {
 	firstVisibleUpdate: MockLatencyObserverState["transport"]
 	firstFullStateUpdate: MockLatencyObserverState["transport"]
 	logs: unknown[]
+	requestCounterSummaries: Array<{
+		requestId: string
+		taskId?: string
+		startedAt: number
+		completedAt: number
+		fullStatePushes: number
+		fullStateBytes: number
+		partialMessageEvents: number
+		partialMessageBytes: number
+		taskUiDeltaEvents: number
+		persistenceFlushes: number
+	}>
 	optionalCounters?: {
 		fullStatePushes: number
 		fullStateBytes: number
@@ -88,6 +100,20 @@ const extensionStateMock = vi.hoisted(() => ({
 			stats: { count: 1, minMs: 14, maxMs: 14, avgMs: 14, lastMs: 14, totalMs: 14 },
 		},
 		logs: [],
+		requestCounterSummaries: [
+			{
+				requestId: "task-1:req-1",
+				taskId: "task-1",
+				startedAt: 10,
+				completedAt: 24,
+				fullStatePushes: 2,
+				fullStateBytes: 512,
+				partialMessageEvents: 3,
+				partialMessageBytes: 256,
+				taskUiDeltaEvents: 4,
+				persistenceFlushes: 1,
+			},
+		],
 		optionalCounters: {
 			fullStatePushes: 3,
 			fullStateBytes: 1024,
@@ -156,6 +182,20 @@ describe("DebugSection", () => {
 				stats: { count: 1, minMs: 14, maxMs: 14, avgMs: 14, lastMs: 14, totalMs: 14 },
 			},
 			logs: [],
+			requestCounterSummaries: [
+				{
+					requestId: "task-1:req-1",
+					taskId: "task-1",
+					startedAt: 10,
+					completedAt: 24,
+					fullStatePushes: 2,
+					fullStateBytes: 512,
+					partialMessageEvents: 3,
+					partialMessageBytes: 256,
+					taskUiDeltaEvents: 4,
+					persistenceFlushes: 1,
+				},
+			],
 			optionalCounters: {
 				fullStatePushes: 3,
 				fullStateBytes: 1024,
@@ -201,6 +241,8 @@ describe("DebugSection", () => {
 		expect(screen.getByText(/State pushes: 3/)).toBeTruthy()
 		expect(screen.getByText(/State bytes: 1024/)).toBeTruthy()
 		expect(screen.getByText(/Partial bytes: 256/)).toBeTruthy()
+		expect(screen.getByText(/Req state pushes: 2/)).toBeTruthy()
+		expect(screen.getByText(/Req partial bytes: 256/)).toBeTruthy()
 		expect(screen.getByText(/Transport probe: Supported/)).toBeTruthy()
 		expect(screen.getByText(/First full-state avg: 14.00 ms/)).toBeTruthy()
 		expect(screen.getByText(/Task UI delta metrics: Unsupported on this branch/)).toBeTruthy()
