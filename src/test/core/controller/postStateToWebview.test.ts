@@ -224,6 +224,66 @@ describe("Controller postStateToWebview", () => {
 		}
 	})
 
+	it("reduces snapshot sends and payload bytes versus immediate flushing for the same streaming burst", async () => {
+		const stateModule = require("@core/controller/state/subscribeToState")
+
+		const runBurst = async ({ immediate }: { immediate: boolean }) => {
+			let sendCount = 0
+			let totalPayloadBytes = 0
+			let snapshotVersion = 0
+
+			;(controller as any).task = {
+				taskState: {
+					isStreaming: true,
+				},
+				noteStateUpdateMetrics: sinon.stub(),
+			}
+
+			const getStateToPostToWebview = sinon.stub(controller, "getStateToPostToWebview").callsFake(async () => {
+				return {
+					currentTaskItem: { id: `task-${snapshotVersion}` },
+					currentFocusChainChecklist: `- [ ] item ${snapshotVersion}`,
+				} as any
+			})
+			const sendStateUpdateStub = sinon.stub(stateModule, "sendStateUpdate").callsFake(async (state: any) => {
+				sendCount += 1
+				totalPayloadBytes += Buffer.byteLength(JSON.stringify(state), "utf8")
+				return {
+					payloadBytes: Buffer.byteLength(JSON.stringify(state), "utf8"),
+					sendDurationMs: 1,
+					subscriberCount: 1,
+				}
+			})
+
+			try {
+				for (let i = 0; i < 6; i++) {
+					snapshotVersion = i
+					if (immediate) {
+						await controller.postStateToWebview({ priority: "immediate" })
+					} else {
+						await controller.postStateToWebview()
+					}
+				}
+
+				if (!immediate) {
+					await setTimeoutPromise(40)
+				}
+
+				return { sendCount, totalPayloadBytes }
+			} finally {
+				getStateToPostToWebview.restore()
+				sendStateUpdateStub.restore()
+			}
+		}
+
+		const coalesced = await runBurst({ immediate: false })
+		const immediate = await runBurst({ immediate: true })
+
+		coalesced.sendCount.should.be.lessThan(immediate.sendCount)
+		coalesced.totalPayloadBytes.should.be.lessThan(immediate.totalPayloadBytes)
+		immediate.sendCount.should.equal(6)
+	})
+
 	it("posts background command state updates at normal priority", async () => {
 		const postStateToWebview = sinon.stub(controller, "postStateToWebview").resolves()
 

@@ -346,8 +346,8 @@ That is the key link to the large-file-write scenario: even when the tool work i
 ### Work
 
 - [x] Add or extend validation scenarios for high-churn task execution.
-- [ ] Compare full-state update count enabled vs disabled.
-- [ ] Compare payload-byte totals enabled vs disabled.
+- [x] Compare full-state update count enabled vs disabled.
+- [x] Compare payload-byte totals enabled vs disabled.
 
 ### Tests
 
@@ -436,6 +436,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Added task-switch regression coverage to verify active-task snapshot data wins over stale metadata after switching tasks.
 - Added scheduler burst-validation coverage showing coalesced normal-priority updates reduce flush count versus immediate flushing, and that remote cadence coalesces more aggressively than local cadence under the same burst pattern.
 - Added controller regression coverage verifying that multiple coalesced streaming-era state updates still flush the latest full snapshot rather than an intermediate stale snapshot.
+- Added controller burst-comparison coverage showing coalesced streaming-era snapshot delivery sends fewer full-state updates and fewer total serialized bytes than equivalent immediate flushing for the same update burst.
 
 ## Recommended Next Validation Step
 
