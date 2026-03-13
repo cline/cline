@@ -48,4 +48,24 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.optionalCounters?.partialMessageEvents, 2)
 		assert.equal(snapshot.optionalCounters?.partialMessageBytes, 128)
 	})
+
+	it("reset clears recorded samples, counters, and logs for a fresh session", () => {
+		const service = new LatencyObserverService()
+
+		service.markTaskInitializationStart("task-3", 1)
+		service.recordTaskInitializationEnd("task-3", 5)
+		service.markRequestStart("task-3", "task-3:req-1", 6)
+		service.recordFirstVisibleUpdate("task-3", "text", 10)
+		service.incrementCounter("fullStatePushes", 2)
+		service.completeRequest("task-3")
+
+		service.reset()
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.taskInitialization.stats.count, 0)
+		assert.equal(snapshot.requestStart.stats.count, 0)
+		assert.equal(snapshot.firstVisibleUpdate.stats.count, 0)
+		assert.equal(snapshot.logs.length, 0)
+		assert.equal(snapshot.optionalCounters?.fullStatePushes, 0)
+	})
 })
