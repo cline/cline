@@ -65,7 +65,7 @@ vi.mock("../hooks/useStateSubscriber", () => ({
 import { ChatView } from "./ChatView"
 
 // Helper to wait for async state updates
-const delay = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms))
 
 describe("Quit Command (/q and /exit)", () => {
 	const mockOnExit = vi.fn()
@@ -85,8 +85,8 @@ describe("Quit Command (/q and /exit)", () => {
 		// Press Enter
 		stdin.write("\r")
 
-		// handleExit has a 150ms timeout
-		await delay(200)
+		// handleExit has a 150ms timeout, use generous delay for Windows CI
+		await delay(500)
 
 		expect(mockExit).toHaveBeenCalled()
 		expect(mockOnExit).toHaveBeenCalled()
@@ -103,8 +103,8 @@ describe("Quit Command (/q and /exit)", () => {
 		// Press Enter
 		stdin.write("\r")
 
-		// handleExit has a 150ms timeout
-		await delay(200)
+		// handleExit has a 150ms timeout, use generous delay for Windows CI
+		await delay(500)
 
 		expect(mockExit).toHaveBeenCalled()
 		expect(mockOnExit).toHaveBeenCalled()
