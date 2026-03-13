@@ -30,6 +30,7 @@ export async function createOpenRouterStream(
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 	tools?: Array<ChatCompletionTool>,
+	enableParallelToolCalling?: boolean,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -202,7 +203,7 @@ export async function createOpenRouterStream(
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
-		...getOpenAIToolParams(tools),
+		...getOpenAIToolParams(tools, !!enableParallelToolCalling),
 	}
 
 	// @ts-expect-error-next-line

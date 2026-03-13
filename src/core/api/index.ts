@@ -97,6 +97,7 @@ function createHandlerForProvider(
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				enableParallelToolCalling: options.enableParallelToolCalling,
 			})
 		case "bedrock":
 			return new AwsBedrockHandler({
@@ -271,6 +272,7 @@ function createHandlerForProvider(
 				openRouterProviderSorting: options.openRouterProviderSorting,
 				openRouterModelId: clineModelId,
 				openRouterModelInfo: clineModelInfo,
+				enableParallelToolCalling: options.enableParallelToolCalling,
 			})
 		}
 		case "litellm":
