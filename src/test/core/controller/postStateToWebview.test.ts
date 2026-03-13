@@ -299,6 +299,41 @@ describe("Controller postStateToWebview", () => {
 		state.taskHistory?.map((item) => item.id).should.deepEqual(["task-2", "task-1"])
 	})
 
+	it("uses active-task metadata after task switches so stale checklist state does not leak", async () => {
+		const existingHistory = [
+			{ id: "task-1", task: "Old task", ts: 1 },
+			{ id: "task-2", task: "New task", ts: 2 },
+		]
+		mockStateManager.getGlobalStateKey.callsFake((key: string) => {
+			if (key === "taskHistory") {
+				return existingHistory
+			}
+			if (key === "isNewUser") {
+				return false
+			}
+			return undefined
+		})
+
+		;(controller as any).task = {
+			taskId: "task-2",
+			messageStateHandler: {
+				getClineMessages: () => [{ ts: 22, type: "say", say: "text", text: "new task message" }],
+			},
+			taskState: {
+				checkpointManagerErrorMessage: undefined,
+				currentFocusChainChecklist: "- [x] switched to the new task",
+			},
+		}
+
+		controller.updateBackgroundCommandState(true, "task-1")
+		const state = await controller.getStateToPostToWebview()
+
+		state.currentTaskItem?.id.should.equal("task-2")
+		state.currentFocusChainChecklist?.should.equal("- [x] switched to the new task")
+		state.clineMessages.should.deepEqual([{ ts: 22, type: "say", say: "text", text: "new task message" }])
+		state.backgroundCommandTaskId?.should.equal("task-1")
+	})
+
 	it("detects remote workspace host metadata during controller initialization", async () => {
 		HostProvider.reset()
 		hostProviderInitialized = false

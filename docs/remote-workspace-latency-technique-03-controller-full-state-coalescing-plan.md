@@ -409,8 +409,8 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 ### Tests
 
 - [x] Regression test: state hydration on startup remains correct.
-- [ ] Regression test: switching tasks shows the correct snapshot.
-- [ ] Regression test: metadata deltas + snapshot flow do not leave stale UI after task switch.
+- [x] Regression test: switching tasks shows the correct snapshot.
+- [x] Regression test: metadata deltas + snapshot flow do not leave stale UI after task switch.
 
 ---
 
@@ -433,7 +433,7 @@ The branch goal is not just “remote chat feels better.” It is “remote work
 - Added subscribe-to-state coverage to verify startup subscribers receive the latest full snapshot immediately.
 - Confirmed that state post metrics are currently accumulated on `Task.requestLatencyMetrics`, but are not yet forwarded through `getTaskCompletionTelemetry()` / `captureTaskCompleted()`, so Step 6 still needs explicit validation plumbing rather than just more assertions.
 - Wired state-post metrics through task completion telemetry so high-churn validation can compare state post count, serialized bytes, build duration, and send duration across runs.
-- Non-streaming product-surface safety is now partially covered, but full snapshot convergence after task switches still needs explicit regression coverage.
+- Added task-switch regression coverage to verify active-task snapshot data wins over stale metadata after switching tasks.
 
 ## Recommended Next Validation Step
 
