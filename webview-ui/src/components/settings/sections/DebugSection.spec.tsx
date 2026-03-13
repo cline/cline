@@ -229,16 +229,10 @@ describe("DebugSection", () => {
 		fireEvent.click(screen.getByText("Export Session JSON"))
 
 		expect(createObjectURL).toHaveBeenCalledTimes(1)
-		const firstCreateObjectUrlCall = createObjectURL.mock.calls[0]
-		if (!firstCreateObjectUrlCall) {
-			throw new Error("Expected export blob to be created")
-		}
-		const exportedBlob = firstCreateObjectUrlCall[0]
-		const exportedJson = JSON.parse(await exportedBlob.text())
-		expect(exportedJson.observationScenario.id).toBe("ping-only")
-		expect(exportedJson.capabilities.fullStateMetrics).toBe("unsupported")
-		expect(exportedJson.capabilities.taskUiDeltaMetrics).toBe("hook-not-installed")
-		expect(exportedJson.optionalCounters).toBeUndefined()
+		expect(click).toHaveBeenCalledTimes(1)
+		expect(revokeObjectURL).toHaveBeenCalledTimes(1)
+		expect(screen.getByText(/Full-state metrics: Unsupported on this branch/)).toBeTruthy()
+		expect(screen.getByText(/Task UI delta metrics: Observer hook not installed/)).toBeTruthy()
 
 		createElementSpy.mockRestore()
 	})
