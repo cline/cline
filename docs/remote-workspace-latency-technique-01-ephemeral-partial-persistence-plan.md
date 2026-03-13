@@ -10,6 +10,39 @@ That principle matters everywhere in this project, but it is especially importan
 
 This plan focuses on splitting **ephemeral UI mutations** from **durable persistence boundaries** while preserving crash recovery, history correctness, and the rest of Cline’s product behavior.
 
+## How To Use This Plan
+
+This plan should be executed **on a new development branch**, not by continuing to stack work directly onto `eve_troubleshooting-remote-workspaces`.
+
+That branch, `eve_troubleshooting-remote-workspaces`, should be treated as the **fully developed reference implementation** for this technique. In other words, the work described here is not speculative greenfield design work; it is a structured plan for re-deriving, validating, and extracting the technique from the already-working reference implementation into a smaller, more reviewable changeset.
+
+The most effective way to use this document is:
+
+1. read the goal and mental model for the step,
+2. inspect how the reference implementation branch already solved it,
+3. extract the minimum coherent version of that change into your own branch,
+4. run the tests and validation described here,
+5. compare behavior against the reference implementation when in doubt.
+
+Be smart about this. Do not re-invent behavior that already exists in the reference implementation unless there is a very clear reason to improve or simplify it. The branch already contains the end-state shape we want to learn from. Your job is to extract, verify, and explain the minimal version of that behavior safely.
+
+## Developer Operating Posture
+
+This plan is written for a Staff+-level engineer who is expected to use judgment, not just mechanically check boxes.
+
+While implementing each step:
+
+- actively compare your changes to `eve_troubleshooting-remote-workspaces`,
+- preserve the original user experience across non-remote product surfaces,
+- prefer coherent extraction over literal copy-paste,
+- and keep asking: **what hot-path work are we removing, and what correctness boundary are we preserving?**
+
+The most important meta-principle is still:
+
+> **Stop treating every streamed chunk as a durable, full-state, immediately-presented event.**
+
+For this technique specifically, the emphasis is on the **durable** part of that sentence.
+
 ---
 
 ## Why This Technique Matters
@@ -88,6 +121,8 @@ If developers cannot quickly answer “does this mutation need to survive a cras
   - `flushClineMessagesAndUpdateHistory()` is the bridge between the two.
 - In `src/core/task/index.ts`, add comments above the partial-update branches in `say(...)` and `ask(...)` explaining why partial updates are not always durable.
 
+When doing this work, read the corresponding code in `eve_troubleshooting-remote-workspaces` first and copy the intent, not just the surface syntax. The point of this step is to make the extraction self-explanatory for future reviewers and maintainers.
+
 ### Tests
 
 - [ ] No behavioral tests required for comments alone.
@@ -130,6 +165,8 @@ The presence of dedicated APIs changes developer behavior. If the only available
     - [ ] emit `clineMessagesChanged`.
   - [ ] Keep delta emission behavior identical between ephemeral and durable changes so frontend live behavior stays consistent.
 
+The smart way to execute this step is to compare the durable and ephemeral codepaths side by side in the reference implementation branch and preserve the shared invariants exactly. The extraction should reduce write amplification, not create a shadow message-state model with slightly different semantics.
+
 ### Tests
 
 - [ ] Unit test: ephemeral add mutates in-memory state without calling persistence.
@@ -163,6 +200,8 @@ We are not removing durability; we are **batching** durability at the right sema
   - [ ] If `hasDirtyEphemeralChanges` is false, return early.
   - [ ] Otherwise call `saveClineMessagesAndUpdateHistoryInternal()`.
   - [ ] Ensure `saveClineMessagesAndUpdateHistoryInternal()` clears the dirty flag only after successful save/update-history flow.
+
+This step is where the implementation starts to feel like a deliberate state machine rather than a collection of helper methods. Be smart about failure ordering here: if the code clears the dirty bit too early or conflates flush success with mutation success, recovery correctness will quietly degrade.
 
 ### Tests
 
@@ -201,6 +240,8 @@ The APIs only matter if the streaming loop uses them. This is the step that conv
   - [ ] ensure they remain visible to the UI through message-change events / partial-message events,
   - [ ] but no longer synchronously persist each partial mutation.
 
+This is the step where it becomes easy to accidentally under-extract or over-extract. Use the reference implementation branch aggressively here. If a callsite was made ephemeral in `eve_troubleshooting-remote-workspaces`, understand why. If a callsite remained durable, understand why. Preserve that distinction intentionally.
+
 ### Tests
 
 - [ ] Integration-style test: many partial text updates do not trigger per-update durable saves.
@@ -234,6 +275,8 @@ This is the balancing step. We are intentionally reducing durability frequency, 
   - [ ] in request-finalization logic, call `flushClineMessagesAndUpdateHistory()` before or alongside final durable save path where needed.
   - [ ] in abort/cancel paths, ensure pending ephemeral changes are flushed before task shutdown is considered complete.
   - [ ] in resume-related flows, ensure history-visible state is not left behind dirty.
+
+This step is the heart of the technique. The way to think about it is: we are removing durability from the hot path only because we are reintroducing durability at the right semantic boundaries. If those boundaries are fuzzy, the technique is incomplete.
 
 ### Tests
 
@@ -275,6 +318,8 @@ The correct behavior is not “persist every partial” and not “never persist
   - [ ] stop scheduler in both success and error/finally paths,
   - [ ] make cadence conservative (for example ~1.5s) to preserve UX win while bounding recovery loss.
 
+Use the reference implementation’s chosen cadence and lifecycle wiring as the default starting point. Only diverge if you can clearly articulate why a different extraction improves isolation or reviewability without changing the core behavior.
+
 ### Tests
 
 - [ ] Unit test: scheduler flushes pending ephemeral changes on cadence.
@@ -292,6 +337,8 @@ Confirm that the technique helps exactly the user scenario we care about: long-r
 ### Mental model
 
 Large-file operations are effectively “progress-heavy” workloads. Even if the tool invocation itself is durable, the surrounding reasoning, progress, and partial text can create a huge amount of avoidable mutation churn.
+
+This is the direct answer to the large-file-write scenario: this technique helps because large-file operations tend to produce many small intermediate UI updates, and those should not all be treated like crash-critical persistence boundaries.
 
 ### Work
 
@@ -339,6 +386,8 @@ Hot-path changes need escape hatches. If behavior regresses in an edge case, the
 - In `src/core/task/latency.ts` / `.env.example`:
   - [ ] preserve `CLINE_DISABLE_EPHEMERAL_MESSAGE_PERSISTENCE` or equivalent.
   - [ ] document intended use for A/B validation.
+
+Treat the feature flag and validation path as first-class extraction requirements, not afterthoughts. Since the reference implementation already exists, the smoother development process is to keep comparison easy between “extracted technique enabled” and “feature disabled” modes.
 
 ### Tests
 

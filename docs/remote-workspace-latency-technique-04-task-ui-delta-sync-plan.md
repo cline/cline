@@ -8,6 +8,28 @@ The key idea is:
 
 This technique is more invasive than the first three top-ranked improvements, but it is strategically important because it moves the system toward a better model for remote workspaces: full-state snapshots for hydration and recovery, targeted deltas for live execution.
 
+## How To Use This Plan
+
+This plan should be executed on a dedicated extraction branch, while `eve_troubleshooting-remote-workspaces` is treated as the **fully developed reference implementation**.
+
+That distinction matters. This technique is not a hypothetical architecture proposal; it is a plan for extracting and verifying a technique that already exists in integrated form in the reference branch. Developers working this plan should actively inspect the reference implementation for each step and pull implementation details from it deliberately.
+
+Be smart about this. Because delta sync spans backend mutation publishing, transport contracts, and frontend application logic, the fastest way to make the development process stronger and smoother is to let the reference branch answer the “how did we already solve this edge case?” question early, rather than rediscovering it late.
+
+## Developer Operating Posture
+
+This is the most architecturally ambitious of the top four techniques. It changes how the system thinks about live task transport. That means the correct mindset is not “build a clever delta layer,” but:
+
+- preserve snapshots as canonical hydration and recovery,
+- shrink active-execution transport to the minimum necessary changes,
+- and fall back to resync aggressively when invariants are violated.
+
+The cross-cutting project wisdom still applies here:
+
+> **Stop treating every streamed chunk as a durable, full-state, immediately-presented event.**
+
+For this technique, the emphasis is on moving active execution away from **full-state** and toward **targeted transport**.
+
 ---
 
 ## Why This Technique Matters
@@ -94,6 +116,8 @@ Delta systems fail when they are “implicit.” They need an explicit contract 
   - [ ] sequence must increment monotonically by 1,
   - [ ] a gap triggers full resync.
 
+Do not improvise this contract from memory. Read the reference implementation branch carefully and preserve the exact mental model it uses for sequence monotonicity and recovery semantics.
+
 ### Tests
 
 - [ ] Unit test: type helpers or guards behave correctly.
@@ -125,6 +149,8 @@ Full-state snapshots and deltas should coexist, not replace each other outright.
   - [ ] record payload-size metrics if useful.
 - If protobuf transport needs changes:
   - [ ] ensure message contract is appropriately wired through `proto/cline/ui.proto` or equivalent.
+
+This is a good example of where “be smart about this” matters. The developer should not just make the channel exist; they should make it easy to reason about, easy to debug, and obviously subordinate to the canonical snapshot path.
 
 ### Tests
 
@@ -160,6 +186,8 @@ The message-state layer is the natural source of truth for chat mutation events.
   - [ ] send minimal payloads for each mutation type.
 - Ensure ephemeral and durable mutations both publish the same deltas so live UI behavior does not depend on durability choice.
 
+This step should be executed with the reference implementation branch open beside the extraction branch. The key engineering task is not simply “emit deltas,” but “emit deltas from the true state mutation boundary without creating semantic skew between durable and ephemeral paths.”
+
 ### Tests
 
 - [ ] Unit test: add publishes `message_added` with correct sequence.
@@ -191,6 +219,8 @@ Some of the most annoying snapshot churn comes from small metadata updates that 
   - [ ] add or refine `postTaskMetadataDelta(...)`.
   - [ ] only publish deltas when target task matches current active task.
   - [ ] otherwise request a normal full-state post as fallback.
+
+Keep the fallback path boring and reliable. Smart engineering here means preferring explicit fallback to snapshot sync over any attempt to get fancy when task identity or activity context is ambiguous.
 
 ### Tests
 
@@ -227,6 +257,8 @@ Frontend delta handling must be strict, not permissive. If it misses a sequence 
   - [ ] subscribe to delta stream,
   - [ ] feed deltas into reducer/helper,
   - [ ] trigger full-state resync when helper returns `resync`.
+
+The frontend side should be implemented with a bias toward correctness and repairability. If you find yourself making the delta reducer permissive to “keep things working,” stop and compare with the reference implementation. The right answer is usually stricter sequencing plus easier resync.
 
 ### Tests
 
@@ -266,6 +298,8 @@ Deltas should advance current state, not become the sole source of truth.
   - [ ] on resync request, fetch latest state and replace current state.
 - Ensure startup / reload still works even if no deltas arrive.
 
+This step is essential to keeping the rest of Cline’s product surfaces healthy. Delta sync should improve active execution, not quietly turn startup, reopen, or task switching into undefined behavior.
+
 ### Tests
 
 - [ ] Regression test: initial load hydrates correctly without prior deltas.
@@ -296,6 +330,8 @@ A delta transport is less valuable if the frontend responds by rebuilding large 
   - [ ] add/update should preserve array identity only where safe and replace minimal slices.
   - [ ] delete should only filter when message exists.
   - [ ] metadata updates should shallow-merge only changed fields.
+
+Be smart about this at the React-state level too: if the frontend re-renders large portions of the tree on every delta, then the transport win will be partially squandered.
 
 ### Tests
 
@@ -333,6 +369,8 @@ Delta systems are harder to reason about than snapshots, so they need better vis
 - In validation tooling:
   - [ ] compare `stateUpdateCount`, `taskDeltaCount`, and payload bytes across variants.
 
+Since the reference implementation already exists, one of the strongest ways to smooth development is to validate the extracted technique against both disabled-mode behavior and the known-good reference branch behavior.
+
 ### Tests
 
 - [ ] Validation harness scenario: delta-enabled mode reduces full-state payload bytes during active execution.
@@ -350,6 +388,8 @@ Confirm that delta sync specifically helps long, noisy task executions, includin
 ### Mental model
 
 Large-file writes are not only about the write tool itself. They often generate a lot of nearby live task activity that becomes expensive when transported as snapshots. Delta sync should reduce that excess movement.
+
+That is why this technique still matters for large-file-write scenarios, even though it is not the first thing to land: it attacks the remaining active-execution transport cost after the first three higher-ROI techniques have already reduced hot-path churn.
 
 ### Work
 
