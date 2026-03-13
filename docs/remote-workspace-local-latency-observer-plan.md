@@ -167,7 +167,7 @@ Measure:
 - [x] number of partial-message events per request
 - [x] number of partial-message events per request
 - [x] total partial-message payload bytes per request
-- [ ] number of task UI deltas per request where supported
+- [x] number of task UI deltas per request where supported
 - [x] number of task UI deltas per request where supported
 - [x] persistence flush counts where supported
 
