@@ -284,14 +284,14 @@ The APIs only matter if the streaming loop uses them. This is the step that conv
 ### Detailed code changes
 
 - In `src/core/task/index.ts`, update `say(...)`:
-  - [ ] partial update of existing partial `say` message should use `updateClineMessageEphemeral(...)`.
-  - [ ] new partial `say` message insertion should use `addToClineMessagesEphemeral(...)` where appropriate.
+  - [x] partial update of existing partial `say` message should use `updateClineMessageEphemeral(...)`.
+  - [x] new partial `say` message insertion should use `addToClineMessagesEphemeral(...)` where appropriate.
 - In `src/core/task/index.ts`, update `ask(...)`:
-  - [ ] partial update of existing partial `ask` message should use `updateClineMessageEphemeral(...)`.
-  - [ ] new partial `ask` insertion should use `addToClineMessagesEphemeral(...)` where appropriate.
+  - [x] partial update of existing partial `ask` message should use `updateClineMessageEphemeral(...)`.
+  - [x] new partial `ask` insertion should use `addToClineMessagesEphemeral(...)` where appropriate.
 - For reasoning/tool-progress-related live updates:
-  - [ ] ensure they remain visible to the UI through message-change events / partial-message events,
-  - [ ] but no longer synchronously persist each partial mutation.
+  - [x] ensure they remain visible to the UI through message-change events / partial-message events,
+  - [x] but no longer synchronously persist each partial mutation.
 
 This is the step where it becomes easy to accidentally under-extract or over-extract. Use the reference implementation branch aggressively here. If a callsite was made ephemeral in `eve_troubleshooting-remote-workspaces`, understand why. If a callsite remained durable, understand why. Preserve that distinction intentionally.
 
@@ -324,19 +324,19 @@ This is the balancing step. We are intentionally reducing durability frequency, 
 ### Detailed code changes
 
 - In `src/core/task/index.ts`:
-  - [ ] when `partial: false` finalizes a previously partial message, use durable `updateClineMessage(...)` or explicit flush right after ephemeral completion.
-  - [ ] in request-finalization logic, call `flushClineMessagesAndUpdateHistory()` before or alongside final durable save path where needed.
-  - [ ] in abort/cancel paths, ensure pending ephemeral changes are flushed before task shutdown is considered complete.
-  - [ ] in resume-related flows, ensure history-visible state is not left behind dirty.
+  - [x] when `partial: false` finalizes a previously partial message, use durable `updateClineMessage(...)` or explicit flush right after ephemeral completion.
+  - [x] in request-finalization logic, call `flushClineMessagesAndUpdateHistory()` before or alongside final durable save path where needed.
+  - [x] in abort/cancel paths, ensure pending ephemeral changes are flushed before task shutdown is considered complete.
+  - [x] in resume-related flows, ensure history-visible state is not left behind dirty.
 
 This step is the heart of the technique. The way to think about it is: we are removing durability from the hot path only because we are reintroducing durability at the right semantic boundaries. If those boundaries are fuzzy, the technique is incomplete.
 
 ### Tests
 
-- [ ] Unit test: partial → complete transition results in durable persistence.
+- [x] Unit test: partial → complete transition results in durable persistence.
 - [ ] Integration test: abort during stream persists a recoverable state.
 - [x] Regression test: resume-from-history still works after deferred partial persistence.
-- [ ] Regression test: tool result flows remain properly visible in history after finalization.
+- [x] Regression test: tool result flows remain properly visible in history after finalization.
 
 ---
 
@@ -367,9 +367,9 @@ The correct behavior is not “persist every partial” and not “never persist
   - [x] prevent overlap between flushes,
   - [x] support clean start/stop/dispose semantics.
 - In `src/core/task/index.ts`:
-  - [ ] start scheduler near request start,
-  - [ ] stop scheduler in both success and error/finally paths,
-  - [ ] make cadence conservative (for example ~1.5s) to preserve UX win while bounding recovery loss.
+  - [x] start scheduler near request start,
+  - [x] stop scheduler in both success and error/finally paths,
+  - [x] make cadence conservative (for example ~1.5s) to preserve UX win while bounding recovery loss.
 
 Use the reference implementation’s chosen cadence and lifecycle wiring as the default starting point. Only diverge if you can clearly articulate why a different extraction improves isolation or reviewability without changing the core behavior.
 

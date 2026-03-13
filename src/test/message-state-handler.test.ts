@@ -455,6 +455,64 @@ describe("MessageStateHandler Mutex Protection", () => {
 		savedHistory[1]!.content.should.equal("task response")
 	})
 
+	it("persists tool result conversation history after finalization", async () => {
+		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-tool-result-"))
+		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })
+
+		const handler = createTestHandler()
+		await handler.overwriteApiConversationHistory([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I will inspect the file." },
+					{ type: "tool_use", id: "toolu_123", name: "read_file", input: { path: "src/test.ts" } },
+				],
+				ts: 1,
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_123",
+						content: [{ type: "text", text: "export const value = 1" }],
+					},
+				],
+				ts: 2,
+			},
+		])
+
+		const savedHistory = await getSavedApiConversationHistory("test-task-id")
+		savedHistory.length.should.equal(2)
+		const savedToolResultMessage = savedHistory[1]
+		should.exist(savedToolResultMessage)
+		Array.isArray(savedToolResultMessage!.content).should.equal(true)
+		const toolResultBlocks = savedToolResultMessage!.content as Array<{
+			type: string
+			tool_use_id?: string
+			content?: Array<{ type: string; text?: string }>
+		}>
+		const firstToolResultBlock = toolResultBlocks[0]
+		should.exist(firstToolResultBlock)
+		if (!firstToolResultBlock) {
+			throw new Error("Expected persisted tool result block")
+		}
+		firstToolResultBlock.type.should.equal("tool_result")
+		const firstToolUseId = firstToolResultBlock.tool_use_id
+		should.exist(firstToolUseId)
+		firstToolUseId!.should.equal("toolu_123")
+		should.exist(firstToolResultBlock.content)
+		const firstToolResultContentBlocks = firstToolResultBlock.content!
+		const firstToolResultContent = firstToolResultContentBlocks[0]
+		should.exist(firstToolResultContent)
+		const firstToolResultText = firstToolResultContent!.text
+		should.exist(firstToolResultText)
+		if (!firstToolResultText) {
+			throw new Error("Expected persisted tool result text")
+		}
+		firstToolResultText.should.equal("export const value = 1")
+	})
+
 	it("persists recoverable message and conversation state for resume after an interrupted stream", async () => {
 		tempGlobalStorageDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-message-resume-"))
 		setVscodeHostProviderMock({ globalStorageFsPath: tempGlobalStorageDir })
