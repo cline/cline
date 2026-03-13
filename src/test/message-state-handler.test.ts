@@ -1,6 +1,7 @@
 import { describe, it } from "mocha"
 import "should"
 import should from "should"
+import { registerTaskUiDeltaCallback } from "../core/controller/ui/subscribeToTaskUiDeltas"
 import { MessageStateHandler } from "../core/task/message-state"
 import { TaskState } from "../core/task/TaskState"
 import { ClineMessage } from "../shared/ExtensionMessage"
@@ -263,5 +264,71 @@ describe("MessageStateHandler Mutex Protection", () => {
 		finalHistory.length.should.equal(2)
 		finalHistory[0].content.should.equal("new1")
 		finalHistory[1].content.should.equal("new2")
+	})
+
+	it("publishes message_added deltas with monotonically increasing sequence numbers", async () => {
+		const handler = createTestHandler()
+		const received: Array<{ type: string; sequence: number; text?: string }> = []
+		const unsubscribe = registerTaskUiDeltaCallback((delta) => {
+			received.push({
+				type: delta.type,
+				sequence: delta.sequence,
+				text: "message" in delta ? delta.message.text : undefined,
+			})
+		})
+
+		await handler.addToClineMessagesEphemeral(createTestMessage("first"))
+		await handler.addToClineMessagesEphemeral(createTestMessage("second"))
+
+		received.should.deepEqual([
+			{ type: "message_added", sequence: 1, text: "first" },
+			{ type: "message_added", sequence: 2, text: "second" },
+		])
+		unsubscribe()
+	})
+
+	it("publishes message_updated and message_deleted deltas with correct sequence numbers", async () => {
+		const handler = createTestHandler()
+		const received: Array<{ type: string; sequence: number; text?: string; messageTs?: number }> = []
+		const unsubscribe = registerTaskUiDeltaCallback((delta) => {
+			received.push({
+				type: delta.type,
+				sequence: delta.sequence,
+				text: "message" in delta ? delta.message.text : undefined,
+				messageTs: "messageTs" in delta ? delta.messageTs : undefined,
+			})
+		})
+
+		const message = createTestMessage("original")
+		await handler.addToClineMessagesEphemeral(message)
+		await handler.updateClineMessageEphemeral(0, { text: "updated" })
+		await handler.deleteClineMessage(0).catch(() => {
+			// deleteClineMessage persists to disk; ignore persistence failures in this unit test.
+		})
+
+		received[0]?.type.should.equal("message_added")
+		received[1]?.should.deepEqual({
+			type: "message_updated",
+			sequence: 2,
+			text: "updated",
+			messageTs: undefined,
+		})
+		received[2]?.type.should.equal("message_deleted")
+		received[2]?.sequence.should.equal(3)
+		received[2]?.messageTs.should.equal(message.ts)
+		unsubscribe()
+	})
+
+	it("publishes task_state_resynced when the full message state is replaced", async () => {
+		const handler = createTestHandler()
+		const received: Array<{ type: string; sequence: number }> = []
+		const unsubscribe = registerTaskUiDeltaCallback((delta) => {
+			received.push({ type: delta.type, sequence: delta.sequence })
+		})
+
+		handler.setClineMessages([createTestMessage("replacement")])
+
+		received.should.deepEqual([{ type: "task_state_resynced", sequence: 1 }])
+		unsubscribe()
 	})
 })
