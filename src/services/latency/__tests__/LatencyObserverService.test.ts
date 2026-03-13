@@ -31,4 +31,17 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.firstVisibleUpdate.stats.count, 1)
 		assert.equal(snapshot.firstVisibleUpdate.samples[0].label, "text")
 	})
+
+	it("tracks optional counters and session metadata", () => {
+		const service = new LatencyObserverService()
+		service.setSessionMetadata({ branch: "feature/latency", commit: "abc123", environment: "production", platform: "darwin" })
+		service.incrementCounter("fullStatePushes")
+		service.incrementCounter("partialMessageEvents", 2)
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.session.branch, "feature/latency")
+		assert.equal(snapshot.session.commit, "abc123")
+		assert.equal(snapshot.optionalCounters?.fullStatePushes, 1)
+		assert.equal(snapshot.optionalCounters?.partialMessageEvents, 2)
+	})
 })

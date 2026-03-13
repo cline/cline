@@ -18,6 +18,41 @@ vi.mock("@/services/grpc-client", () => ({
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
+		latencyObserver: {
+			session: { startedAt: 1, branch: "main", commit: "abcdef123456", environment: "production" },
+			capabilities: {
+				transportProbe: "supported",
+				taskInitialization: "supported",
+				requestStart: "supported",
+				firstVisibleUpdate: "supported",
+				fullStateMetrics: "supported",
+				partialMessageMetrics: "supported",
+				taskUiDeltaMetrics: "unsupported",
+				persistenceMetrics: "supported",
+			},
+			transport: {
+				support: "supported",
+				samples: [],
+				stats: { count: 0, minMs: null, maxMs: null, avgMs: null, lastMs: null, totalMs: 0 },
+			},
+			taskInitialization: {
+				support: "supported",
+				samples: [],
+				stats: { count: 1, minMs: 10, maxMs: 10, avgMs: 10, lastMs: 10, totalMs: 10 },
+			},
+			requestStart: {
+				support: "supported",
+				samples: [],
+				stats: { count: 1, minMs: 0, maxMs: 0, avgMs: 0, lastMs: 0, totalMs: 0 },
+			},
+			firstVisibleUpdate: {
+				support: "supported",
+				samples: [],
+				stats: { count: 1, minMs: 12, maxMs: 12, avgMs: 12, lastMs: 12, totalMs: 12 },
+			},
+			logs: [],
+			optionalCounters: { fullStatePushes: 3, partialMessageEvents: 4, persistenceFlushes: 2 },
+		},
 		setShowWelcome: vi.fn(),
 	}),
 }))
@@ -34,5 +69,7 @@ describe("DebugSection", () => {
 		await waitFor(() => expect(grpcClientMocks.pingLatencyProbe).toHaveBeenCalledTimes(1))
 		expect(screen.getByText(/Samples: 1/)).toBeTruthy()
 		expect(screen.getByText(/Payload: 64 bytes/)).toBeTruthy()
+		expect(screen.getByText(/Branch: main/)).toBeTruthy()
+		expect(screen.getByText(/State pushes: 3/)).toBeTruthy()
 	})
 })

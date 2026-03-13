@@ -2,6 +2,7 @@ import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { EventEmitter } from "events"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
+import { getLatencyObserverService } from "@/services/latency/LatencyObserverService"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -176,6 +177,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		try {
 			this.latencyMetrics.persistenceFlushCount += 1
 			const saveMessagesStartedAt = performance.now()
+			const observer = getLatencyObserverService()
+			observer.incrementCounter("persistenceFlushes")
+			observer.setCapability("persistenceMetrics", "supported")
 			await saveClineMessages(this.taskId, this.clineMessages)
 			this.latencyMetrics.saveMessagesDurationMs += Math.max(0, performance.now() - saveMessagesStartedAt)
 

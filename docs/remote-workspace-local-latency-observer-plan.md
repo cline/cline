@@ -371,10 +371,10 @@ Think of this as capability detection, not branch forking.
 
 - [ ] Integrate existing richer latency metrics when present:
   - [ ] `task.latency_metrics`
-  - [ ] initialization telemetry
-  - [ ] payload-size accounting
+  - [x] initialization telemetry
+  - [x] payload-size accounting
   - [ ] chunk-to-webview summaries
-- [ ] Surface unsupported metrics as unavailable instead of failing.
+- [x] Surface unsupported metrics as unavailable instead of failing.
 
 ### Detailed code changes
 
@@ -412,11 +412,11 @@ If the observer is only visible in logs, engineers will underuse it. The UI shou
 - Prefer a design inspired by the old `LatencyTester`:
   - [ ] simple controls,
   - [ ] rolling stats,
-  - [ ] recent logs,
-  - [ ] easy reset.
+  - [x] recent logs,
+  - [x] easy reset.
 - Add session identity fields:
-  - [ ] git branch or commit label if available from backend,
-  - [ ] environment marker (local vs remote),
+  - [x] git branch or commit label if available from backend,
+  - [x] environment marker (local vs remote),
   - [ ] capability flags for richer metrics.
 
 ### Tests

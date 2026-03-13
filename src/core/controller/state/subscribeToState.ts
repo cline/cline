@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
+import { getLatencyObserverService } from "@/services/latency/LatencyObserverService"
 import { telemetryService } from "@/services/telemetry"
 import { ExtensionState } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
@@ -106,4 +107,7 @@ export async function sendStateUpdate(state: ExtensionState): Promise<StateUpdat
 
 function recordStateSizeTelemetry(sizeBytes: number): void {
 	telemetryService.captureGrpcResponseSize(sizeBytes, "cline.StateService", "subscribeToState")
+	const observer = getLatencyObserverService()
+	observer.incrementCounter("fullStatePushes")
+	observer.setCapability("fullStateMetrics", "supported")
 }

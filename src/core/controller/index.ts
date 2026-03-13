@@ -42,6 +42,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getCurrentGitBranch, getLatestGitCommitHash } from "@/utils/git"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -999,6 +1000,14 @@ export class Controller {
 		const version = ExtensionRegistryInfo.version
 		const clineConfig = ClineEnv.config()
 		const environment = clineConfig.environment
+		const workspaceCwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+		const [branch, commit] = await Promise.all([getCurrentGitBranch(workspaceCwd), getLatestGitCommitHash(workspaceCwd)])
+		getLatencyObserverService().setSessionMetadata({
+			branch: branch ?? undefined,
+			commit: commit ?? undefined,
+			environment,
+			platform,
+		})
 		const banners = BannerService.get().getActiveBanners() ?? []
 		const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
 
