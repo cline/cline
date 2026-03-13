@@ -2,7 +2,9 @@
 
 import { type ChildProcess, spawn } from "node:child_process"
 import { once } from "node:events"
+import fs from "node:fs/promises"
 import net from "node:net"
+import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { credentials } from "@grpc/grpc-js"
@@ -34,6 +36,14 @@ type ScenarioResult = {
 	messageCountAtCompletion: number | null
 	completed: boolean
 	error?: string
+}
+
+type StartedServer = {
+	child: ChildProcess
+	grpcPort: number
+	hostbridgePort: number
+	workspaceDir: string
+	getStderr: () => string
 }
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -129,7 +139,7 @@ function unaryCall<T>(fn: (callback: (error: Error | null, response: T) => void)
 	})
 }
 
-async function startServer(mode: ValidationMode, envOverrides: Record<string, string>) {
+async function startServer(mode: ValidationMode, envOverrides: Record<string, string>): Promise<StartedServer> {
 	if (await isPortBusy(7777)) {
 		throw new Error(
 			"Cannot start latency validation harness because the mock API port 7777 is already in use. Stop the conflicting process and retry.",
@@ -138,10 +148,13 @@ async function startServer(mode: ValidationMode, envOverrides: Record<string, st
 
 	const grpcPort = await getFreePort()
 	const hostbridgePort = await getFreePort()
+	const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-latency-validate-"))
+	await fs.writeFile(path.join(workspaceDir, "test.ts"), 'export const name = "john"\n', "utf8")
 	const env: Record<string, string> = {
 		...process.env,
 		PROTOBUS_PORT: String(grpcPort),
 		HOSTBRIDGE_PORT: String(hostbridgePort),
+		WORKSPACE_DIR: workspaceDir,
 		E2E_TEST: "true",
 		CLINE_ENVIRONMENT: "local",
 		TEST_HOSTBRIDGE_REMOTE_NAME: mode === "remote" ? "ssh-remote" : "",
@@ -177,11 +190,13 @@ async function startServer(mode: ValidationMode, envOverrides: Record<string, st
 		}
 		throw error
 	}
-	return { child, grpcPort, hostbridgePort, getStderr: () => stderr }
+	return { child, grpcPort, hostbridgePort, workspaceDir, getStderr: () => stderr }
 }
 
-async function stopServer(child: ChildProcess) {
+async function stopServer(server: StartedServer) {
+	const { child, workspaceDir } = server
 	if (child.killed || child.exitCode !== null) {
+		await fs.rm(workspaceDir, { recursive: true, force: true })
 		return
 	}
 	child.kill("SIGINT")
@@ -190,6 +205,7 @@ async function stopServer(child: ChildProcess) {
 	} catch {
 		child.kill("SIGKILL")
 	}
+	await fs.rm(workspaceDir, { recursive: true, force: true })
 }
 
 async function runScenario(mode: ValidationMode, variant: ValidationVariant): Promise<ScenarioResult> {
@@ -199,6 +215,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 	const stateClient = new StateServiceClient(address, credentials.createInsecure())
 	const taskClient = new TaskServiceClient(address, credentials.createInsecure())
 	const uiClient = new UiServiceClient(address, credentials.createInsecure())
+	const respondedAskTs = new Set<number>()
 
 	let currentTaskId: string | undefined
 	const startedAt = Date.now()
@@ -213,6 +230,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 	let taskDeltaPayloadBytes = 0
 	let messageCountAtCompletion: number | null = null
 	let completed = false
+	let lastMessagesSummary = ""
 
 	const stateStream = stateClient.subscribeToState({})
 	const partialStream = uiClient.subscribeToPartialMessage({})
@@ -254,8 +272,52 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 				currentTaskId = activeTaskId
 			}
 			const clineMessages = Array.isArray(state.clineMessages) ? state.clineMessages : []
+			lastMessagesSummary = clineMessages
+				.slice(-5)
+				.map((message: any) => {
+					const kind = message.type === "ask" || message.type === 0 ? "ask" : "say"
+					const subtype = kind === "ask" ? message.ask : message.say
+					return `${kind}:${String(subtype)}:${String(message.text ?? "").slice(0, 60)}`
+				})
+				.join(" | ")
+			const lastMessage = clineMessages.at(-1)
+			const askType = lastMessage?.ask
+			const askTs = typeof lastMessage?.ts === "number" ? lastMessage.ts : undefined
+			const isAskMessage = lastMessage?.type === "ask" || lastMessage?.type === 0 || askType !== undefined
+			if (isAskMessage && askTs !== undefined && !respondedAskTs.has(askTs)) {
+				if (
+					askType === "tool" ||
+					askType === 5 ||
+					askType === "api_req_failed" ||
+					askType === 6 ||
+					askType === "completion_result" ||
+					askType === 4 ||
+					askType === "resume_completed_task" ||
+					askType === 8
+				) {
+					respondedAskTs.add(askTs)
+					void unaryCall((callback) =>
+						taskClient.askResponse(
+							{
+								metadata: undefined,
+								responseType: "yesButtonClicked",
+								text: "",
+								images: [],
+								files: [],
+							},
+							callback as any,
+						),
+					).catch((error) => {
+						console.error("validation askResponse error", error)
+					})
+				}
+			}
 			const hasCompletion = clineMessages.some(
-				(message: any) => message.ask === "completion_result" || message.ask === "resume_completed_task",
+				(message: any) =>
+					message.ask === "completion_result" ||
+					message.ask === "resume_completed_task" ||
+					message.ask === 4 ||
+					message.ask === 8,
 			)
 			if (hasCompletion && completionMs === null) {
 				completionMs = Date.now() - startedAt
@@ -267,9 +329,12 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 		}
 	})
 
-	partialStream.on("data", (message: { say?: string; text?: string }) => {
+	partialStream.on("data", (message: { say?: string | number; text?: string }) => {
 		partialMessageCount += 1
-		if (firstPartialMessageMs === null && (message.say === "text" || message.say === "reasoning")) {
+		if (
+			firstPartialMessageMs === null &&
+			(message.say === "text" || message.say === "reasoning" || message.say === 4 || message.say === 5)
+		) {
 			firstPartialMessageMs = Date.now() - startedAt
 		}
 	})
@@ -318,7 +383,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 			await new Promise((resolve) => setTimeout(resolve, 100))
 		}
 		if (!completed) {
-			error = "Scenario timed out before completion"
+			error = `Scenario timed out before completion. Last messages: ${lastMessagesSummary}`
 		}
 	} catch (scenarioError) {
 		error = scenarioError instanceof Error ? scenarioError.message : String(scenarioError)
@@ -331,7 +396,7 @@ async function runScenario(mode: ValidationMode, variant: ValidationVariant): Pr
 	stateClient.close()
 	taskClient.close()
 	uiClient.close()
-	await stopServer(server.child)
+	await stopServer(server)
 
 	return {
 		variant: variant.name,

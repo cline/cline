@@ -397,13 +397,13 @@ This is the direct answer to the large-file-write scenario: this technique helps
 
 - [x] Add a targeted validation scenario for large streamed output / large-file write behavior.
 - [x] Confirm persistence flush count drops sharply versus baseline.
-- [ ] Confirm the user still sees smooth progress and correct final durable state.
+- [x] Confirm the user still sees smooth progress and correct final durable state.
 
 ### Detailed code changes
 
 - Extend existing latency validation or tests to simulate:
   - [x] long streaming response,
-  - [ ] tool progress and completion,
+  - [x] tool progress and completion,
   - [ ] large-file write workflow or equivalent sustained partial-update workload.
 - Use telemetry fields already added in latency instrumentation to compare:
   - [ ] persistence flush count,
@@ -413,10 +413,10 @@ This is the direct answer to the large-file-write scenario: this technique helps
 ### Tests
 
 - [x] Performance/regression test: long stream causes far fewer persistence flushes than partial-update count.
-- [ ] Validation harness comparison: baseline vs ephemeral-persistence-enabled variant.
+- [x] Validation harness comparison: baseline vs ephemeral-persistence-enabled variant.
 - [x] Regression test: final message history and resume state remain correct.
 
-Implementation note: a standalone validation harness script now exists at `scripts/validate-latency-scenarios.ts` and is wired to `npm run test:latency:validate`. In this workspace it still requires a clean local mock API port / compatible delta-stream server support before the baseline-vs-variant comparison can be considered fully verified.
+Implementation note: the standalone validation harness at `scripts/validate-latency-scenarios.ts` is now wired to `npm run test:latency:validate` and completes successfully for local/remote plus enabled/disabled variants. In this standalone test environment, task-UI delta streaming is still absent (`taskDeltaCount: 0`), so the harness currently validates state/partial-message timing and completion behavior rather than delta-channel behavior.
 
 ---
 
@@ -447,9 +447,9 @@ Treat the feature flag and validation path as first-class extraction requirement
 ### Tests
 
 - [x] Unit test: disable flag routes behavior back to durable-per-update path where applicable.
-- [ ] Validation harness variant: feature-disabled mode still behaves correctly.
+- [x] Validation harness variant: feature-disabled mode still behaves correctly.
 
-Implementation note: the validation harness includes an `ephemeral_disabled` variant for A/B runs; the remaining work here is environmental/runtime verification rather than missing flag plumbing.
+Implementation note: the validation harness includes an `ephemeral_disabled` variant for A/B runs and now verifies that the feature-disabled mode completes successfully in both local and remote hostbridge scenarios.
 
 ---
 
