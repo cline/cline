@@ -4587,56 +4587,58 @@ export const mainlandZAiModels = {
 
 // Fireworks AI
 export type FireworksModelId = keyof typeof fireworksModels
-export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2p5"
 export const fireworksModels = {
-	"accounts/fireworks/models/kimi-k2-instruct-0905": {
+	"accounts/fireworks/models/kimi-k2p5": {
 		maxTokens: 16384,
 		contextWindow: 262144,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.6,
-		outputPrice: 2.5,
-		cacheReadsPrice: 0.15,
+		outputPrice: 3,
+		cacheReadsPrice: 0.1,
 		description:
-			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
+			"Moonshot's flagship open agentic model. Kimi K2.5 unifies vision and text, thinking and non-thinking modes, and single-agent and multi-agent execution.",
 	},
-	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
+	"accounts/fireworks/models/qwen3-vl-30b-a3b-thinking": {
 		maxTokens: 32768,
-		contextWindow: 256000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.88,
-		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
-	},
-	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
-		maxTokens: 32768,
-		contextWindow: 256000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.45,
-		outputPrice: 1.8,
-		description: "Qwen3's most agentic code model to date.",
-	},
-	"accounts/fireworks/models/deepseek-r1-0528": {
-		maxTokens: 20480,
-		contextWindow: 160000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 8,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheReadsPrice: 0.07,
 		description:
-			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+			"Reasoning-enabled Qwen3-VL model with strong multimodal understanding, long context support, and function calling.",
 	},
-	"accounts/fireworks/models/deepseek-v3": {
+	"accounts/fireworks/models/qwen3-vl-30b-a3b-instruct": {
+		maxTokens: 32768,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Qwen3-VL instruct model with strong multimodal reasoning, long context support, and function calling.",
+	},
+	"accounts/fireworks/models/deepseek-v3p2": {
 		maxTokens: 16384,
-		contextWindow: 128000,
+		contextWindow: 163840,
 		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.9,
-		outputPrice: 0.9,
-		description:
-			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+		supportsPromptCache: true,
+		inputPrice: 0.56,
+		outputPrice: 1.68,
+		cacheReadsPrice: 0.28,
+		description: "DeepSeek V3.2 model tuned for high computational efficiency and strong reasoning and agent performance.",
+	},
+	"accounts/fireworks/models/deepseek-v3p1": {
+		maxTokens: 16384,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.56,
+		outputPrice: 1.68,
+		cacheReadsPrice: 0.28,
+		description: "DeepSeek V3.1 long-context model with improved reasoning, agentic behavior, and function calling.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
