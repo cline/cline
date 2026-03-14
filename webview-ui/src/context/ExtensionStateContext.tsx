@@ -151,7 +151,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
-	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
+	const hideAnnouncement = useCallback(() => setShowAnnouncement(true), [setShowAnnouncement])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(

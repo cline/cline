@@ -19,8 +19,8 @@ type McpViewProps = {
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	const { remoteConfigSettings, setMcpServers, environment } = useExtensionState()
 	// Show marketplace by default unless remote config explicitly disables it
-	const showMarketplace = remoteConfigSettings?.mcpMarketplaceEnabled !== false
-	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
+	const showMarketplace = false // remoteConfigSettings?.mcpMarketplaceEnabled !== false
+	const showRemoteServers = false // remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
 	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || (showMarketplace ? "marketplace" : "configure"))
 
 	const handleTabChange = (tab: McpViewTab) => {

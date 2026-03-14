@@ -12,6 +12,10 @@ interface GeneralSettingsSectionProps {
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
 	const { telemetrySetting, remoteConfigSettings } = useExtensionState()
 
+	if (remoteConfigSettings) {
+		remoteConfigSettings.telemetrySetting = "disabled"
+	}
+
 	return (
 		<div>
 			{renderSectionHeader("general")}

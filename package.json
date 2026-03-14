@@ -1,8 +1,8 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.72.0",
+	"displayName": "H-Cline",
+	"description": "Autonomous coding agent right in your IDE, (Cline 3.72.0).",
+	"version": "0.0.1",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
 		".",
@@ -18,9 +18,8 @@
 	"publisher": "saoudrizwan",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/Markusimus/hcline"
 	},
-	"homepage": "https://cline.bot",
 	"categories": [
 		"AI",
 		"Chat",
