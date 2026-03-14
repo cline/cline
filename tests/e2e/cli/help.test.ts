@@ -1,6 +1,7 @@
 import { test } from "@microsoft/tui-test"
 import { CLINE_BIN } from "./helpers/constants.js"
-import { expectVisible, testEnv } from "./utils.js"
+import { clineEnv } from "./helpers/env.js"
+import { expectVisible } from "./helpers/terminal.js"
 
 const HELP_TERMINAL = { columns: 120, rows: 50 }
 
@@ -10,7 +11,7 @@ const HELP_TERMINAL = { columns: 120, rows: 50 }
 test.describe("cline --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -54,7 +55,7 @@ test.describe("cline --help", () => {
 test.describe("cline -h", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["-h"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -69,7 +70,7 @@ test.describe("cline -h", () => {
 test.describe("cline task --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["task", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -101,7 +102,7 @@ test.describe("cline task --help", () => {
 test.describe("cline t --help (task alias)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["t", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -116,7 +117,7 @@ test.describe("cline t --help (task alias)", () => {
 test.describe("cline history --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["history", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -131,7 +132,7 @@ test.describe("cline history --help", () => {
 test.describe("cline h --help (history alias)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["h", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -146,7 +147,7 @@ test.describe("cline h --help (history alias)", () => {
 test.describe("cline config --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["config", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -161,7 +162,7 @@ test.describe("cline config --help", () => {
 test.describe("cline auth --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -185,7 +186,7 @@ test.describe("cline auth --help", () => {
 test.describe("cline version --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["version", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -200,7 +201,7 @@ test.describe("cline version --help", () => {
 test.describe("cline update --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["update", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 
@@ -215,7 +216,7 @@ test.describe("cline update --help", () => {
 test.describe("cline dev --help", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["dev", "--help"] },
-		env: testEnv("claude-sonnet-4.6"),
+		env: clineEnv("claude-sonnet-4.6"),
 		...HELP_TERMINAL,
 	})
 

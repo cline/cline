@@ -19,4 +19,4 @@ Tests point to a config via `clineEnv("<name>")` in `tests/e2e/cli/helpers/env.t
 ## Secrets
 
 API keys and secrets should never be committed.
-If you create authenticated fixtures locally, keep `data/secrets.json` untracked.
+If you create authenticated fixtures locally, keep `data/secrets.json` untracked or fill it with mock data

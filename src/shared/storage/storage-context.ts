@@ -59,6 +59,16 @@ export interface StorageContextOptions {
 	 * once the JetBrains client side is cleaned up.
 	 */
 	workspaceStorageDir?: string
+
+	/**
+	 * Override the path to the secrets file. Defaults to CLINE_SECRETS_FILE
+	 * env var or `<dataDir>/secrets.json`.
+	 *
+	 * Used by e2e tests during VCR recording to read real API keys from
+	 * ~/.cline/data/secrets.json while keeping all other config from a
+	 * mock test directory.
+	 */
+	secretsFile?: string
 }
 
 const SETTINGS_SUBFOLDER = "data"
@@ -113,10 +123,12 @@ export function createStorageContext(opts: StorageContextOptions = {}): StorageC
 
 	const globalState = new ClineFileStorage(path.join(dataDir, "globalState.json"), "GlobalState")
 
+	const secretsFile = opts.secretsFile || process.env.CLINE_SECRETS_FILE || path.join(dataDir, "secrets.json")
+
 	return {
 		globalState,
 		globalStateBackingStore: globalState,
-		secrets: new ClineFileStorage<string>(path.join(dataDir, "secrets.json"), "Secrets", {
+		secrets: new ClineFileStorage<string>(secretsFile, "Secrets", {
 			fileMode: 0o600, // Owner read/write only — protects API keys
 		}),
 		workspaceState: new ClineFileStorage(path.join(workspaceDir, "workspaceState.json"), "WorkspaceState"),

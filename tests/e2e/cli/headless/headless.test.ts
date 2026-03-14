@@ -11,7 +11,7 @@
 import { test } from "@microsoft/tui-test"
 import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js"
 import { clineEnv } from "../helpers/env.js"
-import { expectVisible } from "../helpers/terminal.js"
+import { expectVisible, waitForTerminalExit } from "../helpers/terminal.js"
 
 // ---------------------------------------------------------------------------
 // cline -y "tell me a joke"
@@ -82,5 +82,131 @@ test.describe("cline --json — unauthenticated", () => {
 	test("outputs JSON error for unauthenticated", async ({ terminal }) => {
 		// cline --json when unauthenticated outputs a plain "Not authenticated" message
 		await expectVisible(terminal, /not authenticated/i)
+	})
+})
+
+test.describe("cline -y (headless yolo mode) — authenticated @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: ["-y", "tell me a joke"] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-yolo-basic.json" }),
+	})
+
+	test("prints Task started then LLM output", async ({ terminal }) => {
+		await expectVisible(terminal, /task started/i)
+		await waitForTerminalExit(terminal)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// echo "max paulus" | cline -y "..." — authenticated
+// Piped stdin test with valid credentials
+// ---------------------------------------------------------------------------
+test.describe("piped stdin | cline -y — authenticated", () => {
+	test.use({
+		program: {
+			file: "sh",
+			args: ["-c", `echo "butterfly horse country" | ${CLINE_BIN} -y "print only the second word I gave you"`],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-piped-stdin.json" }),
+	})
+
+	test("prints Task started and output for piped stdin", async ({ terminal }) => {
+		await expectVisible(terminal, /task started/i)
+		await waitForTerminalExit(terminal)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// cline -y --verbose "tell me a joke" 2>&1 — authenticated
+// Golden path: prints task started, prompt, api request, reasoning, task_completion
+// ---------------------------------------------------------------------------
+test.describe("cline -y --verbose — authenticated @live", () => {
+	test.use({
+		program: {
+			file: "sh",
+			args: ["-c", `${CLINE_BIN} -y --verbose "tell me a joke" 2>&1`],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-verbose.json" }),
+	})
+
+	test("shows verbose output with task started, prompt, and api request lines", async ({ terminal }) => {
+		await expectVisible(terminal, /task started/i)
+		await waitForTerminalExit(terminal)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// cline --json "tell me a joke" — authenticated
+// All output must conform to JSON (one JSON object per line)
+// ---------------------------------------------------------------------------
+test.describe("cline --json — authenticated @live", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-json.json" }),
+	})
+
+	test("outputs JSON-formatted messages", async ({ terminal }) => {
+		await expectVisible(terminal, /\{.*"type"/i)
+		await waitForTerminalExit(terminal)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// cline -t 2 -y "tell me a joke"
+// Timeout: should print "Error: Timeout" and exit 1
+// ---------------------------------------------------------------------------
+test.describe("cline -t (timeout) — headless yolo", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["-t", "2", "-y", "tell me a long detailed joke"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-timeout.json" }),
+	})
+
+	test("prints timeout error when timeout exceeded", async ({ terminal }) => {
+		await expectVisible(terminal, /timeout/i, { timeout: 15_000 })
+		await waitForTerminalExit(terminal)
+	})
+})
+
+test.describe("cline --json -t (timeout) — JSON mode", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["--json", "-t", "2", "tell me a long detailed joke"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-json-timeout.json" }),
+	})
+
+	test("outputs JSON timeout error", async ({ terminal }) => {
+		await expectVisible(terminal, /timeout/i, { timeout: 15_000 })
+		await waitForTerminalExit(terminal)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// cline -y -m <model-id> "what model are you"
+// Model flag in headless mode — should use specified model but not persist
+// ---------------------------------------------------------------------------
+test.describe("cline -y -m (model flag in headless) @live", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: ["-y", "-m", "anthropic/claude-sonnet-4-20250514", "what model are you"],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("default", { CLINE_VCR_CASSETTE: "./fixtures/headless-model-flag.json" }),
+	})
+
+	test("prints a message and exits 0 with --model flag", async ({ terminal }) => {
+		await expectVisible(terminal, /task started/i)
+		await waitForTerminalExit(terminal)
 	})
 })

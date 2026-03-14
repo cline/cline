@@ -1,0 +1,60 @@
+[
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-test/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/flags/?v=2&config=true",
+		"status": 200,
+		"response": [
+			"1f8b0800000000000013cd56db6ee33610fd15639ea5fa263bb1de5c27691d64bb411a345bac17022d8e6dd614c992235f12f8df0b4ab22d6773438105562f02678ec839678e483e015aabad7b580889239d999c849a5f49367710cf987418c0ac1c3d016e0895135a2516334d984c9952685d42247d7e895b88df4605808a4d257288c9e618c08a59c11441ac722903b0c89c567eb25473841852adb8203f5bc6285d40508b08c57103712b008e2eb5c2f828c4f0c92391370ec886436ab461174086c43823e657101ce2def96010b50258a175c5c7ed6793956519b6959a7188e1bc1fb5fc03bb5d005a4d35b35ca87992698ed21d55f83ef5b351ef449db35eb7463d7a87fad3444d6802259d09c48d324013d8844c34e7562f435f7a38638ec2761d4113106aa64f4345d0e4746b458a3ed50aea399dd349729fdb1d51b0109ca3f2e9c2ab65e200006d50f9ca0c85bda2b4cdf3a2b80f9c027f69efa1b58514cbb0847e36a886e3b8f1dbedbdc73646df615f2ecabf7613b52b8cb3c629695df7cb21f2236cf2dcd4afd8a4f3a24dfa837efbbc6693eedb36f1434f319542616831d559868a230f4be384b97164916547eeef437f8428cf79bc224af4e2b631e89e9ffc3b9d8f8952ee88e11a65aa330cab9df1a8c42bf99f6debe89d9f45adfaaed9ff18fdb5b64bb288216e4ccdfaf5688d6a75fcbcc755e9e4ffd0fd43370ab050f353ca2f11ee0e3afda8f7f163a2245c34fcdf1c1d8dfdfed96af5793ae583b01d75bb61346877c3696bd00ba3d96cda9fb6a3cea0957afe2b267346c8870471fbecac1b75fbddb3a877d609c0a1f3ebdf61aa8bb3a59441392df146cf0fe1cb53b7a0e2460b2f21345db3580215dd5b319f17eefbfa2d0029d412b93ff8f76432e696c512d5502891e5d9456e99a7fc4948291c7ae5dc1ea2907c2f6f4b1546cc506ef1d8375f1cdabff612c2aa030138961989778c0ec052d591563351f02bc71083d18e167a1eee67f28da29244e1ddfbad394c925bf9abd4e9520a4725c1dcca3ae39d6fe08ce592c61c15899940fe59c9ed5e3396934e4b06893694e89c0e8eace2b76867da664ca5e8ebacd82724b242b6729e354e939520e6f7fae7918449a9d7c8930cc98ab4d2711700534c6ea9883c9d744f3457ad26363d73971ba32d21f7b7365bfa02e2af307f14fe2ff2aff01f07df025820a38c994301a956dec7451b8fb7bc057357c83cafeaf657828dd53c4fe95ee7f688758270684c659d4a8e0b647c2445ba3ce26a225e6e5234d58ae5cc5297b7ca0a303ad878ffbd6faf5ea2b78a59a4c943ff42c8f1e3979b479d3efc7eb15cdd46b3f1f597fea76124d7f2f26f7d7d3deddd8cafee6e1ebcaf72bbc2edb1149498a122375a30a186ee4fb2b5261577e07bcbd265f54fbd59f8097a78441eed55193937fbc6dce5124bdbedfe03dfec8852720b0000"
+		],
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://api.cline.bot:443",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-test/remote-config",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"value": "{\"version\":\"v1\",\"telemetryEnabled\":true,\"yoloModeAllowed\":true,\"mcpMarketplaceEnabled\":true,\"providerSettings\":{},\"openTelemetryEnabled\":false,\"openTelemetryOtlpInsecure\":false,\"enterpriseTelemetry\":{\"promptUploading\":{\"enabled\":true,\"type\":\"s3_access_keys\",\"s3AccessSettings\":{\"bucket\":\"cline-tasks\",\"accessKeyId\":\"REDACTED\",\"secretAccessKey\":\"REDACTED\",\"region\":\"us-west-2\"}}}}",
+				"enabled": true
+			},
+			"success": true
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot:443",
+		"method": "POST",
+		"path": "/batch/",
+		"status": 200,
+		"response": {
+			"status": "Ok"
+		},
+		"responseIsBinary": false
+	},
+	{
+		"scope": "https://s3.us-west-2.amazonaws.com:443",
+		"method": "PUT",
+		"path": "/cline-tasks/usr-test/taskid/api_conversation_history.json",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false
+	}
+]
