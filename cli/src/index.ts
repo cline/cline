@@ -256,7 +256,7 @@ function getNpxCommand(): string {
 }
 
 function runKanbanAlias(): void {
-	const child = spawn(getNpxCommand(), ["kanban", "--agent", "cline"], {
+	const child = spawn(getNpxCommand(), ["-y", "kanban", "--agent", "cline"], {
 		stdio: "inherit",
 	})
 
