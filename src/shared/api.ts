@@ -4643,6 +4643,17 @@ export const fireworksModels = {
 // Qwen Code
 // https://chat.qwen.ai/
 export const qwenCodeModels = {
+	"coder-model": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen 3.5 Plus — efficient hybrid model with leading coding performance",
+	},
 	"qwen3-coder-plus": {
 		maxTokens: 65_536,
 		contextWindow: 1_000_000,
@@ -4667,7 +4678,7 @@ export const qwenCodeModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
-export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+export const qwenCodeDefaultModelId: QwenCodeModelId = "coder-model"
 
 // Minimax
 // https://www.minimax.io/platform/document/text_api_intro
