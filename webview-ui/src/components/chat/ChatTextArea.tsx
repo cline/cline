@@ -18,6 +18,7 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/s
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
+import { usePromptHistory } from "@/hooks/usePromptHistory"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
@@ -258,6 +259,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
+		const { navigateUp, navigateDown, resetHistory } = usePromptHistory()
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -570,6 +572,48 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 
+				// Prompt history navigation with up/down arrows (only when no menus are open)
+				if (!showSlashCommandsMenu && !showContextMenu) {
+					if (event.key === "ArrowUp") {
+						const textarea = event.currentTarget
+						const isAtStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0
+						if (isAtStart || inputValue === "") {
+							const result = navigateUp(inputValue)
+							if (result.handled) {
+								event.preventDefault()
+								setInputValue(result.text)
+								// Move cursor to end of the populated text
+								setTimeout(() => {
+									if (textAreaRef.current) {
+										textAreaRef.current.setSelectionRange(result.text.length, result.text.length)
+										setCursorPosition(result.text.length)
+									}
+								}, 0)
+								return
+							}
+						}
+					}
+					if (event.key === "ArrowDown") {
+						const textarea = event.currentTarget
+						const isAtEnd =
+							textarea.selectionStart === inputValue.length && textarea.selectionEnd === inputValue.length
+						if (isAtEnd) {
+							const result = navigateDown(inputValue)
+							if (result.handled) {
+								event.preventDefault()
+								setInputValue(result.text)
+								setTimeout(() => {
+									if (textAreaRef.current) {
+										textAreaRef.current.setSelectionRange(result.text.length, result.text.length)
+										setCursorPosition(result.text.length)
+									}
+								}, 0)
+								return
+							}
+						}
+					}
+				}
+
 				// Safari does not support InputEvent.isComposing (always false), so we need to fallback to keyCode === 229 for it
 				const isComposing = isSafari ? event.nativeEvent.keyCode === 229 : (event.nativeEvent?.isComposing ?? false)
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
@@ -577,6 +621,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if (!sendingDisabled) {
 						setIsTextAreaFocused(false)
+						resetHistory()
 						onSend()
 					}
 				}
@@ -663,6 +708,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
+				navigateUp,
+				navigateDown,
+				resetHistory,
 			],
 		)
 
