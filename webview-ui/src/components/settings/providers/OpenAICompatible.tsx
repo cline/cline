@@ -273,6 +273,24 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						Supports Images
 					</VSCodeCheckbox>
 
+					{!!openAiModelInfo?.supportsImages && (
+						<VSCodeCheckbox
+							checked={openAiModelInfo?.supportsWebP !== false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSaneDefaults }
+								modelInfo.supportsWebP = isChecked
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
+							}}
+							style={{ marginLeft: 16 }}>
+							Supports WebP images (uncheck for llama.cpp-based servers)
+						</VSCodeCheckbox>
+					)}
+
 					<VSCodeCheckbox
 						checked={!!openAiModelInfo?.isR1FormatRequired}
 						onChange={(e: any) => {

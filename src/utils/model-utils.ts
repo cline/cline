@@ -28,6 +28,10 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 }
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
+	// Explicit flag takes precedence — user configured this in Settings
+	if (apiHandlerModel.info.supportsWebP === false) {
+		return true
+	}
 	const modelId = apiHandlerModel.id.toLowerCase()
 	return modelId.includes("grok")
 }
