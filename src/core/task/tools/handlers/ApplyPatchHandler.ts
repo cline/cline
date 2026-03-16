@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import { resolve as resolvePath } from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -335,6 +336,13 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				const pathToTrack = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : changedFilePath
 				config.services.fileContextTracker.markFileAsEditedByCline(pathToTrack)
 				await config.services.fileContextTracker.trackFileContext(pathToTrack, "cline_edited")
+
+				// Invalidate file read cache for all changed files so re-reads get fresh content
+				config.taskState.fileReadCache.delete(resolvePath(config.cwd, pathToTrack).toLowerCase())
+				// Also invalidate old path for move operations
+				if (change.type === PatchActionType.UPDATE && change.movePath) {
+					config.taskState.fileReadCache.delete(resolvePath(config.cwd, changedFilePath).toLowerCase())
+				}
 			}
 
 			this.config = undefined
@@ -348,6 +356,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
 					config.taskState.didEditFile = true
+					// Invalidate file read cache for deleted file
+					const deletedAbsPath = resolvePath(config.cwd, path).toLowerCase()
+					config.taskState.fileReadCache.delete(deletedAbsPath)
 					responseLines.push(`\n${path}: [deleted]`)
 				} else {
 					// Format response similar to WriteToFileToolHandler

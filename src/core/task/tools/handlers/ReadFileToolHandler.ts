@@ -167,6 +167,23 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			throw error
 		}
 
+		// === File Read Deduplication ===
+		// Check if we've already read this exact file in this task.
+		// This prevents the model from endlessly reading the same file, which wastes API tokens.
+		const cacheKey = absolutePath.toLowerCase()
+		const cached = config.taskState.fileReadCache.get(cacheKey)
+
+		if (cached) {
+			cached.readCount++
+			config.taskState.fileReadCache.set(cacheKey, cached)
+
+			if (cached.readCount >= 3) {
+				return `[DUPLICATE READ DETECTED] You have already read the file '${displayPath}' ${cached.readCount} times in this conversation. The content has NOT changed since your last read. Please use the information you already have and proceed with your task. Do NOT read this file again.\n\nCached content from previous read:\n${cached.content}`
+			}
+
+			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning cached content:\n${cached.content}`
+		}
+
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
 		let fileContent: FileContentResult
@@ -190,6 +207,12 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
+
+		// Cache the result for deduplication
+		config.taskState.fileReadCache.set(cacheKey, {
+			content: typeof fileContent.text === "string" ? fileContent.text : "",
+			readCount: 1,
+		})
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
