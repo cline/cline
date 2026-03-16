@@ -2,7 +2,7 @@ import path from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
-import { extractFileContent } from "@integrations/misc/extract-file-content"
+import { extractFileContent, type FileContentResult } from "@integrations/misc/extract-file-content"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
@@ -75,8 +75,6 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 			return formatResponse.toolError(formatResponse.clineIgnoreError(relPath!))
 		}
-
-		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
 		const pathResult = resolveWorkspacePath(config, relPath!, "ReadFileToolHandler.execute")
@@ -171,7 +169,24 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const fileContent = await extractFileContent(absolutePath, supportsImages)
+		let fileContent: FileContentResult
+		try {
+			fileContent = await extractFileContent(absolutePath, supportsImages)
+		} catch (error) {
+			// Return a graceful tool error instead of crashing. This allows the
+			// model to see the error (e.g. "File not found") and recover by
+			// trying a different path, rather than terminating the entire task.
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			const normalizedMessage = errorMessage.startsWith("Error reading file:")
+				? errorMessage
+				: `Error reading file: ${errorMessage}`
+			return formatResponse.toolError(normalizedMessage)
+		}
+
+		// Only reset mistake count after a successful read, so that repeated
+		// file-not-found errors accumulate toward the yolo-mode mistake limit.
+		config.taskState.consecutiveMistakeCount = 0
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
