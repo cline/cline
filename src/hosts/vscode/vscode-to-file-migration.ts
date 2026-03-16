@@ -224,12 +224,13 @@ export async function exportVSCodeStorageToSharedFiles(
 						Logger.info("[McpMigration] Shared MCP settings already has servers configured, skipping.")
 					}
 				}
+
+				// Only write sentinel if migration succeeded
+				storage.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, CURRENT_MCP_SETTINGS_MIGRATION_VERSION)
 			} catch (error) {
-				// Non-fatal — MCP settings will start fresh if migration fails.
+				// Non-fatal — will retry on next startup
 				Logger.error("[McpMigration] Failed to migrate MCP settings file:", error)
 			}
-
-			storage.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, CURRENT_MCP_SETTINGS_MIGRATION_VERSION)
 		}
 
 		result.migrated = true
