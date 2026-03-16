@@ -195,6 +195,12 @@ export class ClaudeCodeHandler implements ApiHandler {
 				continue
 			}
 
+			// ErrorMessage — log it explicitly and skip
+			if ((chunk as any).type === "error") {
+				Logger.warn("Claude Code emitted an error-type chunk:", JSON.stringify(chunk))
+				continue
+			}
+
 			// Any completely unrecognized chunk type — log and skip
 			Logger.warn(`Unrecognized Claude Code chunk type: ${(chunk as any).type}`)
 		}
