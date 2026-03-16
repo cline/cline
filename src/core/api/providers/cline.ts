@@ -28,6 +28,7 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
 	clineApiKey?: string
+	enableParallelToolCalling?: boolean
 }
 
 const CLINE_FREE_MODELS = ["minimax/minimax-m2.5", "kwaipilot/kat-coder-pro", "z-ai/glm-5"]
@@ -121,6 +122,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
+				this.options.enableParallelToolCalling,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()

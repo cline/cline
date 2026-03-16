@@ -43,6 +43,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "wandb"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -3314,6 +3315,162 @@ export const nebiusModels = {
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
 
+// W&B Inference by CoreWeave
+// https://docs.wandb.ai/inference/models
+export const wandbModels = {
+	"deepseek-ai/DeepSeek-V3.1": {
+		maxTokens: 8_192,
+		contextWindow: 161_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 1.65,
+		description: "A large hybrid model that supports both thinking and non-thinking modes via prompt templates",
+	},
+	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
+		maxTokens: 16_384,
+		contextWindow: 64_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.17,
+		outputPrice: 0.66,
+		description: "Multimodal model integrating text and image understanding, ideal for visual tasks and combined analysis",
+	},
+	"meta-llama/Llama-3.3-70B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.71,
+		outputPrice: 0.71,
+		description: "Multilingual model excelling in conversational tasks, detailed instruction-following, and coding",
+	},
+	"meta-llama/Llama-3.1-70B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 0.8,
+		description: "Efficient conversational model optimized for responsive multilingual chatbot interactions",
+	},
+	"meta-llama/Llama-3.1-8B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.22,
+		description: "Efficient conversational model optimized for responsive multilingual chatbot interactions",
+	},
+	"microsoft/Phi-4-mini-instruct": {
+		maxTokens: 4_096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.08,
+		outputPrice: 0.35,
+		description: "Compact, efficient model ideal for fast responses in resource-constrained environments",
+	},
+	"MiniMaxAI/MiniMax-M2.5": {
+		maxTokens: 40_960,
+		contextWindow: 197_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		description:
+			"MoE model with a highly sparse architecture designed for high-throughput and low latency with strong coding capabilities",
+	},
+	"nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8": {
+		maxTokens: 8_192,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.8,
+		description: "A LatentMoE model designed to deliver strong agentic, reasoning, and conversational capabilities",
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 32_768,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Efficient Mixture-of-Experts model designed for high-reasoning, agentic and general-purpose use cases",
+	},
+	"openai/gpt-oss-20b": {
+		maxTokens: 32_768,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+		description:
+			"Lower latency Mixture-of-Experts model trained on OpenAI’s Harmony response format with reasoning capabilities",
+	},
+	"OpenPipe/Qwen3-14B-Instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.22,
+		description:
+			"An efficient multilingual, dense, instruction-tuned model, optimized by OpenPipe for building agents with finetuning",
+	},
+	"Qwen/Qwen3-235B-A22B-Thinking-2507": {
+		maxTokens: 32_768,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+		description:
+			"High-performance Mixture-of-Experts model optimized for structured reasoning, math, and long-form generation",
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 32_768,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+		description: "Efficient multilingual, Mixture-of-Experts, instruction-tuned model, optimized for logical reasoning",
+	},
+	"Qwen/Qwen3-30B-A3B-Instruct-2507": {
+		maxTokens: 8_192,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+		description: "MoE instruction-tuned model with enhanced reasoning, coding, and long-context understanding",
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 32_768,
+		contextWindow: 262_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 1.5,
+		description:
+			"Mixture-of-Experts model optimized for agentic coding tasks such as function calling, tool use, and long-context reasoning",
+	},
+	"zai-org/GLM-5-FP8": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+		description: "Mixture-of-Experts model for long-horizon agentic tasks with strong performance on reasoning and coding",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type WandbModelId = keyof typeof wandbModels
+export const wandbDefaultModelId = "meta-llama/Llama-3.3-70B-Instruct" satisfies WandbModelId
+
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
@@ -4430,56 +4587,107 @@ export const mainlandZAiModels = {
 
 // Fireworks AI
 export type FireworksModelId = keyof typeof fireworksModels
-export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2p5"
 export const fireworksModels = {
-	"accounts/fireworks/models/kimi-k2-instruct-0905": {
+	"accounts/fireworks/models/kimi-k2p5": {
 		maxTokens: 16384,
 		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 3,
+		cacheWritesPrice: 0.6,
+		cacheReadsPrice: 0.1,
+		description:
+			"Moonshot's flagship open agentic model. Kimi K2.5 unifies vision and text, thinking and non-thinking modes, and single-agent and multi-agent execution.",
+	},
+	"accounts/fireworks/models/qwen3-vl-30b-a3b-thinking": {
+		maxTokens: 32768,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.15,
+		cacheReadsPrice: 0.07,
+		description:
+			"Reasoning-enabled Qwen3-VL model with strong multimodal understanding, long context support, and function calling.",
+	},
+	"accounts/fireworks/models/qwen3-vl-30b-a3b-instruct": {
+		maxTokens: 32768,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Qwen3-VL instruct model with strong multimodal reasoning, long context support, and function calling.",
+	},
+	"accounts/fireworks/models/deepseek-v3p2": {
+		maxTokens: 16384,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.56,
+		outputPrice: 1.68,
+		cacheWritesPrice: 0.56,
+		cacheReadsPrice: 0.28,
+		description: "DeepSeek V3.2 model tuned for high computational efficiency and strong reasoning and agent performance.",
+	},
+	"accounts/fireworks/models/glm-4p7": {
+		maxTokens: 16384,
+		contextWindow: 202752,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.6,
-		outputPrice: 2.5,
-		cacheReadsPrice: 0.15,
-		description:
-			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
+		outputPrice: 2.2,
+		cacheWritesPrice: 0.6,
+		cacheReadsPrice: 0.3,
+		description: "GLM-4.7 is a next-generation general-purpose model optimized for coding, reasoning, and agentic workflows.",
 	},
-	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
-		maxTokens: 32768,
-		contextWindow: 256000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.88,
-		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
-	},
-	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
-		maxTokens: 32768,
-		contextWindow: 256000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.45,
-		outputPrice: 1.8,
-		description: "Qwen3's most agentic code model to date.",
-	},
-	"accounts/fireworks/models/deepseek-r1-0528": {
-		maxTokens: 20480,
-		contextWindow: 160000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 8,
-		description:
-			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
-	},
-	"accounts/fireworks/models/deepseek-v3": {
+	"accounts/fireworks/models/glm-5": {
 		maxTokens: 16384,
-		contextWindow: 128000,
+		contextWindow: 202752,
 		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.9,
-		outputPrice: 0.9,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.2,
+		description: "GLM-5 is Z.ai's flagship reasoning model for complex systems engineering and long-horizon agentic tasks.",
+	},
+	"accounts/fireworks/models/minimax-m2p5": {
+		maxTokens: 16384,
+		contextWindow: 196608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
+		description: "MiniMax M2.5 is built for state-of-the-art coding, agentic tool use.",
+	},
+	"accounts/fireworks/models/minimax-m2p1": {
+		maxTokens: 16384,
+		contextWindow: 196608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
 		description:
-			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+			"MiniMax M2.1 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
+	},
+	"accounts/fireworks/models/gpt-oss-120b": {
+		maxTokens: 16384,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.15,
+		cacheReadsPrice: 0.01,
+		description: "OpenAI gpt-oss-120b open-weight model for production and high-reasoning use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
