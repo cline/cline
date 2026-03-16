@@ -32,6 +32,9 @@
  *   and vice versa. See also: checkpoints at {globalStorageFsPath}/checkpoints/.
  */
 
+import { fileExistsAtPath } from "@utils/fs"
+import fs from "fs/promises"
+import * as path from "path"
 import type * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettingKeys, LocalStateKeys, SecretKeys } from "@/shared/storage/state-keys"
@@ -42,6 +45,9 @@ const CURRENT_MIGRATION_VERSION = 1
 
 /** Sentinel key written to both globalState and workspaceState to track migration independently. */
 const MIGRATION_VERSION_KEY = "__vscodeMigrationVersion"
+
+/** Sentinel key for MCP settings migration */
+export const MCP_SETTINGS_MIGRATION_VERSION_KEY = "__mcpSettingsMigrationVersion"
 
 /**
  * Keys that should NOT be migrated from VSCode storage.
@@ -90,13 +96,15 @@ export async function exportVSCodeStorageToSharedFiles(
 	// Check sentinels independently
 	const globalVersion = storage.globalState.get<number>(MIGRATION_VERSION_KEY)
 	const workspaceVersion = storage.workspaceState.get<number>(MIGRATION_VERSION_KEY)
+	const mcpSettingsVersion = storage.globalState.get<number>(MCP_SETTINGS_MIGRATION_VERSION_KEY)
 
 	const needGlobalMigration = globalVersion === undefined || globalVersion < CURRENT_MIGRATION_VERSION
 	const needWorkspaceMigration = workspaceVersion === undefined || workspaceVersion < CURRENT_MIGRATION_VERSION
+	const needMcpSettingsMigration = mcpSettingsVersion === undefined || mcpSettingsVersion < CURRENT_MIGRATION_VERSION
 
-	if (!needGlobalMigration && !needWorkspaceMigration) {
+	if (!needGlobalMigration && !needWorkspaceMigration && !needMcpSettingsMigration) {
 		Logger.info(
-			`[Migration] File-backed stores already current (global: v${globalVersion}, workspace: v${workspaceVersion}), skipping.`,
+			`[Migration] File-backed stores already current (global: v${globalVersion}, workspace: v${workspaceVersion}, mcpSettings: v${mcpSettingsVersion}), skipping.`,
 		)
 		return result
 	}
@@ -189,6 +197,37 @@ export async function exportVSCodeStorageToSharedFiles(
 			storage.workspaceState.setBatch(workspaceStateBatch)
 		}
 
+		// ─── 3. Migrate MCP settings file (if needed) ───────────────────
+		if (needMcpSettingsMigration) {
+			try {
+				const srcPath = path.join(vscodeContext.globalStorageUri.fsPath, "settings", "cline_mcp_settings.json")
+				const destDir = path.join(storage.dataDir, "settings")
+				const destPath = path.join(destDir, "cline_mcp_settings.json")
+
+				// Skip if source and destination are the same path (CLI case)
+				const isSamePath = path.resolve(srcPath) === path.resolve(destPath)
+				const sourceExists = !isSamePath && (await fileExistsAtPath(srcPath))
+
+				if (sourceExists) {
+					// Check if destination already has servers
+					const destHasServers = await mcpFileHasServers(destPath)
+
+					if (!destHasServers) {
+						await fs.mkdir(destDir, { recursive: true })
+						await fs.copyFile(srcPath, destPath)
+						Logger.info(`[McpMigration] Migrated MCP settings from ${srcPath} to ${destPath}`)
+					} else {
+						Logger.info("[McpMigration] Shared MCP settings already has servers configured, skipping.")
+					}
+				}
+			} catch (error) {
+				// Non-fatal — MCP settings will start fresh if migration fails.
+				Logger.error("[McpMigration] Failed to migrate MCP settings file:", error)
+			}
+
+			storage.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
+		}
+
 		result.migrated = true
 
 		Logger.info(
@@ -203,4 +242,18 @@ export async function exportVSCodeStorageToSharedFiles(
 	}
 
 	return result
+}
+
+/** Returns true if the file exists and contains at least one MCP server entry. */
+async function mcpFileHasServers(filePath: string): Promise<boolean> {
+	try {
+		if (!(await fileExistsAtPath(filePath))) {
+			return false
+		}
+		const data = JSON.parse(await fs.readFile(filePath, "utf8"))
+		return !!(data?.mcpServers && Object.keys(data.mcpServers).length > 0)
+	} catch (error) {
+		Logger.error("[McpMigration] Failed to parse MCP settings file, treating as empty:", error)
+		return false
+	}
 }
