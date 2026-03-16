@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { EventEmitter } from "events"
 import { describe, it } from "mocha"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
+import { MAX_BYTES_BEFORE_FILE } from "./constants"
 import type {
 	CommandExecutorCallbacks,
 	ITerminalManager,
@@ -110,5 +111,27 @@ describe("CommandOrchestrator exit status messaging", () => {
 		assert.equal(result.completed, true)
 		assert.equal(result.exitCode, 0)
 		assert.match(result.result as string, /^Command executed successfully \(exit code 0\)\./)
+	})
+
+	it("truncates huge single-line summaries when file logging is triggered by bytes", async () => {
+		const process = new FakeTerminalProcess()
+		const orchestrationPromise = orchestrateCommandExecution(
+			process.asResultPromise(),
+			createTerminalManager(),
+			createCallbacks(),
+			{ command: "echo huge" },
+		)
+
+		const hugeLine = `START-${"x".repeat(MAX_BYTES_BEFORE_FILE + 32 * 1024)}-END`
+		process.emit("line", hugeLine)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		process.complete({ exitCode: 0, signal: null })
+		const result: OrchestrationResult = await orchestrationPromise
+		const resultText = result.result as string
+
+		assert.equal(result.completed, true)
+		assert.match(resultText, /output truncated by size/)
+		assert.match(resultText, /Full output saved to:/)
+		assert.equal(resultText.includes(hugeLine), false)
 	})
 })

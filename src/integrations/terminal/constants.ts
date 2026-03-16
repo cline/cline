@@ -51,6 +51,9 @@ export const MAX_BYTES_BEFORE_FILE = 512 * 1024 // 512KB
 /** Lines to keep at start/end for summary when truncating */
 export const SUMMARY_LINES_TO_KEEP = 100
 
+/** Maximum bytes to keep in large-output summaries returned to AI */
+export const SUMMARY_BYTES_TO_KEEP = 64 * 1024 // 64KB
+
 /** Maximum size for fullOutput storage (memory protection) */
 export const MAX_FULL_OUTPUT_SIZE = 1024 * 1024 // 1MB
 

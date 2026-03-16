@@ -29,6 +29,7 @@ import {
 	COMPLETION_TIMEOUT_MS,
 	MAX_BYTES_BEFORE_FILE,
 	MAX_LINES_BEFORE_FILE,
+	SUMMARY_BYTES_TO_KEEP,
 	SUMMARY_LINES_TO_KEEP,
 } from "./constants"
 import type {
@@ -529,10 +530,19 @@ export async function orchestrateCommandExecution(
 	let resultOutputLines: string[]
 
 	if (isWritingToFile) {
-		// Build summary from first and last lines
-		const skippedLines = totalLineCount - firstLines.length - lastLines.length
-		const summaryLines = [...firstLines, `\n... (${skippedLines} lines written to ${largeOutputLogPath}) ...\n`, ...lastLines]
-		result = terminalManager.processOutput(summaryLines)
+		// Build summary from first and last lines, avoiding overlap when output is small.
+		const overlappingLines = Math.max(0, firstLines.length + lastLines.length - totalLineCount)
+		const nonOverlappingLastLines = overlappingLines > 0 ? lastLines.slice(overlappingLines) : lastLines
+		const skippedLines = Math.max(0, totalLineCount - firstLines.length - nonOverlappingLastLines.length)
+		const summaryLines =
+			skippedLines > 0
+				? [
+						...firstLines,
+						`\n... (${skippedLines} lines written to ${largeOutputLogPath ?? "output log file"}) ...\n`,
+						...nonOverlappingLastLines,
+					]
+				: [...firstLines, ...nonOverlappingLastLines]
+		result = truncateSummaryByBytes(terminalManager.processOutput(summaryLines), SUMMARY_BYTES_TO_KEEP)
 		resultOutputLines = summaryLines
 	} else {
 		result = terminalManager.processOutput(outputLines)
@@ -625,4 +635,26 @@ export function findLastIndex<T>(array: T[], predicate: (item: T) => boolean): n
 		}
 	}
 	return -1
+}
+
+function truncateSummaryByBytes(output: string, maxBytes: number): string {
+	if (Buffer.byteLength(output, "utf8") <= maxBytes) {
+		return output
+	}
+
+	const marker = "\n... (output truncated by size) ...\n"
+	const markerBytes = Buffer.byteLength(marker, "utf8")
+
+	if (maxBytes <= markerBytes) {
+		return marker.trim()
+	}
+
+	const bytesForContent = maxBytes - markerBytes
+	const startBytes = Math.ceil(bytesForContent / 2)
+	const endBytes = Math.floor(bytesForContent / 2)
+	const buffer = Buffer.from(output, "utf8")
+	const start = buffer.subarray(0, startBytes).toString("utf8").replace(/\uFFFD+$/u, "")
+	const end = buffer.subarray(buffer.length - endBytes).toString("utf8").replace(/^\uFFFD+/u, "")
+
+	return `${start}${marker}${end}`.trim()
 }
