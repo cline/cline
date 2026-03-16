@@ -1,13 +1,19 @@
 import { describe, it } from "mocha"
 import "should"
+import type { ApiHandlerModel } from "@core/api"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isClaude4PlusModelFamily,
 	isGeminiFlashModel,
+	isGLMModelFamily,
 	isGPT5ModelFamily,
 	isGptOssModelFamily,
+	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
 } from "../model-utils"
+
+// Minimal helper — modelDoesntSupportWebp only reads apiHandlerModel.id
+const m = (id: string): ApiHandlerModel => ({ id, info: {} as any })
 
 describe("shouldSkipReasoningForModel", () => {
 	it("should return true for grok-4 models", () => {
@@ -140,5 +146,61 @@ describe("isGeminiFlashModel", () => {
 describe("GEMINI_FLASH_MAX_OUTPUT_TOKENS", () => {
 	it("should be set to 8192", () => {
 		GEMINI_FLASH_MAX_OUTPUT_TOKENS.should.equal(8_192)
+	})
+})
+
+describe("isGLMModelFamily", () => {
+	it("should match hyphen-separated GLM model IDs", () => {
+		isGLMModelFamily("glm-4.6").should.equal(true)
+		isGLMModelFamily("glm-4.5").should.equal(true)
+		isGLMModelFamily("glm-4.7").should.equal(true)
+		isGLMModelFamily("glm-5").should.equal(true)
+		isGLMModelFamily("z-ai/glm-4.6").should.equal(true)
+		isGLMModelFamily("zai-org/glm-4.5").should.equal(true)
+	})
+
+	it("should match space-separated GLM model IDs used with openai-compatible local servers", () => {
+		// "GLM 4.6V" is the model ID reported in issue #8203
+		isGLMModelFamily("GLM 4.6V").should.equal(true)
+		isGLMModelFamily("glm 4.6v").should.equal(true)
+		isGLMModelFamily("GLM 4.5").should.equal(true)
+	})
+
+	it("should return false for non-GLM models", () => {
+		isGLMModelFamily("gpt-4").should.equal(false)
+		isGLMModelFamily("claude-sonnet-4").should.equal(false)
+		isGLMModelFamily("gemini-2.5-flash").should.equal(false)
+	})
+})
+
+describe("modelDoesntSupportWebp", () => {
+	it("should return true for Grok models", () => {
+		modelDoesntSupportWebp(m("grok-3")).should.equal(true)
+		modelDoesntSupportWebp(m("x-ai/grok-3-mini")).should.equal(true)
+	})
+
+	it("should return true for GLM models (hyphen-separated)", () => {
+		modelDoesntSupportWebp(m("glm-4.6")).should.equal(true)
+		modelDoesntSupportWebp(m("glm-4.5")).should.equal(true)
+		modelDoesntSupportWebp(m("z-ai/glm-4.6")).should.equal(true)
+	})
+
+	it("should return true for GLM models with space-separated IDs (issue #8203)", () => {
+		modelDoesntSupportWebp(m("GLM 4.6V")).should.equal(true)
+		modelDoesntSupportWebp(m("glm 4.5")).should.equal(true)
+	})
+
+	it("should return true for Devstral models running through llama.cpp", () => {
+		modelDoesntSupportWebp(m("devstral-small")).should.equal(true)
+		modelDoesntSupportWebp(m("unsloth/devstral-small-2512")).should.equal(true)
+		modelDoesntSupportWebp(m("Devstral-Small-2-24B-Instruct")).should.equal(true)
+	})
+
+	it("should return false for models that support WebP", () => {
+		modelDoesntSupportWebp(m("claude-sonnet-4")).should.equal(false)
+		modelDoesntSupportWebp(m("gpt-5")).should.equal(false)
+		modelDoesntSupportWebp(m("gemini-2.5-flash")).should.equal(false)
+		modelDoesntSupportWebp(m("qwen2.5-vl-72b")).should.equal(false)
+		modelDoesntSupportWebp(m("llama-3.1-8b")).should.equal(false)
 	})
 })
