@@ -4,6 +4,7 @@ import { UserOrganization } from "@shared/proto/index.cline"
 import {
 	CheckCheck,
 	FlaskConical,
+	Gauge,
 	HardDriveDownload,
 	Info,
 	type LucideIcon,
@@ -29,13 +30,23 @@ import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import LatencyObserverSection from "./sections/LatencyObserverSection"
 import { RemoteConfigSection } from "./sections/RemoteConfigSection"
 import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "api-config" | "features" | "browser" | "terminal" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID =
+	| "api-config"
+	| "features"
+	| "browser"
+	| "terminal"
+	| "general"
+	| "latency"
+	| "about"
+	| "debug"
+	| "remote-config"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
@@ -80,6 +91,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "General Settings",
 		headerText: "General Settings",
 		icon: Wrench,
+	},
+	{
+		id: "latency",
+		name: "Latency",
+		tooltipText: "Latency Observer",
+		headerText: "Latency Observer",
+		icon: Gauge,
 	},
 	{
 		id: "remote-config",
@@ -139,6 +157,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			features: FeatureSettingsSection,
 			browser: BrowserSettingsSection,
 			terminal: TerminalSettingsSection,
+			latency: LatencyObserverSection,
 			"remote-config": RemoteConfigSection,
 			about: AboutSection,
 			debug: DebugSection,

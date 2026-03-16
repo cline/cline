@@ -1,12 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import DebugSection from "./DebugSection"
+import LatencyObserverSection from "./LatencyObserverSection"
 
 const grpcClientMocks = vi.hoisted(() => ({
 	pingLatencyProbe: vi.fn(),
-	resetLatencyObserver: vi.fn(),
 	newTask: vi.fn(),
-	setWelcomeViewCompleted: vi.fn(),
 }))
 
 type TransportMetric = {
@@ -144,19 +142,14 @@ const makeLatencyObserverState = (): MockLatencyObserverState => ({
 
 const extensionStateMock = vi.hoisted(() => ({
 	latencyObserver: null as unknown as MockLatencyObserverState,
-	setShowWelcome: vi.fn(),
 }))
 
 vi.mock("@/services/grpc-client", () => ({
 	UiServiceClient: {
 		pingLatencyProbe: grpcClientMocks.pingLatencyProbe,
-		resetLatencyObserver: grpcClientMocks.resetLatencyObserver,
 	},
 	TaskServiceClient: {
 		newTask: grpcClientMocks.newTask,
-	},
-	StateServiceClient: {
-		setWelcomeViewCompleted: grpcClientMocks.setWelcomeViewCompleted,
 	},
 }))
 
@@ -190,7 +183,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => extensionStateMock,
 }))
 
-describe("DebugSection", () => {
+describe("LatencyObserverSection", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		extensionStateMock.latencyObserver = makeLatencyObserverState()
@@ -210,7 +203,7 @@ describe("DebugSection", () => {
 		}) as typeof document.createElement)
 		vi.stubGlobal("URL", { createObjectURL, revokeObjectURL })
 
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
 		fireEvent.change(screen.getByLabelText("Ping payload bytes"), { target: { value: "64" } })
 		fireEvent.click(screen.getByText("Run Ping Probe"))
 
@@ -254,7 +247,7 @@ describe("DebugSection", () => {
 		}) as typeof document.createElement)
 		vi.stubGlobal("URL", { createObjectURL, revokeObjectURL })
 
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
 		fireEvent.click(screen.getByText("Export Session JSON"))
 
 		expect(screen.getByText(/Full-state metrics: Unsupported on this branch/)).toBeTruthy()
@@ -288,7 +281,7 @@ describe("DebugSection", () => {
 		}) as typeof document.createElement)
 		vi.stubGlobal("URL", { createObjectURL, revokeObjectURL })
 
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
 		fireEvent.click(screen.getByText("Export Session JSON"))
 
 		const exportedBlob = createObjectURL.mock.calls[0][0] as unknown as FakeBlob
@@ -311,7 +304,7 @@ describe("DebugSection", () => {
 				}),
 		)
 
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
 		fireEvent.click(screen.getByText("Run Ping Probe"))
 		await waitFor(() => expect(grpcClientMocks.pingLatencyProbe).toHaveBeenCalledTimes(1))
 		resolvePing?.()
@@ -324,18 +317,18 @@ describe("DebugSection", () => {
 
 	it("starts an observed task scenario using the selected scenario template", async () => {
 		grpcClientMocks.newTask.mockResolvedValue({ value: "task-1" })
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
-		fireEvent.click(screen.getByText("Start Observed Task Scenario"))
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
+		fireEvent.click(screen.getByRole("button", { name: "Start Observed Task Scenario" }))
 		await waitFor(() => expect(grpcClientMocks.newTask).toHaveBeenCalledTimes(1))
 	})
 
 	it("starts the selected large-file scenario with the plan document attached", async () => {
 		grpcClientMocks.newTask.mockResolvedValue({ value: "task-2" })
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
 
 		fireEvent.mouseDown(screen.getByRole("combobox"))
 		fireEvent.click(screen.getByRole("option", { name: "Large-file-write adjacent" }))
-		fireEvent.click(screen.getByText("Start Observed Task Scenario"))
+		fireEvent.click(screen.getByRole("button", { name: "Start Observed Task Scenario" }))
 
 		await waitFor(() => expect(grpcClientMocks.newTask).toHaveBeenCalledTimes(1))
 		expect(grpcClientMocks.newTask).toHaveBeenCalledWith({
@@ -345,10 +338,9 @@ describe("DebugSection", () => {
 		})
 	})
 
-	it("resets the backend observer session", async () => {
-		grpcClientMocks.resetLatencyObserver.mockResolvedValue({})
-		render(<DebugSection onResetState={vi.fn()} renderSectionHeader={() => null} />)
-		fireEvent.click(screen.getByText("Reset Observer Session"))
-		await waitFor(() => expect(grpcClientMocks.resetLatencyObserver).toHaveBeenCalledTimes(1))
+	it("explains that the latest task becomes the observer session", () => {
+		render(<LatencyObserverSection renderSectionHeader={() => null} />)
+		expect(screen.getByText(/most recently started task/i)).toBeTruthy()
+		expect(screen.getByText(/You no longer need to manually reset the observer/i)).toBeTruthy()
 	})
 })

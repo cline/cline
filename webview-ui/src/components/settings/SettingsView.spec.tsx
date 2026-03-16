@@ -5,6 +5,7 @@ vi.mock("lucide-react", () => {
 	return {
 		CheckCheck: Icon,
 		FlaskConical: Icon,
+		Gauge: Icon,
 		HardDriveDownload: Icon,
 		Info: Icon,
 		SlidersHorizontal: Icon,
@@ -71,6 +72,7 @@ vi.mock("./sections/BrowserSettingsSection", () => ({ default: () => null }))
 vi.mock("./sections/DebugSection", () => ({ default: () => null }))
 vi.mock("./sections/FeatureSettingsSection", () => ({ default: () => null }))
 vi.mock("./sections/GeneralSettingsSection", () => ({ default: () => null }))
+vi.mock("./sections/LatencyObserverSection", () => ({ default: () => null }))
 vi.mock("./sections/RemoteConfigSection", () => ({ RemoteConfigSection: () => null }))
 vi.mock("./sections/TerminalSettingsSection", () => ({ default: () => null }))
 
@@ -98,5 +100,15 @@ describe("SETTINGS_TABS debug visibility", () => {
 
 		expect(debugTab).toBeDefined()
 		expect(debugTab?.hidden?.({ activeOrganization: null })).toBe(false)
+	})
+})
+
+describe("SETTINGS_TABS latency visibility", () => {
+	it("always shows the latency tab", async () => {
+		const { SETTINGS_TABS } = await import("./SettingsView")
+		const latencyTab = SETTINGS_TABS.find((tab) => tab.id === "latency")
+
+		expect(latencyTab).toBeDefined()
+		expect(latencyTab?.hidden?.({ activeOrganization: null })).toBeUndefined()
 	})
 })
