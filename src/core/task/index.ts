@@ -2101,9 +2101,19 @@ export class Task {
 		const block = cloneDeep(this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex]) // need to create copy bc while stream is updating the array, it could be updating the reference block properties too
 		switch (block.type) {
 			case "text": {
-				// Skip text rendering if tool was rejected, or if a tool was already used and parallel calling is disabled
-				if (this.taskState.didRejectTool || (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool)) {
+				// Skip text rendering if tool was rejected, or if a tool was already used and parallel calling is disabled.
+				// Exception: don't skip text that immediately precedes attempt_completion, since that content
+				// is typically the substantive output the user requested (e.g., a code review or analysis).
+				if (this.taskState.didRejectTool) {
 					break
+				}
+				if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
+					const nextBlock = this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex + 1]
+					const nextBlockIsCompletion =
+						nextBlock && nextBlock.type === "tool_use" && nextBlock.name === "attempt_completion"
+					if (!nextBlockIsCompletion) {
+						break
+					}
 				}
 				let content = block.content
 				if (content) {
