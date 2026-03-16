@@ -4,6 +4,7 @@
  */
 
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
+import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import { fuzzyFilter } from "./fuzzy-search"
 
 export interface SlashQueryInfo {
@@ -17,12 +18,29 @@ export interface VisibleWindow<T> {
 	startIndex: number
 }
 
+export interface StandaloneSlashCommandExecutionInput {
+	prompt: string
+	inSlashMode: boolean
+	hasSlashMenu: boolean
+	hasPendingAsk: boolean
+	isSpinnerActive: boolean
+}
+
+export function createCliOnlySlashCommands(): SlashCommandInfo[] {
+	return CLI_ONLY_COMMANDS.map((cmd) => ({
+		name: cmd.name,
+		description: cmd.description || "",
+		section: cmd.section || "default",
+		cliCompatible: true,
+	}))
+}
+
 /**
  * Calculate visible window for a scrollable list menu.
  * Centers the selected item in the visible window when possible.
  * Returns the visible items and the start index for selection tracking.
  */
-export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible: number = 5): VisibleWindow<T> {
+export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisible = 5): VisibleWindow<T> {
 	if (items.length <= maxVisible) {
 		return { items, startIndex: 0 }
 	}
@@ -92,13 +110,68 @@ export function extractSlashQuery(text: string, cursorPosition?: number): SlashQ
 }
 
 /**
+ * Detect a standalone slash command (for example "/q" or "/exit")
+ * that should be executed immediately when enter is pressed.
+ */
+export function getStandaloneSlashCommandName(text: string): string | null {
+	const match = text.trim().match(/^\/([a-zA-Z0-9_.-]+)$/)
+	return match?.[1] ?? null
+}
+
+/**
+ * Resolve whether pressing Enter should execute a standalone CLI slash command.
+ * This keeps ChatView's key handling deterministic and easy to test.
+ */
+export function getStandaloneSlashCommandToExecute({
+	prompt,
+	inSlashMode,
+	hasSlashMenu,
+	hasPendingAsk,
+	isSpinnerActive,
+}: StandaloneSlashCommandExecutionInput): string | null {
+	const standaloneSlashCommand = getStandaloneSlashCommandName(prompt)
+	if (!standaloneSlashCommand) {
+		return null
+	}
+
+	if (hasPendingAsk || isSpinnerActive) {
+		return null
+	}
+
+	if (inSlashMode && hasSlashMenu) {
+		return null
+	}
+
+	return standaloneSlashCommand
+}
+
+/**
  * Filter commands using fuzzy matching
  */
 export function filterCommands(commands: SlashCommandInfo[], query: string): SlashCommandInfo[] {
 	if (!query) {
 		return commands
 	}
-	return fuzzyFilter(commands, query, (cmd) => cmd.name)
+
+	const normalizedQuery = query.toLowerCase()
+	const exactMatches: SlashCommandInfo[] = []
+	const prefixMatches: SlashCommandInfo[] = []
+	const remaining: SlashCommandInfo[] = []
+
+	for (const command of commands) {
+		const normalizedName = command.name.toLowerCase()
+		if (normalizedName === normalizedQuery) {
+			exactMatches.push(command)
+			continue
+		}
+		if (normalizedName.startsWith(normalizedQuery)) {
+			prefixMatches.push(command)
+			continue
+		}
+		remaining.push(command)
+	}
+
+	return [...exactMatches, ...prefixMatches, ...fuzzyFilter(remaining, query, (cmd) => cmd.name)]
 }
 
 /**
