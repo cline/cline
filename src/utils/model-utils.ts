@@ -1,5 +1,5 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
-import { AnthropicModelId, anthropicModels } from "@/shared/api"
+import { AnthropicModelId, anthropicModels, LiteLLMModelInfo, OpenAiCompatibleModelInfo } from "@/shared/api"
 
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
@@ -28,9 +28,10 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 }
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
-	// Explicit flag takes precedence — user configured this in Settings
-	if (apiHandlerModel.info.supportsWebP !== undefined) {
-		return !apiHandlerModel.info.supportsWebP
+	// Check explicit flag — only set for OpenAI Compatible and LiteLLM providers
+	const supportsWebP = (apiHandlerModel.info as OpenAiCompatibleModelInfo | LiteLLMModelInfo).supportsWebP
+	if (supportsWebP !== undefined) {
+		return !supportsWebP
 	}
 	const modelId = apiHandlerModel.id.toLowerCase()
 	return modelId.includes("grok")

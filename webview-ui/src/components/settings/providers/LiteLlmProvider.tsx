@@ -1,7 +1,7 @@
-import { ModelInfo } from "@shared/api"
+import { LiteLLMModelInfo, ModelInfo } from "@shared/api"
 import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCwIcon } from "lucide-react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -31,6 +31,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 	// Get the normalized configuration with model info
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	// Get the raw LiteLLM model info for the current mode so we can update supportsWebP
+	const liteLlmModelInfo: LiteLLMModelInfo | undefined =
+		currentMode === "plan" ? apiConfiguration?.planModeLiteLlmModelInfo : apiConfiguration?.actModeLiteLlmModelInfo
 
 	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
 		handleModeFieldsChange(
@@ -130,6 +134,23 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					</VSCodeButton>
 
 					{selectedModelInfo?.supportsReasoning && <ThinkingBudgetSlider currentMode={currentMode} />}
+
+					{selectedModelInfo?.supportsImages && liteLlmModelInfo && (
+						<VSCodeCheckbox
+							checked={liteLlmModelInfo.supportsWebP !== false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								handleModeFieldsChange(
+									{
+										liteLlmModelInfo: { plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
+									},
+									{ liteLlmModelInfo: { ...liteLlmModelInfo, supportsWebP: isChecked } },
+									currentMode,
+								)
+							}}>
+							Supports WebP images (uncheck for llama.cpp-based servers)
+						</VSCodeCheckbox>
+					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
