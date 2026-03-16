@@ -22,14 +22,19 @@ type ErrorMessage = {
 	type: "error"
 }
 
-// Newer Claude Code CLI versions (2.1+) emit rate_limit_event as a top-level type
-// rather than as a system subtype.
+// Older CLI versions emit rate_limit_event as a system subtype:
+// { type: "system", subtype: "rate_limit_event", message?: string, retryAfterSeconds?: number }
+type LegacyRateLimitEvent = {
+	type: "system"
+	subtype: "rate_limit_event"
+	message?: string
+	retryAfterSeconds?: number
+}
+
+// Newer Claude Code CLI versions (2.1+) emit rate_limit_event as a top-level type.
 type RateLimitEvent = {
 	type: "rate_limit_event"
 	rate_limit_info?: Record<string, unknown>
-	// Legacy format fields (older CLI versions)
-	message?: string
-	retryAfterSeconds?: number
 }
 
 // User messages can appear in the stream when Claude Code executes tools
@@ -56,4 +61,11 @@ type ResultMessage = {
 	session_id: string
 }
 
-export type ClaudeCodeMessage = InitMessage | AssistantMessage | ErrorMessage | ResultMessage | RateLimitEvent | UserMessage
+export type ClaudeCodeMessage =
+	| InitMessage
+	| LegacyRateLimitEvent
+	| AssistantMessage
+	| ErrorMessage
+	| ResultMessage
+	| RateLimitEvent
+	| UserMessage
