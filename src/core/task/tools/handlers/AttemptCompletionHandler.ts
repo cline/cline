@@ -5,6 +5,7 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { getLatencyObserverService } from "@services/latency/LatencyObserverService"
 import { telemetryService } from "@services/telemetry"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
@@ -216,6 +217,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
 		// At this point we know: task is complete, checkpoint saved, result shown to user
+		getLatencyObserverService().markTaskComplete(config.taskId)
 		await this.runTaskCompleteHook(config, block)
 		await this.runNotificationHook(config, {
 			event: "task_complete",

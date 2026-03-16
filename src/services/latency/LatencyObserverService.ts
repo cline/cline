@@ -29,6 +29,7 @@ type ActiveRequest = {
 
 export class LatencyObserverService {
 	private sessionStartedAt = Date.now()
+	private currentObservedTaskId: string | undefined
 	private sessionMetadata: LatencyObserverSessionMetadata = {
 		startedAt: this.sessionStartedAt,
 	}
@@ -82,8 +83,19 @@ export class LatencyObserverService {
 	}
 
 	markTaskInitializationStart(taskId: string, startedAt = performance.now()): void {
+		if (this.currentObservedTaskId !== taskId) {
+			this.resetForTask(taskId)
+		}
+		this.pushLog(`task_start`, taskId)
 		this.taskInitializationStarts.set(taskId, startedAt)
 		this.pushLog(`task initialization started`, taskId)
+	}
+
+	markTaskComplete(taskId: string): void {
+		if (this.currentObservedTaskId !== taskId) {
+			return
+		}
+		this.pushLog(`task_complete`, taskId)
 	}
 
 	recordTaskInitializationEnd(taskId: string, endedAt = performance.now()): void {
@@ -261,6 +273,7 @@ export class LatencyObserverService {
 	reset(): void {
 		const { branch, commit, environment, platform, label } = this.sessionMetadata
 		this.sessionStartedAt = Date.now()
+		this.currentObservedTaskId = undefined
 		this.sessionMetadata = {
 			startedAt: this.sessionStartedAt,
 			branch,
@@ -290,6 +303,11 @@ export class LatencyObserverService {
 		}
 	}
 
+	private resetForTask(taskId: string): void {
+		this.reset()
+		this.currentObservedTaskId = taskId
+	}
+
 	private pushLog(message: string, taskId?: string, requestId?: string): void {
 		this.logs.push({
 			ts: Date.now(),
@@ -297,9 +315,6 @@ export class LatencyObserverService {
 			taskId,
 			requestId,
 		})
-		if (this.logs.length > 50) {
-			this.logs.shift()
-		}
 	}
 }
 

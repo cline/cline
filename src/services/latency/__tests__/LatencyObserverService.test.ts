@@ -169,4 +169,44 @@ describe("LatencyObserverService", () => {
 		assert.equal(snapshot.logs.length, 0)
 		assert.equal(snapshot.optionalCounters?.fullStatePushes, 0)
 	})
+
+	it("automatically starts a fresh observer session when a new task begins", () => {
+		const service = new LatencyObserverService()
+
+		service.markTaskInitializationStart("task-1", 10)
+		service.recordTaskInitializationEnd("task-1", 25)
+		service.markRequestStart("task-1", "task-1:req-1", 30)
+		service.recordFirstVisibleUpdate("task-1", "text", 40)
+		service.incrementCounter("fullStatePushes", 2)
+
+		const beforeNewTask = service.getSnapshot()
+		assert.equal(beforeNewTask.taskInitialization.stats.count, 1)
+		assert.equal(beforeNewTask.firstVisibleUpdate.stats.count, 1)
+		assert.equal(beforeNewTask.optionalCounters?.fullStatePushes, 2)
+
+		service.markTaskInitializationStart("task-2", 100)
+
+		const afterNewTask = service.getSnapshot()
+		assert.equal(afterNewTask.taskInitialization.stats.count, 0)
+		assert.equal(afterNewTask.firstVisibleUpdate.stats.count, 0)
+		assert.equal(afterNewTask.requestStart.stats.count, 0)
+		assert.equal(afterNewTask.optionalCounters?.fullStatePushes, 0)
+		assert.equal(afterNewTask.logs.length, 2)
+		assert.equal(afterNewTask.logs[0].message, "task_start")
+		assert.equal(afterNewTask.logs[1].message, "task initialization started")
+	})
+
+	it("records explicit task_start and task_complete markers", () => {
+		const service = new LatencyObserverService()
+
+		service.markTaskInitializationStart("task-1", 10)
+		service.markTaskComplete("task-1")
+
+		const snapshot = service.getSnapshot()
+		assert.equal(snapshot.logs[0].message, "task_start")
+		assert.equal(
+			snapshot.logs.some((entry) => entry.message === "task_complete"),
+			true,
+		)
+	})
 })
