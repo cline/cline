@@ -14,12 +14,13 @@ export function usePromptHistory() {
 
 	const getHistoryItems = useCallback((): string[] => {
 		if (!taskHistory?.length) return []
-		const filtered = [...taskHistory]
-			.reverse()
-			.map((item) => item.task)
-			.slice(0, MAX_HISTORY_ITEMS)
-			.filter(Boolean) as string[]
-		return [...new Set(filtered)]
+		const filtered = [...new Set(
+			[...taskHistory]
+				.reverse()
+				.map((item) => item.task)
+				.filter(Boolean) as string[]
+		)].slice(0, MAX_HISTORY_ITEMS)
+		return filtered
 	}, [taskHistory])
 
 	const navigateUp = useCallback(
