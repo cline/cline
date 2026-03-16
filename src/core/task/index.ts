@@ -683,13 +683,19 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
-		// Notification hook marks that Cline is waiting for user input.
-		await this.runNotificationHook({
-			event: "user_attention",
-			source: type,
-			message: text || "",
-			waitingForUserInput: true,
-		})
+		if (type !== "command_output") {
+			// command_output is a special ask used by the webview command stream UI.
+			// It powers "Proceed While Running" and incremental output updates, so it is
+			// not a strict approval boundary that should force external "user_attention"
+			// handling. In auto-approve flows, command_output asks can still be emitted,
+			// so we intentionally skip Notification hook emission for this ask type.
+			await this.runNotificationHook({
+				event: "user_attention",
+				source: type,
+				message: text || "",
+				waitingForUserInput: true,
+			})
+		}
 
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
