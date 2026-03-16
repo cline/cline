@@ -46,6 +46,9 @@ const CURRENT_MIGRATION_VERSION = 1
 /** Sentinel key written to both globalState and workspaceState to track migration independently. */
 const MIGRATION_VERSION_KEY = "__vscodeMigrationVersion"
 
+/** Bump this when MCP settings migration logic changes. Independent of general migration version. */
+const CURRENT_MCP_SETTINGS_MIGRATION_VERSION = 1
+
 /** Sentinel key for MCP settings migration */
 export const MCP_SETTINGS_MIGRATION_VERSION_KEY = "__mcpSettingsMigrationVersion"
 
@@ -100,7 +103,8 @@ export async function exportVSCodeStorageToSharedFiles(
 
 	const needGlobalMigration = globalVersion === undefined || globalVersion < CURRENT_MIGRATION_VERSION
 	const needWorkspaceMigration = workspaceVersion === undefined || workspaceVersion < CURRENT_MIGRATION_VERSION
-	const needMcpSettingsMigration = mcpSettingsVersion === undefined || mcpSettingsVersion < CURRENT_MIGRATION_VERSION
+	const needMcpSettingsMigration =
+		mcpSettingsVersion === undefined || mcpSettingsVersion < CURRENT_MCP_SETTINGS_MIGRATION_VERSION
 
 	if (!needGlobalMigration && !needWorkspaceMigration && !needMcpSettingsMigration) {
 		Logger.info(
@@ -225,7 +229,7 @@ export async function exportVSCodeStorageToSharedFiles(
 				Logger.error("[McpMigration] Failed to migrate MCP settings file:", error)
 			}
 
-			storage.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
+			storage.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, CURRENT_MCP_SETTINGS_MIGRATION_VERSION)
 		}
 
 		result.migrated = true

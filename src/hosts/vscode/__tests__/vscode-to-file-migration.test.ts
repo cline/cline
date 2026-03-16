@@ -113,9 +113,10 @@ describe("vscode-to-file-migration", () => {
 		})
 
 		it("should skip everything when both sentinels are current version", async () => {
-			// Pre-set BOTH sentinels
+			// Pre-set ALL sentinels
 			storageContext.globalState.update("__vscodeMigrationVersion", 1)
 			storageContext.workspaceState.set("__vscodeMigrationVersion", 1)
+			storageContext.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, 1)
 
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan")
@@ -134,6 +135,7 @@ describe("vscode-to-file-migration", () => {
 		it("should skip everything when both sentinels are higher version", async () => {
 			storageContext.globalState.update("__vscodeMigrationVersion", 999)
 			storageContext.workspaceState.set("__vscodeMigrationVersion", 999)
+			storageContext.globalState.update(MCP_SETTINGS_MIGRATION_VERSION_KEY, 999)
 
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "act")
