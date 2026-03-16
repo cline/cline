@@ -75,6 +75,9 @@ export class Controller {
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
+	// Listeners notified when external state changes are detected (used by CLI Ink components)
+	private externalStateListeners: Set<() => void> = new Set()
+
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 	private backgroundCommandRunning = false
@@ -129,7 +132,21 @@ export class Controller {
 				Logger.error("[Controller] Storage persistence failed (will retry):", error)
 			},
 			onSyncExternalChange: async () => {
-				await this.postStateToWebview()
+				// Notify CLI Ink components first — these are lightweight sync callbacks
+				// that must fire even if postStateToWebview fails (e.g. in CLI where
+				// getStateToPostToWebview may throw due to missing browser/OAuth modules).
+				for (const listener of this.externalStateListeners) {
+					try {
+						listener()
+					} catch (error) {
+						Logger.error("[Controller] External state listener error:", error)
+					}
+				}
+				try {
+					await this.postStateToWebview()
+				} catch (error) {
+					Logger.error("[Controller] Failed to post state to webview on external change:", error)
+				}
 			},
 		})
 		this.authService = AuthService.getInstance(this)
@@ -157,6 +174,19 @@ export class Controller {
 		checkCliInstallation(this)
 
 		Logger.log("[Controller] ClineProvider instantiated")
+	}
+
+	/**
+	 * Subscribe to external state changes (e.g. another process toggled a rule).
+	 * Used by CLI Ink components to re-fetch and re-render when state is updated externally.
+	 *
+	 * @returns Unsubscribe function — call it in useEffect cleanup to avoid memory leaks.
+	 */
+	subscribeToExternalStateChange(listener: () => void): () => void {
+		this.externalStateListeners.add(listener)
+		return () => {
+			this.externalStateListeners.delete(listener)
+		}
 	}
 
 	/*

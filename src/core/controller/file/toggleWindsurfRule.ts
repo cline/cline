@@ -25,6 +25,9 @@ export async function toggleWindsurfRule(controller: Controller, request: Toggle
 	toggles[rulePath] = enabled
 	controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
 
+	// Flush immediately so cross-process file watchers detect the change right away.
+	await controller.stateManager.flushPendingState()
+
 	// Return the toggles directly
 	return ClineRulesToggles.create({ toggles: toggles })
 }

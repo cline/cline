@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
@@ -8,6 +10,7 @@ import {
 	isSettingsKey,
 	type LocalState,
 	type LocalStateKey,
+	LocalStateKeys,
 	type RemoteConfigFields,
 	type SecretKey,
 	SecretKeys,
@@ -111,6 +114,15 @@ export class StateManager {
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
 	private taskHistoryWatcher: FSWatcher | null = null
+	private workspaceStateWatcher: FSWatcher | null = null
+	private globalStateWatcher: FSWatcher | null = null
+
+	// Global state keys that should be synced across processes (rule toggles)
+	private static readonly WATCHED_GLOBAL_KEYS = [
+		"globalClineRulesToggles",
+		"globalWorkflowToggles",
+		"remoteRulesToggles",
+	] as const
 
 	// Callback for persistence errors
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
@@ -148,6 +160,11 @@ export class StateManager {
 
 			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
 			await StateManager.instance.setupTaskHistoryWatcher()
+
+			// Start watchers for workspaceState.json and globalState.json to sync rule toggles
+			// across processes (CLI ↔ VSCode) without requiring a restart.
+			await StateManager.instance.setupWorkspaceStateWatcher()
+			await StateManager.instance.setupGlobalStateWatcher()
 
 			StateManager.instance.isInitialized = true
 
@@ -572,6 +589,120 @@ export class StateManager {
 	}
 
 	/**
+	 * Initialize chokidar watcher for workspaceState.json.
+	 * When another process (e.g. VSCode) writes rule toggles, this updates
+	 * the in-memory cache and fires onSyncExternalChange so the UI reflects
+	 * the external change immediately.
+	 *
+	 * Self-writes are safe: the cache is updated in-memory before the debounced
+	 * disk flush, so the watcher comparison finds no difference → no spurious event.
+	 */
+	private async setupWorkspaceStateWatcher(): Promise<void> {
+		try {
+			const wsFile = path.join(this.storage.workspaceStoragePath, "workspaceState.json")
+
+			if (this.workspaceStateWatcher) {
+				await this.workspaceStateWatcher.close()
+				this.workspaceStateWatcher = null
+			}
+
+			this.workspaceStateWatcher = chokidar.watch(wsFile, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+			})
+
+			const syncWorkspaceStateFromDisk = async () => {
+				try {
+					if (!this.isInitialized) return
+					let onDisk: Record<string, any> = {}
+					try {
+						onDisk = JSON.parse(readFileSync(wsFile, "utf-8"))
+					} catch {
+						return // File doesn't exist or invalid JSON — skip
+					}
+					let changed = false
+					for (const key of LocalStateKeys) {
+						const diskValue = onDisk[key] ?? {}
+						if (JSON.stringify(diskValue) !== JSON.stringify(this.workspaceStateCache[key])) {
+							this.workspaceStateCache[key] = diskValue
+							changed = true
+						}
+					}
+					if (changed) {
+						await this.onSyncExternalChange?.()
+					}
+				} catch (err) {
+					Logger.error("[StateManager] Failed to reload workspace state on change:", err)
+				}
+			}
+
+			this.workspaceStateWatcher
+				.on("add", () => syncWorkspaceStateFromDisk())
+				.on("change", () => syncWorkspaceStateFromDisk())
+				.on("error", (error) => Logger.error("[StateManager] WorkspaceState watcher error:", error))
+		} catch (err) {
+			Logger.error("[StateManager] Failed to set up workspaceState watcher:", err)
+		}
+	}
+
+	/**
+	 * Initialize chokidar watcher for globalState.json.
+	 * Watches rule-toggle keys so that a CLI toggle of a global rule is
+	 * reflected in the VSCode webview without a restart.
+	 */
+	private async setupGlobalStateWatcher(): Promise<void> {
+		try {
+			const globalFile = path.join(this.storage.dataDir, "globalState.json")
+
+			if (this.globalStateWatcher) {
+				await this.globalStateWatcher.close()
+				this.globalStateWatcher = null
+			}
+
+			this.globalStateWatcher = chokidar.watch(globalFile, {
+				persistent: true,
+				ignoreInitial: true,
+				atomic: true,
+				awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+			})
+
+			const syncGlobalStateFromDisk = async () => {
+				try {
+					if (!this.isInitialized) return
+					let onDisk: Record<string, any> = {}
+					try {
+						onDisk = JSON.parse(readFileSync(globalFile, "utf-8"))
+					} catch {
+						return
+					}
+					let changed = false
+					for (const key of StateManager.WATCHED_GLOBAL_KEYS) {
+						const diskValue = onDisk[key] ?? {}
+						if (JSON.stringify(diskValue) !== JSON.stringify((this.globalStateCache as any)[key])) {
+							;(this.globalStateCache as any)[key] = diskValue
+							changed = true
+						}
+					}
+					if (changed) {
+						await this.onSyncExternalChange?.()
+					}
+				} catch (err) {
+					Logger.error("[StateManager] Failed to reload global state on change:", err)
+				}
+			}
+
+			this.globalStateWatcher
+				.on("add", () => syncGlobalStateFromDisk())
+				.on("change", () => syncGlobalStateFromDisk())
+				.on("error", (error) => Logger.error("[StateManager] GlobalState watcher error:", error))
+		} catch (err) {
+			Logger.error("[StateManager] Failed to set up globalState watcher:", err)
+		}
+	}
+
+	/**
 	 * Convenience method for getting API configuration
 	 * Ensures cache is initialized if not already done
 	 */
@@ -706,10 +837,18 @@ export class StateManager {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
 		}
-		// Close file watcher if active
+		// Close file watchers if active
 		if (this.taskHistoryWatcher) {
 			this.taskHistoryWatcher.close()
 			this.taskHistoryWatcher = null
+		}
+		if (this.workspaceStateWatcher) {
+			this.workspaceStateWatcher.close()
+			this.workspaceStateWatcher = null
+		}
+		if (this.globalStateWatcher) {
+			this.globalStateWatcher.close()
+			this.globalStateWatcher = null
 		}
 
 		this.pendingGlobalState.clear()

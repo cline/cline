@@ -55,6 +55,10 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 		telemetryService.captureClineRuleToggled(controller.task.ulid, ruleFileName, enabled, isGlobal)
 	}
 
+	// Flush immediately so cross-process file watchers detect the change right away,
+	// rather than waiting for the 500ms debounce timer.
+	await controller.stateManager.flushPendingState()
+
 	// Get the current state to return in the response
 	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 	const localToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")

@@ -25,6 +25,9 @@ export async function toggleCursorRule(controller: Controller, request: ToggleCu
 	toggles[rulePath] = enabled
 	controller.stateManager.setWorkspaceState("localCursorRulesToggles", toggles)
 
+	// Flush immediately so cross-process file watchers detect the change right away.
+	await controller.stateManager.flushPendingState()
+
 	// Get the current state to return in the response
 	const cursorToggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 

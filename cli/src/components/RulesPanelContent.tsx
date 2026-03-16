@@ -5,10 +5,13 @@
 
 import { RuleScope } from "@shared/proto/cline/file"
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import type { Controller } from "@/core/controller"
 import { refreshRules } from "@/core/controller/file/refreshRules"
+import { toggleAgentsRule } from "@/core/controller/file/toggleAgentsRule"
 import { toggleClineRule } from "@/core/controller/file/toggleClineRule"
+import { toggleCursorRule } from "@/core/controller/file/toggleCursorRule"
+import { toggleWindsurfRule } from "@/core/controller/file/toggleWindsurfRule"
 import { useStdinContext } from "../context/StdinContext"
 import { isMouseEscapeSequence } from "../utils/input"
 import { Panel } from "./Panel"
@@ -39,105 +42,87 @@ function buildRuleEntries(toggles: Record<string, boolean>, isGlobal: boolean, r
 	}))
 }
 
+function normalizeRefreshedRules(data: Awaited<ReturnType<typeof refreshRules>>): RuleEntry[] {
+	return [
+		...buildRuleEntries(data.globalClineRulesToggles?.toggles ?? {}, true, "cline"),
+		...buildRuleEntries(data.localClineRulesToggles?.toggles ?? {}, false, "cline"),
+		...buildRuleEntries(data.localCursorRulesToggles?.toggles ?? {}, false, "cursor"),
+		...buildRuleEntries(data.localWindsurfRulesToggles?.toggles ?? {}, false, "windsurf"),
+		...buildRuleEntries(data.localAgentsRulesToggles?.toggles ?? {}, false, "agents"),
+	]
+}
+
 export const RulesPanelContent: React.FC<RulesPanelContentProps> = ({ controller, onClose }) => {
 	const { isRawModeSupported } = useStdinContext()
-	const [globalClineToggles, setGlobalClineToggles] = useState<Record<string, boolean>>({})
-	const [localClineToggles, setLocalClineToggles] = useState<Record<string, boolean>>({})
-	const [localCursorToggles, setLocalCursorToggles] = useState<Record<string, boolean>>({})
-	const [localWindsurfToggles, setLocalWindsurfToggles] = useState<Record<string, boolean>>({})
-	const [localAgentsToggles, setLocalAgentsToggles] = useState<Record<string, boolean>>({})
+	const [entries, setEntries] = useState<RuleEntry[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isToggling, setIsToggling] = useState(false)
 	const [loadError, setLoadError] = useState<string | null>(null)
+
+	const loadRules = useCallback(async () => {
+		try {
+			const data = await refreshRules(controller, {})
+			setEntries(normalizeRefreshedRules(data))
+			setLoadError(null)
+		} catch (error) {
+			setLoadError(error instanceof Error ? error.message : String(error))
+		}
+	}, [controller])
 
 	// Load rules on mount
 	useEffect(() => {
 		const load = async () => {
-			try {
-				const data = await refreshRules(controller, {})
-				setGlobalClineToggles(data.globalClineRulesToggles?.toggles || {})
-				setLocalClineToggles(data.localClineRulesToggles?.toggles || {})
-				setLocalCursorToggles(data.localCursorRulesToggles?.toggles || {})
-				setLocalWindsurfToggles(data.localWindsurfRulesToggles?.toggles || {})
-				setLocalAgentsToggles(data.localAgentsRulesToggles?.toggles || {})
-			} catch (error) {
-				setLoadError(error instanceof Error ? error.message : String(error))
-			} finally {
-				setIsLoading(false)
-			}
+			await loadRules()
+			setIsLoading(false)
 		}
 		load()
-	}, [controller])
+	}, [loadRules])
 
-	// Build flat list grouped by: global cline, local cline, cursor, windsurf, agents
-	const entries = useMemo(() => {
-		const all: RuleEntry[] = [
-			...buildRuleEntries(globalClineToggles, true, "cline"),
-			...buildRuleEntries(localClineToggles, false, "cline"),
-			...buildRuleEntries(localCursorToggles, false, "cursor"),
-			...buildRuleEntries(localWindsurfToggles, false, "windsurf"),
-			...buildRuleEntries(localAgentsToggles, false, "agents"),
-		]
-		return all
-	}, [globalClineToggles, localClineToggles, localCursorToggles, localWindsurfToggles, localAgentsToggles])
+	// Subscribe to external state changes so that toggles made in VSCode are
+	// reflected here immediately without requiring any user action.
+	useEffect(() => {
+		return controller.subscribeToExternalStateChange(() => {
+			loadRules()
+		})
+	}, [controller, loadRules])
 
-	// Handle toggle
+	// Handle toggle — calls the appropriate backend function then re-fetches
 	const handleToggle = useCallback(async () => {
 		const entry = entries[selectedIndex]
-		if (!entry) return
+		if (!entry || isToggling) return
 
-		const newEnabled = !entry.enabled
+		setIsToggling(true)
+		try {
+			const newEnabled = !entry.enabled
 
-		// Optimistic update
-		const setToggle = (setter: React.Dispatch<React.SetStateAction<Record<string, boolean>>>) => {
-			setter((prev) => ({ ...prev, [entry.path]: newEnabled }))
-		}
-
-		if (entry.ruleType === "cline") {
-			if (entry.isGlobal) {
-				setToggle(setGlobalClineToggles)
-			} else {
-				setToggle(setLocalClineToggles)
+			switch (entry.ruleType) {
+				case "cline": {
+					const scope = entry.isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL
+					await toggleClineRule(controller, {
+						metadata: undefined,
+						rulePath: entry.path,
+						enabled: newEnabled,
+						scope,
+					})
+					break
+				}
+				case "cursor":
+					await toggleCursorRule(controller, { metadata: undefined, rulePath: entry.path, enabled: newEnabled })
+					break
+				case "windsurf":
+					await toggleWindsurfRule(controller, { metadata: undefined, rulePath: entry.path, enabled: newEnabled })
+					break
+				case "agents":
+					await toggleAgentsRule(controller, { metadata: undefined, rulePath: entry.path, enabled: newEnabled })
+					break
 			}
-			try {
-				const scope = entry.isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL
-				const result = await toggleClineRule(controller, {
-					metadata: undefined,
-					rulePath: entry.path,
-					enabled: newEnabled,
-					scope,
-				})
-				if (result.globalClineRulesToggles?.toggles) {
-					setGlobalClineToggles(result.globalClineRulesToggles.toggles)
-				}
-				if (result.localClineRulesToggles?.toggles) {
-					setLocalClineToggles(result.localClineRulesToggles.toggles)
-				}
-			} catch {
-				// Revert
-				if (entry.isGlobal) {
-					setToggle(setGlobalClineToggles)
-				} else {
-					setToggle(setLocalClineToggles)
-				}
-			}
-		} else if (entry.ruleType === "cursor") {
-			setToggle(setLocalCursorToggles)
-			const toggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles") || {}
-			toggles[entry.path] = newEnabled
-			controller.stateManager.setWorkspaceState("localCursorRulesToggles", toggles)
-		} else if (entry.ruleType === "windsurf") {
-			setToggle(setLocalWindsurfToggles)
-			const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles") || {}
-			toggles[entry.path] = newEnabled
-			controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
-		} else if (entry.ruleType === "agents") {
-			setToggle(setLocalAgentsToggles)
-			const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles") || {}
-			toggles[entry.path] = newEnabled
-			controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
+
+			await loadRules()
+		} finally {
+			setIsToggling(false)
 		}
-	}, [controller, entries, selectedIndex])
+	}, [controller, entries, selectedIndex, isToggling, loadRules])
 
 	useInput(
 		(input, key) => {
@@ -225,7 +210,11 @@ export const RulesPanelContent: React.FC<RulesPanelContentProps> = ({ controller
 									</Text>
 								</Box>
 							)}
-							<RuleRow entry={entry} isSelected={actualIndex === selectedIndex} />
+							<RuleRow
+								entry={entry}
+								isSelected={actualIndex === selectedIndex}
+								isToggling={actualIndex === selectedIndex && isToggling}
+							/>
 						</React.Fragment>
 					)
 				})}
@@ -239,12 +228,16 @@ export const RulesPanelContent: React.FC<RulesPanelContentProps> = ({ controller
 	)
 }
 
-const RuleRow: React.FC<{ entry: RuleEntry; isSelected: boolean }> = ({ entry, isSelected }) => {
+const RuleRow: React.FC<{ entry: RuleEntry; isSelected: boolean; isToggling: boolean }> = ({ entry, isSelected, isToggling }) => {
 	return (
 		<Box>
 			<Text color={isSelected ? "cyan" : undefined}>
 				{isSelected ? "❯ " : "  "}
-				<Text color={entry.enabled ? "green" : "red"}>{entry.enabled ? "●" : "○"}</Text>
+				{isToggling ? (
+					<Text color="yellow">◌</Text>
+				) : (
+					<Text color={entry.enabled ? "green" : "red"}>{entry.enabled ? "●" : "○"}</Text>
+				)}
 				<Text> </Text>
 				<Text bold={isSelected} color="white">
 					{entry.name}

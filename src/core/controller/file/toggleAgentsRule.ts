@@ -25,6 +25,9 @@ export async function toggleAgentsRule(controller: Controller, request: ToggleAg
 	toggles[rulePath] = enabled
 	controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 
+	// Flush immediately so cross-process file watchers detect the change right away.
+	await controller.stateManager.flushPendingState()
+
 	// Get the current state to return in the response
 	const agentsToggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
 
