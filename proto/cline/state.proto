@@ -104,6 +104,7 @@ message Secrets {
   optional string oca_refresh_token = 42;
   optional string mcp_o_auth_secrets = 43;
   optional string cline_api_key = 44;
+  optional string wandb_api_key = 50;
   optional string openai_codex_oauth_credentials = 48;
 }
 
@@ -257,6 +258,7 @@ message Settings {
   optional PlanActMode mode = 147;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
+  optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
   optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
@@ -278,6 +280,10 @@ message Settings {
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
   optional bool double_check_completion_enabled = 176;
+  optional string plan_mode_cline_model_id = 178;
+  optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
+  optional string act_mode_cline_model_id = 180;
+  optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   map<string, string> open_ai_headers = 177;
 }
 
@@ -382,7 +388,6 @@ message UpdateTaskSettingsRequest {
 message UpdateSettingsRequest {
   reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 23; // was dictation_settings (dictation removed)
-  reserved 26; // was hooks_enabled (removed - now always enabled on macOS/Linux)
   reserved 38; // was skills_enabled (removed - now always enabled)
 
   Metadata metadata = 1;
@@ -406,6 +411,7 @@ message UpdateSettingsRequest {
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional bool multi_root_enabled = 25;
+  optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;

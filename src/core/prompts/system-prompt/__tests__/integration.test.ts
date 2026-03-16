@@ -203,6 +203,7 @@ const modelTestCases = [
 	{ family: ModelFamily.GEMINI_3, modelId: "gemini-3", providerId: "vertex" },
 	{ family: ModelFamily.TRINITY, modelId: "arcee-ai/trinity-large-preview", providerId: "openrouter" },
 ]
+const gemini3ModelTestCases = modelTestCases.filter(({ family }) => family === ModelFamily.GEMINI_3)
 
 // ============================================================================
 // Tests
@@ -279,6 +280,28 @@ describe("Prompt System Integration Tests", () => {
 				}
 			})
 		}
+
+		describe("Gemini 3 Specific", () => {
+			for (const { family, modelId, providerId } of gemini3ModelTestCases) {
+				const enableNativeToolCalls = isNativeToolsFamily(family)
+				it(`should include parallel tool-calling guidance for ${providerId}/${modelId} when enabled`, async function () {
+					const context: SystemPromptContext = {
+						...baseContext,
+						providerInfo: makeProviderInfo(modelId, providerId),
+						enableNativeToolCalls,
+						enableParallelToolCalling: true,
+					}
+
+					await runPromptTest(this, context, modelId, async ({ systemPrompt }) => {
+						expect(systemPrompt).to.include(
+							"- When multiple operations are independent (for example reading several files or searching in multiple directories), call multiple tools in a single response rather than one at a time.",
+						)
+						const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-parallel-tools.snap`
+						await assertSnapshot(snapshotName, systemPrompt)
+					})
+				})
+			}
+		})
 	})
 
 	describe("Context-Specific Features", () => {

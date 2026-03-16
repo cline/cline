@@ -1,4 +1,5 @@
 import type { ToolUse } from "@core/assistant-message"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError } from "@core/hooks/precompact-executor"
 import { continuationPrompt } from "@core/prompts/contextManagement"
@@ -42,7 +43,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			let hookContextModification: string | undefined
 
 			// Run PreCompact hook right before showing the condensing message
-			const hooksEnabled = getHooksEnabledSafe()
+			const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
 			if (hooksEnabled) {
 				try {
 					// Determine compaction strategy
@@ -54,6 +55,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 					const result = await executePreCompactHookWithCleanup({
 						taskId: config.taskId,
 						ulid: config.ulid,
+						modelContext: getHookModelContext(config.api, config.services.stateManager),
 						apiConversationHistory: apiHistory,
 						conversationHistoryDeletedRange: config.taskState.conversationHistoryDeletedRange,
 						contextManager: config.services.contextManager,

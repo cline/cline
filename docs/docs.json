@@ -116,6 +116,7 @@
 							},
 							"cline-cli/configuration",
 							"cline-cli/acp-editor-integrations",
+							"cline-sdk/overview",
 							"cline-cli/cli-reference"
 						]
 					},
@@ -297,7 +298,36 @@
 									"enterprise-solutions/monitoring/telemetry",
 									"enterprise-solutions/monitoring/opentelemetry"
 								]
-							}
+							},
+							"enterprise-solutions/api-reference"
+						]
+					}
+				]
+			},
+			{
+				"tab": "API",
+				"icon": "code",
+				"groups": [
+					{
+						"group": "Cline API",
+						"pages": [
+							"api/overview",
+							"api/getting-started",
+							"api/authentication"
+						]
+					},
+					{
+						"group": "Endpoints",
+						"pages": [
+							"api/chat-completions"
+						]
+					},
+					{
+						"group": "Reference",
+						"pages": [
+							"api/models",
+							"api/errors",
+							"api/sdk-examples"
 						]
 					}
 				]
@@ -607,6 +637,10 @@
 		{
 			"source": "/features/skills",
 			"destination": "/customization/skills"
+		},
+		{
+			"source": "/api/reference",
+			"destination": "/api/overview"
 		}
 	],
 	"search": {

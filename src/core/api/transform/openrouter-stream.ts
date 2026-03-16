@@ -9,7 +9,12 @@ import {
 	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
-import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
+import {
+	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+	isGeminiFlashModel,
+	shouldSkipReasoningForModel,
+	supportsReasoningEffortForModel,
+} from "@utils/model-utils"
 import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages, sanitizeGeminiMessages } from "./openai-format"
@@ -25,6 +30,7 @@ export async function createOpenRouterStream(
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
 	tools?: Array<ChatCompletionTool>,
+	enableParallelToolCalling?: boolean,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -116,8 +122,6 @@ export async function createOpenRouterStream(
 			break
 	}
 
-	const maxTokens = model.info.maxTokens || undefined
-
 	let temperature: number | undefined = 0
 	let topP: number | undefined
 	if (
@@ -182,10 +186,13 @@ export async function createOpenRouterStream(
 	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
 	const reasoningPayload =
 		reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined)
+	const maxTokens = isGeminiFlashModel(model.id)
+		? Math.min(model.info.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
+		: undefined
 
 	const requestPayload: Record<string, unknown> = {
 		model: model.id,
-		max_tokens: maxTokens,
+		...(maxTokens ? { max_tokens: maxTokens } : {}),
 		temperature: temperature,
 		top_p: topP,
 		messages: openAiMessages,
@@ -196,7 +203,7 @@ export async function createOpenRouterStream(
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
-		...getOpenAIToolParams(tools),
+		...getOpenAIToolParams(tools, !!enableParallelToolCalling),
 	}
 
 	// @ts-expect-error-next-line

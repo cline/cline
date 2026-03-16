@@ -1,6 +1,13 @@
 import { describe, it } from "mocha"
 import "should"
-import { isClaude4PlusModelFamily, isGPT5ModelFamily, shouldSkipReasoningForModel } from "../model-utils"
+import {
+	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+	isClaude4PlusModelFamily,
+	isGeminiFlashModel,
+	isGPT5ModelFamily,
+	isGptOssModelFamily,
+	shouldSkipReasoningForModel,
+} from "../model-utils"
 
 describe("shouldSkipReasoningForModel", () => {
 	it("should return true for grok-4 models", () => {
@@ -78,7 +85,60 @@ describe("isGPT5ModelFamily", () => {
 	it("should return false for non-GPT-5 models", () => {
 		isGPT5ModelFamily("gpt-4").should.equal(false)
 		isGPT5ModelFamily("gpt-4o").should.equal(false)
+		isGPT5ModelFamily("gpt-oss-120b").should.equal(false)
 		isGPT5ModelFamily("claude-3-sonnet").should.equal(false)
 		isGPT5ModelFamily("gemini-pro").should.equal(false)
+	})
+})
+
+describe("isGptOssModelFamily", () => {
+	it("should return true for gpt-oss model IDs", () => {
+		isGptOssModelFamily("gpt-oss-120b").should.equal(true)
+		isGptOssModelFamily("openai/gpt-oss-120b").should.equal(true)
+		isGptOssModelFamily("gpt_oss_120b").should.equal(true)
+	})
+
+	it("should be case insensitive", () => {
+		isGptOssModelFamily("GPT-OSS-120B").should.equal(true)
+		isGptOssModelFamily("OPENAI/GPT_OSS_120B").should.equal(true)
+	})
+
+	it("should return false for non-gpt-oss models", () => {
+		isGptOssModelFamily("gpt-5").should.equal(false)
+		isGptOssModelFamily("gpt-4o").should.equal(false)
+		isGptOssModelFamily("claude-sonnet-4").should.equal(false)
+	})
+})
+
+describe("isGeminiFlashModel", () => {
+	it("should return true for Gemini Flash model IDs", () => {
+		isGeminiFlashModel("google/gemini-2.5-flash").should.equal(true)
+		isGeminiFlashModel("google/gemini-3-flash-preview").should.equal(true)
+		isGeminiFlashModel("google/gemini-2.5-flash-lite").should.equal(true)
+	})
+
+	it("should return false for non-Flash Gemini model IDs", () => {
+		isGeminiFlashModel("google/gemini-2.5-pro").should.equal(false)
+		isGeminiFlashModel("google/gemini-3-pro-preview").should.equal(false)
+	})
+
+	it("should return true for direct Gemini provider IDs", () => {
+		isGeminiFlashModel("gemini-2.5-flash").should.equal(true)
+		isGeminiFlashModel("gemini-3-flash-preview").should.equal(true)
+	})
+
+	it("should return false for non-matching IDs", () => {
+		isGeminiFlashModel("openrouter/google/gemini-2.5-flash").should.equal(false)
+		isGeminiFlashModel("google/gemini-2.5-pro").should.equal(false)
+	})
+
+	it("should be case insensitive", () => {
+		isGeminiFlashModel("GOOGLE/GEMINI-2.5-FLASH").should.equal(true)
+	})
+})
+
+describe("GEMINI_FLASH_MAX_OUTPUT_TOKENS", () => {
+	it("should be set to 8192", () => {
+		GEMINI_FLASH_MAX_OUTPUT_TOKENS.should.equal(8_192)
 	})
 })

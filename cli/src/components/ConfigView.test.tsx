@@ -84,6 +84,16 @@ describe("ConfigView", () => {
 			)
 			expect(lastFrame()).toContain("Global Settings")
 		})
+
+		it("hides Hooks tab when hooks are disabled", () => {
+			const { lastFrame } = render(<ConfigView {...defaultProps} hooksEnabled={false} skillsEnabled={true} />)
+			expect(lastFrame()).not.toContain("Hooks")
+		})
+
+		it("shows Hooks tab when hooks are enabled", () => {
+			const { lastFrame } = render(<ConfigView {...defaultProps} hooksEnabled={true} skillsEnabled={true} />)
+			expect(lastFrame()).toContain("Hooks")
+		})
 	})
 
 	describe("value formatting", () => {

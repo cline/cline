@@ -22,6 +22,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
+	enableParallelToolCalling?: boolean
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -68,6 +69,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
+			this.options.enableParallelToolCalling,
 		)
 
 		let didOutputUsage = false
